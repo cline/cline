@@ -22,7 +22,12 @@ import {
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
+import {
+	buildClineSystemPrompt,
+	type ConsecutiveMistakeLimitContext,
+	type ConsecutiveMistakeLimitDecision,
+	formatUserCommandBlock,
+} from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
@@ -30,7 +35,12 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
-import { emitChunk, nowMs, sendEvent } from "./context";
+import {
+	emitChunk,
+	nowMs,
+	requestSidecarAskQuestion,
+	sendEvent,
+} from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -402,9 +412,118 @@ function readPositiveInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
+type MistakeLimitDecider = (
+	context: ConsecutiveMistakeLimitContext,
+) => Promise<ConsecutiveMistakeLimitDecision>;
+
+const MISTAKE_LIMIT_CONTINUE_OPTION = "Try a different approach";
+const MISTAKE_LIMIT_STOP_OPTION = "Stop this run";
+const MISTAKE_LIMIT_DETAIL_MAX_CHARS = 600;
+
+/**
+ * Desktop counterpart of the CLI's mistake-limit prompt
+ * (apps/cli/src/runtime/interactive/mistakes.ts).
+ *
+ * When the core's loop detector or mistake tracker trips, it asks the client
+ * how to proceed. Without a decision callback the default is "stop", which
+ * reaches the webview as a plain aborted turn: indistinguishable from the
+ * user pressing Stop, with no explanation. A model stuck re-issuing the same
+ * failing tool call therefore looked like Cline randomly gave up mid-task.
+ * Route the decision through the existing ask-question channel instead so
+ * the user sees why the run paused and can choose.
+ *
+ * `getSessionId` is read at prompt time: for fresh starts the session id is
+ * only known after `manager.start()` resolves, and the webview matches the
+ * prompt to its active session by id.
+ */
+export function createDesktopMistakeLimitPrompt(
+	ctx: SidecarContext,
+	getSessionId: () => string,
+): MistakeLimitDecider {
+	return async (context) => {
+		const sessionId = getSessionId().trim();
+		const detail = context.details?.trim() ?? "";
+		const truncatedDetail =
+			detail.length > MISTAKE_LIMIT_DETAIL_MAX_CHARS
+				? `${detail.slice(0, MISTAKE_LIMIT_DETAIL_MAX_CHARS)}…`
+				: detail;
+		const question = [
+			`Cline paused after ${context.consecutiveMistakes} consecutive failed steps (${context.reason.replace(/_/g, " ")}).`,
+			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
+			"How should Cline continue?",
+		]
+			.filter((line) => line.length > 0)
+			.join("\n");
+
+		let answer: string;
+		try {
+			answer = await requestSidecarAskQuestion(
+				ctx,
+				question,
+				[MISTAKE_LIMIT_CONTINUE_OPTION, MISTAKE_LIMIT_STOP_OPTION],
+				{
+					sessionId,
+					agentId: "desktop-mistake-limit",
+					iteration: context.iteration,
+				},
+			);
+		} catch (error) {
+			// Prompt timed out or the session was torn down: fall back to the
+			// core's default decision, but keep the reason so the stop is
+			// attributable.
+			ctx.logger?.log("Mistake-limit prompt unanswered; stopping run", {
+				sessionId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return {
+				action: "stop",
+				reason: `mistake_limit_reached: ${detail || context.reason}`,
+			};
+		}
+
+		const normalized = answer.trim();
+		if (normalized === MISTAKE_LIMIT_STOP_OPTION) {
+			return {
+				action: "stop",
+				reason: "stopped after mistake_limit_reached prompt",
+			};
+		}
+		const customGuidance =
+			normalized.length > 0 && normalized !== MISTAKE_LIMIT_CONTINUE_OPTION
+				? normalized
+				: "";
+		const guidance = [
+			`Your last ${context.consecutiveMistakes} steps all failed${
+				truncatedDetail ? ` with: ${truncatedDetail}` : ""
+			}.`,
+			"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
+			customGuidance ? `User guidance: ${customGuidance}` : "",
+		]
+			.filter((line) => line.length > 0)
+			.join(" ");
+		// The core appends `guidance` to its own transcript store, but the
+		// live runtime never reads that store mid-run, so the model would
+		// resume with no idea why it was paused. Steer the guidance into the
+		// running turn so the next model call actually sees it.
+		const manager = ctx.sessionManager;
+		if (manager && sessionId) {
+			try {
+				await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
+			} catch (error) {
+				ctx.logger?.log("Failed to steer mistake-limit guidance", {
+					sessionId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
+		return { action: "continue", guidance };
+	};
+}
+
 function buildCoreSessionConfig(
 	config: JsonRecord,
 	telemetryUser?: SidecarContext["telemetryUser"],
+	onConsecutiveMistakeLimitReached?: MistakeLimitDecider,
 ): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
@@ -449,6 +568,9 @@ function buildCoreSessionConfig(
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
+		...(onConsecutiveMistakeLimitReached
+			? { onConsecutiveMistakeLimitReached }
+			: {}),
 	};
 }
 
@@ -679,8 +801,14 @@ async function handleStart(
 			: requestedSessionId
 				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
+	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
+	let startedSessionId = requestedSessionId;
 	const coreConfig: JsonRecord = {
-		...buildCoreSessionConfig(request.config, ctx.telemetryUser),
+		...buildCoreSessionConfig(
+			request.config,
+			ctx.telemetryUser,
+			createDesktopMistakeLimitPrompt(ctx, () => startedSessionId),
+		),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
 	};
@@ -702,6 +830,7 @@ async function handleStart(
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
+	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
 	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
@@ -799,7 +928,7 @@ async function handleAttach(
 
 async function startRebuiltSession(
 	manager: ClineCore,
-	telemetryUser: SidecarContext["telemetryUser"],
+	ctx: SidecarContext,
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
@@ -817,7 +946,8 @@ async function startRebuiltSession(
 					sessionId,
 					systemPrompt,
 				},
-				telemetryUser,
+				ctx.telemetryUser,
+				createDesktopMistakeLimitPrompt(ctx, () => sessionId),
 			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
@@ -868,7 +998,7 @@ async function rebuildSessionForProviderChange(
 	try {
 		await startRebuiltSession(
 			manager,
-			ctx.telemetryUser,
+			ctx,
 			sessionId,
 			nextConfig,
 			nextSystemPrompt,
@@ -890,7 +1020,7 @@ async function rebuildSessionForProviderChange(
 			}
 			await startRebuiltSession(
 				manager,
-				ctx.telemetryUser,
+				ctx,
 				sessionId,
 				previousConfig,
 				previousSystemPrompt,
@@ -1300,6 +1430,8 @@ async function handleForkUnlocked(
 		},
 	};
 	const systemPrompt = await resolveSystemPrompt(forkConfig);
+	// Assigned below once the forked session exists; read lazily by the prompt.
+	let newSessionId = "";
 	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig(
@@ -1308,6 +1440,7 @@ async function handleForkUnlocked(
 					systemPrompt,
 				},
 				ctx.telemetryUser,
+				createDesktopMistakeLimitPrompt(ctx, () => newSessionId),
 			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
@@ -1325,7 +1458,6 @@ async function handleForkUnlocked(
 			readSessionCheckpointHistory({ metadata: sourceMetadata }),
 			forkBeforeRunCount,
 		) !== undefined;
-	let newSessionId: string;
 	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
 		const cwd =
 			restoreWorkspacePath ||
@@ -1430,6 +1562,8 @@ async function handleRestoreCheckpoint(
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const manager = getSessionManager(ctx);
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		// Updated once restore() returns; read lazily by the mistake-limit prompt.
+		let restoredSessionId = sourceSessionId;
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
 			checkpointRunCount: runCount,
@@ -1443,6 +1577,7 @@ async function handleRestoreCheckpoint(
 							systemPrompt: await resolveSystemPrompt(config),
 						},
 						ctx.telemetryUser,
+						createDesktopMistakeLimitPrompt(ctx, () => restoredSessionId),
 					) as unknown as ClineCoreStartConfig,
 				),
 				source: SessionSource.DESKTOP,
@@ -1455,6 +1590,7 @@ async function handleRestoreCheckpoint(
 		if (!sessionId || !restoredMessages) {
 			throw new Error("Checkpoint restore did not return a new session");
 		}
+		restoredSessionId = sessionId;
 		discardAllTrackedAttachments(
 			sourceSessionId,
 			ctx.liveSessions.get(sourceSessionId),

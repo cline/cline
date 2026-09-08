@@ -13,6 +13,7 @@ import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
+	createDesktopMistakeLimitPrompt,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -22,7 +23,7 @@ import {
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
-import { handleCoreSessionEvent } from "./context";
+import { handleCoreSessionEvent, resolveSidecarAskQuestion } from "./context";
 import type { SidecarContext } from "./types";
 
 describe("resolveDesktopSessionMode", () => {
@@ -1775,5 +1776,159 @@ Follow the desktop send workflow instructions.`,
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
 		);
+	});
+});
+
+describe("mistake-limit prompt", () => {
+	function createPromptContext() {
+		const send = vi.fn();
+		const steer = vi.fn(async () => undefined);
+		const ctx = {
+			wsClients: new Set([{ send }]),
+			pendingQuestions: new Map(),
+			sessionManager: { send: steer },
+		} as unknown as SidecarContext;
+		const readQuestionRequest = () => {
+			const raw = send.mock.calls
+				.map(
+					([encoded]) =>
+						JSON.parse(String(encoded)) as {
+							event: { name: string; payload: Record<string, unknown> };
+						},
+				)
+				.find((message) => message.event.name === "ask_question_requested");
+			return raw?.event.payload as
+				| {
+						requestId: string;
+						sessionId: string;
+						question: string;
+						options: string[];
+				  }
+				| undefined;
+		};
+		return { ctx, steer, readQuestionRequest };
+	}
+	const limitContext = {
+		iteration: 15,
+		consecutiveMistakes: 6,
+		maxConsecutiveMistakes: 6,
+		reason: "tool_execution_failed" as const,
+		details:
+			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
+	};
+
+	it("asks the active session's user instead of stopping silently", async () => {
+		const { ctx, readQuestionRequest } = createPromptContext();
+		// Session ids are only known after start() resolves; the prompt must
+		// read the id at prompt time, not at construction time.
+		let sessionId = "";
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => sessionId);
+		sessionId = "session-late";
+
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		expect(request).toMatchObject({
+			sessionId: "session-late",
+			options: ["Try a different approach", "Stop this run"],
+		});
+		expect(request?.question).toContain("6 consecutive failed steps");
+		expect(request?.question).toContain("identical calls to `editor`");
+
+		expect(
+			resolveSidecarAskQuestion(ctx, request?.requestId ?? "", "Stop this run"),
+		).toBe(true);
+		await expect(decision).resolves.toEqual({
+			action: "stop",
+			reason: "stopped after mistake_limit_reached prompt",
+		});
+	});
+
+	it("steers the guidance into the running turn when the user continues", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		resolveSidecarAskQuestion(
+			ctx,
+			request?.requestId ?? "",
+			"Try a different approach",
+		);
+
+		const result = await decision;
+		expect(result.action).toBe("continue");
+		expect(steer).toHaveBeenCalledTimes(1);
+		const [steered] = steer.mock.calls[0] as [
+			{ sessionId: string; prompt: string; delivery: string },
+		];
+		expect(steered).toMatchObject({
+			sessionId: "session-1",
+			delivery: "steer",
+		});
+		expect(steered.prompt).toContain("Do not repeat the same call");
+		expect(steered.prompt).toContain("identical calls to `editor`");
+	});
+
+	it("passes free-text answers through as user guidance", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const decision = decide(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"read the file first, then edit",
+		);
+		await expect(decision).resolves.toMatchObject({ action: "continue" });
+		expect((steer.mock.calls[0] as [{ prompt: string }])[0].prompt).toContain(
+			"User guidance: read the file first, then edit",
+		);
+	});
+
+	it("falls back to stopping when nobody answers", async () => {
+		const { ctx, steer } = createPromptContext();
+		// No live session id: requestSidecarAskQuestion rejects immediately,
+		// standing in for a timed-out or torn-down prompt.
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "");
+		await expect(decide(limitContext)).resolves.toEqual({
+			action: "stop",
+			reason: `mistake_limit_reached: ${limitContext.details}`,
+		});
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("is wired into freshly started sessions as a local runtime option", async () => {
+		const start = vi.fn(
+			async (input: {
+				config: Record<string, unknown>;
+				localRuntime?: Record<string, unknown>;
+			}) => {
+				expect(input.config).not.toHaveProperty(
+					"onConsecutiveMistakeLimitReached",
+				);
+				expect(
+					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
+				).toBe("function");
+				return {
+					sessionId: "session-limit",
+					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },
+					manifestPath: "/tmp/session-limit.json",
+					messagesPath: "/tmp/session-limit.messages.json",
+				};
+			},
+		);
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/tmp/ws",
+			},
+		});
+		expect(start).toHaveBeenCalledTimes(1);
 	});
 });
