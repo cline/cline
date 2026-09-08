@@ -181,7 +181,6 @@ function readCloudProvisioningPhase(
 		: undefined;
 }
 
-/** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(
 	repoUrl: string | undefined,
 	active: boolean,
@@ -223,7 +222,6 @@ function useCloudProvisioningPhase(
 		: `${label}...`;
 }
 
-/** Matches the compact loading row shown inside a starting chat. */
 function CloudProvisioningPane({ phase }: { phase: string }) {
 	return (
 		<div className="px-6 py-6">
@@ -546,7 +544,6 @@ export default function Home() {
 		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 
-	// Replace an open provisioning placeholder with its real session.
 	useEffect(() => {
 		return desktopClient.subscribe("cloud_session_provisioned", (payload) => {
 			if (!payload || typeof payload !== "object") {
@@ -759,7 +756,6 @@ function ChatThreadPane({
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
-	/** Current status from the live list; the history snapshot may be stale. */
 	liveHistoryStatus?: SessionHistoryItem["status"];
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
@@ -2050,9 +2046,7 @@ function ChatThreadPane({
 						) : isCloudSession &&
 							displayedIsSwitching &&
 							displayedMessages.length === 0 ? (
-							// Keeps the loading treatment continuous through the
-							// placeholder → real-session swap: same compact row instead
-							// of flashing the hydration skeleton for a beat.
+							// Keep the placeholder handoff visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
 						) : showDiffView && !isCloudSession ? (
 							<DiffView

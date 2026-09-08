@@ -699,15 +699,11 @@ function GeneralSettingsContent({
 	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
 		null,
 	);
-	// The gate the composer actually uses. It can diverge from the stored
-	// setting when the CLINE_CODE_CLOUD_AGENTS env override is set; without
-	// surfacing that, the toggle silently appears to do nothing.
+	// The environment override can differ from the stored opt-in.
 	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
 		boolean | null
 	>(null);
-	// The PostHog rollout flag (code-cloud-agents) controls who sees the
-	// opt-in at all; default to visible until the first flag fetch answers
-	// so an existing opted-in user never watches the row flicker out.
+	// Default visible until the rollout flag loads to avoid flicker.
 	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(true);
 	const cloudSessionsSettingVisible = cloudSessionsAvailable;
 
@@ -801,8 +797,6 @@ function GeneralSettingsContent({
 		setWebSearchError(null);
 		setCloudSessionsLoading(true);
 		setCloudSessionsError(null);
-		// Independent backends: load them concurrently so one slow call cannot
-		// hold the other's toggle in its loading state.
 		await Promise.all([
 			(async () => {
 				try {

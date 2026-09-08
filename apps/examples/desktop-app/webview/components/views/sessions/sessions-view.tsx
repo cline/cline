@@ -674,9 +674,6 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														{thread.pinned ? "Unpin" : "Pin"}
 													</DropdownMenuItem>
 												) : null}
-												{/* Cloud sessions support rename (PATCH title), matching
-												    the sidebar and chat header affordances. Provisioning
-												    placeholders have no server session to rename yet. */}
 												{!isCloudProvisioningSessionId(thread.id) ? (
 													<DropdownMenuItem onClick={() => startRename(thread)}>
 														<Pencil className="size-4" />
@@ -693,8 +690,6 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
-													// Provisioning placeholders have no server session
-													// to delete yet; the sidecar rejects the request.
 													disabled={isCloudProvisioningSessionId(thread.id)}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"

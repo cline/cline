@@ -1650,8 +1650,6 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowPin={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				// Provisioning placeholders have no server session to rename or
-				// delete yet (the sidecar rejects both until the create settles).
 				allowRename={!isCloudProvisioningSessionId(thread.id)}
 				allowDelete={!isCloudProvisioningSessionId(thread.id)}
 				onDelete={onDelete}
