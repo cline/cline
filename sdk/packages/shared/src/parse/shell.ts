@@ -56,7 +56,8 @@ export interface ShellInvocation {
 
 /**
  * PowerShell flags that are safe to drop when unwrapping a nested
- * -Command invocation: the outer bootstrap already runs with all three.
+ * -Command invocation: the outer bootstrap runs with -NoProfile and
+ * -NonInteractive, and -NoLogo is a no-op under -Command.
  */
 const NESTED_POWERSHELL_UNWRAPPABLE_FLAGS = new Set([
 	"-nologo",
@@ -65,10 +66,9 @@ const NESTED_POWERSHELL_UNWRAPPABLE_FLAGS = new Set([
 ]);
 
 /**
- * The one flag the nested invocation must carry for unwrapping to be
- * semantics-preserving: the outer bootstrap starts without profiles, so a
- * nested shell that would load the user's profile (functions, aliases,
- * modules) must keep its own process to reproduce that initialization.
+ * The nested invocation must carry -NoProfile: the outer bootstrap starts
+ * without profiles, so a nested shell that would load the user's profile
+ * (functions, aliases, modules) must keep its own process to reproduce it.
  */
 const NESTED_POWERSHELL_REQUIRED_FLAG = "-noprofile";
 
@@ -201,8 +201,7 @@ function splitNestedCommandToScript(
 	commandTail: string,
 	edition: "windows" | "core",
 ): string | undefined {
-	const tail = commandTail.trimStart();
-	const quoted = splitCompleteDoubleQuotedString(tail);
+	const quoted = splitCompleteDoubleQuotedString(commandTail);
 	if (!quoted) return undefined;
 	const script = decodePowerShellDoubleQuotedString(
 		quoted.body,
@@ -215,7 +214,9 @@ function unwrapOneNestedPowerShellLayer(
 	command: string,
 	shell: string,
 ): string | undefined {
-	const head = /^(\s*)(?:"([^"]*)"|(\S+))\s+([\S\s]*)$/.exec(command);
+	// Only horizontal separators belong to this invocation. A bare newline
+	// ends the outer statement; do not consume it before the quoted body either.
+	const head = /^([ \t]*)(?:"([^"]*)"|(\S+))[ \t]+([\S\s]*)$/.exec(command);
 	if (!head) return undefined;
 	const outerEdition = getPowerShellEdition(shell);
 	const nestedEdition = getPowerShellEdition(head[2] ?? head[3]);
@@ -228,14 +229,14 @@ function unwrapOneNestedPowerShellLayer(
 		return undefined;
 	}
 
-	// Walk the flags up to -Command, allowing only flags the bootstrap itself
-	// already applies. -NoProfile is required: the outer bootstrap runs
+	// Walk the flags up to -Command, allowing only bootstrap-equivalent flags.
+	// -NoProfile is required: the outer bootstrap runs
 	// without profiles, so a nested invocation that would load the user's
 	// profile must keep its own process to reproduce that initialization.
 	let rest = head[4];
 	let sawNoProfile = false;
 	for (;;) {
-		const flag = /^(-[^\s=]+)\s*([\S\s]*)$/.exec(rest);
+		const flag = /^(-[^\s=]+)[ \t]*([\S\s]*)$/.exec(rest);
 		if (!flag) return undefined;
 		const name = flag[1].toLowerCase();
 		if (name === "-command") {
@@ -259,25 +260,28 @@ function unwrapOneNestedPowerShellLayer(
  * `$_` inside the double quotes is interpolated away before the nested shell
  * ever sees it. A pipeline like `… | Where-Object { $_.Name … }` then errors
  * once per enumerated item — a flood that looks like a hang (GitHub #13284).
- * Feeding the decoded script directly preserves the model's intent exactly,
- * because the nested invocation is the same shell edition running the same
- * script with the same wrapper flags.
+ * Feeding the decoded script directly preserves its variables and embedded
+ * quotes for the intended script, bypassing outer interpolation and native
+ * argument quoting. This is not equivalent to the corrupted runtime behavior.
  *
- * Only rewritings that are semantics-preserving by construction are done:
+ * Unwrapping is limited to redundant invocations:
  *
  * - the nested executable is the same PowerShell edition as the configured
  *   outer shell (`powershell` nested in `powershell`, `pwsh` in `pwsh`);
  *   cross-edition nesting (`powershell` inside `pwsh` or the reverse) is left
- *   untouched so a deliberate edition switch keeps its meaning
+ *   untouched so a deliberate edition switch keeps its meaning. This leaves
+ *   the PowerShell 7-to-Windows PowerShell reproduction in #13284 unfixed
  * - the nested invocation carries `-NoProfile` (written in full), and every
- *   other flag before `-Command` is one the bootstrap already applies
- *   (-NonInteractive, -NoLogo) — without `-NoProfile` the nested shell would
+ *   other flag before `-Command` is bootstrap-equivalent (-NonInteractive)
+ *   or a no-op under -Command (-NoLogo) — without -NoProfile the shell would
  *   load the user's profile (functions, aliases, modules), which the
  *   profile-less outer process cannot reproduce, and other flags
  *   (`-ExecutionPolicy`, `-File`, `-WorkingDirectory`, abbreviations such as
  *   `-c`) can change semantics, so the command is left untouched
  * - the entire `-Command` tail is one complete double-quoted string; anything
  *   else (`"…"; more`, unquoted tails, stray inner quotes) is left byte-identical
+ * - executable, flags and quoted tail are separated by spaces or tabs, not
+ *   statement-ending newlines; newlines within the quoted body remain valid
  *
  * One deliberate difference: the unwrapped script runs under the bootstrap's
  * `$ErrorActionPreference='Stop'` like every other command through this
@@ -288,8 +292,8 @@ function unwrapOneNestedPowerShellLayer(
  * documented on the bootstrap, which is the same tradeoff GitHub Actions
  * makes for its powershell steps.
  *
- * Recursive double-shells unwrap one layer per call; the executor loops to a
- * fixpoint.
+ * This function unwraps recursive double-shells to a fixpoint; the executor
+ * calls it once when constructing the invocation.
  */
 export function unwrapNestedPowerShellCommand(
 	command: string,

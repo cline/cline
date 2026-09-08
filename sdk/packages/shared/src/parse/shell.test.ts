@@ -73,6 +73,7 @@ describe("shell helpers", () => {
 			"Write-Output $_",
 		);
 		expect(unwrapNestedPowerShellCommand(nested, "powershell")).toBeUndefined();
+		expect(getShellInvocation("powershell", nested).input).toBe(nested);
 		// Cross-edition nesting in the other direction is kept too: a model may
 		// deliberately run Windows PowerShell 5.1 from a PowerShell 7 outer shell.
 		expect(
@@ -81,9 +82,14 @@ describe("shell helpers", () => {
 				"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
 			),
 		).toBeUndefined();
+		const issueCommand =
+			"powershell -NoProfile -Command \"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm|EditContext|Validator' } | ForEach-Object { $_.FullName }\"";
+		expect(getShellInvocation("pwsh.exe", issueCommand).input).toBe(
+			issueCommand,
+		);
 	});
 
-	it("unwraps every wrapper flag the bootstrap already applies", () => {
+	it("unwraps bootstrap-equivalent flags and the non-interactive banner flag", () => {
 		for (const flags of [
 			"-NoProfile",
 			"-NoProfile -NonInteractive",
@@ -112,6 +118,36 @@ describe("shell helpers", () => {
 				"powershell",
 			),
 		).toBe("Write-Output $_");
+	});
+
+	it("does not join statements separated by bare newlines", () => {
+		for (const shell of ["powershell", "pwsh"]) {
+			for (const newline of ["\n", "\r", "\r\n"]) {
+				const tokens = [shell, "-NoProfile", "-Command", '"Write-Output 42"'];
+				for (let boundary = 1; boundary < tokens.length; boundary++) {
+					const command = `${tokens.slice(0, boundary).join(" ")}${newline}\t${tokens.slice(boundary).join(" ")}`;
+					expect(unwrapNestedPowerShellCommand(command, shell)).toBeUndefined();
+					expect(getShellInvocation(shell, command).input).toBe(command);
+				}
+			}
+		}
+	});
+
+	it("preserves quoted multiline scripts and leaves outer line continuations untouched", () => {
+		for (const shell of ["powershell", "pwsh"]) {
+			for (const newline of ["\n", "\r\n"]) {
+				const script = `Write-Output 'first'${newline}Write-Output 'second'`;
+				expect(
+					unwrapNestedPowerShellCommand(
+						`\t${shell}\t-NoProfile \t-Command\t"${script}"`,
+						shell,
+					),
+				).toBe(script);
+				const continued = `${shell} -NoProfile -Command \`${newline}"Write-Output 'continued'"`;
+				expect(unwrapNestedPowerShellCommand(continued, shell)).toBeUndefined();
+				expect(getShellInvocation(shell, continued).input).toBe(continued);
+			}
+		}
 	});
 
 	it("decodes PowerShell escape sequences while unwrapping", () => {
