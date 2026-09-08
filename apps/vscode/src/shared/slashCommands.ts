@@ -1,8 +1,10 @@
 export interface SlashCommand {
 	name: string
 	description?: string
-	section?: "default" | "custom" | "mcp"
+	/** Menu group: built-ins, skills, workflows ("custom"), or MCP prompts. */
+	section?: "default" | "skill" | "custom" | "mcp"
 	cliCompatible?: boolean
+	kind?: "builtin" | "skill" | "workflow" | "mcp-prompt"
 }
 
 export const BASE_SLASH_COMMANDS: SlashCommand[] = [

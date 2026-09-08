@@ -7,6 +7,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
+	type AvailableRuntimeCommand,
 	type CompareCheckpointResult,
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
@@ -98,7 +99,15 @@ import {
 	isSyntheticSdkUserMessage,
 	type SdkUserMessage,
 } from "./sdk-user-message-mapping"
-import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command-expansion"
+import {
+	buildDisabledSkillNames,
+	buildDisabledWorkflowNames,
+	expandSlashCommands,
+	isBuiltinCommand,
+	isRuntimeCommandDisabled,
+	listSlashCommandsInText,
+	type RuntimeSlashCommandContext,
+} from "./slash-command-expansion"
 import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
@@ -1008,29 +1017,82 @@ export class Controller {
 			return text
 		}
 		try {
-			const workspaceRoot = await this.getWorkspaceRoot()
-			const service = await this.ensureUserInstructionService(workspaceRoot)
-			const remoteWorkflows = this.stateManager.getRemoteConfigSettings()?.remoteGlobalWorkflows ?? []
-			const workflowRecords = service.listRecords("workflow").map((record) => ({
-				id: record.id,
-				name: record.item.name,
-				filePath: record.filePath,
-			}))
-			const disabledWorkflowNames = buildDisabledWorkflowNames({
-				records: workflowRecords,
-				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
-				workspaceToggles: this.stateManager.getWorkspaceStateKey("workflowToggles"),
-				remoteToggles: this.stateManager.getGlobalStateKey("remoteWorkflowToggles"),
-				remoteAlwaysEnabledNames: remoteWorkflows.filter((workflow) => workflow.alwaysEnabled).map((w) => w.name),
-			})
-			return expandSlashCommands(text, [...service.listRuntimeCommands(), ...BUILTIN_SLASH_COMMANDS], {
-				disabledWorkflowNames,
-				workflowRecords,
-			})
+			const context = await this.getRuntimeSlashCommandContext()
+			this.captureSlashCommandUsed(listSlashCommandsInText(text, context.commands, context)[0]?.command)
+			return expandSlashCommands(text, context.commands, context)
 		} catch (error) {
 			Logger.warn("[SdkController] Slash command resolution failed, using raw text:", error)
 			return text
 		}
+	}
+
+	/**
+	 * The skills and workflows currently available as slash commands, filtered
+	 * by the user's toggles — what the chat input's autocomplete should offer,
+	 * spelled exactly as {@link resolveSlashCommands} resolves them. Builtin
+	 * pseudo-skills are excluded: the webview lists builtins itself.
+	 */
+	async listRuntimeSlashCommands(): Promise<AvailableRuntimeCommand[]> {
+		if (this.isDisposed) {
+			return []
+		}
+		try {
+			const context = await this.getRuntimeSlashCommandContext()
+			return context.commands.filter((command) => !isBuiltinCommand(command) && !isRuntimeCommandDisabled(command, context))
+		} catch (error) {
+			Logger.warn("[SdkController] Listing slash commands failed:", error)
+			return []
+		}
+	}
+
+	/**
+	 * Everything needed to list or expand runtime slash commands: the skills and
+	 * workflows the SDK discovered plus the extension's builtin pseudo-skills,
+	 * with the toggle state that governs them. Shared by the send path and the
+	 * autocomplete RPC so the menu offers exactly what the send path resolves.
+	 */
+	private async getRuntimeSlashCommandContext(): Promise<RuntimeSlashCommandContext> {
+		const workspaceRoot = await this.getWorkspaceRoot()
+		const service = await this.ensureUserInstructionService(workspaceRoot)
+		const remoteConfig = this.stateManager.getRemoteConfigSettings()
+		const toRecordRef = <R extends { id: string; item: { name: string }; filePath: string }>(record: R) => ({
+			id: record.id,
+			name: record.item.name,
+			filePath: record.filePath,
+		})
+		const lockedNames = (files: ReadonlyArray<{ name: string; alwaysEnabled?: boolean }> | undefined) =>
+			(files ?? []).filter((file) => file.alwaysEnabled).map((file) => file.name)
+		const workflowRecords = service.listRecords("workflow").map(toRecordRef)
+		const skillRecords = service.listRecords("skill").map(toRecordRef)
+		return {
+			commands: [...service.listRuntimeCommands(), ...BUILTIN_SLASH_COMMANDS],
+			workflowRecords,
+			skillRecords,
+			disabledWorkflowNames: buildDisabledWorkflowNames({
+				records: workflowRecords,
+				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
+				workspaceToggles: this.stateManager.getWorkspaceStateKey("workflowToggles"),
+				remoteToggles: this.stateManager.getGlobalStateKey("remoteWorkflowToggles"),
+				remoteAlwaysEnabledNames: lockedNames(remoteConfig?.remoteGlobalWorkflows),
+			}),
+			disabledSkillNames: buildDisabledSkillNames({
+				records: skillRecords,
+				remoteToggles: this.stateManager.getGlobalStateKey("remoteSkillsToggles"),
+				remoteAlwaysEnabledNames: lockedNames(remoteConfig?.remoteGlobalSkills),
+			}),
+		}
+	}
+
+	/**
+	 * Records that the user invoked a slash command. The first message of a new
+	 * task is resolved before its session exists, so the task id is best-effort.
+	 */
+	private captureSlashCommandUsed(command: AvailableRuntimeCommand | undefined): void {
+		if (!command) {
+			return
+		}
+		const ulid = this.task?.taskId ?? this.sessions.getActiveSession()?.sessionId ?? ""
+		telemetryService.captureSlashCommandUsed(ulid, command.name, isBuiltinCommand(command) ? "builtin" : command.kind)
 	}
 
 	/**

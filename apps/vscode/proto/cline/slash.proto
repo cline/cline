@@ -14,7 +14,8 @@ service SlashService {
   rpc reportBug(StringRequest) returns (Empty);
   rpc condense(StringRequest) returns (Empty);
 
-  // Get available slash commands for autocomplete (used by CLI)
+  // Get available slash commands for autocomplete: built-ins plus the skills and
+  // workflows the SDK runtime discovered (already filtered by the user's toggles).
   rpc getAvailableSlashCommands(EmptyRequest) returns (SlashCommandsResponse);
 }
 
@@ -22,8 +23,9 @@ service SlashService {
 message SlashCommandInfo {
   string name = 1; // Command name without slash, e.g., "newtask", "smol"
   string description = 2; // Human-readable description
-  string section = 3; // "default", "custom", or "cli"
+  string section = 3; // Menu group: "default" (built-in), "skill", "custom" (workflow), or "cli"
   bool cli_compatible = 4; // false for VS Code-only commands
+  string kind = 5; // "builtin", "skill", or "workflow"
 }
 
 // Response containing all available slash commands

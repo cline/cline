@@ -5,6 +5,7 @@ import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo, ProviderModelsResponse } from "@shared/proto/cline/models"
+import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { OnboardingModelGroup, type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
@@ -26,7 +27,13 @@ import {
 	applyMessage as reducerApplyMessage,
 	applyStateSnapshot as reducerApplyStateSnapshot,
 } from "../components/chat/chat-view/messageReducer"
-import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import {
+	McpServiceClient,
+	ModelsServiceClient,
+	SlashServiceClient,
+	StateServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 
 export type ProviderId = string
 
@@ -59,6 +66,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	providerModelsByProvider: Partial<Record<ProviderId, ProviderModelsState>>
 	latestModelRequestIdByProvider: Partial<Record<ProviderId, string>>
 	mcpServers: McpServer[]
+	/** Slash commands served by the extension host: built-ins plus the skills and workflows toggled on. */
+	slashCommands: SlashCommandInfo[]
+	/** Re-fetch {@link slashCommands}; the chat input calls it whenever the slash menu opens. */
+	refreshSlashCommands: () => Promise<void>
 	totalTasksSize: number | null
 	lastDismissedCliBannerVersion: number
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
@@ -356,6 +367,15 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [latestModelRequestIdByProvider, setLatestModelRequestIdByProvider] = useState<Partial<Record<ProviderId, string>>>({})
 	const latestModelRequestIdByProviderRef = useRef<Partial<Record<ProviderId, string>>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+	const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([])
+	const refreshSlashCommands = useCallback(async () => {
+		try {
+			const response = await SlashServiceClient.getAvailableSlashCommands(EmptyRequest.create({}))
+			setSlashCommands(response.commands ?? [])
+		} catch (error) {
+			console.error("Failed to fetch slash commands:", error)
+		}
+	}, [])
 
 	const startProviderModelsRequest = useCallback((providerId: ProviderId, requestId: string) => {
 		latestModelRequestIdByProviderRef.current = { ...latestModelRequestIdByProviderRef.current, [providerId]: requestId }
@@ -587,6 +607,9 @@ export const ExtensionStateContextProvider: React.FC<{
 				console.log("MCP servers subscription completed")
 			},
 		})
+
+		// Prime the slash-command menu; the chat input re-fetches whenever the menu opens.
+		void refreshSlashCommands()
 
 		// Set up settings button clicked subscription
 		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
@@ -887,6 +910,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		providerModelsByProvider,
 		latestModelRequestIdByProvider,
 		mcpServers,
+		slashCommands,
+		refreshSlashCommands,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMarketplace,
