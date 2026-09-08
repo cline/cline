@@ -420,6 +420,80 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.dispose();
 	});
 
+	it("waits for the initial root lookup when attach and send overlap", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command === "session.list") await blocked;
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		const attach = manager.attach("ses-outer");
+		await vi.waitFor(() =>
+			expect(
+				hub.commands.some((entry) => entry.command === "session.list"),
+			).toBe(true),
+		);
+		const send = manager.send("ses-outer", "hello");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const created = hub.commands.some(
+			(entry) => entry.command === "session.create",
+		);
+		release();
+		await Promise.all([attach, send]);
+		await manager.dispose();
+		expect(created).toBe(false);
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-1",
+			}),
+		);
+	});
+
+	it("preserves initial send transport errors and resolves the root on retry", async () => {
+		const { ctx } = createContext();
+		let offline = true;
+		const hub = new (class extends FakeHubClient {
+			override async connect() {
+				if (offline)
+					throw new HubTransportError("hub_connect_failed", "pod starting");
+			}
+		})();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
+			"pod starting",
+		);
+		expect(hub.disposed).toBe(false);
+		offline = false;
+		await manager.send("ses-outer", "retry");
+		expect(
+			hub.commands.some((entry) => entry.command === "session.create"),
+		).toBe(false);
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-1",
+			}),
+		);
+		await manager.dispose();
+	});
+
 	it("drops replayed Hub events by eventId", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
