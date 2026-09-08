@@ -414,7 +414,7 @@ describe("CloudSessionManager Hub runtime", () => {
 			sessionId: "ses-outer",
 		});
 		expect(hub.disposed).toBe(false);
-		expect(hub.subscriptionSessionId).toBe("ses-outer");
+		expect(hub.subscriptionSessionIds.at(-1)).toBe("ses-outer");
 		await manager.dispose();
 	});
 

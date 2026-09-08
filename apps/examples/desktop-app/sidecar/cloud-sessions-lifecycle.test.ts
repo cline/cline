@@ -34,6 +34,7 @@ function createContext(): { ctx: SidecarContext } {
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
 		sessionManager: null,
+		cloudSessionManager: null,
 		hubClient: null,
 		workspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
