@@ -1548,7 +1548,6 @@ export async function handleCommand(
 		if (pending.item.sessionId !== sessionId) {
 			throw new Error("tool approval does not belong to this session");
 		}
-		// Cloud approvals resolve through an async hub round-trip.
 		await pending.resolve({
 			approved: Boolean(args?.approved),
 			...(typeof args?.reason === "string" && args.reason.trim().length > 0
@@ -2168,8 +2167,7 @@ export async function handleCommand(
 		});
 		if (providerId === "cline") {
 			await resetCloudSessionManager(ctx);
-			// Sign-out must clear cloud rows from the sidebar immediately,
-			// not on the next 12s poll.
+			// Clear cloud rows immediately after sign-out.
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
@@ -2257,9 +2255,7 @@ export async function handleCommand(
 			},
 		);
 		if (providerId === "cline") {
-			// New credentials re-scope cloud sessions just like switchAccount:
-			// drop the manager's cached org/session state and refresh the
-			// sidebar immediately instead of on the next poll.
+			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
@@ -2299,8 +2295,7 @@ export async function handleCommand(
 			throw new Error("cloud_sessions_enabled must be a boolean");
 		}
 		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		// Every open webview (welcome composer included) must re-evaluate the
-		// gate immediately instead of waiting for the next sign-in refresh.
+		// Refresh the gate in every open webview.
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
@@ -2315,11 +2310,6 @@ export async function handleCommand(
 		return readGlobalSettings();
 	}
 
-	// ── Feature flags ──────────────────────────────────────────────────
-	// Flags are evaluated here, not in the webview: the sidecar already has
-	// the PostHog key inlined at build time and evaluates against the same
-	// distinct ID it reports telemetry with. The client just reads the
-	// resolved values.
 	// ── Connector channels ─────────────────────────────────────────────
 	if (command === "list_connector_channels") {
 		return connectorChannelsPayload();

@@ -628,7 +628,6 @@ export async function disposeSidecarContext(
 				Promise.resolve(pending.resolve({ approved: false, reason })),
 			);
 		} catch (error) {
-			// Keep disposing the remaining resources, then preserve the failure.
 			approvalCleanup.push(Promise.reject(error));
 		}
 	}

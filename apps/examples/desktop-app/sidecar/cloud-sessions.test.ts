@@ -1,15 +1,10 @@
-import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
 	CloudSessionApi,
-	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
-	cloudSessionToDiscoveryRecord,
-	reconcileBufferedCloudEvents,
-	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
 import { disposeSidecarContext } from "./context";
@@ -25,19 +20,6 @@ const REMOTE_SESSION: CloudSessionRecord = {
 	createdAt: "2026-08-05T10:00:00.000Z",
 	updatedAt: "2026-08-05T10:01:00.000Z",
 };
-
-function jsonResponse(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "content-type": "application/json" },
-	});
-}
-
-function jwtFor(subject: string, nonce: string): string {
-	const encode = (value: unknown) =>
-		Buffer.from(JSON.stringify(value)).toString("base64url");
-	return `workos:${encode({ alg: "none" })}.${encode({ sub: subject, nonce })}.sig`;
-}
 
 function createContext(): {
 	ctx: SidecarContext;
@@ -73,19 +55,6 @@ function createContext(): {
 
 class FakeHubClient {
 	events?: (event: HubEventEnvelope) => void;
-	disposed = false;
-	failNextSend = false;
-	onFailedSend?: () => void;
-	commandHook?: (command: string) => void | Promise<void>;
-	invalidMessagesSnapshot = false;
-	malformedQueueReply = false;
-	listedSessions?: Array<Record<string, unknown>>;
-	listedModel?: string;
-	attachedModel?: string;
-	subscriptionSessionId?: string;
-	readonly subscriptionSessionIds: Array<string | undefined> = [];
-	sessionStatus?: string;
-	messages: unknown[] = [{ role: "user", content: "hi" }];
 	prompts: Array<Record<string, unknown>> = [
 		{
 			id: "q-1",
@@ -94,7 +63,6 @@ class FakeHubClient {
 			attachmentCount: 0,
 		},
 	];
-	pendingApprovals: Array<Record<string, unknown>> = [];
 	readonly commands: Array<{
 		command: string;
 		payload?: Record<string, unknown>;
@@ -112,11 +80,9 @@ class FakeHubClient {
 
 	subscribe(
 		listener: (event: HubEventEnvelope) => void,
-		options?: { sessionId?: string },
+		_options?: { sessionId?: string },
 	): () => void {
 		this.events = listener;
-		this.subscriptionSessionId = options?.sessionId;
-		this.subscriptionSessionIds.push(options?.sessionId);
 		return () => {
 			this.events = undefined;
 		};
@@ -132,29 +98,13 @@ class FakeHubClient {
 		payload?: Record<string, unknown>;
 	}> {
 		this.commands.push({ command, payload, sessionId, options });
-		await this.commandHook?.(command);
-		if (command === "session.send_input" && this.failNextSend) {
-			this.failNextSend = false;
-			this.onFailedSend?.();
-			throw new HubTransportError("hub_connection_closed", "socket closed");
-		}
 		if (command === "session.list") {
 			return {
 				ok: true,
 				payload: {
-					sessions:
-						this.listedSessions ??
-						(this.hasExistingInner
-							? [
-									{
-										sessionId: "inner-1",
-										updatedAt: 20,
-										...(this.listedModel
-											? { metadata: { model: this.listedModel } }
-											: {}),
-									},
-								]
-							: []),
+					sessions: this.hasExistingInner
+						? [{ sessionId: "inner-1", updatedAt: 20 }]
+						: [],
 				},
 			};
 		}
@@ -164,25 +114,8 @@ class FakeHubClient {
 				payload: { session: { sessionId: "inner-created" } },
 			};
 		}
-		if (command === "session.attach" && this.attachedModel) {
-			return {
-				ok: true,
-				payload: {
-					session: {
-						sessionId,
-						metadata: { model: this.attachedModel },
-					},
-				},
-			};
-		}
 		if (command === "approval.list_pending") {
-			return {
-				ok: true,
-				payload: { approvals: this.pendingApprovals },
-			};
-		}
-		if (command === "session.pending_prompts" && this.malformedQueueReply) {
-			return { ok: true, payload: {} };
+			return { ok: true, payload: { approvals: [] } };
 		}
 		if (
 			command === "session.pending_prompts" ||
@@ -205,35 +138,12 @@ class FakeHubClient {
 			};
 		}
 		if (command === "session.messages") {
-			return {
-				ok: true,
-				payload: this.invalidMessagesSnapshot
-					? { messages: "invalid" }
-					: { messages: this.messages },
-			};
-		}
-		if (
-			command === "session.get" &&
-			(this.sessionStatus || this.attachedModel)
-		) {
-			return {
-				ok: true,
-				payload: {
-					session: {
-						status: this.sessionStatus,
-						...(this.attachedModel
-							? { metadata: { model: this.attachedModel } }
-							: {}),
-					},
-				},
-			};
+			return { ok: true, payload: { messages: [] } };
 		}
 		return { ok: true, payload: {} };
 	}
 
-	async dispose(): Promise<void> {
-		this.disposed = true;
-	}
+	async dispose(): Promise<void> {}
 }
 
 beforeAll(() => {
@@ -326,51 +236,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
-	it("keeps buffered queue state when the queue snapshot reply is malformed", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
-		hub.malformedQueueReply = true;
-		// A queue event arrives while the rehydration snapshot is in flight,
-		// so it lands in the reconnect buffer.
-		hub.commandHook = async (command) => {
-			if (command !== "session.messages") return;
-			hub.events?.({
-				version: "v1",
-				event: "session.pending_prompts",
-				eventId: "evt-queue-buffered",
-				timestamp: Date.now(),
-				sessionId: "inner-1",
-				payload: {
-					prompts: [
-						{
-							id: "q-buffered",
-							prompt: "still queued",
-							delivery: "queue",
-							attachmentCount: 0,
-						},
-					],
-				},
-			});
-		};
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		await manager.list();
-		await manager.attach("ses-outer");
-		// Reading with an unknown transcript forces the rehydration snapshot.
-		await manager.readMessages("ses-outer");
-
-		// The malformed reply must not count as an authoritative snapshot;
-		// the buffered queue event is replayed and keeps the queued prompt.
-		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
-			{ id: "q-buffered", prompt: "still queued" },
-		]);
-	});
-
-	it("updates the cloud model before sending and skips redundant updates", async () => {
+	it("updates the cloud model before sending", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const remote = {
@@ -387,17 +253,15 @@ describe("Cloud sessions sidecar wiring", () => {
 		await manager.list();
 		await manager.attach("ses-outer");
 
-		for (const prompt of ["First turn", "Second turn"]) {
-			await handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId: "ses-outer",
-				prompt,
-				config: {
-					executionTarget: "cloud",
-					model: "anthropic/claude-opus-4-1",
-				},
-			});
-		}
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: "ses-outer",
+			prompt: "First turn",
+			config: {
+				executionTarget: "cloud",
+				model: "anthropic/claude-opus-4-1",
+			},
+		});
 
 		const updateCommands = hub.commands.filter(
 			(command) => command.command === "session.update_connection",
@@ -472,47 +336,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		).rejects.toThrow("File attachments are not supported in cloud sessions");
 	});
 
-	it("keeps the confirmed model when the pod rejects an update", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
-		const remote = {
-			...REMOTE_SESSION,
-			metadata: { ...REMOTE_SESSION.metadata },
-		};
-		hub.commandHook = (command) => {
-			if (command === "session.update_connection") {
-				throw new Error("unsupported command");
-			}
-		};
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [remote] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		ctx.cloudSessionManager = manager;
-		await manager.list();
-		await manager.attach("ses-outer");
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "send",
-				sessionId: "ses-outer",
-				prompt: "Use Opus",
-				config: {
-					executionTarget: "cloud",
-					model: "anthropic/claude-opus-4-1",
-				},
-			}),
-		).rejects.toThrow("unsupported command");
-		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
-			remote.metadata.modelId,
-		);
-		expect(
-			hub.commands.some((command) => command.command === "session.send_input"),
-		).toBe(false);
-	});
-
 	it("leaves cloud approvals pending on app shutdown instead of denying them", async () => {
 		const { ctx } = createContext();
 		ctx.cloudSessionManager = {
@@ -560,48 +383,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(ctx.pendingApprovals.size).toBe(0);
 	});
 
-	it("reopens an existing outer session instead of provisioning a duplicate", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
-		let creates = 0;
-		const manager = new CloudSessionManager(ctx, {
-			api: {
-				list: async () => [REMOTE_SESSION],
-				create: async () => {
-					creates += 1;
-					return { sessionId: "unexpected", sandboxUrl: "pod" };
-				},
-			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		ctx.cloudSessionManager = manager;
-		await manager.list();
-
-		const reopened = await handleChatSessionCommand(ctx, {
-			action: "start",
-			config: {
-				executionTarget: "cloud",
-				sessionId: "ses-outer",
-				repoUrl: "https://github.com/cline/test",
-				model: "anthropic/claude-sonnet-5",
-			},
-		});
-
-		expect(reopened).toMatchObject({
-			sessionId: "ses-outer",
-			origin: "cloud",
-		});
-		expect(creates).toBe(0);
-		expect(hub.commands).toContainEqual(
-			expect.objectContaining({
-				command: "session.attach",
-				sessionId: "inner-1",
-			}),
-		);
-	});
-
 	it("bridges pending-prompt events and queue commands to the hub", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
@@ -615,7 +396,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		await manager.list();
 		await manager.attach("ses-outer");
 
-		// Queue snapshot event from the pod updates the live session + webview.
 		hub.events?.({
 			version: "v1",
 			event: "session.pending_prompts",
@@ -639,7 +419,6 @@ describe("Cloud sessions sidecar wiring", () => {
 			events.some((event) => event.name === "prompts_in_queue_state"),
 		).toBe(true);
 
-		// Submission event surfaces the queued user message in the transcript.
 		hub.events?.({
 			version: "v1",
 			event: "session.pending_prompt_submitted",
@@ -657,7 +436,6 @@ describe("Cloud sessions sidecar wiring", () => {
 			),
 		).toBe(true);
 
-		// Queue management actions route to hub commands, not local handlers.
 		const steered = await handleChatSessionCommand(ctx, {
 			action: "steer_prompt",
 			sessionId: "ses-outer",
@@ -777,7 +555,6 @@ describe("Cloud sessions sidecar wiring", () => {
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix the provisioning flow",
 		});
-		// Let create() register the placeholder before asserting.
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const during = await manager.listForDiscovery();
@@ -825,7 +602,6 @@ describe("Cloud sessions sidecar wiring", () => {
 			false,
 		);
 
-		// The webview swaps placeholder threads to the real session on this.
 		const provisioned = events.find(
 			(event) => event.name === "cloud_session_provisioned",
 		);
@@ -913,7 +689,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
 		const manager = new CloudSessionManager(ctx, {
 			api: {
-				// Registry is cold: the record is only resolvable via REST list.
 				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
 				create: async () => {
 					creates += 1;

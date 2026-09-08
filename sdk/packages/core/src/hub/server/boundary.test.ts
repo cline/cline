@@ -812,7 +812,6 @@ describe("HubServerTransport boundaries", () => {
 				command: "approval.list_pending",
 				clientId: "client-1",
 				sessionId: "session-1",
-				payload: { sessionId: "session-1" },
 			});
 			expect(pendingReply).toMatchObject({
 				ok: true,
