@@ -353,11 +353,7 @@ function CloudBranchPicker({
 		} catch {
 			if (requestKeyRef.current === requestKey) setLoadMoreError(true);
 		} finally {
-			// Reset unconditionally: only one page fetch can be in flight (the
-			// loadingMore guard above), so this always refers to that fetch. A
-			// key-guarded reset would leave loadingMore stuck true forever when
-			// the search query changes mid-fetch, permanently killing
-			// pagination for this picker.
+			// Always release the single in-flight pagination request.
 			setLoadingMore(false);
 		}
 	}, [debouncedQuery, loadingMore, nextToken, onListBranches, repositoryId]);
@@ -943,10 +939,6 @@ export function WelcomeWorkspaceControls({
 	onSwitchGitBranch,
 }: {
 	cloudEnabled: boolean;
-	/**
-	 * Hides the repo/branch pickers and sign-in button while the cloud
-	 * onboarding panel owns those calls-to-action.
-	 */
 	cloudControlsHidden?: boolean;
 	executionTarget: "local" | "cloud";
 	repoUrl: string;

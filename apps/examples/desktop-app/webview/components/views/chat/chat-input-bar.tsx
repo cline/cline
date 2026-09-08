@@ -1795,7 +1795,6 @@ const ModelSelector = memo(function ModelSelector({
 		resolvedProvider,
 	]);
 
-	// Catalog invalidation intentionally retriggers this load via catalogRevision.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: catalogRevision is a reload signal.
 	useEffect(() => {
 		let cancelled = false;
@@ -1951,10 +1950,7 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
-		// isBusy also covers a locked cloud composer: silently "correcting" an
-		// attached cloud session's model (e.g. an org-catalog id missing from
-		// the local list) would push a real model change to the remote session
-		// on the next send, contradicting the locked-settings tooltip.
+		// Do not change the model of a locked cloud session.
 		if (isBusy) {
 			return;
 		}
