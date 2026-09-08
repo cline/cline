@@ -70,6 +70,10 @@ export const ChatMessageSchema = z.object({
 				.enum(["running", "succeeded", "failed", "killed", "indeterminate"])
 				.optional(),
 			toolBackgroundLogPath: z.string().optional(),
+			// Set by the sidecar at hydration for a detached command whose
+			// process it confirmed still alive; the webview enrolls these so
+			// the completion event settles the row in place.
+			toolExecutionIds: z.array(z.string().min(1)).optional(),
 			iteration: z.number().int().nonnegative().optional(),
 			agentId: z.string().optional(),
 			conversationId: z.string().optional(),

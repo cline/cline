@@ -14,12 +14,20 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { appendFile, readdir, readFile, rm, stat } from "node:fs/promises";
+import {
+	appendFile,
+	open,
+	readdir,
+	readFile,
+	rm,
+	stat,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
+	type DetachedCommandOutcome,
 	getDefaultShell,
 	getShellInvocation,
 } from "@cline/shared";
@@ -265,6 +273,98 @@ async function reconcileDetachedCommandLogDirectory(
 	}
 	await rm(directory, { recursive: true, force: true });
 	return true;
+}
+
+/** Lifecycle state of a detached command, resolved from its log markers. */
+export type DetachedCommandStateQuery =
+	| { status: "running"; executionId: string }
+	| { status: "completed"; outcome: DetachedCommandOutcome }
+	| { status: "unknown" };
+
+/**
+ * Resolves a detached command's lifecycle state from its log markers without
+ * mutating anything — the read-only counterpart of the retention reconcile.
+ *
+ * "running" requires the marker's PID to still exist with the same kernel
+ * start token, so a crashed host or a reused PID cannot make a dead command
+ * claim to be alive. Completion wins over a stale active marker (completion
+ * is written before the marker is removed, and a crash between those writes
+ * leaves both). Anything less certain — a missing process, a mismatched
+ * token, an unavailable identity provider, malformed markers, or a completion
+ * whose outcome line cannot be read — reports "unknown", and the caller's row
+ * keeps claiming no outcome.
+ */
+export async function queryDetachedCommandState(
+	logPath: string,
+	probe: ProcessStartTokenProbe = probeProcessStartTokenAsync,
+): Promise<DetachedCommandStateQuery> {
+	const directory = dirname(logPath);
+	const completedAtText = await readOptionalTextFile(
+		join(directory, DETACHED_LOG_COMPLETED_FILENAME),
+	);
+	if (completedAtText !== undefined) {
+		const outcome = await parseDetachedCommandOutcomeFromLog(logPath);
+		return outcome ? { status: "completed", outcome } : { status: "unknown" };
+	}
+	const activeCommandText = await readOptionalTextFile(
+		join(directory, DETACHED_LOG_ACTIVE_COMMAND_FILENAME),
+	);
+	const marker = activeCommandText
+		? parseDetachedCommandMarker(activeCommandText)
+		: undefined;
+	if (!marker) {
+		return { status: "unknown" };
+	}
+	try {
+		const probeResult = await probe(marker.pid);
+		if (
+			probeResult.status === "found" &&
+			probeResult.token === marker.processStartToken
+		) {
+			return { status: "running", executionId: marker.executionId };
+		}
+	} catch {
+		// A rejecting identity provider is not evidence the command exited.
+	}
+	return { status: "unknown" };
+}
+
+/**
+ * Reconstructs a detached command's outcome from the completion line its
+ * executor wrote at the end of the log. Reads only the log's tail; the
+ * completion line is always the last write. A signal-terminated process is
+ * indistinguishable from a non-zero exit in the log, so it reports "exited".
+ */
+async function parseDetachedCommandOutcomeFromLog(
+	logPath: string,
+): Promise<DetachedCommandOutcome | undefined> {
+	let tail: string;
+	try {
+		const handle = await open(logPath, "r");
+		try {
+			const { size } = await handle.stat();
+			const length = Math.min(size, 4096);
+			const buffer = Buffer.alloc(length);
+			await handle.read(buffer, 0, length, size - length);
+			tail = buffer.toString("utf8");
+		} finally {
+			await handle.close();
+		}
+	} catch {
+		return undefined;
+	}
+	if (tail.includes("[Command reached its hard deadline]")) {
+		return { kind: "hard_killed" };
+	}
+	const exited = /\[Command exited with code (-?\d+)\]\s*$/.exec(tail);
+	if (exited) {
+		return { kind: "exited", exitCode: Number.parseInt(exited[1] ?? "1", 10) };
+	}
+	const failed = /\[Command failed: ([^\]]*)\]\s*$/.exec(tail);
+	if (failed) {
+		return { kind: "failed", error: failed[1] ?? "" };
+	}
+	return undefined;
 }
 
 function scheduleActiveCommandLogReconciliation(
