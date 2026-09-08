@@ -866,6 +866,7 @@ type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
 	innerSessionId?: string;
+	reconnectResolution?: Promise<void>;
 	rehydrationPromise?: Promise<CloudRehydrationSnapshot>;
 	rehydrationRerunRequested?: boolean;
 	bufferingEvents?: boolean;
@@ -1888,11 +1889,9 @@ export class CloudSessionManager {
 		const connection = await this.ensureConnection(outerSessionId, {
 			createInner: true,
 		});
-		const innerSessionId = connection.innerSessionId;
-		if (!innerSessionId) {
-			throw new Error("Cloud Hub session was not initialized");
-		}
+		await connection.reconnectResolution;
 		await this.ensureAttached(connection);
+		await connection.reconnectResolution;
 		if (!connection.transcriptKnown) {
 			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
 		}
@@ -1900,6 +1899,11 @@ export class CloudSessionManager {
 		// different client. Enforce this send's selected model only after the
 		// final authoritative snapshot.
 		await this.updateModel(connection, modelId);
+		await connection.reconnectResolution;
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
 		const promptOccurrencesBeforeSend = countPromptOccurrences(
@@ -2581,14 +2585,13 @@ export class CloudSessionManager {
 					const reconnecting = socketAttempt > 0;
 					socketAttempt += 1;
 					if (reconnecting) {
-						setTimeout(() => {
-							const reconnected = connection;
-							if (!reconnected || reconnected.disposed) return;
-							// A dropped transport invalidates the duplicate-prompt
-							// baseline send() computes from live.messages.
+						const reconnected = connection;
+						if (reconnected && !reconnected.disposed) {
+							// Publish reconnect recovery synchronously so a concurrent send
+							// cannot capture the previous inner-session id.
 							reconnected.transcriptKnown = false;
 							reconnected.innerSessionId = undefined;
-							void (async () => {
+							const resolution = (async () => {
 								await this.resolveInnerSession(outerSessionId, reconnected);
 								if (reconnected.innerSessionId) {
 									await this.rehydrateAfterTransportDrop(
@@ -2596,13 +2599,20 @@ export class CloudSessionManager {
 										reconnected,
 									);
 								}
-							})().catch(() =>
-								this.disposeConnectionIfSessionGone(
-									outerSessionId,
-									reconnected,
-								),
-							);
-						}, 0);
+							})()
+								.catch(() =>
+									this.disposeConnectionIfSessionGone(
+										outerSessionId,
+										reconnected,
+									),
+								)
+								.finally(() => {
+									if (reconnected.reconnectResolution === resolution) {
+										reconnected.reconnectResolution = undefined;
+									}
+								});
+							reconnected.reconnectResolution = resolution;
+						}
 					}
 					const token = await this.options.getAuthToken();
 					if (!token?.trim()) {
