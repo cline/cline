@@ -6128,6 +6128,7 @@ describe("LocalRuntimeHost", () => {
 			);
 			const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
 			expect(prepareTurn).toBeDefined();
+			const emitStatusNotice = vi.fn();
 			const runPrepareTurn = () =>
 				prepareTurn({
 					agentId: "agent-root-1",
@@ -6144,8 +6145,9 @@ describe("LocalRuntimeHost", () => {
 						provider: "anthropic",
 						info: { id: "mock-model", maxInputTokens: 100_000 },
 					},
+					emitStatusNotice,
 				});
-			return { compact, runPrepareTurn, sessionService };
+			return { compact, emitStatusNotice, runPrepareTurn, sessionService };
 		};
 
 		const imported = await startResumed("sess-imported-resume", {
@@ -6160,6 +6162,22 @@ describe("LocalRuntimeHost", () => {
 			{ role: "user", content: "imported summary" },
 			{ role: "user", content: "keep going" },
 		]);
+		// Clients tell this apart from a user-requested /compact by the tag.
+		expect(imported.emitStatusNotice).toHaveBeenCalledWith(
+			"compacting",
+			expect.objectContaining({
+				kind: "manual_compaction",
+				phase: "started",
+				importedFrom: "claude-code",
+			}),
+		);
+		expect(imported.emitStatusNotice).toHaveBeenCalledWith(
+			"compacted",
+			expect.objectContaining({
+				phase: "completed",
+				importedFrom: "claude-code",
+			}),
+		);
 		expect(
 			imported.sessionService.persistSessionCompactionState,
 		).toHaveBeenCalledWith(

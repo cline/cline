@@ -41,6 +41,7 @@ import {
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
+import { describeImportedHistorySummaryNotice } from "@/lib/compaction-notice";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -1536,6 +1537,36 @@ export function useChatSession() {
 					) {
 						lastCoreErrorBySessionRef.current[payload.sessionId] =
 							parsed.message.trim();
+					}
+					// Summarizing an imported session's history happens before the
+					// first model call and would otherwise hide behind "Thinking...";
+					// the started/completed notices update one status row in place.
+					const summaryNotice = describeImportedHistorySummaryNotice(
+						parsed.metadata,
+					);
+					if (summaryNotice) {
+						const noticeId = `${listeningSessionId}_${summaryNotice.key}`;
+						setMessages((prev) => {
+							const index = prev.findIndex((m) => m.id === noticeId);
+							if (index >= 0) {
+								const next = [...prev];
+								next[index] = {
+									...prev[index],
+									content: summaryNotice.content,
+								};
+								return next;
+							}
+							return sliceMessages([
+								...prev,
+								{
+									id: noticeId,
+									sessionId: listeningSessionId,
+									role: "status",
+									content: summaryNotice.content,
+									createdAt: chunkCreatedAt(payload),
+								},
+							]);
+						});
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.

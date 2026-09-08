@@ -665,31 +665,42 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// history into a summary the model can act on; it lands in the
 		// compaction sidecar, so it runs once and the canonical transcript the
 		// user reads stays intact. Skipped when a sidecar already exists.
-		const importedResumeCompact =
-			isReadOnlyResumeStart &&
-			!rawInitialCompactionState &&
-			readImportedFromMetadata(manifest.metadata)
-				? createContextCompactionPrepareTurn(
-						{
-							...configWithProvider,
-							compaction: {
-								...configWithProvider.compaction,
-								enabled: true,
-								strategy: "agentic",
-								preserveRecentTokens: 0,
-							},
-						},
-						{ mode: "manual" },
-					)
+		const importedFrom =
+			isReadOnlyResumeStart && !rawInitialCompactionState
+				? readImportedFromMetadata(manifest.metadata)
 				: undefined;
+		const importedResumeCompact = importedFrom
+			? createContextCompactionPrepareTurn(
+					{
+						...configWithProvider,
+						compaction: {
+							...configWithProvider.compaction,
+							enabled: true,
+							strategy: "agentic",
+							preserveRecentTokens: 0,
+						},
+					},
+					{ mode: "manual" },
+				)
+			: undefined;
 		let importedResumePending = importedResumeCompact !== undefined;
 		const compact: ContextPipelinePrepareTurn | undefined =
-			importedResumeCompact
+			importedResumeCompact && importedFrom
 				? async (context) => {
 						if (importedResumePending) {
 							importedResumePending = false;
 							try {
-								const result = await importedResumeCompact(context);
+								// Tag the notices so clients can label this as
+								// summarizing imported history rather than a
+								// user-requested /compact.
+								const result = await importedResumeCompact({
+									...context,
+									emitStatusNotice: (message, metadata) =>
+										context.emitStatusNotice?.(message, {
+											...metadata,
+											importedFrom: importedFrom.tool,
+										}),
+								});
 								if (result?.messages) return result;
 							} catch (error) {
 								if (context.abortSignal.aborted) throw error;
