@@ -1,4 +1,3 @@
-import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -21,25 +20,15 @@ const REMOTE_SESSION: CloudSessionRecord = {
 	updatedAt: "2026-08-05T10:01:00.000Z",
 };
 
-function createContext(): {
-	ctx: SidecarContext;
-	events: Array<{ name: string; payload: Record<string, unknown> }>;
-} {
-	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
+function createContext(): { ctx: SidecarContext } {
 	const ctx = {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		wsClients: new Set([
 			{
-				// Approval ownership requires a trusted desktop connection.
 				data: { canApproveTools: true },
-				send(message: string) {
-					const parsed = JSON.parse(message) as {
-						event: { name: string; payload: Record<string, unknown> };
-					};
-					events.push(parsed.event);
-				},
+				send() {},
 			},
 		]),
 		pendingApprovals: new Map(),
@@ -50,172 +39,7 @@ function createContext(): {
 		unsubscribeSessionEvents: null,
 		hubBuildMismatch: null,
 	} as SidecarContext;
-	return { ctx, events };
-}
-
-class FakeHubClient {
-	events?: (event: HubEventEnvelope) => void;
-	disposed = false;
-	failNextSend = false;
-	onFailedSend?: () => void;
-	commandHook?: (command: string) => void | Promise<void>;
-	invalidMessagesSnapshot = false;
-	malformedQueueReply = false;
-	listedSessions?: Array<Record<string, unknown>>;
-	listedModel?: string;
-	attachedModel?: string;
-	subscriptionSessionId?: string;
-	readonly subscriptionSessionIds: Array<string | undefined> = [];
-	sessionStatus?: string;
-	messages: unknown[] = [{ role: "user", content: "hi" }];
-	prompts: Array<Record<string, unknown>> = [
-		{
-			id: "q-1",
-			prompt: "queued prompt",
-			delivery: "queue",
-			attachmentCount: 0,
-		},
-	];
-	pendingApprovals: Array<Record<string, unknown>> = [];
-	readonly commands: Array<{
-		command: string;
-		payload?: Record<string, unknown>;
-		sessionId?: string;
-		options?: { timeoutMs?: number | null };
-	}> = [];
-
-	constructor(private readonly hasExistingInner = true) {}
-
-	async connect(): Promise<void> {}
-
-	getClientId(): string {
-		return "code-cloud-ses-outer";
-	}
-
-	subscribe(
-		listener: (event: HubEventEnvelope) => void,
-		options?: { sessionId?: string },
-	): () => void {
-		this.events = listener;
-		this.subscriptionSessionId = options?.sessionId;
-		this.subscriptionSessionIds.push(options?.sessionId);
-		return () => {
-			this.events = undefined;
-		};
-	}
-
-	async command(
-		command: string,
-		payload?: Record<string, unknown>,
-		sessionId?: string,
-		options?: { timeoutMs?: number | null },
-	): Promise<{
-		ok: true;
-		payload?: Record<string, unknown>;
-	}> {
-		this.commands.push({ command, payload, sessionId, options });
-		await this.commandHook?.(command);
-		if (command === "session.send_input" && this.failNextSend) {
-			this.failNextSend = false;
-			this.onFailedSend?.();
-			throw new HubTransportError("hub_connection_closed", "socket closed");
-		}
-		if (command === "session.list") {
-			return {
-				ok: true,
-				payload: {
-					sessions:
-						this.listedSessions ??
-						(this.hasExistingInner
-							? [
-									{
-										sessionId: "inner-1",
-										updatedAt: 20,
-										...(this.listedModel
-											? { metadata: { model: this.listedModel } }
-											: {}),
-									},
-								]
-							: []),
-				},
-			};
-		}
-		if (command === "session.create") {
-			return {
-				ok: true,
-				payload: { session: { sessionId: "inner-created" } },
-			};
-		}
-		if (command === "session.attach" && this.attachedModel) {
-			return {
-				ok: true,
-				payload: {
-					session: {
-						sessionId,
-						metadata: { model: this.attachedModel },
-					},
-				},
-			};
-		}
-		if (command === "approval.list_pending") {
-			return {
-				ok: true,
-				payload: { approvals: this.pendingApprovals },
-			};
-		}
-		if (command === "session.pending_prompts" && this.malformedQueueReply) {
-			return { ok: true, payload: {} };
-		}
-		if (
-			command === "session.pending_prompts" ||
-			command === "session.update_pending_prompt" ||
-			command === "session.remove_pending_prompt"
-		) {
-			return {
-				ok: true,
-				payload: {
-					updated: command === "session.update_pending_prompt",
-					removed: command === "session.remove_pending_prompt",
-					prompts: this.prompts.map((item) => ({
-						...item,
-						delivery:
-							command === "session.update_pending_prompt"
-								? (payload?.delivery ?? "queue")
-								: item.delivery,
-					})),
-				},
-			};
-		}
-		if (command === "session.messages") {
-			return {
-				ok: true,
-				payload: this.invalidMessagesSnapshot
-					? { messages: "invalid" }
-					: { messages: this.messages },
-			};
-		}
-		if (
-			command === "session.get" &&
-			(this.sessionStatus || this.attachedModel)
-		) {
-			return {
-				ok: true,
-				payload: {
-					session: {
-						status: this.sessionStatus,
-						...(this.attachedModel
-							? { metadata: { model: this.attachedModel } }
-							: {}),
-					},
-				},
-			};
-		}
-		return { ok: true, payload: {} };
-	}
-
-	async dispose(): Promise<void> {
-		this.disposed = true;
-	}
+	return { ctx };
 }
 
 describe("reconcileBufferedCloudEvents", () => {
@@ -233,8 +57,6 @@ describe("reconcileBufferedCloudEvents", () => {
 	});
 
 	it("replays content the snapshot does NOT contain", () => {
-		// The safety-critical direction: an unreflected buffered turn must
-		// never be dropped, or a whole reply silently vanishes.
 		const buffered = [
 			event("assistant.delta", "a-1", { text: "unpersisted reply" }),
 			event("run.completed", "done-1"),
@@ -269,8 +91,6 @@ describe("reconcileBufferedCloudEvents", () => {
 	});
 
 	it("replays the newest buffered queue snapshot when the queue fetch failed", () => {
-		// Dropping the buffer here would silently lose queued/steered prompts
-		// until some later change produces another queue snapshot.
 		const buffered = [
 			event("session.pending_prompts", "q-1", { prompts: [] }),
 			event("session.pending_prompts", "q-2", {
@@ -411,7 +231,6 @@ describe("CloudSessionManager lifecycle", () => {
 	});
 
 	it("treats a live session's future expiredAt as a TTL, not an end time", () => {
-		// A future endedAt renders as "now" for every session in the sidebar.
 		const alive = cloudSessionToDiscoveryRecord({
 			...REMOTE_SESSION,
 			expiredAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
@@ -460,7 +279,6 @@ describe("CloudSessionManager lifecycle", () => {
 
 	it("single-flights repeated starts for the same client request", async () => {
 		const { ctx } = createContext();
-		const hub = new FakeHubClient(false);
 		let createCalls = 0;
 		let finishCreate:
 			| ((value: { sessionId: string; sandboxUrl: string }) => void)
@@ -477,7 +295,6 @@ describe("CloudSessionManager lifecycle", () => {
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		const input = {
 			requestId: "client-start-1",
@@ -518,7 +335,6 @@ describe("CloudSessionManager lifecycle", () => {
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => new FakeHubClient(false) as never,
 		});
 		const input = {
 			modelId: "anthropic/claude-sonnet-5",
@@ -564,7 +380,6 @@ describe("CloudSessionManager lifecycle", () => {
 
 	it("uses only the active organization for billing and session listing", async () => {
 		const { ctx } = createContext();
-		const hub = new FakeHubClient(false);
 		const listCalls: Array<string | undefined> = [];
 		const repositoryScopes: Array<string | undefined> = [];
 		const branchScopes: Array<string | undefined> = [];
@@ -597,7 +412,6 @@ describe("CloudSessionManager lifecycle", () => {
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			getActiveOrganizationId: async () => "org-cline-bot",
-			createHubClient: () => hub as never,
 		});
 		const scoped = await manager.list();
 		expect(listCalls).toEqual(["org-cline-bot"]);
@@ -616,7 +430,6 @@ describe("CloudSessionManager lifecycle", () => {
 
 	it("refreshes the active organization before creating a session", async () => {
 		const { ctx } = createContext();
-		const hub = new FakeHubClient(false);
 		let serverScope = "org-a";
 		let cachedScope = serverScope;
 		const lookupOptions: Array<{ fresh?: boolean } | undefined> = [];
@@ -636,7 +449,6 @@ describe("CloudSessionManager lifecycle", () => {
 				if (options?.fresh) cachedScope = serverScope;
 				return cachedScope;
 			},
-			createHubClient: () => hub as never,
 		});
 
 		await manager.list();
@@ -652,7 +464,6 @@ describe("CloudSessionManager lifecycle", () => {
 
 	it("does not silently bill personal credits when account scope lookup fails", async () => {
 		const { ctx } = createContext();
-		const hub = new FakeHubClient(false);
 		let createInput: Record<string, unknown> | undefined;
 		const manager = new CloudSessionManager(ctx, {
 			api: {
@@ -667,7 +478,6 @@ describe("CloudSessionManager lifecycle", () => {
 			getActiveOrganizationId: async () => {
 				throw new Error("account endpoint down");
 			},
-			createHubClient: () => hub as never,
 		});
 		await expect(
 			manager.create({

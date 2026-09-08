@@ -23,11 +23,7 @@ export type CloudBranchListOptions = {
 	query?: string;
 };
 
-/**
- * Client-side ids for cloud sessions still provisioning (no server record
- * yet). Shared by the sidecar (which mints them) and the webview (which
- * gates rename/delete/attach affordances on them).
- */
+/** Client-only ID prefix for sessions without a server record yet. */
 export const CLOUD_PROVISIONING_SESSION_ID_PREFIX = "cloud-provisioning-";
 
 export function isCloudProvisioningSessionId(sessionId: string): boolean {
@@ -38,7 +34,6 @@ export function normalizeCloudRepositoryUrl(value: string): string {
 	return value.trim().replace(/\/+$/, "");
 }
 
-/** Short "owner/repo" display label for any repository URL form. */
 export function cloudRepositoryLabel(repoUrl: string, fallback = ""): string {
 	const parts = normalizeCloudRepositoryUrl(repoUrl)
 		.replace(/\.git$/i, "")

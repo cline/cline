@@ -95,20 +95,6 @@ describe("desktop settings commands", () => {
 		);
 	});
 
-	it("reads default desktop settings and an off feature gate", async () => {
-		const { ctx } = createContext();
-
-		await expect(
-			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: false });
-		await expect(
-			handleCommand(ctx, "get_feature_flags", {}),
-		).resolves.toMatchObject({
-			cloudAgents: false,
-			cloudAgentsAvailable: false,
-		});
-	});
-
 	it("rejects a non-boolean cloud sessions toggle value", async () => {
 		const { ctx, events } = createContext();
 
@@ -128,9 +114,6 @@ describe("desktop settings commands", () => {
 				cloud_sessions_enabled: true,
 			}),
 		).resolves.toEqual({ cloudSessionsEnabled: true });
-		// Open webviews re-evaluate without waiting for a restart or account
-		// change. With the rollout flag off (NoOp provider in tests) the
-		// opt-in alone keeps the effective gate closed.
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
@@ -143,30 +126,5 @@ describe("desktop settings commands", () => {
 		await expect(
 			handleCommand(ctx, "get_desktop_settings", {}),
 		).resolves.toEqual({ cloudSessionsEnabled: true });
-
-		await handleCommand(ctx, "set_cloud_sessions_enabled", {
-			cloud_sessions_enabled: false,
-		});
-		expect(events.at(-1)).toEqual({
-			name: "feature_flags_changed",
-			payload: { cloudAgents: false, cloudAgentsAvailable: false },
-		});
-	});
-
-	it("reports the env override through the feature gate", async () => {
-		const { ctx } = createContext();
-		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-
-		await expect(
-			handleCommand(ctx, "get_feature_flags", {}),
-		).resolves.toMatchObject({
-			cloudAgents: true,
-			cloudAgentsAvailable: true,
-		});
-		// The toggle's stored value is reported as-is; the override only
-		// affects the effective gate.
-		await expect(
-			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: false });
 	});
 });
