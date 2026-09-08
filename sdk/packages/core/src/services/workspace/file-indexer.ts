@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { Dirent } from "node:fs";
+import { type Dirent, realpathSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -164,8 +164,19 @@ async function listFilesFallback(cwd: string): Promise<Set<string>> {
 // wants from a file picker, and re-ranking it per keystroke can allocate
 // gigabytes and get the process OOM-killed.
 function isUnindexableRoot(cwd: string): boolean {
-	const resolved = path.resolve(cwd);
-	return resolved === os.homedir() || resolved === path.parse(resolved).root;
+	// realpath so symlinked or differently-cased (Windows) spellings still match.
+	const canonical = (p: string) => {
+		try {
+			return realpathSync.native(p);
+		} catch {
+			return path.resolve(p);
+		}
+	};
+	const resolved = canonical(cwd);
+	return (
+		resolved === canonical(os.homedir()) ||
+		resolved === path.parse(resolved).root
+	);
 }
 
 async function buildIndex(cwd: string): Promise<Set<string>> {

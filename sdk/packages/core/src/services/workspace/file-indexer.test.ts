@@ -74,6 +74,12 @@ describe("file indexer", () => {
 		}
 	});
 
+	it("does not index the filesystem root", async () => {
+		const root = path.parse(process.cwd()).root;
+		const index = await getFileIndex(root, { ttlMs: 0 });
+		expect(index.size).toBe(0);
+	});
+
 	it("prewarm rebuilds index and includes new files", async () => {
 		const cwd = await createTempWorkspace();
 		try {
