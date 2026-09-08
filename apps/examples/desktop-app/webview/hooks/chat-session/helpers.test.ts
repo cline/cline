@@ -17,16 +17,9 @@ describe("resolveCredentialError (cloud)", () => {
 		expect(resolveCredentialError(CLOUD_CONFIG)).toBeNull();
 	});
 
-	it("rejects a partial URL even though the picker never confirmed it", () => {
-		const error = resolveCredentialError({
-			...CLOUD_CONFIG,
-			repoUrl: "https://exa",
-		});
-		expect(error).toMatch(/valid HTTPS GitHub repository URL/);
-	});
-
-	it("rejects SSH and non-GitHub URLs", () => {
+	it("rejects invalid GitHub repository URLs", () => {
 		for (const repoUrl of [
+			"https://exa",
 			"git@github.com:cline/cline.git",
 			"https://gitlab.com/cline/cline",
 			"http://github.com/cline/cline",
