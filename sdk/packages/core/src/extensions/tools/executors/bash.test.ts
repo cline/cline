@@ -1040,7 +1040,9 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		const output = await executor("echo shell-ok", process.cwd(), ctx);
 		expect(output.trim()).toBe("shell-ok");
 	});
+});
 
+describe("createShellExecutor with inherited stdio", () => {
 	// A backgrounded child (`cmd &`, nohup) inherits the stdio pipe
 	// write-ends, so the shell's 'close' event never fires after it exits.
 	// Before the exit-grace completion this hung the command until the timeout
