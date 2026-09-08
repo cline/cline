@@ -130,6 +130,28 @@ describe("adaptSdkModelInfo", () => {
 			expect(Object.hasOwn(model, "capabilities")).toBe(false)
 		})
 
+		it("treats declared text-only input modalities as no image support, even without capabilities", () => {
+			const model = adaptSdkModelInfo({ id: "m", modalities: { input: ["text"], output: ["text"] } })
+			expect(model.supportsImages).toBe(false)
+		})
+
+		it("lets declared input modalities override the capability-derived image flag", () => {
+			expect(
+				adaptSdkModelInfo({
+					id: "m",
+					capabilities: ["images"],
+					modalities: { input: ["text"], output: ["text"] },
+				}).supportsImages,
+			).toBe(false)
+			expect(
+				adaptSdkModelInfo({
+					id: "m",
+					capabilities: ["tools"],
+					modalities: { input: ["text", "image"], output: ["text"] },
+				}).supportsImages,
+			).toBe(true)
+		})
+
 		it("preserves SDK input and output modalities", () => {
 			const model = adaptSdkModelInfo({
 				id: "image-model",
