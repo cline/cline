@@ -16,9 +16,9 @@ import {
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { isOAuthProvider } from "../../auth/provider-auth-registry";
 import {
-	type ContextPipelinePrepareTurn,
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
@@ -659,60 +659,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
 		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
-		// A transcript imported from another coding agent keeps that agent's
-		// tool names and input schemas verbatim, which a model continuing it may
-		// try to call. On the first resumed turn, fold the whole foreign
-		// history into a summary the model can act on; it lands in the
-		// compaction sidecar, so it runs once and the canonical transcript the
-		// user reads stays intact. Skipped when a sidecar already exists.
+		// Resuming an imported session for the first time (no compaction sidecar
+		// yet) summarizes the foreign transcript before the model sees it; the
+		// summary persists to the sidecar, so this only ever applies once.
 		const importedFrom =
 			isReadOnlyResumeStart && !rawInitialCompactionState
 				? readImportedFromMetadata(manifest.metadata)
 				: undefined;
-		const importedResumeCompact = importedFrom
-			? createContextCompactionPrepareTurn(
-					{
-						...configWithProvider,
-						compaction: {
-							...configWithProvider.compaction,
-							enabled: true,
-							strategy: "agentic",
-							preserveRecentTokens: 0,
-						},
-					},
-					{ mode: "manual" },
-				)
-			: undefined;
-		let importedResumePending = importedResumeCompact !== undefined;
-		const compact: ContextPipelinePrepareTurn | undefined =
-			importedResumeCompact && importedFrom
-				? async (context) => {
-						if (importedResumePending) {
-							importedResumePending = false;
-							try {
-								// Tag the notices so clients can label this as
-								// summarizing imported history rather than a
-								// user-requested /compact.
-								const result = await importedResumeCompact({
-									...context,
-									emitStatusNotice: (message, metadata) =>
-										context.emitStatusNotice?.(message, {
-											...metadata,
-											importedFrom: importedFrom.tool,
-										}),
-								});
-								if (result?.messages) return result;
-							} catch (error) {
-								if (context.abortSignal.aborted) throw error;
-								configWithProvider.logger?.log(
-									"Failed to summarize imported session on resume; continuing with the raw transcript",
-									{ severity: "warn", sessionId, error },
-								);
-							}
-						}
-						return autoCompact?.(context);
-					}
-				: autoCompact;
+		const compact = importedFrom
+			? createImportedHistoryCompactionPrepareTurn({
+					config: configWithProvider,
+					importedFrom: importedFrom.tool,
+					next: autoCompact,
+				})
+			: autoCompact;
 		// A compaction sidecar must keep projecting into the working context even
 		// when auto-compaction is disabled (`compact` undefined): manual /compact
 		// persists a sidecar and promises the next turn will use it. The

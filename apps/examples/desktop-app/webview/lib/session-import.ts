@@ -71,9 +71,44 @@ export function readImportedFromTool(
 	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		return undefined;
 	}
-	const tool = (value as { tool?: unknown }).tool;
-	return typeof tool === "string" &&
-		(SESSION_IMPORT_TOOL_ORDER as string[]).includes(tool)
-		? (tool as SessionImportTool)
+	return asSessionImportTool((value as { tool?: unknown }).tool);
+}
+
+function asSessionImportTool(value: unknown): SessionImportTool | undefined {
+	return typeof value === "string" &&
+		(SESSION_IMPORT_TOOL_ORDER as string[]).includes(value)
+		? (value as SessionImportTool)
 		: undefined;
+}
+
+export type ImportedHistorySummaryActivity =
+	| { phase: "started"; label: string }
+	| { phase: "finished" };
+
+/**
+ * Reads the compaction status notice core emits while it summarizes an
+ * imported session's history on the first resumed turn (core tags those
+ * notices with `importedFrom`). The label stands in for the generic
+ * "Thinking..." indicator while the summary runs; `finished` clears it.
+ * Other notices return undefined.
+ */
+export function readImportedHistorySummaryActivity(
+	metadata: unknown,
+): ImportedHistorySummaryActivity | undefined {
+	if (!metadata || typeof metadata !== "object") return undefined;
+	const record = metadata as Record<string, unknown>;
+	const tool = asSessionImportTool(record.importedFrom);
+	if (!tool) return undefined;
+	switch (record.phase) {
+		case "started":
+			return {
+				phase: "started",
+				label: `Summarizing the imported ${SESSION_IMPORT_TOOL_LABELS[tool]} history...`,
+			};
+		case "completed":
+		case "skipped":
+			return { phase: "finished" };
+		default:
+			return undefined;
+	}
 }

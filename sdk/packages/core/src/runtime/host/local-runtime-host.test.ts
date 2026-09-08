@@ -6061,7 +6061,12 @@ describe("LocalRuntimeHost", () => {
 			{
 				role: "user",
 				content: [
-					{ type: "tool_result", tool_use_id: "toolu_1", content: "src" },
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_1",
+						name: "Read",
+						content: "src",
+					},
 				],
 			},
 		];

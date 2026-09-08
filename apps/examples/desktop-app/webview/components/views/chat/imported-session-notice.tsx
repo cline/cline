@@ -7,12 +7,10 @@ import {
 } from "@/lib/session-import";
 
 /**
- * Sits at the top of a transcript imported from another coding agent. The
- * imported turns keep that tool's own tool names, input schemas, and
- * conventions (see the core session-import adapters), none of which Cline
- * translates, so resuming can go worse than a native session would. Without
- * the notice the transcript looks like any other Cline session and the user
- * has no way to know why the agent behaves differently here.
+ * Heads a transcript imported from another coding agent. Its turns keep that
+ * agent's tool names and schemas, which Cline does not translate; without the
+ * notice the session looks native and the user has no way to know why
+ * continuing it may go differently.
  */
 export function ImportedSessionNotice({ tool }: { tool: SessionImportTool }) {
 	const label = SESSION_IMPORT_TOOL_LABELS[tool];

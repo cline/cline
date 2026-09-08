@@ -41,7 +41,6 @@ import {
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
-import { readImportedHistorySummaryActivity } from "@/lib/compaction-notice";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -54,6 +53,7 @@ import type {
 	SessionHistoryItem,
 	SessionHistoryStatus,
 } from "@/lib/session-history";
+import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -1542,9 +1542,8 @@ export function useChatSession() {
 						lastCoreErrorBySessionRef.current[payload.sessionId] =
 							parsed.message.trim();
 					}
-					// Summarizing an imported session's history runs before the first
-					// model call, where the transcript would otherwise just say
-					// "Thinking..."; name the wait while it lasts.
+					// An imported session's history is summarized before the first
+					// model call; name that wait instead of showing "Thinking...".
 					const summaryActivity = readImportedHistorySummaryActivity(
 						parsed.metadata,
 					);

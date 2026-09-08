@@ -640,6 +640,65 @@ export function createContextCompactionPrepareTurn(
 	};
 }
 
+/**
+ * Compaction policy for resuming a session imported from another coding agent.
+ * The imported transcript keeps that agent's tool names and input schemas
+ * verbatim, which a model continuing it may try to call, so the first turn
+ * folds the whole foreign history into a summary before the model request
+ * (manual mode, agentic strategy, nothing preserved but the new prompt).
+ * Runs once regardless of the session's auto-compaction setting, tags its
+ * status notices with `importedFrom` so clients can label the wait, and on
+ * failure falls back to the raw transcript. Every later turn defers to
+ * `next`, the session's normal compaction (if any).
+ */
+export function createImportedHistoryCompactionPrepareTurn(input: {
+	config: Parameters<typeof createContextCompactionPrepareTurn>[0];
+	/** Source tool id from the session's `importedFrom` metadata. */
+	importedFrom: string;
+	next?: ContextPipelinePrepareTurn;
+}): ContextPipelinePrepareTurn {
+	const summarize = createContextCompactionPrepareTurn(
+		{
+			...input.config,
+			compaction: {
+				...input.config.compaction,
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 0,
+			},
+		},
+		{ mode: "manual" },
+	);
+	let pending = summarize !== undefined;
+	return async (context) => {
+		if (pending && summarize) {
+			pending = false;
+			try {
+				const result = await summarize({
+					...context,
+					emitStatusNotice: (message, metadata) =>
+						context.emitStatusNotice?.(message, {
+							...metadata,
+							importedFrom: input.importedFrom,
+						}),
+				});
+				if (result?.messages) return result;
+			} catch (error) {
+				if (context.abortSignal.aborted) throw error;
+				input.config.logger?.log(
+					"Failed to summarize imported session on resume; continuing with the raw transcript",
+					{
+						severity: "warn",
+						sessionId: input.config.sessionId,
+						...describeCompactionError(error),
+					},
+				);
+			}
+		}
+		return input.next?.(context);
+	};
+}
+
 export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
