@@ -106,6 +106,21 @@ function formatSpawnError(error: unknown, command: string[]): Error {
 	return formatted;
 }
 
+/**
+ * Drops the stdio pipes of a hook that has already exited. A background child
+ * the hook left behind can still hold the far ends open; keeping ours would
+ * keep the host process alive and keep buffering output nobody reads.
+ */
+function releaseStdio(child: ReturnType<typeof spawn>): void {
+	for (const stream of [child.stdin, child.stdout, child.stderr]) {
+		if (!stream || stream.destroyed) {
+			continue;
+		}
+		stream.removeAllListeners("data");
+		stream.destroy();
+	}
+}
+
 async function writeToChildStdin(
 	child: ReturnType<typeof spawn>,
 	payload: string,
@@ -211,8 +226,18 @@ export async function runSubprocessEvent(
 		child.once("error", (error) => reject(formatSpawnError(error, command)));
 	});
 	const completed = new Promise<RunSubprocessEventResult>((resolve, reject) => {
-		const settle = (exitCode: number | null) => {
+		let done = false;
+		let exitFallback: NodeJS.Timeout | undefined;
+		const clearTimers = () => {
 			if (timeoutId) clearTimeout(timeoutId);
+			if (exitFallback) clearTimeout(exitFallback);
+		};
+		const settle = (exitCode: number | null) => {
+			if (done) {
+				return;
+			}
+			done = true;
+			clearTimers();
 			const { parsedJson, parseError } = parseStdout(stdout);
 			resolve({
 				exitCode,
@@ -224,7 +249,7 @@ export async function runSubprocessEvent(
 			});
 		};
 		child.once("error", (error) => {
-			if (timeoutId) clearTimeout(timeoutId);
+			clearTimers();
 			reject(formatSpawnError(error, command));
 		});
 		child.once("close", (exitCode) => settle(exitCode));
@@ -232,12 +257,18 @@ export async function runSubprocessEvent(
 		// a background child sharing its stdout keeps the pipe open after the
 		// hook itself exits — without a fallback the caller would wait on that
 		// grandchild forever (the timeout's SIGKILL only reaches the direct
-		// child). Settle shortly after process exit with whatever output arrived;
-		// a resolved promise ignores the eventual "close".
+		// child). Settle shortly after process exit with whatever output arrived,
+		// then drop the pipes: resolving alone would leave them (and their data
+		// listeners) attached for as long as the grandchild lives, keeping the
+		// host alive and accumulating output. Destroying them also lets the
+		// child's own "close" fire, which the settled promise then ignores.
 		if (!detached) {
 			child.once("exit", (exitCode) => {
-				const fallback = setTimeout(() => settle(exitCode), 1_000);
-				fallback.unref?.();
+				exitFallback = setTimeout(() => {
+					settle(exitCode);
+					releaseStdio(child);
+				}, 1_000);
+				exitFallback.unref?.();
 			});
 		}
 	});
@@ -303,7 +334,17 @@ export async function runSubprocessEvent(
 						exited: true,
 					}),
 				)
-				.catch(() => undefined);
+				.catch(() => {
+					// The hook never started (missing executable, EACCES), so
+					// there is no runtime to sample. Left armed, the window
+					// would report the spawn failure as a hook that ran for
+					// the whole observation window. The failure itself still
+					// surfaces through the rejected run.
+					reported = true;
+					if (censorTimer) {
+						clearTimeout(censorTimer);
+					}
+				});
 		}
 	}
 
