@@ -362,6 +362,7 @@ export interface RestoreSessionResult {
  */
 export interface RuntimeHost {
 	readonly runtimeAddress?: string;
+	proceedWhileRunning?: CommandExecutionRuntimeService["proceedWhileRunning"];
 	startSession(input: StartSessionInput): Promise<StartSessionResult>;
 	runTurn(input: SendSessionInput): Promise<AgentResult | undefined>;
 	restoreSession(input: RestoreSessionInput): Promise<RestoreSessionResult>;

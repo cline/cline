@@ -1,4 +1,7 @@
+import type { DetachedCommandOutcome } from "@cline/shared";
 import type { CoreSessionSnapshot } from "../session/session-snapshot";
+
+export type { DetachedCommandOutcome } from "@cline/shared";
 
 export interface SessionChunkEvent {
 	sessionId: string;
@@ -10,6 +13,18 @@ export interface SessionChunkEvent {
 export interface SessionEndedEvent {
 	sessionId: string;
 	reason: string;
+	ts: number;
+}
+
+export type RunCommandDetachKind = "user" | "implicit";
+
+export interface DetachedCommandCompletedEvent {
+	sessionId: string;
+	executionId: string;
+	toolCallId?: string;
+	logPath: string;
+	detachKind: RunCommandDetachKind;
+	outcome: DetachedCommandOutcome;
 	ts: number;
 }
 
@@ -87,6 +102,10 @@ export type CoreSessionEvent =
 			payload: SessionPendingPromptSubmittedEvent;
 	  }
 	| { type: "session_snapshot"; payload: SessionSnapshotEvent }
+	| {
+			type: "detached_command_completed";
+			payload: DetachedCommandCompletedEvent;
+	  }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
 	| { type: "status"; payload: { sessionId: string; status: string } };

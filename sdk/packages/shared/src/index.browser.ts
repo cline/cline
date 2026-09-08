@@ -1,6 +1,16 @@
 export * from "./agent";
 export * from "./agents";
 export type {
+	DetachedCommandBackgroundStatus,
+	DetachedCommandOutcome,
+} from "./commands/detached";
+export {
+	DetachedCommandOutcomeSchema,
+	detachedCommandBackgroundStatus,
+	formatDetachedCompletionNote,
+	matchDetachedCommandNotice,
+} from "./commands/detached";
+export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,
 	ConnectorEventActor,

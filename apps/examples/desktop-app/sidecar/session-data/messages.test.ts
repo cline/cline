@@ -1,5 +1,244 @@
+import { spawn } from "node:child_process";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { probeProcessStartTokenAsync } from "@cline/core";
 import { describe, expect, it } from "vitest";
 import { readSessionMessages } from "./messages";
+
+/**
+ * Builds a live-session transcript whose single run_commands tool call
+ * detached, embedding the given log paths in the persisted result notice.
+ */
+function detachedCommandSession(logPaths: string[]) {
+	const resultText = logPaths
+		.map(
+			(path) => `[Command is still running. Output will continue in ${path}]`,
+		)
+		.join("\n");
+	return [
+		{
+			id: "user-message",
+			role: "user" as const,
+			content: [{ type: "text", text: "Run it" }],
+		},
+		{
+			id: "assistant-message",
+			role: "assistant" as const,
+			content: [
+				{
+					type: "tool_use",
+					id: "tool-use-detached",
+					name: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+			],
+		},
+		{
+			id: "tool-result-message",
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "tool-use-detached",
+					name: "run_commands",
+					content: [
+						{
+							query: "sleep 60",
+							result: resultText,
+							success: true,
+						},
+					],
+				},
+			],
+		},
+		{
+			id: "assistant-answer",
+			role: "assistant" as const,
+			content: [{ type: "text", text: "It is running in the background." }],
+		},
+	];
+}
+
+async function toolRowFor(sessionId: string, messages: unknown[]) {
+	const liveSessions = new Map([[sessionId, { messages }]]);
+	const rows = await readSessionMessages(
+		{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+		sessionId,
+	);
+	const row = rows.find(
+		(entry) => (entry as { role?: string }).role === "tool",
+	);
+	if (!row) throw new Error("expected a tool row");
+	return row as { id: string; meta?: Record<string, unknown> };
+}
+
+describe("readSessionMessages detached command enrichment", () => {
+	it("stamps a row whose process is still alive as running with its execution id", async () => {
+		const child = spawn(process.execPath, [
+			"-e",
+			"setTimeout(() => {}, 60_000)",
+		]);
+		try {
+			const probe = await probeProcessStartTokenAsync(child.pid ?? 0);
+			if (probe.status !== "found") {
+				throw new Error(`could not probe the child process: ${probe.status}`);
+			}
+			const directory = await mkdtemp(join(tmpdir(), "cline-command-"));
+			const logPath = join(directory, "output.log");
+			await Promise.all([
+				writeFile(logPath, "silent but running"),
+				writeFile(
+					join(directory, "active-command.json"),
+					`${JSON.stringify({
+						version: 1,
+						executionId: "execution-live",
+						pid: child.pid,
+						processStartToken: probe.token,
+						detachedAtMs: Date.now(),
+					})}\n`,
+				),
+			]);
+			const sessionId = `detached-running-${Date.now()}`;
+			const row = await toolRowFor(
+				sessionId,
+				detachedCommandSession([logPath]),
+			);
+			expect(row.meta).toMatchObject({
+				toolBackgroundStatus: "running",
+				toolBackgroundLogPath: logPath,
+				toolExecutionIds: ["execution-live"],
+				hookEventName: "tool_call_start",
+			});
+		} finally {
+			child.kill();
+		}
+	});
+
+	it("settles a row whose log records a completion with the completion note", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cline-command-"));
+		const logPath = join(directory, "output.log");
+		await Promise.all([
+			writeFile(logPath, "[Command exited with code 0]\n"),
+			writeFile(join(directory, "completed-at"), String(Date.now())),
+			writeFile(
+				join(directory, "command-outcome.json"),
+				JSON.stringify({ kind: "exited", exitCode: 0 }),
+			),
+		]);
+		const sessionId = `detached-completed-${Date.now()}`;
+		const row = await toolRowFor(sessionId, detachedCommandSession([logPath]));
+		expect(row.meta).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			toolBackgroundLogPath: logPath,
+			hookEventName: "tool_call_end",
+		});
+		expect(String(row.meta?.toolOutput)).toContain(
+			"[Detached command completed with exit code 0]",
+		);
+		expect(String(row.meta?.toolOutput)).toContain(
+			`[Command is still running. Output will continue in ${logPath}]`,
+		);
+	});
+
+	it("leaves a row whose markers cannot prove anything claiming no outcome", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cline-command-"));
+		const logPath = join(directory, "output.log");
+		await writeFile(logPath, "log with no lifecycle markers");
+		const sessionId = `detached-unknown-${Date.now()}`;
+		const row = await toolRowFor(sessionId, detachedCommandSession([logPath]));
+		expect(row.meta).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			toolBackgroundLogPath: logPath,
+			hookEventName: "tool_call_end",
+		});
+		expect(row.meta?.toolOutput).toBeUndefined();
+		expect(row.meta?.toolExecutionIds).toBeUndefined();
+	});
+
+	it("renders a row with parallel executions running while any is alive", async () => {
+		const child = spawn(process.execPath, [
+			"-e",
+			"setTimeout(() => {}, 60_000)",
+		]);
+		try {
+			const probe = await probeProcessStartTokenAsync(child.pid ?? 0);
+			if (probe.status !== "found") {
+				throw new Error(`could not probe the child process: ${probe.status}`);
+			}
+			const liveDirectory = await mkdtemp(join(tmpdir(), "cline-command-"));
+			const doneDirectory = await mkdtemp(join(tmpdir(), "cline-command-"));
+			await Promise.all([
+				writeFile(join(liveDirectory, "output.log"), "running"),
+				writeFile(
+					join(liveDirectory, "active-command.json"),
+					`${JSON.stringify({
+						version: 1,
+						executionId: "execution-live",
+						pid: child.pid,
+						processStartToken: probe.token,
+						detachedAtMs: Date.now(),
+					})}\n`,
+				),
+				writeFile(
+					join(doneDirectory, "output.log"),
+					"[Command exited with code 3]",
+				),
+				writeFile(join(doneDirectory, "completed-at"), String(Date.now())),
+				writeFile(
+					join(doneDirectory, "command-outcome.json"),
+					JSON.stringify({ kind: "exited", exitCode: 3 }),
+				),
+			]);
+			const sessionId = `detached-parallel-${Date.now()}`;
+			const row = await toolRowFor(
+				sessionId,
+				detachedCommandSession([
+					join(liveDirectory, "output.log"),
+					join(doneDirectory, "output.log"),
+				]),
+			);
+			expect(row.meta).toMatchObject({
+				toolBackgroundStatus: "running",
+				toolExecutionIds: ["execution-live"],
+			});
+		} finally {
+			child.kill();
+		}
+	});
+
+	it("does not touch rows that never detached", async () => {
+		const sessionId = `detached-plain-${Date.now()}`;
+		const messages = [
+			{
+				id: "assistant-message",
+				role: "assistant" as const,
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-use-plain",
+						name: "run_commands",
+						input: { commands: ["echo done"] },
+					},
+				],
+			},
+			{
+				id: "tool-result-message",
+				role: "user" as const,
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "tool-use-plain",
+						name: "run_commands",
+						content: [{ query: "echo done", result: "done", success: true }],
+					},
+				],
+			},
+		];
+		const row = await toolRowFor(sessionId, messages);
+		expect(row.meta?.toolBackgroundStatus).toBeUndefined();
+	});
+});
 
 describe("readSessionMessages", () => {
 	it("continues past malformed persisted entries", async () => {

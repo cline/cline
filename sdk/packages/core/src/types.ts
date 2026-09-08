@@ -216,6 +216,9 @@ export type {
 } from "./types/config";
 export type {
 	CoreSessionEvent,
+	DetachedCommandCompletedEvent,
+	DetachedCommandOutcome,
+	RunCommandDetachKind,
 	SessionChunkEvent,
 	SessionEndedEvent,
 	SessionPendingPrompt,

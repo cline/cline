@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import * as path from "node:path"
 import { expect } from "@playwright/test"
-import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
+import { E2E_TURN_TIMEOUT_MS, E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 
 // File edits are performed by the SDK's `editor` tool executor, which writes
 // the file directly (Node fs) after the tool call is approved. It does not
@@ -42,7 +42,7 @@ e2e.describe("File Edit Auto-Approval", () => {
 
 				// The SDK executes the editor tool and sends the tool result back to
 				// the (mock) model, which replies with turn-ending completion text.
-				await expect(sidebar.getByText("I successfully replaced")).toBeVisible({ timeout: 30_000 })
+				await expect(sidebar.getByText("I successfully replaced")).toBeVisible({ timeout: E2E_TURN_TIMEOUT_MS })
 
 				// The edit was actually applied to the file on disk.
 				expect(readFileSync(editedFilePath, "utf-8")).toContain('export const name = "cline"')

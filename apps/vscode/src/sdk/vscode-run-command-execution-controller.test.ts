@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
-import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { VscodeRunCommandExecutionController } from "./vscode-run-command-execution-controller"
 
-describe("SdkForegroundCommandCoordinator", () => {
+describe("VscodeRunCommandExecutionController", () => {
 	it("reports isRunning while a handle is registered and notifies on changes", () => {
 		const onRunningChanged = vi.fn()
-		const coordinator = new SdkForegroundCommandCoordinator({ onRunningChanged })
+		const coordinator = new VscodeRunCommandExecutionController({ onRunningChanged })
 
 		expect(coordinator.isRunning).toBe(false)
 
@@ -19,7 +19,7 @@ describe("SdkForegroundCommandCoordinator", () => {
 
 	it("only notifies on actual transitions, not per handle", () => {
 		const onRunningChanged = vi.fn()
-		const coordinator = new SdkForegroundCommandCoordinator({ onRunningChanged })
+		const coordinator = new VscodeRunCommandExecutionController({ onRunningChanged })
 
 		const unregister1 = coordinator.register({ detach: () => {} })
 		const unregister2 = coordinator.register({ detach: () => {} })
@@ -33,7 +33,7 @@ describe("SdkForegroundCommandCoordinator", () => {
 
 	it("unregister is idempotent", () => {
 		const onRunningChanged = vi.fn()
-		const coordinator = new SdkForegroundCommandCoordinator({ onRunningChanged })
+		const coordinator = new VscodeRunCommandExecutionController({ onRunningChanged })
 
 		const unregister = coordinator.register({ detach: () => {} })
 		unregister()
@@ -42,24 +42,24 @@ describe("SdkForegroundCommandCoordinator", () => {
 	})
 
 	it("proceedWhileRunning detaches every registered handle and reports the count", () => {
-		const coordinator = new SdkForegroundCommandCoordinator()
+		const coordinator = new VscodeRunCommandExecutionController()
 		const detach1 = vi.fn()
 		const detach2 = vi.fn()
 		coordinator.register({ detach: detach1 })
 		coordinator.register({ detach: detach2 })
 
 		expect(coordinator.proceedWhileRunning()).toBe(2)
-		expect(detach1).toHaveBeenCalledTimes(1)
-		expect(detach2).toHaveBeenCalledTimes(1)
+		expect(detach1).toHaveBeenCalledWith("user")
+		expect(detach2).toHaveBeenCalledWith("user")
 	})
 
 	it("proceedWhileRunning is a no-op returning 0 when nothing is running", () => {
-		const coordinator = new SdkForegroundCommandCoordinator()
+		const coordinator = new VscodeRunCommandExecutionController()
 		expect(coordinator.proceedWhileRunning()).toBe(0)
 	})
 
 	it("proceedWhileRunning survives a handle whose detach throws", () => {
-		const coordinator = new SdkForegroundCommandCoordinator()
+		const coordinator = new VscodeRunCommandExecutionController()
 		const detach2 = vi.fn()
 		coordinator.register({
 			detach: () => {
@@ -68,7 +68,7 @@ describe("SdkForegroundCommandCoordinator", () => {
 		})
 		coordinator.register({ detach: detach2 })
 
-		expect(coordinator.proceedWhileRunning()).toBe(2)
+		expect(coordinator.proceedWhileRunning()).toBe(1)
 		expect(detach2).toHaveBeenCalledTimes(1)
 	})
 })

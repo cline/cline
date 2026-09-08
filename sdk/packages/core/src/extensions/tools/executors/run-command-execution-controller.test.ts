@@ -29,6 +29,47 @@ describe("RunCommandExecutionController", () => {
 
 		expect(controller.proceedWhileRunning("session-1", "call-1")).toBe(1);
 		expect(successfulDetach).toHaveBeenCalledOnce();
+		expect(successfulDetach).toHaveBeenCalledWith("user");
 		expect(otherSessionDetach).not.toHaveBeenCalled();
+	});
+
+	it("fans detached completion out to host listeners", () => {
+		const controller = new RunCommandExecutionController();
+		const listener = vi.fn();
+		const unsubscribe =
+			controller.subscribeToDetachedCommandCompleted(listener);
+		const event = {
+			sessionId: "session-1",
+			executionId: "execution-1",
+			toolCallId: "call-1",
+			logPath: "/tmp/output.log",
+			detachKind: "implicit" as const,
+			outcome: { kind: "exited" as const, exitCode: 0 },
+			ts: 123,
+		};
+
+		controller.reportDetachedCommandCompleted(event);
+		expect(listener).toHaveBeenCalledWith(event);
+
+		unsubscribe();
+		controller.reportDetachedCommandCompleted(event);
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
+	it("reports each detached execution completion once", () => {
+		const controller = new RunCommandExecutionController();
+		const listener = vi.fn();
+		controller.subscribeToDetachedCommandCompleted(listener);
+		const event = {
+			sessionId: "session-1",
+			executionId: "execution-1",
+			logPath: "/tmp/output.log",
+			detachKind: "implicit" as const,
+			outcome: { kind: "exited" as const, exitCode: 0 },
+			ts: 1,
+		};
+		controller.reportDetachedCommandCompleted(event);
+		controller.reportDetachedCommandCompleted(event);
+		expect(listener).toHaveBeenCalledOnce();
 	});
 });

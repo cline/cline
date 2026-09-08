@@ -260,9 +260,21 @@ export function collapseCompletedWork(
 		// settles only when the session stopped running AND the run actually
 		// ended on an answer — a cancelled or failed tail keeps its rows
 		// visible so the user can see where the run stopped.
+		// A detached command that is still running is live work, not history:
+		// its row keeps updating until the process outcome settles it, so the
+		// span must stay expanded ("run" group) instead of folding into a
+		// "Worked for..." summary that hides the running command.
+		const hasRunningBackgroundCommand = span.some(
+			(item) =>
+				item.type === "tools" &&
+				item.messages.some(
+					(message) => message.meta?.toolBackgroundStatus === "running",
+				),
+		);
 		const complete =
-			nextIndex <= lastUserIndex ||
-			(collapseTrailingRun && answer !== undefined);
+			(nextIndex <= lastUserIndex ||
+				(collapseTrailingRun && answer !== undefined)) &&
+			!hasRunningBackgroundCommand;
 		const collapsed = complete && answer ? workRows : span;
 		const toolCallCount = collapsed.reduce(
 			(count, item) =>

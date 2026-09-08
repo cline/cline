@@ -209,6 +209,26 @@ potentially live command's advertised path takes precedence over guessing that
 it exited. A detached client connection alone never changes process ownership or
 command execution.
 
+The executor atomically publishes `command-outcome.json` with the same typed
+outcome it emits live, before removing the active marker. This outcome does not
+depend on the output stream flushing successfully or staying below its cap.
+`queryDetachedCommandState` reads this marker and rechecks it after asynchronous
+process identity probes. `completed-at` retains its timestamp-only format for
+retention readers. Legacy logs without a typed outcome claim no outcome: command
+output can imitate exit and deadline lines, and a retention timestamp alone
+does not prove how the command ended.
+
+VS Code foreground integrated-terminal commands are observed through shell
+integration, not identified by the shell's PID. The VS Code adapter keeps those
+observers across chat selection and writes per-execution observation records
+under the session's `foreground-commands` directory. Live messages and reopened
+history use the same projection: a surviving observer proves running, an atomic
+completion record proves its outcome, and an unfinished record without its
+observer is indeterminate. Extension-host disposal stops Cline's log capture
+without killing the user's terminal; a new host does not reattach that observer.
+Terminal persistence may keep the command running, but cannot prove its outcome
+to Cline. Completed records retain bounded captured output until session deletion.
+
 ### Generated Media Operation and Event Flow
 
 Model modalities and provider operations are separate facts. Modalities describe

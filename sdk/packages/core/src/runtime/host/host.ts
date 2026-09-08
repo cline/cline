@@ -110,6 +110,7 @@ function createLocalRuntimeHost(
 		toolPolicies: options.toolPolicies,
 		distinctId,
 		fetch: options.fetch,
+		runCommandExecutionController: options.runCommandExecutionController,
 	});
 }
 

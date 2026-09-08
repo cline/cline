@@ -1,13 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
+	type DetachedCommandStateQuery,
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
+	queryDetachedCommandState,
 	resolveMessageDisplayRole,
 } from "@cline/core";
 import {
+	detachedCommandBackgroundStatus,
+	formatDetachedCompletionNote,
 	isGeneratedMedia,
 	type MessageWithMetadata,
+	matchDetachedCommandNotice,
 	validateImageMedia,
 } from "@cline/shared";
 import {
@@ -694,7 +699,159 @@ export async function readSessionMessages(
 		}
 	}
 
+	await enrichDetachedCommandRows(out);
+
 	return out;
+}
+
+/**
+ * Resolves the lifecycle state of every detached command the transcript
+ * recorded and stamps the row so the webview renders it authoritatively at
+ * hydration: a command whose process identity the host can still confirm
+ * keeps its live running appearance — with the execution ids the client needs
+ * to enroll it — a command whose log records a completion arrives settled
+ * with the same completion note the live event path renders, and anything the
+ * markers cannot prove claims no outcome. The state resolves here, on the
+ * host that can read the markers, so the webview never has to ask.
+ */
+async function enrichDetachedCommandRows(out: JsonRecord[]): Promise<void> {
+	const logPathsByRowIndex = new Map<number, string[]>();
+	const resultTextsByRowIndex = new Map<number, string[]>();
+	for (let index = 0; index < out.length; index += 1) {
+		const entry = out[index];
+		if (!entry || typeof entry.content !== "string") continue;
+		const meta = entry.meta;
+		if (!meta || typeof meta !== "object") continue;
+		const record = meta as JsonRecord;
+		if (record.toolBackgroundStatus !== undefined) continue;
+		const toolCallId = record.toolCallId;
+		if (typeof toolCallId !== "string" || !toolCallId) continue;
+		const hookEventName = record.hookEventName;
+		if (
+			hookEventName !== "history_tool_result" &&
+			hookEventName !== "history_tool_use"
+		) {
+			continue;
+		}
+		let payload: unknown;
+		try {
+			payload = JSON.parse(entry.content);
+		} catch {
+			continue;
+		}
+		const result = (payload as { result?: unknown } | null)?.result;
+		const resultTexts = Array.isArray(result)
+			? result.map((item) =>
+					typeof item === "object" && item !== null
+						? String((item as { result?: unknown }).result ?? "")
+						: "",
+				)
+			: typeof result === "string"
+				? [result]
+				: [];
+		const logPaths = resultTexts
+			.map((text) => matchDetachedCommandNotice(text))
+			.filter((path): path is string => path !== null);
+		if (logPaths.length > 0) {
+			logPathsByRowIndex.set(index, logPaths);
+			resultTextsByRowIndex.set(index, resultTexts);
+		}
+	}
+	if (logPathsByRowIndex.size === 0) return;
+
+	const states = new Map<string, DetachedCommandStateQuery>();
+	await Promise.all(
+		Array.from(new Set(Array.from(logPathsByRowIndex.values()).flat())).map(
+			async (logPath) => {
+				// An unreadable marker must not fail the hydration read: the row
+				// simply claims no outcome, exactly like an unresolvable one.
+				states.set(
+					logPath,
+					await queryDetachedCommandState(logPath).catch(() => ({
+						status: "unknown" as const,
+					})),
+				);
+			},
+		),
+	);
+
+	for (const [index, logPaths] of logPathsByRowIndex) {
+		const entry = out[index];
+		if (!entry) continue;
+		const rowStates = logPaths.map(
+			(logPath) => states.get(logPath) ?? { status: "unknown" as const },
+		);
+		const executionIds: string[] = [];
+		const notes: string[] = [];
+		let hasRunning = false;
+		let hasUnknown = false;
+		let hasKilled = false;
+		let hasFailed = false;
+		let hasIndeterminate = false;
+		for (const state of rowStates) {
+			if (state.status === "running") {
+				hasRunning = true;
+				executionIds.push(state.executionId);
+				continue;
+			}
+			if (state.status !== "completed") {
+				hasUnknown = true;
+				continue;
+			}
+			notes.push(formatDetachedCompletionNote(state.outcome));
+			const status = detachedCommandBackgroundStatus(state.outcome);
+			if (status === "killed") hasKilled = true;
+			else if (status === "failed") hasFailed = true;
+			else if (status === "indeterminate") hasIndeterminate = true;
+		}
+		// Status precedence mirrors the live completion path: a row with
+		// several executions renders running while any is confirmed alive,
+		// and otherwise reports its worst settled outcome; any execution the
+		// markers cannot resolve keeps the whole row claiming no outcome.
+		const meta = (entry.meta ?? {}) as JsonRecord;
+		const logPath = logPaths[logPaths.length - 1];
+		const outcomeStatus = hasKilled
+			? "killed"
+			: hasFailed
+				? "failed"
+				: hasIndeterminate || hasUnknown
+					? "indeterminate"
+					: "succeeded";
+		const resultTexts = resultTextsByRowIndex.get(index) ?? [];
+		const output =
+			notes.length > 0
+				? [...resultTexts.filter(Boolean), ...notes].join("\n")
+				: undefined;
+		if (hasRunning) {
+			entry.meta = {
+				...meta,
+				toolBackgroundStatus: "running",
+				toolBackgroundLogPath: logPath,
+				toolExecutionIds: executionIds,
+				toolBackgroundOutcomeStatus: outcomeStatus,
+				...(output ? { toolOutput: output } : {}),
+				hookEventName: "tool_call_start",
+			};
+			continue;
+		}
+		if (hasUnknown || notes.length === 0) {
+			entry.meta = {
+				...meta,
+				toolBackgroundStatus: "indeterminate",
+				toolBackgroundLogPath: logPath,
+				hookEventName: "tool_call_end",
+			};
+			continue;
+		}
+		entry.meta = {
+			...meta,
+			toolBackgroundStatus: outcomeStatus,
+			toolBackgroundLogPath: logPath,
+			toolExecutionIds: [],
+			...(output ? { toolOutput: output } : {}),
+			hookEventName: "tool_call_end",
+		};
+	}
 }
 
 export function persistSessionMessages(

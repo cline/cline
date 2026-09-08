@@ -19,6 +19,16 @@ export interface E2ETestConfigs {
 	channel: "stable" | "insiders"
 }
 
+/**
+ * Budget for an assertion that waits on a whole model turn: SDK host and
+ * session start on the first prompt, the mock API round-trip, the first
+ * streamed chunk, and the webview render. The Playwright `expect` default
+ * (playwright.config.ts) is sized for DOM reactions and is regularly exceeded
+ * by a cold first turn on the Windows runner, so every turn-dependent
+ * assertion passes this instead.
+ */
+export const E2E_TURN_TIMEOUT_MS = 30_000
+
 export class E2ETestHelper {
 	// Constants
 	public static readonly CODEBASE_ROOT_DIR = path.resolve(__dirname, "..", "..", "..", "..")

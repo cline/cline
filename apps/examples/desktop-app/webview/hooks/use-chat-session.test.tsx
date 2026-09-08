@@ -1,5 +1,14 @@
 // @vitest-environment jsdom
 
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { createShellExecutor } from "@cline/core";
+import {
+	type DetachedCommandOutcome,
+	detachedCommandBackgroundStatus,
+	formatDetachedCompletionNote,
+} from "@cline/shared/browser";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +17,7 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import { readSessionMessages } from "../../sidecar/session-data/messages";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -397,6 +407,1444 @@ describe("useChatSession", () => {
 			sessionId: current.sessionId,
 			toolCallId: "call-output",
 		});
+	});
+
+	it("keeps a detached command running until its process completes", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler?.({
+				sessionId: "session-detached",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					output: "[Command is still running]",
+				},
+				3,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "running",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_start",
+		});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				4,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+		// The process outcome is rendered in the row's output so a completed
+		// command is distinguishable from an indeterminate one.
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta
+				?.toolOutput,
+		).toContain("[Detached command completed with exit code 0]");
+	});
+
+	it("renders a detached completion note once even if the completion is delivered twice", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached-note",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler?.({
+				sessionId: "session-detached-note",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		const completion = {
+			toolCallId: "call-detached-note",
+			toolName: "run_commands",
+			update: {
+				executionId: "execution-detached-note",
+				detached: true,
+				completed: true,
+				logPath: "/tmp/output.log",
+				outcome: { kind: "exited", exitCode: 0 },
+			},
+		};
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached-note",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached-note",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached-note",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			// The process exits before the tool call resolves.
+			send("chat_tool_call_update", completion, 3);
+			// Both observation paths may deliver the same completion.
+			send("chat_tool_call_update", completion, 4);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached-note",
+					toolName: "run_commands",
+					output:
+						"[Command is still running. Output will continue in /tmp/output.log]",
+				},
+				5,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			hookEventName: "tool_call_end",
+		});
+		expect(
+			toolMessage?.meta?.toolOutput?.match(
+				/Detached command completed with exit code 0/g,
+			),
+		).toHaveLength(1);
+	});
+	it("keeps an observed detached command running through post-turn hydration and settles it on completion", async () => {
+		let canonicalMessages: unknown[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalMessages;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler?.({
+				sessionId: "session-detached",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					output: "[Command is still running]",
+				},
+				3,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		// The turn settles and the delayed reconcile replaces the live
+		// transcript with the persisted one.
+		canonicalMessages = [
+			{
+				id: "history-user",
+				sessionId: "session-detached",
+				role: "user",
+				content: "Run it",
+				createdAt: 1,
+			},
+			{
+				id: "history-assistant",
+				sessionId: "session-detached",
+				role: "assistant",
+				content: "Started",
+				createdAt: 2,
+			},
+			{
+				id: "history-tool",
+				sessionId: "session-detached",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+					result:
+						"[Command is still running. Output will continue in /tmp/output.log]",
+					isError: false,
+				}),
+				createdAt: 3,
+				meta: {
+					toolName: "run_commands",
+					toolCallId: "call-detached",
+					hookEventName: "history_tool_result",
+				},
+			},
+		];
+		await act(async () => {
+			send("chat_done", { reason: "completed" }, 4);
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+
+		// This client watched the process detach and has not seen it complete,
+		// so the canonical row stays running (and its turn stays expanded)
+		// instead of being downgraded to an unknown outcome.
+		const hydratedToolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(hydratedToolMessage?.id).toBe("history-tool");
+		expect(hydratedToolMessage?.meta).toMatchObject({
+			toolBackgroundStatus: "running",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_start",
+		});
+
+		// A completion event settles the reconstructed row with the truth.
+		await act(async () => {
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				5,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+	});
+	it("does not reopen a settled detached command as running on hydration", async () => {
+		let canonicalMessages: unknown[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalMessages;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "session-detached-settled",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+		const send = (stream: string, body: unknown, index: number) =>
+			chatEventHandler({
+				sessionId: "session-detached-settled",
+				stream,
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		await act(async () => {
+			send(
+				"chat_tool_call_start",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+				},
+				1,
+			);
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						detachable: false,
+						logPath: "/tmp/output.log",
+					},
+				},
+				2,
+			);
+			send(
+				"chat_tool_call_end",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					output: "[Command is still running]",
+				},
+				3,
+			);
+			// The process ends on a signal before the turn settles: the only
+			// pending execution is consumed and the row's outcome is unknown.
+			send(
+				"chat_tool_call_update",
+				{
+					toolCallId: "call-detached",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-detached",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "signaled", signal: "SIGTERM" },
+					},
+				},
+				4,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(
+			current.messages.find((message) => message.role === "tool")?.meta,
+		).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			hookEventName: "tool_call_end",
+		});
+
+		canonicalMessages = [
+			{
+				id: "history-user",
+				sessionId: "session-detached-settled",
+				role: "user",
+				content: "Run it",
+				createdAt: 1,
+			},
+			{
+				id: "history-assistant",
+				sessionId: "session-detached-settled",
+				role: "assistant",
+				content: "Started",
+				createdAt: 2,
+			},
+			{
+				id: "history-tool",
+				sessionId: "session-detached-settled",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["sleep 60"] },
+					result:
+						"[Command is still running. Output will continue in /tmp/output.log]",
+					isError: false,
+				}),
+				createdAt: 3,
+				meta: {
+					toolName: "run_commands",
+					toolCallId: "call-detached",
+					hookEventName: "history_tool_result",
+				},
+			},
+		];
+		await act(async () => {
+			send("chat_done", { reason: "completed" }, 5);
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+
+		// No execution is pending, so hydration must not claim the process is
+		// alive; the row keeps its unknown outcome and the turn may collapse.
+		const hydratedToolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(hydratedToolMessage?.id).toBe("history-tool");
+		expect(hydratedToolMessage?.meta).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+	});
+	it("applies a detached completion that races the post-turn hydration", async () => {
+		// A completion event can land after the turn ends but before the
+		// 250 ms reconcile replaces the transcript. Its output is buffered
+		// under the live row's message id on a 48 ms flush timer; if the
+		// hydration commits first, the flush must still land on the
+		// canonical row it installed instead of missing on replaced ids.
+		vi.useFakeTimers();
+		try {
+			let canonicalMessages: unknown[] = [];
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command === "get_process_context") {
+						return {
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (command === "read_session_messages") {
+						return canonicalMessages;
+					}
+					if (command === "chat_session_command") {
+						const request = args?.request as { action?: string } | undefined;
+						if (request?.action === "start") {
+							return {
+								sessionId: "session-detached-race",
+								cwd: "/workspace/cline",
+								workspaceRoot: "/workspace/cline",
+							};
+						}
+					}
+					return [];
+				},
+			);
+			await act(async () => current.start(current.config));
+			const chatEventHandler = handlerFor("chat_event");
+			const send = (stream: string, body: unknown, index: number) =>
+				chatEventHandler({
+					sessionId: "session-detached-race",
+					stream,
+					chunk: JSON.stringify(body),
+					ts: Date.now(),
+					index,
+				});
+
+			await act(async () => {
+				send(
+					"chat_tool_call_start",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						input: { commands: ["sleep 60"] },
+					},
+					1,
+				);
+				send(
+					"chat_tool_call_update",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-race",
+							detached: true,
+							detachable: false,
+							logPath: "/tmp/output.log",
+						},
+					},
+					2,
+				);
+				send(
+					"chat_tool_call_end",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						output: "[Command is still running]",
+					},
+					3,
+				);
+			});
+
+			canonicalMessages = [
+				{
+					id: "history-user",
+					sessionId: "session-detached-race",
+					role: "user",
+					content: "Run it",
+					createdAt: 1,
+				},
+				{
+					id: "history-assistant",
+					sessionId: "session-detached-race",
+					role: "assistant",
+					content: "Started",
+					createdAt: 2,
+				},
+				{
+					id: "history-tool",
+					sessionId: "session-detached-race",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "run_commands",
+						input: { commands: ["sleep 60"] },
+						result:
+							"[Command is still running. Output will continue in /tmp/output.log]",
+						isError: false,
+					}),
+					createdAt: 3,
+					meta: {
+						toolName: "run_commands",
+						toolCallId: "call-race",
+						hookEventName: "history_tool_result",
+					},
+				},
+			];
+			await act(async () => {
+				send("chat_done", { reason: "completed" }, 4);
+			});
+
+			// The completion lands 225 ms after the turn ended: late enough
+			// that its flush timer (48 ms) would fire after the 250 ms
+			// reconcile commits, early enough that it is still buffered under
+			// the live row's message id when hydration runs.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(225);
+				send(
+					"chat_tool_call_update",
+					{
+						toolCallId: "call-race",
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-race",
+							detached: true,
+							completed: true,
+							logPath: "/tmp/output.log",
+							outcome: { kind: "exited", exitCode: 0 },
+						},
+					},
+					5,
+				);
+			});
+
+			// The reconcile fires at 250 ms and installs the canonical rows;
+			// the buffered flush fires at 273 ms and must land on them.
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(100);
+			});
+
+			const hydratedToolMessage = current.messages.find(
+				(message) => message.role === "tool",
+			);
+			expect(hydratedToolMessage?.id).toBe("history-tool");
+			expect(hydratedToolMessage?.meta).toMatchObject({
+				toolBackgroundStatus: "succeeded",
+				toolBackgroundLogPath: "/tmp/output.log",
+				hookEventName: "tool_call_end",
+			});
+			expect(hydratedToolMessage?.meta?.toolOutput).toContain(
+				"[Detached command completed with exit code 0]",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("settles a reloaded detached command row on its completion", async () => {
+		// A client that reloads mid-flight hydrates the detached command's
+		// row from disk; the sidecar resolved the state while serving the
+		// read (the markers could not prove anything here) and stamped the
+		// row claiming no outcome. The webview enrolls that stamp so the
+		// detached-completion event for the still-running process settles
+		// the row in place instead of being dropped.
+		const sessionId = "session-reloaded-detached";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "history-user",
+							sessionId,
+							role: "user",
+							content: "Run it",
+							createdAt: 1,
+						},
+						{
+							id: "history-tool-detached",
+							sessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["sleep 60"] },
+								result:
+									"[Command is still running. Output will continue in /tmp/output.log]",
+								isError: false,
+							}),
+							createdAt: 2,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-reloaded",
+								toolBackgroundStatus: "indeterminate",
+								toolBackgroundLogPath: "/tmp/output.log",
+								hookEventName: "tool_call_end",
+							},
+						},
+						{
+							id: "history-tool-plain",
+							sessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["echo done"] },
+								result: "done",
+								isError: false,
+							}),
+							createdAt: 3,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-plain",
+								hookEventName: "history_tool_result",
+							},
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return { promptsInQueue: [] };
+			},
+		);
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-07T00:00:00.000Z",
+			});
+		});
+		const detachedRow = current.messages.find(
+			(message) => message.id === "history-tool-detached",
+		);
+		expect(detachedRow?.meta).toMatchObject({
+			toolBackgroundStatus: "indeterminate",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+		// A row whose result never detached is untouched by enrichment and
+		// not enrolled.
+		const plainRow = current.messages.find(
+			(message) => message.id === "history-tool-plain",
+		);
+		expect(plainRow?.meta?.toolBackgroundStatus).toBeUndefined();
+
+		const chatEventHandler = handlerFor("chat_event");
+		const send = (body: unknown, index: number) =>
+			chatEventHandler({
+				sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify(body),
+				ts: Date.now(),
+				index,
+			});
+
+		// The process behind the detached row exits while this client is
+		// attached: the completion settles the row in place.
+		await act(async () => {
+			send(
+				{
+					toolCallId: "call-reloaded",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-reloaded",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				1,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		const settledRow = current.messages.find(
+			(message) => message.id === "history-tool-detached",
+		);
+		expect(settledRow?.meta).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+		expect(settledRow?.meta?.toolOutput).toContain(
+			"[Detached command completed with exit code 0]",
+		);
+
+		// A completion for a row that never detached stays unroutable.
+		await act(async () => {
+			send(
+				{
+					toolCallId: "call-plain",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-plain",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/other.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				},
+				2,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		const untouchedRow = current.messages.find(
+			(message) => message.id === "history-tool-plain",
+		);
+		expect(untouchedRow?.meta?.toolBackgroundStatus).toBeUndefined();
+	});
+
+	it.each([
+		false,
+		true,
+	])("routes a real detached process completion after real sidecar hydration (prior failure: %s)", async (priorFailure) => {
+		const sessionId = "session-real-detached-hydration";
+		const toolCallId = "call-real-detached";
+		const directory = await mkdtemp(join(tmpdir(), "hydration-boundary-"));
+		const releasePath = join(directory, "release");
+		const failedNotice = `[Command is still running. Output will continue in ${join(directory, "output.log")}]`;
+		const completed = deferred<Record<string, unknown>>();
+		let logPath: string | undefined;
+		try {
+			if (priorFailure) {
+				await writeFile(
+					join(directory, "command-outcome.json"),
+					JSON.stringify({ kind: "exited", exitCode: 3 }),
+				);
+			}
+			const shell = createShellExecutor({
+				detachAfterMs: 10,
+				killAfterMs: 10_000,
+			});
+			const notice = await shell(
+				{
+					command: process.execPath,
+					args: [
+						"-e",
+						`const fs = require('node:fs'); const timer = setInterval(() => {
+if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
+}, 10);`,
+					],
+				},
+				process.cwd(),
+				{
+					agentId: "test",
+					conversationId: sessionId,
+					iteration: 1,
+					sessionId,
+					toolCallId,
+					emitUpdate: (value) => {
+						const update = value as Record<string, unknown>;
+						if (update.completed) completed.resolve(update);
+					},
+				},
+			);
+			logPath = /Output will continue in ([^\]]+)/.exec(notice)?.[1];
+			expect(logPath).toBeDefined();
+			const messages = [
+				{
+					id: "assistant-use",
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: toolCallId,
+							name: "run_commands",
+							input: { commands: ["wait for release"] },
+						},
+					],
+				},
+				{
+					id: "tool-result",
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: toolCallId,
+							name: "run_commands",
+							content: [
+								...(priorFailure
+									? [{ query: "failed", result: failedNotice, success: true }]
+									: []),
+								{ query: "wait for release", result: notice, success: true },
+							],
+						},
+					],
+				},
+			];
+			const context = {
+				liveSessions: new Map([[sessionId, { messages }]]),
+			} as Parameters<typeof readSessionMessages>[0];
+			const session = {
+				sessionId,
+				status: "running" as const,
+				provider: "cline",
+				model: "test-model",
+				cwd: directory,
+				workspaceRoot: directory,
+				startedAt: "2026-09-07T00:00:00.000Z",
+			};
+			invokeMock.mockImplementation(async (command: string) => {
+				if (command === "read_session_messages")
+					return readSessionMessages(context, sessionId);
+				if (command === "chat_session_command") return session;
+				return [];
+			});
+			await act(async () => current.hydrateSession(session));
+			const row = current.messages.find(
+				(message) => message.meta?.toolCallId === toolCallId,
+			);
+			expect(row?.meta?.toolBackgroundStatus).toBe("running");
+			expect(row?.meta?.toolExecutionIds).toHaveLength(1);
+			if (priorFailure) {
+				expect(row?.meta?.toolBackgroundOutcomeStatus).toBe("failed");
+				expect(row?.meta?.toolOutput).toContain(
+					"[Detached command completed with exit code 3]",
+				);
+			}
+			await writeFile(releasePath, "exit");
+			const update = await completed.promise;
+			expect(update.outcome).toEqual({ kind: "exited", exitCode: 0 });
+			await act(async () => {
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_tool_call_update",
+					chunk: JSON.stringify({
+						toolCallId,
+						toolName: "run_commands",
+						update,
+					}),
+					ts: Date.now(),
+					index: 1,
+				});
+				await new Promise((resolve) => setTimeout(resolve, 60));
+			});
+			const settled = current.messages.find(
+				(message) => message.id === row?.id,
+			);
+			expect(settled?.meta?.toolBackgroundStatus).toBe(
+				priorFailure ? "failed" : "succeeded",
+			);
+			expect(settled?.meta?.toolOutput).toContain(
+				"[Detached command completed with exit code 0]",
+			);
+			const hydrated = await readSessionMessages(context, sessionId);
+			expect(
+				hydrated.find(
+					(message) =>
+						(message.meta as { toolCallId?: string })?.toolCallId ===
+						toolCallId,
+				)?.meta,
+			).toMatchObject({
+				toolBackgroundStatus: priorFailure ? "failed" : "succeeded",
+				toolOutput: expect.stringContaining(
+					"[Detached command completed with exit code 0]",
+				),
+			});
+		} finally {
+			await writeFile(releasePath, "exit");
+			if (logPath) {
+				await completed.promise;
+				await vi.waitFor(async () =>
+					expect(await readFile(logPath as string, "utf8")).toContain(
+						"[Command exited with code 0]",
+					),
+				);
+				await rm(dirname(logPath), { recursive: true, force: true });
+			}
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("renders a reloaded running detached row and settles it on completion", async () => {
+		// The sidecar confirmed the process behind this row is still alive
+		// while serving the hydration read, so the reloaded client renders it
+		// running — spinner, expanded turn — with the execution id enrolled;
+		// the completion event then settles it in place.
+		const sessionId = "session-reloaded-running";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "history-user",
+							sessionId,
+							role: "user",
+							content: "Run it",
+							createdAt: 1,
+						},
+						{
+							id: "history-tool-running",
+							sessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["sleep 60"] },
+								result:
+									"[Command is still running. Output will continue in /tmp/output.log]",
+								isError: false,
+							}),
+							createdAt: 2,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-running",
+								toolBackgroundStatus: "running",
+								toolBackgroundLogPath: "/tmp/output.log",
+								toolExecutionIds: ["execution-running"],
+								hookEventName: "tool_call_start",
+							},
+						},
+						{
+							id: "history-assistant",
+							sessionId,
+							role: "assistant",
+							content: "It is running in the background.",
+							createdAt: 3,
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return { promptsInQueue: [] };
+			},
+		);
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-07T00:00:00.000Z",
+			});
+		});
+		const runningRow = current.messages.find(
+			(message) => message.id === "history-tool-running",
+		);
+		expect(runningRow?.meta).toMatchObject({
+			toolBackgroundStatus: "running",
+			toolBackgroundLogPath: "/tmp/output.log",
+			toolExecutionIds: ["execution-running"],
+			hookEventName: "tool_call_start",
+		});
+
+		// The enrolled execution id keeps the row running through a post-turn
+		// canonical reconcile, and the completion event — carrying that same
+		// execution id — settles it.
+		const chatEventHandler = handlerFor("chat_event");
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-running",
+					toolName: "run_commands",
+					update: {
+						executionId: "execution-running",
+						detached: true,
+						completed: true,
+						logPath: "/tmp/output.log",
+						outcome: { kind: "exited", exitCode: 0 },
+					},
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		const settledRow = current.messages.find(
+			(message) => message.id === "history-tool-running",
+		);
+		expect(settledRow?.meta).toMatchObject({
+			toolBackgroundStatus: "succeeded",
+			toolBackgroundLogPath: "/tmp/output.log",
+			hookEventName: "tool_call_end",
+		});
+		expect(settledRow?.meta?.toolOutput).toContain(
+			"[Detached command completed with exit code 0]",
+		);
+	});
+
+	it.each([
+		{ kind: "exited", exitCode: 0 },
+		{ kind: "signaled", signal: "SIGTERM" },
+	] satisfies DetachedCommandOutcome[])("keeps a completed $kind row settled after real sidecar hydration", async (outcome) => {
+		const sessionId = "session-reloaded-settled";
+		const toolCallId = "call-settled";
+		const directory = await mkdtemp(join(tmpdir(), "settled-hydration-"));
+		const logPath = join(directory, "output.log");
+		const notice = `[Command is still running. Output will continue in ${logPath}]`;
+		const note = formatDetachedCompletionNote(outcome);
+		try {
+			await writeFile(
+				join(directory, "command-outcome.json"),
+				JSON.stringify(outcome),
+			);
+			const context = {
+				liveSessions: new Map([
+					[
+						sessionId,
+						{
+							messages: [
+								{
+									id: "use",
+									role: "assistant",
+									content: [
+										{
+											type: "tool_use",
+											id: toolCallId,
+											name: "run_commands",
+											input: { commands: ["wait"] },
+										},
+									],
+								},
+								{
+									id: "result",
+									role: "user",
+									content: [
+										{
+											type: "tool_result",
+											tool_use_id: toolCallId,
+											name: "run_commands",
+											content: notice,
+										},
+									],
+								},
+							],
+						},
+					],
+				]),
+			} as Parameters<typeof readSessionMessages>[0];
+			const session = {
+				sessionId,
+				status: "completed" as const,
+				provider: "cline",
+				model: "test-model",
+				cwd: directory,
+				workspaceRoot: directory,
+				startedAt: "2026-09-07T00:00:00.000Z",
+			};
+			invokeMock.mockImplementation(async (command: string) => {
+				if (command === "read_session_messages")
+					return readSessionMessages(context, sessionId);
+				if (command === "chat_session_command") return session;
+				return [];
+			});
+			await act(async () => current.hydrateSession(session));
+			const row = () =>
+				current.messages.find(
+					(message) => message.meta?.toolCallId === toolCallId,
+				);
+			expect(row()?.meta?.toolBackgroundStatus).toBe(
+				detachedCommandBackgroundStatus(outcome),
+			);
+			expect(row()?.meta?.toolOutput).toBe(`${notice}\n${note}`);
+			await act(async () => {
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_tool_call_update",
+					chunk: JSON.stringify({
+						toolCallId,
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-settled",
+							detached: true,
+							completed: true,
+							logPath,
+							outcome,
+						},
+					}),
+					ts: Date.now(),
+					index: 1,
+				});
+				await new Promise((resolve) => setTimeout(resolve, 60));
+			});
+			expect(row()?.meta?.toolBackgroundStatus).toBe(
+				detachedCommandBackgroundStatus(outcome),
+			);
+			expect(row()?.meta?.toolOutput).toBe(`${notice}\n${note}`);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("does not re-enroll a completed execution from a stale running snapshot", async () => {
+		const sessionId = "session-partial-completion";
+		const session = {
+			sessionId,
+			status: "running" as const,
+			provider: "cline",
+			model: "test-model",
+			cwd: "/workspace/cline",
+			workspaceRoot: "/workspace/cline",
+			startedAt: "2026-09-07T00:00:00.000Z",
+		};
+		const history = [
+			{
+				id: "partial-row",
+				sessionId,
+				role: "tool",
+				content: "{}",
+				createdAt: 1,
+				meta: {
+					toolCallId: "partial-call",
+					toolName: "run_commands",
+					hookEventName: "tool_call_start",
+					toolBackgroundStatus: "running",
+					toolBackgroundLogPath: "/tmp/output.log",
+					toolExecutionIds: ["first", "second"],
+					toolBackgroundOutcomeStatus: "succeeded",
+				},
+			},
+			{
+				id: "assistant",
+				sessionId,
+				role: "assistant",
+				content: "Started both commands.",
+				createdAt: 2,
+			},
+		];
+		invokeMock.mockImplementation(async (command: string) =>
+			command === "read_session_messages"
+				? history
+				: command === "chat_session_command"
+					? session
+					: [],
+		);
+		const complete = (executionId: string, exitCode: number, index: number) =>
+			handlerFor("chat_event")({
+				sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "partial-call",
+					update: {
+						executionId,
+						detached: true,
+						completed: true,
+						outcome: { kind: "exited", exitCode },
+					},
+				}),
+				ts: Date.now(),
+				index,
+			});
+		vi.useFakeTimers();
+		try {
+			await act(async () => current.hydrateSession(session));
+			await act(async () => {
+				complete("first", 3, 1);
+				await vi.advanceTimersByTimeAsync(60);
+			});
+			expect(current.messages[0]?.meta?.toolExecutionIds).toEqual(["second"]);
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe("running");
+			await act(async () => {
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_done",
+					chunk: "",
+					ts: Date.now(),
+					index: 2,
+				});
+				await vi.advanceTimersByTimeAsync(300);
+			});
+			await act(async () => {
+				complete("first", 3, 3);
+				complete("second", 0, 4);
+				await vi.advanceTimersByTimeAsync(60);
+			});
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe("failed");
+			expect(
+				current.messages[0]?.meta?.toolOutput?.match(/exit code 3/g),
+			).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each(
+		["hydrate", "poll", "canonical"].flatMap((snapshotPath) =>
+			(
+				[
+					{ kind: "exited", exitCode: 0 },
+					{ kind: "signaled", signal: "SIGTERM" },
+				] satisfies DetachedCommandOutcome[]
+			).map((outcome) => ({ snapshotPath, outcome })),
+		),
+	)("retires detached enrollment when a $snapshotPath snapshot settles a $outcome.kind row", async ({
+		snapshotPath,
+		outcome,
+	}) => {
+		const sessionId = "session-snapshot-completion";
+		const note = formatDetachedCompletionNote(outcome);
+		const settledStatus = detachedCommandBackgroundStatus(outcome);
+		let settled = false;
+		const session = {
+			sessionId,
+			status: "running" as const,
+			provider: "cline",
+			model: "test-model",
+			cwd: "/workspace/cline",
+			workspaceRoot: "/workspace/cline",
+			startedAt: "2026-09-07T00:00:00.000Z",
+		};
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "read_session_messages")
+				return [
+					{
+						id: "history-detached",
+						sessionId,
+						role: "tool",
+						createdAt: 1,
+						content: JSON.stringify({
+							toolName: "run_commands",
+							result: "still running",
+						}),
+						meta: {
+							toolCallId: "call-snapshot",
+							toolName: "run_commands",
+							toolBackgroundStatus: settled ? settledStatus : "running",
+							toolBackgroundLogPath: "/tmp/output.log",
+							hookEventName: settled ? "tool_call_end" : "tool_call_start",
+							...(settled
+								? { toolOutput: note, toolExecutionIds: [] }
+								: { toolExecutionIds: ["execution-snapshot"] }),
+						},
+					},
+					...(snapshotPath === "canonical"
+						? [
+								{
+									id: "history-assistant",
+									sessionId,
+									role: "assistant",
+									createdAt: 2,
+									content: "Started the command.",
+								},
+							]
+						: []),
+				];
+			if (
+				command === "get_discovered_session" ||
+				command === "chat_session_command"
+			)
+				return session;
+			return [];
+		});
+		vi.useFakeTimers();
+		try {
+			await act(async () => current.hydrateSession(session));
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe("running");
+			settled = true;
+			await act(async () => {
+				if (snapshotPath === "hydrate") await current.hydrateSession(session);
+				else if (snapshotPath === "poll")
+					await vi.advanceTimersByTimeAsync(3_100);
+				else {
+					handlerFor("chat_event")({
+						sessionId,
+						stream: "chat_done",
+						chunk: "",
+						ts: Date.now(),
+						index: 1,
+					});
+					await vi.advanceTimersByTimeAsync(300);
+				}
+			});
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe(
+				settledStatus,
+			);
+			expect(current.messages[0]?.meta?.toolOutput).toBe(note);
+			await act(async () => {
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_tool_call_update",
+					ts: Date.now(),
+					index: 2,
+					chunk: JSON.stringify({
+						toolCallId: "call-snapshot",
+						toolName: "run_commands",
+						update: {
+							executionId: "execution-snapshot",
+							detached: true,
+							completed: true,
+							logPath: "/tmp/output.log",
+							outcome,
+						},
+					}),
+				});
+				await vi.advanceTimersByTimeAsync(60);
+			});
+			expect(current.messages[0]?.meta?.toolBackgroundStatus).toBe(
+				settledStatus,
+			);
+			expect(current.messages[0]?.meta?.toolOutput).toBe(note);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("heals a running attached session with a dead event stream by polling history", async () => {

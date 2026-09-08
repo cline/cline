@@ -250,6 +250,7 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+	runCommandExecutionController?: RunCommandExecutionController;
 }
 
 export class LocalRuntimeHost implements RuntimeHost {
@@ -280,8 +281,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly pendingPromptsController: PendingPromptsController;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
-	private readonly runCommandExecutionController =
-		new RunCommandExecutionController();
+	private readonly runCommandExecutionController: RunCommandExecutionController;
+	private readonly unsubscribeDetachedCommandCompleted: () => void;
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -309,6 +310,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultLogger = options.logger;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
+		this.runCommandExecutionController =
+			options.runCommandExecutionController ??
+			new RunCommandExecutionController();
+		this.unsubscribeDetachedCommandCompleted =
+			this.runCommandExecutionController.subscribeToDetachedCommandCompleted(
+				(payload) => this.emit({ type: "detached_command_completed", payload }),
+			);
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -1193,6 +1201,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
+		this.unsubscribeDetachedCommandCompleted();
 		const sessions = [...this.sessions.values()];
 		if (sessions.length === 0) return;
 		await Promise.allSettled(

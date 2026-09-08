@@ -1974,6 +1974,38 @@ describe("HubServerTransport boundaries", () => {
 		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1", "call-1");
 	});
 
+	it("projects detached command completion without ending the run", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+
+		await projectSessionEvent(getContext(transport), {
+			type: "detached_command_completed",
+			payload: {
+				sessionId: "session-1",
+				executionId: "execution-1",
+				toolCallId: "call-1",
+				logPath: "/tmp/output.log",
+				detachKind: "implicit",
+				outcome: { kind: "exited", exitCode: 0 },
+				ts: 123,
+			},
+		});
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "command.detached_completed",
+				sessionId: "session-1",
+				payload: expect.objectContaining({
+					executionId: "execution-1",
+					detachKind: "implicit",
+					outcome: { kind: "exited", exitCode: 0 },
+				}),
+			}),
+		);
+		expect(events.some((event) => event.event.startsWith("run."))).toBe(false);
+	});
+
 	it("projects an unreported non-recoverable agent error as run.failed", async () => {
 		const transport = createTransport({
 			sessionHost: {

@@ -27,6 +27,7 @@ export interface SdkSessionHost {
 	start(input: StartSessionInput): Promise<StartSessionResult>
 	start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	send(input: SendSessionInput): Promise<AgentResult | undefined>
+	proceedWhileRunning(sessionId: string, toolCallId?: string): Promise<number>
 	getAccumulatedUsage(sessionId: string): Promise<SessionAccumulatedUsage | undefined>
 	abort(sessionId: string, reason?: unknown): Promise<void>
 	stop(sessionId: string): Promise<void>

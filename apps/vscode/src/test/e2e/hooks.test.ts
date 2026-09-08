@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import fs from "fs/promises"
 import path from "path"
-import { e2e, E2ETestHelper } from "./utils/helpers"
+import { E2E_TURN_TIMEOUT_MS, E2ETestHelper, e2e } from "./utils/helpers"
 
 // This spec runs against its own fixture workspace: hooks execute on every
 // prompt once discovered (hooksEnabled defaults to true), so keeping the hook
@@ -34,7 +34,7 @@ hooksE2e("Hooks - workspace hook runs from this window's workspace root", async 
 
 		// The hook runs during beforeRun, ahead of the model call, so the
 		// marker exists by the time the mock response renders.
-		await expect(sidebar.getByText("mock Cline API response")).toBeVisible()
+		await expect(sidebar.getByText("mock Cline API response")).toBeVisible({ timeout: E2E_TURN_TIMEOUT_MS })
 
 		let markerRaw: string | undefined
 		await expect

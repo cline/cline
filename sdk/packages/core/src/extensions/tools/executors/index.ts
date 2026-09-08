@@ -34,6 +34,8 @@ export { PATCH_MARKERS, PatchActionType } from "./apply-patch-parser";
 export {
 	CommandExitError,
 	createShellExecutor,
+	type DetachedCommandStateQuery,
+	queryDetachedCommandState,
 	type ShellExecutorOptions,
 } from "./bash";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor";
@@ -42,6 +44,7 @@ export {
 	type FileReadExecutorOptions,
 } from "./file-read";
 export {
+	type RunCommandDetachKind,
 	RunCommandExecutionController,
 	type RunningCommandRegistration,
 } from "./run-command-execution-controller";

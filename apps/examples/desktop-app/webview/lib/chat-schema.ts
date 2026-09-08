@@ -66,6 +66,18 @@ export const ChatMessageSchema = z.object({
 			toolOutput: z.string().optional(),
 			toolOutputTruncated: z.boolean().optional(),
 			toolDetachable: z.boolean().optional(),
+			toolBackgroundStatus: z
+				.enum(["running", "succeeded", "failed", "killed", "indeterminate"])
+				.optional(),
+			toolBackgroundLogPath: z.string().optional(),
+			// Pending detached executions, shared by hydration and live updates:
+			// absent means unknown; empty means settled, including signaled
+			// outcomes whose display status is indeterminate.
+			toolExecutionIds: z.array(z.string().min(1)).optional(),
+			// Outcomes already known while other executions are still running.
+			toolBackgroundOutcomeStatus: z
+				.enum(["succeeded", "failed", "killed", "indeterminate"])
+				.optional(),
 			iteration: z.number().int().nonnegative().optional(),
 			agentId: z.string().optional(),
 			conversationId: z.string().optional(),

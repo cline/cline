@@ -94,8 +94,9 @@ export interface ExtensionState {
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
 	/**
-	 * True while a foreground (VS Code terminal) command is awaited by a
-	 * run_commands tool call. Drives the "Proceed While Running" button.
+	 * True while a detachable foreground or background command is awaited by a
+	 * run_commands tool call. The legacy property name is retained for the wire
+	 * contract; it drives the "Proceed While Running" button.
 	 */
 	foregroundCommandRunning?: boolean
 	lastCompletedCommandTs?: number
@@ -198,6 +199,16 @@ export interface ClineMessage {
 	 */
 	epoch?: number
 	commandCompleted?: boolean
+	commandStatus?: "running" | "succeeded" | "failed" | "killed" | "indeterminate"
+	/** Stable tool-call identity for projecting foreground observations after history reload. */
+	commandToolCallId?: string
+	/** Failure in the tool batch independent of its detached executions. */
+	commandToolCallFailed?: boolean
+	commandToolCallEnded?: boolean
+	/** This row has a detached foreground observation, even if its record is unavailable. */
+	commandForegroundDetached?: boolean
+	/** Original tool-batch output, kept separate from observation notes during projection. */
+	commandToolOutput?: string
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
 	isOperationOutsideWorkspace?: boolean

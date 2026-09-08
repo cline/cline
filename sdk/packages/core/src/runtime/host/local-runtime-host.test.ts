@@ -27,6 +27,7 @@ import {
 } from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RunCommandExecutionController } from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
@@ -215,6 +216,34 @@ describe("LocalRuntimeHost", () => {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
 		}
+	});
+
+	it("emits injected controller completions as host events until disposed", async () => {
+		const controller = new RunCommandExecutionController();
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runCommandExecutionController: controller,
+		});
+		const events: unknown[] = [];
+		manager.subscribe((event) => events.push(event));
+		const completion = {
+			sessionId: "session-1",
+			executionId: "execution-1",
+			logPath: "/tmp/output.log",
+			detachKind: "implicit" as const,
+			outcome: { kind: "exited" as const, exitCode: 0 },
+			ts: 123,
+		};
+
+		controller.reportDetachedCommandCompleted(completion);
+		expect(events).toEqual([
+			{ type: "detached_command_completed", payload: completion },
+		]);
+
+		await manager.dispose();
+		controller.reportDetachedCommandCompleted({ ...completion, ts: 456 });
+		expect(events).toHaveLength(1);
 	});
 
 	it.each([

@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	DetachedCommandOutcomeSchema,
+	detachedCommandBackgroundStatus,
+	formatDetachedCompletionNote,
+} from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -102,6 +107,17 @@ type PendingToolOutput = {
 	text: string;
 	truncated: boolean;
 	detachable?: boolean;
+	backgroundStatus?:
+		| "running"
+		| "succeeded"
+		| "failed"
+		| "killed"
+		| "indeterminate";
+	backgroundLogPath?: string;
+	executionIds?: string[];
+	outcomeStatus?: NonNullable<
+		ChatMessage["meta"]
+	>["toolBackgroundOutcomeStatus"];
 };
 
 // ---------------------------------------------------------------------------
@@ -209,6 +225,7 @@ function deriveLiveToolState(messages: ChatMessage[]): {
 		if (!toolCallId) continue;
 		const hookEventName = message.meta?.hookEventName;
 		if (
+			message.meta?.toolBackgroundStatus !== undefined ||
 			hookEventName === "tool_call_end" ||
 			hookEventName === "history_tool_result"
 		) {
@@ -239,6 +256,54 @@ function deriveLiveToolState(messages: ChatMessage[]): {
 		}
 	}
 	return { messageIds, inputs };
+}
+
+function isSettledDetachedMessage(message: ChatMessage): boolean {
+	const status = message.meta?.toolBackgroundStatus;
+	return (
+		status !== undefined &&
+		status !== "running" &&
+		(status !== "indeterminate" || message.meta?.toolExecutionIds?.length === 0)
+	);
+}
+
+/**
+ * Derives the webview's detached-command bookkeeping from the row meta the
+ * sidecar resolved while serving the hydration read (see
+ * enrichDetachedCommandRows in the sidecar, and queryDetachedCommandState in
+ * core): the host reads the detached-log markers and stamps the row's
+ * background status, log path, and — for a process it confirmed still alive —
+ * the execution ids. This only enrolls that stamp in the routing refs so a
+ * later detached-completion event settles the row in place, exactly like a
+ * client that watched the detach; the webview never re-derives state from the
+ * tool result text.
+ *
+ * Live rows also carry these fields; enrolling them is idempotent because
+ * the live paths recorded the same routing and execution ids already.
+ */
+function deriveDetachedToolEnrollment(messages: ChatMessage[]): {
+	routingIds: Record<string, string>;
+	endedToolCallIds: string[];
+	executionIdsByToolCall: Record<string, string[]>;
+} {
+	const routingIds: Record<string, string> = {};
+	const endedToolCallIds: string[] = [];
+	const executionIdsByToolCall: Record<string, string[]> = {};
+	for (const message of messages) {
+		const toolCallId = message.meta?.toolCallId;
+		if (!toolCallId) continue;
+		const status = message.meta?.toolBackgroundStatus;
+		if (status !== "running" && status !== "indeterminate") continue;
+		if (isSettledDetachedMessage(message)) continue;
+		if (!message.meta?.toolBackgroundLogPath) continue;
+		routingIds[toolCallId] = message.id;
+		endedToolCallIds.push(toolCallId);
+		const executionIds = message.meta?.toolExecutionIds;
+		if (Array.isArray(executionIds) && executionIds.length > 0) {
+			executionIdsByToolCall[toolCallId] = executionIds;
+		}
+	}
+	return { routingIds, endedToolCallIds, executionIdsByToolCall };
 }
 
 function updateMessageById(
@@ -394,6 +459,16 @@ export function useChatSession() {
 	const lastLiveChunkAtRef = useRef(0);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	const detachedToolMessageIdsRef = useRef<Record<string, string>>({});
+	const detachedExecutionIdsRef = useRef<Record<string, Set<string>>>({});
+	const detachedToolEndedRef = useRef<Set<string>>(new Set());
+	const detachedOutcomeStatusRef = useRef<
+		Record<string, "succeeded" | "failed" | "killed" | "indeterminate">
+	>({});
+	// Executions whose completion note already landed in the row's output, by
+	// tool call id. Both observation paths may deliver the same completion, so
+	// this keeps the note from rendering twice for one execution.
+	const detachedNotedExecutionIdsRef = useRef<Record<string, Set<string>>>({});
 	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
 	// A chat_queued_prompt_start event may only re-key one of these — never a
@@ -515,6 +590,17 @@ export function useChatSession() {
 		pendingToolOutputRef.current = new Map();
 	}, []);
 
+	// Whether this client watched a detached process of the tool call start
+	// and has not yet received its completion. This is the one signal that a
+	// detached command row is "running" rather than merely unsettled: the live
+	// update path, the tool-end path, and canonical hydration all decide from
+	// it so a row never flips state depending on which path ran last.
+	const hasPendingDetachedExecutions = useCallback(
+		(toolCallId: string) =>
+			(detachedExecutionIdsRef.current[toolCallId]?.size ?? 0) > 0,
+		[],
+	);
+
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
@@ -599,16 +685,117 @@ export function useChatSession() {
 		[],
 	);
 
-	// Persisted history never contains UI-only error bubbles, so replacing the
-	// transcript with canonical messages wholesale would silently erase a
-	// failure explanation appended from chat_done moments earlier. Re-append
-	// the session's error messages after the canonical history — but only the
-	// ones still at the tail of the transcript (explaining the most recent
-	// turn). Re-pinning every historical error would resurface failures from
-	// long-completed turns at the bottom, out of chronological order, on
-	// every hydration.
+	const reconcileDetachedToolEnrollment = useCallback(
+		(messages: ChatMessage[]) => {
+			messages = messages.map((message) => {
+				const toolCallId = message.meta?.toolCallId;
+				if (
+					!toolCallId ||
+					!message.meta?.toolExecutionIds?.some((id) =>
+						detachedNotedExecutionIdsRef.current[toolCallId]?.has(id),
+					)
+				)
+					return message;
+				// This snapshot predates a completion already rendered locally.
+				const observed = messagesRef.current.find(
+					(candidate) =>
+						candidate.sessionId === message.sessionId &&
+						candidate.meta?.toolCallId === toolCallId,
+				);
+				return observed ? { ...observed, id: message.id } : message;
+			});
+			const enrollment = deriveDetachedToolEnrollment(messages);
+			// Routing and the accepted snapshot transition in one synchronous section,
+			// before any subsequent event can reach a row that has already settled.
+			for (const toolCallId of Object.keys(detachedToolMessageIdsRef.current)) {
+				if (enrollment.routingIds[toolCallId]) continue;
+				const messageId = detachedToolMessageIdsRef.current[toolCallId];
+				delete detachedExecutionIdsRef.current[toolCallId];
+				detachedToolEndedRef.current.delete(toolCallId);
+				delete detachedOutcomeStatusRef.current[toolCallId];
+				delete detachedNotedExecutionIdsRef.current[toolCallId];
+				delete liveToolMessageIdsRef.current[toolCallId];
+				pendingToolOutputRef.current.delete(messageId);
+			}
+			detachedToolMessageIdsRef.current = enrollment.routingIds;
+			for (const toolCallId of enrollment.endedToolCallIds) {
+				detachedToolEndedRef.current.add(toolCallId);
+				if (!enrollment.executionIdsByToolCall[toolCallId])
+					delete detachedExecutionIdsRef.current[toolCallId];
+			}
+			for (const [toolCallId, executionIds] of Object.entries(
+				enrollment.executionIdsByToolCall,
+			)) {
+				detachedExecutionIdsRef.current[toolCallId] = new Set(
+					executionIds.filter(
+						(id) => !detachedNotedExecutionIdsRef.current[toolCallId]?.has(id),
+					),
+				);
+			}
+			for (const message of messages) {
+				const toolCallId = message.meta?.toolCallId;
+				const status = message.meta?.toolBackgroundOutcomeStatus;
+				if (toolCallId && enrollment.routingIds[toolCallId] && status) {
+					detachedOutcomeStatusRef.current[toolCallId] = status;
+				}
+			}
+			return messages;
+		},
+		[],
+	);
+
+	// Canonical history omits UI-only errors; preserve only the current turn's
+	// trailing error bubbles when replacing it.
 	const applyCanonicalHistory = useCallback(
 		(sid: string, historyMessages: ChatMessage[]) => {
+			// A detached-completion event that landed between the turn end and
+			// this hydration is still buffered in pendingToolOutputRef under
+			// the live row's message id, on a 48 ms flush timer. That timer can
+			// fire before the transcript swap renders, so rekey the buffered
+			// entry to the canonical id here — where the id transition takes
+			// effect — rather than inside the setMessages updater below, which
+			// runs too late to beat the timer.
+			for (const message of historyMessages) {
+				const toolCallId = message.meta?.toolCallId;
+				if (!toolCallId) continue;
+				const liveRow = messagesRef.current.find(
+					(candidate) =>
+						candidate.sessionId === sid &&
+						candidate.meta?.toolCallId === toolCallId,
+				);
+				if (isSettledDetachedMessage(message)) {
+					if (liveRow) pendingToolOutputRef.current.delete(liveRow.id);
+					pendingToolOutputRef.current.delete(message.id);
+					continue;
+				}
+				if (!liveRow || liveRow.id === message.id) continue;
+				const buffered = pendingToolOutputRef.current.get(liveRow.id);
+				if (
+					buffered !== undefined &&
+					!pendingToolOutputRef.current.has(message.id)
+				) {
+					pendingToolOutputRef.current.delete(liveRow.id);
+					pendingToolOutputRef.current.set(message.id, buffered);
+				}
+			}
+			historyMessages = reconcileDetachedToolEnrollment(
+				historyMessages.map((message) => {
+					// Unstamped history cannot supersede an execution observed live.
+					if (
+						!message.meta?.toolCallId ||
+						message.meta.toolBackgroundStatus !== undefined
+					)
+						return message;
+					const liveRow = messagesRef.current.find(
+						(candidate) =>
+							candidate.sessionId === sid &&
+							candidate.meta?.toolCallId === message.meta?.toolCallId,
+					);
+					return liveRow?.meta?.toolBackgroundStatus
+						? { ...message, meta: { ...message.meta, ...liveRow.meta } }
+						: message;
+				}),
+			);
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
@@ -627,7 +814,7 @@ export function useChatSession() {
 				return sliceMessages([...historyMessages, ...preservedErrors]);
 			});
 		},
-		[],
+		[reconcileDetachedToolEnrollment],
 	);
 
 	// Finalizes a turn that settled through the event stream rather than a
@@ -953,11 +1140,18 @@ export function useChatSession() {
 					);
 					const toolDetachable =
 						pending.detachable ?? message.meta?.toolDetachable;
+					const toolBackgroundStatus =
+						pending.backgroundStatus ?? message.meta?.toolBackgroundStatus;
+					const toolBackgroundLogPath =
+						pending.backgroundLogPath ?? message.meta?.toolBackgroundLogPath;
 					if (
+						pending.executionIds === undefined &&
 						merged.output === (message.meta?.toolOutput ?? "") &&
 						toolOutputTruncated ===
 							Boolean(message.meta?.toolOutputTruncated) &&
-						toolDetachable === message.meta?.toolDetachable
+						toolDetachable === message.meta?.toolDetachable &&
+						toolBackgroundStatus === message.meta?.toolBackgroundStatus &&
+						toolBackgroundLogPath === message.meta?.toolBackgroundLogPath
 					) {
 						return message;
 					}
@@ -967,7 +1161,25 @@ export function useChatSession() {
 							...message.meta,
 							toolOutput: merged.output,
 							toolOutputTruncated,
+							...(pending.executionIds !== undefined
+								? {
+										toolExecutionIds: pending.executionIds,
+										toolBackgroundOutcomeStatus: pending.outcomeStatus,
+									}
+								: {}),
 							...(toolDetachable !== undefined ? { toolDetachable } : {}),
+							...(toolBackgroundStatus !== undefined
+								? { toolBackgroundStatus }
+								: {}),
+							...(toolBackgroundLogPath !== undefined
+								? { toolBackgroundLogPath }
+								: {}),
+							hookEventName:
+								toolBackgroundStatus === "running"
+									? "tool_call_start"
+									: toolBackgroundStatus !== undefined
+										? "tool_call_end"
+										: message.meta?.hookEventName,
 						},
 					};
 				}),
@@ -1312,7 +1524,8 @@ export function useChatSession() {
 				}
 				const toolCallId = parsed.toolCallId;
 				const messageId = toolCallId
-					? liveToolMessageIdsRef.current[toolCallId]
+					? (liveToolMessageIdsRef.current[toolCallId] ??
+						detachedToolMessageIdsRef.current[toolCallId])
 					: undefined;
 				if (!messageId) return;
 				const update =
@@ -1333,16 +1546,128 @@ export function useChatSession() {
 						? update.detachable
 						: undefined;
 				const sourceTruncated = update.truncated === true;
-				if (!chunk && detachable === undefined && !sourceTruncated) return;
+				const detached = update.detached === true;
+				const completed = update.completed === true;
+				const executionId =
+					typeof update.executionId === "string"
+						? update.executionId
+						: undefined;
+				const logPath =
+					typeof update.logPath === "string" ? update.logPath : undefined;
+				const outcome =
+					update.outcome &&
+					typeof update.outcome === "object" &&
+					!Array.isArray(update.outcome)
+						? (update.outcome as Record<string, unknown>)
+						: undefined;
+				if (toolCallId && executionId && detached && !completed) {
+					(detachedExecutionIdsRef.current[toolCallId] ??= new Set()).add(
+						executionId,
+					);
+				}
+				// An outcome that does not parse is as good as none: the row
+				// reports failure rather than trusting a malformed payload.
+				const parsedOutcome = DetachedCommandOutcomeSchema.safeParse(outcome);
+				if (toolCallId && executionId && completed) {
+					const pending = detachedExecutionIdsRef.current[toolCallId];
+					if (pending && !pending.has(executionId)) return;
+					detachedExecutionIdsRef.current[toolCallId]?.delete(executionId);
+					const nextStatus = parsedOutcome.success
+						? detachedCommandBackgroundStatus(parsedOutcome.data)
+						: "failed";
+					const previousStatus = detachedOutcomeStatusRef.current[toolCallId];
+					detachedOutcomeStatusRef.current[toolCallId] =
+						previousStatus === "killed" || nextStatus === "killed"
+							? "killed"
+							: previousStatus === "failed" || nextStatus === "failed"
+								? "failed"
+								: previousStatus === "indeterminate" ||
+										nextStatus === "indeterminate"
+									? "indeterminate"
+									: "succeeded";
+				}
+				const hasPendingExecutions = Boolean(
+					toolCallId && hasPendingDetachedExecutions(toolCallId),
+				);
+				const lifecycleComplete =
+					completed &&
+					!hasPendingExecutions &&
+					Boolean(toolCallId && detachedToolEndedRef.current.has(toolCallId));
+				const backgroundStatus = lifecycleComplete
+					? ((toolCallId
+							? detachedOutcomeStatusRef.current[toolCallId]
+							: undefined) ?? "failed")
+					: detached
+						? "running"
+						: undefined;
+				if (toolCallId && messageId && detached && !completed) {
+					detachedToolMessageIdsRef.current[toolCallId] = messageId;
+				}
+				if (toolCallId && lifecycleComplete) {
+					delete detachedToolMessageIdsRef.current[toolCallId];
+					delete detachedExecutionIdsRef.current[toolCallId];
+					detachedToolEndedRef.current.delete(toolCallId);
+					delete detachedOutcomeStatusRef.current[toolCallId];
+					delete detachedNotedExecutionIdsRef.current[toolCallId];
+				}
+				// The process outcome is the only signal that distinguishes a
+				// completed detached command from an indeterminate or never-completed
+				// one, so render it in the row's output — once per execution, since
+				// both observation paths may deliver the same completion.
+				const completionNote =
+					completed &&
+					parsedOutcome.success &&
+					toolCallId &&
+					executionId &&
+					!detachedNotedExecutionIdsRef.current[toolCallId]?.has(executionId)
+						? formatDetachedCompletionNote(parsedOutcome.data)
+						: "";
+				if (completionNote && toolCallId && executionId) {
+					(detachedNotedExecutionIdsRef.current[toolCallId] ??= new Set()).add(
+						executionId,
+					);
+				}
+				if (
+					!chunk &&
+					!completionNote &&
+					detachable === undefined &&
+					!sourceTruncated &&
+					backgroundStatus === undefined &&
+					!logPath
+				)
+					return;
 				const pending = pendingToolOutputRef.current;
 				const existing = pending.get(messageId);
-				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
+				const priorOutput =
+					existing?.text ||
+					messagesRef.current.find((message) => message.id === messageId)?.meta
+						?.toolOutput ||
+					"";
+				const effectiveChunk = chunk
+					? chunk
+					: completionNote
+						? `${priorOutput ? "\n" : ""}${completionNote}`
+						: "";
+				const appended = appendCappedCommandOutput(
+					existing?.text ?? "",
+					effectiveChunk,
+				);
 				pending.set(messageId, {
 					text: appended.output,
 					truncated: Boolean(
 						existing?.truncated || appended.truncated || sourceTruncated,
 					),
 					detachable: detachable ?? existing?.detachable,
+					backgroundStatus: backgroundStatus ?? existing?.backgroundStatus,
+					backgroundLogPath: logPath ?? existing?.backgroundLogPath,
+					...(toolCallId && (detached || completed)
+						? {
+								executionIds: Array.from(
+									detachedExecutionIdsRef.current[toolCallId] ?? [],
+								),
+								outcomeStatus: detachedOutcomeStatusRef.current[toolCallId],
+							}
+						: {}),
 				});
 				schedulePendingStreamFlush();
 				return;
@@ -1692,6 +2017,22 @@ export function useChatSession() {
 				output: parsed.output,
 				error: parsed.error,
 			});
+			if (toolCallId) detachedToolEndedRef.current.add(toolCallId);
+			const remainsDetached = Boolean(
+				toolCallId &&
+					detachedToolMessageIdsRef.current[toolCallId] === messageId &&
+					hasPendingDetachedExecutions(toolCallId),
+			);
+			const terminalBackgroundStatus = toolCallId
+				? detachedOutcomeStatusRef.current[toolCallId]
+				: undefined;
+			if (toolCallId && !remainsDetached) {
+				delete detachedToolMessageIdsRef.current[toolCallId];
+				delete detachedExecutionIdsRef.current[toolCallId];
+				detachedToolEndedRef.current.delete(toolCallId);
+				delete detachedOutcomeStatusRef.current[toolCallId];
+				delete detachedNotedExecutionIdsRef.current[toolCallId];
+			}
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
@@ -1707,7 +2048,14 @@ export function useChatSession() {
 							toolName,
 							toolCallId,
 							toolDetachable: false,
-							hookEventName: "tool_call_end",
+							...(remainsDetached
+								? { toolBackgroundStatus: "running" as const }
+								: terminalBackgroundStatus
+									? { toolBackgroundStatus: terminalBackgroundStatus }
+									: {}),
+							hookEventName: remainsDetached
+								? "tool_call_start"
+								: "tool_call_end",
 						},
 					})),
 				);
@@ -1722,6 +2070,7 @@ export function useChatSession() {
 			clearLiveToolRefs,
 			finalizeSettledTurn,
 			flushPendingStream,
+			hasPendingDetachedExecutions,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 			verifyQueueStillBusy,
@@ -1909,7 +2258,7 @@ export function useChatSession() {
 					const liveToolState = deriveLiveToolState(mergedMessages);
 					liveToolMessageIdsRef.current = liveToolState.messageIds;
 					liveToolInputsRef.current = liveToolState.inputs;
-					setMessages(mergedMessages);
+					setMessages(reconcileDetachedToolEnrollment(mergedMessages));
 				}
 				// The record is the authority here: the sessions this poll
 				// serves have a live host maintaining their record, and it
@@ -1940,7 +2289,12 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [hydratedHistorySessionId, sessionId, status]);
+	}, [
+		hydratedHistorySessionId,
+		sessionId,
+		status,
+		reconcileDetachedToolEnrollment,
+	]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -2936,7 +3290,7 @@ export function useChatSession() {
 				const liveToolState = deriveLiveToolState(mergedMessages);
 				liveToolMessageIdsRef.current = liveToolState.messageIds;
 				liveToolInputsRef.current = liveToolState.inputs;
-				setMessages(mergedMessages);
+				setMessages(reconcileDetachedToolEnrollment(mergedMessages));
 				setRawTranscript("");
 				resetCounters();
 				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
@@ -3042,6 +3396,7 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			discardPendingStream,
+			reconcileDetachedToolEnrollment,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetStreamDedupe,

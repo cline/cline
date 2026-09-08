@@ -125,6 +125,7 @@ export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
 	const hookEventName = message.meta?.hookEventName;
 	const inProgress =
+		message.meta?.toolBackgroundStatus === "running" ||
 		hookEventName === "tool_call_start" ||
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);

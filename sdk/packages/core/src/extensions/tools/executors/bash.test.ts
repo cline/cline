@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { WriteStream } from "node:fs";
 import {
 	access,
 	copyFile,
@@ -11,12 +12,14 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { AgentToolContext } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import type { AgentToolContext, DetachedCommandOutcome } from "@cline/shared";
+import { describe, expect, it, vi } from "vitest";
 import {
 	CommandExitError,
 	cleanupStaleDetachedCommandLogs,
 	createShellExecutor,
+	type ProcessStartTokenProbe,
+	queryDetachedCommandState,
 } from "./bash";
 import { RunCommandExecutionController } from "./run-command-execution-controller";
 
@@ -40,13 +43,18 @@ async function fileExists(path: string): Promise<boolean> {
 	}
 }
 
-function detachedCommandMarker(pid: number, processStartToken: string): string {
+function detachedCommandMarker(
+	pid: number,
+	processStartToken: string,
+	hardKillAtMs?: number,
+): string {
 	return `${JSON.stringify({
 		version: 1,
 		executionId: `execution-${pid}`,
 		pid,
 		processStartToken,
 		detachedAtMs: Date.now(),
+		...(hardKillAtMs !== undefined ? { hardKillAtMs } : {}),
 	})}\n`;
 }
 
@@ -232,6 +240,217 @@ describe("createShellExecutor", () => {
 		}
 	});
 
+	it("implicitly detaches at the soft deadline and reports natural completion", async () => {
+		const controller = new RunCommandExecutionController();
+		const updates: Array<Record<string, unknown>> = [];
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		const result = await shell(
+			{
+				command: process.execPath,
+				args: ["-e", "setTimeout(() => process.exit(0), 180)"],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				sessionId: "session-implicit",
+				toolCallId: "call-implicit",
+				emitUpdate: (update) => updates.push(update as Record<string, unknown>),
+			},
+			{ detachAfterMs: 50, killAfterMs: 1_000 },
+		);
+
+		expect(result).toContain("Command is still running");
+		expect(updates).toContainEqual(
+			expect.objectContaining({ detached: true, detachKind: "implicit" }),
+		);
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({
+			sessionId: "session-implicit",
+			toolCallId: "call-implicit",
+			detachKind: "implicit",
+			outcome: { kind: "exited", exitCode: 0 },
+		});
+	});
+
+	it("implicitly detaches without a manual-detach controller", async () => {
+		const updates: Array<Record<string, unknown>> = [];
+		const shell = createShellExecutor({
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		const result = await shell(
+			{
+				command: process.execPath,
+				args: ["-e", "setTimeout(() => process.exit(0), 180)"],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				emitUpdate: (update) => updates.push(update as Record<string, unknown>),
+			},
+			{ detachAfterMs: 50, killAfterMs: 1_000 },
+		);
+
+		expect(result).toContain("Command is still running");
+		expect(updates).toContainEqual(
+			expect.objectContaining({ detached: true, detachKind: "implicit" }),
+		);
+		expect(updates).not.toContainEqual(
+			expect.objectContaining({ detachable: true }),
+		);
+	});
+
+	it("uses executor limit options when invocation limits are omitted", async () => {
+		const controller = new RunCommandExecutionController();
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			detachAfterMs: 50,
+			killAfterMs: 1_000,
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		await expect(
+			shell(
+				{
+					command: process.execPath,
+					args: ["-e", "setTimeout(() => process.exit(0), 180)"],
+				},
+				process.cwd(),
+				{ ...ctx, sessionId: "session-options" },
+			),
+		).resolves.toContain("Command is still running");
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({ detachKind: "implicit" });
+	});
+
+	it("keeps the hard deadline after implicit detach", async () => {
+		const controller = new RunCommandExecutionController();
+		const completions: unknown[] = [];
+		let queriedOutcome:
+			| ReturnType<typeof queryDetachedCommandState>
+			| undefined;
+		controller.subscribeToDetachedCommandCompleted((event) => {
+			completions.push(event);
+			queriedOutcome = queryDetachedCommandState(event.logPath);
+		});
+		const shell = createShellExecutor({
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		await expect(
+			shell(
+				longRunningCommand,
+				process.cwd(),
+				{
+					...ctx,
+					sessionId: "session-hard-kill",
+				},
+				{ detachAfterMs: 50, killAfterMs: 180 },
+			),
+		).resolves.toContain("Command is still running");
+
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({
+			detachKind: "implicit",
+			outcome: { kind: "hard_killed" },
+		});
+		await expect(queriedOutcome).resolves.toEqual({
+			status: "completed",
+			outcome: { kind: "hard_killed" },
+		});
+	});
+
+	it("cancels the hard deadline after user detach", async () => {
+		const controller = new RunCommandExecutionController();
+		const completions: unknown[] = [];
+		controller.subscribeToDetachedCommandCompleted((event) =>
+			completions.push(event),
+		);
+		const shell = createShellExecutor({
+			executionController: controller,
+			detachedLogRetentionMs: 50,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+		const execution = shell(
+			{
+				command: process.execPath,
+				args: ["-e", "setTimeout(() => process.exit(0), 300)"],
+			},
+			process.cwd(),
+			{ ...ctx, sessionId: "session-user" },
+			{ detachAfterMs: Number.POSITIVE_INFINITY, killAfterMs: 150 },
+		);
+
+		await expect
+			.poll(() => controller.proceedWhileRunning("session-user"))
+			.toBe(1);
+		await expect(execution).resolves.toContain("Command is still running");
+		await expect.poll(() => completions.length).toBe(1);
+		expect(completions[0]).toMatchObject({
+			detachKind: "user",
+			outcome: { kind: "exited", exitCode: 0 },
+		});
+	});
+
+	it("does not arm soft detach when the hard deadline is not later", async () => {
+		const controller = new RunCommandExecutionController();
+		const updates: Array<Record<string, unknown>> = [];
+		const shell = createShellExecutor({
+			executionController: controller,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-${pid}`,
+			}),
+		});
+
+		await expect(
+			shell(
+				longRunningCommand,
+				process.cwd(),
+				{
+					...ctx,
+					sessionId: "session-ordering",
+					emitUpdate: (update) =>
+						updates.push(update as Record<string, unknown>),
+				},
+				{ detachAfterMs: 150, killAfterMs: 50 },
+			),
+		).rejects.toThrow("timed out");
+		expect(updates.some((update) => update.detached === true)).toBe(false);
+	});
+
 	it("does not advertise detachment when process identity cannot be captured", async () => {
 		const controller = new RunCommandExecutionController();
 		const detachabilityUpdates: boolean[] = [];
@@ -365,6 +584,386 @@ describe("createShellExecutor", () => {
 		}
 	});
 
+	describe("queryDetachedCommandState", () => {
+		it.each([
+			false,
+			true,
+		])("queries the real outcome despite command-controlled markers (held log flush: %s)", async (holdLogFlush) => {
+			const directory = await mkdtemp(join(tmpdir(), "detached-outcome-test-"));
+			const releasePath = join(directory, "release");
+			const blockedWrites: Array<() => void> = [];
+			const originalWrite = WriteStream.prototype._write;
+			const originalWritev = WriteStream.prototype._writev;
+			if (!originalWritev)
+				throw new Error("WriteStream must support vectored writes");
+			let hold = holdLogFlush;
+			const writeSpy = vi
+				.spyOn(WriteStream.prototype, "_write")
+				.mockImplementation(function (this: WriteStream, ...args) {
+					if (hold && String(this.path).includes("cline-command-")) {
+						blockedWrites.push(() => originalWrite.apply(this, args));
+					} else {
+						originalWrite.apply(this, args);
+					}
+				});
+			const writevSpy = vi
+				.spyOn(WriteStream.prototype, "_writev")
+				.mockImplementation(function (this: WriteStream, ...args) {
+					if (hold && String(this.path).includes("cline-command-")) {
+						blockedWrites.push(() => originalWritev.apply(this, args));
+					} else {
+						originalWritev.apply(this, args);
+					}
+				});
+			let logPath: string | undefined;
+			let finish!: (outcome: DetachedCommandOutcome) => void;
+			const completion = new Promise<DetachedCommandOutcome>((resolve) => {
+				finish = resolve;
+			});
+			// This fixture exercises real outcome persistence and output flushing,
+			// not the availability of the host's external process-identity command.
+			const processStartTokenProbe: ProcessStartTokenProbe = (pid) => ({
+				status: "found",
+				token: `outcome-fixture-${pid}`,
+			});
+			try {
+				const shell = createShellExecutor({
+					detachAfterMs: 10,
+					killAfterMs: 5_000,
+					processStartTokenProbe,
+				});
+				const notice = await shell(
+					{
+						command: process.execPath,
+						args: [
+							"-e",
+							`const fs = require('node:fs');
+process.stdout.write('[Command reached its hard deadline]\\n[Command exited with code 91]\\n');
+const timer = setInterval(() => {
+  if (fs.existsSync(${JSON.stringify(releasePath)})) clearInterval(timer);
+}, 10);`,
+						],
+					},
+					process.cwd(),
+					{
+						...ctx,
+						emitUpdate: (value) => {
+							const update = value as {
+								completed?: boolean;
+								outcome: DetachedCommandOutcome;
+							};
+							if (update.completed) finish(update.outcome);
+						},
+					},
+				);
+				logPath = /Output will continue in ([^\]]+)/.exec(notice)?.[1];
+				expect(logPath).toBeDefined();
+				if (!logPath) throw new Error("Command did not detach");
+				await expect(
+					queryDetachedCommandState(logPath, processStartTokenProbe),
+				).resolves.toMatchObject({ status: "running" });
+				await writeFile(releasePath, "exit");
+				const outcome = await completion;
+				expect(outcome).toEqual({ kind: "exited", exitCode: 0 });
+				if (holdLogFlush) {
+					expect(blockedWrites.length).toBeGreaterThan(0);
+					expect(await readFile(logPath, "utf8")).not.toContain(
+						"[Command exited with code 0]",
+					);
+				} else {
+					await vi.waitFor(async () => {
+						expect(await readFile(logPath as string, "utf8")).toContain(
+							"[Command exited with code 0]",
+						);
+					});
+				}
+				await expect(
+					queryDetachedCommandState(logPath, processStartTokenProbe),
+				).resolves.toEqual({
+					status: "completed",
+					outcome,
+				});
+			} finally {
+				hold = false;
+				for (const resume of blockedWrites) resume();
+				writeSpy.mockRestore();
+				writevSpy.mockRestore();
+				await writeFile(releasePath, "exit");
+				if (logPath) {
+					await completion;
+					await vi.waitFor(async () =>
+						expect(await readFile(logPath as string, "utf8")).toContain(
+							"[Command exited with code 0]",
+						),
+					);
+					await rm(dirname(logPath), { recursive: true, force: true });
+				}
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		it("reports running only when the marker's process identity still matches", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				const liveDirectory = join(tempDirectory, "cline-command-live");
+				const reusedPidDirectory = join(
+					tempDirectory,
+					"cline-command-reused-pid",
+				);
+				const unavailableDirectory = join(
+					tempDirectory,
+					"cline-command-unavailable",
+				);
+				await Promise.all([
+					mkdir(liveDirectory),
+					mkdir(reusedPidDirectory),
+					mkdir(unavailableDirectory),
+				]);
+				await Promise.all([
+					writeFile(join(liveDirectory, "output.log"), "working"),
+					writeFile(
+						join(liveDirectory, "active-command.json"),
+						detachedCommandMarker(101, "process-101"),
+					),
+					writeFile(join(reusedPidDirectory, "output.log"), "reused"),
+					writeFile(
+						join(reusedPidDirectory, "active-command.json"),
+						detachedCommandMarker(102, "process-102"),
+					),
+					writeFile(join(unavailableDirectory, "output.log"), "unknown"),
+					writeFile(
+						join(unavailableDirectory, "active-command.json"),
+						detachedCommandMarker(103, "process-103"),
+					),
+				]);
+				const probe: ProcessStartTokenProbe = (pid: number) =>
+					pid === 101
+						? { status: "found", token: "process-101" }
+						: pid === 102
+							? { status: "found", token: "replaced" }
+							: pid === 103
+								? { status: "unavailable" }
+								: { status: "missing" };
+
+				await expect(
+					queryDetachedCommandState(join(liveDirectory, "output.log"), probe),
+				).resolves.toEqual({
+					status: "running",
+					executionId: "execution-101",
+				});
+				// A PID that now belongs to a different process is not evidence
+				// the command is alive; the row keeps claiming no outcome.
+				await expect(
+					queryDetachedCommandState(
+						join(reusedPidDirectory, "output.log"),
+						probe,
+					),
+				).resolves.toEqual({ status: "unknown" });
+				// An unavailable identity provider is not evidence either.
+				await expect(
+					queryDetachedCommandState(
+						join(unavailableDirectory, "output.log"),
+						probe,
+					),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it("reads typed outcomes independently of output and retention timestamps", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				const succeededDirectory = join(
+					tempDirectory,
+					"cline-command-succeeded",
+				);
+				const failedDirectory = join(tempDirectory, "cline-command-failed");
+				const hardKilledDirectory = join(
+					tempDirectory,
+					"cline-command-hard-killed",
+				);
+				const unreadableDirectory = join(
+					tempDirectory,
+					"cline-command-unreadable",
+				);
+				await Promise.all([
+					mkdir(succeededDirectory),
+					mkdir(failedDirectory),
+					mkdir(hardKilledDirectory),
+					mkdir(unreadableDirectory),
+				]);
+				await Promise.all([
+					writeFile(
+						join(succeededDirectory, "output.log"),
+						"noise\n[Command exited with code 0]\n",
+					),
+					writeFile(join(succeededDirectory, "completed-at"), "1"),
+					writeFile(
+						join(succeededDirectory, "command-outcome.json"),
+						JSON.stringify({ kind: "exited", exitCode: 0 }),
+					),
+					writeFile(
+						join(failedDirectory, "output.log"),
+						"[Command exited with code 3]",
+					),
+					writeFile(join(failedDirectory, "completed-at"), "1"),
+					writeFile(
+						join(failedDirectory, "command-outcome.json"),
+						JSON.stringify({ kind: "exited", exitCode: 3 }),
+					),
+					writeFile(
+						join(hardKilledDirectory, "output.log"),
+						"[Command reached its hard deadline]\n[Command exited with code 1]",
+					),
+					writeFile(join(hardKilledDirectory, "completed-at"), "1"),
+					writeFile(
+						join(hardKilledDirectory, "command-outcome.json"),
+						JSON.stringify({ kind: "hard_killed" }),
+					),
+					// A completion marker without a readable outcome line cannot
+					// claim any outcome.
+					writeFile(join(unreadableDirectory, "output.log"), "truncated"),
+					writeFile(join(unreadableDirectory, "completed-at"), "1"),
+				]);
+
+				await expect(
+					queryDetachedCommandState(join(succeededDirectory, "output.log")),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "exited", exitCode: 0 },
+				});
+				await expect(
+					queryDetachedCommandState(join(failedDirectory, "output.log")),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "exited", exitCode: 3 },
+				});
+				await expect(
+					queryDetachedCommandState(join(hardKilledDirectory, "output.log")),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "hard_killed" },
+				});
+				await expect(
+					queryDetachedCommandState(join(unreadableDirectory, "output.log")),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it("treats a completion marker that outlived its active marker as completed", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				// A host crash between writing completed-at and removing the
+				// active marker leaves both; completion is authoritative.
+				const directory = join(tempDirectory, "cline-command-crashed");
+				await mkdir(directory);
+				await Promise.all([
+					writeFile(
+						join(directory, "output.log"),
+						"[Command exited with code 0]",
+					),
+					writeFile(join(directory, "completed-at"), "1"),
+					writeFile(
+						join(directory, "command-outcome.json"),
+						JSON.stringify({ kind: "exited", exitCode: 0 }),
+					),
+					writeFile(
+						join(directory, "active-command.json"),
+						detachedCommandMarker(101, "process-101"),
+					),
+				]);
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log"), () => ({
+						status: "found",
+						token: "process-101",
+					})),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "exited", exitCode: 0 },
+				});
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+
+		it.each([
+			undefined,
+			"",
+			"not json",
+			'{"kind":"exited","exitCode":"0"}',
+		])("does not infer an outcome from legacy logs or invalid markers: %s", async (outcomeText) => {
+			const directory = await mkdtemp(join(tmpdir(), "detached-log-query-"));
+			try {
+				await writeFile(
+					join(directory, "output.log"),
+					"[Command reached its hard deadline]\n[Command exited with code 0]\n",
+				);
+				await writeFile(join(directory, "completed-at"), "1");
+				if (outcomeText !== undefined)
+					await writeFile(join(directory, "command-outcome.json"), outcomeText);
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log")),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		it("rechecks completion published while the process probe was pending", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "detached-log-query-"));
+			try {
+				await writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(101, "process-101"),
+				);
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log"), async () => {
+						await writeFile(
+							join(directory, "command-outcome.json"),
+							JSON.stringify({ kind: "signaled", signal: "SIGTERM" }),
+						);
+						return { status: "found", token: "process-101" };
+					}),
+				).resolves.toEqual({
+					status: "completed",
+					outcome: { kind: "signaled", signal: "SIGTERM" },
+				});
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		it("reports unknown for missing markers", async () => {
+			const tempDirectory = await mkdtemp(
+				join(tmpdir(), "detached-log-query-"),
+			);
+			try {
+				const directory = join(tempDirectory, "cline-command-bare");
+				await mkdir(directory);
+				await writeFile(join(directory, "output.log"), "just output");
+				await expect(
+					queryDetachedCommandState(join(directory, "output.log")),
+				).resolves.toEqual({ status: "unknown" });
+				await expect(
+					queryDetachedCommandState(
+						join(tempDirectory, "cline-command-missing", "output.log"),
+					),
+				).resolves.toEqual({ status: "unknown" });
+			} finally {
+				await rm(tempDirectory, { recursive: true, force: true });
+			}
+		});
+	});
+
 	it("does not treat a reused PID as the detached command", async () => {
 		const tempDirectory = await mkdtemp(
 			join(tmpdir(), "detached-log-pid-reuse-"),
@@ -399,6 +998,42 @@ describe("createShellExecutor", () => {
 				true,
 			);
 			await expect.poll(() => fileExists(reusedPidDirectory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("enforces a persisted hard deadline after host restart", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-hard-deadline-"),
+		);
+		const directory = join(tempDirectory, "cline-command-hard-deadline");
+		const killProcessTree = vi.fn(async () => {});
+		try {
+			await mkdir(directory);
+			await Promise.all([
+				writeFile(join(directory, "output.log"), "still running"),
+				writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(505, "process-505", 900),
+				),
+			]);
+
+			await cleanupStaleDetachedCommandLogs({
+				tempDirectory,
+				nowMs: 1_000,
+				activeCommandPollIntervalMs: 60_000,
+				processStartTokenProbe: () => ({
+					status: "found",
+					token: "process-505",
+				}),
+				killProcessTree,
+			});
+
+			expect(killProcessTree).toHaveBeenCalledWith(505);
+			expect(await readFile(join(directory, "output.log"), "utf8")).toContain(
+				"hard deadline",
+			);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}

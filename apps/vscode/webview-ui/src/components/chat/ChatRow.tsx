@@ -215,7 +215,8 @@ export const ChatRowContent = memo(
 		// Check if command has output to determine if it's actually executing
 		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
 		// A command is executing if it has output but hasn't completed yet
-		const isCommandExecuting = isCommandMessage && !message.commandCompleted && commandHasOutput
+		const isCommandExecuting =
+			isCommandMessage && (message.commandStatus === "running" || (!message.commandCompleted && commandHasOutput))
 		// A command is pending if it hasn't started (no output) and hasn't completed
 		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
@@ -729,6 +730,7 @@ export const ChatRowContent = memo(
 		if (message.ask === "command" || message.say === "command") {
 			return (
 				<CommandOutputRow
+					commandStatus={message.commandStatus}
 					icon={icon}
 					isBackgroundExec={vscodeTerminalExecutionMode === "backgroundExec"}
 					isCommandCompleted={isCommandCompleted}

@@ -120,6 +120,7 @@ export const CommandOutputRow = memo(
 		isCommandExecuting = false,
 		isCommandPending = false,
 		isCommandCompleted = false,
+		commandStatus,
 		isBackgroundExec = false, // vscodeTerminalExecutionMode === "backgroundExec"
 		onCancelCommand,
 		icon,
@@ -132,6 +133,7 @@ export const CommandOutputRow = memo(
 		isCommandExecuting?: boolean
 		isCommandPending?: boolean
 		isCommandCompleted?: boolean
+		commandStatus?: ClineMessage["commandStatus"]
 		isBackgroundExec?: boolean
 		onCancelCommand?: () => void
 		icon?: JSX.Element | null
@@ -205,7 +207,12 @@ export const CommandOutputRow = memo(
 										"text-success": isCommandExecuting,
 										"text-editor-warning-foreground": isCommandPending,
 									})}>
-									{getCommandStatusText(isCommandExecuting, isCommandPending, isCommandCompleted)}
+									{getCommandStatusText(
+										isCommandExecuting,
+										isCommandPending,
+										isCommandCompleted,
+										commandStatus,
+									)}
 								</span>
 							</div>
 							<div className="flex items-center gap-2 shrink-0">
@@ -239,8 +246,8 @@ export const CommandOutputRow = memo(
 						<CommandOutputContent
 							isContainerExpanded={true}
 							isOutputFullyExpanded={isOutputFullyExpanded}
-							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							onOutputChange={onOutputChange}
+							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							output={output}
 						/>
 					)}
@@ -262,10 +269,18 @@ const CommandStatusMap = {
 	executing: "Running",
 	pending: "Pending",
 	completed: "Completed",
+	failed: "Failed",
+	killed: "Terminated",
+	indeterminate: "Unknown",
 	skipped: "Skipped",
 }
 
-function getCommandStatusText(isExecuting: boolean, isPending: boolean, isCompleted: boolean): string {
+function getCommandStatusText(
+	isExecuting: boolean,
+	isPending: boolean,
+	isCompleted: boolean,
+	commandStatus?: ClineMessage["commandStatus"],
+): string {
 	if (isExecuting) {
 		return CommandStatusMap.executing
 	}
@@ -273,7 +288,13 @@ function getCommandStatusText(isExecuting: boolean, isPending: boolean, isComple
 		return CommandStatusMap.pending
 	}
 	if (isCompleted) {
-		return CommandStatusMap.completed
+		return commandStatus === "failed"
+			? CommandStatusMap.failed
+			: commandStatus === "killed"
+				? CommandStatusMap.killed
+				: commandStatus === "indeterminate"
+					? CommandStatusMap.indeterminate
+					: CommandStatusMap.completed
 	}
 	return CommandStatusMap.skipped
 }

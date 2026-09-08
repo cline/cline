@@ -1,17 +1,24 @@
+import { tmpdir } from "node:os"
+import path from "node:path"
 import { CommandExitError } from "@cline/core"
+import type { ToolResultContent } from "@cline/shared"
 import { EventEmitter } from "events"
 import * as fs from "fs"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import * as vscode from "vscode"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import type { TerminalCompletionDetails } from "@/integrations/terminal/types"
-import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
+import { ForegroundCommandObservations, LOST_OBSERVATION_NOTE } from "./foreground-command-observations"
+import { sdkMessagesToClineMessages } from "./message-translator"
+import { VscodeRunCommandExecutionController as SdkForegroundCommandCoordinator } from "./vscode-run-command-execution-controller"
 import {
 	createVscodeRunCommandsTool,
 	executeForeground,
 	FOREGROUND_COMMAND_AUTO_PROCEED_MS,
 	formatCommandForTerminal,
 	PROCEED_LOG_MAX_BYTES,
+	VSCODE_RUN_COMMAND_EXECUTION_PROFILES,
+	VSCODE_RUN_COMMANDS_WRAPPER_TIMEOUT_MS,
 } from "./vscode-run-commands-tool"
 
 const mocks = vi.hoisted(() => ({
@@ -55,6 +62,16 @@ afterEach(() => {
 })
 
 describe("createVscodeRunCommandsTool", () => {
+	it("exports coherent foreground and background execution profiles", () => {
+		expect(VSCODE_RUN_COMMAND_EXECUTION_PROFILES).toEqual({
+			vscodeTerminal: { detachAfterMs: 30_000, killAfterMs: Number.POSITIVE_INFINITY },
+			backgroundExec: { detachAfterMs: 30_000, killAfterMs: 3_600_000 },
+		})
+		expect(VSCODE_RUN_COMMANDS_WRAPPER_TIMEOUT_MS).toBeGreaterThan(
+			VSCODE_RUN_COMMAND_EXECUTION_PROFILES.backgroundExec.killAfterMs,
+		)
+	})
+
 	it("uses the VS Code terminal when the execution mode is omitted", async () => {
 		const process = createFakeTerminalProcess({ lines: ["terminal-default-ok"] })
 		const getTerminalManager = vi.fn(() => createFakeTerminalManager(process))
@@ -306,6 +323,26 @@ describe("formatCommandForTerminal", () => {
 })
 
 describe("executeForeground", () => {
+	it("emits structured output and completion updates", async () => {
+		const emitUpdate = vi.fn()
+		const result = await executeForeground(
+			"echo hello",
+			"/workspace",
+			createFakeTerminalManager(createFakeTerminalProcess({ lines: ["hello"], completionDetails: { exitCode: 0 } })),
+			1000,
+			undefined,
+			undefined,
+			undefined,
+			{ agentId: "agent-1", sessionId: "session-1", toolCallId: "call-1", iteration: 1, emitUpdate },
+		)
+
+		expect(result).toBe("hello")
+		expect(emitUpdate).toHaveBeenCalledWith(expect.objectContaining({ stream: "stdout", chunk: "hello\n", detachable: true }))
+		expect(emitUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({ completed: true, detachable: false, outcome: { kind: "exited", exitCode: 0 } }),
+		)
+	})
+
 	it("returns output as-is on success (no exit code captured)", async () => {
 		const process = createFakeTerminalProcess({ lines: ["hello"] })
 		const terminalManager = createFakeTerminalManager(process)
@@ -499,7 +536,122 @@ describe("executeForeground", () => {
 })
 
 describe("executeForeground — Proceed While Running", () => {
-	it("automatically proceeds after 300 seconds instead of blocking the agent turn", async () => {
+	it.each([0, 3, undefined])("recovers foreground history from real log observations (exit %s)", async (exitCode) => {
+		const directory = fs.mkdtempSync(path.join(tmpdir(), "foreground-history-test-"))
+		const observations = new ForegroundCommandObservations({ sessionDataDir: directory })
+		const coordinator = new SdkForegroundCommandCoordinator({ observations })
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		let logPath: string | undefined
+		try {
+			const resultPromise = executeForeground(
+				"test command",
+				directory,
+				createFakeTerminalManager(process),
+				1000,
+				undefined,
+				coordinator,
+				undefined,
+				{
+					agentId: "test",
+					conversationId: "session-1",
+					iteration: 1,
+					sessionId: "session-1",
+					toolCallId: "call-1",
+				},
+			)
+			await waitFor(() => process.listenerCount("line") > 0)
+			emitLine("before switch")
+			expect(coordinator.proceedWhileRunning("session-1")).toBe(1)
+			const result = await resultPromise
+			logPath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+			const readHistory = () =>
+				sdkMessagesToClineMessages([
+					{
+						role: "assistant",
+						content: [
+							{ type: "tool_use", id: "call-1", name: "run_commands", input: { commands: ["test command"] } },
+						],
+					},
+					{
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								name: "run_commands",
+								tool_use_id: "call-1",
+								// Canonical persistence retains ToolOperationResult[] despite the narrower public content type.
+								content: [
+									{ query: "test command", result, success: true },
+								] as unknown as ToolResultContent["content"],
+							},
+						],
+					},
+				])
+			expect(observations.projectMessages("session-1", readHistory())[0].commandStatus).toBe("running")
+			emitLine("after session switch")
+			complete({ exitCode })
+			await waitFor(() => {
+				try {
+					return Boolean(logPath && fs.readFileSync(logPath, "utf8").includes("after session switch"))
+				} catch {
+					return false
+				}
+			})
+			const restarted = new ForegroundCommandObservations({ sessionDataDir: directory })
+			const row = restarted.projectMessages("session-1", readHistory())[0]
+			expect(row.commandStatus).toBe(exitCode === undefined ? "indeterminate" : exitCode === 0 ? "succeeded" : "failed")
+			expect(row.text).toContain("after session switch")
+			if (exitCode === undefined) expect(row.text).toContain(LOST_OBSERVATION_NOTE)
+		} finally {
+			observations.dispose()
+			complete({ exitCode: 0 })
+			if (logPath) fs.rmSync(logPath, { force: true })
+			fs.rmSync(directory, { recursive: true, force: true })
+		}
+	})
+
+	it("stops Cline log capture on owner disposal without interrupting the terminal command", async () => {
+		const directory = fs.mkdtempSync(path.join(tmpdir(), "foreground-dispose-test-"))
+		const observations = new ForegroundCommandObservations({ sessionDataDir: directory })
+		const coordinator = new SdkForegroundCommandCoordinator({ observations })
+		const { process, emitLine, complete } = createControllableTerminalProcess()
+		const manager = createFakeTerminalManager(process)
+		manager.sendInterrupt = vi.fn()
+		let logPath: string | undefined
+		try {
+			const resultPromise = executeForeground("test command", directory, manager, 1000, undefined, coordinator, undefined, {
+				agentId: "test",
+				conversationId: "session-1",
+				iteration: 1,
+				sessionId: "session-1",
+				toolCallId: "call-1",
+			})
+			await waitFor(() => process.listenerCount("line") > 0)
+			coordinator.proceedWhileRunning("session-1")
+			const result = await resultPromise
+			logPath = /redirected to this file[^:]*: (.+)$/m.exec(result)?.[1]?.trim()
+			observations.dispose()
+			expect(process.listenerCount("line")).toBe(0)
+			expect(process.listenerCount("completed")).toBe(0)
+			expect(manager.sendInterrupt).not.toHaveBeenCalled()
+			emitLine("not captured after reload")
+			complete({ exitCode: 0 })
+			await waitFor(() => {
+				try {
+					return Boolean(logPath && fs.readFileSync(logPath, "utf8").includes("Running command"))
+				} catch {
+					return false
+				}
+			})
+			expect(fs.readFileSync(logPath!, "utf8")).not.toContain("not captured after reload")
+		} finally {
+			observations.dispose()
+			if (logPath) fs.rmSync(logPath, { force: true })
+			fs.rmSync(directory, { recursive: true, force: true })
+		}
+	})
+
+	it("automatically proceeds after 30 seconds instead of blocking the agent turn", async () => {
 		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
 		const coordinator = new SdkForegroundCommandCoordinator()
 		const { process, emitLine, complete } = createControllableTerminalProcess()
@@ -521,13 +673,15 @@ describe("executeForeground — Proceed While Running", () => {
 		void resultPromise.then(() => {
 			settled = true
 		})
-		await vi.advanceTimersByTimeAsync(FOREGROUND_COMMAND_AUTO_PROCEED_MS - 1)
+		vi.advanceTimersByTime(FOREGROUND_COMMAND_AUTO_PROCEED_MS - 1)
+		await Promise.resolve()
 		expect(settled).toBe(false)
 
-		await vi.advanceTimersByTimeAsync(1)
+		vi.advanceTimersByTime(1)
+		await Promise.resolve()
 		const result = await resultPromise
 		expect(result).toContain("automatically proceeded")
-		expect(result).toContain("after 300 seconds")
+		expect(result).toContain("after 30 seconds")
 		expect(result).not.toContain("The user chose")
 		expect(result).toContain("listening on :3000")
 		expect(coordinator.isRunning).toBe(false)
