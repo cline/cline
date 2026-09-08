@@ -2537,23 +2537,23 @@ export class CloudSessionManager {
 				"This cloud session is being deleted.",
 			);
 		}
-		const existing = this.connections.get(outerSessionId);
+		// The client is registered early to retain its reconnect loop, before
+		// initial root resolution finishes. Callers must await that resolution.
+		const pending = this.connectionPromises.get(outerSessionId);
+		const existing = pending
+			? await pending
+			: this.connections.get(outerSessionId);
 		if (existing) {
 			// Reconnect clears the id while looking up the existing root session.
 			if (options.createInner) await existing.reconnectResolution;
 			if (options.createInner && !existing.innerSessionId) {
+				// An initial failed upgrade can leave a retained, unresolved client.
+				await existing.client.connect();
+				await existing.reconnectResolution;
+				await this.resolveInnerSession(outerSessionId, existing);
 				await this.createInnerSession(existing);
 			}
 			return existing;
-		}
-		const pending = this.connectionPromises.get(outerSessionId);
-		if (pending) {
-			const connection = await pending;
-			if (options.createInner) await connection.reconnectResolution;
-			if (options.createInner && !connection.innerSessionId) {
-				await this.createInnerSession(connection);
-			}
-			return connection;
 		}
 
 		const connecting = (async () => {
@@ -2660,6 +2660,7 @@ export class CloudSessionManager {
 					!this.disposed &&
 					!connection.disposed
 				) {
+					if (options.createInner) throw error;
 					return connection;
 				}
 				this.connections.delete(outerSessionId);
