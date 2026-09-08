@@ -61,12 +61,12 @@ const PlanActModeToggle = ({ mode, onModeToggle, onHover, className }: PlanActMo
 				return
 			}
 
+			// Two mutually-exclusive options: arrow keys cycle between them,
+			// matching the native radiogroup two-option behavior.
 			event.preventDefault()
-			if (mode === "plan") {
-				onModeToggle()
-			}
+			onModeToggle()
 		},
-		[mode, onModeToggle],
+		[onModeToggle],
 	)
 
 	const options: { label: string; value: PlanActMode; ariaLabel: string }[] = [
