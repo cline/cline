@@ -13,6 +13,14 @@ const hooksE2e = e2e.extend({
 	},
 })
 
+// A run-start hook executes before the model call, and the extension lets a
+// hook run for up to 30s before timing it out. The reply assertions must
+// therefore cover the hook budget, not Playwright's 5s default: on Windows the
+// first prompt-sending spec pays a cold PowerShell spawn that alone can exceed
+// 5s (observed as the "Hook: UserPromptSubmit Running" chip still up when the
+// default timeout expired).
+const HOOK_GATED_REPLY_TIMEOUT_MS = 45_000
+
 // The fixture ships a UserPromptSubmit hook
 // (.clinerules/hooks/UserPromptSubmit[.ps1]) that writes hook-ran.json into its
 // working directory, recording process.cwd() and the workspaceRoots it received
@@ -21,6 +29,10 @@ const hooksE2e = e2e.extend({
 // window's workspace root and name it — regardless of what any other Cline
 // instance recorded in shared state.
 hooksE2e("Hooks - workspace hook runs from this window's workspace root", async ({ helper, sidebar, workspaceDir }) => {
+	// Each prompt here waits on a hook spawn before the reply; give the spec
+	// Playwright's slow-test budget so a cold spawn can't exhaust the per-test
+	// timeout on top of VS Code startup.
+	hooksE2e.slow()
 	const markerPath = path.join(workspaceDir, "hook-ran.json")
 	await fs.rm(markerPath, { force: true })
 
@@ -34,7 +46,7 @@ hooksE2e("Hooks - workspace hook runs from this window's workspace root", async 
 
 		// The hook runs during beforeRun, ahead of the model call, so the
 		// marker exists by the time the mock response renders.
-		await expect(sidebar.getByText("mock Cline API response")).toBeVisible()
+		await expect(sidebar.getByText("mock Cline API response")).toBeVisible({ timeout: HOOK_GATED_REPLY_TIMEOUT_MS })
 
 		let markerRaw: string | undefined
 		await expect
@@ -70,6 +82,10 @@ hooksE2e("Hooks - workspace hook runs from this window's workspace root", async 
 // present in the model request it received — asserting injection through the
 // real adapter → orchestrator → runtime → request pipeline, not a unit seam.
 hooksE2e("Hooks - injected context reaches the model and later prompts stay real", async ({ helper, sidebar, workspaceDir }) => {
+	// Each prompt here waits on a hook spawn before the reply; give the spec
+	// Playwright's slow-test budget so a cold spawn can't exhaust the per-test
+	// timeout on top of VS Code startup.
+	hooksE2e.slow()
 	const markerPath = path.join(workspaceDir, "hook-ran.json")
 	await fs.rm(markerPath, { force: true })
 
@@ -82,7 +98,9 @@ hooksE2e("Hooks - injected context reaches the model and later prompts stay real
 		// Turn 1: the hook's context must be in the very first model request.
 		await inputbox.fill("hook context probe")
 		await sidebar.getByTestId("send-button").click()
-		await expect(sidebar.getByText("Hook context received: the codename is ZEBRA-7.").first()).toBeVisible()
+		await expect(sidebar.getByText("Hook context received: the codename is ZEBRA-7.").first()).toBeVisible({
+			timeout: HOOK_GATED_REPLY_TIMEOUT_MS,
+		})
 
 		const readMarker = async () => {
 			let raw: string | undefined
@@ -104,7 +122,9 @@ hooksE2e("Hooks - injected context reaches the model and later prompts stay real
 		// never its own previous output.
 		await inputbox.fill("hook context probe two")
 		await sidebar.getByTestId("send-button").click()
-		await expect(sidebar.getByText("Hook context received: the codename is ZEBRA-7.").nth(1)).toBeVisible()
+		await expect(sidebar.getByText("Hook context received: the codename is ZEBRA-7.").nth(1)).toBeVisible({
+			timeout: HOOK_GATED_REPLY_TIMEOUT_MS,
+		})
 
 		const secondMarker = await readMarker()
 		expect(secondMarker.prompt).toContain("hook context probe two")
