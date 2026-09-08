@@ -15,6 +15,8 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
+	type ClineAccountUser,
+	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -22,13 +24,16 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	identifyAccount,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
+	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
 	readGlobalSettings,
+	resolveClineAccountTelemetryIdentity,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -68,6 +73,7 @@ import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import { resolveDesktopTelemetryUser } from "./client-context";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
@@ -319,14 +325,23 @@ function removePathIfExists(
 	return true;
 }
 
-function syncFeatureFlagsAccountFromResult(
+function syncAccountContextFromResult(
 	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
 	operation: string,
 	result: unknown,
 ): void {
 	if (operation === "fetchMe") {
-		const user = result as { id?: string; email?: string } | undefined;
+		const user = result as ClineAccountUser | undefined;
 		if (user?.id) {
+			const identity = resolveClineAccountTelemetryIdentity(user);
+			ctx.telemetryUser = resolveDesktopTelemetryUser({
+				accountId: identity.id,
+				email: identity.email,
+				organizationId: identity.organizationId,
+			});
+			identifyAccount(ctx.telemetry, identity);
+			persistClineAccountTelemetryIdentity(manager, identity);
 			void identifyDesktopFeatureFlagsAccount(
 				{ id: user.id, email: user.email },
 				{ logger: ctx.logger, telemetry: ctx.telemetry },
@@ -336,12 +351,39 @@ function syncFeatureFlagsAccountFromResult(
 	}
 }
 
-function syncFeatureFlagsAccountFromSettings(
+function syncAccountContextFromSettings(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
 ): void {
+	const auth = manager.getProviderSettings("cline")?.auth;
+	const accountId = auth?.accountId?.trim();
+	if (!auth || !accountId) {
+		syncSignedOutAccountContext(ctx);
+		return;
+	}
+	ctx.telemetryUser = resolveDesktopTelemetryUser({
+		accountId,
+		organizationId: auth.organizationId,
+	});
+	identifyAccount(ctx.telemetry, {
+		id: accountId,
+		provider: "cline",
+		organizationId: auth.organizationId,
+		organizationName: auth.organizationName,
+		memberId: auth.memberId,
+	});
 	void identifyDesktopFeatureFlagsAccount(
-		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ id: accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
+function syncSignedOutAccountContext(ctx: SidecarContext): void {
+	const telemetryUser = resolveDesktopTelemetryUser();
+	ctx.telemetryUser = telemetryUser;
+	clearAccountTelemetryIdentity(ctx.telemetry, telemetryUser.distinctId);
+	void identifyDesktopFeatureFlagsAccount(
+		{},
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
 }
@@ -1900,10 +1942,7 @@ export async function handleCommand(
 			// an expired or server-revoked token. Explicit sign-out is handled
 			// at its source in `save_provider_settings`; this catches the rest
 			// so a stale account never keeps serving its rollout cohort.
-			void identifyDesktopFeatureFlagsAccount(
-				{},
-				{ logger: ctx.logger, telemetry: ctx.telemetry },
-			);
+			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -1922,7 +1961,7 @@ export async function handleCommand(
 			// the next 12s poll.
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
-		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
 	}
 
@@ -2138,7 +2177,7 @@ export async function handleCommand(
 		// authoritative signal — it fires the moment credentials are cleared
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
-			syncFeatureFlagsAccountFromSettings(ctx, manager);
+			syncAccountContextFromSettings(ctx, manager);
 		}
 		return saved;
 	}
