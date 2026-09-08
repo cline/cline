@@ -1609,7 +1609,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							{selectedImages.length === 1 ? "the attached image" : `the ${selectedImages.length} attached images`}{" "}
 							will be ignored.{" "}
 							<button
-								className="underline cursor-pointer bg-transparent border-0 p-0 m-0 text-inherit font-inherit"
+								className="underline cursor-pointer bg-transparent border-0 p-0 m-0 text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
 								data-testid="images-unsupported-choose-model"
 								onClick={handleModelButtonClick}
 								type="button">
