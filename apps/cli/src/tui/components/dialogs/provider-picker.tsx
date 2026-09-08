@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
@@ -15,11 +16,10 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-	checkCodexCliInstalled,
-	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
+	checkLocalCliInstalled,
+	type LocalCliStatus,
+	type ProviderLocalCli,
+} from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { useDialogPalette } from "../../hooks/use-theme";
@@ -33,6 +33,7 @@ import {
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
 import { getProviderSection } from "../../utils/provider-sections";
+import { canContinueLocalCliSetup } from "../../views/onboarding/model";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
@@ -82,7 +83,7 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: isOpenAICodexCliProvider(p.id),
+					isLocalAuth: isLocalAuthProvider(p.id),
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -654,29 +655,25 @@ export function ProviderConfigInputContent(
 	);
 }
 
-export function CodexCliStatusContent(
+export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
+		cli?: ProviderLocalCli;
 		providerName: string;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
+	const { resolve, dismiss, dialogId, cli, providerName } = props;
 	const palette = useDialogPalette();
-	const [status, setStatus] = useState<CodexCliStatus | undefined>();
+	const [status, setStatus] = useState<LocalCliStatus | undefined>();
 	const [checking, setChecking] = useState(false);
 
 	const refresh = useCallback(() => {
+		if (!cli) return;
 		setStatus(undefined);
 		setChecking(true);
-		checkCodexCliInstalled()
+		checkLocalCliInstalled(cli)
 			.then(setStatus)
-			.catch((error: unknown) => {
-				setStatus({
-					installed: false,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			})
 			.finally(() => setChecking(false));
-	}, []);
+	}, [cli]);
 
 	useEffect(() => {
 		refresh();
@@ -691,7 +688,7 @@ export function CodexCliStatusContent(
 			refresh();
 			return;
 		}
-		if (key.name === "return" && status?.installed) {
+		if (key.name === "return" && canContinueLocalCliSetup(cli, status)) {
 			resolve(true);
 		}
 	}, dialogId);
@@ -702,31 +699,37 @@ export function CodexCliStatusContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			{checking && <text fg="gray">Checking for Codex CLI...</text>}
+			{checking && <text fg="gray">Checking for {providerName}...</text>}
 
 			{status?.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg={palette.success}>{"\u25cf"} Codex CLI installed</text>
+					<text fg={palette.success}>
+						{"\u25cf"} {providerName} installed
+					</text>
 					<text fg="gray">{status.version}</text>
 				</box>
 			)}
 
 			{status && !status.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg="yellow">Codex CLI was not found</text>
+					<text fg="yellow">{providerName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install Codex CLI from:</text>
-					<text fg={palette.act} selectable>
-						{CODEX_CLI_INSTALL_URL}
-					</text>
+					{cli?.docsUrl && (
+						<box flexDirection="column">
+							<text fg="gray">Install {providerName} from:</text>
+							<text fg={palette.act} selectable>
+								{cli.docsUrl}
+							</text>
+						</box>
+					)}
 				</box>
 			)}
 
 			<text fg="gray">
 				<em>
-					{status?.installed
+					{cli
 						? "Enter to continue, R to recheck, Esc to go back"
-						: "R to recheck, Esc to go back"}
+						: "Enter to continue, Esc to go back"}
 				</em>
 			</text>
 		</box>
