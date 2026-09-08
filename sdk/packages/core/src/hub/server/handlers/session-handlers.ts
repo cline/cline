@@ -1011,7 +1011,9 @@ export async function handleSessionList(
 ): Promise<HubReplyEnvelope> {
 	const limit =
 		typeof envelope.payload?.limit === "number" ? envelope.payload.limit : 200;
-	const records = await ctx.sessionHost.listSessions(limit);
+	const records = await ctx.sessionHost.listSessions(limit, {
+		rootOnly: envelope.payload?.rootOnly === true,
+	});
 	const sessions = records.map((session) =>
 		toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
 	);
