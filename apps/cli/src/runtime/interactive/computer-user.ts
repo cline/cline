@@ -2,23 +2,22 @@ import {
 	type AgentHooks,
 	type ClineCore,
 	COMPUTER_USER_SYSTEM_PROMPT,
+	ComputerBackendRestart,
 	ComputerTaskArtifactRecorder,
 	ComputerUseClient,
 	ComputerUserCoordinator,
+	ComputerUserTranscriptLog,
 	createComputerUserCollaborationTools,
 	createComputerUserDriverTools,
 	createComputerUseTool,
 	createJournalEventSink,
 	createTranscriptRecordingHooks,
 	type ProviderSettingsManager,
+	resolveComputerUseBackendCommandFromEnv,
 	resolveComputerUseTargetFromEnv,
 	toProviderConfig,
 } from "@cline/core";
-import type {
-	AgentTool,
-	ModelInfo,
-	ModelReasoningOption,
-} from "@cline/shared";
+import type { AgentTool, ModelInfo, ModelReasoningOption } from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createCliCore } from "../../session/session";
 import type { Config } from "../../utils/types";
@@ -169,6 +168,21 @@ export async function createInteractiveComputerUser(input: {
 		...target,
 		client: computerClient,
 	});
+
+	// In-process tail of the helper's transcript. The driver's
+	// computer_user_transcript tool reads it, so peeking works even while
+	// the backend is down; the tee shares the recording hooks' reduction, so
+	// what the tool shows is identical to what the observatory journals.
+	const transcriptLog = new ComputerUserTranscriptLog();
+	const backendRestart = (() => {
+		const command = resolveComputerUseBackendCommandFromEnv(
+			input.env ?? process.env,
+		);
+		return command
+			? new ComputerBackendRestart({ ...target, command })
+			: undefined;
+	})();
+
 	const helperModelId = resolveHelperModelId(
 		helperSettings,
 		input.env ?? process.env,
@@ -240,10 +254,13 @@ export async function createInteractiveComputerUser(input: {
 		// the driver waiting with no report.
 		completionPolicy: { requireCompletionTool: true },
 		// Record the helper's transcript and run status to the backend
-		// journal for the observatory.
-		hooks: createTranscriptRecordingHooks(recorder, {
-			kind: "computer_user",
-		}),
+		// journal for the observatory, and tee the same events into the
+		// in-process transcript log the driver's peek tool reads.
+		hooks: createTranscriptRecordingHooks(
+			recorder,
+			{ kind: "computer_user" },
+			(event) => transcriptLog.append(event),
+		),
 	};
 
 	// Lazy: the helper ClineCore spawns only when the driver first delegates.
@@ -310,11 +327,14 @@ export async function createInteractiveComputerUser(input: {
 		notifyDriver: ({ prompt, delivery }) =>
 			input.notifyDriver(prompt, delivery),
 		recorder,
+		transcriptLog,
 	});
 	helperExtraTools.push(...createComputerUserCollaborationTools(coordinator));
 
 	return {
-		driverTools: createComputerUserDriverTools(coordinator),
+		driverTools: createComputerUserDriverTools(coordinator, {
+			backendRestart,
+		}),
 		driverRecordingHooks: createTranscriptRecordingHooks(recorder, {
 			kind: "driver",
 		}),
@@ -328,6 +348,9 @@ export async function createInteractiveComputerUser(input: {
 			// backend connection.
 			await recorder.flush().catch(() => {});
 			computerClient.close();
+			// Release a backend this process spawned; a backend someone else
+			// owns is left running.
+			await backendRestart?.dispose();
 		},
 	};
 }

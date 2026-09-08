@@ -1,4 +1,9 @@
-import { type AddressInfo, createServer, type Server, type Socket } from "node:net";
+import {
+	type AddressInfo,
+	createServer,
+	type Server,
+	type Socket,
+} from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { createComputerUseToolFromEnv } from "./env";
 import type { ComputerUseResponse } from "./protocol";
