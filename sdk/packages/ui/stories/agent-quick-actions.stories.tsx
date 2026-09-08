@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-	AgentQuickActions,
 	type AgentQuickAction,
+	AgentQuickActions,
 } from "../components/agent-quick-actions";
 
 const actions: AgentQuickAction[] = [

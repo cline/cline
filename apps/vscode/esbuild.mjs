@@ -1,10 +1,12 @@
 import fs from "node:fs"
+import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const require = createRequire(import.meta.url)
 
 const production = process.argv.includes("--production") || process.env["IS_DEBUG_BUILD"] === "false"
 const watch = process.argv.includes("--watch")
@@ -26,6 +28,7 @@ const aliasResolverPlugin = {
 			"@shared": path.resolve(__dirname, "src/shared"),
 			"@utils": path.resolve(__dirname, "src/utils"),
 			"@packages": path.resolve(__dirname, "src/packages"),
+			"zod/v4-mini": require.resolve("zod"),
 		}
 
 		// For each alias entry, create a resolver
@@ -144,6 +147,13 @@ const baseConfig = {
 		aliasResolverPlugin,
 		/* add to the end of plugins array */
 		esbuildProblemMatcherPlugin,
+	],
+	nodePaths: [
+		path.resolve(__dirname, "../../node_modules"),
+		path.resolve(__dirname, "../../sdk/packages/shared/node_modules"),
+		path.resolve(__dirname, "../../sdk/packages/core/node_modules"),
+		path.resolve(__dirname, "../../sdk/packages/llms/node_modules"),
+		path.resolve(__dirname, "../../sdk/packages/agents/node_modules"),
 	],
 	format: "cjs",
 	sourcesContent: false,

@@ -138,6 +138,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	sapAiCoreTokenUrl: { default: undefined as string | undefined },
 	sapAiCoreBaseUrl: { default: undefined as string | undefined },
 	sapAiCoreUseOrchestrationMode: { default: true as boolean },
+	sapAiCoreModelAllowlist: { default: undefined as string | undefined },
 	difyBaseUrl: { default: undefined as string | undefined },
 	zaiApiLine: { default: undefined as string | undefined },
 	ocaBaseUrl: { default: undefined as string | undefined },

@@ -21,6 +21,7 @@ import {
 	resolveVertexProviderConfig,
 } from "./cline-session-factory"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
+import { buildSapProviderConfig } from "./sap-config"
 
 export interface BuildApiHandlerOptions {
 	/**
@@ -82,6 +83,8 @@ export function buildSdkProviderConfig(
 		// ignore an explicit Request Timeout setting and load models with
 		// Ollama's 4096-token server default.
 		...(providerId === "ollama" ? resolveOllamaProviderConfig(configuration, modelId) : {}),
+		// Forward SAP AI Core options
+		...(providerId === "sapaicore" ? buildSapProviderConfig(configuration, mode) : {}),
 	}
 
 	if (options?.disableReasoning) {

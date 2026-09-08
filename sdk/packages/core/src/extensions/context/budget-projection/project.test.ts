@@ -95,7 +95,7 @@ describe("buildBudgetProjection", () => {
 	it("preserves unsafe blocks in the latest typed user message", () => {
 		const result = buildBudgetProjection({
 			messages: [
-				{ role: "user", content: "old task " + "x".repeat(500) },
+				{ role: "user", content: `old task ${"x".repeat(500)}` },
 				{
 					role: "user",
 					content: [
@@ -201,8 +201,8 @@ describe("buildBudgetProjection", () => {
 					role: "assistant",
 					content: [{ type: "image", data: "x", mediaType: "image/png" }],
 				},
-				{ role: "user", content: "old task " + "x".repeat(500) },
-				{ role: "assistant", content: "old answer " + "y".repeat(500) },
+				{ role: "user", content: `old task ${"x".repeat(500)}` },
+				{ role: "assistant", content: `old answer ${"y".repeat(500)}` },
 				{ role: "user", content: "latest task" },
 			],
 			targetTokens: 80,
@@ -251,7 +251,7 @@ describe("buildBudgetProjection", () => {
 	it("preserves the latest typed prompt under pressure", () => {
 		const result = buildBudgetProjection({
 			messages: [
-				{ role: "user", content: "old task " + "x".repeat(500) },
+				{ role: "user", content: `old task ${"x".repeat(500)}` },
 				{ role: "user", content: "latest typed prompt" },
 				{
 					role: "user",
@@ -260,7 +260,7 @@ describe("buildBudgetProjection", () => {
 							type: "tool_result",
 							tool_use_id: "tool_1",
 							name: "read",
-							content: "result " + "y".repeat(500),
+							content: `result ${"y".repeat(500)}`,
 						},
 					],
 				},
@@ -281,7 +281,7 @@ describe("buildBudgetProjection", () => {
 	it("drops completed tool pairs after the latest typed prompt", () => {
 		const result = buildBudgetProjection({
 			messages: [
-				{ role: "user", content: "old task " + "x".repeat(500) },
+				{ role: "user", content: `old task ${"x".repeat(500)}` },
 				{ role: "user", content: "latest typed prompt" },
 				{
 					role: "assistant",
@@ -296,7 +296,7 @@ describe("buildBudgetProjection", () => {
 							type: "tool_result",
 							tool_use_id: "tool_after",
 							name: "read",
-							content: "huge result " + "y".repeat(2_000),
+							content: `huge result ${"y".repeat(2_000)}`,
 						},
 					],
 				},
@@ -328,7 +328,7 @@ describe("buildBudgetProjection", () => {
 	it("preserves unresolved tool use after the latest typed prompt", () => {
 		const result = buildBudgetProjection({
 			messages: [
-				{ role: "user", content: "old task " + "x".repeat(500) },
+				{ role: "user", content: `old task ${"x".repeat(500)}` },
 				{ role: "user", content: "latest typed prompt" },
 				{
 					role: "assistant",

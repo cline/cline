@@ -13,6 +13,7 @@ interface SapAiCoreModelPickerProps {
 	onModelChange: (modelId: string, deploymentId: string) => void
 	placeholder?: string
 	useOrchestrationMode?: boolean
+	modelAllowlist?: string
 }
 
 interface CategorizedModel {
@@ -33,21 +34,47 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 	selectedDeploymentId,
 	onModelChange,
 	placeholder = "Select a model...",
-	useOrchestrationMode = true,
+	useOrchestrationMode = false,
+	modelAllowlist,
 }) => {
 	const { models: sapAiCoreModels } = useProviderModels("sapaicore")
 
 	const visibleSapAiCoreModels = useMemo(() => {
+		let currentModels = sapAiCoreModels
+
 		if (useOrchestrationMode) {
-			return sapAiCoreModels
+			if (modelAllowlist && modelAllowlist.trim()) {
+				const allowedModels = modelAllowlist
+					.split(",")
+					.map((m) => m.trim().toLowerCase())
+					.filter(Boolean)
+				if (allowedModels.length > 0) {
+					currentModels = Object.fromEntries(
+						Object.entries(sapAiCoreModels).filter(([modelId]) => allowedModels.includes(modelId.toLowerCase())),
+					)
+				}
+			}
+			return currentModels
 		}
 
 		return Object.fromEntries(Object.entries(sapAiCoreModels).filter(([modelId]) => isSapAiCoreFoundationChatModel(modelId)))
-	}, [sapAiCoreModels, useOrchestrationMode])
+	}, [sapAiCoreModels, useOrchestrationMode, modelAllowlist])
 
 	// Auto-fix deployment ID mismatch or missing deployment ID when deployments change (when ai core creds changes)
 	useEffect(() => {
 		if (!selectedModelId) {
+			return
+		}
+
+		if (useOrchestrationMode) {
+			const orchestrationDeployment = sapAiCoreModelDeployments.find((d) => d.modelName === "orchestration")
+			if (orchestrationDeployment) {
+				if (!selectedDeploymentId || orchestrationDeployment.deploymentId !== selectedDeploymentId) {
+					onModelChange(selectedModelId, orchestrationDeployment.deploymentId)
+				}
+			} else if (sapAiCoreModelDeployments.length > 0 && selectedDeploymentId) {
+				onModelChange(selectedModelId, "")
+			}
 			return
 		}
 
@@ -62,13 +89,21 @@ const SapAiCoreModelPicker: React.FC<SapAiCoreModelPickerProps> = ({
 			// deployments loaded, but none match the selected model, which means the model is not deployed
 			onModelChange(selectedModelId, "")
 		}
-	}, [sapAiCoreModelDeployments, selectedModelId, selectedDeploymentId, onModelChange])
+	}, [sapAiCoreModelDeployments, selectedModelId, selectedDeploymentId, onModelChange, useOrchestrationMode])
 
 	const handleModelChange = (e: any) => {
 		const newModelId = e.target.value
 
 		if (!newModelId) {
 			return
+		}
+
+		if (useOrchestrationMode) {
+			const orchestrationDeployment = sapAiCoreModelDeployments.find((d) => d.modelName === "orchestration")
+			if (orchestrationDeployment) {
+				onModelChange(newModelId, orchestrationDeployment.deploymentId)
+				return
+			}
 		}
 
 		// Find the deployment that matches the selected model

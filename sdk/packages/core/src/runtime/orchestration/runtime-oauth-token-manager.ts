@@ -1,10 +1,10 @@
 import type { ITelemetryService } from "@cline/shared";
-import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	getProviderAuthHandler,
 	getProviderOAuthCredentialsFromSettings,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import type { ProviderSettings } from "../../types/provider-settings";
 

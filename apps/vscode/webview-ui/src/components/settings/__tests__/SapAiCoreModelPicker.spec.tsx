@@ -251,6 +251,7 @@ describe("SapAiCoreModelPicker Component", () => {
 					onModelChange={mockOnModelChange}
 					sapAiCoreModelDeployments={createDeployments(["anthropic--claude-3.5-sonnet", "gpt-4o"])}
 					selectedModelId="anthropic--claude-3.5-sonnet"
+					useOrchestrationMode={true}
 				/>
 			</ExtensionStateContextProvider>,
 		)

@@ -15,16 +15,30 @@ function trimString(value: unknown): string | undefined {
 		return undefined
 	}
 
-	return value.trim()
+	let trimmed = value.trim()
+	// Strip leading and trailing double quotes
+	if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+		trimmed = trimmed.slice(1, -1).trim()
+	}
+	// Strip leading and trailing single quotes
+	if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
+		trimmed = trimmed.slice(1, -1).trim()
+	}
+	return trimmed
 }
 
 export function buildSapProviderConfig(config: ApiConfiguration, mode: Mode): SapProviderConfig {
 	const sap: NonNullable<SapProviderConfig["sap"]> = {}
-	const baseUrl = trimString(config.sapAiCoreBaseUrl)
+	let baseUrl = trimString(config.sapAiCoreBaseUrl)
+	if (baseUrl) {
+		baseUrl = baseUrl.replace(/\/+$/, "")
+		if (baseUrl.endsWith("/v2")) {
+			baseUrl = baseUrl.slice(0, -3).replace(/\/+$/, "")
+		}
+	}
 	const useOrchestrationMode = config.sapAiCoreUseOrchestrationMode ?? true
-	const deploymentId = useOrchestrationMode
-		? undefined
-		: trimString(mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId)
+	const rawDeploymentId = mode === "plan" ? config.planModeSapAiCoreDeploymentId : config.actModeSapAiCoreDeploymentId
+	const deploymentId = trimString(rawDeploymentId) || undefined
 	const sapFields = {
 		clientId: trimString(config.sapAiCoreClientId),
 		clientSecret: trimString(config.sapAiCoreClientSecret),

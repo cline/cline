@@ -286,6 +286,7 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional string sap_ai_core_model_allowlist = 187;
 }
 
 message State {

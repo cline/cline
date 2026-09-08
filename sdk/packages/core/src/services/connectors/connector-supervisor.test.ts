@@ -7,8 +7,8 @@ import {
 	RESTART_BASE_DELAY_MS,
 	RESTART_GIVE_UP_AFTER,
 	RESTART_MAX_DELAY_MS,
-	setActiveConnectorSupervisor,
 	STOP_SIGTERM_TIMEOUT_MS,
+	setActiveConnectorSupervisor,
 } from "./connector-supervisor";
 
 const mocks = vi.hoisted(() => ({
