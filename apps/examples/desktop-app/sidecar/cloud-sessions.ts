@@ -1789,7 +1789,6 @@ export class CloudSessionManager {
 			live.status = "running";
 			live.prompt ||= prompt;
 		}
-		// Name from the first prompt without delaying the send.
 		const record = this.knownSessions.get(outerSessionId);
 		if (record && !record.title?.trim()) {
 			const title = deriveCloudSessionTitle(prompt);
@@ -2014,10 +2013,7 @@ export class CloudSessionManager {
 					}
 				}
 			}
-			// A reply is only an authoritative queue snapshot when it succeeded
-			// and actually carries a prompts array; treating an unsuccessful or
-			// malformed reply as authoritative would publish an empty queue and
-			// drop the buffered queue events that still hold the real state.
+			// Only a successful prompts array supersedes buffered queue events.
 			const queueSnapshotValid =
 				queueReply !== undefined &&
 				queueReply.ok !== false &&
@@ -2098,8 +2094,7 @@ export class CloudSessionManager {
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
 		const connection = await this.ensureConnection(outerSessionId);
-		// No inner session means nothing was ever queued; answering [] beats
-		// throwing after having dialed a socket just to fail.
+		// No inner session means nothing was ever queued.
 		if (!connection.innerSessionId) {
 			return { sessionId: outerSessionId, promptsInQueue: [] };
 		}
@@ -2168,7 +2163,6 @@ export class CloudSessionManager {
 		);
 	}
 
-	/** Mirrors the authoritative queue reply into desktop state. */
 	private applyQueueSnapshot(
 		outerSessionId: string,
 		reply: { payload?: Record<string, unknown> },
