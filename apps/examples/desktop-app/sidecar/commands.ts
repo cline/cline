@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
-import { promisify } from "node:util";
+import { isDeepStrictEqual, promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
 	CoreSettingsSnapshot,
@@ -2158,6 +2158,10 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
+		const previous =
+			providerId === "cline"
+				? manager.getProviderSettings(providerId)
+				: undefined;
 		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
@@ -2166,9 +2170,15 @@ export async function handleCommand(
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
 		if (providerId === "cline") {
-			await resetCloudSessionManager(ctx);
-			// Clear cloud rows immediately after sign-out.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
+			const current = manager.getProviderSettings(providerId);
+			// Ordinary provider preferences must not interrupt cloud sessions.
+			if (
+				previous?.apiKey !== current?.apiKey ||
+				!isDeepStrictEqual(previous?.auth, current?.auth)
+			) {
+				await resetCloudSessionManager(ctx);
+				broadcastEvent(ctx, "cloud_sessions_changed", {});
+			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
 		// (see signOut in webview settings/account-view.tsx), so this is the
