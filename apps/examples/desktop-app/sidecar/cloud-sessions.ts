@@ -40,7 +40,6 @@ import type {
 const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
-// Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
 const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
@@ -97,9 +96,7 @@ export type CreateCloudSessionInput = {
 	organizationId?: string;
 };
 
-// The repository/branch wire contract is owned by the webview lib so the two
-// sides of the desktop client cannot silently drift; re-exported here for
-// sidecar-side consumers.
+// Re-export the shared repository/branch contract for sidecar consumers.
 export type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -344,9 +341,7 @@ export class CloudSessionApi {
 				undefined,
 				auth,
 			)) ?? [];
-		// Normalize before anything touches the rows: one malformed record
-		// (missing repoContext/metadata) must not crash discovery or turn a
-		// create-timeout recovery into an opaque TypeError.
+		// Keep malformed account records from breaking discovery or recovery.
 		return rows.flatMap((row) => {
 			if (!row || typeof row !== "object" || typeof row.id !== "string") {
 				return [];
@@ -571,8 +566,7 @@ export class CloudSessionApi {
 					error instanceof CloudSessionError &&
 					error.code === "session_failed"
 				) {
-					// A terminally failed sandbox lingers in the account list
-					// otherwise; clean it up under the identity that created it.
+					// Clean up a failed sandbox under the identity that created it.
 					try {
 						await this.deleteWithAuth(createdSessionId, creationAuth);
 					} catch (cleanupError) {
@@ -592,12 +586,7 @@ export class CloudSessionApi {
 				}
 				throw error;
 			}
-			// Provisioning may outlive the synchronous request only when the
-			// POST timed out or the server failed after possibly accepting it
-			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
-			// provisioned anything, and recovering on one risks silently
-			// adopting an identical-config session created by another device
-			// on the same account.
+			// Recover only failures that may have followed an accepted POST.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
 				!(error instanceof CloudSessionError) ||
@@ -606,9 +595,7 @@ export class CloudSessionApi {
 					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
 				const requestedBranch = input.branch?.trim();
-				// The API has no idempotency header, so stamp the request id into
-				// the optional title and recover only that exact record. Config/time
-				// matching can steal another process's otherwise-identical session.
+				// The title carries the request identity because the API lacks idempotency.
 				const candidates = (
 					await this.listWithToken(
 						input.organizationId,
@@ -851,18 +838,15 @@ type CloudSessionManagerOptions = {
 	>;
 	getAuthToken: () => Promise<string | undefined>;
 	apiBaseUrl: string;
-	/** Resolves the active billing org; undefined means a personal session. */
 	getActiveOrganizationId?: (options?: {
 		fresh?: boolean;
 	}) => Promise<string | undefined>;
-	/** Test seam for retry backoff waits. */
 	sleep?: (ms: number) => Promise<void>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
 };
 
-/** Recognizes server ids even before the in-memory cloud registry is warm. */
 export function isCloudOuterSessionId(sessionId: string): boolean {
 	return sessionId.trim().startsWith("ses-");
 }
@@ -1035,7 +1019,6 @@ function messageText(message: unknown): string {
 		.trim();
 }
 
-/** Normalizes pod-wrapped prompts and raw local/queue prompts. */
 function normalizeUserPrompt(text: string): string {
 	const trimmed = text.trim();
 	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
@@ -1172,7 +1155,6 @@ function collectToolCallIds(
 }
 
 function streamedAssistantText(events: HubEventEnvelope[]): string {
-	// Match messageText() trimming before substring supersession.
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
 		if (
@@ -1272,15 +1254,12 @@ export class CloudSessionManager {
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
-	// Keep locally-created sessions visible while their sandbox is provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
-	// Reconcile only the server row stamped by this exact create request.
 	private readonly pendingCreateRecoveryTitles = new Map<string, string>();
 	private readonly provisioningOutcomes = new Map<
 		string,
 		Exclude<CloudProvisioningOutcome, { status: "provisioning" }>
 	>();
-	// Sessions mid-delete; blocks concurrent code from re-dialing them.
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1540,7 +1519,6 @@ export class CloudSessionManager {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
-		// Keep the session visible while the blocking create request provisions it.
 		const placeholderId = `${CLOUD_PROVISIONING_SESSION_ID_PREFIX}${randomUUID()}`;
 		const requestId = input.requestId?.trim();
 		if (requestId) {
@@ -1573,7 +1551,6 @@ export class CloudSessionManager {
 				title: `Provisioning ${cloudRepositoryLabel(input.repoUrl, "repository")}…`,
 			},
 		});
-		// Show the placeholder before the next sidebar poll.
 		sendEvent(this.ctx, "chat_session_status", {
 			sessionId: placeholderId,
 			status: "provisioning",
@@ -1585,7 +1562,6 @@ export class CloudSessionManager {
 				status: "ready",
 				sessionId,
 			});
-			// Swap an open placeholder thread to the real session.
 			sendEvent(this.ctx, "cloud_session_provisioned", {
 				placeholderId,
 				sessionId,
@@ -1832,7 +1808,6 @@ export class CloudSessionManager {
 			live.status = "running";
 			live.prompt ||= prompt;
 		}
-		// Name from the first prompt without delaying the send.
 		const record = this.knownSessions.get(outerSessionId);
 		if (record && !record.title?.trim()) {
 			const title = deriveCloudSessionTitle(prompt);
@@ -2057,10 +2032,7 @@ export class CloudSessionManager {
 					}
 				}
 			}
-			// A reply is only an authoritative queue snapshot when it succeeded
-			// and actually carries a prompts array; treating an unsuccessful or
-			// malformed reply as authoritative would publish an empty queue and
-			// drop the buffered queue events that still hold the real state.
+			// Only a successful prompts array supersedes buffered queue events.
 			const queueSnapshotValid =
 				queueReply !== undefined &&
 				queueReply.ok !== false &&
@@ -2141,8 +2113,7 @@ export class CloudSessionManager {
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
 		const connection = await this.ensureConnection(outerSessionId);
-		// No inner session means nothing was ever queued; answering [] beats
-		// throwing after having dialed a socket just to fail.
+		// No inner session means nothing was ever queued.
 		if (!connection.innerSessionId) {
 			return { sessionId: outerSessionId, promptsInQueue: [] };
 		}
@@ -2211,7 +2182,6 @@ export class CloudSessionManager {
 		);
 	}
 
-	/** Mirrors the authoritative queue reply into desktop state. */
 	private applyQueueSnapshot(
 		outerSessionId: string,
 		reply: { payload?: Record<string, unknown> },
