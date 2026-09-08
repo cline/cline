@@ -29,7 +29,10 @@ import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
-import { createSessionCompactionState } from "../../session/models/session-compaction";
+import {
+	createSessionCompactionState,
+	type SessionCompactionState,
+} from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { SessionSource } from "../../types/common";
@@ -6077,6 +6080,10 @@ describe("LocalRuntimeHost", () => {
 		const startResumed = async (
 			sessionId: string,
 			metadata: Record<string, unknown> | undefined,
+			options: {
+				initialCompactionState?: SessionCompactionState;
+				compact?: () => Promise<{ messages: MessageWithMetadata[] }>;
+			} = {},
 		) => {
 			const manifest = {
 				...createManifest(sessionId),
@@ -6107,12 +6114,15 @@ describe("LocalRuntimeHost", () => {
 				getMessages: vi.fn().mockReturnValue(initialMessages),
 				messages: initialMessages,
 			});
-			const compact = vi.fn(async () => ({
-				messages: [
-					{ role: "user" as const, content: "imported summary" },
-					resumedMessages.at(-1) as MessageWithMetadata,
-				],
-			}));
+			const compact = vi.fn(
+				options.compact ??
+					(async () => ({
+						messages: [
+							{ role: "user" as const, content: "imported summary" },
+							resumedMessages.at(-1) as MessageWithMetadata,
+						],
+					})),
+			);
 			const manager = new RuntimeHostUnderTest({
 				distinctId,
 				sessionService: sessionService as never,
@@ -6128,19 +6138,24 @@ describe("LocalRuntimeHost", () => {
 						compaction: { enabled: false, compact },
 					}),
 					initialMessages,
+					...(options.initialCompactionState
+						? { initialCompactionState: options.initialCompactionState }
+						: {}),
 					interactive: true,
 				}),
 			);
 			const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
 			expect(prepareTurn).toBeDefined();
 			const emitStatusNotice = vi.fn();
-			const runPrepareTurn = () =>
+			const runPrepareTurn = (
+				abortSignal: AbortSignal = new AbortController().signal,
+			) =>
 				prepareTurn({
 					agentId: "agent-root-1",
 					conversationId: sessionId,
 					parentAgentId: null,
 					iteration: 1,
-					abortSignal: new AbortController().signal,
+					abortSignal,
 					systemPrompt: "",
 					tools: [],
 					messages: resumedMessages,
@@ -6193,6 +6208,65 @@ describe("LocalRuntimeHost", () => {
 		const second = await imported.runPrepareTurn();
 		expect(imported.compact).toHaveBeenCalledTimes(1);
 		expect(second?.messages).toEqual(first?.messages);
+
+		// Re-opening later: the persisted sidecar already projects a summary,
+		// so no second summarizer call is spent.
+		const summarized = await startResumed(
+			"sess-imported-reopen",
+			{ importedFrom: { tool: "claude-code", sourceSessionId: "abc" } },
+			{
+				initialCompactionState: createSessionCompactionState({
+					sourceMessages: initialMessages,
+					compactedMessages: [
+						{
+							role: "user",
+							content: "earlier summary",
+							metadata: { kind: "compaction_summary" },
+						},
+					],
+					conversationId: "sess-imported-reopen",
+				}),
+			},
+		);
+		expect((await summarized.runPrepareTurn())?.messages).toEqual([
+			{
+				role: "user",
+				content: "earlier summary",
+				metadata: { kind: "compaction_summary" },
+			},
+			{ role: "user", content: "keep going" },
+		]);
+		expect(summarized.compact).not.toHaveBeenCalled();
+
+		// An aborted attempt is not an attempt: the next turn tries again.
+		let abortNext = true;
+		const aborted = await startResumed(
+			"sess-imported-abort",
+			{ importedFrom: { tool: "claude-code", sourceSessionId: "abc" } },
+			{
+				compact: async () => {
+					if (abortNext) {
+						abortNext = false;
+						throw new DOMException("aborted", "AbortError");
+					}
+					return {
+						messages: [
+							{ role: "user" as const, content: "retried summary" },
+							resumedMessages.at(-1) as MessageWithMetadata,
+						],
+					};
+				},
+			},
+		);
+		const abortController = new AbortController();
+		const abortedRun = aborted.runPrepareTurn(abortController.signal);
+		abortController.abort();
+		await expect(abortedRun).rejects.toThrow("aborted");
+		expect((await aborted.runPrepareTurn())?.messages?.[0]).toEqual({
+			role: "user",
+			content: "retried summary",
+		});
+		expect(aborted.compact).toHaveBeenCalledTimes(2);
 
 		const native = await startResumed("sess-native-resume", {
 			title: "not imported",

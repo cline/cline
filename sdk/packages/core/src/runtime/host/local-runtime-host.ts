@@ -659,13 +659,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
 		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
-		// Resuming an imported session for the first time (no compaction sidecar
-		// yet) summarizes the foreign transcript before the model sees it; the
-		// summary persists to the sidecar, so this only ever applies once.
-		const importedFrom =
-			isReadOnlyResumeStart && !rawInitialCompactionState
-				? readImportedFromMetadata(manifest.metadata)
-				: undefined;
+		// Resuming an imported session summarizes the foreign transcript before
+		// the model sees it. The summary persists to the compaction sidecar and
+		// the policy stands down once that sidecar projects, so it applies once
+		// per session and again only if the sidecar has gone stale.
+		const importedFrom = isReadOnlyResumeStart
+			? readImportedFromMetadata(manifest.metadata)
+			: undefined;
 		const compact = importedFrom
 			? createImportedHistoryCompactionPrepareTurn({
 					config: configWithProvider,

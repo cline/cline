@@ -27,6 +27,7 @@ import {
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
+	findLatestSummaryIndex,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
 
@@ -646,10 +647,13 @@ export function createContextCompactionPrepareTurn(
  * verbatim, which a model continuing it may try to call, so the first turn
  * folds the whole foreign history into a summary before the model request
  * (manual mode, agentic strategy, nothing preserved but the new prompt).
- * Runs once regardless of the session's auto-compaction setting, tags its
- * status notices with `importedFrom` so clients can label the wait, and on
- * failure falls back to the raw transcript. Every later turn defers to
- * `next`, the session's normal compaction (if any).
+ * Runs regardless of the session's auto-compaction setting, tags its status
+ * notices with `importedFrom` so clients can label the wait, and on failure
+ * falls back to the raw transcript. It makes one attempt per session start
+ * (an aborted attempt does not count) and stands down once the working
+ * context already opens with a compaction summary, which is how a resumed
+ * sidecar presents; every other turn defers to `next`, the session's normal
+ * compaction (if any).
  */
 export function createImportedHistoryCompactionPrepareTurn(input: {
 	config: Parameters<typeof createContextCompactionPrepareTurn>[0];
@@ -671,8 +675,7 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 	);
 	let pending = summarize !== undefined;
 	return async (context) => {
-		if (pending && summarize) {
-			pending = false;
+		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {
 			try {
 				const result = await summarize({
 					...context,
@@ -682,9 +685,11 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 							importedFrom: input.importedFrom,
 						}),
 				});
+				pending = false;
 				if (result?.messages) return result;
 			} catch (error) {
 				if (context.abortSignal.aborted) throw error;
+				pending = false;
 				input.config.logger?.log(
 					"Failed to summarize imported session on resume; continuing with the raw transcript",
 					{

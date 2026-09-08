@@ -2925,6 +2925,7 @@ export function useChatSession() {
 			activeSessionIdRef.current = session.sessionId;
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
+			setActivityLabel(null);
 			// A freshly hydrated session has no local turn in flight; without
 			// this the mount defaults (epoch 0, settled -1) read as an open
 			// turn and keep the stale-stream fallback inert forever.
