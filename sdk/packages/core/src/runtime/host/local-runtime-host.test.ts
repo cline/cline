@@ -6041,6 +6041,143 @@ describe("LocalRuntimeHost", () => {
 		]);
 	});
 
+	// An imported transcript carries another agent's tool calls, so the first
+	// resumed turn summarizes it into the compaction sidecar even with
+	// auto-compaction off. It runs once; later turns project the sidecar.
+	it("summarizes an imported session on its first resumed turn", async () => {
+		const initialMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "fix the parser" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_1",
+						name: "Read",
+						input: { file_path: "parser.ts" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "toolu_1", content: "src" },
+				],
+			},
+		];
+		const resumedMessages = [
+			...initialMessages,
+			{ role: "user", content: "keep going" },
+		] as MessageWithMetadata[];
+		const startResumed = async (
+			sessionId: string,
+			metadata: Record<string, unknown> | undefined,
+		) => {
+			const manifest = {
+				...createManifest(sessionId),
+				status: "completed" as const,
+				metadata,
+			};
+			const sessionService = {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				readSessionManifest: vi.fn().mockReturnValue(manifest),
+				createRootSessionWithArtifacts: vi.fn(),
+				persistSessionMessages: vi.fn(),
+				persistSessionCompactionState: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			};
+			const createAgent = vi.fn().mockReturnValue({
+				run: vi.fn(),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue(sessionId),
+				restore: vi.fn(),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				getMessages: vi.fn().mockReturnValue(initialMessages),
+				messages: initialMessages,
+			});
+			const compact = vi.fn(async () => ({
+				messages: [
+					{ role: "user" as const, content: "imported summary" },
+					resumedMessages.at(-1) as MessageWithMetadata,
+				],
+			}));
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: {
+					build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+				},
+				createAgent: createAgent as never,
+			});
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						compaction: { enabled: false, compact },
+					}),
+					initialMessages,
+					interactive: true,
+				}),
+			);
+			const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+			expect(prepareTurn).toBeDefined();
+			const runPrepareTurn = () =>
+				prepareTurn({
+					agentId: "agent-root-1",
+					conversationId: sessionId,
+					parentAgentId: null,
+					iteration: 1,
+					abortSignal: new AbortController().signal,
+					systemPrompt: "",
+					tools: [],
+					messages: resumedMessages,
+					apiMessages: resumedMessages,
+					model: {
+						id: "mock-model",
+						provider: "anthropic",
+						info: { id: "mock-model", maxInputTokens: 100_000 },
+					},
+				});
+			return { compact, runPrepareTurn, sessionService };
+		};
+
+		const imported = await startResumed("sess-imported-resume", {
+			importedFrom: { tool: "claude-code", sourceSessionId: "abc" },
+		});
+		const first = await imported.runPrepareTurn();
+		expect(imported.compact).toHaveBeenCalledTimes(1);
+		expect(imported.compact).toHaveBeenCalledWith(
+			expect.objectContaining({ mode: "manual", messages: resumedMessages }),
+		);
+		expect(first?.messages).toEqual([
+			{ role: "user", content: "imported summary" },
+			{ role: "user", content: "keep going" },
+		]);
+		expect(
+			imported.sessionService.persistSessionCompactionState,
+		).toHaveBeenCalledWith(
+			"sess-imported-resume",
+			expect.objectContaining({ source_message_count: resumedMessages.length }),
+		);
+
+		const second = await imported.runPrepareTurn();
+		expect(imported.compact).toHaveBeenCalledTimes(1);
+		expect(second?.messages).toEqual(first?.messages);
+
+		const native = await startResumed("sess-native-resume", {
+			title: "not imported",
+		});
+		expect(await native.runPrepareTurn()).toBeUndefined();
+		expect(native.compact).not.toHaveBeenCalled();
+	});
+
 	it("persists active manual compaction state against the persisted transcript", async () => {
 		const sessionId = "sess-compaction-active-persisted";
 		const tempCwd = mkdtempSync(join(tmpdir(), "compaction-active-"));
