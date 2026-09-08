@@ -30,6 +30,7 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { getCloudSessionManager } from "./cloud-sessions";
+import { createDesktopExtensionContext } from "./client-context";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
@@ -403,7 +404,10 @@ function readPositiveInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
-function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+function buildCoreSessionConfig(
+	config: JsonRecord,
+	telemetryUser?: SidecarContext["telemetryUser"],
+): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
 		typeof rawWorkspaceRoot === "string" ? rawWorkspaceRoot.trim() : "";
@@ -446,6 +450,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		checkpoint: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
+		extensionContext: createDesktopExtensionContext(telemetryUser),
 	};
 }
 
@@ -677,7 +682,7 @@ async function handleStart(
 				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	const coreConfig: JsonRecord = {
-		...buildCoreSessionConfig(request.config),
+		...buildCoreSessionConfig(request.config, ctx.telemetryUser),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
 	};
@@ -796,6 +801,7 @@ async function handleAttach(
 
 async function startRebuiltSession(
 	manager: ClineCore,
+	telemetryUser: SidecarContext["telemetryUser"],
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
@@ -807,11 +813,14 @@ async function startRebuiltSession(
 		: undefined;
 	const restarted = await manager.start({
 		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
-				...config,
-				sessionId,
-				systemPrompt,
-			}) as unknown as ClineCoreStartConfig,
+			buildCoreSessionConfig(
+				{
+					...config,
+					sessionId,
+					systemPrompt,
+				},
+				telemetryUser,
+			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -861,6 +870,7 @@ async function rebuildSessionForProviderChange(
 	try {
 		await startRebuiltSession(
 			manager,
+			ctx.telemetryUser,
 			sessionId,
 			nextConfig,
 			nextSystemPrompt,
@@ -882,6 +892,7 @@ async function rebuildSessionForProviderChange(
 			}
 			await startRebuiltSession(
 				manager,
+				ctx.telemetryUser,
 				sessionId,
 				previousConfig,
 				previousSystemPrompt,
@@ -1293,10 +1304,13 @@ async function handleForkUnlocked(
 	const systemPrompt = await resolveSystemPrompt(forkConfig);
 	const startInput = {
 		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
-				...forkConfig,
-				systemPrompt,
-			}) as unknown as ClineCoreStartConfig,
+			buildCoreSessionConfig(
+				{
+					...forkConfig,
+					systemPrompt,
+				},
+				ctx.telemetryUser,
+			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -1425,10 +1439,13 @@ async function handleRestoreCheckpoint(
 			restore: { messages: true, workspace: true },
 			start: {
 				...splitCoreSessionConfig(
-					buildCoreSessionConfig({
-						...config,
-						systemPrompt: await resolveSystemPrompt(config),
-					}) as unknown as ClineCoreStartConfig,
+					buildCoreSessionConfig(
+						{
+							...config,
+							systemPrompt: await resolveSystemPrompt(config),
+						},
+						ctx.telemetryUser,
+					) as unknown as ClineCoreStartConfig,
 				),
 				source: SessionSource.DESKTOP,
 				interactive: true,

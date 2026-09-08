@@ -8,7 +8,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSqliteDb } from "@cline/shared/db";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CoreSessionService } from "../../session/services/session-service";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { ClaudeCodeImportAdapter } from "./claude-code";
@@ -19,6 +19,7 @@ import {
 	sanitizeImportedMessages,
 } from "./sanitize";
 import { SessionImportService } from "./service";
+import type { SessionImportAdapter } from "./types";
 
 const tempDirs: string[] = [];
 const openStores: SqliteSessionStore[] = [];
@@ -693,6 +694,104 @@ describe("OpencodeImportAdapter", () => {
 			cacheWriteTokens: 5,
 			cost: 0.12,
 		});
+	});
+});
+
+describe.each([
+	{
+		tool: "Claude Code",
+		envKey: "CLAUDE_CONFIG_DIR",
+		subdir: "projects",
+		defaultDir: [".claude", "projects"],
+		writeFixture: writeClaudeCodeFixture,
+		createAdapter: (projectsDir?: string): SessionImportAdapter =>
+			new ClaudeCodeImportAdapter({ projectsDir }),
+	},
+	{
+		tool: "Codex",
+		envKey: "CODEX_HOME",
+		subdir: "",
+		defaultDir: [".codex"],
+		writeFixture: writeCodexFixture,
+		createAdapter: (codexHome?: string): SessionImportAdapter =>
+			new CodexImportAdapter({ codexHome }),
+	},
+	{
+		tool: "Opencode",
+		envKey: "XDG_DATA_HOME",
+		subdir: "opencode",
+		defaultDir: [".local", "share", "opencode"],
+		writeFixture: writeOpencodeFixture,
+		createAdapter: (dataDir?: string): SessionImportAdapter =>
+			new OpencodeImportAdapter({ dataDir }),
+	},
+])("$tool path resolution", (fixture) => {
+	let homeDir: string;
+	const adapters: SessionImportAdapter[] = [];
+
+	function adapter(directory?: string): SessionImportAdapter {
+		const instance = fixture.createAdapter(directory);
+		adapters.push(instance);
+		return instance;
+	}
+
+	beforeEach(() => {
+		homeDir = tempDir("session-import-home-");
+		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
+	});
+
+	afterEach(() => {
+		try {
+			while (adapters.length > 0) adapters.pop()?.dispose?.();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	// POSIX filesystems distinguish trailing spaces; Windows path-string
+	// behavior is covered with path.win32 in paths.test.ts.
+	it.skipIf(process.platform === "win32")(
+		"discovers the untrimmed override and snapshots it at construction",
+		() => {
+			const override = join(homeDir, "store ");
+			const directory = join(override, fixture.subdir);
+			fixture.writeFixture(directory);
+			vi.stubEnv(fixture.envKey, override);
+			const original = adapter();
+
+			vi.stubEnv(fixture.envKey, join(homeDir, "missing"));
+			expect(adapter().isInstalled()).toBe(false);
+			const discovered = original.discover();
+			expect(discovered).toHaveLength(1);
+			expect(discovered[0].sourcePath.startsWith(directory)).toBe(true);
+			expect(original.convert(discovered[0].sourceId).sourcePath).toBe(
+				discovered[0].sourcePath,
+			);
+		},
+	);
+
+	it.each([
+		"",
+		" \t ",
+	])("uses the default store for blank override %j", (value) => {
+		const directory = join(homeDir, ...fixture.defaultDir);
+		fixture.writeFixture(directory);
+		vi.stubEnv(fixture.envKey, value);
+
+		const discovered = adapter().discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourcePath.startsWith(directory)).toBe(true);
+	});
+
+	it("prefers the explicit constructor directory over the environment", () => {
+		const directory = join(homeDir, "explicit");
+		fixture.writeFixture(directory);
+		vi.stubEnv(fixture.envKey, join(homeDir, "missing"));
+
+		const discovered = adapter(directory).discover();
+		expect(discovered).toHaveLength(1);
+		expect(discovered[0].sourcePath.startsWith(directory)).toBe(true);
 	});
 });
 
