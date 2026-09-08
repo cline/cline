@@ -2519,7 +2519,6 @@ export class CloudSessionManager {
 				}
 				return connection;
 			} catch (error) {
-				// Never retain a client whose registration or inner creation failed.
 				this.connections.delete(outerSessionId);
 				connection.disposed = true;
 				connection.unsubscribe();
