@@ -299,7 +299,8 @@ headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for ever
 new socket, including reconnects, so hosts can refresh short-lived credentials.
 Header authentication is mutually exclusive with the local hub-token subprotocol;
 the proxy is responsible for authenticating the client and adding any private
-upstream hub credentials.
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
