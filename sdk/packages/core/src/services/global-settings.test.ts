@@ -201,6 +201,21 @@ describe("global-settings", () => {
 		}
 	});
 
+	it("fails closed for web search when persisted settings cannot be loaded", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const malformedSettingsPath = join(root, "malformed.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = malformedSettingsPath;
+			await writeFile(malformedSettingsPath, "{not json");
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = root;
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("records telemetry opt-out once when the setting changes to true", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {

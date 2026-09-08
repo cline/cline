@@ -135,6 +135,7 @@ interface CachedSettings {
 	mtimeMs: number;
 	size: number;
 	value: GlobalSettings;
+	loadFailed: boolean;
 }
 
 let settingsCache: CachedSettings | undefined;
@@ -162,18 +163,23 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	return Object.freeze(value);
 }
 
-function loadSettingsFromDisk(filePath: string): GlobalSettings {
+function loadSettingsFromDisk(filePath: string): {
+	value: GlobalSettings;
+	loadFailed: boolean;
+} {
 	let raw: string;
 	try {
 		raw = readFileSync(filePath, "utf8");
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 	try {
 		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
-		return result.success ? result.data : defaultGlobalSettings();
+		return result.success
+			? { value: result.data, loadFailed: false }
+			: { value: defaultGlobalSettings(), loadFailed: true };
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 }
 
@@ -193,10 +199,17 @@ function getCachedSettings(): CachedSettings {
 		return cached;
 	}
 
-	const value = freezeSettings(
-		stats ? loadSettingsFromDisk(filePath) : defaultGlobalSettings(),
-	);
-	settingsCache = { path: filePath, mtimeMs, size, value };
+	const loaded = stats
+		? loadSettingsFromDisk(filePath)
+		: { value: defaultGlobalSettings(), loadFailed: false };
+	const value = freezeSettings(loaded.value);
+	settingsCache = {
+		path: filePath,
+		mtimeMs,
+		size,
+		value,
+		loadFailed: loaded.loadFailed,
+	};
 	return settingsCache;
 }
 
@@ -354,9 +367,10 @@ function isModelToolName(value: string): value is ConfigurableModelToolName {
 }
 
 export function resolveModelToolSettings(): ModelToolSettings {
+	const cached = getCachedSettings();
 	return {
-		web_search: { enabled: true },
-		...readGlobalSettings().tools,
+		web_search: { enabled: !cached.loadFailed },
+		...cached.value.tools,
 	};
 }
 
