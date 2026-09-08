@@ -233,6 +233,35 @@ describe("computer-user driver tools", () => {
 		]);
 	});
 
+	it.each([
+		"abort",
+		"stop",
+	] as const)("does not report restarted when %s fails", async (failure) => {
+		const host: ComputerUserSessionHost = {
+			start: async () => ({ sessionId: "helper-session" }),
+			send: () => new Promise(() => {}),
+			abort: async () => {
+				if (failure === "abort") throw new Error("abort failed");
+			},
+			stop: async () => {
+				if (failure === "stop") throw new Error("stop failed");
+			},
+		};
+		const coordinator = new ComputerUserCoordinator({
+			host,
+			helperConfig: {},
+			notifyDriver: () => {},
+		});
+		const restart = createComputerUserDriverTools(coordinator).find(
+			(tool) => tool.name === "computer_user_restart",
+		);
+		if (!restart) throw new Error("missing restart tool");
+		await coordinator.start("task");
+		const state = coordinator.getState();
+		await expect(restart.execute({}, ctx)).rejects.toThrow(`${failure} failed`);
+		expect(coordinator.getState()).toBe(state);
+	});
+
 	it("restart ignores a stale run settlement, so a wedged turn cannot resurrect state", async () => {
 		const pendingSends: Array<{
 			resolve: (result: AgentResult | undefined) => void;
@@ -343,9 +372,11 @@ describe("computer-user driver tools", () => {
 		expect(byName.has("computer_user_restart_backend")).toBe(false);
 
 		const results: string[] = [];
+		const controller = new AbortController();
 		const capability: ComputerBackendRestartCapability = {
 			budgetMs: 1_000,
-			ensureRunning: async () => {
+			ensureRunning: async (signal) => {
+				expect(signal).toBe(controller.signal);
 				const status = results.length === 0 ? "started" : "already_running";
 				results.push(status);
 				return { status } as
@@ -374,11 +405,17 @@ describe("computer-user driver tools", () => {
 		expect(backendTool).toBeDefined();
 		expect(backendTool?.timeoutMs).toBe(61_000);
 
-		const started = (await backendTool?.execute({}, ctx)) as {
+		const started = (await backendTool?.execute(
+			{},
+			{ ...ctx, signal: controller.signal },
+		)) as {
 			status: string;
 		};
 		expect(started.status).toBe("started");
-		const second = (await backendTool?.execute({}, ctx)) as {
+		const second = (await backendTool?.execute(
+			{},
+			{ ...ctx, signal: controller.signal },
+		)) as {
 			status: string;
 		};
 		expect(second.status).toBe("already_running");

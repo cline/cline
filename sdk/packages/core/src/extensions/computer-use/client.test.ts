@@ -86,6 +86,32 @@ describe("ComputerUseClient", () => {
 		client.close();
 	});
 
+	it("does not send an action cancelled while connecting", async () => {
+		const seen: string[] = [];
+		const started = await startFakeBackend((request) => {
+			seen.push(request.action as string);
+			return { id: request.id as number, ok: true };
+		});
+		server = started.server;
+		const controller = new AbortController();
+		const client = new ComputerUseClient({ port: started.port });
+		try {
+			expect(client.isConnected).toBe(false);
+			const pending = client.send(
+				{ action: "key", text: "Return" },
+				{ signal: controller.signal },
+			);
+			controller.abort(new Error("cancel during connection"));
+			await expect(pending).rejects.toThrow("cancel during connection");
+			expect(client.isConnected).toBe(true);
+			await client.send({ action: "cursor_position" });
+			expect(seen).toEqual(["cursor_position"]);
+		} finally {
+			client.close();
+		}
+		expect(client.isConnected).toBe(false);
+	});
+
 	it("surfaces backend error responses", async () => {
 		const started = await startFakeBackend((request) => ({
 			id: request.id as number,

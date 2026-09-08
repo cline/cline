@@ -4,7 +4,7 @@ import {
 	type Server,
 	type Socket,
 } from "node:net";
-import type { AgentResult, AgentToolContext } from "@cline/shared";
+import type { AgentHooks, AgentResult, AgentToolContext } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
 import {
@@ -213,6 +213,71 @@ describe("createInteractiveComputerUser", () => {
 				.includes("computer_user_restart_backend"),
 		).toBe(true);
 		await result?.dispose();
+	});
+
+	it("keeps transcript session identities across helper replacement", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+		const hooks: AgentHooks[] = [];
+		createCliCoreMock.mockResolvedValue({
+			start: vi.fn(async ({ config }: { config: { hooks: AgentHooks } }) => {
+				hooks.push(config.hooks);
+				return { sessionId: `helper-${hooks.length}` };
+			}),
+			send: vi.fn(async () => makeResult()),
+			abort: vi.fn(async () => {}),
+			stop: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		});
+		const result = await createInteractiveComputerUser({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
+			notifyDriver: () => {},
+			env: { CLINE_COMPUTER_USE_PORT: String(started.port) },
+		});
+		expect(result).toBeDefined();
+		if (!result) throw new Error("computer user was not configured");
+		const tool = (name: string) => {
+			const found = result.driverTools.find((tool) => tool.name === name);
+			if (!found) throw new Error(`missing tool ${name}`);
+			return found;
+		};
+		const recordMessage = (hook: AgentHooks, text: string) =>
+			hook.onEvent?.({
+				type: "message-added",
+				snapshot: { agentId: "helper-agent" } as never,
+				message: {
+					id: text,
+					role: "assistant",
+					content: [{ type: "text", text }],
+					createdAt: 0,
+				},
+			});
+		try {
+			await tool("computer_user_start").execute({ task: "first" }, toolContext);
+			await recordMessage(hooks[0], "first");
+			await tool("computer_user_restart").execute({}, toolContext);
+			await tool("computer_user_start").execute(
+				{ task: "second" },
+				toolContext,
+			);
+			await recordMessage(hooks[1], "second");
+			await recordMessage(hooks[0], "late first");
+			const transcript = await tool("computer_user_transcript").execute(
+				{},
+				toolContext,
+			);
+			expect(transcript).toMatchObject({
+				entries: [
+					{ sessionId: "helper-1", text: "first" },
+					{ sessionId: "helper-2", text: "second" },
+					{ sessionId: "helper-1", text: "late first" },
+				],
+			});
+		} finally {
+			await result.dispose();
+		}
 	});
 
 	it("starts the helper with one moderate adaptive reasoning snapshot", async () => {

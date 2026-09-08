@@ -91,12 +91,28 @@ describe("createComputerUseTool", () => {
 		client = new ComputerUseClient({ port: started.port });
 
 		const tool = await createComputerUseTool({ client, port: started.port });
+		expect(tool.inputSchema).toMatchObject({
+			properties: {
+				actions: {
+					items: {
+						properties: {
+							region: { minItems: 4, maxItems: 4 },
+							expect_unchanged: { minItems: 4, maxItems: 4 },
+						},
+					},
+				},
+			},
+		});
 		const output = (await tool.execute(
 			{
 				action: "run_sequence",
 				actions: [
-					{ action: "left_click", coordinate: [10, 20] },
-					{ action: "type", text: "hello" },
+					{
+						action: "left_click",
+						coordinate: [10, 20],
+						expect_unchanged: [0, 0, 30, 40],
+					},
+					{ action: "zoom", region: [0, 0, 30, 40] },
 				],
 			},
 			ctx,
@@ -105,8 +121,12 @@ describe("createComputerUseTool", () => {
 		expect(seen[0]).toMatchObject({
 			action: "run_sequence",
 			actions: [
-				{ action: "left_click", coordinate: [10, 20] },
-				{ action: "type", text: "hello" },
+				{
+					action: "left_click",
+					coordinate: [10, 20],
+					expectUnchanged: [0, 0, 30, 40],
+				},
+				{ action: "zoom", region: [0, 0, 30, 40] },
 			],
 		});
 		expect(output[0]).toMatchObject({
@@ -124,7 +144,10 @@ describe("createComputerUseTool", () => {
 		});
 		server = guardBackend.server;
 		client = new ComputerUseClient({ port: guardBackend.port });
-		const guardTool = await createComputerUseTool({ client, port: guardBackend.port });
+		const guardTool = await createComputerUseTool({
+			client,
+			port: guardBackend.port,
+		});
 		await guardTool.execute(
 			{
 				action: "left_click",
@@ -138,6 +161,32 @@ describe("createComputerUseTool", () => {
 			coordinate: [5, 6],
 			expectUnchanged: [1, 2, 3, 4],
 		});
+	});
+
+	it("keeps the fresh screenshot when a guarded sequence aborts", async () => {
+		const started = await startFakeBackend((request) => ({
+			id: request.id as number,
+			ok: true,
+			aborted: true,
+			image: { data: "aGk=", mediaType: "image/png" },
+		}));
+		server = started.server;
+		client = new ComputerUseClient({ port: started.port });
+		const tool = await createComputerUseTool({ client, port: started.port });
+		const output = await tool.execute(
+			{
+				action: "run_sequence",
+				actions: [{ action: "left_click", coordinate: [5, 6] }],
+			},
+			ctx,
+		);
+		expect(output).toEqual([
+			{
+				type: "text",
+				text: 'Action "run_sequence" aborted. Reassess the screen before continuing.',
+			},
+			{ type: "image", data: "aGk=", mediaType: "image/png" },
+		]);
 	});
 
 	it("exposes the computer tool name and an object input schema", async () => {
