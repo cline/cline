@@ -709,6 +709,121 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(2);
 	});
 
+	// Every way a compacted retry can come back, crossed with everything it can
+	// carry. Recovery hands the retry to the loop unjudged, so this is the one
+	// place the two are checked together: whatever the loop does with the turn,
+	// the partial answer must never be silently dropped and the loop must never
+	// be handed a turn it rejects as empty.
+	const RETRY_FINISHES = [
+		"stop",
+		"tool-calls",
+		"max-tokens",
+		"error",
+		"aborted",
+	] as const;
+	const RETRY_CONTENTS = [
+		"text",
+		"tool-call",
+		"empty",
+		"model-tool-activity",
+	] as const;
+	const RETRY_MATRIX = RETRY_FINISHES.flatMap((finish) =>
+		RETRY_CONTENTS.map((content) => [finish, content] as const),
+	);
+
+	it.each(
+		RETRY_MATRIX,
+	)("never silently drops the partial answer when the compacted retry ends %s carrying %s", async (finish, content) => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		let runtime: AgentRuntime;
+		const retryEvents = (): AgentModelEvent[] => {
+			const events: AgentModelEvent[] = [];
+			if (content === "text") {
+				events.push({ type: "text-delta", text: "replacement" });
+			}
+			if (content === "tool-call") {
+				events.push({
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				});
+			}
+			if (content === "model-tool-activity") {
+				events.push(
+					{
+						type: "tool-call-delta",
+						toolCallId: "search_1",
+						toolName: "web_search",
+						execution: "client",
+						input: { query: "q" },
+					},
+					{
+						type: "tool-result",
+						toolCallId: "search_1",
+						toolName: "web_search",
+						execution: "client",
+						output: { results: [] },
+					},
+				);
+			}
+			if (finish === "aborted") {
+				runtime.abort("user cancelled");
+			}
+			events.push(
+				finish === "error"
+					? { type: "finish", reason: "error", error: "stream dropped" }
+					: { type: "finish", reason: finish },
+			);
+			return events;
+		};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			retryEvents,
+			// Consumed only when the loop continues after executing tool calls.
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		runtime = new AgentRuntime({
+			model,
+			prepareTurn,
+			tools: [createEchoTool()],
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		// Recovery must never hand the loop a turn it rejects as empty.
+		expect(result.error?.message).not.toBe("Model returned empty response");
+		// Whatever happened, an assistant turn with something in it survives:
+		// the truncated answer, or a replacement that carries content or
+		// provider-executed tool activity.
+		const assistant = result.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		const last = assistant.at(-1);
+		expect(last).toBeDefined();
+		if (!last) {
+			return;
+		}
+		const activities = last.metadata?.modelToolActivities;
+		const renderable =
+			last.content.length > 0 ||
+			(Array.isArray(activities) && activities.length > 0);
+		expect(renderable).toBe(true);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
