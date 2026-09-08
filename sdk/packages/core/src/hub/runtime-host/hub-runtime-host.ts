@@ -30,6 +30,7 @@ import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
+	ListSessionsOptions,
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
 	RestoreSessionInput,
@@ -1302,8 +1303,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		return sessionRecordFromPayload(reply.payload);
 	}
 
-	async listSessions(limit = 100): Promise<SessionRecord[]> {
-		const reply = await this.client.command("session.list", { limit });
+	async listSessions(
+		limit = 100,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const reply = await this.client.command("session.list", {
+			limit,
+			...(options.rootOnly ? { rootOnly: true } : {}),
+		});
 		const snapshots = Array.isArray(reply.payload?.snapshots)
 			? reply.payload.snapshots.flatMap((value) => {
 					const snapshot = parseCoreSessionSnapshot(value);

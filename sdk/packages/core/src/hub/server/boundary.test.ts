@@ -733,6 +733,31 @@ describe("HubServerTransport boundaries", () => {
 		).not.toHaveProperty("messages");
 	});
 
+	it("forwards the session.list rootOnly flag to the session host", async () => {
+		const listSessions = vi.fn().mockResolvedValue([]);
+		const transport = createTransport({
+			sessionHost: { listSessions } as never,
+		});
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-all",
+			command: "session.list",
+			payload: { limit: 10 },
+		});
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-roots",
+			command: "session.list",
+			payload: { limit: 10, rootOnly: true },
+		});
+
+		expect(listSessions.mock.calls).toEqual([
+			[10, { rootOnly: false }],
+			[10, { rootOnly: true }],
+		]);
+	});
+
 	it("keeps interactive approval requests pending until a response arrives", async () => {
 		vi.useFakeTimers();
 		try {

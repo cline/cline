@@ -13,7 +13,7 @@ import type {
 	SessionRecord,
 } from "../../types/sessions";
 import type { SessionBackend } from "./host";
-import type { RuntimeHost } from "./runtime-host";
+import type { ListSessionsOptions, RuntimeHost } from "./runtime-host";
 import { readPersistedMessagesFile } from "./runtime-host-support";
 
 export interface SessionHistoryListOptions {
@@ -199,13 +199,13 @@ async function listHostSessionRows(
 		const rows = await host.listSessions(requestedLimit);
 		return rows.slice(0, requestedLimit);
 	}
-	// Child rows (subagent / team-task runs) sort after the root that spawned
-	// them, so a single session with more children than the scan window would
-	// hide itself and every older root behind a fixed over-fetch. Widen the
-	// scan until the page fills or the backend runs out of rows.
+	// Ask the backend for root rows only so child rows (subagent / team-task
+	// runs) cannot crowd roots out of the page. Older hubs ignore the flag and
+	// return every row, so keep filtering here and widen the scan until the
+	// page fills or the backend runs out of rows.
 	let scanLimit = normalizeHistoryScanLimit(requestedLimit);
 	for (;;) {
-		const rows = await host.listSessions(scanLimit);
+		const rows = await host.listSessions(scanLimit, { rootOnly: true });
 		const roots = rows.filter(isRootSessionRecord);
 		if (
 			roots.length >= requestedLimit ||
@@ -510,8 +510,11 @@ export async function listSessionHistoryFromBackend(
 ): Promise<SessionHistoryRecord[]> {
 	const rowsById = new Map<string, SessionRow>();
 	const host = {
-		listSessions: async (limit?: number): Promise<SessionRecord[]> => {
-			const rows = await backend.listSessions(limit);
+		listSessions: async (
+			limit?: number,
+			options?: ListSessionsOptions,
+		): Promise<SessionRecord[]> => {
+			const rows = await backend.listSessions(limit, options);
 			rowsById.clear();
 			for (const row of rows) {
 				rowsById.set(row.sessionId, row);

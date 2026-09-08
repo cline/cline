@@ -282,7 +282,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(list).toHaveBeenCalledWith(20);
+		expect(list).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(readSessionMessages).not.toHaveBeenCalled();
 		expect(rows).toEqual([
 			expect.objectContaining({
@@ -381,7 +381,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(rows.map((row) => row.sessionId)).toEqual(["root-session"]);
 	});
 
@@ -437,7 +437,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false, includeSubagents: true },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(10);
+		expect(listSessions).toHaveBeenCalledWith(10, undefined);
 		expect(rows.map((row) => row.sessionId)).toEqual([
 			"root-session__teamtask__java-haiku-agent__abc123",
 			"root-session",
@@ -470,7 +470,7 @@ describe("session history", () => {
 			{ limit: 10, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(rows.map((row) => row.sessionId)).toEqual([
 			"sess_full",
 			"sess_empty",
@@ -500,7 +500,7 @@ describe("session history", () => {
 			{ limit: 5, hydrate: false },
 		);
 
-		expect(listSessions).toHaveBeenCalledWith(20);
+		expect(listSessions).toHaveBeenCalledWith(20, { rootOnly: true });
 		expect(rows).toEqual([
 			expect.objectContaining({
 				sessionId: "sess_backend_direct",
