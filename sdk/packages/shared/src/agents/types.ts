@@ -223,6 +223,8 @@ export interface ConsecutiveMistakeLimitContext {
 	maxConsecutiveMistakes: number;
 	reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
 	details?: string;
+	/** Cancel the pending decision when its owning run is aborted. */
+	signal?: AbortSignal;
 }
 
 export type ConsecutiveMistakeLimitDecision =

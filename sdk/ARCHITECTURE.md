@@ -143,6 +143,15 @@ field.
 
 ### Hub-Backed Runtime
 
+Mistake-limit decisions pause execution through the orchestrator's awaited
+`onEvent` hook at tool-start and turn-finish boundaries. A continue decision
+resets loop detection, discards mistakes from the already-planned tool batch,
+and injects recovery guidance into the live transcript before the next model
+request. It does not submit a separate session input. Decisions carry a
+run-owned cancellation signal; abort releases the runtime even if a client
+ignores it. Across the hub, the local signal is replaced by the capability
+request's cancellation signal so clients can remove their pending prompts.
+
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.

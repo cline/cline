@@ -361,8 +361,11 @@ function buildClientContributionRegistration(
 				kind: "mistakeLimit",
 				capabilityName: HUB_MISTAKE_LIMIT_CAPABILITY,
 			},
-			async ({ payload }) => ({
-				result: await decide(payload.context as never),
+			async ({ payload, abortSignal }) => ({
+				result: await decide({
+					...(payload.context as Parameters<typeof decide>[0]),
+					signal: abortSignal,
+				}),
 			}),
 		);
 	}

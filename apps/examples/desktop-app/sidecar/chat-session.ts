@@ -36,6 +36,7 @@ import {
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
 import {
+	cancelSidecarAskQuestions,
 	emitChunk,
 	nowMs,
 	requestSidecarAskQuestion,
@@ -448,7 +449,7 @@ export function createDesktopMistakeLimitPrompt(
 				? `${detail.slice(0, MISTAKE_LIMIT_DETAIL_MAX_CHARS)}…`
 				: detail;
 		const question = [
-			`Cline paused after ${context.consecutiveMistakes} consecutive failed steps (${context.reason.replace(/_/g, " ")}).`,
+			"Cline paused because it detected repeated mistakes or tool calls.",
 			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
 			"How should Cline continue?",
 		]
@@ -465,6 +466,7 @@ export function createDesktopMistakeLimitPrompt(
 					sessionId,
 					agentId: "desktop-mistake-limit",
 					iteration: context.iteration,
+					signal: context.signal,
 				},
 			);
 		} catch (error) {
@@ -493,29 +495,14 @@ export function createDesktopMistakeLimitPrompt(
 				? normalized
 				: "";
 		const guidance = [
-			`Your last ${context.consecutiveMistakes} steps all failed${
-				truncatedDetail ? ` with: ${truncatedDetail}` : ""
-			}.`,
+			"The run paused because of repeated mistakes or tool calls.",
+			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
 			"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
 			customGuidance ? `User guidance: ${customGuidance}` : "",
 		]
 			.filter((line) => line.length > 0)
 			.join(" ");
-		// The core appends `guidance` to its own transcript store, but the
-		// live runtime never reads that store mid-run, so the model would
-		// resume with no idea why it was paused. Steer the guidance into the
-		// running turn so the next model call actually sees it.
-		const manager = ctx.sessionManager;
-		if (manager && sessionId) {
-			try {
-				await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
-			} catch (error) {
-				ctx.logger?.log("Failed to steer mistake-limit guidance", {
-					sessionId,
-					error: error instanceof Error ? error.message : String(error),
-				});
-			}
-		}
+		// The SDK applies this to the owning run before its next model call.
 		return { action: "continue", guidance };
 	};
 }
@@ -993,6 +980,7 @@ async function rebuildSessionForProviderChange(
 			resolveSystemPrompt(nextConfig),
 		]);
 
+	cancelSidecarAskQuestions(ctx, sessionId, "Session provider changed");
 	await manager.stop(sessionId);
 	let replacementStarted = false;
 	try {
@@ -1274,6 +1262,7 @@ async function handleStop(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	cancelSidecarAskQuestions(ctx, sessionId, "Session stopped");
 	await getSessionManager(ctx).stop(sessionId);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
@@ -1289,6 +1278,7 @@ async function handleAbort(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	cancelSidecarAskQuestions(ctx, sessionId, "Run aborted");
 	await getSessionManager(ctx).abort(sessionId, "user_abort");
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
@@ -1500,6 +1490,7 @@ async function handleForkUnlocked(
 		sourceSessionId,
 		ctx.liveSessions.get(sourceSessionId),
 	);
+	cancelSidecarAskQuestions(ctx, sourceSessionId, "Session replaced by fork");
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		newSessionId,
@@ -1524,6 +1515,7 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
+		cancelSidecarAskQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
 		if (
 			session?.busy ||
@@ -1594,6 +1586,11 @@ async function handleRestoreCheckpoint(
 		discardAllTrackedAttachments(
 			sourceSessionId,
 			ctx.liveSessions.get(sourceSessionId),
+		);
+		cancelSidecarAskQuestions(
+			ctx,
+			sourceSessionId,
+			"Session checkpoint restored",
 		);
 		ctx.liveSessions.delete(sourceSessionId);
 		ctx.liveSessions.set(
