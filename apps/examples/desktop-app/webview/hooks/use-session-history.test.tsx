@@ -725,4 +725,60 @@ describe("useSessionHistory usage hydration", () => {
 			current.threads.filter((thread) => thread.inputTokens === 1),
 		).toHaveLength(10);
 	});
+
+	it("keeps the four-read cap when the effect restarts mid-flight", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return new Promise<unknown[]>((resolve) => {
+				pendingReads.push(resolve);
+			});
+		});
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// A page request restarts the effect while four reads are pending. The
+		// restarted run must not add four reads of its own on top of them.
+		await act(async () => {
+			current.requestUsage(["session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// The restarted run still drains as the earlier reads finish.
+		await act(async () => {
+			pendingReads[0](usageMessages(1));
+		});
+		await settle();
+		expect(pendingReads).toHaveLength(5);
+
+		let resolved = 1;
+		for (
+			let round = 0;
+			round < 8 && resolved < pendingReads.length;
+			round += 1
+		) {
+			const batch = pendingReads.slice(resolved);
+			resolved = pendingReads.length;
+			await act(async () => {
+				for (const resolve of batch) {
+					resolve(usageMessages(1));
+				}
+			});
+			await settle();
+		}
+		// Ten default rows plus the requested one, each read exactly once; the
+		// rows the restarted run found in flight were not read again once they
+		// finished, and session-10 was never asked for.
+		expect(pendingReads).toHaveLength(11);
+		expect(new Set(readIds).size).toBe(readIds.length);
+		expect(readIds).not.toContain("session-10");
+		expect(current.threads[10].inputTokens).toBeUndefined();
+		expect(current.threads[11]).toMatchObject({ inputTokens: 1 });
+	});
 });
