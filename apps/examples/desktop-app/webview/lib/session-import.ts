@@ -57,3 +57,23 @@ export interface SessionImportProgressEvent {
 export function importSelectionKey(tool: string, sourceId: string): string {
 	return `${tool}:${sourceId}`;
 }
+
+/**
+ * The external tool a session was imported from, read off the
+ * `metadata.importedFrom` marker the core import service writes. Forks
+ * inherit the source session's metadata, so a fork of an imported session
+ * reports the same tool: its history is still the foreign transcript.
+ */
+export function readImportedFromTool(
+	metadata: Record<string, unknown> | null | undefined,
+): SessionImportTool | undefined {
+	const value = metadata?.importedFrom;
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return undefined;
+	}
+	const tool = (value as { tool?: unknown }).tool;
+	return typeof tool === "string" &&
+		(SESSION_IMPORT_TOOL_ORDER as string[]).includes(tool)
+		? (tool as SessionImportTool)
+		: undefined;
+}
