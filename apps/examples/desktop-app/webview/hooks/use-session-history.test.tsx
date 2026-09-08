@@ -230,7 +230,10 @@ describe("useSessionHistory session mapping", () => {
 });
 
 describe("useSessionHistory live status", () => {
-	it("updates a known cloud session immediately from running events", async () => {
+	it.each([
+		["running", "running"],
+		["ended", "completed"],
+	])("updates a known cloud session from %s events", async (status, expected) => {
 		await act(async () => {
 			root.render(<HookHarness />);
 		});
@@ -250,13 +253,17 @@ describe("useSessionHistory live status", () => {
 		await act(async () => {
 			subscribers.get("chat_session_status")?.({
 				sessionId: "ses-cloud",
-				status: "running",
+				status,
 			});
 			await Promise.resolve();
 		});
 
-		expect(current.sessions[0]?.status).toBe("running");
-		expect(current.threads[0]?.status).toBe("running");
+		expect(current.sessions[0]?.status).toBe(expected);
+		expect(current.threads[0]?.status).toBe(expected);
+		if (status === "ended") {
+			await flush(1000);
+			expect(pendingLists).toHaveLength(2);
+		}
 	});
 });
 
