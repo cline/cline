@@ -1,4 +1,7 @@
+import type { DetachedCommandOutcome } from "@cline/shared";
 import type { CoreSessionSnapshot } from "../session/session-snapshot";
+
+export type { DetachedCommandOutcome } from "@cline/shared";
 
 export interface SessionChunkEvent {
 	sessionId: string;
@@ -14,12 +17,6 @@ export interface SessionEndedEvent {
 }
 
 export type RunCommandDetachKind = "user" | "implicit";
-
-export type DetachedCommandOutcome =
-	| { kind: "exited"; exitCode: number }
-	| { kind: "signaled"; signal: string }
-	| { kind: "hard_killed" }
-	| { kind: "failed"; error: string };
 
 export interface DetachedCommandCompletedEvent {
 	sessionId: string;
