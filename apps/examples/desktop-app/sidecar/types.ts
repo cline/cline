@@ -115,10 +115,29 @@ export type SidecarWebSocketClient = {
 	close?: () => void;
 };
 
+/**
+ * Which pipe produced a chat chunk. Both feed `emitChunk`, and for a session
+ * streaming through the hub both carry the same events, so the observer's copy
+ * is dropped while the ClineCore subscription is serving that session.
+ */
+export type ChunkSource = "core" | "observer";
+
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
+	/**
+	 * When the ClineCore subscription last delivered an event for a session, so
+	 * the observer projection can stand down while it is serving and take over
+	 * again if it stops.
+	 */
+	coreStreamActivity: Map<string, number>;
+	/**
+	 * Identifies this sidecar process. `streamIndices` restarts whenever the
+	 * sidecar does, so the webview needs to tell "index 1 of a new process"
+	 * apart from a replay of the run it already rendered.
+	 */
+	bootId: string;
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
 	pendingQuestions: Map<string, PendingAskQuestion>;

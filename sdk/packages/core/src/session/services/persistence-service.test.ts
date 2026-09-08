@@ -129,6 +129,7 @@ describe("UnifiedSessionPersistenceService", () => {
 						startedAt,
 					],
 				);
+			store.run("BEGIN");
 			insert("root", "2026-01-01T00:00:00.000Z", null);
 			for (let index = 0; index < 2500; index += 1) {
 				insert(
@@ -137,6 +138,7 @@ describe("UnifiedSessionPersistenceService", () => {
 					"root",
 				);
 			}
+			store.run("COMMIT");
 
 			expect(await service.listSessions(10)).not.toContainEqual(
 				expect.objectContaining({ sessionId: "root" }),
