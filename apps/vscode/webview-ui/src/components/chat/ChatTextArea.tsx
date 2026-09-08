@@ -256,11 +256,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
 		const dimensionErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
+		const [showModelImagesError, setShowModelImagesError] = useState(false)
+		const modelImagesErrorTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-		const { selectedProvider, selectedModelId } = useNormalizedApiConfiguration(mode)
+		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
+		// Unknown capability data fails open, like core does before the API call.
+		const modelSupportsImages = selectedModelInfo.supportsImages !== false
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -848,6 +852,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, 3000)
 		}, [])
 
+		// Shown when the user pastes or drops an image while the selected model is text-only.
+		// Without it the image would be attached, then silently replaced by a placeholder before the API call.
+		const showModelImagesErrorMessage = useCallback(() => {
+			setShowModelImagesError(true)
+			if (modelImagesErrorTimerRef.current) {
+				clearTimeout(modelImagesErrorTimerRef.current)
+			}
+			modelImagesErrorTimerRef.current = setTimeout(() => {
+				setShowModelImagesError(false)
+				modelImagesErrorTimerRef.current = null
+			}, 3000)
+		}, [])
+
 		const handlePaste = useCallback(
 			async (e: React.ClipboardEvent) => {
 				const items = e.clipboardData.items
@@ -883,6 +900,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const [type, subtype] = item.type.split("/")
 					return type === "image" && acceptedTypes.includes(subtype)
 				})
+				if (imageItems.length > 0 && !modelSupportsImages) {
+					e.preventDefault()
+					showModelImagesErrorMessage()
+					return
+				}
 				if (!shouldDisableFilesAndImages && imageItems.length > 0) {
 					e.preventDefault()
 					const imagePromises = imageItems.map((item) => {
@@ -934,6 +956,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[
 				shouldDisableFilesAndImages,
+				modelSupportsImages,
 				setSelectedImages,
 				selectedImages,
 				selectedFiles,
@@ -941,6 +964,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				inputValue,
 				showDimensionErrorMessage,
+				showModelImagesErrorMessage,
 			],
 		)
 
@@ -1328,6 +1352,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
+			if (imageFiles.length > 0 && !modelSupportsImages) {
+				showModelImagesErrorMessage()
+				return
+			}
+
 			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
 				return
 			}
@@ -1424,6 +1453,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
 						</div>
 					)}
+					{showModelImagesError && (
+						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+							<span className="text-error font-bold text-xs text-center">
+								The selected model does not support images, so the image was ignored
+							</span>
+						</div>
+					)}
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
@@ -1506,7 +1542,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onPaste={handlePaste}
 						onScroll={() => updateHighlights()}
 						onSelect={updateCursorPosition}
-						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
+						placeholder={
+							showUnsupportedFileError || showDimensionError || showModelImagesError ? "" : placeholderText
+						}
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)
