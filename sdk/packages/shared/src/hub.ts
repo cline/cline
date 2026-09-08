@@ -56,7 +56,6 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"session.get",
 	"session.run",
 	"session.abort",
-	// Capability-gated approval recovery (mobile checks this before calling).
 	"approval.list_pending",
 	"schedule.create",
 	"schedule.list",
