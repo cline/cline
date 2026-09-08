@@ -266,6 +266,16 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+Session history listing filters child rows at the persistence layer. Subagent
+and team-task sessions are stored in the same table as the roots that spawned
+them and always sort newer, so `listSessionHistory` asks the runtime host for
+`rootOnly` rows. `LocalRuntimeHost` passes the option to the session backend,
+which applies it in the query before the limit; `HubRuntimeHost` sends it as
+`session.list { limit, rootOnly }` and the hub handler forwards it to its
+session host. Omitting the flag returns every row, which is what callers that
+render subagent trees rely on. History keeps a client-side root filter with a
+widening scan only as a fallback for older hubs that ignore the flag.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat

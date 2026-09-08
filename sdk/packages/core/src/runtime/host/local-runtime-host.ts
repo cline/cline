@@ -64,7 +64,10 @@ import {
 	readGitWorkspaceState,
 	withSessionGitMetadata,
 } from "../../services/workspace/workspace-manifest";
-import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
+import {
+	readSessionHistoryOriginMetadata,
+	withSessionHistoryOriginMetadata,
+} from "../../session/history-origin";
 import {
 	projectSessionCompactionState,
 	type SessionCompactionState,
@@ -124,6 +127,7 @@ import {
 } from "./local/spawn-tool";
 import { loadUserFileContent } from "./local/user-files";
 import type {
+	ListSessionsOptions,
 	PendingPromptsServiceApi,
 	ResolvedStartSessionInput,
 	RestoreSessionInput,
@@ -555,10 +559,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 			invokeBackendOptional: (method: string, ...args: unknown[]) =>
 				this.invokeOptional(method, ...args),
 		};
+		// A resumed session keeps the provenance it was initiated with
+		// (automation trigger, import source): the start input's metadata
+		// always carries a default "user" origin, which would otherwise
+		// overwrite the stored one on the next metadata write. An explicit
+		// mode on the start input replaces the stored origin entirely.
+		const resumedOrigin = readSessionHistoryOriginMetadata(
+			resumedArtifacts?.manifest.metadata,
+		);
+		const sessionOrigin = readSessionHistoryOriginMetadata(
+			withSessionHistoryOriginMetadata(startInput.sessionMetadata, {
+				mode: startInput.mode ?? resumedOrigin?.mode,
+				trigger: startInput.mode ? undefined : resumedOrigin?.trigger,
+			}),
+		);
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
 			localRuntime: input.localRuntime,
 			sessionId,
+			sessionOrigin,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
 			defaultLogger: this.defaultLogger,
@@ -615,7 +634,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				bootstrap.gitState,
 			),
 			{
-				mode: startInput.mode,
+				mode: sessionOrigin?.mode,
+				trigger: sessionOrigin?.trigger,
 				version: bootstrap.config.extensionContext?.client?.version,
 			},
 		);
@@ -1254,8 +1274,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return manifest ? manifestToSessionRecord(manifest) : undefined;
 	}
 
-	async listSessions(limit = 200): Promise<SessionRecord[]> {
-		const rows = await this.listRows(limit);
+	async listSessions(
+		limit = 200,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const rows = await this.listRows(limit, options);
 		const persisted = rows.map(toSessionRecord);
 		const seen = new Set(persisted.map((row) => row.sessionId));
 		for (const active of this.sessions.values()) {
@@ -2661,10 +2684,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.events.emit(event);
 	}
 
-	private async listRows(limit: number): Promise<SessionRow[]> {
+	private async listRows(
+		limit: number,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRow[]> {
 		return this.invoke<SessionRow[]>(
 			"listSessions",
 			Math.min(Math.max(1, Math.floor(limit)), MAX_SCAN_LIMIT),
+			options,
 		);
 	}
 
