@@ -79,67 +79,6 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
-	it("accepts only mistake-recovery tool results after abort", async () => {
-		invokeMock.mockImplementation(async (command: string) =>
-			command === "chat_session_command"
-				? { sessionId: "mistake-stop", ok: true }
-				: [],
-		);
-		await act(async () => current.start(current.config));
-		const emit = (stream: string, chunk: unknown, index: number) =>
-			handlerFor("chat_event")({
-				sessionId: current.sessionId,
-				stream,
-				chunk: JSON.stringify(chunk),
-				index,
-				ts: Date.now(),
-			});
-		await act(async () =>
-			emit(
-				"chat_tool_call_start",
-				{ toolCallId: "edit", toolName: "editor", input: { path: "a.txt" } },
-				1,
-			),
-		);
-		await act(async () => current.abort());
-		await act(async () =>
-			emit(
-				"chat_tool_call_end",
-				{
-					toolCallId: "edit",
-					toolName: "editor",
-					output: "ordinary late event",
-				},
-				2,
-			),
-		);
-		expect(
-			current.messages.find((message) => message.meta?.toolCallId === "edit")
-				?.meta?.hookEventName,
-		).toBe("tool_call_start");
-		await act(async () =>
-			emit(
-				"chat_mistake_tool_result",
-				{
-					toolCallId: "edit",
-					toolName: "editor",
-					output: "old_text is required",
-					error: "old_text is required",
-				},
-				3,
-			),
-		);
-		const message = current.messages.find(
-			(message) => message.meta?.toolCallId === "edit",
-		);
-		expect(message?.meta?.hookEventName).toBe("tool_call_end");
-		expect(JSON.parse(message?.content ?? "{}")).toMatchObject({
-			input: { path: "a.txt" },
-			result: "old_text is required",
-			isError: true,
-		});
-	});
-
 	it("restores an idle parent when aborting its child fails", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

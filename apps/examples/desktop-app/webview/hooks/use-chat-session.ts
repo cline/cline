@@ -82,7 +82,6 @@ const RELEVANT_STREAMS = new Set([
 	"chat_tool_call_start",
 	"chat_tool_call_update",
 	"chat_tool_call_end",
-	"chat_mistake_tool_result",
 	"chat_core_log",
 	"chat_usage",
 	"chat_done",
@@ -1247,11 +1246,7 @@ export function useChatSession() {
 				return;
 			}
 			lastLiveChunkAtRef.current = Date.now();
-			if (
-				abortedRef.current &&
-				payload.stream !== "chat_done" &&
-				payload.stream !== "chat_mistake_tool_result"
-			) {
+			if (abortedRef.current && payload.stream !== "chat_done") {
 				return;
 			}
 

@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
-	type AgentHooks,
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
@@ -45,10 +44,6 @@ import {
 } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
-import {
-	type MistakeToolResult,
-	preserveMistakeToolResults,
-} from "./session-data/mistake-tool-results";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -555,78 +550,11 @@ export function createDesktopMistakeRecovery(
 ) {
 	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
 	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
-	let toolBatchKey = "";
-	const completedTools = new Map<string, MistakeToolResult>();
-	const preservedTools = new Map<string, boolean>();
 	const waitForDecision = async () => {
 		const decision = await pendingDecision;
 		return decision?.action === "stop"
 			? { stop: true, reason: decision.reason }
 			: undefined;
-	};
-	const prepareToolBatch = (
-		snapshot: Parameters<NonNullable<AgentHooks["afterTool"]>>[0]["snapshot"],
-	) => {
-		const batchKey = `${snapshot.runId}:${snapshot.iteration}`;
-		if (batchKey !== toolBatchKey) {
-			toolBatchKey = batchKey;
-			completedTools.clear();
-			preservedTools.clear();
-		}
-	};
-	const preserveStoppedBatch = (
-		snapshot: Parameters<NonNullable<AgentHooks["afterTool"]>>[0]["snapshot"],
-	) => {
-		const sessionId = getSessionId();
-		const assistant = snapshot.messages.findLast(
-			(message) => message.role === "assistant",
-		);
-		const batch = new Map(completedTools);
-		for (const part of assistant?.content ?? []) {
-			if (part.type !== "tool-call" || batch.has(part.toolCallId)) continue;
-			batch.set(part.toolCallId, {
-				messageId: assistant?.id ?? "",
-				toolCallId: part.toolCallId,
-				toolName: part.toolName,
-				output:
-					"Stopped during mistake recovery before a tool result was available.",
-				isError: true,
-			});
-		}
-		// Parallel calls can finish after another call stopped the batch.
-		// Replace their missing-result notice with the actual result if it arrives.
-		const results = [...batch.values()].filter(
-			(result) =>
-				preservedTools.get(result.toolCallId) !==
-				completedTools.has(result.toolCallId),
-		);
-		try {
-			preserveMistakeToolResults(sessionId, results);
-		} catch (error) {
-			ctx.logger?.log("Could not preserve mistake-recovery tool results", {
-				sessionId,
-				error: String(error),
-			});
-		}
-		for (const result of results) {
-			preservedTools.set(
-				result.toolCallId,
-				completedTools.has(result.toolCallId),
-			);
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_mistake_tool_result",
-				JSON.stringify({
-					...result,
-					error: result.isError
-						? typeof result.output === "string"
-							? result.output
-							: JSON.stringify(result.output)
-						: undefined,
-				}),
-			);
-		}
 	};
 	return {
 		onConsecutiveMistakeLimitReached: (
@@ -645,32 +573,8 @@ export function createDesktopMistakeRecovery(
 			// user answers. afterTool holds before the next iteration consumes
 			// the recovery guidance queued by the prompt's Continue action.
 			beforeModel: waitForDecision,
-			beforeTool: async (
-				context: Parameters<NonNullable<AgentHooks["beforeTool"]>>[0],
-			) => {
-				prepareToolBatch(context.snapshot);
-				const control = await waitForDecision();
-				if (control?.stop) preserveStoppedBatch(context.snapshot);
-				return control;
-			},
-			afterTool: async (
-				context: Parameters<NonNullable<AgentHooks["afterTool"]>>[0],
-			) => {
-				prepareToolBatch(context.snapshot);
-				completedTools.set(context.toolCall.toolCallId, {
-					messageId:
-						context.snapshot.messages.findLast(
-							(message) => message.role === "assistant",
-						)?.id ?? "",
-					toolCallId: context.toolCall.toolCallId,
-					toolName: context.toolCall.toolName,
-					output: context.result.output,
-					isError: context.result.isError === true,
-				});
-				const control = await waitForDecision();
-				if (control?.stop) preserveStoppedBatch(context.snapshot);
-				return control;
-			},
+			beforeTool: waitForDecision,
+			afterTool: waitForDecision,
 		},
 	};
 }

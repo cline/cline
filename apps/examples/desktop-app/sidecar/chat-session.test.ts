@@ -8,7 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -29,7 +29,6 @@ import {
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
-import { readMistakeToolResults } from "./session-data/mistake-tool-results";
 import type { SidecarContext } from "./types";
 
 describe("resolveDesktopSessionMode", () => {
@@ -1799,31 +1798,6 @@ Follow the desktop send workflow instructions.`,
 });
 
 describe("mistake-limit prompt", () => {
-	let artifactDir: string;
-	beforeEach(() => {
-		artifactDir = mkdtempSync(join(tmpdir(), "desktop-mistake-results-"));
-		vi.stubEnv("CLINE_SESSION_DATA_DIR", artifactDir);
-	});
-	afterEach(() => {
-		vi.unstubAllEnvs();
-		rmSync(artifactDir, { recursive: true, force: true });
-	});
-	function afterToolContext(toolCallId = "failed-edit", iteration = 15) {
-		return {
-			snapshot: {
-				runId: "run-1",
-				iteration,
-				messages: [
-					{ id: `assistant-${iteration}`, role: "assistant", content: [] },
-				],
-			},
-			toolCall: { toolCallId, toolName: "editor" },
-			result: { output: "old_text is required", isError: true },
-		} as unknown as Parameters<
-			ReturnType<typeof createDesktopMistakeRecovery>["hooks"]["afterTool"]
-		>[0];
-	}
-
 	function createPromptContext() {
 		const send = vi.fn();
 		const steer = vi.fn(async () => undefined);
@@ -1884,8 +1858,8 @@ describe("mistake-limit prompt", () => {
 		let released = false;
 		const waiting = Promise.all([
 			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(afterToolContext()),
-			recovery.hooks.afterTool(afterToolContext()),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
 		]).then((results) => {
 			released = true;
 			return results;
@@ -1906,62 +1880,6 @@ describe("mistake-limit prompt", () => {
 		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
 		expect(released).toBe(true);
 		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
-		expect(readMistakeToolResults("session-1")).toEqual([]);
-	});
-
-	it("preserves only the stopped batch, including results completed before the question", async () => {
-		const { ctx, readQuestionRequest } = createPromptContext();
-		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
-		await recovery.hooks.afterTool(afterToolContext("previous-iteration", 14));
-		await recovery.hooks.afterTool(afterToolContext("earlier-in-batch"));
-		expect(readMistakeToolResults("session-1")).toEqual([]);
-		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = recovery.hooks.afterTool(afterToolContext());
-		resolveSidecarAskQuestion(
-			ctx,
-			readQuestionRequest()?.requestId ?? "",
-			"Stop this run",
-		);
-		await decision;
-		await expect(waiting).resolves.toMatchObject({ stop: true });
-		expect(
-			readMistakeToolResults("session-1").map((result) => result.toolCallId),
-		).toEqual(["earlier-in-batch", "failed-edit"]);
-		expect(readMistakeToolResults("session-1")[1]).toMatchObject({
-			messageId: "assistant-15",
-			output: "old_text is required",
-			isError: true,
-		});
-	});
-
-	it("records unexecuted calls only when stopped before tool execution", async () => {
-		const { ctx, readQuestionRequest } = createPromptContext();
-		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
-		const context = afterToolContext();
-		context.snapshot.messages[0].content = [
-			{
-				type: "tool-call",
-				toolCallId: "not-started",
-				toolName: "editor",
-				input: {},
-			},
-		];
-		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = recovery.hooks.beforeTool(context);
-		resolveSidecarAskQuestion(
-			ctx,
-			readQuestionRequest()?.requestId ?? "",
-			"Stop this run",
-		);
-		await decision;
-		await expect(waiting).resolves.toMatchObject({ stop: true });
-		expect(readMistakeToolResults("session-1")).toEqual([
-			expect.objectContaining({
-				toolCallId: "not-started",
-				isError: true,
-				output: expect.stringContaining("before a tool result was available"),
-			}),
-		]);
 	});
 
 	it("leaves ordinary questions alone when cancelling a mistake prompt", async () => {
@@ -1998,8 +1916,8 @@ describe("mistake-limit prompt", () => {
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
 		const waiting = Promise.all([
 			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(afterToolContext()),
-			recovery.hooks.afterTool(afterToolContext()),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
 		]);
 		if (action === "answer") {
 			resolveSidecarAskQuestion(
@@ -2104,8 +2022,8 @@ describe("mistake-limit prompt", () => {
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
 		const waiting = Promise.all([
 			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(afterToolContext()),
-			recovery.hooks.afterTool(afterToolContext()),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
 		]);
 		resolveSidecarAskQuestion(
 			ctx,
