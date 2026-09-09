@@ -25,7 +25,7 @@ export function isBedrockOpenAIRequest(
 	return (
 		request.providerId === "bedrock" &&
 		/^(?:(?:us|us-gov|eu|apac|jp|au|ca|sa|global)\.)?openai\./.test(
-			request.modelId,
+			normalizedModelId(request),
 		)
 	);
 }

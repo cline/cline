@@ -88,6 +88,8 @@ describe("Bedrock OpenAI reasoning request encoding", () => {
 	it.each([
 		"openai.gpt-6-astra",
 		"global.openai.gpt-6-astra",
+		"Global.OpenAI.gpt-6-astra",
+		"OpenAI.gpt-6-astra",
 		"us.openai.gpt-6-astra",
 		"eu.openai.gpt-6-astra",
 		"openai.gpt-oss-120b-1:0",
