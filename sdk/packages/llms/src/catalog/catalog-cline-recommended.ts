@@ -5,9 +5,11 @@ export interface ClineRecommendedModelEntry {
 	id: string;
 	name?: string;
 	description?: string;
+	tags?: string[];
 }
 
 export interface ClineRecommendedModelsPayload {
+	recommended?: ClineRecommendedModelEntry[];
 	clinePass?: ClineRecommendedModelEntry[];
 	free?: ClineRecommendedModelEntry[];
 }

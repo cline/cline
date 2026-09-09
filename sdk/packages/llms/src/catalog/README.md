@@ -186,3 +186,13 @@ and observable.
 - `../../scripts/generate-models.ts`: writes generated catalog output.
 - `../providers/ai-sdk.ts`: conditionally passes `maxOutputTokens` into AI SDK.
 - `../providers/gateway.ts`: resolves per-request/default `maxTokens`.
+
+### Offline Cline featured lists
+
+`bun -F @cline/llms generate:models` also captures the upstream recommended,
+free, and Cline Pass lists in `cline-recommended.generated.ts`. The SDK uses
+this snapshot when the live feed is unavailable, preserving feed order, tags,
+and descriptions and resolving names against the generated model catalog.
+Update these lists by running the generator; do not maintain separate model
+IDs in core. Generation requires both upstream sources to succeed so an
+outage cannot replace the bundled catalogs with partial data.
