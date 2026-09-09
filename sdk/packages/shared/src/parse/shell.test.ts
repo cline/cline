@@ -28,6 +28,7 @@ describe("shell helpers", () => {
 			expect(
 				[...args[3]].every((character) => character.charCodeAt(0) <= 0x7f),
 			).toBe(true);
+			expect(args[3]).toContain("$ErrorActionPreference='Stop';");
 			expect(input).toBe(command);
 		}
 	});

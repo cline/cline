@@ -57,6 +57,7 @@ export const E2E_MOCK_POWERSHELL_TOOL_CALL = {
 	arguments: {
 		commands: [
 			"Write-Output ('VERSION=' + $PSVersionTable.PSVersion); Write-Output ('PSHOME=' + $PSHOME); Write-Output 'UNICODE=中文'",
+			'1..3 | ForEach-Object { Write-Error "E2E_FAIL_FAST_$_"; Write-Output "E2E_PROCESSED_$_" }',
 		],
 	},
 }
