@@ -1469,12 +1469,13 @@ function ChatInputBarImpl({
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
+						disabled={imagesUnsupported}
 						title={
 							imagesUnsupported
-								? "Attach files (this model doesn’t support images)"
+								? "This model doesn’t support image attachments"
 								: "Attach files"
 						}
-						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
+						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -1482,6 +1483,7 @@ function ChatInputBarImpl({
 					</button>
 					<input
 						accept="*/*"
+						disabled={imagesUnsupported}
 						className="hidden"
 						multiple
 						onChange={(event) => {

@@ -2001,6 +2001,10 @@ describe("ChatInputBar", () => {
 				},
 			]);
 		});
+		const attachButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Attach files"]',
+		);
+		expect(attachButton?.disabled).toBe(supportsImages === false);
 		const png = new File(["fake"], "image.png", { type: "image/png" });
 		const imagePaste = await pasteWithClipboard([
 			{ kind: "file", type: "image/png", getAsFile: () => png },

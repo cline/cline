@@ -66,7 +66,10 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
-import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
@@ -1089,6 +1092,15 @@ function ChatThreadPane({
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
 			}
+			if (pendingAttachments.some(isUnsupportedImageAttachment)) {
+				setPromptInput(prompt);
+				toast({
+					title: "Unsupported image format",
+					description:
+						"Remove unsupported images or convert them to PNG, JPEG, GIF, or WebP before sending.",
+				});
+				return;
+			}
 			onThreadStarted?.(threadId);
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the
@@ -1274,12 +1286,22 @@ function ChatThreadPane({
 	]);
 
 	const handleAttachFiles = useCallback((files: File[]) => {
+		const supportedFiles = files.filter(
+			(file) => !isUnsupportedImageAttachment(file),
+		);
+		if (supportedFiles.length !== files.length) {
+			toast({
+				title: "Unsupported image format",
+				description:
+					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+			});
+		}
 		setPendingAttachments((prev) => {
 			const existing = new Set(
 				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
 			);
 			const next = [...prev];
-			for (const file of files) {
+			for (const file of supportedFiles) {
 				const key = `${file.name}:${file.size}:${file.lastModified}`;
 				if (!existing.has(key)) {
 					existing.add(key);
