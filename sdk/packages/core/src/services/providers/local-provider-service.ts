@@ -22,7 +22,11 @@ import {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
+import {
+	isPrivateModelCatalogProvider,
+	peekLiveModelsCatalog,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
 import {
 	type ModelInfo,
 	type ProviderClient,
@@ -53,6 +57,11 @@ const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
 export interface ListLocalProvidersOptions {
 	isClinePassEnabled?: boolean;
+}
+
+export interface GetLocalProviderModelsOptions {
+	/** Bypass warm live-model caches for an explicit user refresh. */
+	forceRefresh?: boolean;
 }
 
 export interface UpdateLocalProviderRequest {
@@ -156,15 +165,25 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
+	options: GetLocalProviderModelsOptions = {},
 ): Promise<Record<string, ModelInfo>> {
 	const [registeredModels, registeredModelOverrides] = await Promise.all([
 		LlmsModels.getModelsForProvider(providerId),
 		LlmsModels.getModelOverridesForProvider(providerId),
 	]);
+	const hasProviderSpecificCatalog =
+		isPrivateModelCatalogProvider(providerId) ||
+		Boolean(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider
+				.modelsSourceUrl,
+		);
 	const shouldLoadLiveCatalog =
-		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
+		providerId === CLINE_PROVIDER_ID ||
+		providerId === CLINE_PASS_PROVIDER_ID ||
+		(options.forceRefresh === true && !hasProviderSpecificCatalog);
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !shouldLoadLiveCatalog) {
+	const hasCachedLiveCatalog = peekLiveModelsCatalog() !== undefined;
+	if (!config && !shouldLoadLiveCatalog && !hasCachedLiveCatalog) {
 		return registeredModels;
 	}
 
@@ -173,7 +192,9 @@ async function resolveProviderModelMap(
 		{
 			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
-			failOnError: false,
+			failOnError: options.forceRefresh === true,
+			forceRefresh: options.forceRefresh,
+			useCachedLiveCatalog: true,
 		},
 		config,
 	);
@@ -852,9 +873,10 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	options: GetLocalProviderModelsOptions = {},
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await resolveProviderModelMap(id, config);
+	const modelMap = await resolveProviderModelMap(id, config, options);
 	let models = toSortedProviderModels(modelMap);
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
@@ -864,7 +886,9 @@ export async function getLocalProviderModels(
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			await getCachedClineRecommendedModels({
+				forceRefresh: options.forceRefresh,
+			}),
 		);
 	}
 	return { providerId: id, models };

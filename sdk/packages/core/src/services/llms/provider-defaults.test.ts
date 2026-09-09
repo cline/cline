@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	getLiveModelsCatalog,
 	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
@@ -33,6 +34,70 @@ describe("isPrivateModelCatalogProvider", () => {
 });
 
 describe("resolveProviderConfig", () => {
+	it("does not reuse a tolerant background request for a forced refresh", async () => {
+		let releaseBackground: (() => void) | undefined;
+		const backgroundGate = new Promise<void>((resolve) => {
+			releaseBackground = resolve;
+		});
+		let markBackgroundStarted: (() => void) | undefined;
+		const backgroundStarted = new Promise<void>((resolve) => {
+			markBackgroundStarted = resolve;
+		});
+		let modelsDevCalls = 0;
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url !== "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({ recommended: [], free: [], clinePass: [] }),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+
+			const call = ++modelsDevCalls;
+			if (call === 1) {
+				markBackgroundStarted?.();
+				await backgroundGate;
+			}
+			return new Response(
+				JSON.stringify({
+					"tencent-tokenhub": {
+						id: "tencent-tokenhub",
+						npm: "@ai-sdk/openai-compatible",
+						models: {
+							[call === 1 ? "hy3" : "hy4-preview"]: {
+								name: call === 1 ? "Hy3" : "Hy4 preview",
+								tool_call: true,
+							},
+						},
+					},
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const background = getLiveModelsCatalog({
+			url: "https://models.test/api.json",
+		});
+		await backgroundStarted;
+		const refreshed = await getLiveModelsCatalog({
+			url: "https://models.test/api.json",
+			forceRefresh: true,
+		});
+		releaseBackground?.();
+		await background;
+		const cached = await getLiveModelsCatalog({
+			url: "https://models.test/api.json",
+		});
+
+		expect(modelsDevCalls).toBe(2);
+		expect(refreshed["tencent-tokenhub"]?.["hy4-preview"]?.name).toBe(
+			"Hy4 preview",
+		);
+		expect(cached["tencent-tokenhub"]?.["hy4-preview"]?.name).toBe(
+			"Hy4 preview",
+		);
+	});
+
 	it("returns bundled models for built-in providers without a base URL", async () => {
 		const resolved = await resolveProviderConfig("bedrock");
 

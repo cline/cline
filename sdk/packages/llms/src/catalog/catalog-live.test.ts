@@ -1134,6 +1134,29 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("propagates a models.dev failure for an explicit live refresh", async () => {
+		const fetcher = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return { ok: false, status: 503 };
+			}
+
+			return {
+				ok: true,
+				json: async () => ({ clinePass: [] }),
+			};
+		});
+
+		await expect(
+			fetchLiveProviderModels(
+				"https://models.dev/api.json",
+				fetcher as unknown as typeof fetch,
+				{ failOnModelsDevError: true },
+			),
+		).rejects.toThrow(
+			"Failed to load model catalog from https://models.dev/api.json: HTTP 503",
+		);
+	});
+
 	it("throws when models.dev request fails", async () => {
 		const fetcher = vi.fn(async () => ({
 			ok: false,

@@ -690,6 +690,7 @@ export {
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
+	type GetLocalProviderModelsOptions,
 	getLocalProviderModels,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
@@ -986,6 +987,7 @@ export {
 } from "./extensions/tools";
 export {
 	applyClineFeaturedModels,
+	type CachedClineRecommendedModelsOptions,
 	type ClineRecommendedModel,
 	type ClineRecommendedModelsData,
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
@@ -1003,6 +1005,7 @@ export {
 	getProviderConfig,
 	isPrivateModelCatalogProvider,
 	OPENAI_COMPATIBLE_PROVIDERS,
+	type ProviderModelCatalogOptions,
 	resolveProviderConfig,
 } from "./services/llms/provider-defaults";
 export type {

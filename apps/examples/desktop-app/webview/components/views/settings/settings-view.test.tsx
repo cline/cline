@@ -7,6 +7,7 @@ import {
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
+import type { Provider } from "@/lib/provider-schema";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -100,5 +101,101 @@ describe("SettingsView font size", () => {
 		expect(container.textContent).toContain("20px");
 		expect(updatedSlider?.getAttribute("aria-valuenow")).toBe("20");
 		expect(increaseButton?.disabled).toBe(true);
+	});
+});
+
+describe("SettingsView provider models", () => {
+	it("shows refreshed Tencent models and reports refresh success or failure", async () => {
+		const provider: Provider = {
+			id: "tencent-tokenhub",
+			name: "Tencent TokenHub",
+			models: 1,
+			color: "#000000",
+			letter: "TC",
+			enabled: false,
+			baseUrl: "https://tokenhub.tencentmaas.com/v1",
+			modelList: [{ id: "hy3", name: "Hy3" }],
+		};
+		let failRefresh = false;
+		invoke.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "list_provider_catalog") {
+					return { providers: [provider], settingsPath: "/tmp/providers.json" };
+				}
+				if (command === "list_provider_models") {
+					if (args?.force_refresh === true && failRefresh) {
+						throw new Error("models.dev unavailable");
+					}
+					return {
+						providerId: provider.id,
+						models:
+							args?.force_refresh === true
+								? [
+										{ id: "hy3", name: "Hy3" },
+										{ id: "hy4-preview", name: "Hy4 preview" },
+									]
+								: [{ id: "hy3", name: "Hy3" }],
+					};
+				}
+				return { telemetryOptOut: false, autoUpdateEnabled: true };
+			},
+		);
+
+		await act(async () => {
+			root.render(
+				<SettingsView onNavigateSection={vi.fn()} section="Models" />,
+			);
+		});
+		await act(async () => {
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+		await act(async () => {
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+
+		const refreshButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Refresh models"]',
+		);
+		expect(refreshButton).not.toBeNull();
+		expect(refreshButton?.disabled).toBe(false);
+		const initialModelCalls = invoke.mock.calls.filter(
+			([command]) => command === "list_provider_models",
+		);
+		expect(initialModelCalls).toHaveLength(1);
+		expect(container.textContent).not.toContain("Hy4 preview");
+
+		await act(async () => {
+			refreshButton?.click();
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+
+		let modelCalls = invoke.mock.calls.filter(
+			([command]) => command === "list_provider_models",
+		);
+		expect(modelCalls).toHaveLength(2);
+		expect(modelCalls.at(-1)).toEqual([
+			"list_provider_models",
+			{ provider: provider.id, force_refresh: true },
+		]);
+		expect(container.textContent).toContain("Hy4 preview");
+		expect(container.textContent).toContain(
+			"Refresh complete — 2 models available.",
+		);
+
+		failRefresh = true;
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('button[aria-label="Refresh models"]')
+				?.click();
+			await new Promise((resolve) => window.setTimeout(resolve, 0));
+		});
+
+		modelCalls = invoke.mock.calls.filter(
+			([command]) => command === "list_provider_models",
+		);
+		expect(modelCalls).toHaveLength(3);
+		expect(container.textContent).toContain(
+			"Refresh failed: models.dev unavailable",
+		);
 	});
 });

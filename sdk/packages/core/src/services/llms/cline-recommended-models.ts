@@ -39,6 +39,12 @@ export interface FetchClineRecommendedModelsOptions {
 	catalogLoader?: () => Promise<ModelsCatalog>;
 }
 
+export interface CachedClineRecommendedModelsOptions
+	extends FetchClineRecommendedModelsOptions {
+	/** Skip a warm feed cache after an explicit user refresh. */
+	forceRefresh?: boolean;
+}
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 
 export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
@@ -328,9 +334,9 @@ let feedGeneration = 0;
  * TTL.
  */
 export async function getCachedClineRecommendedModels(
-	options: FetchClineRecommendedModelsOptions = {},
+	options: CachedClineRecommendedModelsOptions = {},
 ): Promise<ClineRecommendedModelsData> {
-	if (feedCache && feedCache.expiresAt > Date.now()) {
+	if (!options.forceRefresh && feedCache && feedCache.expiresAt > Date.now()) {
 		return cloneRecommendedModels(feedCache.data);
 	}
 	if (feedInFlight) {
