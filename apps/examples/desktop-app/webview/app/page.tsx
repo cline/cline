@@ -1095,7 +1095,14 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend);
+			// The prompt never reached the runtime (e.g. the provider connection
+			// failed): hand it back so the user can fix the provider and resend
+			// without retyping. Leave anything they typed meanwhile alone.
+			if (!promptTaken && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				setPendingAttachments((prev) => (prev.length > 0 ? prev : toSend));
+			}
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
