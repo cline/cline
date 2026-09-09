@@ -75,6 +75,8 @@ jobs:
           pack_dir="$RUNNER_TEMP/ui-npm-pack"
           mkdir -p "$pack_dir"
           cd sdk/packages/ui
+          # --ignore-scripts skips the prepack script which would've copied the license
+          cp ../../../LICENSE LICENSE
           bun pm pack --ignore-scripts --destination "$pack_dir" --quiet
           archive=$(find "$pack_dir" -maxdepth 1 -name '*.tgz' -print -quit)
           test -n "$archive"
