@@ -112,6 +112,113 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("idle");
 	});
 
+	it("keeps a new task on starting while the hub reports the just-created session idle", async () => {
+		// The hub publishes session.created / session.updated with the record's
+		// "idle" status during the start RPC, before the first prompt's run
+		// begins. Applying it over "starting" flipped the composer placeholder
+		// and hid the request indicator for a frame on every new task.
+		const startResponse = deferred<{ cwd: string; workspaceRoot: string }>();
+		let plannedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						// The sidecar reuses the planned id the webview passes.
+						plannedSessionId = request.config?.sessionId ?? "";
+						return {
+							...(await startResponse.promise),
+							sessionId: plannedSessionId,
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							queued: true,
+							promptsInQueue: [{ id: "p1", prompt: "hello", steer: false }],
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendTask: Promise<void> | undefined;
+		await act(async () => {
+			sendTask = current.sendPrompt("hello");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(current.status).toBe("starting");
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "idle" });
+			statusHandler({ sessionId: plannedSessionId, status: "idle" });
+		});
+		expect(current.status).toBe("starting");
+
+		await act(async () => {
+			startResponse.resolve({
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+			});
+			await sendTask;
+		});
+		expect(current.status).toBe("running");
+
+		// Once nothing is in flight, the hub's status applies as before.
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "idle" });
+		});
+		expect(current.status).toBe("idle");
+	});
+
+	it("still applies a terminal status that lands while a submission is in flight", async () => {
+		// Only the transient "idle" is held back; a failed session must unstick
+		// the UI even if the send response never arrives.
+		const startResponse = deferred<{ cwd: string; workspaceRoot: string }>();
+		let plannedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						plannedSessionId = request.config?.sessionId ?? "";
+						return {
+							...(await startResponse.promise),
+							sessionId: plannedSessionId,
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			void current.sendPrompt("hello");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(current.status).toBe("starting");
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "failed" });
+		});
+		expect(current.status).toBe("failed");
+	});
+
 	it("preserves authoritative completion across abort races", async () => {
 		vi.useFakeTimers();
 		try {
