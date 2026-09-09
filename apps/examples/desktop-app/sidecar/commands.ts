@@ -122,6 +122,7 @@ import {
 	sharedSessionDataDir,
 } from "./paths";
 import { getPullRequestStatus } from "./pull-request";
+import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -2428,6 +2429,10 @@ export async function handleCommand(
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
+	if (command === "capture_pull_request_event") {
+		capturePullRequestEvent(ctx.telemetry, args);
+		return null;
+	}
 	if (command === "get_pull_request_status") {
 		return await getPullRequestStatus(
 			typeof args?.cwd === "string" && args.cwd.trim()

@@ -22,6 +22,7 @@ import {
 	type PullRequestStatus,
 	summarizeChecks,
 } from "@/lib/pull-request";
+import { trackPullRequestEvent } from "@/lib/pull-request-telemetry";
 import { cn } from "@/lib/utils";
 
 const checkLabels = {
@@ -64,6 +65,16 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 	const [error, setError] = useState<string | null>(null);
 	const refresh = useRef<() => void>(() => {});
 	const [loading, setLoading] = useState(false);
+	const hasReportedShown = useRef(false);
+
+	useEffect(() => {
+		if (hasReportedShown.current || document.visibilityState === "hidden")
+			return;
+		if (data?.pullRequest || data?.createUrl) {
+			hasReportedShown.current = true;
+			trackPullRequestEvent("shown", data);
+		}
+	}, [data]);
 
 	useEffect(() => {
 		let disposed = false;
@@ -150,7 +161,10 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 							<>
 								<button
 									type="button"
-									onClick={() => void open(pr.url)}
+									onClick={() => {
+										trackPullRequestEvent("open_clicked", data);
+										void open(pr.url);
+									}}
 									title={pr.title}
 									className="shrink-0 font-medium hover:underline"
 									aria-label={`Open pull request #${pr.number}: ${pr.title}`}
@@ -166,7 +180,12 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 								type="button"
 								className="shrink-0 font-medium hover:underline"
 								title="Open GitHub’s comparison form for this branch. Push your commits before submitting."
-								onClick={() => data.createUrl && void open(data.createUrl)}
+								onClick={() => {
+									if (data.createUrl) {
+										trackPullRequestEvent("create_clicked", data);
+										void open(data.createUrl);
+									}
+								}}
 							>
 								Create PR <ExternalLink className="inline size-3" />
 							</button>
@@ -191,7 +210,11 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 										−{pr.deletions.toLocaleString()}
 									</span>
 								</span>
-								<Popover>
+								<Popover
+									onOpenChange={(isOpen) => {
+										if (isOpen) trackPullRequestEvent("checks_expanded", data);
+									}}
+								>
 									<PopoverTrigger asChild>
 										<button
 											type="button"
@@ -232,9 +255,15 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 														{check.url ? (
 															<button
 																type="button"
-																onClick={() =>
-																	check.url && void open(check.url)
-																}
+																onClick={() => {
+																	if (check.url) {
+																		trackPullRequestEvent(
+																			"check_clicked",
+																			data,
+																		);
+																		void open(check.url);
+																	}
+																}}
 																className="text-left hover:underline"
 															>
 																{check.name}{" "}
@@ -259,7 +288,10 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 				<button
 					type="button"
 					disabled={loading}
-					onClick={() => refresh.current()}
+					onClick={() => {
+						trackPullRequestEvent("refresh_clicked", data);
+						refresh.current();
+					}}
 					aria-label="Refresh pull request status"
 					title="Refresh pull request status"
 					className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-50"

@@ -31,6 +31,25 @@ default branch, detached HEAD, and unsupported repositories. If the branch
 has no PR, **Create PR** opens GitHub's comparison form; push your commits
 before submitting the form. The app does not push commits or submit PRs itself.
 
+### Pull request telemetry
+
+These events use the desktop telemetry service and respect telemetry opt-out:
+
+| Event | Trigger |
+| --- | --- |
+| `desktop.pull_request.shown` | First visible PR/create row per mounted workspace and branch |
+| `desktop.pull_request.open_clicked` | Click the PR link |
+| `desktop.pull_request.create_clicked` | Click Create PR (intent only, not PR submission) |
+| `desktop.pull_request.checks_expanded` | Open the CI popover |
+| `desktop.pull_request.check_clicked` | Click a check's details link |
+| `desktop.pull_request.refresh_clicked` | Click manual refresh |
+
+Each event contains only `pr_state`, `ci_state`, and `merge_tone` categories.
+The sidecar validates these values and strips extra fields. Repository/branch
+names, paths, PR numbers/titles, check names, and URLs are not included.
+Automatic polling does not emit additional impressions. Telemetry delivery
+does not block interactions, and failures do not interrupt the feature.
+
 ## Customizing the macOS Install Window
 
 The drag-to-Applications window is configured by `bundle.macOS.dmg` in

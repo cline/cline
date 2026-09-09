@@ -196,3 +196,107 @@ it("does not fetch for a non-repository", async () => {
 	await render("/repo", "no-git");
 	expect(invoke).not.toHaveBeenCalled();
 });
+
+function telemetryEvents() {
+	return invoke.mock.calls
+		.filter(([command]) => command === "capture_pull_request_event")
+		.map(([, event]) => event);
+}
+
+it("reports exposure once per workspace/branch, without polling impressions", async () => {
+	await render();
+	expect(telemetryEvents()).toEqual([
+		{
+			action: "shown",
+			pr_state: "open",
+			ci_state: "failure",
+			merge_tone: "failure",
+		},
+	]);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(60_000);
+	});
+	expect(telemetryEvents()).toHaveLength(1);
+	await render("/other");
+	expect(telemetryEvents()).toHaveLength(2);
+	await render("/other", "another-branch");
+	expect(telemetryEvents()).toHaveLength(3);
+});
+
+it("reports PR, CI, check, and refresh interactions without identifying data", async () => {
+	await render();
+	await click("Open pull request #42: Feature");
+	await click("CI failed");
+	const check = [...document.querySelectorAll("button")].find(
+		(button) => button.textContent?.trim() === "Tests",
+	);
+	if (!check) throw new Error("Expected check link");
+	await act(async () => check.click());
+	await click("CI failed"); // Closing the popover is not another expansion.
+	await click("Refresh pull request status");
+	expect(telemetryEvents().map((event) => event.action)).toEqual([
+		"shown",
+		"open_clicked",
+		"checks_expanded",
+		"check_clicked",
+		"refresh_clicked",
+	]);
+	for (const event of telemetryEvents()) {
+		expect(Object.keys(event).sort()).toEqual([
+			"action",
+			"ci_state",
+			"merge_tone",
+			"pr_state",
+		]);
+	}
+});
+
+it("records create intent without claiming a PR was created", async () => {
+	invoke.mockResolvedValue({ ...data, pullRequest: null });
+	await render();
+	const create = [...container.querySelectorAll("button")].find((button) =>
+		button.textContent?.includes("Create PR"),
+	);
+	if (!create) throw new Error("Expected create button");
+	await act(async () => create.click());
+	expect(telemetryEvents()).toEqual([
+		{
+			action: "shown",
+			pr_state: "none",
+			ci_state: "none",
+			merge_tone: "neutral",
+		},
+		{
+			action: "create_clicked",
+			pr_state: "none",
+			ci_state: "none",
+			merge_tone: "neutral",
+		},
+	]);
+});
+
+it("keeps PR links usable when telemetry delivery fails", async () => {
+	invoke.mockImplementation(async (command) => {
+		if (command === "capture_pull_request_event")
+			throw new Error("Telemetry unavailable");
+		return data;
+	});
+	await render();
+	await click("Open pull request #42: Feature");
+	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.url);
+});
+
+it("does not record exposure for hidden or failed status rows", async () => {
+	invoke.mockResolvedValue(null);
+	await render();
+	expect(telemetryEvents()).toEqual([]);
+	invoke.mockRejectedValue(new Error("GitHub unavailable"));
+	await clickRefreshViaFocus();
+	expect(telemetryEvents()).toEqual([]);
+});
+
+async function clickRefreshViaFocus() {
+	await act(async () => {
+		window.dispatchEvent(new Event("focus"));
+	});
+}
