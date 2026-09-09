@@ -217,9 +217,7 @@ function emitDesktopDebugLog(
 // launch arbitrary local handlers.
 const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
 
-// Caps how long session discovery waits on the cloud API so a slow or
-// unreachable backend can never stall the sidebar; the manager falls back to
-// its last cached list.
+// Fall back to cached rows rather than stall the sidebar on the cloud API.
 const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
@@ -1437,11 +1435,8 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// PostHog flags resolve sidecar-side (build-time key, telemetry
-		// distinct id); the webview reads resolved values only. Cloud gets
-		// two derived fields: `cloudAgentsAvailable` (rollout flag — shows
-		// the Settings opt-in) and `cloudAgents` (flag AND the user's
-		// opt-in — enables the feature).
+		// Resolve flags in the sidecar: available shows the opt-in;
+		// enabled requires both the rollout flag and the user's opt-in.
 		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
@@ -2305,7 +2300,6 @@ export async function handleCommand(
 			throw new Error("cloud_sessions_enabled must be a boolean");
 		}
 		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		// Refresh the gate in every open webview.
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
