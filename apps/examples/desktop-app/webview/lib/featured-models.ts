@@ -25,8 +25,20 @@ function byLabel(a: SearchComboboxOption, b: SearchComboboxOption): number {
 }
 
 function flatOptions(models: ProviderModel[]): SearchComboboxOption[] {
+	const labelCounts = new Map<string, number>();
+	for (const model of models) {
+		const label = displayName(model);
+		labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+	}
 	return models
-		.map((model) => ({ label: displayName(model), value: model.id }))
+		.map((model) => {
+			const label = displayName(model);
+			return {
+				label:
+					(labelCounts.get(label) ?? 0) > 1 ? `${label} (${model.id})` : label,
+				value: model.id,
+			};
+		})
 		.sort(byLabel);
 }
 

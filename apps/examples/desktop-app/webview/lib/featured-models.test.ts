@@ -133,6 +133,35 @@ describe("buildModelPickerData", () => {
 		expect(options[0]?.section).toBeUndefined();
 	});
 
+	it.each([
+		"cline-pass",
+		"cline",
+		"other-provider",
+	])("distinguishes colliding names in the %s fallback without hiding model routes", (providerId) => {
+		const models = [
+			model("cline-pass/deepseek-v4-flash", "DeepSeek V4 Flash"),
+			model("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash"),
+			model("cline-pass/glm-5.3-flash", "GLM-5.3-Flash"),
+			model("z-ai/glm-5.3-flash", "GLM-5.3-Flash"),
+			model("cline-pass/kimi-k3", "Kimi K3"),
+		];
+		const { options } = buildModelPickerData(providerId, models);
+		expect(options).toHaveLength(models.length);
+		expect(new Set(options.map((option) => option.label)).size).toBe(
+			models.length,
+		);
+		for (const entry of models.slice(0, 4)) {
+			expect(options).toContainEqual({
+				label: `${entry.name} (${entry.id})`,
+				value: entry.id,
+			});
+		}
+		expect(options).toContainEqual({
+			label: "Kimi K3",
+			value: "cline-pass/kimi-k3",
+		});
+	});
+
 	it("renders other providers as a flat list with display names", () => {
 		const { options, sections } = buildModelPickerData("anthropic", [
 			model("claude-sonnet-4-6", "Claude Sonnet 4.6"),
