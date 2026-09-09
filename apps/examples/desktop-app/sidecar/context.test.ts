@@ -1371,7 +1371,39 @@ describe("Chat chunk pipe selection", () => {
 		expect(chunksFor(ctx, "chat_tool_call_start")).toEqual([]);
 	});
 
-	it("takes over once the core pipe goes silent", async () => {
+	it("stays stood down through a quiet gap while the run is busy", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
+				"./context"
+			);
+			const ctx = await createStreamingContext("session-1");
+
+			handleCoreSessionEvent(ctx, coreTextEvent("session-1", "local"));
+
+			// A long command or an unanswered tool approval stalls both pipes.
+			// The observer's copy of the first event afterwards still arrives
+			// ahead of the core copy, so it must stay muted for the whole run.
+			vi.advanceTimersByTime(60_000);
+			handleHubLiveEvent(ctx, {
+				event: "tool.started",
+				sessionId: "session-1",
+				payload: { toolCallId: "call-1", toolName: "run_commands" },
+			});
+			handleHubLiveEvent(ctx, {
+				event: "assistant.delta",
+				sessionId: "session-1",
+				payload: { text: "after gap" },
+			});
+
+			expect(chunksFor(ctx, "chat_tool_call_start")).toEqual([]);
+			expect(chunksFor(ctx, "chat_text")).toEqual(["local"]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("takes over once the run has ended and the core pipe goes silent", async () => {
 		vi.useFakeTimers();
 		try {
 			const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
@@ -1387,6 +1419,10 @@ describe("Chat chunk pipe selection", () => {
 			});
 			expect(chunksFor(ctx, "chat_text")).toEqual(["local"]);
 
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId: "session-1", status: "completed" },
+			} as never);
 			vi.advanceTimersByTime(6_000);
 			handleHubLiveEvent(ctx, {
 				event: "assistant.delta",
