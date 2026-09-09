@@ -1621,7 +1621,7 @@ function ThreadItem({
 						<div className="wrap-break-word text-sm font-medium">
 							{overviewTitle}
 						</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
+						<div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
