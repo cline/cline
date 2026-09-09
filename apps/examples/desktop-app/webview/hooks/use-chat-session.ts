@@ -159,8 +159,17 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 	});
 }
 
-function chunkCreatedAt(payload: AgentChunkEvent): number {
-	return payload.ts || Date.now();
+// Live rows are stamped on this process's clock, not the sidecar's `ts`.
+// Every timestamp a live row is compared against comes from here: the
+// optimistic user bubble a send appends, `hydrationStartedAt`,
+// `turnStartedAt`, and the preceding row in the thought-duration
+// subtraction. The sidecar can run on another machine's clock (the
+// browser-dev container, a remote hub), and mixing the two turned a
+// finished reasoning row into a durationless "Thinking" whenever that clock
+// trailed the browser by more than the time to first token. Persisted rows
+// keep the runtime's timestamps and are consistent among themselves.
+function chunkCreatedAt(): number {
+	return Date.now();
 }
 
 function mergeHydratedMessagesWithLive(options: {
@@ -1278,7 +1287,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: chunkCreatedAt(payload),
+						createdAt: chunkCreatedAt(),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -1302,7 +1311,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: chunkCreatedAt(payload),
+						createdAt: chunkCreatedAt(),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -1405,7 +1414,7 @@ export function useChatSession() {
 							role: "assistant",
 							content: "",
 							media: [media.data],
-							createdAt: chunkCreatedAt(payload),
+							createdAt: chunkCreatedAt(),
 						},
 					]);
 				});
@@ -1537,7 +1546,7 @@ export function useChatSession() {
 								role: "user",
 								content: userLabel,
 								images: images.length > 0 ? images : undefined,
-								createdAt: chunkCreatedAt(payload),
+								createdAt: chunkCreatedAt(),
 							},
 						]);
 					});
@@ -1696,7 +1705,7 @@ export function useChatSession() {
 						input: parsed.input,
 						output: null,
 					}),
-					createdAt: chunkCreatedAt(payload),
+					createdAt: chunkCreatedAt(),
 					meta: {
 						toolName,
 						toolCallId,

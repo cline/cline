@@ -8,6 +8,10 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import {
+	buildPreviousTimestampMap,
+	getThoughtDurationMilliseconds,
+} from "../components/views/chat/messages/group-messages";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -1425,7 +1429,7 @@ describe("useChatSession", () => {
 		expect(userMessages[1]?.id).toBe("queued_user_queued-prompt-2");
 	});
 
-	it("keeps live stream timestamps in milliseconds", async () => {
+	it("stamps live rows on the webview clock rather than the sidecar timestamp", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1457,7 +1461,9 @@ describe("useChatSession", () => {
 		);
 		expect(chatEventHandler).toBeDefined();
 		expect(userMessage).toBeDefined();
-		const thinkingTimestamp = (userMessage?.createdAt ?? Date.now()) + 5_000;
+		// A sidecar `ts` from a different clock must not leak into the row.
+		const thinkingTimestamp = (userMessage?.createdAt ?? Date.now()) - 60_000;
+		const before = Date.now();
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -1469,10 +1475,12 @@ describe("useChatSession", () => {
 			});
 		});
 
-		expect(
-			current.messages.find((message) => message.role === "assistant")
-				?.createdAt,
-		).toBe(thinkingTimestamp);
+		const assistantCreatedAt = current.messages.find(
+			(message) => message.role === "assistant",
+		)?.createdAt;
+		expect(assistantCreatedAt).not.toBe(thinkingTimestamp);
+		expect(assistantCreatedAt).toBeGreaterThanOrEqual(before);
+		expect(assistantCreatedAt).toBeLessThanOrEqual(Date.now());
 	});
 
 	it("updates current token usage from live usage events", async () => {
@@ -1644,6 +1652,73 @@ describe("useChatSession", () => {
 			role: "user",
 			content: "how are you?",
 		});
+	});
+
+	it("stamps live rows on the webview clock so a sidecar clock behind the browser cannot erase a thought duration", async () => {
+		const sessionId = "session-clock-skew";
+		const sendResponse = deferred<unknown>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") return { sessionId };
+					if (request?.action === "send") return await sendResponse.promise;
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			void current.sendPrompt("write an essay");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const chatEventHandler = handlerFor("chat_event");
+		// The sidecar's clock trails the browser by 15s: its `ts` predates the
+		// optimistic user bubble that was appended on the browser clock.
+		const sidecarTs = Date.now() - 15_000;
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_reasoning",
+				chunk: JSON.stringify({ text: "Let me think.", redacted: false }),
+				ts: sidecarTs,
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "Here is the essay.",
+				ts: sidecarTs + 1,
+				index: 2,
+			});
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		});
+
+		const userBubble = current.messages.find(
+			(message) =>
+				message.role === "user" && message.content === "write an essay",
+		);
+		const assistant = current.messages.find(
+			(message) => message.role === "assistant" && message.reasoning,
+		);
+		expect(userBubble).toBeDefined();
+		expect(assistant).toBeDefined();
+		expect(assistant?.createdAt).toBeGreaterThanOrEqual(
+			userBubble?.createdAt ?? 0,
+		);
+		const previous = assistant
+			? buildPreviousTimestampMap(current.messages).get(assistant)
+			: undefined;
+		expect(
+			getThoughtDurationMilliseconds(previous, assistant?.createdAt ?? 0),
+		).not.toBeUndefined();
 	});
 
 	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
