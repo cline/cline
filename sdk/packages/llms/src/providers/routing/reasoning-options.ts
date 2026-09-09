@@ -65,6 +65,7 @@ export function normalizeReasoningRequest(
 		// keep working.
 		const capabilities = context.model.capabilities;
 		if (
+			request.providerId === "bedrock" &&
 			capabilities !== undefined &&
 			!capabilities.includes("reasoning")
 		) {

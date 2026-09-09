@@ -13,6 +13,23 @@ const ACTIVE_REASONING_EFFORTS = REASONING_LEVELS.filter(
 	(level): level is ReasoningEffort => level !== "none",
 );
 
+/**
+ * Narrow fallback for Bedrock OpenAI IDs, including inference profiles.
+ * The AI SDK only recognizes bare `openai.` IDs when encoding reasoning.
+ * Keep this route independent of catalog membership so new/custom selections
+ * work; opaque ARNs and unrelated providers must not be inferred as OpenAI.
+ */
+export function isBedrockOpenAIRequest(
+	request: Pick<GatewayStreamRequest, "providerId" | "modelId">,
+): boolean {
+	return (
+		request.providerId === "bedrock" &&
+		/^(?:(?:us|us-gov|eu|apac|jp|au|ca|sa|global)\.)?openai\./.test(
+			request.modelId,
+		)
+	);
+}
+
 interface ModelReasoningControls {
 	effort?: Extract<ModelReasoningOption, { type: "effort" }>;
 	budget?: Extract<ModelReasoningOption, { type: "budget_tokens" }>;

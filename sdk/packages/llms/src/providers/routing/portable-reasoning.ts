@@ -5,6 +5,7 @@ import type {
 import type { CallSettings } from "ai";
 import {
 	getModelReasoningControls,
+	isBedrockOpenAIRequest,
 	normalizeReasoningEffort,
 } from "../model-facts";
 
@@ -107,7 +108,7 @@ export function resolvePortableReasoning(
 	context?: GatewayProviderContext,
 ): AiSdkReasoning | undefined {
 	const reasoning = request.reasoning;
-	if (!reasoning) {
+	if (!reasoning || isBedrockOpenAIRequest(request)) {
 		return undefined;
 	}
 	const fullySupported = PORTABLE_REASONING_PROVIDERS.has(request.providerId);
@@ -139,17 +140,8 @@ export function resolvePortableReasoning(
 		if (bedrockModelLacksReasoning(request, context)) {
 			return undefined;
 		}
-		if (request.providerId === "bedrock" && context) {
-			const reasoningOptions = context.model.reasoningOptions;
-			if (reasoningOptions !== undefined) {
-				if (reasoningOptions.length === 0) {
-					return undefined;
-				}
-				const controls = getModelReasoningControls(reasoningOptions);
-				if (!controls || controls.efforts.length === 0) {
-					return undefined;
-				}
-			}
+		if (request.providerId === "bedrock") {
+			return normalizeBedrockPortableEffort("medium", context);
 		}
 		return "medium";
 	}

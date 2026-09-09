@@ -8,6 +8,7 @@ import {
 	resolvePortableReasoning,
 	withoutPortableReasoning,
 } from "./routing/portable-reasoning";
+import { composeAiSdkProviderOptions } from "./routing/provider-options";
 import { normalizeReasoningRequest } from "./routing/reasoning-options";
 
 function request(
@@ -48,12 +49,11 @@ function bedrockContext(
 			name: "gpt-oss-120b",
 			providerId: "bedrock",
 			capabilities: ["reasoning"],
-			reasoningOptions: [
-				{ type: "effort", values: ["low", "medium", "high"] },
-			],
+			reasoningOptions: [{ type: "effort", values: ["low", "medium", "high"] }],
 			...overrides,
 		},
-	} as unknown as GatewayProviderContext;
+		config: { providerId: "bedrock" },
+	};
 }
 
 describe("resolvePortableReasoning", () => {
@@ -144,14 +144,26 @@ describe("resolvePortableReasoning", () => {
 	it("clamps Bedrock GPT-OSS effort to advertised low/medium/high", () => {
 		const context = bedrockContext();
 		expect(
-			resolvePortableReasoning(bedrockRequest({ effort: "xhigh" }), context),
-		).toBe("high");
+			composeAiSdkProviderOptions(bedrockRequest({ effort: "xhigh" }), context),
+		).toHaveProperty(
+			"bedrock.additionalModelRequestFields.reasoning_effort",
+			"high",
+		);
 		expect(
-			resolvePortableReasoning(bedrockRequest({ effort: "max" }), context),
-		).toBe("high");
+			composeAiSdkProviderOptions(bedrockRequest({ effort: "max" }), context),
+		).toHaveProperty(
+			"bedrock.additionalModelRequestFields.reasoning_effort",
+			"high",
+		);
 		expect(
-			resolvePortableReasoning(bedrockRequest({ effort: "medium" }), context),
-		).toBe("medium");
+			composeAiSdkProviderOptions(
+				bedrockRequest({ effort: "medium" }),
+				context,
+			),
+		).toHaveProperty(
+			"bedrock.additionalModelRequestFields.reasoning_effort",
+			"medium",
+		);
 	});
 
 	it("keeps Bedrock portable reasoning for unknown custom models (fail open)", () => {
