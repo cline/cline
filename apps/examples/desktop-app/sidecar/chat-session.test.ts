@@ -338,6 +338,7 @@ describe("session forks", () => {
 				start,
 			},
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			wsClients: new Set(),
 		} as unknown as SidecarContext;
 
@@ -459,6 +460,7 @@ describe("session forks", () => {
 				send,
 			},
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			wsClients: new Set(),
 		} as unknown as SidecarContext;
 
@@ -542,6 +544,7 @@ describe("session forks", () => {
 				start,
 			},
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			wsClients: new Set(),
 		} as unknown as SidecarContext;
 
@@ -617,6 +620,7 @@ describe("session forks", () => {
 				start,
 			},
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			wsClients: new Set(),
 			pendingQuestions: new Map(),
 		} as unknown as SidecarContext;
@@ -798,6 +802,7 @@ describe("session forks", () => {
 				]),
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
+				coreStreamActivity: new Map(),
 				wsClients: new Set(),
 				sessionManager: { restore },
 			} as unknown as SidecarContext;
@@ -921,6 +926,7 @@ describe("first-send connection updates", () => {
 			]),
 			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
 				readMessages,
@@ -1644,6 +1650,7 @@ Follow the desktop send workflow instructions.`,
 			liveSessions: new Map([[sessionId, session]]),
 			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
 				send,
@@ -1804,6 +1811,7 @@ describe("mistake-limit prompt", () => {
 		const ctx = {
 			wsClients: new Set([{ send }]),
 			streamIndices: new Map(),
+			coreStreamActivity: new Map(),
 			pendingQuestions: new Map(),
 			liveSessions: new Map(),
 			sessionManager: {
