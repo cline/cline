@@ -3,10 +3,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	WelcomeWorkspaceControls,
-	type WorkIn,
-} from "./welcome-workspace-controls";
+import type { WorkIn } from "@/lib/work-in-selection";
+import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 let container: HTMLDivElement;
 let root: Root;

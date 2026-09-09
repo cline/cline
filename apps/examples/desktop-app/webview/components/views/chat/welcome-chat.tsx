@@ -13,11 +13,9 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
+import type { WorkIn } from "@/lib/work-in-selection";
 import { SessionContent } from "./session-content";
-import {
-	WelcomeWorkspaceControls,
-	type WorkIn,
-} from "./welcome-workspace-controls";
+import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 export function WelcomeScreen({
 	active,

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
 import { cn } from "@/lib/utils";
+import type { WorkIn } from "@/lib/work-in-selection";
 import {
 	looksLikeFolderPath,
 	normalizeWorkspacePath,
@@ -40,9 +41,6 @@ function workspaceName(path: string): string {
 	const parts = trimmed.split(/[\\/]/);
 	return parts[parts.length - 1] || "workspace";
 }
-
-/** Where a new task runs. "worktree" checks out a fresh git worktree first. */
-export type WorkIn = "local" | "worktree";
 
 const WORK_IN_OPTIONS: Array<{
 	value: WorkIn;

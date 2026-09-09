@@ -36,7 +36,6 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
-import type { WorkIn } from "@/components/views/chat/welcome-workspace-controls";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import {
@@ -92,6 +91,11 @@ import {
 } from "@/lib/session-history";
 import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
+import {
+	readWorkInFromWindow,
+	type WorkIn,
+	writeWorkInToWindow,
+} from "@/lib/work-in-selection";
 import {
 	filterWorkspacePaths,
 	mergeWorkspacePaths,
@@ -641,7 +645,12 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [workInSelection, setWorkIn] = useState<WorkIn>("local");
+	const [workInSelection, setWorkInSelection] =
+		useState<WorkIn>(readWorkInFromWindow);
+	const setWorkIn = useCallback((next: WorkIn) => {
+		setWorkInSelection(next);
+		writeWorkInToWindow(next);
+	}, []);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -980,6 +989,28 @@ function ChatThreadPane({
 		setWorkspacePath("");
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
+
+	// Deleting a worktree task removes its folder; if that folder was the
+	// active workspace, fall back to the repo the worktree came from.
+	useEffect(() => {
+		return desktopClient.subscribe("session_deleted", (payload) => {
+			const removed = (
+				payload as {
+					removedWorktree?: { path?: string; repoRoot?: string };
+				} | null
+			)?.removedWorktree;
+			if (!removed?.path || !removed.repoRoot) {
+				return;
+			}
+			const active =
+				workspaceRef.current.workspaceRoot || workspaceRef.current.cwd || "";
+			if (
+				normalizeWorkspacePath(active) === normalizeWorkspacePath(removed.path)
+			) {
+				void switchWorkspace(removed.repoRoot);
+			}
+		});
+	}, [switchWorkspace]);
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures
