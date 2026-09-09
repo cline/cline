@@ -818,8 +818,8 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		captureProviderConfigured(service, "test-provider");
 		captureProviderModelsLoaded(service, {
 			provider: "opencode",
-			duration_ms: 10,
-			model_count: 3,
+			durationMs: 10,
+			modelCount: 3,
 			outcome: "returned",
 		});
 		captureCompactionExecuted(service, {

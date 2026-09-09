@@ -52,6 +52,7 @@ import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
+const BUILT_IN_PROVIDER_IDS = new Set<string>(LlmsModels.BUILT_IN_PROVIDER_IDS);
 const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
@@ -881,11 +882,9 @@ export async function getLocalProviderModels(
 		return { providerId: id, models };
 	} finally {
 		captureProviderModelsLoaded(telemetry, {
-			provider: Object.hasOwn(LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID, id)
-				? id
-				: "custom",
-			duration_ms: Math.round(performance.now() - startedAt),
-			model_count: modelCount,
+			provider: BUILT_IN_PROVIDER_IDS.has(id) ? id : "custom",
+			durationMs: Math.round(performance.now() - startedAt),
+			modelCount: modelCount,
 			outcome: modelCount === undefined ? "error" : "returned",
 		});
 	}

@@ -108,6 +108,28 @@ describe("live provider model loading", () => {
 	});
 
 	it("records fallback load metrics without exposing config or custom identifiers", async () => {
+		LlmsModels.registerProvider({
+			provider: {
+				id: "private-company-provider",
+				name: "Private Company",
+				defaultModelId: "confidential-model",
+				client: "openai-compatible",
+				protocol: "openai-chat",
+				baseUrl: "https://private.example",
+			},
+			models: {
+				"confidential-model": {
+					id: "confidential-model",
+					name: "Confidential Model",
+				},
+			},
+		});
+		expect(
+			Object.hasOwn(
+				LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID,
+				"private-company-provider",
+			),
+		).toBe(true);
 		const capture = vi.fn();
 		const telemetry = { capture } as unknown as ITelemetryService;
 		await getLocalProviderModels(
@@ -124,8 +146,8 @@ describe("live provider model loading", () => {
 			event: "provider.models_loaded",
 			properties: {
 				provider: "custom",
-				duration_ms: expect.any(Number),
-				model_count: 0,
+				durationMs: expect.any(Number),
+				modelCount: 1,
 				outcome: "returned",
 			},
 		});
@@ -139,8 +161,8 @@ describe("live provider model loading", () => {
 			event: "provider.models_loaded",
 			properties: {
 				provider: "opencode",
-				duration_ms: expect.any(Number),
-				model_count: result.models.length,
+				durationMs: expect.any(Number),
+				modelCount: result.models.length,
 				outcome: "returned",
 			},
 		});
@@ -171,8 +193,8 @@ describe("live provider model loading", () => {
 			event: "provider.models_loaded",
 			properties: {
 				provider: "opencode",
-				duration_ms: expect.any(Number),
-				model_count: undefined,
+				durationMs: expect.any(Number),
+				modelCount: undefined,
 				outcome: "error",
 			},
 		});

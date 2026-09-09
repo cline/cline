@@ -365,8 +365,8 @@ export function captureProviderModelsLoaded(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		provider: string;
-		duration_ms: number;
-		model_count?: number;
+		durationMs: number;
+		modelCount?: number;
 		outcome: "returned" | "error";
 	},
 ): void {
