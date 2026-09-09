@@ -80,6 +80,8 @@ export function WelcomeImportNotice() {
 	const toolList = found.tools
 		.map((tool) => SESSION_IMPORT_TOOL_LABELS[tool])
 		.join(found.tools.length === 2 ? " and " : ", ");
+	const sessionsNoun = found.count === 1 ? "session" : "sessions";
+	const pronoun = found.count === 1 ? "it" : "them";
 
 	return (
 		<>
@@ -93,9 +95,9 @@ export function WelcomeImportNotice() {
 							Bring your history from {toolList}
 						</p>
 						<p className="mt-0.5 text-[13px] text-muted-foreground">
-							Cline found {found.count} session{found.count === 1 ? "" : "s"} on
-							this machine. Import them to keep your past conversations and
-							continue them here.
+							Cline found {found.count} {sessionsNoun} on this machine. Import{" "}
+							{pronoun} to keep your past conversations and continue {pronoun}{" "}
+							here.
 						</p>
 					</div>
 				</div>
