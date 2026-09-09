@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/popover";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
-	mergeStatusLabel,
+	getMergeStatus,
+	type MergeStatus,
 	type PullRequestStatus,
 	summarizeChecks,
 } from "@/lib/pull-request";
@@ -36,6 +37,14 @@ const checkColors = {
 	success: "bg-green-500",
 	failure: "bg-red-500",
 	skipped: "bg-muted-foreground",
+};
+
+const mergeStatusColors: Record<MergeStatus["tone"], string> = {
+	merged: "text-purple-400",
+	failure: "text-red-400",
+	warning: "text-yellow-500",
+	neutral: "text-muted-foreground",
+	success: "text-green-500",
 };
 
 export function PullRequestBar({
@@ -119,14 +128,8 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 				: pr?.isDraft
 					? GitPullRequestDraft
 					: GitPullRequest;
-	const statusColor =
-		pr?.state === "MERGED"
-			? "text-purple-400"
-			: pr?.state === "CLOSED" || pr?.mergeable === "CONFLICTING"
-				? "text-red-400"
-				: pr?.isDraft
-					? "text-muted-foreground"
-					: "text-green-500";
+	const mergeStatus = pr ? getMergeStatus(pr) : null;
+	const statusColor = mergeStatusColors[mergeStatus?.tone ?? "neutral"];
 
 	return (
 		<section
@@ -155,7 +158,7 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 									#{pr.number}
 								</button>
 								<span className={cn("shrink-0", statusColor)}>
-									{mergeStatusLabel(pr)}
+									{mergeStatus?.label}
 								</span>
 							</>
 						) : (

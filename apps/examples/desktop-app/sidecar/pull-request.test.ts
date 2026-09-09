@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mergeStatusLabel, summarizeChecks } from "../webview/lib/pull-request";
+import { getMergeStatus, summarizeChecks } from "../webview/lib/pull-request";
 import {
 	getPullRequestStatus,
 	githubRepository,
@@ -136,18 +136,18 @@ describe("check and merge states", () => {
 	it("never calls an unknown, draft or blocked PR ready to merge", async () => {
 		const result = await getPullRequestStatus("/repo", runner());
 		const value = result!.pullRequest!;
-		expect(mergeStatusLabel({ ...value, mergeStateStatus: "BLOCKED" })).toBe(
-			"Blocked",
-		);
-		expect(mergeStatusLabel({ ...value, isDraft: true })).toBe("Draft");
 		expect(
-			mergeStatusLabel({
+			getMergeStatus({ ...value, mergeStateStatus: "BLOCKED" }).label,
+		).toBe("Blocked");
+		expect(getMergeStatus({ ...value, isDraft: true }).label).toBe("Draft");
+		expect(
+			getMergeStatus({
 				...value,
 				mergeable: "UNKNOWN",
 				mergeStateStatus: "UNKNOWN",
-			}),
+			}).label,
 		).toBe("Merge status pending");
-		expect(mergeStatusLabel({ ...value, mergeable: "CONFLICTING" })).toBe(
+		expect(getMergeStatus({ ...value, mergeable: "CONFLICTING" }).label).toBe(
 			"Conflicts",
 		);
 	});

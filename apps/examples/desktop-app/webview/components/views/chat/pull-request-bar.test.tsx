@@ -75,6 +75,87 @@ it("opens the PR, shows conflicts and expands CI details", async () => {
 	await click("CI failed");
 	expect(document.body.textContent).toContain("Tests");
 });
+
+it.each<{
+	status: Partial<NonNullable<PullRequestStatus["pullRequest"]>>;
+	label: string;
+	color: string;
+}>([
+	{
+		status: { mergeStateStatus: "BLOCKED" },
+		label: "Blocked",
+		color: "text-yellow-500",
+	},
+	{
+		status: { mergeStateStatus: "BEHIND" },
+		label: "Behind base",
+		color: "text-yellow-500",
+	},
+	{
+		status: { mergeStateStatus: "UNSTABLE" },
+		label: "Checks failing",
+		color: "text-red-400",
+	},
+	{
+		status: { mergeable: "UNKNOWN", mergeStateStatus: "UNKNOWN" },
+		label: "Merge status pending",
+		color: "text-muted-foreground",
+	},
+	{
+		status: { mergeable: "UNKNOWN" },
+		label: "Merge status pending",
+		color: "text-muted-foreground",
+	},
+	{
+		status: { mergeStateStatus: "UNKNOWN" },
+		label: "No conflicts",
+		color: "text-muted-foreground",
+	},
+	{
+		status: { mergeStateStatus: "DIRTY" },
+		label: "Conflicts",
+		color: "text-red-400",
+	},
+	{
+		status: { mergeable: "CONFLICTING" },
+		label: "Conflicts",
+		color: "text-red-400",
+	},
+	{
+		status: { isDraft: true, mergeable: "CONFLICTING" },
+		label: "Draft",
+		color: "text-muted-foreground",
+	},
+	{
+		status: { state: "MERGED", mergeable: "CONFLICTING" },
+		label: "Merged",
+		color: "text-purple-400",
+	},
+	{ status: { state: "CLOSED" }, label: "Closed", color: "text-red-400" },
+	{ status: {}, label: "Ready to merge", color: "text-green-500" },
+])("uses $color for the $label label and PR icon", async ({
+	status,
+	label,
+	color,
+}) => {
+	invoke.mockResolvedValue({
+		...data,
+		pullRequest: {
+			...data.pullRequest,
+			mergeable: "MERGEABLE",
+			mergeStateStatus: "CLEAN",
+			...status,
+		},
+	});
+	await render();
+	const statusLabel = [...container.querySelectorAll("span")].find(
+		(element) => element.textContent === label,
+	);
+	expect(statusLabel).toBeDefined();
+	expect(statusLabel?.classList.contains(color)).toBe(true);
+	expect(container.querySelector("svg")?.classList.contains(color)).toBe(true);
+});
+
 it("offers the compare form when no PR exists", async () => {
 	invoke.mockResolvedValue({ ...data, pullRequest: null });
 	await render();

@@ -32,17 +32,32 @@ export function summarizeChecks(
 	return "success";
 }
 
-export function mergeStatusLabel(
+export type MergeStatus = {
+	label: string;
+	tone: "merged" | "failure" | "warning" | "neutral" | "success";
+};
+
+export function getMergeStatus(
 	pr: NonNullable<PullRequestStatus["pullRequest"]>,
-): string {
-	if (pr.state === "MERGED") return "Merged";
-	if (pr.state === "CLOSED") return "Closed";
-	if (pr.isDraft) return "Draft";
-	if (pr.mergeable === "CONFLICTING") return "Conflicts";
-	if (pr.mergeStateStatus === "BLOCKED") return "Blocked";
-	if (pr.mergeStateStatus === "BEHIND") return "Behind base";
-	if (pr.mergeStateStatus === "UNSTABLE") return "Checks failing";
-	if (pr.mergeStateStatus === "CLEAN") return "Ready to merge";
-	if (pr.mergeable === "MERGEABLE") return "No conflicts";
-	return "Merge status pending";
+): MergeStatus {
+	if (pr.state === "MERGED") return { label: "Merged", tone: "merged" };
+	if (pr.state === "CLOSED") return { label: "Closed", tone: "failure" };
+	if (pr.isDraft) return { label: "Draft", tone: "neutral" };
+	if (pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY") {
+		return { label: "Conflicts", tone: "failure" };
+	}
+	if (pr.mergeStateStatus === "BLOCKED")
+		return { label: "Blocked", tone: "warning" };
+	if (pr.mergeStateStatus === "BEHIND")
+		return { label: "Behind base", tone: "warning" };
+	if (pr.mergeStateStatus === "UNSTABLE")
+		return { label: "Checks failing", tone: "failure" };
+	if (pr.mergeable === "UNKNOWN")
+		return { label: "Merge status pending", tone: "neutral" };
+	if (pr.mergeStateStatus === "CLEAN")
+		return { label: "Ready to merge", tone: "success" };
+	// Absence of conflicts alone does not mean the PR is ready to merge.
+	if (pr.mergeable === "MERGEABLE")
+		return { label: "No conflicts", tone: "neutral" };
+	return { label: "Merge status pending", tone: "neutral" };
 }
