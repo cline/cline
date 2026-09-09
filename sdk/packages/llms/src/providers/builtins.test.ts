@@ -391,15 +391,26 @@ describe("built-in provider metadata", () => {
 		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]),
+			expect.arrayContaining([
+				"gpt-5.5",
+				"gpt-5.3-codex-spark",
+				"gpt-5.6-terra",
+				"gpt-5.6-luna",
+				"gpt-5.6-sol",
+				"gpt-6-astra",
+			]),
 		);
 		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
 		expect(modelIds).not.toContain("gpt-5.3-codex");
-		expect(modelIds).not.toContain("gpt-5.3-codex-spark");
+		// Retired for ChatGPT accounts on 2026-08-31
+		expect(modelIds).not.toContain("gpt-5.4");
+		expect(modelIds).not.toContain("gpt-5.4-mini");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
+		// Bare alias of gpt-5.6-sol
+		expect(modelIds).not.toContain("gpt-5.6");
 		expect(modelIds).not.toContain("o3");
 		expect(chatGptModels["gpt-5.5"]).toEqual(
 			expect.objectContaining({
@@ -410,11 +421,12 @@ describe("built-in provider metadata", () => {
 				maxTokens: 128_000,
 			}),
 		);
-		expect(chatGptModels["gpt-5.4"]).toEqual(
+		expect(chatGptModels["gpt-5.6-terra"]).toEqual(
 			expect.objectContaining({
-				name: "GPT-5.4",
-				maxInputTokens: expect.any(Number),
-				contextWindow: expect.any(Number),
+				name: "GPT-5.6 Terra",
+				maxInputTokens: 272_000 * 0.95,
+				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
 	});

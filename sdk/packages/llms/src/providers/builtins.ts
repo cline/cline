@@ -61,7 +61,7 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
-const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.6-terra";
 const NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
 	[{ name: "web_search" }];
 const OPENAI_NATIVE_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =

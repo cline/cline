@@ -76,7 +76,9 @@ describe("provider settings", () => {
 		}).knownModels;
 		const modelIds = Object.keys(knownModels ?? {});
 
-		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.4", "gpt-5.5"]));
+		expect(modelIds).toEqual(
+			expect.arrayContaining(["gpt-5.5", "gpt-5.6-terra"]),
+		);
 		expect(modelIds).not.toContain("gpt-4o");
 		expect(modelIds).not.toContain("gpt-4.1");
 		expect(modelIds).not.toContain("chatgpt-image-latest");
