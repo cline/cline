@@ -174,7 +174,6 @@ export function resetDesktopFeatureFlagsForTesting(): void {
 	desktopFeatureFlagsContext = { clientName: "cline-code" };
 }
 
-/** Returns a local cloud-agents override, or undefined to use the rollout. */
 export function readCloudAgentsEnvOverride(): boolean | undefined {
 	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
 	if (override === "1" || override === "true") return true;
