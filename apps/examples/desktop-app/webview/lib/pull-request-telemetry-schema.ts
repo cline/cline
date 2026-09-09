@@ -10,9 +10,9 @@ export const pullRequestTelemetrySchema = z.object({
 		"check_clicked",
 		"refresh_clicked",
 	]),
-	pr_state: z.enum(["unknown", "none", "open", "draft", "closed", "merged"]),
-	ci_state: z.enum(["none", "pending", "success", "failure", "skipped"]),
-	merge_tone: z.enum(["merged", "failure", "warning", "neutral", "success"]),
+	prState: z.enum(["unknown", "none", "open", "draft", "closed", "merged"]),
+	ciState: z.enum(["none", "pending", "success", "failure", "skipped"]),
+	mergeTone: z.enum(["merged", "failure", "warning", "neutral", "success"]),
 });
 
 export type PullRequestTelemetry = z.infer<typeof pullRequestTelemetrySchema>;

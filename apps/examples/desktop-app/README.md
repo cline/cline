@@ -44,7 +44,7 @@ These events use the desktop telemetry service and respect telemetry opt-out:
 | `desktop.pull_request.check_clicked` | Click a check's details link |
 | `desktop.pull_request.refresh_clicked` | Click manual refresh |
 
-Each event contains only `pr_state`, `ci_state`, and `merge_tone` categories.
+Each event contains only `prState`, `ciState`, and `mergeTone` categories.
 The sidecar validates these values and strips extra fields. Repository/branch
 names, paths, PR numbers/titles, check names, and URLs are not included.
 Automatic polling does not emit additional impressions. Telemetry delivery

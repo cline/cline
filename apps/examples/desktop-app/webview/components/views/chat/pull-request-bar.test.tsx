@@ -208,9 +208,9 @@ it("reports exposure once per workspace/branch, without polling impressions", as
 	expect(telemetryEvents()).toEqual([
 		{
 			action: "shown",
-			pr_state: "open",
-			ci_state: "failure",
-			merge_tone: "failure",
+			prState: "open",
+			ciState: "failure",
+			mergeTone: "failure",
 		},
 	]);
 	await act(async () => {
@@ -244,9 +244,9 @@ it("reports PR, CI, check, and refresh interactions without identifying data", a
 	for (const event of telemetryEvents()) {
 		expect(Object.keys(event).sort()).toEqual([
 			"action",
-			"ci_state",
-			"merge_tone",
-			"pr_state",
+			"ciState",
+			"mergeTone",
+			"prState",
 		]);
 	}
 });
@@ -262,15 +262,15 @@ it("records create intent without claiming a PR was created", async () => {
 	expect(telemetryEvents()).toEqual([
 		{
 			action: "shown",
-			pr_state: "none",
-			ci_state: "none",
-			merge_tone: "neutral",
+			prState: "none",
+			ciState: "none",
+			mergeTone: "neutral",
 		},
 		{
 			action: "create_clicked",
-			pr_state: "none",
-			ci_state: "none",
-			merge_tone: "neutral",
+			prState: "none",
+			ciState: "none",
+			mergeTone: "neutral",
 		},
 	]);
 });

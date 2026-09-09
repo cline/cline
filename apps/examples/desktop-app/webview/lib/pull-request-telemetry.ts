@@ -14,7 +14,7 @@ export function trackPullRequestEvent(
 	const pr = data?.pullRequest;
 	const event: PullRequestTelemetry = {
 		action,
-		pr_state: !data
+		prState: !data
 			? "unknown"
 			: !pr
 				? "none"
@@ -25,8 +25,8 @@ export function trackPullRequestEvent(
 						: pr.isDraft
 							? "draft"
 							: "open",
-		ci_state: summarizeChecks(pr?.checks ?? []),
-		merge_tone: pr ? getMergeStatus(pr).tone : "neutral",
+		ciState: summarizeChecks(pr?.checks ?? []),
+		mergeTone: pr ? getMergeStatus(pr).tone : "neutral",
 	};
 	// Telemetry must not delay or fail the user's interaction.
 	void desktopClient

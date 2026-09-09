@@ -4,9 +4,9 @@ import { capturePullRequestEvent } from "./pull-request-telemetry";
 
 const event = {
 	action: "open_clicked",
-	pr_state: "open",
-	ci_state: "success",
-	merge_tone: "success",
+	prState: "open",
+	ciState: "success",
+	mergeTone: "success",
 };
 function service(enabled = true) {
 	const capture = vi.fn();
@@ -32,18 +32,18 @@ it("captures only allowlisted status categories and strips identifiers", () => {
 	expect(capture).toHaveBeenCalledExactlyOnceWith({
 		event: "desktop.pull_request.open_clicked",
 		properties: {
-			pr_state: "open",
-			ci_state: "success",
-			merge_tone: "success",
+			prState: "open",
+			ciState: "success",
+			mergeTone: "success",
 		},
 	});
 });
 
 it.each([
 	{ ...event, action: "arbitrary.event" },
-	{ ...event, pr_state: "private/repo" },
-	{ ...event, ci_state: "test name" },
-	{ ...event, merge_tone: "secret" },
+	{ ...event, prState: "private/repo" },
+	{ ...event, ciState: "test name" },
+	{ ...event, mergeTone: "secret" },
 	{},
 	null,
 ])("drops invalid payloads", (input) => {
