@@ -249,7 +249,7 @@ describe("shell helpers", () => {
 			'powershell -NoProfile -Command "Get-Date"; Write-Output after',
 			// An unquoted tail is already parsed by the outer shell.
 			"powershell -Command Get-Date",
-			// Single quotes are literal in the outer parser: no interpolation to fix.
+			// Single-quoted wrappers also need -NoProfile to be rewritten.
 			"powershell -Command 'Get-Date'",
 			// Unterminated or stray quotes make the tail ambiguous.
 			'powershell -Command "Get-Date',
@@ -271,6 +271,74 @@ describe("shell helpers", () => {
 			expect(getShellInvocation("powershell", command).input).toBe(command);
 			expect(getShellInvocation("pwsh", command)).toMatchObject({
 				executable: "pwsh",
+				input: command,
+			});
+		}
+	});
+
+	it("unwraps the single-quoted message-box script without changing its quotes or variables", () => {
+		const script =
+			'Add-Type -AssemblyName PresentationFramework; Write-Output ("ready-pid=" + $PID); [void][System.Windows.MessageBox]::Show(("PID: " + $PID), "PowerShell PID"); Start-Sleep -Seconds 30; Write-Output "after"';
+		for (const shell of ["powershell.exe", "pwsh.exe"]) {
+			expect(
+				getShellInvocation(shell, `pwsh.exe -NoProfile -Command '${script}'`),
+			).toMatchObject({
+				executable: "pwsh.exe",
+				input: script,
+			});
+		}
+	});
+
+	it.each([
+		[
+			"doubled apostrophes",
+			"'Write-Output ''it''''s fine'''",
+			"Write-Output 'it''s fine'",
+		],
+		[
+			"literal escapes",
+			"'Write-Output ''$PID `n `e `u{41} C:\\temp \"text\"'''",
+			"Write-Output '$PID `n `e `u{41} C:\\temp \"text\"'",
+		],
+		[
+			"backtick before the closing quote",
+			"'Write-Output value`'",
+			"Write-Output value`",
+		],
+		[
+			"multiline body",
+			"'Write-Output 1\r\nWrite-Output 2' \t\r\n",
+			"Write-Output 1\r\nWrite-Output 2",
+		],
+	])("decodes a single-quoted body with %s", (_name, tail, script) => {
+		for (const shell of ["powershell.exe", "pwsh.exe"]) {
+			expect(
+				getShellInvocation(shell, `powershell.exe -NoProfile -Command ${tail}`),
+			).toMatchObject({
+				executable: "powershell.exe",
+				input: script,
+			});
+		}
+	});
+
+	it.each([
+		"'Write-Output 42",
+		"'Write-Output 42''",
+		"'Write-Output 42' 'extra'",
+		"'Write-Output 42'; Write-Output 7",
+		"'Write-Output 42'\nWrite-Output 7",
+		"'Write-Output 42' | Out-String",
+		"'Write-Output 42' > output.txt",
+		"'Write-Output value`' trailing'",
+		"\n'Write-Output 42'",
+		"''",
+		"@'\nWrite-Output 42\n'@",
+		'@"\nWrite-Output 42\n"@',
+	])("leaves an unsupported or incomplete quoted tail unchanged: %s", (tail) => {
+		const command = `pwsh.exe -NoProfile -Command ${tail}`;
+		for (const shell of ["powershell.exe", "pwsh.exe"]) {
+			expect(getShellInvocation(shell, command)).toMatchObject({
+				executable: shell,
 				input: command,
 			});
 		}

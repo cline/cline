@@ -156,30 +156,30 @@ function decodePowerShellDoubleQuotedString(
 }
 
 /**
- * Scan a string that begins with `"` and report the body of the complete
- * double-quoted string plus what follows it. Returns undefined when the
- * string is not one complete double-quoted string (unterminated, or a bare
- * closing quote followed by more than trailing whitespace).
+ * Scan one complete ordinary ASCII-quoted string. Return its delimiter and
+ * body together so decoding uses the same quoting rules as boundary detection.
+ * Only whitespace may follow the closing quote; here-strings are not supported.
  */
-function splitCompleteDoubleQuotedString(
+function splitCompleteQuotedString(
 	text: string,
-): { body: string; remainder: string } | undefined {
-	if (!text.startsWith('"')) return undefined;
+): { quote: "'" | '"'; body: string } | undefined {
+	const quote = text[0];
+	if (quote !== "'" && quote !== '"') return undefined;
 	for (let i = 1; i < text.length; i++) {
 		const character = text[i];
-		if (character === "`") {
-			// Any backtick-escaped character is part of the body.
+		if (quote === '"' && character === "`") {
+			// Backticks escape characters only in expandable strings.
 			i++;
 			continue;
 		}
-		if (character === '"') {
-			if (text[i + 1] === '"') {
+		if (character === quote) {
+			if (text[i + 1] === quote) {
 				i++;
 				continue;
 			}
 			const remainder = text.slice(i + 1);
 			if (remainder.trim() !== "") return undefined;
-			return { body: text.slice(1, i), remainder };
+			return { quote, body: text.slice(1, i) };
 		}
 	}
 	return undefined;
@@ -202,11 +202,12 @@ function splitNestedCommandToScript(
 	commandTail: string,
 	edition: "windows" | "core",
 ): string | undefined {
-	const quoted = splitCompleteDoubleQuotedString(commandTail);
+	const quoted = splitCompleteQuotedString(commandTail);
 	if (!quoted) return undefined;
-	const script = decodePowerShellDoubleQuotedString(
-		quoted.body,
-		edition,
+	const script = (
+		quoted.quote === "'"
+			? quoted.body.replaceAll("''", "'")
+			: decodePowerShellDoubleQuotedString(quoted.body, edition)
 	).trim();
 	return script.length > 0 ? script : undefined;
 }
@@ -251,7 +252,7 @@ function parseNestedPowerShellCommand(
 }
 
 /**
- * Detect a redundant nested `powershell|pwsh [-flags] -Command "<script>"`
+ * Detect a standalone nested `powershell|pwsh [-flags] -Command <quoted script>`
  * invocation and return the script so the executor runs it directly, without
  * the extra shell layer. Returns undefined when the command does not match.
  *
@@ -262,7 +263,11 @@ function parseNestedPowerShellCommand(
  * once per enumerated item — a flood that looks like a hang (GitHub #13284).
  * Feeding the decoded script directly preserves its variables and embedded
  * quotes for the intended script, bypassing outer interpolation and native
- * argument quoting. This is not equivalent to the corrupted runtime behavior.
+ * argument quoting. Single-quoted arguments avoid interpolation but can still
+ * lose embedded double quotes through Windows PowerShell's native argv handling.
+ * Recognised wrappers carry script text, not legacy native-argument escapes:
+ * backslashes remain literal rather than compensating for native quote loss.
+ * This normalization is deliberately not equivalent to outer-shell execution.
  *
  * Unwrapping is limited to redundant invocations:
  *
@@ -278,8 +283,9 @@ function parseNestedPowerShellCommand(
  *   profile-less outer process cannot reproduce, and other flags
  *   (`-ExecutionPolicy`, `-File`, `-WorkingDirectory`, abbreviations such as
  *   `-c`) can change semantics, so the command is left untouched
- * - the entire `-Command` tail is one complete double-quoted string; anything
- *   else (`"…"; more`, unquoted tails, stray inner quotes) is left byte-identical
+ * - the entire `-Command` tail is one complete ASCII single- or double-quoted
+ *   string; anything else (`"…"; more`, unquoted tails, stray inner quotes) is
+ *   left byte-identical
  * - executable, flags and quoted tail are separated by spaces or tabs, not
  *   statement-ending newlines; newlines within the quoted body remain valid
  *

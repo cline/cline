@@ -33,10 +33,18 @@ const shells = names.map((name) => {
 	return { name, path };
 });
 
-// Encode only the enclosing expandable-string layer. Dollar expressions are
+// Encode only the enclosing string layer. Dollar expressions are
 // deliberately unescaped, as in the reporter's model-authored command.
-function wrap(executable: string, script: string): string {
-	return `& '${executable.replaceAll("'", "''")}' -NoLogo -NoProfile -NonInteractive -Command "${script.replaceAll("`", "``").replaceAll('"', '`"')}"`;
+function wrap(
+	executable: string,
+	script: string,
+	quote: "'" | '"' = '"',
+): string {
+	const body =
+		quote === "'"
+			? script.replaceAll("'", "''")
+			: script.replaceAll("`", "``").replaceAll('"', '`"');
+	return `& '${executable.replaceAll("'", "''")}' -NoLogo -NoProfile -NonInteractive -Command ${quote}${body}${quote}`;
 }
 
 for (const outer of shells) {
@@ -48,32 +56,20 @@ for (const outer of shells) {
 			`PowerShell executor ${outer.name} -> ${inner.name}`,
 			() => {
 				const executor = createShellExecutor({ shell: outer.name });
-				const run = (script: string, context = ctx) =>
-					executor(
-						wrap(inner.path ?? inner.name, script),
+				it("executes the PID expressions from a single-quoted command with embedded double quotes", async () => {
+					const output = await executor(
+						`${inner.name} -NoProfile -Command 'Write-Output ("ready-pid=" + $PID); Write-Output (("PID: " + $PID), "PowerShell PID"); Write-Output "after"'`,
 						process.cwd(),
-						context,
+						ctx,
 					);
-
-				it("runs the requested executable and edition with intact script values", async () => {
-					const output = await run(
-						[
-							"$value = 'space 中文'; $dollar = '$literal'; $tick = 'a`b'",
-							"$items = @('MyEditForm.cs','other.txt','Validator.cs') | Where-Object { $_ -match 'MyEditForm|Validator' } | ForEach-Object { $_ }",
-							"@{ edition = $PSVersionTable.PSEdition; major = $PSVersionTable.PSVersion.Major; executable = (Get-Process -Id $PID).Path; value = $value; dollar = $dollar; tick = $tick; quote = 'say \"hello\"'; items = @($items) } | ConvertTo-Json -Compress",
-						].join("\r\n"),
-					);
-					console.info(`${outer.name} -> ${inner.name}: ${output.trim()}`);
-					expect(JSON.parse(output)).toEqual({
-						edition: inner.name === "powershell.exe" ? "Desktop" : "Core",
-						major: inner.name === "powershell.exe" ? 5 : 7,
-						executable: inner.path,
-						value: "space 中文",
-						dollar: "$literal",
-						tick: "a`b",
-						quote: 'say "hello"',
-						items: ["MyEditForm.cs", "Validator.cs"],
-					});
+					const lines = output.trim().split(/\r?\n/);
+					expect(lines[0]).toMatch(/^ready-pid=\d+$/);
+					expect(lines).toEqual([
+						lines[0],
+						`PID: ${lines[0].slice("ready-pid=".length)}`,
+						"PowerShell PID",
+						"after",
+					]);
 				});
 
 				it("decodes expandable-string escapes in the outer edition", async () => {
@@ -115,40 +111,6 @@ for (const outer of shells) {
 					}
 				});
 
-				it("preserves explicit exit codes and fails fast on pipeline errors", async () => {
-					await expect(
-						run("Write-Output 'before'; exit 7"),
-					).rejects.toMatchObject({
-						exitCode: 7,
-						output: expect.stringContaining("before"),
-					});
-					await expect(
-						run(
-							"1..3 | ForEach-Object { Write-Error 'synthetic-error' }; Write-Output 'after'",
-						),
-					).rejects.toMatchObject({
-						exitCode: 1,
-						output: expect.not.stringContaining("\nafter"),
-					});
-					await expect(run("throw 'synthetic-throw'")).rejects.toMatchObject({
-						exitCode: 1,
-						output: expect.stringContaining("synthetic-throw"),
-					});
-					expect(
-						(await run("param($value = 5) Write-Output $value")).trim(),
-					).toBe("5");
-				});
-
-				it("keeps long Unicode scripts off the native command line", async () => {
-					expect(
-						(
-							await run(
-								`$value = '${"中".repeat(40_000)}'; Write-Output $value.Length`,
-							)
-						).trim(),
-					).toBe("40000");
-				});
-
 				it("does not join outer statements or flags across newline boundaries", async () => {
 					for (const newline of ["\n", "\r", "\r\n"]) {
 						const output = await executor(
@@ -167,38 +129,114 @@ for (const outer of shells) {
 					expect(output.trim().split(/\r?\n/)).toEqual(["inner", "outer"]);
 				});
 
-				it("supports recursive edition switches without losing the final executable", async () => {
-					const output = await run(
-						wrap(
-							outer.path ?? outer.name,
-							"Write-Output (Get-Process -Id $PID).Path",
-						),
-					);
-					expect(output.trim()).toBe(outer.path);
-				});
+				for (const quote of ["'", '"'] as const) {
+					describe(`${quote} wrapper`, () => {
+						const run = (script: string, context = ctx) =>
+							executor(
+								wrap(inner.path ?? inner.name, script, quote),
+								process.cwd(),
+								context,
+							);
 
-				it("cancels the selected process through the existing executor", async () => {
-					const abort = new AbortController();
-					await expect(
-						run(
-							"Write-Output 'ready'; Start-Sleep -Seconds 30; Write-Output 'after'",
-							{
-								...ctx,
-								signal: abort.signal,
-								emitUpdate: (update) => {
-									if (
-										typeof update === "object" &&
-										update !== null &&
-										"chunk" in update &&
-										typeof update.chunk === "string" &&
-										update.chunk.includes("ready")
+						it("runs the requested executable and edition with intact script values", async () => {
+							const output = await run(
+								[
+									"$value = 'space 中文'; $dollar = '$literal'; $tick = 'a`b'; $apostrophe = 'it''s fine'",
+									"$items = @('MyEditForm.cs','other.txt','Validator.cs') | Where-Object { $_ -match 'MyEditForm|Validator' } | ForEach-Object { $_ }",
+									"@{ edition = $PSVersionTable.PSEdition; major = $PSVersionTable.PSVersion.Major; executable = (Get-Process -Id $PID).Path; value = $value; dollar = $dollar; tick = $tick; apostrophe = $apostrophe; quote = 'say \"hello\"'; items = @($items) } | ConvertTo-Json -Compress",
+								].join("\r\n"),
+							);
+							console.info(`${outer.name} -> ${inner.name}: ${output.trim()}`);
+							expect(JSON.parse(output)).toEqual({
+								edition: inner.name === "powershell.exe" ? "Desktop" : "Core",
+								major: inner.name === "powershell.exe" ? 5 : 7,
+								executable: inner.path,
+								value: "space 中文",
+								dollar: "$literal",
+								tick: "a`b",
+								apostrophe: "it's fine",
+								quote: 'say "hello"',
+								items: ["MyEditForm.cs", "Validator.cs"],
+							});
+						});
+
+						it("preserves literal backslashes before double quotes instead of decoding legacy argv escapes", async () => {
+							expect((await run(String.raw`Write-Output 'a\"b'`)).trim()).toBe(
+								String.raw`a\"b`,
+							);
+						});
+
+						it("preserves explicit exit codes and fails fast on pipeline errors", async () => {
+							await expect(
+								run("Write-Output 'before'; exit 7"),
+							).rejects.toMatchObject({
+								exitCode: 7,
+								output: expect.stringContaining("before"),
+							});
+							await expect(
+								run(
+									"1..3 | ForEach-Object { Write-Error 'synthetic-error' }; Write-Output 'after'",
+								),
+							).rejects.toMatchObject({
+								exitCode: 1,
+								output: expect.not.stringContaining("\nafter"),
+							});
+							await expect(
+								run("throw 'synthetic-throw'"),
+							).rejects.toMatchObject({
+								exitCode: 1,
+								output: expect.stringContaining("synthetic-throw"),
+							});
+							expect(
+								(await run("param($value = 5) Write-Output $value")).trim(),
+							).toBe("5");
+						});
+
+						it("keeps long Unicode scripts off the native command line", async () => {
+							expect(
+								(
+									await run(
+										`$value = '${"中".repeat(40_000)}'; Write-Output $value.Length`,
 									)
-										abort.abort();
-								},
-							},
-						),
-					).rejects.toThrow(/abort/i);
-				});
+								).trim(),
+							).toBe("40000");
+						});
+
+						it("supports recursive edition switches without losing the final executable", async () => {
+							const output = await run(
+								wrap(
+									outer.path ?? outer.name,
+									"Write-Output (Get-Process -Id $PID).Path",
+									quote === "'" ? '"' : "'",
+								),
+							);
+							expect(output.trim()).toBe(outer.path);
+						});
+
+						it("cancels the selected process through the existing executor", async () => {
+							const abort = new AbortController();
+							await expect(
+								run(
+									"Write-Output 'ready'; Start-Sleep -Seconds 30; Write-Output 'after'",
+									{
+										...ctx,
+										signal: abort.signal,
+										emitUpdate: (update) => {
+											if (
+												typeof update === "object" &&
+												update !== null &&
+												"chunk" in update &&
+												typeof update.chunk === "string" &&
+												update.chunk.includes("ready")
+											)
+												abort.abort();
+										},
+									},
+								),
+							).rejects.toThrow(/abort/i);
+						});
+					});
+				}
 			},
 		);
 	}
