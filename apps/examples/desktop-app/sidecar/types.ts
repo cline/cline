@@ -61,6 +61,11 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Iterations already in flight when the user supplied recovery guidance. */
+	mistakeRecovery?: {
+		latestIteration: number;
+		continuedThroughIteration?: number;
+	};
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */

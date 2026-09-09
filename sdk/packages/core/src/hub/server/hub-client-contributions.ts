@@ -643,13 +643,10 @@ export function createHubClientContributionRuntime(input: {
 								>
 							>[0],
 						): Promise<ConsecutiveMistakeLimitDecision> => {
-							// AbortSignal is process-local; the client receives the hub
-							// capability's cancellation signal instead.
-							const { signal: _signal, ...serializableContext } = context;
 							const response = await input.requestCapability(
 								input.sessionId,
 								mistakeLimit.capabilityName,
-								{ context: serializableContext },
+								{ context },
 								input.targetClientId,
 							);
 							return response?.result as ConsecutiveMistakeLimitDecision;

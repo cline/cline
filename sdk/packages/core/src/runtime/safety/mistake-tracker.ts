@@ -47,11 +47,10 @@ export interface RecordMistakeInput {
 	details?: string;
 	/** When true, jump straight to maxConsecutiveMistakes instead of incrementing by 1. */
 	forceAtLimit?: boolean;
-	signal?: AbortSignal;
 }
 
 export type MistakeOutcome =
-	| { action: "continue"; guidance?: string; limitReached?: boolean }
+	| { action: "continue"; guidance?: string }
 	| { action: "stop"; message: string; reason?: string };
 
 export interface MistakeTrackerOptions {
@@ -120,16 +119,12 @@ export class MistakeTracker {
 			maxConsecutiveMistakes: max,
 			reason: input.reason,
 			details: input.details,
-			...(input.signal ? { signal: input.signal } : {}),
 		};
 		this.options.onLimitTelemetry?.(limitContext);
 		const decision = await resolveConsecutiveMistakeDecision(
 			limitContext,
 			this.options.onLimitReached,
 		);
-		if (input.signal?.aborted) {
-			return { action: "stop", message: "Mistake-limit decision cancelled" };
-		}
 
 		if (decision.action === "continue") {
 			const guidance = decision.guidance?.trim();
@@ -137,7 +132,7 @@ export class MistakeTracker {
 				this.options.appendRecoveryNotice(guidance, input.reason);
 			}
 			this.consecutiveMistakes = 0;
-			return { action: "continue", guidance, limitReached: true };
+			return { action: "continue", guidance };
 		}
 
 		return {
@@ -208,33 +203,14 @@ async function resolveConsecutiveMistakeDecision(
 		| Promise<ConsecutiveMistakeLimitDecision>
 		| ConsecutiveMistakeLimitDecision,
 ): Promise<ConsecutiveMistakeLimitDecision> {
-	const signal = input.signal;
-	const cancelled = (): ConsecutiveMistakeLimitDecision => ({
-		action: "stop",
-		reason: "mistake-limit decision cancelled",
-	});
-	if (signal?.aborted) return cancelled();
 	if (!callback) {
 		return {
 			action: "stop",
 			reason: `maximum consecutive mistakes reached (${input.maxConsecutiveMistakes})`,
 		};
 	}
-	let onAbort: (() => void) | undefined;
 	try {
-		// A client callback may ignore cancellation. Release the runtime anyway,
-		// and never apply a late answer to a subsequent run.
-		const decision = Promise.resolve().then(() =>
-			signal?.aborted ? cancelled() : callback(input),
-		);
-		if (!signal) return await decision;
-		return await Promise.race([
-			decision,
-			new Promise<ConsecutiveMistakeLimitDecision>((resolve) => {
-				onAbort = () => resolve(cancelled());
-				signal.addEventListener("abort", onAbort, { once: true });
-			}),
-		]);
+		return await callback(input);
 	} catch (error) {
 		return {
 			action: "stop",
@@ -243,8 +219,6 @@ async function resolveConsecutiveMistakeDecision(
 					? error.message
 					: `maximum consecutive mistakes reached (${input.maxConsecutiveMistakes})`,
 		};
-	} finally {
-		if (onAbort) signal?.removeEventListener("abort", onAbort);
 	}
 }
 

@@ -383,16 +383,10 @@ export class SessionRuntime {
 	 * Serial queue for `MistakeTracker.record(...)` + loop-detection
 	 * side-effects fired from the sync `handleRuntimeEvent` stream. The
 	 * tracker's `record()` is async but the runtime event stream is
-	 * synchronous, so we chain tracker work onto a promise. The awaited
-	 * onEvent hook pauses tool/turn boundaries, and executeRun drains any
-	 * remaining work before returning the AgentResult.
+	 * synchronous, so we chain tracker work onto a promise and await it
+	 * in `executeRun` before returning the `AgentResult`.
 	 */
 	private activeTrackerWork: Promise<void> = Promise.resolve();
-	private mistakeDecisionAbortController = new AbortController();
-	private latestMistakeIteration = 0;
-	/** Tool calls in this iteration were planned before recovery guidance. */
-	private recoveredThroughIteration = 0;
-	private pendingRecoveryGuidance: string[] = [];
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
 	private readonly handleExternalAbort = (): void => {
@@ -464,7 +458,10 @@ export class SessionRuntime {
 			getConversationId: () => this.conversation.getConversationId(),
 			getActiveRunId: () => this.activeRunId ?? "",
 			appendRecoveryNotice: (message, _reason) => {
-				this.pendingRecoveryGuidance.push(message);
+				this.conversation.appendMessage({
+					role: "user",
+					content: [{ type: "text", text: message }],
+				});
 			},
 		});
 		const loopDetectionInput = config.execution?.loopDetection;
@@ -605,7 +602,6 @@ export class SessionRuntime {
 						: String(reason);
 		this.abortRequested = true;
 		this.abortReason = message;
-		this.mistakeDecisionAbortController.abort(message);
 		if (this.activeRunPromise) {
 			/**
 			 * Why this exists in hub mode:
@@ -793,10 +789,6 @@ export class SessionRuntime {
 		this.running = true;
 		this.abortRequested = false;
 		this.abortReason = undefined;
-		this.mistakeDecisionAbortController = new AbortController();
-		this.latestMistakeIteration = 0;
-		this.recoveredThroughIteration = 0;
-		this.pendingRecoveryGuidance = [];
 		this.activeRunId = `run_${Date.now()}_${Math.random()
 			.toString(36)
 			.slice(2, 8)}`;
@@ -908,17 +900,6 @@ export class SessionRuntime {
 			completionPolicy: toolCallingDisabled ? null : undefined,
 			systemPrompt,
 		});
-		// Recovery guidance must enter the live runtime transcript, before
-		// prepareTurn and the next provider request, just like user steering.
-		const consumePendingUserMessage = runtimeConfig.consumePendingUserMessage;
-		runtimeConfig.consumePendingUserMessage = async () => {
-			const userMessage = await consumePendingUserMessage?.();
-			return (
-				[...this.pendingRecoveryGuidance.splice(0), userMessage]
-					.filter(Boolean)
-					.join("\n\n") || undefined
-			);
-		};
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
 		this.activeRuntime = runtime;
 
@@ -1052,17 +1033,6 @@ export class SessionRuntime {
 		]);
 		return {
 			...hooks,
-			onEvent: async (event) => {
-				// Subscribers enqueue safety work synchronously. Await it at the
-				// execution boundary so tools/model calls cannot outrun a decision.
-				if (event.type === "tool-started" || event.type === "turn-finished") {
-					await this.activeTrackerWork;
-					if (this.abortRequested || this.trackerAbortInFlight) {
-						throw new Error(this.abortReason ?? "Run stopped at mistake limit");
-					}
-				}
-				await hooks.onEvent?.(event);
-			},
 			beforeModel: async (ctx) => {
 				const control = await hooks.beforeModel?.(ctx);
 				if (control?.stop) {
@@ -1347,11 +1317,7 @@ export class SessionRuntime {
 		input: unknown,
 		iteration: number,
 	): void {
-		if (
-			this.trackerAbortInFlight ||
-			this.loopDetectionDisabled ||
-			iteration <= this.recoveredThroughIteration
-		) {
+		if (this.trackerAbortInFlight || this.loopDetectionDisabled) {
 			return;
 		}
 		const verdict = this.loopTracker.inspect({ name: toolName, input });
@@ -1360,7 +1326,10 @@ export class SessionRuntime {
 		}
 		if (verdict.kind === "soft") {
 			if (verdict.message) {
-				this.pendingRecoveryGuidance.push(verdict.message);
+				this.conversation.appendMessage({
+					role: "user",
+					content: [{ type: "text", text: verdict.message }],
+				});
 			}
 			return;
 		}
@@ -1379,7 +1348,8 @@ export class SessionRuntime {
 	 * Enqueue a mistake-record onto the serial tracker work chain. The
 	 * runtime event stream is synchronous but `MistakeTracker.record`
 	 * is async — chaining onto a shared promise preserves ordering
-	 * and lets the awaited onEvent hook pause execution at safety boundaries.
+	 * (legacy parity) and lets `executeRun` await draining before
+	 * returning the `AgentResult`.
 	 *
 	 * When the tracker returns `action: "stop"`, append the stop notice
 	 * to the conversation and abort the active runtime so the run ends
@@ -1391,31 +1361,14 @@ export class SessionRuntime {
 		details?: string;
 		forceAtLimit?: boolean;
 	}): void {
-		const signal = this.mistakeDecisionAbortController.signal;
-		if (this.trackerAbortInFlight || signal.aborted) {
+		if (this.trackerAbortInFlight) {
 			return;
 		}
-		this.latestMistakeIteration = Math.max(
-			this.latestMistakeIteration,
-			input.iteration,
-		);
 		this.activeTrackerWork = this.activeTrackerWork.then(async () => {
-			if (
-				this.trackerAbortInFlight ||
-				signal.aborted ||
-				input.iteration <= this.recoveredThroughIteration
-			) {
+			if (this.trackerAbortInFlight) {
 				return;
 			}
-			const outcome = await this.mistakeTracker.record({ ...input, signal });
-			if (signal.aborted) return;
-			// A continue decision resets the mistake counter. Also reset loop
-			// detection and discard records from the batch that triggered it:
-			// those tool calls were planned before the model saw the guidance.
-			if (outcome.action === "continue" && outcome.limitReached) {
-				this.recoveredThroughIteration = this.latestMistakeIteration;
-				this.loopTracker.reset();
-			}
+			const outcome = await this.mistakeTracker.record(input);
 			if (outcome.action === "stop") {
 				this.trackerAbortInFlight = true;
 				this.conversation.appendMessage({

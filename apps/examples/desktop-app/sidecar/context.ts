@@ -402,7 +402,19 @@ function handleAgentEvent(
 			);
 			break;
 		}
-		case "iteration_start":
+		case "iteration_start": {
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				// Iterations restart at one for each user run. Keep the previous
+				// answer only within the run in which it was supplied.
+				if (event.iteration === 1 || !session.mistakeRecovery) {
+					session.mistakeRecovery = { latestIteration: event.iteration };
+				} else {
+					session.mistakeRecovery.latestIteration = event.iteration;
+				}
+			}
+			break;
+		}
 		case "iteration_end":
 			break;
 	}
@@ -672,9 +684,6 @@ export function requestSidecarAskQuestion(
 			new Error("ask_question requires an active session ID"),
 		);
 	}
-	if (context.signal?.aborted) {
-		return Promise.reject(new Error("Ask question request cancelled"));
-	}
 	const choices = options
 		.map((option) => option.trim())
 		.filter((option) => option.length > 0)
@@ -688,7 +697,6 @@ export function requestSidecarAskQuestion(
 		const cleanup = () => {
 			ctx.pendingQuestions.delete(requestId);
 			clearTimeout(timeoutId);
-			context.signal?.removeEventListener("abort", onAbort);
 		};
 		const cancel = (reason: string) => {
 			cleanup();
@@ -698,7 +706,6 @@ export function requestSidecarAskQuestion(
 				reason,
 			});
 		};
-		const onAbort = () => cancel("Ask question request cancelled");
 		const timeoutId = setTimeout(
 			() =>
 				cancel(
@@ -726,7 +733,6 @@ export function requestSidecarAskQuestion(
 			timeoutId,
 		};
 		ctx.pendingQuestions.set(requestId, pending);
-		context.signal?.addEventListener("abort", onAbort, { once: true });
 		sendEvent(ctx, "ask_question_requested", pending.item);
 	});
 }

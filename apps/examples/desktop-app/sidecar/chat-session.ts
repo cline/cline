@@ -431,7 +431,7 @@ const MISTAKE_LIMIT_DETAIL_MAX_CHARS = 600;
  * user pressing Stop, with no explanation. A model stuck re-issuing the same
  * failing tool call therefore looked like Cline randomly gave up mid-task.
  * Route the decision through the existing ask-question channel instead so
- * the user sees why the run paused and can choose.
+ * the user sees what went wrong and can choose.
  *
  * `getSessionId` is read at prompt time: for fresh starts the session id is
  * only known after `manager.start()` resolves, and the webview matches the
@@ -443,13 +443,22 @@ export function createDesktopMistakeLimitPrompt(
 ): MistakeLimitDecider {
 	return async (context) => {
 		const sessionId = getSessionId().trim();
+		const recovery = ctx.liveSessions.get(sessionId)?.mistakeRecovery;
+		if (
+			recovery?.continuedThroughIteration !== undefined &&
+			context.iteration <= recovery.continuedThroughIteration
+		) {
+			// The tracker serializes decisions, so old failures can arrive after
+			// Continue. The user has already answered for these in-flight steps.
+			return { action: "continue" };
+		}
 		const detail = context.details?.trim() ?? "";
 		const truncatedDetail =
 			detail.length > MISTAKE_LIMIT_DETAIL_MAX_CHARS
 				? `${detail.slice(0, MISTAKE_LIMIT_DETAIL_MAX_CHARS)}…`
 				: detail;
 		const question = [
-			"Cline paused because it detected repeated mistakes or tool calls.",
+			"Cline detected repeated mistakes or tool calls and needs your guidance.",
 			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
 			"How should Cline continue?",
 		]
@@ -466,7 +475,6 @@ export function createDesktopMistakeLimitPrompt(
 					sessionId,
 					agentId: "desktop-mistake-limit",
 					iteration: context.iteration,
-					signal: context.signal,
 				},
 			);
 		} catch (error) {
@@ -495,14 +503,33 @@ export function createDesktopMistakeLimitPrompt(
 				? normalized
 				: "";
 		const guidance = [
-			"The run paused because of repeated mistakes or tool calls.",
+			"The run reached the limit for repeated mistakes or tool calls.",
 			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
 			"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
 			customGuidance ? `User guidance: ${customGuidance}` : "",
 		]
 			.filter((line) => line.length > 0)
 			.join(" ");
-		// The SDK applies this to the owning run before its next model call.
+		// Use the existing steering queue so the running model receives the
+		// guidance, including any instructions entered in the desktop prompt.
+		const manager = ctx.sessionManager;
+		if (manager && sessionId) {
+			const continuedThroughIteration = Math.max(
+				context.iteration,
+				recovery?.latestIteration ?? context.iteration,
+			);
+			try {
+				await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
+				if (recovery) {
+					recovery.continuedThroughIteration = continuedThroughIteration;
+				}
+			} catch (error) {
+				ctx.logger?.log("Failed to steer mistake-limit guidance", {
+					sessionId,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			}
+		}
 		return { action: "continue", guidance };
 	};
 }

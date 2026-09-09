@@ -1861,7 +1861,7 @@ describe("mistake-limit prompt", () => {
 		});
 	});
 
-	it("returns recovery guidance without submitting a separate session input", async () => {
+	it("steers recovery guidance into the running session", async () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
 
@@ -1875,7 +1875,11 @@ describe("mistake-limit prompt", () => {
 
 		const result = await decision;
 		expect(result.action).toBe("continue");
-		expect(steer).not.toHaveBeenCalled();
+		expect(steer).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining("Do not repeat the same call"),
+			delivery: "steer",
+		});
 		expect(result).toMatchObject({
 			action: "continue",
 			guidance: expect.stringContaining("Do not repeat the same call"),
@@ -1900,7 +1904,84 @@ describe("mistake-limit prompt", () => {
 				"User guidance: read the file first, then edit",
 			),
 		});
-		expect(steer).not.toHaveBeenCalled();
+		expect(steer).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining(
+				"User guidance: read the file first, then edit",
+			),
+			delivery: "steer",
+		});
+	});
+
+	it("reuses Continue for already-started iterations and asks again for new mistakes", async () => {
+		const { ctx, steer } = createPromptContext();
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: 0,
+			status: "running",
+		});
+		const startIteration = (iteration: number) =>
+			handleCoreSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "iteration_start", iteration },
+				},
+			});
+		const answer = (value: string) => {
+			const pending = [...ctx.pendingQuestions.values()][0];
+			expect(pending).toBeDefined();
+			resolveSidecarAskQuestion(ctx, pending.item.requestId, value);
+		};
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		startIteration(15);
+		const first = decide(limitContext);
+		// The model can advance while the client decision is pending.
+		startIteration(20);
+		// Do not extend the covered iterations while waiting for the hub's
+		// steering acknowledgement: a newer step may already have the guidance.
+		steer.mockImplementationOnce(async () => {
+			startIteration(21);
+			return undefined;
+		});
+		answer("Try a different approach");
+		await expect(first).resolves.toMatchObject({ action: "continue" });
+
+		// A batch can have many failures in one iteration, followed by more
+		// failures queued before the user answered. None needs another prompt.
+		for (const iteration of [
+			...Array<number>(20).fill(15),
+			16,
+			17,
+			18,
+			19,
+			20,
+		]) {
+			await expect(decide({ ...limitContext, iteration })).resolves.toEqual({
+				action: "continue",
+			});
+		}
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).toHaveBeenCalledTimes(1);
+
+		startIteration(21);
+		const next = decide({ ...limitContext, iteration: 21 });
+		answer("Try a different approach");
+		await expect(next).resolves.toMatchObject({ action: "continue" });
+		expect(steer).toHaveBeenCalledTimes(2);
+
+		// A new user run must not inherit the previous run's decision, even
+		// though its iteration numbers start over.
+		startIteration(1);
+		startIteration(5);
+		const newRun = decide({ ...limitContext, iteration: 5 });
+		answer("Stop this run");
+		await expect(newRun).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).toHaveBeenCalledTimes(2);
 	});
 
 	it("falls back to stopping when no session owns the question", async () => {
@@ -1915,12 +1996,14 @@ describe("mistake-limit prompt", () => {
 
 	it("removes an aborted run's question and rejects late answers", async () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const controller = new AbortController();
 		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		const decision = decide({ ...limitContext, signal: controller.signal });
+		const decision = decide(limitContext);
 		const request = readQuestionRequest();
 		expect(ctx.pendingQuestions.size).toBe(1);
-		controller.abort();
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-1",
+		});
 		await expect(decision).resolves.toMatchObject({ action: "stop" });
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(
@@ -1940,31 +2023,21 @@ describe("mistake-limit prompt", () => {
 	] as const)("cancels only the owning session's questions on %s", async (action) => {
 		const { ctx } = createPromptContext();
 		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		const otherController = new AbortController();
 		const other = createDesktopMistakeLimitPrompt(
 			ctx,
 			() => "session-2",
-		)({ ...limitContext, signal: otherController.signal });
+		)(limitContext);
 		const decision = decide(limitContext);
 		await handleChatSessionCommand(ctx, { action, sessionId: "session-1" });
 		await expect(decision).resolves.toMatchObject({ action: "stop" });
 		expect(
 			[...ctx.pendingQuestions.values()].map((p) => p.item.sessionId),
 		).toEqual(["session-2"]);
-		otherController.abort();
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-2",
+		});
 		await other;
-		expect(ctx.pendingQuestions.size).toBe(0);
-	});
-
-	it("does not display a question for an already-aborted run", async () => {
-		const { ctx, readQuestionRequest } = createPromptContext();
-		const controller = new AbortController();
-		controller.abort();
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		await expect(
-			decide({ ...limitContext, signal: controller.signal }),
-		).resolves.toMatchObject({ action: "stop" });
-		expect(readQuestionRequest()).toBeUndefined();
 		expect(ctx.pendingQuestions.size).toBe(0);
 	});
 
