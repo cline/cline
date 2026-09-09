@@ -2002,9 +2002,13 @@ describe("ChatInputBar", () => {
 			]);
 		});
 		const attachButton = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Attach files"]',
+			'[aria-label="Attach images"]',
 		);
 		expect(attachButton?.disabled).toBe(supportsImages === false);
+		expect(
+			container.querySelector<HTMLButtonElement>('[aria-label="Attach files"]')
+				?.disabled,
+		).toBe(false);
 		const png = new File(["fake"], "image.png", { type: "image/png" });
 		const imagePaste = await pasteWithClipboard([
 			{ kind: "file", type: "image/png", getAsFile: () => png },
@@ -2034,8 +2038,9 @@ describe("ChatInputBar", () => {
 		const genericImage = new File(["fake"], "photo.jpe", {
 			type: "application/octet-stream",
 		});
-		const fileInput =
-			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const fileInput = container.querySelector<HTMLInputElement>(
+			'input[type="file"][accept="*/*"]',
+		);
 		if (!fileInput) throw new Error("File input missing");
 		Object.defineProperty(fileInput, "files", {
 			value: [

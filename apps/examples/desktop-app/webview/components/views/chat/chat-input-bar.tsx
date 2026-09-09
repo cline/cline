@@ -5,7 +5,15 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cpu,
+	ImagePlus,
+	Paperclip,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -526,6 +534,7 @@ function ChatInputBarImpl({
 		reportUnsupportedImages,
 	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
+	const imageInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
 	const updateTranscriptionTarget = useCallback(
@@ -1468,14 +1477,36 @@ function ChatInputBarImpl({
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
-						aria-label="Attach files"
+						aria-label="Attach images"
 						disabled={imagesUnsupported}
 						title={
 							imagesUnsupported
 								? "This model doesn’t support image attachments"
-								: "Attach files"
+								: "Attach images"
 						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
+						onClick={() => imageInputRef.current?.click()}
+						type="button"
+					>
+						<ImagePlus className="size-3" />
+					</button>
+					<input
+						accept="image/png,image/jpeg,image/gif,image/webp"
+						disabled={imagesUnsupported}
+						className="hidden"
+						multiple
+						onChange={(event) => {
+							const files = Array.from(event.target.files ?? []);
+							if (files.length > 0) handleAttachFiles(files, "picker");
+							event.currentTarget.value = "";
+						}}
+						ref={imageInputRef}
+						type="file"
+					/>
+					<button
+						aria-label="Attach files"
+						title="Attach files"
+						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -1483,7 +1514,6 @@ function ChatInputBarImpl({
 					</button>
 					<input
 						accept="*/*"
-						disabled={imagesUnsupported}
 						className="hidden"
 						multiple
 						onChange={(event) => {
