@@ -218,8 +218,9 @@ function parseNestedPowerShellCommand(
 ): { executable: string; script: string } | undefined {
 	// Only horizontal separators belong to this invocation. A bare newline
 	// ends the outer statement; do not consume it before the quoted body either.
+	// A quoted executable is a string expression unless & invokes it.
 	const head =
-		/^[ \t]*(?:&[ \t]+)?(?:"([^"$`]*)"|'((?:[^']|'')*)'|([^\s$`"';&|<>(){}#@,]+))[ \t]+([\S\s]*)$/.exec(
+		/^[ \t]*(?:&[ \t]+(?:"([^"$`]*)"|'((?:[^']|'')*)')|(?:&[ \t]+)?([^\s$`"';&|<>(){}#@,]+))[ \t]+([\S\s]*)$/.exec(
 			command,
 		);
 	if (!head) return undefined;
@@ -271,6 +272,8 @@ function parseNestedPowerShellCommand(
  *
  * Unwrapping is limited to redundant invocations:
  *
+ * - quoted executable names and paths require the call operator `&`;
+ *   bare executable names and paths may omit it
  * - the nested executable is the same PowerShell edition as the configured
  *   outer shell (`powershell` nested in `powershell`, `pwsh` in `pwsh`);
  *   cross-edition nesting (`powershell` inside `pwsh` or the reverse) is left

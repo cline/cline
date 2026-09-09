@@ -133,10 +133,48 @@ describe("shell helpers", () => {
 		// Quoted executable paths count as the same shell when the edition matches.
 		expect(
 			unwrapNestedPowerShellCommand(
-				'"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command "Get-Date"',
+				'& "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command "Get-Date"',
 				"pwsh",
 			),
 		).toBe("Get-Date");
+	});
+
+	it.each(["'", '"'])("requires & before a %s-quoted executable", (quote) => {
+		for (const executable of [
+			"powershell.exe",
+			"pwsh.exe",
+			"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+		]) {
+			const command = `${quote}${executable}${quote} -NoProfile -Command 'Write-Output 42'`;
+			for (const shell of ["powershell.exe", "pwsh.exe"]) {
+				expect(getShellInvocation(shell, command)).toMatchObject({
+					executable: shell,
+					input: command,
+				});
+				expect(unwrapNestedPowerShellCommand(command, shell)).toBeUndefined();
+				expect(getShellInvocation(shell, ` \t&\t${command}`)).toMatchObject({
+					executable,
+					input: "Write-Output 42",
+				});
+			}
+		}
+	});
+
+	it("accepts bare executable names with or without &", () => {
+		for (const executable of ["powershell.exe", "pwsh.exe"]) {
+			for (const prefix of ["", "& "]) {
+				expect(
+					getShellInvocation(
+						"powershell.exe",
+						`${prefix}${executable} -NoProfile -Command 'Write-Output 42'`,
+					),
+				).toMatchObject({
+					executable,
+					input: "Write-Output 42",
+				});
+			}
+		}
 	});
 
 	it("unwraps recursive double-shells one layer per pass", () => {

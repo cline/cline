@@ -1,5 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
@@ -56,6 +63,27 @@ for (const outer of shells) {
 			`PowerShell executor ${outer.name} -> ${inner.name}`,
 			() => {
 				const executor = createShellExecutor({ shell: outer.name });
+				it.each([
+					"'",
+					'"',
+				])("requires & before a %s-quoted path to execute its script", async (quote) => {
+					const cwd = await mkdtemp(join(tmpdir(), "cline quoted executable "));
+					const marker = join(cwd, "marker.txt");
+					try {
+						const command = `${quote}${inner.path}${quote} -NoProfile -Command '[IO.File]::WriteAllText("marker.txt", "executed")'`;
+						await expect(executor(command, cwd, ctx)).rejects.toMatchObject({
+							exitCode: 1,
+						});
+						await expect(readFile(marker, "utf8")).rejects.toMatchObject({
+							code: "ENOENT",
+						});
+						await executor(`& ${command}`, cwd, ctx);
+						expect(await readFile(marker, "utf8")).toBe("executed");
+					} finally {
+						await rm(cwd, { recursive: true, force: true });
+					}
+				});
+
 				it("executes the PID expressions from a single-quoted command with embedded double quotes", async () => {
 					const output = await executor(
 						`${inner.name} -NoProfile -Command 'Write-Output ("ready-pid=" + $PID); Write-Output (("PID: " + $PID), "PowerShell PID"); Write-Output "after"'`,
