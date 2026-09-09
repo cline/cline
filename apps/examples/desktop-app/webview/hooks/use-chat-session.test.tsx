@@ -1537,6 +1537,115 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
+	it("keeps a queued prompt's user bubble when the preceding blocking send resolves after it starts", async () => {
+		const sessionId = "session-queued-bubble";
+		const sendResponse = deferred<unknown>();
+		// The runtime persists the transcript at iteration boundaries, so while
+		// the queued turn is in flight the canonical read still ends at the
+		// previous turn's assistant message.
+		const canonicalAfterFirstTurn = [
+			{
+				id: "canonical-user-1",
+				sessionId,
+				role: "user",
+				content: "write an essay",
+				createdAt: 1,
+			},
+			{
+				id: "canonical-assistant-1",
+				sessionId,
+				role: "assistant",
+				content: "Here is the essay.",
+				createdAt: 2,
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalAfterFirstTurn;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") return { sessionId };
+					if (request?.action === "send") return await sendResponse.promise;
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		let sendTask: Promise<void> | undefined;
+		await act(async () => {
+			sendTask = current.sendPrompt("write an essay");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "Here is the essay.",
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		// The runtime drains the queue before it answers the blocking send:
+		// the next prompt's start event lands first.
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-how",
+					prompt: "how are you?",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(
+			current.messages.some(
+				(message) =>
+					message.role === "user" && message.content === "how are you?",
+			),
+		).toBe(true);
+
+		await act(async () => {
+			sendResponse.resolve({
+				ok: true,
+				result: { text: "Here is the essay.", finishReason: "completed" },
+			});
+			await sendTask;
+		});
+
+		const userContents = current.messages
+			.filter((message) => message.role === "user")
+			.map((message) => message.content);
+		expect(userContents).toEqual(["write an essay", "how are you?"]);
+		// The previous turn's assistant text was already streamed into its own
+		// bubble; the late response must not append a second copy below the
+		// queued prompt.
+		expect(
+			current.messages.filter(
+				(message) =>
+					message.role === "assistant" &&
+					message.content === "Here is the essay.",
+			),
+		).toHaveLength(1);
+		expect(current.messages.at(-1)).toMatchObject({
+			id: "queued_user_queued-how",
+			role: "user",
+			content: "how are you?",
+		});
+	});
+
 	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
 		type SendResponse = {
 			ok: true;

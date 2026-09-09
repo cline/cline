@@ -2330,6 +2330,17 @@ export function useChatSession() {
 					return;
 				}
 
+				// The runtime drains the queue before it answers a blocking send,
+				// so the next queued prompt's chat_queued_prompt_start can reach
+				// the webview ahead of this response. That event bumps the epoch
+				// and its turn owns the transcript from then on: its user bubble
+				// exists only in live state until the runtime persists it at the
+				// end of that turn, so replacing the transcript from a canonical
+				// read here would erase it. The newer turn's own completion
+				// reconciles history when it ends.
+				const newerTurnOwnsTranscript = () =>
+					turnEpochRef.current !== turnEpochAtDispatch;
+
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (settleAbortedSend()) return;
@@ -2344,7 +2355,7 @@ export function useChatSession() {
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
 				const resolvedAssistantText = rawAssistantText;
-				if (resolvedAssistantText) {
+				if (resolvedAssistantText && !newerTurnOwnsTranscript()) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
 					activeAssistantMessageIdRef.current = assistantMessageId;
@@ -2457,7 +2468,7 @@ export function useChatSession() {
 					});
 				}
 				const fallbackMedia = fallbackAssistantTurn.media;
-				if (fallbackMedia.length > 0) {
+				if (fallbackMedia.length > 0 && !newerTurnOwnsTranscript()) {
 					setMessages((prev) => {
 						const knownIds = new Set(
 							prev.flatMap((message) =>
@@ -2488,21 +2499,25 @@ export function useChatSession() {
 					fallbackAssistantTurn.reasoningRedacted ||
 					fallbackImages.length > 0 ||
 					fallbackMedia.length > 0;
-				if (!hasFallbackAssistantTurn) {
+				if (!hasFallbackAssistantTurn && !newerTurnOwnsTranscript()) {
 					// Recovery: load canonical messages if transport missed result text.
 					try {
 						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 							"read_session_messages",
 							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
-						if (historyMessages.length > 0) {
+						if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 							applyCanonicalHistory(activeSessionId, historyMessages);
 						}
 					} catch {
 						// Keep optimistic state if hydration read fails.
 					}
 				}
-				if (Array.isArray(result?.toolCalls) && result.toolCalls.length > 0) {
+				if (
+					Array.isArray(result?.toolCalls) &&
+					result.toolCalls.length > 0 &&
+					!newerTurnOwnsTranscript()
+				) {
 					materializeToolMessagesFromResult({
 						sessionId: activeSessionId,
 						turnStartedAt: now,
@@ -2520,6 +2535,7 @@ export function useChatSession() {
 					);
 					if (
 						historyMessages.length > 0 &&
+						!newerTurnOwnsTranscript() &&
 						(!hasFallbackAssistantTurn || hasCanonicalAssistantTurn)
 					) {
 						const assistantIndex = historyMessages.findLastIndex(
@@ -2665,7 +2681,10 @@ export function useChatSession() {
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
 				clearAbortFallbackTimeout();
-				if (!shouldQueue) {
+				// If a queued prompt already started its turn, these refs are that
+				// turn's now (chat_queued_prompt_start reset them for it); clearing
+				// them here would split its streaming assistant bubble.
+				if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
 					activeAssistantMessageIdRef.current = null;
 					setActiveAssistantMessageId(null);
 					clearLiveToolRefs();
