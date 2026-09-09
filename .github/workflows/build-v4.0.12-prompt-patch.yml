@@ -6,17 +6,20 @@ on:
       - v4.0.12-airgapped
       - main
       - fix/v4.0.12-consolidated
+      - fix/v4.0.12-nemotron-tool-stream-buffer
 concurrency:
   group: cline-v4.0.12-prompt-patch-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  PATCH_VERSION: 4.0.12-prompt-patch.9
+  PATCH_VERSION: 4.0.12-prompt-patch.10
 jobs:
   build-vsix:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Apply Nemotron native tool stream buffering repair
+        run: node scripts/patch-nemotron-tool-stream.mjs
       - name: Enforce 4.0.12 deployment line
         run: node -e 'const p=require("./apps/vscode/package.json"); if (!/^4\.0\.12-prompt-patch\.[0-9]+$/.test(p.version) || p.version !== process.env.PATCH_VERSION || p.engines.vscode !== "^1.84.0") throw new Error("Only the Cline 4.0.12 / VS Code 1.98.2 deployment line may be built")'
       - uses: actions/setup-node@v4
