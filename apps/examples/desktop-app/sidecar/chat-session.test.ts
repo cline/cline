@@ -14,6 +14,7 @@ import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	createDesktopMistakeLimitPrompt,
+	createDesktopMistakeRecovery,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -1835,6 +1836,78 @@ describe("mistake-limit prompt", () => {
 			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
 	};
 
+	it("holds tool and model hooks until Continue has queued recovery guidance", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		let finishSteering!: () => void;
+		steer.mockImplementationOnce(
+			() =>
+				new Promise<undefined>((resolve) => {
+					finishSteering = () => resolve(undefined);
+				}),
+		);
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		expect(recovery.onConsecutiveMistakeLimitReached(limitContext)).toBe(
+			decision,
+		);
+		let released = false;
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]).then((results) => {
+			released = true;
+			return results;
+		});
+		await Promise.resolve();
+		expect(released).toBe(false);
+		expect(ctx.pendingQuestions.size).toBe(1);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await Promise.resolve();
+		expect(steer).toHaveBeenCalledTimes(1);
+		expect(released).toBe(false);
+		finishSteering();
+		await expect(decision).resolves.toMatchObject({ action: "continue" });
+		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
+		expect(released).toBe(true);
+		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
+	});
+
+	it.each([
+		"answer",
+		"abort",
+	] as const)("releases waiting hooks with Stop on %s", async (action) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]);
+		if (action === "answer") {
+			resolveSidecarAskQuestion(
+				ctx,
+				readQuestionRequest()?.requestId ?? "",
+				"Stop this run",
+			);
+		} else {
+			await handleChatSessionCommand(ctx, {
+				action: "abort",
+				sessionId: "session-1",
+			});
+		}
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		for (const control of await waiting)
+			expect(control).toMatchObject({ stop: true });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
 	it("asks the active session's user instead of stopping silently", async () => {
 		const { ctx, readQuestionRequest } = createPromptContext();
 		// Session ids are only known after start() resolves; the prompt must
@@ -2068,6 +2141,12 @@ describe("mistake-limit prompt", () => {
 				expect(
 					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
 				).toBe("function");
+				expect(input.config).not.toHaveProperty("hooks");
+				expect(input.localRuntime?.hooks).toMatchObject({
+					beforeModel: expect.any(Function),
+					beforeTool: expect.any(Function),
+					afterTool: expect.any(Function),
+				});
 				return {
 					sessionId: "session-limit",
 					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },

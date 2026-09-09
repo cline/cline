@@ -534,10 +534,45 @@ export function createDesktopMistakeLimitPrompt(
 	};
 }
 
+export function createDesktopMistakeRecovery(
+	ctx: SidecarContext,
+	getSessionId: () => string,
+) {
+	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
+	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
+	const waitForDecision = async () => {
+		const decision = await pendingDecision;
+		return decision?.action === "stop"
+			? { stop: true, reason: decision.reason }
+			: undefined;
+	};
+	return {
+		onConsecutiveMistakeLimitReached: (
+			context: ConsecutiveMistakeLimitContext,
+		) => {
+			if (!pendingDecision) {
+				pendingDecision = prompt(context).finally(() => {
+					pendingDecision = undefined;
+				});
+			}
+			return pendingDecision;
+		},
+		hooks: {
+			// The decision callback alone does not pause the SDK. These existing
+			// awaited hooks hold desktop runs at tool/model boundaries until the
+			// user answers. afterTool holds before the next iteration consumes
+			// the recovery guidance queued by the prompt's Continue action.
+			beforeModel: waitForDecision,
+			beforeTool: waitForDecision,
+			afterTool: waitForDecision,
+		},
+	};
+}
+
 function buildCoreSessionConfig(
 	config: JsonRecord,
 	telemetryUser?: SidecarContext["telemetryUser"],
-	onConsecutiveMistakeLimitReached?: MistakeLimitDecider,
+	mistakeRecovery?: ReturnType<typeof createDesktopMistakeRecovery>,
 ): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
@@ -582,9 +617,7 @@ function buildCoreSessionConfig(
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
-		...(onConsecutiveMistakeLimitReached
-			? { onConsecutiveMistakeLimitReached }
-			: {}),
+		...mistakeRecovery,
 	};
 }
 
@@ -821,7 +854,7 @@ async function handleStart(
 		...buildCoreSessionConfig(
 			request.config,
 			ctx.telemetryUser,
-			createDesktopMistakeLimitPrompt(ctx, () => startedSessionId),
+			createDesktopMistakeRecovery(ctx, () => startedSessionId),
 		),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
@@ -961,7 +994,7 @@ async function startRebuiltSession(
 					systemPrompt,
 				},
 				ctx.telemetryUser,
-				createDesktopMistakeLimitPrompt(ctx, () => sessionId),
+				createDesktopMistakeRecovery(ctx, () => sessionId),
 			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
@@ -1457,7 +1490,7 @@ async function handleForkUnlocked(
 					systemPrompt,
 				},
 				ctx.telemetryUser,
-				createDesktopMistakeLimitPrompt(ctx, () => newSessionId),
+				createDesktopMistakeRecovery(ctx, () => newSessionId),
 			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
@@ -1596,7 +1629,7 @@ async function handleRestoreCheckpoint(
 							systemPrompt: await resolveSystemPrompt(config),
 						},
 						ctx.telemetryUser,
-						createDesktopMistakeLimitPrompt(ctx, () => restoredSessionId),
+						createDesktopMistakeRecovery(ctx, () => restoredSessionId),
 					) as unknown as ClineCoreStartConfig,
 				),
 				source: SessionSource.DESKTOP,
