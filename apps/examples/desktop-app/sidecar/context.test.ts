@@ -1403,6 +1403,36 @@ describe("Chat chunk pipe selection", () => {
 		}
 	});
 
+	it("takes over after stop when another client starts the next run", async () => {
+		const { forgetCorePipe, handleCoreSessionEvent, handleHubLiveEvent } =
+			await import("./context");
+		const ctx = await createStreamingContext("session-1");
+
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "local"));
+
+		// The desktop stops the session: ClineCore disposes its subscription
+		// without any local `ended` event, so the stop path forgets the mark.
+		forgetCorePipe(ctx, "session-1");
+		const stopped = ctx.liveSessions.get("session-1");
+		if (stopped) stopped.busy = false;
+
+		// Another client (CLI, schedule) runs the session; the observer is the
+		// only pipe left and its run.started marks the session busy again.
+		handleHubLiveEvent(ctx, {
+			event: "run.started",
+			sessionId: "session-1",
+			payload: {},
+		});
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "remote run" },
+		});
+
+		expect(ctx.liveSessions.get("session-1")?.busy).toBe(true);
+		expect(chunksFor(ctx, "chat_text")).toEqual(["local", "remote run"]);
+	});
+
 	it("takes over once the run has ended and the core pipe goes silent", async () => {
 		vi.useFakeTimers();
 		try {

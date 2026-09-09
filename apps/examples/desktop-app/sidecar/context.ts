@@ -206,6 +206,17 @@ function markCorePipeActive(ctx: SidecarContext, sessionId: string): void {
 	ctx.coreStreamActivity.set(sessionId, nowMs());
 }
 
+/**
+ * Forget that the ClineCore subscription served this session. Called when the
+ * session ends and wherever the sidecar stops a session: `stop` disposes the
+ * core subscription without any local `ended` event, and a stale mark would
+ * otherwise mute the observer for the next run another client starts on the
+ * same session, since that run's `run.started` marks the session busy.
+ */
+export function forgetCorePipe(ctx: SidecarContext, sessionId: string): void {
+	ctx.coreStreamActivity.delete(sessionId);
+}
+
 function isCorePipeActive(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -606,7 +617,7 @@ export function handleCoreSessionEvent(
 			}
 			discardAllTrackedAttachments(sessionId, session);
 			// The next run decides afresh which pipe is serving the session.
-			ctx.coreStreamActivity.delete(sessionId);
+			forgetCorePipe(ctx, sessionId);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}

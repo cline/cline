@@ -30,7 +30,7 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
-import { emitChunk, nowMs, sendEvent } from "./context";
+import { emitChunk, forgetCorePipe, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -864,6 +864,7 @@ async function rebuildSessionForProviderChange(
 		]);
 
 	await manager.stop(sessionId);
+	forgetCorePipe(ctx, sessionId);
 	let replacementStarted = false;
 	try {
 		await startRebuiltSession(
@@ -887,6 +888,7 @@ async function rebuildSessionForProviderChange(
 		try {
 			if (replacementStarted) {
 				await manager.stop(sessionId);
+				forgetCorePipe(ctx, sessionId);
 			}
 			await startRebuiltSession(
 				manager,
@@ -1145,6 +1147,9 @@ async function handleStop(
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
 	await getSessionManager(ctx).stop(sessionId);
+	// stop() disposes the ClineCore subscription; the observer must be free to
+	// serve any later run another client starts on this session.
+	forgetCorePipe(ctx, sessionId);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
 		session.busy = false;
@@ -1401,6 +1406,7 @@ async function handleReset(
 		) {
 			await getSessionManager(ctx).stop(sessionId);
 		}
+		forgetCorePipe(ctx, sessionId);
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
