@@ -1953,7 +1953,6 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
-		// Do not change the model of a locked cloud session.
 		if (isBusy) {
 			return;
 		}
