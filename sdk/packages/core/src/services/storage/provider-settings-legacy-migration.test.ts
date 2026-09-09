@@ -457,6 +457,71 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 	});
 
+	it("does not re-import a migrated provider after the user removes it", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({
+				"openai-codex-oauth-credentials": JSON.stringify({
+					access_token: "legacy-access",
+					refresh_token: "legacy-refresh",
+					accountId: "acct_123",
+				}),
+			}),
+		);
+		// The inferred dataDir makes every construction run the migration, as
+		// the CLI and desktop sidecar do.
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		expect(manager.getProviderSettings("openai-codex")?.auth?.accessToken).toBe(
+			"legacy-access",
+		);
+		expect(manager.read().legacyMigratedAt).toBeDefined();
+
+		// Signing out deletes the provider entry.
+		const state = manager.read();
+		delete state.providers["openai-codex"];
+		manager.write(state);
+
+		const reopened = new ProviderSettingsManager({ filePath: providersPath });
+		expect(reopened.getProviderSettings("openai-codex")).toBeUndefined();
+	});
+
+	it("marks an already-seeded providers.json so its legacy providers stay removable", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openRouterApiKey: "legacy-key" }),
+		);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		// Simulate a file written before the marker existed.
+		const seeded = manager.read();
+		delete seeded.legacyMigratedAt;
+		manager.write(seeded);
+
+		expect(
+			migrateLegacyProviderSettings({
+				providerSettingsManager: manager,
+				dataDir: tempDir,
+			}),
+		).toMatchObject({ migrated: false, providerCount: 1 });
+		expect(manager.read().legacyMigratedAt).toBeDefined();
+
+		const state = manager.read();
+		delete state.providers.openrouter;
+		manager.write(state);
+		expect(
+			new ProviderSettingsManager({ filePath: providersPath }).read().providers,
+		).toEqual({});
+	});
+
 	it("migrates legacy Cline OAuth account auth even without a clineApiKey", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),

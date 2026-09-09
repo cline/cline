@@ -4,9 +4,9 @@ import * as LlmsModels from "@cline/llms";
 import { ReasoningLevelSchema } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
-	emptyStoredProviderSettings,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+	type StoredProviderSettings,
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
@@ -872,13 +872,21 @@ export function migrateLegacyProviderSettings(
 	options: MigrateLegacyProviderSettingsOptions,
 ): MigrateLegacyProviderSettingsResult {
 	const existing = options.providerSettingsManager.read();
+	const unchanged: MigrateLegacyProviderSettingsResult = {
+		migrated: false,
+		providerCount: Object.keys(existing.providers).length,
+		lastUsedProvider: existing.lastUsedProvider,
+	};
+	// Legacy state is seeded once. Every ProviderSettingsManager construction
+	// runs this, so without the marker a provider the user removed (e.g. by
+	// signing out of OpenAI Codex, which deletes its entry) would be re-imported
+	// from the legacy secrets on the very next read.
+	if (existing.legacyMigratedAt) {
+		return unchanged;
+	}
 	const legacyStorage = resolveLegacyStorage(options);
 	if (!legacyStorage) {
-		return {
-			migrated: false,
-			providerCount: Object.keys(existing.providers).length,
-			lastUsedProvider: existing.lastUsedProvider,
-		};
+		return unchanged;
 	}
 
 	const { globalState, secrets } = legacyStorage;
@@ -901,10 +909,12 @@ export function migrateLegacyProviderSettings(
 		? normalizeLegacyProviderId(rawOtherModeProvider)
 		: undefined;
 	const candidates = collectCandidateProviderIds(globalState, secrets);
-	const next = emptyStoredProviderSettings();
-	next.providers = { ...existing.providers };
-	next.lastUsedProvider = existing.lastUsedProvider;
 	const now = new Date().toISOString();
+	const next: StoredProviderSettings = {
+		...existing,
+		providers: { ...existing.providers },
+		legacyMigratedAt: now,
+	};
 	let addedProviderCount = 0;
 	const modelsPath = join(
 		dirname(options.providerSettingsManager.getFilePath()),
@@ -954,11 +964,10 @@ export function migrateLegacyProviderSettings(
 	}
 
 	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
-		return {
-			migrated: false,
-			providerCount: Object.keys(existing.providers).length,
-			lastUsedProvider: existing.lastUsedProvider,
-		};
+		// Nothing new, but persist the marker: the legacy providers already
+		// present must stay removable.
+		options.providerSettingsManager.write(next);
+		return unchanged;
 	}
 
 	const preferredProvider = trimNonEmpty(

@@ -42,6 +42,11 @@ export interface StoredProviderSettingsEntry {
 export interface StoredProviderSettings {
 	version: 1;
 	lastUsedProvider?: string;
+	/**
+	 * Set once legacy globalState.json/secrets.json have been seeded into this
+	 * file, so providers the user later removes are not re-imported.
+	 */
+	legacyMigratedAt?: string;
 	modes: StoredProviderModes;
 	providers: Record<string, StoredProviderSettingsEntry>;
 }
@@ -62,6 +67,7 @@ export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 	z.object({
 		version: z.literal(1),
 		lastUsedProvider: z.string().min(1).optional(),
+		legacyMigratedAt: z.string().datetime().optional(),
 		modes: StoredProviderModesSchema.default({}),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
 	});
