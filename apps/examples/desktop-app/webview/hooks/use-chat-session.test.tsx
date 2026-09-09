@@ -1633,6 +1633,17 @@ describe("useChatSession", () => {
 			await sendTask;
 		});
 
+		// The queued turn is in flight: its request indicator depends on the
+		// session staying "running", and the late response must not settle
+		// the new turn's epoch either (the hub's "running" for it would then
+		// read as stale).
+		expect(current.status).toBe("running");
+		const statusHandler = handlerFor("chat_session_status");
+		await act(async () => {
+			statusHandler({ sessionId, status: "running" });
+		});
+		expect(current.status).toBe("running");
+
 		const userContents = current.messages
 			.filter((message) => message.role === "user")
 			.map((message) => message.content);

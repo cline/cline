@@ -2655,6 +2655,14 @@ export function useChatSession() {
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
 				if (settleAbortedSend()) return;
+				// A queued prompt that already started its turn owns the status
+				// and the settled epoch from here: its start set "running", and
+				// its own completion settles it. Settling this turn on top of it
+				// flipped the composer to "completed" while the reply was still
+				// pending (no request indicator at all) and marked the new epoch
+				// settled, so the hub's "running" for that turn then read as
+				// stale and was dropped.
+				const newerTurnOwnsStatus = newerTurnOwnsTranscript();
 				if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
 					// (never assistant content — see isErrorResult above), so it
@@ -2668,11 +2676,17 @@ export function useChatSession() {
 						activeSessionId,
 						runError || toolError?.trim() || "",
 					);
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("failed");
+					if (!newerTurnOwnsStatus) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("failed");
+					}
 				} else if (result?.finishReason === "aborted") {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
+					if (!newerTurnOwnsStatus) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("cancelled");
+					}
+				} else if (newerTurnOwnsStatus) {
+					// Leave status to the turn in flight.
 				} else if (hasQueuedFollowUps) {
 					setStatus("running");
 				} else {
