@@ -2329,11 +2329,8 @@ export class CloudSessionManager {
 			...this.connections.keys(),
 			...this.knownSessions.keys(),
 		]);
-		// Clear desktop-visible state synchronously BEFORE the async socket
-		// teardown: resetCloudSessionManager nulls the context slot first, so
-		// a command arriving mid-dispose builds a fresh manager — deleting
-		// liveSessions/pendingApprovals after an await would destroy entries
-		// that new manager just re-created.
+		// Clear shared state before awaiting teardown; a replacement manager
+		// may populate it while this one is disposing.
 		for (const [requestId, pending] of this.ctx.pendingApprovals) {
 			if (sessionIds.has(pending.item.sessionId)) {
 				this.ctx.pendingApprovals.delete(requestId);
@@ -2466,9 +2463,7 @@ export class CloudSessionManager {
 			let socketAttempt = 0;
 			const client = this.createHubClient({
 				url: toWebSocketUrl(this.options.apiBaseUrl, outerSessionId),
-				// Hub registrations are keyed globally by client id. A per-process
-				// suffix prevents one viewer from replacing another viewer of the
-				// same cloud session and unregistering it on close.
+				// Unique client IDs prevent one viewer's close from unregistering another.
 				clientId: `code-cloud-${outerSessionId}-${randomUUID()}`,
 				clientType: "code-cloud-sidecar",
 				displayName: "Cline Code cloud session",
@@ -2736,9 +2731,7 @@ export class CloudSessionManager {
 					? payload.conversationId
 					: undefined,
 		};
-		// Pod-relayed approvals have no local owner: they must survive a
-		// webview reload/disconnect and stay answerable from any trusted
-		// surface, so they are stored ownerless rather than declined.
+		// Remote approvals outlive webview connections and have no local owner.
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
 			resolve: async (result) => {
@@ -2831,13 +2824,7 @@ export class CloudSessionManager {
 		await connection.client.dispose();
 	}
 
-	/**
-	 * Stops a reconnect loop whose session is confirmed expired or deleted.
-	 * Without this, a dead sandbox left open in the app redials the proxy
-	 * every few seconds indefinitely (plus a REST list per attempt). An
-	 * unreachable list keeps the connection (offline must not kill live
-	 * sessions).
-	 */
+	/** Stop reconnecting only when the session is gone, not when lookup fails. */
 	private async disposeConnectionIfSessionGone(
 		outerSessionId: string,
 		connection: CloudConnection,
@@ -2860,10 +2847,7 @@ export class CloudSessionManager {
 			? this.preserveConnectedRuntimeModel(listedRecord)
 			: undefined;
 		if (!listed) {
-			// The list succeeded and the session is absent: it was deleted
-			// (possibly from another device) or the account scope changed.
-			// Drop the connection so it stops redialing a dead proxy; a later
-			// attach redials on demand if the session reappears.
+			// Absent from a successful list; a later attach can reconnect if it reappears.
 			await this.disposeConnection(outerSessionId).catch(() => undefined);
 			return;
 		}
