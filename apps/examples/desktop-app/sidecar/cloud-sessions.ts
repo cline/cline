@@ -1716,7 +1716,6 @@ export class CloudSessionManager {
 			throw error;
 		}
 		await this.ensureAttached(connection);
-		await this.refreshPendingApprovals(outerSessionId, connection);
 		const record = connection.remote;
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		return attachResultPayload(
@@ -2021,7 +2020,6 @@ export class CloudSessionManager {
 			const prompts = queueSnapshotValid
 				? this.applyQueueSnapshot(outerSessionId, queueReply)
 				: undefined;
-			await this.refreshPendingApprovals(outerSessionId, connection);
 			connection.transcriptKnown = true;
 
 			// Publish the snapshot before releasing the reconciled tail.
@@ -2308,11 +2306,6 @@ export class CloudSessionManager {
 	}
 
 	private async ensureAttached(_connection: CloudConnection): Promise<void> {}
-
-	private async refreshPendingApprovals(
-		_outerSessionId: string,
-		_connection: CloudConnection,
-	): Promise<void> {}
 
 	private applySessionModel(
 		_connection: CloudConnection,
