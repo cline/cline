@@ -8,6 +8,7 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { LOCAL_AUTH_PROVIDER_IDS } from "@/lib/provider-connection";
 import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
@@ -168,7 +169,10 @@ export function resolveCredentialError(
 	if (!providerId) {
 		return "Provider is required before starting a chat session.";
 	}
-	if (OAUTH_MANAGED_PROVIDERS.has(providerId)) {
+	if (
+		OAUTH_MANAGED_PROVIDERS.has(providerId) ||
+		LOCAL_AUTH_PROVIDER_IDS.has(providerId)
+	) {
 		return null;
 	}
 	if (config.apiKey.trim().length > 0) {

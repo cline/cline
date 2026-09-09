@@ -47,6 +47,15 @@ describe("resolveCredentialError", () => {
 		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
 	});
 
+	it.each([
+		"claude-code",
+		"openai-codex-cli",
+	])("allows local-CLI provider %s without an API key", (provider) => {
+		// These authenticate from the CLI's own credential store; Cline
+		// never holds a key for them.
+		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
+	});
+
 	it("treats provider ids case-insensitively", () => {
 		expect(
 			resolveCredentialError(makeConfig({ provider: "Cline-Pass" })),
