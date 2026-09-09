@@ -66,7 +66,7 @@ function tierOptions(
  * applyClineFeaturedModels). The `cline` provider gets Recommended / Free /
  * All models; `cline-pass` gets Subscribed / Free only — its offer is exactly
  * those tiers, and stale catalog leftovers must not be advertised (the full
- * catalog only returns when the subscribed tier is empty, so a subscriber is
+ * catalog returns in the same two groups when the subscribed tier is empty, so a subscriber is
  * never limited to free models offline). Every other provider renders its
  * catalog as a flat list ordered by display name.
  */
@@ -110,22 +110,24 @@ export function buildModelPickerData(
 	if (providerId === "cline-pass") {
 		const subscribed = tierOptions(models, "subscribed", "subscribed");
 		const free = tierOptions(models, "free", "free", () => "Free");
-		if (subscribed.length === 0 && free.length === 0) {
-			return { options: flatOptions(models) };
+		if (subscribed.length === 0) {
+			// ClinePass catalogs contain subscription routes under cline-pass/
+			// plus the free feed overlay (cline-free/ or upstream IDs). Keep those
+			// groups separate offline too; live featured tiers remain authoritative.
+			const fallback = models.filter((model) => !model.featured);
+			subscribed.push(
+				...flatOptions(
+					fallback.filter((model) => model.id.startsWith("cline-pass/")),
+				).map((option) => ({ ...option, section: "subscribed" })),
+			);
+			free.push(
+				...flatOptions(
+					fallback.filter((model) => !model.id.startsWith("cline-pass/")),
+				).map((option) => ({ ...option, section: "free", badge: "Free" })),
+			);
 		}
-		const rest =
-			subscribed.length === 0
-				? models
-						.filter((model) => !model.featured)
-						.map((model) => ({
-							label: displayName(model),
-							section: "all",
-							value: model.id,
-						}))
-						.sort(byLabel)
-				: [];
 		return {
-			options: [...subscribed, ...free, ...rest],
+			options: [...subscribed, ...free],
 			sections: [
 				{ id: "subscribed", label: "Subscribed" },
 				{
@@ -133,9 +135,6 @@ export function buildModelPickerData(
 					id: "free",
 					label: "Free",
 				},
-				...(rest.length > 0
-					? [{ id: "all", label: "All models" } as SearchComboboxSection]
-					: []),
 			],
 		};
 	}
