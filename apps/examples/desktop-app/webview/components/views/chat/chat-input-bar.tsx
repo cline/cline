@@ -5,7 +5,16 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cpu,
+	GitFork,
+	Laptop,
+	Paperclip,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -20,7 +29,9 @@ import {
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
@@ -59,6 +70,18 @@ import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector
 // Memoized: the workspace/branch selector fans out into popovers and lists
 // that should not re-render for every keystroke in the composer textarea.
 const WorkspaceSelector = memo(WorkspaceSelectorImpl);
+
+/** Where a new task runs. "worktree" checks out a fresh git worktree first. */
+export type WorkIn = "local" | "worktree";
+
+const WORK_IN_OPTIONS: Array<{
+	value: WorkIn;
+	label: string;
+	Icon: typeof Laptop;
+}> = [
+	{ value: "local", label: "Local", Icon: Laptop },
+	{ value: "worktree", label: "Worktree", Icon: GitFork },
+];
 
 type ActiveMention = {
 	start: number;
@@ -300,6 +323,9 @@ type ChatInputBarProps = {
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onSend: (prompt: string) => void;
 	onAbort: () => void;
+	/** Where the next new task runs; only shown while composing a new thread. */
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
@@ -341,6 +367,8 @@ function ChatInputBarImpl({
 	onSwitchGitBranch,
 	onSend,
 	onAbort,
+	workIn = "local",
+	onWorkInChange,
 	promptsInQueue,
 	attachments,
 	onAttachFiles,
@@ -358,6 +386,8 @@ function ChatInputBarImpl({
 		switchWorkspace: onSwitchWorkspace,
 		pickWorkspaceDirectory: onPickWorkspaceDirectory,
 	} = useWorkspace();
+	// A worktree needs a repo; pending discovery (null) counts as unavailable.
+	const hasGitRepo = gitBranch !== null && gitBranch !== "no-git";
 	// Keystrokes only update this local state; the parent page tree is not
 	// re-rendered per keypress. External writers push text in via promptDraft.
 	const [promptInput, setPromptInputState] = useState(promptDraft.value);
@@ -1486,6 +1516,44 @@ function ChatInputBarImpl({
 							))}
 						</SelectContent>
 					</Select>
+					{variant === "welcome" && onWorkInChange ? (
+						<Select
+							onValueChange={(value) => onWorkInChange(value as WorkIn)}
+							value={workIn}
+						>
+							<SelectTrigger
+								aria-label="Work in"
+								className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
+								size="sm"
+							>
+								{workIn === "worktree" ? (
+									<GitFork className="size-3" />
+								) : (
+									<Laptop className="size-3" />
+								)}
+								<span className="max-[560px]:sr-only">
+									<SelectValue>
+										{WORK_IN_OPTIONS.find((o) => o.value === workIn)?.label}
+									</SelectValue>
+								</span>
+							</SelectTrigger>
+							<SelectContent align="start">
+								<SelectGroup>
+									<SelectLabel>Work in</SelectLabel>
+									{WORK_IN_OPTIONS.map((option) => (
+										<SelectItem
+											disabled={option.value === "worktree" && !hasGitRepo}
+											key={option.value}
+											value={option.value}
+										>
+											<option.Icon className="size-3 text-muted-foreground" />
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					) : null}
 				</div>
 
 				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">

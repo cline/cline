@@ -14,6 +14,7 @@ import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
+	type WorkIn,
 } from "./chat-input-bar";
 
 const {
@@ -158,28 +159,36 @@ function deferred<T>() {
 }
 
 async function renderVoiceComposer({
+	gitBranch = "main",
 	hasRunningAgents = false,
 	onAbort = vi.fn(),
 	onPromptInputChange = vi.fn(),
 	onSend = vi.fn(),
+	onWorkInChange,
 	prompt = "",
 	promptVersion = 0,
 	status = "idle",
+	variant,
+	workIn,
 }: {
+	gitBranch?: string | null;
 	hasRunningAgents?: boolean;
 	onAbort?: ReturnType<typeof vi.fn>;
 	onPromptInputChange?: ReturnType<typeof vi.fn>;
 	onSend?: ReturnType<typeof vi.fn>;
+	onWorkInChange?: (next: WorkIn) => void;
 	prompt?: string;
 	promptVersion?: number;
 	status?: ChatSessionStatus;
+	variant?: "welcome" | "conversation";
+	workIn?: WorkIn;
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
 					attachments={[]}
-					gitBranch="main"
+					gitBranch={gitBranch}
 					hasRunningAgents={hasRunningAgents}
 					mode="act"
 					model="test-model"
@@ -200,6 +209,7 @@ async function renderVoiceComposer({
 					onSend={onSend}
 					onSteerPromptInQueue={vi.fn()}
 					onSwitchGitBranch={vi.fn(async () => true)}
+					onWorkInChange={onWorkInChange}
 					promptDraft={{ version: promptVersion, value: prompt }}
 					promptsInQueue={[]}
 					provider="cline"
@@ -207,6 +217,8 @@ async function renderVoiceComposer({
 					status={status}
 					summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
 					thinking
+					variant={variant}
+					workIn={workIn}
 				/>
 			</WorkspaceProvider>,
 		);
@@ -254,6 +266,26 @@ describe("ChatInputBar", () => {
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
 		]);
+	});
+
+	it("offers a Work in selector only while composing a new thread", async () => {
+		await renderVoiceComposer({
+			onWorkInChange: vi.fn(),
+			variant: "welcome",
+			workIn: "worktree",
+		});
+		const trigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Work in"]',
+		);
+		expect(trigger).not.toBeNull();
+		expect(trigger?.textContent).toContain("Worktree");
+
+		await renderVoiceComposer({
+			onWorkInChange: vi.fn(),
+			variant: "conversation",
+			workIn: "worktree",
+		});
+		expect(container.querySelector('[aria-label="Work in"]')).toBeNull();
 	});
 
 	it("top-aligns the textarea in the taller welcome composer", async () => {

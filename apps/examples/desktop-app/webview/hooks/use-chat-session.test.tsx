@@ -864,6 +864,86 @@ describe("useChatSession", () => {
 		);
 	});
 
+	it("starts in a fresh git worktree when asked to", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; config?: Record<string, unknown> }
+					| undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: request.config?.cwd,
+						workspaceRoot: request.config?.workspaceRoot,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBeNull();
+		// The worktree is cut from the workspace the user had selected...
+		expect(invokeMock).toHaveBeenCalledWith("create_git_worktree", {
+			cwd: "/repos/demo",
+		});
+		// ...and the session starts inside it, which the UI then adopts.
+		expect(invokeMock).toHaveBeenCalledWith("chat_session_command", {
+			request: expect.objectContaining({
+				action: "start",
+				config: expect.objectContaining({
+					cwd: worktreePath,
+					workspaceRoot: worktreePath,
+				}),
+			}),
+		});
+		expect(current.config).toMatchObject({
+			cwd: worktreePath,
+			workspaceRoot: worktreePath,
+		});
+	});
+
+	it("surfaces a worktree creation failure without starting a session", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "create_git_worktree") {
+				throw new Error("Not a git repository: /workspace/cline");
+			}
+			return [];
+		});
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBe(
+			"Couldn't create a worktree: Not a git repository: /workspace/cline",
+		);
+		expect(current.status).toBe("error");
+		expect(
+			invokeMock.mock.calls.some(
+				([command]) => command === "chat_session_command",
+			),
+		).toBe(false);
+	});
+
 	it("preserves server validation errors", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {

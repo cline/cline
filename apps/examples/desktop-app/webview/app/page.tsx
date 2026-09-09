@@ -32,7 +32,10 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
+import {
+	ChatInputBar,
+	type WorkIn,
+} from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
@@ -640,6 +643,7 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+	const [workInSelection, setWorkIn] = useState<WorkIn>("local");
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -651,6 +655,12 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
+	// A worktree choice only holds while the workspace is a git repo; a plain
+	// folder (or pending discovery) silently falls back to running locally.
+	const workIn: WorkIn =
+		workInSelection === "worktree" && gitBranch && gitBranch !== "no-git"
+			? "worktree"
+			: "local";
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
@@ -972,26 +982,6 @@ function ChatThreadPane({
 		setWorkspacePath("");
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
-
-	// Creates a worktree (new branch) for the current repo and makes it the
-	// active workspace, so the next task starts isolated from the working tree.
-	const createGitWorktree = useCallback(async (): Promise<boolean> => {
-		const cwd = getWorkspaceCwd();
-		if (!cwd) {
-			return false;
-		}
-		try {
-			const payload = await desktopClient.invoke<{ path?: string }>(
-				"create_git_worktree",
-				{ cwd },
-			);
-			const worktreePath = payload?.path?.trim();
-			return worktreePath ? await switchWorkspace(worktreePath) : false;
-		} catch {
-			return false;
-		}
-	}, [getWorkspaceCwd, switchWorkspace]);
-
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures
@@ -1101,6 +1091,9 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	// "Work in" only matters for the prompt that starts a brand-new thread;
+	// later prompts (and prompts into a reopened session) stay where they are.
+	const isNewThread = !sessionId && messages.length === 0;
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
@@ -1114,9 +1107,19 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			await sendPrompt(trimmed, toSend, {
+				inNewWorktree: workIn === "worktree" && isNewThread,
+			});
 		},
-		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
+		[
+			isNewThread,
+			onThreadStarted,
+			pendingAttachments,
+			sendPrompt,
+			setPromptInput,
+			threadId,
+			workIn,
+		],
 	);
 
 	const handleReasoningChange = useCallback(
@@ -1550,6 +1553,7 @@ function ChatThreadPane({
 			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={handleProviderChange}
 			onSend={handleSendPrompt}
+			onWorkInChange={setWorkIn}
 			gitBranch={gitBranch}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
@@ -1562,6 +1566,7 @@ function ChatThreadPane({
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
+			workIn={workIn}
 		/>
 	);
 
@@ -1648,7 +1653,6 @@ function ChatThreadPane({
 							/>
 						) : undefined
 					}
-					onCreateGitWorktree={createGitWorktree}
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}

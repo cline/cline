@@ -2088,7 +2088,14 @@ export function useChatSession() {
 	);
 
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []) => {
+		async (
+			prompt: string,
+			attachedFiles: File[] = [],
+			options?: {
+				/** Start the session in a fresh git worktree of the current workspace. */
+				inNewWorktree?: boolean;
+			},
+		) => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return;
 
@@ -2099,7 +2106,27 @@ export function useChatSession() {
 			const pendingSessionStart = sessionStartPromiseRef.current;
 			let activeSessionId = sessionId ?? activeSessionIdRef.current;
 
-			const validation = validateConfig(config);
+			let sessionConfig = config;
+			if (options?.inNewWorktree) {
+				try {
+					const worktree = await desktopClient.invoke<{ path: string }>(
+						"create_git_worktree",
+						{ cwd: config.cwd || config.workspaceRoot },
+					);
+					sessionConfig = {
+						...config,
+						cwd: worktree.path,
+						workspaceRoot: worktree.path,
+					};
+				} catch (worktreeError) {
+					setErrorState(
+						`Couldn't create a worktree: ${worktreeError instanceof Error ? worktreeError.message : String(worktreeError)}`,
+						activeSessionId,
+					);
+					return;
+				}
+			}
+			const validation = validateConfig(sessionConfig);
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
 				return;
