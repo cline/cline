@@ -6,6 +6,7 @@ import {
 	FilePlus2,
 	Folder,
 	GitBranch,
+	GitBranchPlus,
 	Plus,
 	Search,
 } from "lucide-react";
@@ -315,6 +316,7 @@ function BranchPicker({
 	currentBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	onCreateGitWorktree,
 }: {
 	open: boolean;
 	onToggle: () => void;
@@ -323,11 +325,14 @@ function BranchPicker({
 	currentBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	onCreateGitWorktree?: () => Promise<boolean>;
 }) {
 	const [search, setSearch] = useState("");
 	const [branches, setBranches] = useState<string[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [switching, setSwitching] = useState(false);
+	const [creatingWorktree, setCreatingWorktree] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	const branchListRef = useRef<HTMLDivElement>(null);
 
 	// Start the freshly opened list at the current branch, not the top.
@@ -340,6 +345,7 @@ function BranchPicker({
 		if (!open) return;
 		let cancelled = false;
 		setSearch("");
+		setError(null);
 		setLoading(true);
 		onListGitBranches()
 			.then((payload) => {
@@ -369,6 +375,19 @@ function BranchPicker({
 		const switched = await onSwitchGitBranch(branch);
 		setSwitching(false);
 		if (switched) onClose();
+	};
+
+	const handleCreateWorktree = async () => {
+		if (!onCreateGitWorktree || switching || creatingWorktree) return;
+		setError(null);
+		setCreatingWorktree(true);
+		const created = await onCreateGitWorktree();
+		setCreatingWorktree(false);
+		if (created) {
+			onClose();
+			return;
+		}
+		setError("Couldn't create a worktree for this repository.");
 	};
 
 	return (
@@ -416,7 +435,7 @@ function BranchPicker({
 													: "hover:bg-surface-hover",
 											)}
 											data-current={currentBranch === branch || undefined}
-											disabled={switching}
+											disabled={switching || creatingWorktree}
 											key={branch}
 											onClick={() => void handleSelect(branch)}
 											variant="ghost"
@@ -434,6 +453,26 @@ function BranchPicker({
 							</div>
 						)}
 					</div>
+					{onCreateGitWorktree ? (
+						<div className="border-t border-border p-1.5">
+							<Button
+								className="w-full justify-start text-xs text-muted-foreground"
+								disabled={loading || switching || creatingWorktree}
+								onClick={() => void handleCreateWorktree()}
+								size="sm"
+								title="Work in a separate copy of this repository on a new branch"
+								variant="ghost"
+							>
+								<GitBranchPlus className="size-3" />
+								{creatingWorktree ? "Creating worktree..." : "New worktree"}
+							</Button>
+							{error && (
+								<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+									{error}
+								</div>
+							)}
+						</div>
+					) : null}
 				</div>
 			)}
 		</div>
@@ -450,6 +489,7 @@ export function WelcomeWorkspaceControls({
 	currentBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	onCreateGitWorktree,
 }: {
 	workspaceRoot: string;
 	workspaces: string[];
@@ -461,6 +501,8 @@ export function WelcomeWorkspaceControls({
 	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	/** Creates a worktree for the current repo and switches to it; git repos only. */
+	onCreateGitWorktree?: () => Promise<boolean>;
 }) {
 	const [openMenu, setOpenMenu] = useState<"workspace" | "branch" | null>(null);
 	const isChatWorkspace =
@@ -508,6 +550,7 @@ export function WelcomeWorkspaceControls({
 				<BranchPicker
 					currentBranch={currentBranch}
 					onClose={() => setOpenMenu(null)}
+					onCreateGitWorktree={onCreateGitWorktree}
 					onListGitBranches={onListGitBranches}
 					onSwitchGitBranch={onSwitchGitBranch}
 					onToggle={() =>

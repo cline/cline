@@ -973,6 +973,25 @@ function ChatThreadPane({
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
 
+	// Creates a worktree (new branch) for the current repo and makes it the
+	// active workspace, so the next task starts isolated from the working tree.
+	const createGitWorktree = useCallback(async (): Promise<boolean> => {
+		const cwd = getWorkspaceCwd();
+		if (!cwd) {
+			return false;
+		}
+		try {
+			const payload = await desktopClient.invoke<{ path?: string }>(
+				"create_git_worktree",
+				{ cwd },
+			);
+			const worktreePath = payload?.path?.trim();
+			return worktreePath ? await switchWorkspace(worktreePath) : false;
+		} catch {
+			return false;
+		}
+	}, [getWorkspaceCwd, switchWorkspace]);
+
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures
@@ -1629,6 +1648,7 @@ function ChatThreadPane({
 							/>
 						) : undefined
 					}
+					onCreateGitWorktree={createGitWorktree}
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}

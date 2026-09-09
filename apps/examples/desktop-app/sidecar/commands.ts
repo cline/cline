@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
@@ -68,6 +69,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import { resolveClineDir } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -678,6 +680,39 @@ async function listGitBranches(
 		.map((v) => v.trim())
 		.filter(Boolean);
 	return { current: current || undefined, branches };
+}
+
+/**
+ * Creates a git worktree for the repo containing `cwd` and checks out a fresh
+ * branch in it, so a task can run isolated from the user's working tree.
+ * Mirrors the CLI's `--worktree` layout: `~/.cline/worktrees/<id>/<repo>`.
+ */
+async function createGitWorktree(
+	cwd: string,
+): Promise<{ path: string; branch: string }> {
+	const { stdout } = await execFileAsync(
+		"git",
+		["rev-parse", "--show-toplevel"],
+		{ cwd, encoding: "utf8" },
+	).catch(() => {
+		throw new Error(`Not a git repository: ${cwd}`);
+	});
+	const repoRoot = stdout.trim();
+	const id = randomUUID().replaceAll("-", "").slice(0, 5);
+	const branch = `cline/${id}`;
+	const worktreePath = join(
+		resolveClineDir(),
+		"worktrees",
+		id,
+		basename(repoRoot) || "workspace",
+	);
+	mkdirSync(dirname(worktreePath), { recursive: true });
+	await execFileAsync(
+		"git",
+		["-C", repoRoot, "worktree", "add", "-b", branch, worktreePath, "HEAD"],
+		{ encoding: "utf8" },
+	);
+	return { path: worktreePath, branch };
 }
 
 // ---------------------------------------------------------------------------
@@ -2455,6 +2490,13 @@ export async function handleCommand(
 		const { refreshWorkspaceMetadata } = await import("./chat-session");
 		refreshWorkspaceMetadata(targetCwd);
 		return { branch };
+	}
+	if (command === "create_git_worktree") {
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		return await createGitWorktree(cwd);
 	}
 
 	// ── Routine schedules ─────────────────────────────────────────────

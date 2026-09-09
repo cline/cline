@@ -24,6 +24,7 @@ export function WelcomeScreen({
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	onCreateGitWorktree,
 	onOpenSession,
 }: {
 	active: boolean;
@@ -35,6 +36,7 @@ export function WelcomeScreen({
 	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	onCreateGitWorktree?: () => Promise<boolean>;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const {
@@ -139,6 +141,7 @@ export function WelcomeScreen({
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
 									currentBranch={gitBranch}
+									onCreateGitWorktree={onCreateGitWorktree}
 									onListGitBranches={onListGitBranches}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}

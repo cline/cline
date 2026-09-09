@@ -172,11 +172,13 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 async function renderBranchChipControls(overrides: {
 	currentBranch: string;
+	onCreateGitWorktree?: () => Promise<boolean>;
 }): Promise<void> {
 	await act(async () => {
 		root.render(
 			<WelcomeWorkspaceControls
 				currentBranch={overrides.currentBranch}
+				onCreateGitWorktree={overrides.onCreateGitWorktree}
 				onListGitBranches={vi.fn(async () => ({
 					current: overrides.currentBranch,
 					branches:
@@ -227,5 +229,56 @@ describe("WelcomeWorkspaceControls branch chip", () => {
 			expect(container.textContent).toContain("Open folder...");
 		});
 		expect(container.textContent).not.toContain("Add project");
+	});
+});
+
+describe("WelcomeWorkspaceControls new worktree", () => {
+	it("creates a worktree from the branch menu and closes it on success", async () => {
+		const onCreateGitWorktree = vi.fn(async () => true);
+		await renderBranchChipControls({
+			currentBranch: "main",
+			onCreateGitWorktree,
+		});
+
+		await clickButton("main");
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("New worktree");
+		});
+		await clickButton("New worktree");
+
+		expect(onCreateGitWorktree).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => {
+			expect(container.textContent).not.toContain("New worktree");
+		});
+	});
+
+	it("shows an error and keeps the menu open when worktree creation fails", async () => {
+		await renderBranchChipControls({
+			currentBranch: "main",
+			onCreateGitWorktree: vi.fn(async () => false),
+		});
+
+		await clickButton("main");
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("New worktree");
+		});
+		await clickButton("New worktree");
+
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Couldn't create a worktree");
+		});
+		expect(container.textContent).toContain("New worktree");
+	});
+
+	it("omits the worktree action when no handler is provided", async () => {
+		await renderBranchChipControls({ currentBranch: "main" });
+
+		await clickButton("main");
+		await vi.waitFor(() => {
+			expect(
+				container.querySelector('input[placeholder="Search branches"]'),
+			).not.toBeNull();
+		});
+		expect(container.textContent).not.toContain("New worktree");
 	});
 });
