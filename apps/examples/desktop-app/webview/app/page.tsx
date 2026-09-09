@@ -89,6 +89,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -217,8 +218,8 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		// The dock reverts to the bundled icon every launch; re-apply the
-		// user's choice once the shell is up.
+		// The native app icon reverts to the bundled icon every launch; re-apply
+		// the user's choice once the shell is up.
 		void syncAppIcon();
 	}, []);
 
@@ -601,6 +602,7 @@ function ChatThreadPane({
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -1373,6 +1375,9 @@ function ChatThreadPane({
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 	const displayedMessages = hideDeletedSessionUi ? [] : messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -1594,7 +1599,9 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
+								activityLabel={activityLabel}
 								error={displayedError}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
