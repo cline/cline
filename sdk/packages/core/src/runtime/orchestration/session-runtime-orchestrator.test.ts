@@ -2468,6 +2468,29 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
 	});
 
+	it("counts empty (reasoning-only) turns as mistakes", async () => {
+		const { deps, abortCalls } = makeScriptedRuntime({
+			events: [
+				{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+				{
+					type: "turn-finished",
+					iteration: 1,
+					toolCallCount: 0,
+					emptyTurn: true,
+					snapshot: makeSnapshot(),
+				},
+			],
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({ execution: { maxConsecutiveMistakes: 2 } }),
+			deps,
+		);
+		await session.run("one");
+		expect(abortCalls).toHaveLength(0);
+		await session.continue("two");
+		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
 	it("serializes structured tool errors in mistake details", async () => {
 		const errors: string[] = [];
 		const { deps } = makeScriptedRuntime({

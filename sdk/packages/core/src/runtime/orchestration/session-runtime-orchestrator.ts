@@ -1234,6 +1234,15 @@ export class SessionRuntime {
 					// Productive turn — reset the tracker so transient
 					// failures don't accumulate across unrelated turns.
 					this.mistakeTracker.reset();
+				} else if (event.emptyTurn) {
+					// The runtime nudges the model and loops; count it so a
+					// model that keeps returning nothing hits the limit.
+					this.enqueueMistakeRecord({
+						iteration: event.iteration,
+						reason: "invalid_tool_call",
+						details:
+							"Turn ended without a visible response or tool call (reasoning only)",
+					});
 				}
 				break;
 			}
