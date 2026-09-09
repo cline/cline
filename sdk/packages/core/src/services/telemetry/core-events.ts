@@ -2,6 +2,7 @@ import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	type CaptureAgentUnexpectedReasoningTokensInput,
 	type CaptureTaskLifecycleEventInput,
+	CLINE_INCLUDED_COST_CORRECTED_EVENT,
 	captureAgentUnexpectedReasoningTokens,
 	captureTaskLifecycleEvent,
 	type ITelemetryService,
@@ -97,6 +98,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		PATH_RESOLVED: "workspace.path_resolved",
 	},
 	SDK: {
+		CLINE_INCLUDED_COST_CORRECTED: CLINE_INCLUDED_COST_CORRECTED_EVENT,
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
 		PLAN_MODE_COMMAND_BLOCKED: "sdk.plan_mode_command_blocked",

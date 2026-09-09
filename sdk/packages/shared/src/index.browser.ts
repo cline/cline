@@ -437,6 +437,7 @@ export {
 } from "./runtime/cline-environment";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
+	CaptureClineIncludedCostCorrectedInput,
 	CaptureSdkErrorInput,
 	CaptureTaskLifecycleEventInput,
 	ITelemetryService,
@@ -453,7 +454,9 @@ export type {
 export {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	CLINE_INCLUDED_COST_CORRECTED_EVENT,
 	captureAgentUnexpectedReasoningTokens,
+	captureClineIncludedCostCorrected,
 	captureSdkError,
 	captureTaskLifecycleEvent,
 	normalizeSdkError,

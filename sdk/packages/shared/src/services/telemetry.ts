@@ -143,6 +143,36 @@ export interface ITelemetryService {
 
 export const SDK_ERROR_TELEMETRY_EVENT = "sdk.error";
 
+export const CLINE_INCLUDED_COST_CORRECTED_EVENT =
+	"sdk.cline_included_cost_corrected";
+
+export interface CaptureClineIncludedCostCorrectedInput {
+	providerId: string;
+	modelId: string;
+	unadjustedCost: number;
+	costSource: "response" | "catalog";
+}
+
+/** Optional diagnostics must never interrupt usage delivery. */
+export function captureClineIncludedCostCorrected(
+	telemetry: ITelemetryService | undefined,
+	input: CaptureClineIncludedCostCorrectedInput,
+): void {
+	try {
+		telemetry?.capture({
+			event: CLINE_INCLUDED_COST_CORRECTED_EVENT,
+			properties: {
+				provider_id: input.providerId,
+				model_id: input.modelId,
+				unadjusted_cost: input.unadjustedCost,
+				cost_source: input.costSource,
+			},
+		});
+	} catch {
+		// Cost reporting must remain available if telemetry fails.
+	}
+}
+
 // `sdk.error` is a diagnostic firehose: a process stuck in a retry loop
 // (e.g. an unattended agent re-hitting a rate-limited provider) can emit the
 // same failure thousands of times and drown the signal. Identical failures

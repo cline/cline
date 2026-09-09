@@ -137,6 +137,12 @@ describe("task lifecycle contract", () => {
 });
 
 describe("CORE_TELEMETRY_EVENTS", () => {
+	test("registers the included Cline cost correction diagnostic", () => {
+		expect(CORE_TELEMETRY_EVENTS.SDK.CLINE_INCLUDED_COST_CORRECTED).toBe(
+			"sdk.cline_included_cost_corrected",
+		);
+	});
+
 	test("catalogs the unexpected reasoning token event", () => {
 		expect(CORE_TELEMETRY_EVENTS.AGENT.UNEXPECTED_REASONING_TOKENS).toBe(
 			AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,

@@ -18,6 +18,7 @@ import type {
 import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
+	captureClineIncludedCostCorrected,
 	captureSdkError,
 	createMediaBudgetState,
 	formatMessagesForAiSdk,
@@ -1289,19 +1290,12 @@ export function normalizeUsage(
 		unadjustedCost !== undefined &&
 		unadjustedCost > 0
 	) {
-		try {
-			telemetry?.capture({
-				event: "sdk.cline_included_cost_corrected",
-				properties: {
-					provider_id: selection.providerId,
-					model_id: selection.modelId,
-					unadjusted_cost: unadjustedCost,
-					cost_source: totalCost !== undefined ? "response" : "catalog",
-				},
-			});
-		} catch {
-			// Optional diagnostics must never interrupt usage delivery.
-		}
+		captureClineIncludedCostCorrected(telemetry, {
+			providerId: selection.providerId,
+			modelId: selection.modelId,
+			unadjustedCost,
+			costSource: totalCost !== undefined ? "response" : "catalog",
+		});
 	}
 	const resolvedTotalCost = includedClineUsage
 		? 0
