@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildToolPresentation } from "@/components/views/chat/messages/tool-summaries";
 import {
 	appendCappedCommandOutput,
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
@@ -79,6 +80,120 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("settles unfinished tool rows when a run stops and keeps them settled on the next turn", async () => {
+		invokeMock.mockImplementation(async (command: string) =>
+			command === "chat_session_command" ? { sessionId: "stopped-tools" } : [],
+		);
+		await act(async () => current.start(current.config));
+		const emit = (stream: string, chunk: unknown, index: number) =>
+			handlerFor("chat_event")({
+				sessionId: current.sessionId,
+				stream,
+				chunk: JSON.stringify(chunk),
+				index,
+				ts: Date.now(),
+			});
+		await act(async () => {
+			emit("chat_queued_prompt_start", { prompt: "Edit the file" }, 1);
+			emit(
+				"chat_tool_call_start",
+				{
+					toolCallId: "finished",
+					toolName: "read_files",
+					input: { paths: ["a.txt"] },
+				},
+				2,
+			);
+			emit(
+				"chat_tool_call_end",
+				{ toolCallId: "finished", toolName: "read_files", output: "before" },
+				3,
+			);
+			emit(
+				"chat_tool_call_start",
+				{
+					toolCallId: "unfinished",
+					toolName: "editor",
+					input: { path: "a.txt" },
+				},
+				4,
+			);
+		});
+		const tool = (id: string) => {
+			const message = current.messages.find(
+				(message) => message.meta?.toolCallId === id,
+			);
+			if (!message) throw new Error(`Missing tool ${id}`);
+			return message;
+		};
+		expect(buildToolPresentation(tool("unfinished")).inProgress).toBe(true);
+		const completedTool = tool("finished");
+		await act(async () => emit("chat_done", { reason: "aborted" }, 5));
+		expect(current.status).toBe("cancelled");
+		expect(buildToolPresentation(tool("unfinished"))).toMatchObject({
+			inProgress: false,
+			payload: { isError: true, input: { path: "a.txt" } },
+		});
+		expect(tool("unfinished").content).toContain("Stopped:");
+		expect(buildToolPresentation(tool("unfinished")).summary.label).toBe(
+			"Tool stopped",
+		);
+		expect(tool("finished")).toBe(completedTool);
+		await act(async () =>
+			emit("chat_queued_prompt_start", { prompt: "Try again" }, 6),
+		);
+		expect(current.status).toBe("running");
+		expect(buildToolPresentation(tool("unfinished")).inProgress).toBe(false);
+	});
+
+	it.each([
+		"idle",
+		"cancelled",
+		"running",
+	] as const)("hydrates an unfinished tool with session status %s", async (status) => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "read_session_messages")
+				return [
+					{
+						id: "orphan",
+						sessionId: "hydrated-tools",
+						role: "tool",
+						createdAt: 1,
+						content: JSON.stringify({
+							toolName: "editor",
+							input: { path: "a.txt" },
+							result: null,
+						}),
+						meta: {
+							toolName: "editor",
+							toolCallId: "orphan",
+							hookEventName: "history_tool_use",
+						},
+					},
+				];
+			if (command === "chat_session_command")
+				return { sessionId: "hydrated-tools", status };
+			return [];
+		});
+		await act(async () =>
+			current.hydrateSession({
+				sessionId: "hydrated-tools",
+				status,
+				provider: "cline",
+				model: "test",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-08T00:00:00.000Z",
+			}),
+		);
+		const message = current.messages[0];
+		if (!message) throw new Error("Missing hydrated tool");
+		expect(buildToolPresentation(message).inProgress).toBe(
+			status === "running",
+		);
+		if (status !== "running") expect(message.content).toContain("Stopped:");
+	});
+
 	it("restores an idle parent when aborting its child fails", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

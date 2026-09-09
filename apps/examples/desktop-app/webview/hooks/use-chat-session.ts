@@ -519,6 +519,54 @@ export function useChatSession() {
 		pendingToolOutputRef.current = new Map();
 	}, []);
 
+	useEffect(() => {
+		if (
+			isHydratingSession ||
+			status === "starting" ||
+			status === "running" ||
+			status === "stopping"
+		) {
+			return;
+		}
+		// Stopping at a tool hook can end a turn without a tool-end event or
+		// persisted result. Settle those rows in desktop state, including after
+		// history hydration, so an ended run cannot leave a permanent spinner.
+		const { messageIds, inputs } = deriveLiveToolState(messages);
+		const unfinishedIds = new Set(Object.values(messageIds));
+		if (unfinishedIds.size === 0) return;
+		setMessages((previous) => {
+			let changed = false;
+			const next = previous.map((message) => {
+				if (!unfinishedIds.has(message.id)) return message;
+				// An idle status can precede the first running status event.
+				// Keep tools still tracked by the live stream until it settles.
+				if (
+					status === "idle" &&
+					message.meta?.hookEventName === "tool_call_start" &&
+					liveToolMessageIdsRef.current[message.meta.toolCallId ?? ""] ===
+						message.id
+				)
+					return message;
+				changed = true;
+				return {
+					...message,
+					content: buildToolPayloadString({
+						toolName: message.meta?.toolName ?? "tool",
+						input: inputs[message.meta?.toolCallId ?? ""],
+						output: undefined,
+						error: "Stopped: the run ended before a tool result was received.",
+					}),
+					meta: {
+						...message.meta,
+						toolDetachable: false,
+						hookEventName: "tool_call_interrupted",
+					},
+				};
+			});
+			return changed ? next : previous;
+		});
+	}, [isHydratingSession, messages, status]);
+
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
