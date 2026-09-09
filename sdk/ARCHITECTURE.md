@@ -737,7 +737,9 @@ orchestrator used by core and hub layers.
    queued `cron_runs`. One-off: at most one run record per `(spec_id,
    revision)`, including failed runs so specs do not retry accidentally.
    Schedule: "one overdue catch-up on startup then advance" using
-   timezone-aware `getNextCronTime`.
+   timezone-aware `getNextCronTime`. New hub schedules persist the local IANA
+   timezone when none is provided. The desktop form sends its own local timezone;
+   explicit timezone choices and existing schedule timezones are preserved.
 6. **Event ingress** (`cron/events/cron-event-ingress.ts`): accepts already-normalized
    `AutomationEventEnvelope` values, persists them into `cron_event_log`,
    matches enabled event specs by `event_type` plus declarative filters,
@@ -749,6 +751,9 @@ orchestrator used by core and hub layers.
 7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),
+   dispatches new work independently of unfinished agent turns, and renews
+   locally active claims before polling expired work after system sleep. Startup
+   installs polling without waiting for the initial batch to finish. It also
    renews the run claim while execution is active, writes a markdown report
    per run, and transactionally updates status. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,

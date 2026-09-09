@@ -1077,6 +1077,11 @@ export function RoutineSchedulesContent({
 					createForm.scheduleType === "once" ? "once" : "recurring",
 				run_at: runAt,
 				cron_pattern: cronPattern,
+				timezone:
+					createForm.scheduleType === "once"
+						? undefined
+						: (editingSchedule?.timezone ??
+							Intl.DateTimeFormat().resolvedOptions().timeZone),
 				prompt,
 				provider,
 				model,

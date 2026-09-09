@@ -94,6 +94,125 @@ describe("CronRunner", () => {
 		rmSync(dir, { recursive: true, force: true });
 	});
 
+	it.each([
+		false,
+		true,
+	])("dispatches other schedules while a run is pending (expired lease: %s)", async (expiredLease) => {
+		const { handlers, calls } = fakeHandlers();
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const sendSession = handlers.sendSession;
+		handlers.sendSession = async (sessionId, request) => {
+			if (request.prompt === "blocked") await pending;
+			return sendSession(sessionId, request);
+		};
+		const enqueue = (id: string) => {
+			const { record } = store.upsertSpec({
+				externalId: id,
+				sourcePath: `${id}.cron.md`,
+				triggerKind: "schedule",
+				sourceHash: "h",
+				parseStatus: "valid",
+				spec: {
+					triggerKind: "schedule",
+					id,
+					title: id,
+					prompt: id,
+					workspaceRoot,
+					enabled: true,
+					schedule: "0 2 * * *",
+				},
+			});
+			return store.enqueueRun({
+				specId: record.specId,
+				specRevision: record.revision,
+				triggerKind: "schedule",
+			});
+		};
+		const blocked = enqueue("blocked");
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		const firstTick = runner.tick();
+		try {
+			await expect.poll(() => calls.start).toBe(1);
+			if (expiredLease) {
+				const active = requireValue(store.getRun(blocked.runId));
+				store.renewClaim(
+					blocked.runId,
+					requireValue(active.claimToken),
+					new Date(Date.now() - 1000).toISOString(),
+				);
+			}
+			const sameSchedule = enqueue("blocked");
+			const otherSchedule = enqueue("other");
+			await runner.tick();
+			expect(store.getRun(otherSchedule.runId)?.status).toBe("done");
+			expect(store.getRun(sameSchedule.runId)?.status).toBe("queued");
+			expect(store.getRun(blocked.runId)?.status).toBe("running");
+			expect(store.getRun(blocked.runId)?.attemptCount).toBe(1);
+			expect(calls.start).toBe(2);
+		} finally {
+			release();
+			await firstTick;
+			await runner.dispose();
+		}
+		expect(store.getRun(blocked.runId)?.status).toBe("done");
+	});
+
+	it("starts polling without waiting for the initial agent turn", async () => {
+		const { handlers, calls } = fakeHandlers();
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		handlers.sendSession = async () => {
+			await pending;
+			return { result: { text: "done" } };
+		};
+		store.upsertSpec({
+			externalId: "initial",
+			sourcePath: "initial.md",
+			triggerKind: "one_off",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "initial",
+				title: "Initial",
+				prompt: "Run",
+				workspaceRoot,
+				enabled: true,
+			},
+		});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		let started = false;
+		const start = runner.start().then(() => {
+			started = true;
+		});
+		try {
+			await expect.poll(() => started).toBe(true);
+			await expect.poll(() => calls.start).toBe(1);
+		} finally {
+			release();
+			await start;
+			await expect.poll(() => runner.getActiveRuns().length).toBe(0);
+			await runner.dispose();
+		}
+	});
+
 	it("executes a queued one-off run end-to-end and writes a report", async () => {
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({

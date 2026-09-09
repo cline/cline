@@ -203,8 +203,8 @@ export class CronRunner {
 			2_000,
 			this.options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
 		);
-		await this.tick();
 		this.timer = setInterval(() => void this.tick(), interval);
+		void this.tick();
 	}
 
 	public async stop(): Promise<void> {
@@ -246,15 +246,25 @@ export class CronRunner {
 	}
 
 	public async tick(): Promise<void> {
-		if (this.ticking) return;
+		if (this.ticking || this.stopping || this.disposed) return;
 		this.ticking = true;
+		let executions: Promise<void>[] = [];
 		try {
+			// After system sleep, polling may resume before lease heartbeats.
+			// Renew locally active claims before looking for expired work so a
+			// live session is not reclaimed and started a second time.
+			const leaseUntilAt = new Date(
+				Date.now() + this.claimLeaseMs,
+			).toISOString();
+			for (const [runId, active] of this.activeRuns) {
+				this.store.renewClaim(runId, active.claimToken, leaseUntilAt);
+			}
 			this.materializer.materializeAll();
 			const claims = this.store.claimDueRuns({
 				nowIso: nowIso(),
 				leaseMs: this.claimLeaseMs,
 			});
-			await Promise.allSettled(claims.map((claim) => this.executeClaim(claim)));
+			executions = claims.map((claim) => this.executeClaim(claim));
 		} catch (err) {
 			const log = this.options.logger;
 			if (log) {
@@ -264,6 +274,9 @@ export class CronRunner {
 		} finally {
 			this.ticking = false;
 		}
+		// Only serialize queue dispatch. Agent turns can outlive many polls;
+		// waiting for one batch must not prevent unrelated schedules dispatching.
+		await Promise.allSettled(executions);
 	}
 
 	public getActiveRuns(): Array<

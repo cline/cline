@@ -263,16 +263,21 @@ export class HubScheduleService {
 	}
 
 	public createSchedule(input: HubScheduleCreateInput): ScheduleRecord {
+		const timezone =
+			input.cronPattern === ONE_TIME_SCHEDULE_CRON_PATTERN
+				? input.timezone
+				: input.timezone?.trim() ||
+					Intl.DateTimeFormat().resolvedOptions().timeZone;
 		this.validateScheduleTiming(
 			input.cronPattern,
-			input.timezone,
+			timezone,
 			input.metadata,
 			true,
 		);
 		if (!input.workspaceRoot?.trim()) {
 			throw new Error("workspaceRoot is required for schedules");
 		}
-		return specToSchedule(this.store.createHubSchedule(input));
+		return specToSchedule(this.store.createHubSchedule({ ...input, timezone }));
 	}
 
 	public getSchedule(scheduleId: string): ScheduleRecord | undefined {
