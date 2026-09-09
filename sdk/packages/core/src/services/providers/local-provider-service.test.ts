@@ -68,6 +68,79 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
+describe("live provider model loading", () => {
+	it("shares one live fetch across providers and reuses it on subsequent loads", async () => {
+		const providerIds = ["opencode", "opencode-go", "anthropic", "openai"];
+		const fetchMock = vi.fn(async (url: string) =>
+			Response.json(
+				url.includes("models.dev")
+					? Object.fromEntries(
+							providerIds.map((id) => [
+								id,
+								{
+									npm: "@ai-sdk/openai-compatible",
+									models: {
+										"live-only-model": { name: "Live model", tool_call: true },
+									},
+								},
+							]),
+						)
+					: {},
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const results = await Promise.all(
+			providerIds.map((id) =>
+				getLocalProviderModels(id === "openai" ? "openai-native" : id),
+			),
+		);
+		for (const result of results) {
+			expect(result.models).toContainEqual(
+				expect.objectContaining({ id: "live-only-model", name: "Live model" }),
+			);
+			expect(result.models.length).toBeGreaterThan(1);
+		}
+		await getLocalProviderModels("opencode");
+		expect(
+			fetchMock.mock.calls.filter(([url]) => url.includes("models.dev")),
+		).toHaveLength(1);
+		// One shared models.dev request plus the Cline recommendation feed.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps explicit model overrides above live metadata", async () => {
+		LlmsModels.registerModel("opencode", "live-model", {
+			id: "live-model",
+			name: "Custom name",
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					opencode: {
+						models: {
+							"live-model": { name: "Live name", tool_call: true },
+						},
+					},
+				}),
+			),
+		);
+		const result = await getLocalProviderModels("opencode");
+		expect(result.models.find((model) => model.id === "live-model")?.name).toBe(
+			"Custom name",
+		);
+	});
+
+	it("keeps the bundled catalog available when offline", async () => {
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+		const bundled = await LlmsModels.getModelsForProvider("opencode");
+		const result = await getLocalProviderModels("opencode");
+		expect(result.models.map((model) => model.id)).toEqual(
+			Object.keys(bundled).sort(),
+		);
+	});
+});
+
 describe("models registry parsing", () => {
 	it("accepts model entries that use the record key as the model id", async () => {
 		const parsed = parseModelsFile({
@@ -2152,6 +2225,7 @@ describe("refreshProviderModelsFromSource", () => {
 			"http://tailscale-host:11434/api/tags",
 			{
 				method: "GET",
+				signal: expect.any(AbortSignal),
 			},
 		);
 		const modelsState = await readModelsFile(

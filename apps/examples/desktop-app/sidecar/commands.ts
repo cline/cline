@@ -1931,7 +1931,9 @@ export async function handleCommand(
 		const manager = new ProviderSettingsManager();
 		return await getLocalProviderModels(
 			String(args?.provider ?? ""),
-			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+			manager.getProviderConfig(String(args?.provider ?? "").trim(), {
+				includeKnownModels: false,
+			}),
 		);
 	}
 	if (command === "list_cline_recommended_models") {

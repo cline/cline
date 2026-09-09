@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	getLiveModelsCatalog,
 	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
@@ -29,6 +30,47 @@ describe("isPrivateModelCatalogProvider", () => {
 		"anthropic",
 	])("does not classify %s as endpoint-specific", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
+});
+
+describe("live catalog request bounds", () => {
+	it("aborts stalled sources and returns a fallback catalog", async () => {
+		const controllers: AbortController[] = [];
+		const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+			const controller = new AbortController();
+			controllers.push(controller);
+			return controller.signal;
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				(_input, init: RequestInit) =>
+					new Promise((_resolve, reject) => {
+						init.signal?.addEventListener(
+							"abort",
+							() => reject(init.signal?.reason),
+							{ once: true },
+						);
+					}),
+			),
+		);
+		const pending = getLiveModelsCatalog();
+		expect(controllers.length).toBeGreaterThan(0);
+		expect(timeout).toHaveBeenCalledWith(5_000);
+		for (const controller of controllers) controller.abort();
+		await expect(pending).resolves.toEqual({});
+	});
+
+	it("refreshes the shared feed after its cache expires", async () => {
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const fetchMock = vi.fn(async () => Response.json({}));
+		vi.stubGlobal("fetch", fetchMock);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		now.mockReturnValue(1_101);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 });
 
@@ -522,7 +564,7 @@ describe("resolveProviderConfig", () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			"http://tailscale-host:11434/api/tags",
-			{ method: "GET" },
+			{ method: "GET", signal: expect.any(AbortSignal) },
 		);
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});

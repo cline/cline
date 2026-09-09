@@ -161,12 +161,14 @@ async function resolveProviderModelMap(
 		LlmsModels.getModelsForProvider(providerId),
 		LlmsModels.getModelOverridesForProvider(providerId),
 	]);
+	// All shared-catalog providers refresh when their model list is loaded.
+	// The catalog cache deduplicates concurrent loads across providers; the
+	// initial listLocalProviders snapshot remains entirely network-free.
+	// Endpoint-owned lists do not use the shared catalog.
+	const provider = await LlmsModels.getProvider(providerId);
 	const shouldLoadLiveCatalog =
-		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
+		providerId !== "litellm" && !provider?.modelsSourceUrl;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !shouldLoadLiveCatalog) {
-		return registeredModels;
-	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
