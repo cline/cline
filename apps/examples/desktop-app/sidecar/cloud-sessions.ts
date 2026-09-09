@@ -77,7 +77,6 @@ export type CreateCloudSessionInput = {
 	organizationId?: string;
 };
 
-// Re-export the shared repository/branch contract for sidecar consumers.
 export type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -1199,7 +1198,6 @@ export function reconcileBufferedCloudEvents(
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
-			// Replay only the newest queue state after the snapshot cutoff.
 			if (
 				event.event === "session.pending_prompts" &&
 				event !== lastQueueEvent
@@ -1347,9 +1345,7 @@ export class CloudSessionManager {
 			this.knownSessions.set(session.id, session);
 			const connection = this.connections.get(session.id);
 			if (connection) {
-				// Keep the connection's record current (title/model changes from
-				// other devices), and reap connections whose sandbox expired so
-				// they stop reconnect-looping against a dead proxy.
+				// Expired sandboxes must stop reconnecting.
 				connection.remote = session;
 				if (isExpiredRecord(session)) {
 					const live = this.ctx.liveSessions.get(session.id);
