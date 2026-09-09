@@ -906,11 +906,11 @@ export function captureScheduleRun(
 				? CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_STARTED
 				: CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_FINISHED,
 			{
-				trigger_kind: input.triggerKind,
-				attempt_count: input.attemptCount,
-				start_delay_ms: input.startDelayMs,
+				triggerKind: input.triggerKind,
+				attemptCount: input.attemptCount,
+				startDelayMs: input.startDelayMs,
 				...(input.phase === "finished"
-					? { outcome: input.outcome, duration_ms: input.durationMs }
+					? { outcome: input.outcome, durationMs: input.durationMs }
 					: {}),
 			},
 		);

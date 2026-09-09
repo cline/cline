@@ -1001,10 +1001,10 @@ test("scheduler telemetry allowlists diagnostics and tolerates capture failures"
 	expect(capture).toHaveBeenCalledWith({
 		event: "schedule.run_finished",
 		properties: {
-			trigger_kind: "schedule",
-			attempt_count: 2,
-			start_delay_ms: 60_000,
-			duration_ms: 30_000,
+			triggerKind: "schedule",
+			attemptCount: 2,
+			startDelayMs: 60_000,
+			durationMs: 30_000,
 			outcome: "timeout",
 		},
 	});

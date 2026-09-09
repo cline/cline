@@ -256,18 +256,18 @@ describe("CronRunner", () => {
 			{
 				event: "schedule.run_started",
 				properties: {
-					trigger_kind: "one_off",
-					attempt_count: 1,
-					start_delay_ms: expect.any(Number),
+					triggerKind: "one_off",
+					attemptCount: 1,
+					startDelayMs: expect.any(Number),
 				},
 			},
 			{
 				event: "schedule.run_finished",
 				properties: {
-					trigger_kind: "one_off",
-					attempt_count: 1,
-					start_delay_ms: expect.any(Number),
-					duration_ms: expect.any(Number),
+					triggerKind: "one_off",
+					attemptCount: 1,
+					startDelayMs: expect.any(Number),
+					durationMs: expect.any(Number),
 					outcome: "success",
 				},
 			},
@@ -445,10 +445,10 @@ describe("CronRunner", () => {
 		expect(capture).toHaveBeenLastCalledWith({
 			event: "schedule.run_finished",
 			properties: {
-				trigger_kind: "one_off",
-				attempt_count: 1,
-				start_delay_ms: expect.any(Number),
-				duration_ms: expect.any(Number),
+				triggerKind: "one_off",
+				attemptCount: 1,
+				startDelayMs: expect.any(Number),
+				durationMs: expect.any(Number),
 				outcome: "failed",
 			},
 		});
