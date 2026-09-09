@@ -1824,6 +1824,25 @@ export function useChatSession() {
 				}
 				authoritativeStatusRevisionRef.current += 1;
 				setStatus(nextStatus as ChatSessionStatus);
+				// The hub's session status is authoritative. A turn drained from
+				// the prompt queue does not always deliver chat_done (the runtime
+				// host suppresses a second done until the next run.started, and a
+				// drained turn never publishes one), so when the session reports it
+				// is no longer busy and the stream has not settled the current
+				// turn, settle it here: clear the streaming state and schedule the
+				// same persisted-history reconcile chat_done would have. The idle
+				// the hub publishes between a finished turn and the drained one it
+				// hands off to also lands here; the queued prompt's start bumps
+				// the epoch before that reconcile fires, so it is skipped.
+				if (
+					!BUSY_STATUSES.has(nextStatus as ChatSessionStatus) &&
+					!abortedRef.current &&
+					turnEpochRef.current !== turnSettledEpochRef.current
+				) {
+					turnSettledEpochRef.current = turnEpochRef.current;
+					clearLiveToolRefs();
+					finalizeSettledTurn(targetSessionId);
+				}
 			},
 		);
 		const unsubscribeEnded = desktopClient.subscribe(
