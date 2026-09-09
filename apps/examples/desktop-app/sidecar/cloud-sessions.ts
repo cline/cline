@@ -831,15 +831,6 @@ export function isCloudOuterSessionId(sessionId: string): boolean {
 	return sessionId.trim().startsWith("ses-");
 }
 
-function toWebSocketUrl(apiBaseUrl: string, outerSessionId: string): string {
-	const url = new URL(
-		`/api/v1/session/${encodeURIComponent(outerSessionId)}`,
-		apiBaseUrl,
-	);
-	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-	return url.toString();
-}
-
 function recordToLiveSession(record: CloudSessionRecord): LiveSession {
 	return {
 		config: {
@@ -929,53 +920,6 @@ export function cloudSessionToDiscoveryRecord(
 			},
 		},
 	};
-}
-
-function readSessionRows(
-	payload: Record<string, unknown> | undefined,
-): JsonRecord[] {
-	return Array.isArray(payload?.sessions)
-		? payload.sessions.filter(
-				(item): item is JsonRecord =>
-					Boolean(item) && typeof item === "object" && !Array.isArray(item),
-			)
-		: [];
-}
-
-function updatedAt(record: JsonRecord): number {
-	const value = record.updatedAt;
-	return typeof value === "number"
-		? value
-		: Date.parse(String(value ?? "")) || 0;
-}
-
-function sessionRowModelId(record: JsonRecord | undefined): string {
-	const metadata =
-		record?.metadata && typeof record.metadata === "object"
-			? (record.metadata as JsonRecord)
-			: undefined;
-	return String(metadata?.model ?? record?.model ?? "").trim();
-}
-
-function isRootSessionRow(record: JsonRecord): boolean {
-	const metadata =
-		record.metadata && typeof record.metadata === "object"
-			? (record.metadata as JsonRecord)
-			: undefined;
-	return !String(
-		metadata?.parentSessionId ?? record.parentSessionId ?? "",
-	).trim();
-}
-
-function parseApprovalInput(value: unknown): unknown {
-	if (typeof value !== "string") {
-		return value;
-	}
-	try {
-		return JSON.parse(value);
-	} catch {
-		return value;
-	}
 }
 
 function messageText(message: unknown): string {

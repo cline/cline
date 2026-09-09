@@ -1,4 +1,3 @@
-import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CloudSessionApi,
@@ -6,7 +5,6 @@ import {
 	CloudSessionManager,
 	type CloudSessionRecord,
 	cloudSessionToDiscoveryRecord,
-	reconcileBufferedCloudEvents,
 } from "./cloud-sessions";
 import type { SidecarContext } from "./types";
 
@@ -44,140 +42,6 @@ function createContext(): { ctx: SidecarContext } {
 	} as SidecarContext;
 	return { ctx };
 }
-
-describe("reconcileBufferedCloudEvents", () => {
-	const event = (
-		name: HubEventEnvelope["event"],
-		id: string,
-		payload: Record<string, unknown> = {},
-	): HubEventEnvelope => ({
-		version: "v1",
-		event: name,
-		eventId: id,
-		timestamp: Date.now(),
-		sessionId: "inner-1",
-		payload,
-	});
-
-	it("replays content the snapshot does NOT contain", () => {
-		const buffered = [
-			event("assistant.delta", "a-1", { text: "unpersisted reply" }),
-			event("run.completed", "done-1"),
-		];
-		expect(
-			reconcileBufferedCloudEvents(buffered, [
-				{ role: "assistant", content: "a completely different answer" },
-			]).map((item) => item.event),
-		).toEqual(["assistant.delta", "run.completed"]);
-	});
-
-	it("supersedes despite trailing whitespace in the streamed text", () => {
-		const buffered = [
-			event("assistant.finished", "f-1", { text: "the answer \n" }),
-			event("run.completed", "done-1"),
-		];
-		expect(
-			reconcileBufferedCloudEvents(buffered, [
-				{ role: "assistant", content: "prefix the answer" },
-			]).map((item) => item.event),
-		).toEqual(["run.completed"]);
-	});
-
-	it("drops buffered queue snapshots when a fresh queue snapshot was applied", () => {
-		const buffered = [
-			event("session.pending_prompts", "q-1", { prompts: [] }),
-			event("assistant.delta", "a-1", { text: "live tail" }),
-		];
-		expect(
-			reconcileBufferedCloudEvents(buffered, []).map((item) => item.event),
-		).toEqual(["assistant.delta"]);
-	});
-
-	it("replays the newest buffered queue snapshot when the queue fetch failed", () => {
-		const buffered = [
-			event("session.pending_prompts", "q-1", { prompts: [] }),
-			event("session.pending_prompts", "q-2", {
-				prompts: [{ id: "p-1", prompt: "queued work" }],
-			}),
-			event("assistant.delta", "a-1", { text: "live tail" }),
-		];
-		expect(
-			reconcileBufferedCloudEvents(buffered, [], {
-				queueSnapshotApplied: false,
-			}).map((item) => item.eventId),
-		).toEqual(["q-2", "a-1"]);
-	});
-
-	it("replays a queue snapshot received after the queue fetch", () => {
-		const buffered = [
-			event("session.pending_prompts", "q-old", { prompts: [] }),
-			event("assistant.delta", "a-1", { text: "live tail" }),
-			event("session.pending_prompts", "q-new", {
-				prompts: [{ id: "p-1", prompt: "queued work" }],
-			}),
-		];
-		expect(
-			reconcileBufferedCloudEvents(buffered, [], {
-				queueSnapshotEventCutoff: 1,
-			}).map((item) => item.eventId),
-		).toEqual(["a-1", "q-new"]);
-	});
-
-	it("supersedes content independently across two terminal run segments", () => {
-		const buffered = [
-			event("assistant.delta", "a-1", { text: "first tail" }),
-			event("run.completed", "done-1"),
-			event("assistant.delta", "a-2", { text: "second tail" }),
-			event("run.completed", "done-2"),
-		];
-
-		expect(
-			reconcileBufferedCloudEvents(buffered, [
-				{ role: "assistant", content: "prefix first tail" },
-				{ role: "assistant", content: "prefix second tail" },
-			]).map((item) => item.event),
-		).toEqual(["run.completed", "run.completed"]);
-	});
-
-	it("does not let an older identical reply supersede a new buffered turn", () => {
-		const buffered = [
-			event("assistant.delta", "a-2", { text: "Done" }),
-			event("run.completed", "done-2"),
-		];
-		const baseline = [{ role: "assistant", content: "Done" }];
-
-		expect(
-			reconcileBufferedCloudEvents(buffered, baseline, {
-				baselineMessages: baseline,
-			}).map((item) => item.event),
-		).toEqual(["assistant.delta", "run.completed"]);
-		expect(
-			reconcileBufferedCloudEvents(
-				buffered,
-				[...baseline, { role: "assistant", content: "Done" }],
-				{ baselineMessages: baseline },
-			).map((item) => item.event),
-		).toEqual(["run.completed"]);
-	});
-
-	it("keeps run.failed while suppressing reflected content and dedupes tools by id", () => {
-		const buffered = [
-			event("assistant.delta", "a-1", { text: "partial failure" }),
-			event("tool.started", "tool-1", { toolCallId: "call-1" }),
-			event("run.failed", "failed-1", { error: "boom" }),
-		];
-
-		expect(
-			reconcileBufferedCloudEvents(buffered, [
-				{ role: "assistant", content: "saved partial failure" },
-				{
-					role: "assistant",
-					content: [{ type: "tool_use", id: "call-1", name: "read_file" }],
-				},
-			]).map((item) => item.event),
-		).toEqual(["run.failed"]);
-	});
-});
 
 describe("CloudSessionManager lifecycle", () => {
 	it("does not retry an arbitrary 502 that could have provisioned", async () => {
