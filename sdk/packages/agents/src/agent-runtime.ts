@@ -51,8 +51,8 @@ import { nanoid } from "nanoid";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
-const EMPTY_TURN_REMINDER_MESSAGE =
-	"[SYSTEM] Your previous turn ended without any visible response or tool call — reasoning alone is not shown to the user. Continue the task: call the next tool you need, or reply with your answer as text.";
+const REASONING_ONLY_RESPONSE =
+	"Your previous turn ended without a response or tool call. Continue the task by calling the next tool you need or replying with an answer.";
 
 /**
  * Terminal message when a context-window overflow cannot be recovered because
@@ -816,7 +816,7 @@ export class AgentRuntime {
 						// Reasoning-only (or whitespace-only) turn: the user sees
 						// nothing, so this is not a completion. Nudge and loop; the
 						// host counts it as a mistake via `emptyTurn` above.
-						await this.addUserReminderMessage(EMPTY_TURN_REMINDER_MESSAGE);
+						await this.addUserReminderMessage(REASONING_ONLY_RESPONSE);
 						continue;
 					}
 					const completionReminderMessages =
