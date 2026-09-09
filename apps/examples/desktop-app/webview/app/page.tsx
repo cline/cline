@@ -32,13 +32,11 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
-import {
-	ChatInputBar,
-	type WorkIn,
-} from "@/components/views/chat/chat-input-bar";
+import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import type { WorkIn } from "@/components/views/chat/welcome-workspace-controls";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import {
@@ -1553,7 +1551,6 @@ function ChatThreadPane({
 			onRemovePromptInQueue={handleRemoveQueuedPrompt}
 			onProviderChange={handleProviderChange}
 			onSend={handleSendPrompt}
-			onWorkInChange={setWorkIn}
 			gitBranch={gitBranch}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
@@ -1566,7 +1563,6 @@ function ChatThreadPane({
 			summary={summary}
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
-			workIn={workIn}
 		/>
 	);
 
@@ -1656,6 +1652,8 @@ function ChatThreadPane({
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
+					onWorkInChange={setWorkIn}
+					workIn={workIn}
 				/>
 			</AttachmentDropZone>
 			<AlertDialog
