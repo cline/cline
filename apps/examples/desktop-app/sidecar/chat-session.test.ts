@@ -14,7 +14,6 @@ import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	createDesktopMistakeLimitPrompt,
-	createDesktopMistakeRecovery,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -1807,15 +1806,17 @@ Follow the desktop send workflow instructions.`,
 describe("mistake-limit prompt", () => {
 	function createPromptContext() {
 		const send = vi.fn();
-		const steer = vi.fn(async () => undefined);
+		const resume = vi.fn(async () => undefined);
+		const log = vi.fn();
 		const ctx = {
 			wsClients: new Set([{ send }]),
 			streamIndices: new Map(),
 			coreStreamActivity: new Map(),
 			pendingQuestions: new Map(),
 			liveSessions: new Map(),
+			logger: { log },
 			sessionManager: {
-				send: steer,
+				send: resume,
 				stop: vi.fn(async () => {}),
 				abort: vi.fn(async () => {}),
 			},
@@ -1838,7 +1839,7 @@ describe("mistake-limit prompt", () => {
 				  }
 				| undefined;
 		};
-		return { ctx, steer, readQuestionRequest };
+		return { ctx, resume, log, readQuestionRequest };
 	}
 	const limitContext = {
 		iteration: 15,
@@ -1848,54 +1849,113 @@ describe("mistake-limit prompt", () => {
 		details:
 			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
 	};
+	const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-	it("holds tool and model hooks until Continue has queued recovery guidance", async () => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		let finishSteering!: () => void;
-		steer.mockImplementationOnce(
-			() =>
-				new Promise<undefined>((resolve) => {
-					finishSteering = () => resolve(undefined);
-				}),
-		);
-		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
-		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		expect(recovery.onConsecutiveMistakeLimitReached(limitContext)).toBe(
-			decision,
-		);
-		let released = false;
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]).then((results) => {
-			released = true;
-			return results;
+	it("stops the run immediately and asks the active session's user how to continue", async () => {
+		const { ctx, resume, readQuestionRequest } = createPromptContext();
+		// Session ids are only known after start() resolves; the prompt must
+		// read the id at prompt time, not at construction time.
+		let sessionId = "";
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => sessionId);
+		sessionId = "session-late";
+
+		// The decision does not wait for an answer: the run stops now and the
+		// question stays open for the user to resume the session.
+		await expect(decide(limitContext)).resolves.toEqual({
+			action: "stop",
+			reason: `mistake_limit_reached: ${limitContext.details}`,
 		});
-		await Promise.resolve();
-		expect(released).toBe(false);
+		const request = readQuestionRequest();
+		expect(request).toMatchObject({
+			sessionId: "session-late",
+			options: ["Try a different approach", "Stop this run"],
+		});
+		expect(request?.question).toContain("repeated mistakes or tool calls");
+		expect(request?.question).toContain("identical calls to `editor`");
 		expect(ctx.pendingQuestions.size).toBe(1);
+		expect(resume).not.toHaveBeenCalled();
+	});
+
+	it("resumes the session with recovery guidance on Continue", async () => {
+		const { ctx, resume, readQuestionRequest } = createPromptContext();
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
 		resolveSidecarAskQuestion(
 			ctx,
 			readQuestionRequest()?.requestId ?? "",
 			"Try a different approach",
 		);
-		await Promise.resolve();
-		expect(steer).toHaveBeenCalledTimes(1);
-		expect(released).toBe(false);
-		finishSteering();
-		await expect(decision).resolves.toMatchObject({ action: "continue" });
-		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
-		expect(released).toBe(true);
-		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
+		await flush();
+		expect(resume).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining("Do not repeat the same call"),
+		});
+		expect(resume).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("identical calls to `editor`"),
+			}),
+		);
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it.each([
+		"stop",
+		" STOP THIS RUN ",
+		"2",
+		"no",
+	])("treats the free-text answer %s as Stop, like the CLI", async (answer) => {
+		const { ctx, resume, readQuestionRequest } = createPromptContext();
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			answer,
+		);
+		await flush();
+		expect(resume).not.toHaveBeenCalled();
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it("passes free-text answers through as user guidance", async () => {
+		const { ctx, resume, readQuestionRequest } = createPromptContext();
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"read the file first, then edit",
+		);
+		await flush();
+		expect(resume).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining(
+				"User guidance: read the file first, then edit",
+			),
+		});
+	});
+
+	it.each([
+		"rejected",
+		"unavailable",
+	])("logs instead of throwing when the resume is %s", async (failure) => {
+		const { ctx, resume, log, readQuestionRequest } = createPromptContext();
+		if (failure === "rejected")
+			resume.mockRejectedValueOnce(new Error("Disconnected"));
+		else ctx.sessionManager = null;
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await flush();
+		expect(log).toHaveBeenCalledWith(
+			"Mistake-limit recovery not applied",
+			expect.objectContaining({ sessionId: "session-1" }),
+		);
 	});
 
 	it("leaves ordinary questions alone when cancelling a mistake prompt", async () => {
 		const { ctx, readQuestionRequest } = createPromptContext();
-		const decision = createDesktopMistakeLimitPrompt(
-			ctx,
-			() => "session-1",
-		)(limitContext);
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
 		const mistakeRequestId = readQuestionRequest()?.requestId;
 		const normalQuestion = requestSidecarAskQuestion(
 			ctx,
@@ -1907,7 +1967,6 @@ describe("mistake-limit prompt", () => {
 			action: "abort",
 			sessionId: "session-1",
 		});
-		await expect(decision).resolves.toMatchObject({ action: "stop" });
 		expect(ctx.pendingQuestions.size).toBe(1);
 		const remaining = [...ctx.pendingQuestions.values()][0];
 		expect(remaining.item.requestId).not.toBe(mistakeRequestId);
@@ -1915,249 +1974,27 @@ describe("mistake-limit prompt", () => {
 		await expect(normalQuestion).resolves.toBe("a");
 	});
 
-	it.each([
-		"answer",
-		"abort",
-	] as const)("releases waiting hooks with Stop on %s", async (action) => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
-		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]);
-		if (action === "answer") {
-			resolveSidecarAskQuestion(
-				ctx,
-				readQuestionRequest()?.requestId ?? "",
-				"Stop this run",
-			);
-		} else {
-			await handleChatSessionCommand(ctx, {
-				action: "abort",
-				sessionId: "session-1",
-			});
-		}
-		await expect(decision).resolves.toMatchObject({ action: "stop" });
-		for (const control of await waiting)
-			expect(control).toMatchObject({ stop: true });
-		expect(ctx.pendingQuestions.size).toBe(0);
-		expect(steer).not.toHaveBeenCalled();
-	});
-
-	it("asks the active session's user instead of stopping silently", async () => {
-		const { ctx, readQuestionRequest } = createPromptContext();
-		// Session ids are only known after start() resolves; the prompt must
-		// read the id at prompt time, not at construction time.
-		let sessionId = "";
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => sessionId);
-		sessionId = "session-late";
-
-		const decision = decide(limitContext);
-		const request = readQuestionRequest();
-		expect(request).toMatchObject({
-			sessionId: "session-late",
-			options: ["Try a different approach", "Stop this run"],
-		});
-		expect(request?.question).toContain("repeated mistakes or tool calls");
-		expect(request?.question).toContain("identical calls to `editor`");
-
-		expect(
-			resolveSidecarAskQuestion(ctx, request?.requestId ?? "", "Stop this run"),
-		).toBe(true);
-		await expect(decision).resolves.toEqual({
-			action: "stop",
-			reason: "stopped after mistake_limit_reached prompt",
-		});
-	});
-
-	it("delivers recovery guidance only through steering", async () => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-
-		const decision = decide(limitContext);
-		const request = readQuestionRequest();
-		resolveSidecarAskQuestion(
-			ctx,
-			request?.requestId ?? "",
-			"Try a different approach",
-		);
-
-		const result = await decision;
-		expect(result).toEqual({ action: "continue" });
-		expect(steer).toHaveBeenCalledExactlyOnceWith({
-			sessionId: "session-1",
-			prompt: expect.stringContaining("Do not repeat the same call"),
-			delivery: "steer",
-		});
-		expect(steer).toHaveBeenCalledWith(
-			expect.objectContaining({
-				prompt: expect.stringContaining("identical calls to `editor`"),
-			}),
-		);
-	});
-
-	it.each([
-		"stop",
-		" STOP THIS RUN ",
-		"2",
-		"no",
-	])("treats the free-text answer %s as Stop, like the CLI", async (answer) => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const decision = createDesktopMistakeLimitPrompt(
-			ctx,
-			() => "session-1",
-		)(limitContext);
-		resolveSidecarAskQuestion(
-			ctx,
-			readQuestionRequest()?.requestId ?? "",
-			answer,
-		);
-		await expect(decision).resolves.toMatchObject({ action: "stop" });
-		expect(steer).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		"rejected",
-		"unavailable",
-	])("stops waiting hooks when steering is %s", async (failure) => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		if (failure === "rejected")
-			steer.mockRejectedValueOnce(new Error("Disconnected"));
-		else ctx.sessionManager = null;
-		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
-		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
-		const waiting = Promise.all([
-			recovery.hooks.beforeModel(),
-			recovery.hooks.beforeTool(),
-			recovery.hooks.afterTool(),
-		]);
-		resolveSidecarAskQuestion(
-			ctx,
-			readQuestionRequest()?.requestId ?? "",
-			"Try a different approach",
-		);
-		await expect(decision).resolves.toMatchObject({
-			action: "stop",
-			reason: expect.stringContaining("Could not send recovery guidance"),
-		});
-		for (const result of await waiting)
-			expect(result).toMatchObject({ stop: true });
-		expect(ctx.pendingQuestions.size).toBe(0);
-	});
-
-	it("passes free-text answers through as user guidance", async () => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		const decision = decide(limitContext);
-		resolveSidecarAskQuestion(
-			ctx,
-			readQuestionRequest()?.requestId ?? "",
-			"read the file first, then edit",
-		);
-		await expect(decision).resolves.toEqual({ action: "continue" });
-		expect(steer).toHaveBeenCalledExactlyOnceWith({
-			sessionId: "session-1",
-			prompt: expect.stringContaining(
-				"User guidance: read the file first, then edit",
-			),
-			delivery: "steer",
-		});
-	});
-
-	it("reuses Continue for already-started iterations and asks again for new mistakes", async () => {
-		const { ctx, steer } = createPromptContext();
-		ctx.liveSessions.set("session-1", {
-			config: {},
-			messages: [],
-			promptsInQueue: [],
-			busy: true,
-			startedAt: 0,
-			status: "running",
-		});
-		const startIteration = (iteration: number) =>
-			handleCoreSessionEvent(ctx, {
-				type: "agent_event",
-				payload: {
-					sessionId: "session-1",
-					event: { type: "iteration_start", iteration },
-				},
-			});
-		const answer = (value: string) => {
-			const pending = [...ctx.pendingQuestions.values()][0];
-			expect(pending).toBeDefined();
-			resolveSidecarAskQuestion(ctx, pending.item.requestId, value);
-		};
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		startIteration(15);
-		const first = decide(limitContext);
-		// The model can advance while the client decision is pending.
-		startIteration(20);
-		// Do not extend the covered iterations while waiting for the hub's
-		// steering acknowledgement: a newer step may already have the guidance.
-		steer.mockImplementationOnce(async () => {
-			startIteration(21);
-			return undefined;
-		});
-		answer("Try a different approach");
-		await expect(first).resolves.toMatchObject({ action: "continue" });
-
-		// A batch can have many failures in one iteration, followed by more
-		// failures queued before the user answered. None needs another prompt.
-		for (const iteration of [
-			...Array<number>(20).fill(15),
-			16,
-			17,
-			18,
-			19,
-			20,
-		]) {
-			await expect(decide({ ...limitContext, iteration })).resolves.toEqual({
-				action: "continue",
-			});
-		}
-		expect(ctx.pendingQuestions.size).toBe(0);
-		expect(steer).toHaveBeenCalledTimes(1);
-
-		startIteration(21);
-		const next = decide({ ...limitContext, iteration: 21 });
-		answer("Try a different approach");
-		await expect(next).resolves.toMatchObject({ action: "continue" });
-		expect(steer).toHaveBeenCalledTimes(2);
-
-		// A new user run must not inherit the previous run's decision, even
-		// though its iteration numbers start over.
-		startIteration(1);
-		startIteration(5);
-		const newRun = decide({ ...limitContext, iteration: 5 });
-		answer("Stop this run");
-		await expect(newRun).resolves.toMatchObject({ action: "stop" });
-		expect(ctx.pendingQuestions.size).toBe(0);
-		expect(steer).toHaveBeenCalledTimes(2);
-	});
-
 	it("falls back to stopping when no session owns the question", async () => {
-		const { ctx, steer } = createPromptContext();
+		const { ctx, resume } = createPromptContext();
 		const decide = createDesktopMistakeLimitPrompt(ctx, () => "");
 		await expect(decide(limitContext)).resolves.toEqual({
 			action: "stop",
 			reason: `mistake_limit_reached: ${limitContext.details}`,
 		});
-		expect(steer).not.toHaveBeenCalled();
+		await flush();
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(resume).not.toHaveBeenCalled();
 	});
 
 	it("removes an aborted run's question and rejects late answers", async () => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		const decision = decide(limitContext);
+		const { ctx, resume, readQuestionRequest } = createPromptContext();
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
 		const request = readQuestionRequest();
 		expect(ctx.pendingQuestions.size).toBe(1);
 		await handleChatSessionCommand(ctx, {
 			action: "abort",
 			sessionId: "session-1",
 		});
-		await expect(decision).resolves.toMatchObject({ action: "stop" });
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(
 			resolveSidecarAskQuestion(
@@ -2166,7 +2003,8 @@ describe("mistake-limit prompt", () => {
 				"Try a different approach",
 			),
 		).toBe(false);
-		expect(steer).not.toHaveBeenCalled();
+		await flush();
+		expect(resume).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -2175,14 +2013,9 @@ describe("mistake-limit prompt", () => {
 		"reset",
 	] as const)("cancels only the owning session's questions on %s", async (action) => {
 		const { ctx } = createPromptContext();
-		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-		const other = createDesktopMistakeLimitPrompt(
-			ctx,
-			() => "session-2",
-		)(limitContext);
-		const decision = decide(limitContext);
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-2")(limitContext);
 		await handleChatSessionCommand(ctx, { action, sessionId: "session-1" });
-		await expect(decision).resolves.toMatchObject({ action: "stop" });
 		expect(
 			[...ctx.pendingQuestions.values()].map((p) => p.item.sessionId),
 		).toEqual(["session-2"]);
@@ -2190,36 +2023,34 @@ describe("mistake-limit prompt", () => {
 			action: "abort",
 			sessionId: "session-2",
 		});
-		await other;
 		expect(ctx.pendingQuestions.size).toBe(0);
 	});
 
 	it("times out an unanswered question and removes it from polling", async () => {
 		vi.useFakeTimers();
 		try {
-			const { ctx, steer } = createPromptContext();
-			const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
-			const decision = decide(limitContext);
+			const { ctx, resume } = createPromptContext();
+			await createDesktopMistakeLimitPrompt(
+				ctx,
+				() => "session-1",
+			)(limitContext);
+			expect(ctx.pendingQuestions.size).toBe(1);
 			await vi.advanceTimersByTimeAsync(5 * 60_000);
-			await expect(decision).resolves.toMatchObject({ action: "stop" });
 			expect(ctx.pendingQuestions.size).toBe(0);
-			expect(steer).not.toHaveBeenCalled();
+			expect(resume).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
 	it.each([
-		"run",
-		"session",
-	])("cancels the question when the %s ends externally", async (kind) => {
-		const { ctx, steer, readQuestionRequest } = createPromptContext();
-		const decision = createDesktopMistakeLimitPrompt(
-			ctx,
-			() => "session-1",
-		)(limitContext);
+		"a new run starts",
+		"the session ends",
+	])("cancels the question when %s", async (kind) => {
+		const { ctx, resume, readQuestionRequest } = createPromptContext();
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
 		const requestId = readQuestionRequest()?.requestId ?? "";
-		if (kind === "session")
+		if (kind === "the session ends")
 			handleCoreSessionEvent(ctx, {
 				type: "ended",
 				payload: { sessionId: "session-1", reason: "stopped", ts: Date.now() },
@@ -2229,21 +2060,34 @@ describe("mistake-limit prompt", () => {
 				type: "agent_event",
 				payload: {
 					sessionId: "session-1",
-					event: {
-						type: "done",
-						reason: "aborted",
-						text: "",
-						iterations: 5,
-						usage: { inputTokens: 0, outputTokens: 0 },
-					},
+					event: { type: "iteration_start", iteration: 1 },
 				},
 			});
-		await expect(decision).resolves.toMatchObject({ action: "stop" });
 		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(
 			resolveSidecarAskQuestion(ctx, requestId, "Try a different approach"),
 		).toBe(false);
-		expect(steer).not.toHaveBeenCalled();
+		await flush();
+		expect(resume).not.toHaveBeenCalled();
+	});
+
+	it("keeps the question open while the stopped run finishes", async () => {
+		const { ctx } = createPromptContext();
+		await createDesktopMistakeLimitPrompt(ctx, () => "session-1")(limitContext);
+		handleCoreSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "aborted",
+					text: "",
+					iterations: 5,
+					usage: { inputTokens: 0, outputTokens: 0 },
+				},
+			},
+		});
+		expect(ctx.pendingQuestions.size).toBe(1);
 	});
 
 	it("is wired into freshly started sessions as a local runtime option", async () => {
@@ -2258,12 +2102,9 @@ describe("mistake-limit prompt", () => {
 				expect(
 					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
 				).toBe("function");
-				expect(input.config).not.toHaveProperty("hooks");
-				expect(input.localRuntime?.hooks).toMatchObject({
-					beforeModel: expect.any(Function),
-					beforeTool: expect.any(Function),
-					afterTool: expect.any(Function),
-				});
+				// No execution hooks: they would make every model/tool step wait on
+				// this client, hanging hub runs whenever the desktop disconnects.
+				expect(input.localRuntime).not.toHaveProperty("hooks");
 				return {
 					sessionId: "session-limit",
 					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },

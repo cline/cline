@@ -434,6 +434,12 @@ const MISTAKE_LIMIT_DETAIL_MAX_CHARS = 600;
  * Route the decision through the existing ask-question channel instead so
  * the user sees what went wrong and can choose.
  *
+ * The run is stopped right away (the SDK default) rather than held open while
+ * the question is pending: the decision callback alone does not pause the
+ * loop, and holding it via hub-side hooks would make every model/tool step
+ * depend on this client staying connected. Continue resumes the session with
+ * a fresh run that carries the recovery guidance.
+ *
  * `getSessionId` is read at prompt time: for fresh starts the session id is
  * only known after `manager.start()` resolves, and the webview matches the
  * prompt to its active session by id.
@@ -444,15 +450,6 @@ export function createDesktopMistakeLimitPrompt(
 ): MistakeLimitDecider {
 	return async (context) => {
 		const sessionId = getSessionId().trim();
-		const recovery = ctx.liveSessions.get(sessionId)?.mistakeRecovery;
-		if (
-			recovery?.continuedThroughIteration !== undefined &&
-			context.iteration <= recovery.continuedThroughIteration
-		) {
-			// The tracker serializes decisions, so old failures can arrive after
-			// Continue. The user has already answered for these in-flight steps.
-			return { action: "continue" };
-		}
 		const detail = context.details?.trim() ?? "";
 		const truncatedDetail =
 			detail.length > MISTAKE_LIMIT_DETAIL_MAX_CHARS
@@ -466,124 +463,61 @@ export function createDesktopMistakeLimitPrompt(
 			.filter((line) => line.length > 0)
 			.join("\n");
 
-		let answer: string;
-		try {
-			answer = await requestSidecarAskQuestion(
-				ctx,
-				question,
-				[MISTAKE_LIMIT_CONTINUE_OPTION, MISTAKE_LIMIT_STOP_OPTION],
-				{
+		void requestSidecarAskQuestion(
+			ctx,
+			question,
+			[MISTAKE_LIMIT_CONTINUE_OPTION, MISTAKE_LIMIT_STOP_OPTION],
+			{
+				sessionId,
+				agentId: "desktop-mistake-limit",
+				iteration: context.iteration,
+			},
+		)
+			.then(async (answer) => {
+				const normalized = answer.trim().toLowerCase();
+				if (["2", "stop this run", "stop", "n", "no"].includes(normalized)) {
+					return;
+				}
+				const customGuidance =
+					normalized.length > 0 &&
+					normalized !== "1" &&
+					normalized !== MISTAKE_LIMIT_CONTINUE_OPTION.toLowerCase()
+						? answer.trim()
+						: "";
+				const guidance = [
+					"The run reached the limit for repeated mistakes or tool calls.",
+					truncatedDetail ? `Latest: ${truncatedDetail}` : "",
+					"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
+					customGuidance ? `User guidance: ${customGuidance}` : "",
+				]
+					.filter((line) => line.length > 0)
+					.join(" ");
+				const manager = ctx.sessionManager;
+				if (!manager) {
+					throw new Error("Desktop session manager is unavailable");
+				}
+				await manager.send({ sessionId, prompt: guidance });
+			})
+			.catch((error) => {
+				// Prompt timed out, the session was torn down, or the resume
+				// could not be sent: the run is already stopped, so the session
+				// simply stays resumable by hand.
+				ctx.logger?.log("Mistake-limit recovery not applied", {
 					sessionId,
-					agentId: "desktop-mistake-limit",
-					iteration: context.iteration,
-				},
-			);
-		} catch (error) {
-			// Prompt timed out or the session was torn down: fall back to the
-			// core's default decision, but keep the reason so the stop is
-			// attributable.
-			ctx.logger?.log("Mistake-limit prompt unanswered; stopping run", {
-				sessionId,
-				error: error instanceof Error ? error.message : String(error),
-			});
-			return {
-				action: "stop",
-				reason: `mistake_limit_reached: ${detail || context.reason}`,
-			};
-		}
-
-		const normalized = answer.trim().toLowerCase();
-		if (["2", "stop this run", "stop", "n", "no"].includes(normalized)) {
-			return {
-				action: "stop",
-				reason: "stopped after mistake_limit_reached prompt",
-			};
-		}
-		const customGuidance =
-			normalized.length > 0 &&
-			normalized !== "1" &&
-			normalized !== MISTAKE_LIMIT_CONTINUE_OPTION.toLowerCase()
-				? answer.trim()
-				: "";
-		const guidance = [
-			"The run reached the limit for repeated mistakes or tool calls.",
-			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
-			"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
-			customGuidance ? `User guidance: ${customGuidance}` : "",
-		]
-			.filter((line) => line.length > 0)
-			.join(" ");
-		// Use the existing steering queue so the running model receives the
-		// guidance, including any instructions entered in the desktop prompt.
-		const manager = ctx.sessionManager;
-		try {
-			if (!manager) throw new Error("Desktop session manager is unavailable");
-			const continuedThroughIteration = Math.max(
-				context.iteration,
-				recovery?.latestIteration ?? context.iteration,
-			);
-			await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
-			if (recovery) {
-				recovery.continuedThroughIteration = continuedThroughIteration;
-			}
-		} catch (error) {
-			const detail = error instanceof Error ? error.message : String(error);
-			ctx.logger?.log("Failed to steer mistake-limit guidance", {
-				sessionId,
-				error: detail,
-			});
-			// Releasing the hooks without the guidance would resume the same
-			// failing loop. Only Continue after the steering request succeeds.
-			return {
-				action: "stop",
-				reason: `Could not send recovery guidance: ${detail}`,
-			};
-		}
-		// Steering already delivers the guidance; do not also append it via
-		// the mistake tracker's recovery-notice path.
-		return { action: "continue" };
-	};
-}
-
-export function createDesktopMistakeRecovery(
-	ctx: SidecarContext,
-	getSessionId: () => string,
-) {
-	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
-	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
-	const waitForDecision = async () => {
-		const decision = await pendingDecision;
-		return decision?.action === "stop"
-			? { stop: true, reason: decision.reason }
-			: undefined;
-	};
-	return {
-		onConsecutiveMistakeLimitReached: (
-			context: ConsecutiveMistakeLimitContext,
-		) => {
-			if (!pendingDecision) {
-				pendingDecision = prompt(context).finally(() => {
-					pendingDecision = undefined;
+					error: error instanceof Error ? error.message : String(error),
 				});
-			}
-			return pendingDecision;
-		},
-		hooks: {
-			// The decision callback alone does not pause the SDK. These existing
-			// awaited hooks hold desktop runs at tool/model boundaries until the
-			// user answers. afterTool holds before the next iteration consumes
-			// the recovery guidance queued by the prompt's Continue action.
-			beforeModel: waitForDecision,
-			beforeTool: waitForDecision,
-			afterTool: waitForDecision,
-		},
+			});
+		return {
+			action: "stop",
+			reason: `mistake_limit_reached: ${detail || context.reason}`,
+		};
 	};
 }
 
 function buildCoreSessionConfig(
 	config: JsonRecord,
 	telemetryUser?: SidecarContext["telemetryUser"],
-	mistakeRecovery?: ReturnType<typeof createDesktopMistakeRecovery>,
+	onConsecutiveMistakeLimitReached?: MistakeLimitDecider,
 ): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
@@ -628,7 +562,9 @@ function buildCoreSessionConfig(
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
-		...mistakeRecovery,
+		...(onConsecutiveMistakeLimitReached
+			? { onConsecutiveMistakeLimitReached }
+			: {}),
 	};
 }
 
@@ -865,7 +801,7 @@ async function handleStart(
 		...buildCoreSessionConfig(
 			request.config,
 			ctx.telemetryUser,
-			createDesktopMistakeRecovery(ctx, () => startedSessionId),
+			createDesktopMistakeLimitPrompt(ctx, () => startedSessionId),
 		),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
@@ -1005,7 +941,7 @@ async function startRebuiltSession(
 					systemPrompt,
 				},
 				ctx.telemetryUser,
-				createDesktopMistakeRecovery(ctx, () => sessionId),
+				createDesktopMistakeLimitPrompt(ctx, () => sessionId),
 			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
@@ -1506,7 +1442,7 @@ async function handleForkUnlocked(
 					systemPrompt,
 				},
 				ctx.telemetryUser,
-				createDesktopMistakeRecovery(ctx, () => newSessionId),
+				createDesktopMistakeLimitPrompt(ctx, () => newSessionId),
 			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
@@ -1650,7 +1586,7 @@ async function handleRestoreCheckpoint(
 							systemPrompt: await resolveSystemPrompt(config),
 						},
 						ctx.telemetryUser,
-						createDesktopMistakeRecovery(ctx, () => restoredSessionId),
+						createDesktopMistakeLimitPrompt(ctx, () => restoredSessionId),
 					) as unknown as ClineCoreStartConfig,
 				),
 				source: SessionSource.DESKTOP,

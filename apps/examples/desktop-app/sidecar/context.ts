@@ -433,7 +433,6 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
-			cancelSidecarMistakeQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -468,19 +467,13 @@ function handleAgentEvent(
 			);
 			break;
 		}
-		case "iteration_start": {
-			const session = ctx.liveSessions.get(sessionId);
-			if (session) {
-				// Iterations restart at one for each user run. Keep the previous
-				// answer only within the run in which it was supplied.
-				if (event.iteration === 1 || !session.mistakeRecovery) {
-					session.mistakeRecovery = { latestIteration: event.iteration };
-				} else {
-					session.mistakeRecovery.latestIteration = event.iteration;
-				}
+		case "iteration_start":
+			// A new run supersedes a mistake-limit question left open by the
+			// previous one; its answer would otherwise queue stale guidance.
+			if (event.iteration === 1) {
+				cancelSidecarMistakeQuestions(ctx, sessionId, "New run started");
 			}
 			break;
-		}
 		case "iteration_end":
 			break;
 	}
