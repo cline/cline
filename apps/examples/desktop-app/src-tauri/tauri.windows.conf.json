@@ -1,5 +1,12 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
+	"bundle": {
+		"windows": {
+			"nsis": {
+				"installerHooks": "windows/installer-hooks.nsh"
+			}
+		}
+	},
 	"app": {
 		"windows": [
 			{

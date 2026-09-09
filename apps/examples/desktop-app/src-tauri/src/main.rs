@@ -756,8 +756,10 @@ fn restart_to_apply_update(
 ) {
     // Neither restart() nor install() returns, so the run-loop Exit handler
     // does not get a chance to stop the sidecar; shut it down explicitly
-    // first. On Windows this also releases the sidecar exe's file lock,
-    // which the NSIS installer needs in order to replace it.
+    // first. On Windows this releases the sidecar exe's file lock, which the
+    // NSIS installer needs in order to replace it. Only this direct child is
+    // reachable from here; the detached Hub daemon and hub-hosted children
+    // run the same exe and are stopped by windows/installer-hooks.nsh.
     backend_state.stop();
     // Windows: install the bytes staged by the background cycle. install()
     // launches the NSIS installer (which relaunches the app when done) and
