@@ -543,7 +543,9 @@ export function createDesktopMistakeLimitPrompt(
 				reason: `Could not send recovery guidance: ${detail}`,
 			};
 		}
-		return { action: "continue", guidance };
+		// Steering already delivers the guidance; do not also append it via
+		// the mistake tracker's recovery-notice path.
+		return { action: "continue" };
 	};
 }
 

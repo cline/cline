@@ -2046,7 +2046,7 @@ describe("mistake-limit prompt", () => {
 		});
 	});
 
-	it("steers recovery guidance into the running session", async () => {
+	it("delivers recovery guidance only through steering", async () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
 
@@ -2059,19 +2059,17 @@ describe("mistake-limit prompt", () => {
 		);
 
 		const result = await decision;
-		expect(result.action).toBe("continue");
+		expect(result).toEqual({ action: "continue" });
 		expect(steer).toHaveBeenCalledExactlyOnceWith({
 			sessionId: "session-1",
 			prompt: expect.stringContaining("Do not repeat the same call"),
 			delivery: "steer",
 		});
-		expect(result).toMatchObject({
-			action: "continue",
-			guidance: expect.stringContaining("Do not repeat the same call"),
-		});
-		expect(result).toMatchObject({
-			guidance: expect.stringContaining("identical calls to `editor`"),
-		});
+		expect(steer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("identical calls to `editor`"),
+			}),
+		);
 	});
 
 	it.each([
@@ -2132,12 +2130,7 @@ describe("mistake-limit prompt", () => {
 			readQuestionRequest()?.requestId ?? "",
 			"read the file first, then edit",
 		);
-		await expect(decision).resolves.toMatchObject({
-			action: "continue",
-			guidance: expect.stringContaining(
-				"User guidance: read the file first, then edit",
-			),
-		});
+		await expect(decision).resolves.toEqual({ action: "continue" });
 		expect(steer).toHaveBeenCalledExactlyOnceWith({
 			sessionId: "session-1",
 			prompt: expect.stringContaining(
