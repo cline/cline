@@ -126,8 +126,9 @@ function readTraceSamplePercent(): number {
  */
 async function isTelemetryOptedOutGlobally(): Promise<boolean> {
 	try {
-		const [{ readFileSync }, { resolveGlobalSettingsPath }] =
-			await Promise.all([import("node:fs"), import("@cline/shared/storage")]);
+		const [{ readFileSync }, { resolveGlobalSettingsPath }] = await Promise.all(
+			[import("node:fs"), import("@cline/shared/storage")],
+		);
 		const raw = readFileSync(resolveGlobalSettingsPath(), "utf8");
 		return JSON.parse(raw)?.telemetryOptOut === true;
 	} catch {
