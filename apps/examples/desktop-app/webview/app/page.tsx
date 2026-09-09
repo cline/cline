@@ -66,6 +66,7 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
@@ -1294,7 +1295,7 @@ function ChatThreadPane({
 			pendingAttachments.map((file, index) => ({
 				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 				name: file.name,
-				isImage: file.type.startsWith("image/"),
+				isImage: imageAttachmentMediaType(file) !== undefined,
 			})),
 		[pendingAttachments],
 	);

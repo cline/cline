@@ -1379,6 +1379,23 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	if (command === "record_image_attachment_blocked") {
+		const source = args?.source;
+		const imageCount = args?.imageCount;
+		if (
+			(source !== "picker" && source !== "paste" && source !== "send") ||
+			typeof imageCount !== "number" ||
+			!Number.isSafeInteger(imageCount) ||
+			imageCount < 1
+		) {
+			throw new Error("Invalid image attachment telemetry");
+		}
+		ctx.telemetry?.capture({
+			event: "desktop.image_attachment_blocked",
+			properties: { source, imageCount },
+		});
+		return { ok: true };
+	}
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
 		const { handleChatSessionCommand } = await import("./chat-session");

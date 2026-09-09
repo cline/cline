@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -90,6 +91,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+	vi.spyOn(desktopClient, "invoke").mockResolvedValue({ ok: true });
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
@@ -158,6 +160,8 @@ function deferred<T>() {
 }
 
 async function renderVoiceComposer({
+	attachments = [],
+	model = "test-model",
 	hasRunningAgents = false,
 	onAbort = vi.fn(),
 	onPromptInputChange = vi.fn(),
@@ -166,6 +170,8 @@ async function renderVoiceComposer({
 	promptVersion = 0,
 	status = "idle",
 }: {
+	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
+	model?: string;
 	hasRunningAgents?: boolean;
 	onAbort?: ReturnType<typeof vi.fn>;
 	onPromptInputChange?: ReturnType<typeof vi.fn>;
@@ -178,11 +184,11 @@ async function renderVoiceComposer({
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
-					attachments={[]}
+					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
 					mode="act"
-					model="test-model"
+					model={model}
 					onAbort={onAbort}
 					onAttachFiles={vi.fn()}
 					onEditPromptInQueue={vi.fn()}
@@ -215,6 +221,50 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("blocks sending existing draft images after switching models and preserves the draft", async () => {
+		const onSend = vi.fn();
+		const attachments = [{ id: "image", name: "photo.jfif", isImage: true }];
+		await renderVoiceComposer({ onSend, attachments, prompt: "Describe it" });
+		await renderVoiceComposer({
+			onSend,
+			attachments,
+			prompt: "Describe it",
+			model: "text-only",
+		});
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{ id: "text-only", name: "Text only", inputModalities: ["text"] },
+			]);
+		});
+		expect(container.querySelector("output")?.textContent).toContain(
+			"doesn’t support",
+		);
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+		expect(textarea?.value).toBe("Describe it");
+		expect(desktopClient.invoke).toHaveBeenCalledWith(
+			"record_image_attachment_blocked",
+			{ source: "send", imageCount: 1 },
+		);
+		await renderVoiceComposer({
+			onSend,
+			attachments: [],
+			prompt: "Describe it",
+			model: "text-only",
+		});
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("Describe it");
+	});
+
 	it("allows a parent session with a running child agent to be stopped", async () => {
 		const onAbort = vi.fn();
 		await renderVoiceComposer({
@@ -1518,6 +1568,7 @@ describe("ChatInputBar", () => {
 		};
 
 		beforeEach(() => {
+			vi.spyOn(desktopClient, "invoke").mockResolvedValue({ ok: true });
 			// The ClinePass offer: one subscribed and one free model, stamped
 			// by the SDK onto ProviderModel.featured. The catalog additionally
 			// contains a stale unstamped model outside the offer, which the
@@ -1975,18 +2026,23 @@ describe("ChatInputBar", () => {
 
 		onAttachFiles.mockClear();
 		const textFile = new File(["hello"], "notes.txt", { type: "text/plain" });
-		const imageWithoutMime = new File(["fake"], "photo.JPG");
+		const imageWithoutMime = new File(["fake"], "photo.JFIF");
+		const genericImage = new File(["fake"], "photo.jpe", {
+			type: "application/octet-stream",
+		});
 		const fileInput =
 			container.querySelector<HTMLInputElement>('input[type="file"]');
 		if (!fileInput) throw new Error("File input missing");
 		Object.defineProperty(fileInput, "files", {
-			value: [png, textFile, imageWithoutMime],
+			value: [png, textFile, imageWithoutMime, genericImage],
 		});
 		await act(async () => {
 			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 		});
 		expect(onAttachFiles).toHaveBeenCalledWith(
-			supportsImages === false ? [textFile] : [png, textFile, imageWithoutMime],
+			supportsImages === false
+				? [textFile]
+				: [png, textFile, imageWithoutMime, genericImage],
 		);
 	});
 });

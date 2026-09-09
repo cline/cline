@@ -36,6 +36,7 @@ import {
 	buildModelPickerData,
 	type ModelPickerData,
 } from "@/lib/featured-models";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -466,35 +467,51 @@ function ChatInputBarImpl({
 		},
 		[provider, model],
 	);
+	const reportUnsupportedImages = useCallback(
+		(source: "picker" | "paste" | "send", imageCount: number) => {
+			toast({
+				title: "This model doesn’t support image input",
+				description:
+					"Choose a model that supports images or remove the images before sending. Other files can still be attached.",
+			});
+			void desktopClient
+				.invoke("record_image_attachment_blocked", { source, imageCount })
+				.catch(() => {});
+		},
+		[],
+	);
 	const handleAttachFiles = useCallback(
-		(files: File[]) => {
+		(files: File[], source: "picker" | "paste") => {
 			const allowed = imagesUnsupported
-				? files.filter(
-						(file) =>
-							!file.type.startsWith("image/") &&
-							!/\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif|tiff?|ico)$/i.test(
-								file.name,
-							),
-					)
+				? files.filter((file) => !imageAttachmentMediaType(file))
 				: files;
-			if (allowed.length !== files.length) {
-				toast({
-					title: "This model doesn’t support image input",
-					description:
-						"Choose a model that supports images to attach them. Other files can still be attached.",
-				});
-			}
+			if (allowed.length !== files.length)
+				reportUnsupportedImages(source, files.length - allowed.length);
 			if (allowed.length > 0) onAttachFiles(allowed);
 		},
-		[imagesUnsupported, onAttachFiles],
+		[imagesUnsupported, onAttachFiles, reportUnsupportedImages],
 	);
+	const unsupportedDraftImageCount = imagesUnsupported
+		? attachments.filter((attachment) => attachment.isImage).length
+		: 0;
 	const canSend = hasDraft && !speechInputActive;
 	const handleSend = useCallback(() => {
 		if (speechInputActive) return;
+		if (unsupportedDraftImageCount > 0) {
+			reportUnsupportedImages("send", unsupportedDraftImageCount);
+			return;
+		}
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput, speechInputActive]);
+	}, [
+		onSend,
+		promptInput,
+		setPromptInput,
+		speechInputActive,
+		unsupportedDraftImageCount,
+		reportUnsupportedImages,
+	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -1239,7 +1256,7 @@ function ChatInputBarImpl({
 									// Attach the image instead of pasting its fallback
 									// text representation (e.g. a file path or URL).
 									e.preventDefault();
-									handleAttachFiles(images);
+									handleAttachFiles(images, "paste");
 								}
 							}}
 							onKeyDown={(e) => {
@@ -1406,6 +1423,12 @@ function ChatInputBarImpl({
 						</div>
 					</div>
 				</div>
+				{unsupportedDraftImageCount > 0 && (
+					<output className="block px-2 text-sm text-destructive">
+						This model doesn’t support the attached images. Remove them or
+						choose a model that supports images before sending.
+					</output>
+				)}
 				{attachments.length > 0 && (
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{attachments.map((attachment) => (
@@ -1450,7 +1473,7 @@ function ChatInputBarImpl({
 						multiple
 						onChange={(event) => {
 							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) handleAttachFiles(files);
+							if (files.length > 0) handleAttachFiles(files, "picker");
 							event.currentTarget.value = "";
 						}}
 						ref={fileInputRef}
