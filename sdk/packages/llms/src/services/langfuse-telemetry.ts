@@ -73,6 +73,10 @@ export async function resolveAiSdkTelemetry(
 		return TELEMETRY_DISABLED;
 	}
 
+	if (await isTelemetryOptedOutGlobally()) {
+		return TELEMETRY_DISABLED;
+	}
+
 	const percent = readTraceSamplePercent();
 	if (percent <= 0) {
 		return TELEMETRY_DISABLED;
@@ -110,6 +114,26 @@ function readTraceSamplePercent(): number {
 	}
 	const percent = Number.parseFloat(raw);
 	return Number.isFinite(percent) ? percent : 100;
+}
+
+/**
+ * The user's global telemetry opt-out (shared settings file written by the
+ * extension/CLI settings flows). Spans bypass the ITelemetryService wrapper
+ * that enforces opt-out for events and metrics, so the relay path re-checks
+ * the setting per stream — which also honors mid-session opt-outs. The
+ * direct Langfuse path is intentionally not gated here: it only activates
+ * on explicit operator-supplied credentials.
+ */
+async function isTelemetryOptedOutGlobally(): Promise<boolean> {
+	try {
+		const [{ readFileSync }, { resolveGlobalSettingsPath }] =
+			await Promise.all([import("node:fs"), import("@cline/shared/storage")]);
+		const raw = readFileSync(resolveGlobalSettingsPath(), "utf8");
+		return JSON.parse(raw)?.telemetryOptOut === true;
+	} catch {
+		// No settings file (or unreadable) means no opt-out was recorded.
+		return false;
+	}
 }
 
 async function hasHostOtlpTracer(): Promise<boolean> {

@@ -1,3 +1,6 @@
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { registerDisposableSpy, registerTelemetrySpy, telemetryStartSpy } =
@@ -52,6 +55,16 @@ class MockNodeTracerProvider {
 
 vi.mock("@cline/shared", () => ({
 	registerDisposable: registerDisposableSpy,
+}));
+
+const { globalSettingsPathRef } = vi.hoisted(() => ({
+	globalSettingsPathRef: {
+		current: "/nonexistent/cline-global-settings.json",
+	},
+}));
+
+vi.mock("@cline/shared/storage", () => ({
+	resolveGlobalSettingsPath: () => globalSettingsPathRef.current,
 }));
 
 vi.mock("@langfuse/otel", () => ({
@@ -110,6 +123,7 @@ describe("langfuse telemetry", () => {
 		delete process.env.LANGFUSE_SECRET_KEY;
 		delete process.env.CLINE_TRACE_SAMPLE_PERCENT;
 		delete process.env.CLINE_TRACE_RECORD_CONTENT;
+		globalSettingsPathRef.current = "/nonexistent/cline-global-settings.json";
 		resetLangfuseTelemetryForTests();
 	});
 
@@ -294,6 +308,58 @@ describe("langfuse telemetry", () => {
 			const decision = await resolveAiSdkTelemetry("cline", undefined);
 
 			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("respects the global telemetry opt-out", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			const settingsPath = path.join(
+				await fs.mkdtemp(path.join(os.tmpdir(), "lf-optout-")),
+				"settings.json",
+			);
+			await fs.writeFile(
+				settingsPath,
+				JSON.stringify({ telemetryOptOut: true }),
+			);
+			globalSettingsPathRef.current = settingsPath;
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("stays enabled when the settings file records no opt-out", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			const settingsPath = path.join(
+				await fs.mkdtemp(path.join(os.tmpdir(), "lf-optin-")),
+				"settings.json",
+			);
+			await fs.writeFile(
+				settingsPath,
+				JSON.stringify({ telemetryOptOut: false }),
+			);
+			globalSettingsPathRef.current = settingsPath;
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(true);
+		});
+
+		it("leaves the credentialed direct Langfuse path unaffected by the opt-out", async () => {
+			const settingsPath = path.join(
+				await fs.mkdtemp(path.join(os.tmpdir(), "lf-direct-")),
+				"settings.json",
+			);
+			await fs.writeFile(
+				settingsPath,
+				JSON.stringify({ telemetryOptOut: true }),
+			);
+			globalSettingsPathRef.current = settingsPath;
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision).toEqual({ isEnabled: true });
 		});
 
 		it("stays disabled when no recording tracer provider is registered", async () => {
