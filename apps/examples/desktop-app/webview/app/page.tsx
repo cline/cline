@@ -1095,7 +1095,14 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const delivered = await sendPrompt(trimmed, toSend);
+			// The prompt never reached the model (e.g. the selected provider is
+			// misconfigured): hand it back so the user does not have to retype
+			// it, unless they have already started composing something new.
+			if (!delivered && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				setPendingAttachments((prev) => (prev.length > 0 ? prev : toSend));
+			}
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);

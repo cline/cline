@@ -949,6 +949,75 @@ describe("useChatSession", () => {
 		).toContain(expected);
 	});
 
+	it.each([
+		// The composer hands the prompt back to the user when the runtime never
+		// produced anything for it (misconfigured provider, transport failure).
+		{
+			label: "a run that fails without output",
+			send: () => ({
+				ok: true,
+				result: {
+					text: "Unauthorized: invalid Codex token",
+					finishReason: "error",
+				},
+			}),
+			delivered: false,
+		},
+		{
+			label: "a send RPC that throws",
+			send: () => {
+				throw new Error("provider connection refused");
+			},
+			delivered: false,
+		},
+		{
+			label: "a completed run",
+			send: () => ({
+				ok: true,
+				result: { text: "Done", finishReason: "completed" },
+			}),
+			delivered: true,
+		},
+	])("reports whether the prompt was delivered for $label", async ({
+		send,
+		delivered,
+	}) => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-test",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						return send();
+					}
+				}
+				return [];
+			},
+		);
+
+		let outcome: boolean | undefined;
+		await act(async () => {
+			outcome = await current.sendPrompt("Refactor the parser");
+		});
+
+		expect(outcome).toBe(delivered);
+		expect(current.error === null).toBe(delivered);
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

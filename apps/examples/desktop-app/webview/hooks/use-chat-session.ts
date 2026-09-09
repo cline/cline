@@ -2087,10 +2087,14 @@ export function useChatSession() {
 		],
 	);
 
+	// Resolves to false when the prompt failed before the runtime produced
+	// anything for it (bad config, session start / transport failure, or a run
+	// that errored without output), so the composer can hand the text back to
+	// the user instead of making them retype it.
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []) => {
+		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
 			const trimmed = prompt.trim();
-			if (!trimmed && attachedFiles.length === 0) return;
+			if (!trimmed && attachedFiles.length === 0) return true;
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -2102,7 +2106,7 @@ export function useChatSession() {
 			const validation = validateConfig(config);
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
-				return;
+				return false;
 			}
 			const parsed = validation.parsed;
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
@@ -2216,7 +2220,7 @@ export function useChatSession() {
 						}
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
-						return;
+						return false;
 					}
 				} else if (
 					activeSessionId &&
@@ -2235,7 +2239,7 @@ export function useChatSession() {
 					} catch (err) {
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
-						return;
+						return false;
 					} finally {
 						if (sessionStartPromiseRef.current === startPromise) {
 							sessionStartPromiseRef.current = null;
@@ -2260,7 +2264,7 @@ export function useChatSession() {
 						}
 						setErrorState(errorMessage(err));
 						finishPromptSubmission();
-						return;
+						return false;
 					} finally {
 						if (sessionStartPromiseRef.current === startPromise) {
 							sessionStartPromiseRef.current = null;
@@ -2274,7 +2278,7 @@ export function useChatSession() {
 						activeSessionId,
 					);
 					finishPromptSubmission();
-					return;
+					return false;
 				}
 				const serializedAttachments = serializedAttachmentsResult.attachments;
 				const hasAttachments =
@@ -2317,7 +2321,7 @@ export function useChatSession() {
 			}
 			if (!sendTask) {
 				finishPromptSubmission();
-				return;
+				return false;
 			}
 			let abortedReconcileEpoch: number | undefined;
 			const settleAbortedSend = () => {
@@ -2335,7 +2339,7 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
-					if (settleAbortedSend()) return;
+					if (settleAbortedSend()) return true;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -2346,11 +2350,11 @@ export function useChatSession() {
 						// back to "running" — wedging the composer forever. The
 						// stream (chat_queued_prompt_start/chat_done and
 						// prompts_in_queue_state) is authoritative from here on.
-						return;
+						return true;
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
-					return;
+					return true;
 				}
 
 				// The runtime drains the queue before it answers a blocking send,
@@ -2366,7 +2370,7 @@ export function useChatSession() {
 
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				// On a failed run the runtime reports the error string in
 				// result.text — it is not assistant content and must not be
 				// rendered as an assistant bubble (canonical rehydration would
@@ -2668,7 +2672,7 @@ export function useChatSession() {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				// A queued prompt that already started its turn owns the status
 				// and the settled epoch from here: its start set "running", and
 				// its own completion settles it. Settling this turn on top of it
@@ -2708,14 +2712,21 @@ export function useChatSession() {
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
+				// A run that errored without producing any output (the typical
+				// provider / auth failure) never really consumed the prompt.
+				const producedOutput =
+					hasFallbackAssistantTurn ||
+					(Array.isArray(result?.toolCalls) && result.toolCalls.length > 0);
+				return result?.finishReason !== "error" || producedOutput;
 			} catch (err) {
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
 					);
 				}
 				setErrorState(errorMessage(err), activeSessionId);
+				return false;
 			} finally {
 				clearAbortFallbackTimeout();
 				// If a queued prompt already started its turn, these refs are that
