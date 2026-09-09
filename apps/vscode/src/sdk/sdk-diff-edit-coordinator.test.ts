@@ -67,6 +67,25 @@ describe("computeNewEditorContent", () => {
 		expect(computeNewEditorContent("a\nb", input, filePath, "modify")).toBe("a\nb\nx")
 	})
 
+	// Reads strip "\r", so models emit LF-only old_text even for CRLF files. The SDK
+	// executor normalizes to the file's EOL before matching (#12305); the preview must
+	// too, or every multi-line edit in a CRLF file silently skips its diff view while
+	// the executor still applies it (github.com/cline/cline/issues/13296).
+	it("matches LF-only multi-line old_text in a CRLF file and keeps CRLF endings", () => {
+		const input: EditFileInput = { path: filePath, old_text: "b\nc", new_text: "B\nC\nX" }
+		expect(computeNewEditorContent("a\r\nb\r\nc\r\nd", input, filePath, "modify")).toBe("a\r\nB\r\nC\r\nX\r\nd")
+	})
+
+	it("inserts with the file's CRLF endings", () => {
+		const input: EditFileInput = { path: filePath, new_text: "first\nsecond", insert_line: 2 }
+		expect(computeNewEditorContent("one\r\ntwo", input, filePath, "modify")).toBe("one\r\nfirst\r\nsecond\r\ntwo")
+	})
+
+	it("inserts $-sequences in new_text literally, like the executor", () => {
+		const input: EditFileInput = { path: filePath, old_text: "b", new_text: "match=$& pid=$$" }
+		expect(computeNewEditorContent("a\nb\nc", input, filePath, "modify")).toBe("a\nmatch=$& pid=$$\nc")
+	})
+
 	// Mirrors the SDK executor's semantics (editor.ts) so the preview shows exactly what
 	// the executor will write, and inputs the SDK would reject skip the preview.
 	it("throws for text not found", () => {
@@ -281,6 +300,21 @@ describe("SdkDiffEditCoordinator", () => {
 			leftContent: "line1\nline2\n",
 			rightContent: "changed\nline2\n",
 			title: "a.ts: Original ↔ Cline's Changes (Preview)",
+		})
+	})
+
+	it("opens a preview for a multi-line edit in a CRLF file (issue #13296)", async () => {
+		await writeFile("crlf.ts", "line1\r\nline2\r\nline3")
+		await coordinator.openForApproval("tc1", "editor", {
+			path: "crlf.ts",
+			old_text: "line1\nline2",
+			new_text: "changed1\nchanged2",
+		})
+
+		expect(previews).toHaveLength(1)
+		expect(previews[0].opened).toMatchObject({
+			leftContent: "line1\r\nline2\r\nline3",
+			rightContent: "changed1\r\nchanged2\r\nline3",
 		})
 	})
 

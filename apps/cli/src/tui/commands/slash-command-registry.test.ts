@@ -169,6 +169,39 @@ describe("slash command registry", () => {
 		expect(expandUserCommandPrompt("/settings", registry)).toBe("/settings");
 	});
 
+	it("keeps skill commands typed when skill expansion is off, but still wraps workflows", () => {
+		const registry = buildSlashCommandRegistry({
+			workflowSlashCommands: [
+				{
+					name: "review",
+					instructions: "Review carefully",
+					description: "Review files",
+					kind: "skill",
+				},
+				{
+					name: "release",
+					instructions: "Run the release workflow",
+					description: "Release",
+					kind: "workflow",
+				},
+			],
+		});
+		const options = { expandSkillCommands: false };
+
+		// The skills tool delivers the instructions; the transcript keeps the
+		// typed command.
+		expect(
+			expandUserCommandPrompt("/review this file", registry, options),
+		).toBe("/review this file");
+		expect(
+			expandUserCommandPrompt("please /review this file", registry, options),
+		).toBe("please /review this file");
+		// Workflows are not served by the skills tool and keep expanding.
+		expect(expandUserCommandPrompt("/release now", registry, options)).toBe(
+			'<user_command slash="release">Run the release workflow</user_command> now',
+		);
+	});
+
 	it("does not expand commands omitted from a refreshed user-command registry", () => {
 		const staleRegistry = buildSlashCommandRegistry({
 			workflowSlashCommands: [

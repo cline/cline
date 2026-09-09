@@ -306,6 +306,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
 		optOutOfRemoteConfig: false,
+		remoteConfigAvailable: false,
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,

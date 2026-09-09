@@ -88,7 +88,7 @@ function summarizeClient(client: TrackedClient): {
 		normalizedType === "code-sidecar-observer" ||
 		normalizedType === "code-sidecar-list"
 	) {
-		return { key: "code-app", label: "Code App", name: "Code App" };
+		return { key: "code-app", label: "Cline Desktop", name: "Cline Desktop" };
 	}
 	return {
 		key: client.clientId,

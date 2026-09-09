@@ -1433,3 +1433,42 @@ describe("hasActiveHubSessions", () => {
 		).toBe(false);
 	});
 });
+
+describe("requestHubDrain", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("posts /drain with the reason and no off param by default", async () => {
+		const fetchMock = vi.fn(async (_input: unknown, _init?: unknown) => ({
+			ok: true,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+		const { requestHubDrain } = await import(".");
+
+		await expect(
+			requestHubDrain("ws://127.0.0.1:25463/hub", "token", "upgrade"),
+		).resolves.toBe(true);
+		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(requested.pathname).toBe("/drain");
+		expect(requested.searchParams.get("reason")).toBe("upgrade");
+		expect(requested.searchParams.get("off")).toBeNull();
+	});
+
+	it("sets the off param so a drain can be lifted", async () => {
+		const fetchMock = vi.fn(async (_input: unknown, _init?: unknown) => ({
+			ok: true,
+		}));
+		vi.stubGlobal("fetch", fetchMock);
+		const { requestHubDrain } = await import(".");
+
+		await expect(
+			requestHubDrain("ws://127.0.0.1:25463/hub", "token", "upgrade aborted", {
+				off: true,
+			}),
+		).resolves.toBe(true);
+		const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
+		expect(requested.pathname).toBe("/drain");
+		expect(requested.searchParams.get("off")).toBe("1");
+	});
+});

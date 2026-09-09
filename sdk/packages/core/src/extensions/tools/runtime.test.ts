@@ -13,6 +13,33 @@ describe("builtin tool catalog", () => {
 		expect(catalog.some((entry) => entry.id === "teams")).toBe(true);
 	});
 
+	it("includes the unified tasks tool outside yolo mode", () => {
+		for (const mode of ["act", "plan"] as const) {
+			const entry = getCoreBuiltinToolCatalog({ mode }).find(
+				(candidate) => candidate.id === "tasks",
+			);
+			expect(entry).toMatchObject({
+				defaultEnabled: true,
+				headlessToolNames: ["tasks"],
+			});
+		}
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "yolo" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "cli" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "vscode" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+	});
+
 	it("marks teams enabled by default in act mode", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(

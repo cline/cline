@@ -1,8 +1,6 @@
 type MutableTracerProvider = {
 	addSpanProcessor?: (spanProcessor: unknown) => void;
-	constructor?: {
-		name?: string;
-	};
+	getDelegate?: () => unknown;
 };
 
 type LangfuseTelemetryConfig = {
@@ -10,6 +8,32 @@ type LangfuseTelemetryConfig = {
 	publicKey: string;
 	secretKey: string;
 };
+
+export type LangfuseTraceAttributes = {
+	userId?: string;
+	sessionId?: string;
+	tags?: string[];
+	metadata?: Record<string, string>;
+	traceName?: string;
+};
+
+/**
+ * Set Langfuse trace-level attributes for the duration of an SDK operation.
+ * Runtime context is useful observation metadata, but Langfuse's Sessions and
+ * Users views are indexed from propagated trace attributes instead.
+ */
+export async function withLangfuseTraceAttributes<T>(
+	enabled: boolean,
+	attributes: LangfuseTraceAttributes,
+	callback: () => T | Promise<T>,
+): Promise<T> {
+	if (!enabled) {
+		return await callback();
+	}
+
+	const { propagateAttributes } = await import("@langfuse/tracing");
+	return await propagateAttributes(attributes, callback);
+}
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
 
@@ -68,15 +92,20 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 	}
 
 	try {
+		// Give Langfuse and any other OTEL exporter a stable resource identity.
+		// Respect an explicitly configured service name from the host.
+		if (!process.env.OTEL_SERVICE_NAME?.trim()) {
+			process.env.OTEL_SERVICE_NAME = "cline-sdk";
+		}
 		const [
-			{ OpenTelemetry },
 			{ LangfuseSpanProcessor },
+			{ LangfuseVercelAiSdkIntegration },
 			{ registerTelemetry },
 			{ trace },
 			{ NodeTracerProvider },
 		] = await Promise.all([
-			import("@ai-sdk/otel"),
 			import("@langfuse/otel"),
+			import("@langfuse/vercel-ai-sdk"),
 			import("ai"),
 			import("@opentelemetry/api"),
 			import("@opentelemetry/sdk-trace-node"),
@@ -94,7 +123,7 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			tracerProvider.addSpanProcessor(spanProcessor);
 			const hasDelegate = hasActiveTracerDelegate(trace);
 			if (hasDelegate) {
-				registerTelemetry(new OpenTelemetry());
+				registerTelemetry(new LangfuseVercelAiSdkIntegration());
 			}
 			debugLangfuse(
 				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
@@ -102,12 +131,27 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			return hasDelegate;
 		}
 
-		const providerName = tracerProvider?.constructor?.name;
-		if (
-			providerName &&
-			providerName !== "ProxyTracerProvider" &&
-			providerName !== "NoopTracerProvider"
-		) {
+		// Class names are unreliable here: release binaries are minified, which
+		// renames classes like ProxyTracerProvider, so all provider detection
+		// below is structural (method presence, object identity) instead of
+		// comparing constructor names.
+		const existingDelegate =
+			typeof tracerProvider?.getDelegate === "function"
+				? tracerProvider.getDelegate()
+				: undefined;
+		if (isRecordingTracerProvider(existingDelegate)) {
+			// Another provider already owns the global slot, so registering our
+			// own would be rejected. Attach to it when it accepts processors.
+			const delegate = existingDelegate as MutableTracerProvider;
+			if (typeof delegate.addSpanProcessor === "function") {
+				delegate.addSpanProcessor(spanProcessor);
+				registerTelemetry(new LangfuseVercelAiSdkIntegration());
+				debugLangfuse("attached processor to registered tracer delegate");
+				return true;
+			}
+			debugLangfuse(
+				"tracer provider slot already owned; disabling Langfuse export",
+			);
 			return false;
 		}
 
@@ -115,14 +159,18 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			spanProcessors: [spanProcessor],
 		} as unknown as ConstructorParameters<typeof NodeTracerProvider>[0]);
 		nodeTracerProvider.register();
-		const hasDelegate = hasActiveTracerDelegate(trace);
-		if (hasDelegate) {
-			registerTelemetry(new OpenTelemetry());
+		if (!isRegisteredGlobalTracerProvider(trace, nodeTracerProvider)) {
+			debugLangfuse(
+				"tracer provider registration was not accepted; disabling Langfuse export",
+			);
+			// Shut the orphaned provider down so its span processor does not
+			// keep buffering spans that can never be exported.
+			await nodeTracerProvider.shutdown?.();
+			return false;
 		}
-		debugLangfuse(
-			`registered NodeTracerProvider delegateReady=${String(hasDelegate)}`,
-		);
-		return hasDelegate;
+		registerTelemetry(new LangfuseVercelAiSdkIntegration());
+		debugLangfuse("registered NodeTracerProvider delegateReady=true");
+		return true;
 	} catch (error) {
 		debugLangfuse(
 			`initialization failed error=${error instanceof Error ? error.message : String(error)}`,
@@ -134,13 +182,61 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 function hasActiveTracerDelegate(traceApi: {
 	getTracerProvider: () => unknown;
 }): boolean {
-	const tracerProvider = traceApi.getTracerProvider() as {
-		getDelegate?: () => { constructor?: { name?: string } };
-	};
-	const delegate = tracerProvider.getDelegate?.();
-	const delegateName = delegate?.constructor?.name;
+	const tracerProvider = traceApi.getTracerProvider() as MutableTracerProvider;
+	if (typeof tracerProvider.getDelegate !== "function") {
+		// Some runtimes expose the registered tracer provider directly rather
+		// than through OpenTelemetry's ProxyTracerProvider. A direct provider
+		// has no delegate to inspect, but its addSpanProcessor API is sufficient
+		// evidence that it can receive and export spans.
+		return typeof tracerProvider.addSpanProcessor === "function";
+	}
 
-	return Boolean(delegateName && delegateName !== "NoopTracerProvider");
+	return isRecordingTracerProvider(tracerProvider.getDelegate());
+}
+
+/**
+ * Distinguishes a recording tracer provider from OpenTelemetry's no-op
+ * fallback without relying on constructor names, which minified release
+ * builds rename. Real SDK providers expose lifecycle methods the no-op
+ * provider lacks.
+ */
+function isRecordingTracerProvider(provider: unknown): boolean {
+	if (!provider || typeof provider !== "object") {
+		return false;
+	}
+	const candidate = provider as {
+		addSpanProcessor?: unknown;
+		forceFlush?: unknown;
+		shutdown?: unknown;
+	};
+	return (
+		typeof candidate.addSpanProcessor === "function" ||
+		typeof candidate.forceFlush === "function" ||
+		typeof candidate.shutdown === "function"
+	);
+}
+
+/**
+ * Confirms the OpenTelemetry API accepted a provider registration. The API
+ * silently keeps the previous owner when the global slot is taken, so the
+ * only reliable signal is identity: the global provider (or its proxy
+ * delegate) must be the exact instance that was just registered.
+ */
+function isRegisteredGlobalTracerProvider(
+	traceApi: { getTracerProvider: () => unknown },
+	provider: unknown,
+): boolean {
+	const globalProvider = traceApi.getTracerProvider() as
+		| MutableTracerProvider
+		| null
+		| undefined;
+	if (globalProvider === provider) {
+		return true;
+	}
+	return (
+		typeof globalProvider?.getDelegate === "function" &&
+		globalProvider.getDelegate() === provider
+	);
 }
 
 async function flushLangfuseTelemetry(): Promise<void> {

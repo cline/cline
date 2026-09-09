@@ -46,6 +46,7 @@ import {
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsImageInput,
 	modelSupportsToolCalling,
 	type ToolCallRecord,
 	usesImageGenerationOperation,
@@ -388,6 +389,9 @@ export class SessionRuntime {
 	private activeTrackerWork: Promise<void> = Promise.resolve();
 	/** True when tracker logic has issued an abort for the active run. */
 	private trackerAbortInFlight = false;
+	private readonly handleExternalAbort = (): void => {
+		this.abort(this.config.abortSignal?.reason);
+	};
 
 	constructor(config: AgentConfig, deps: SessionRuntimeOrchestratorDeps = {}) {
 		this.config = config;
@@ -700,9 +704,17 @@ export class SessionRuntime {
 	// Private implementation
 	// -------------------------------------------------------------------
 
-	private async composeSystemPrompt(): Promise<string> {
+	private async composeSystemPrompt(
+		availableToolNames: ReadonlySet<string>,
+	): Promise<string> {
 		const rules: string[] = [];
 		for (const rule of this.contributionRegistry.getRegisteredRules()) {
+			if (
+				rule.whenToolAvailable &&
+				!availableToolNames.has(rule.whenToolAvailable)
+			) {
+				continue;
+			}
 			const content = await resolveRuleContent(rule);
 			if (content) {
 				rules.push(content);
@@ -815,7 +827,6 @@ export class SessionRuntime {
 		}
 
 		// Build the AgentRuntime for this turn.
-		const systemPrompt = await this.composeSystemPrompt();
 		const agentModel = createAgentModelFromConfig(
 			this.config,
 			this.logger,
@@ -852,9 +863,14 @@ export class SessionRuntime {
 		);
 		const toolCallingDisabled =
 			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
-		const tools = toolCallingDisabled
-			? []
-			: Array.from(mergedToolsByName.values());
+		const availableTools = filterAvailableExtensionTools(
+			Array.from(mergedToolsByName.values()),
+			this.config.toolPolicies,
+		);
+		const tools = toolCallingDisabled ? [] : availableTools;
+		const systemPrompt = await this.composeSystemPrompt(
+			new Set(tools.map((tool) => tool.name)),
+		);
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is
 		// preserved across runs. Fixes P1 #1: prior turns were silently
@@ -875,8 +891,7 @@ export class SessionRuntime {
 			telemetry: this.telemetry,
 			tools,
 			toolContextMetadata: {
-				modelSupportsImages:
-					modelInfo?.capabilities?.includes("images") ?? true,
+				modelSupportsImages: modelSupportsImageInput(modelInfo ?? {}),
 				...this.config.toolContextMetadata,
 			},
 			hooks: this.createRuntimeHooks(),
@@ -887,15 +902,29 @@ export class SessionRuntime {
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
 		this.activeRuntime = runtime;
-		if (this.abortRequested) {
-			runtime.abort(this.abortReason);
-		}
 
 		// Subscribe to runtime events; fan out legacy events to listeners
 		// and keep private book-keeping for tool-call records / usage.
 		const unsubscribe = runtime.subscribe((event: AgentRuntimeEvent) => {
+			// AgentRuntime does not accept abort() until run-started. Retain an abort
+			// requested during finite startup and forward it at that existing lifecycle
+			// boundary instead of adding a second initialization-cancellation path.
+			if (event.type === "run-started" && this.abortRequested) {
+				runtime.abort(this.abortReason);
+			}
 			this.handleRuntimeEvent(event);
 		});
+		if (this.config.abortSignal) {
+			if (this.config.abortSignal.aborted) {
+				this.handleExternalAbort();
+			} else {
+				this.config.abortSignal.addEventListener(
+					"abort",
+					this.handleExternalAbort,
+					{ once: true },
+				);
+			}
+		}
 
 		let runResult: AgentRunResult | undefined;
 		let thrownError: Error | undefined;
@@ -913,6 +942,10 @@ export class SessionRuntime {
 			thrownError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			unsubscribe();
+			this.config.abortSignal?.removeEventListener(
+				"abort",
+				this.handleExternalAbort,
+			);
 			// Drain any in-flight tracker work (mistake/loop side-effects
 			// queued from handleRuntimeEvent) before we clear state so a
 			// late abort can still reach the runtime if needed.

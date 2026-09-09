@@ -17,13 +17,19 @@ import {
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import {
+	applyClineFeaturedModels,
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+} from "../../services/llms/cline-recommended-models";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
-import type {
-	ModelInfo,
-	ProviderClient,
-	ProviderConfig,
-	ProviderProtocol,
-	ProviderSettings,
+import {
+	type ModelInfo,
+	type ProviderClient,
+	type ProviderConfig,
+	type ProviderProtocol,
+	type ProviderSettings,
+	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -38,9 +44,11 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
+import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
+const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
 export interface ListLocalProvidersOptions {
@@ -149,16 +157,21 @@ async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
-	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
+	const [registeredModels, registeredModelOverrides] = await Promise.all([
+		LlmsModels.getModelsForProvider(providerId),
+		LlmsModels.getModelOverridesForProvider(providerId),
+	]);
+	const shouldLoadLiveCatalog =
+		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !isClinePass) {
+	if (!config && !shouldLoadLiveCatalog) {
 		return registeredModels;
 	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: isClinePass,
+			loadLatestOnInit: shouldLoadLiveCatalog,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -176,6 +189,7 @@ async function resolveProviderModelMap(
 		? {
 				...registeredModels,
 				...resolved.knownModels,
+				...registeredModelOverrides,
 			}
 		: registeredModels;
 }
@@ -726,6 +740,13 @@ export async function listLocalProviders(
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
 
+	// The catalog is built for every provider at startup and must not wait on
+	// the network, so featured tiers come from a synchronous peek (cached live
+	// feed, else the bundled fallback). This keeps even the very first picker
+	// paint after a cold boot sectioned; the per-provider model-list path
+	// (getLocalProviderModels) then refreshes with live feed data.
+	const featuredData = peekClineRecommendedModels();
+
 	const providerEntries = await Promise.all(
 		ids.map(
 			async (id): Promise<{ provider: ProviderListItem; rank: number }> => {
@@ -733,7 +754,11 @@ export async function listLocalProviders(
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
 				]);
-				const modelList = toSortedProviderModels(registeredModels);
+				const modelList = applyClineFeaturedModels(
+					id,
+					toSortedProviderModels(registeredModels),
+					featuredData,
+				);
 				const directSettings = state.providers[id]?.settings;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
@@ -752,6 +777,19 @@ export async function listLocalProviders(
 						color: stableColor(id),
 						letter: createLetter(name),
 						enabled: Boolean(directSettings),
+						// Distinct from `enabled` (any persisted entry, which
+						// migrations and empty saves can create): true only when
+						// the saved settings hold real credentials or a usable
+						// keyless endpoint, mirroring the CLI's readiness check.
+						configured: isProviderSettingsUsable(
+							id,
+							persistedSettings,
+							persistedSettings
+								? toProviderConfig(persistedSettings, {
+										includeKnownModels: false,
+									})
+								: undefined,
+						),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,
@@ -817,7 +855,18 @@ export async function getLocalProviderModels(
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
-	const models = toSortedProviderModels(modelMap);
+	let models = toSortedProviderModels(modelMap);
+	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+		// Stamp the recommended-feed tiers onto the list so every client's
+		// picker gets Recommended/Free/Subscribed data without fetching and
+		// joining the feed itself. Cached; falls back to a bundled list, so
+		// a failure only means models without tier decoration.
+		models = applyClineFeaturedModels(
+			id,
+			models,
+			await getCachedClineRecommendedModels(),
+		);
+	}
 	return { providerId: id, models };
 }
 

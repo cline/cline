@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
@@ -53,6 +53,7 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
 // @cline/llms registry exactly as in production. Tests that touch it must
@@ -87,11 +88,12 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 export type ModelToolName = "web_search"
 
 export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH ?? ""
 	try {
-		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
-		return settings.tools?.[name]?.enabled === true
+		const settings = JSON.parse(readFileSync(filePath, "utf8"))
+		return settings.tools?.[name]?.enabled ?? true
 	} catch {
-		return false
+		return !existsSync(filePath)
 	}
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildProviderModelCatalog,
 	filterChatModels,
+	isChatModel,
 	isDedicatedTranscriptionModel,
 	publishProviderModels,
 	selectTranscriptionModel,
@@ -66,6 +67,57 @@ describe("transcription model selection", () => {
 		).toBe(false);
 	});
 
+	it("keeps chat and image-generation models in the composer", () => {
+		expect(
+			isChatModel({
+				id: "chat",
+				name: "Chat",
+				inputModalities: ["text", "audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(true);
+		expect(
+			isChatModel({
+				id: "legacy",
+				name: "Legacy",
+			}),
+		).toBe(true);
+		expect(
+			isChatModel({
+				id: "image",
+				name: "Image",
+				operation: "image-generation",
+				inputModalities: ["text", "image"],
+				outputModalities: ["image"],
+			}),
+		).toBe(true);
+		expect(
+			isChatModel({
+				id: "whisper",
+				name: "Whisper",
+				operation: "transcription",
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(false);
+		expect(
+			isChatModel({
+				id: "operation-only-whisper",
+				name: "Operation-only Whisper",
+				operation: "transcription",
+			}),
+		).toBe(false);
+		expect(
+			isChatModel({
+				id: "tts",
+				name: "TTS",
+				operation: "speech-generation",
+				inputModalities: ["text"],
+				outputModalities: ["audio"],
+			}),
+		).toBe(false);
+	});
+
 	it("selects only the explicitly configured enabled model", () => {
 		const providers: Provider[] = [
 			{
@@ -119,7 +171,7 @@ describe("transcription model selection", () => {
 		expect(selectTranscriptionModel(providers, undefined)).toBeNull();
 	});
 
-	it("keeps voice selection in the provider catalog", () => {
+	it("keeps an enabled audio-only provider out of chat without losing voice selection", () => {
 		const elevenLabs: Provider = {
 			id: "elevenlabs",
 			name: "ElevenLabs",
@@ -143,6 +195,7 @@ describe("transcription model selection", () => {
 			modelId: "scribe_v2",
 		};
 		const catalog = buildProviderModelCatalog([elevenLabs], selection);
+		expect(catalog.enabledProviderIds).toEqual([]);
 		expect(catalog.providerModels.elevenlabs).toEqual([]);
 		expect(catalog.voiceInput).toMatchObject({
 			providerId: "elevenlabs",

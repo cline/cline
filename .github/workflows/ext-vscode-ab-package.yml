@@ -23,11 +23,6 @@ on:
                 required: true
                 default: "main"
                 type: string
-            legacy-ref:
-                description: "Ref to build the legacy bundle from"
-                required: true
-                default: "legacy-extension"
-                type: string
             publish:
                 description: "Publish to the VS Code Marketplace and Open VSX (unchecked: just build the .vsix artifact)"
                 required: true
@@ -130,31 +125,37 @@ jobs:
         name: Test legacy bundle
         runs-on: ubuntu-latest
         # The tested revision, exported so the build job builds EXACTLY what
-        # this suite ran against. legacy-ref is a mutable branch name and the
-        # build job starts later — re-resolving the name there could pick up
-        # commits this gate never saw.
+        # this suite ran against. legacy-extension is a mutable branch name and
+        # the build job starts later — re-resolving the name there could pick
+        # up commits this gate never saw.
         outputs:
             tested-sha: ${{ steps.rev.outputs.sha }}
         defaults:
             run:
                 working-directory: apps/vscode
         steps:
+            # Always the protected legacy-extension branch — deliberately not
+            # an input. An arbitrary ref here would be built into the published
+            # VSIX by the environment-less build job, and the publish
+            # environment approver only ever sees an opaque prebuilt artifact:
+            # the approval would protect the marketplace PAT but not the
+            # shipped bytes. Hardcoding the branch makes its protection rules
+            # load-bearing for releases. Legacy hotfix testing has its own
+            # workflow (ext-vscode-publish-legacy.yml).
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.legacy-ref }}
+                  ref: legacy-extension
 
             - name: Record tested revision
               id: rev
               run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+            # Deliberately no dependency cache here: publish workflows do clean
+            # installs and should not restore actions caches.
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: "npm"
-                  cache-dependency-path: |
-                      apps/vscode/package-lock.json
-                      apps/vscode/webview-ui/package-lock.json
 
             - name: Install extension dependencies
               working-directory: ${{ github.workspace }}
@@ -489,6 +490,35 @@ jobs:
                     echo "CHANGELOG_EOF"
                   } >> "$GITHUB_OUTPUT"
 
+                  # Slack section blocks reject text longer than 3000 characters, and
+                  # the Slack action logs that rejection WITHOUT failing the step - so
+                  # an over-long changelog silently drops the release announcement
+                  # while the run stays green. Post a trimmed copy to Slack and link
+                  # out to the full notes. The GitHub release body stays whole.
+                  RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${{ github.event.inputs.version }}"
+                  SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+                  import os
+                  content = os.environ["CONTENT"]
+                  more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+                  if len(content) <= 3000:
+                      print(content, end="")
+                  else:
+                      budget = 3000 - len(more)
+                      kept, used = [], 0
+                      for line in content.splitlines(keepends=True):
+                          if used + len(line) > budget:
+                              break
+                          kept.append(line)
+                          used += len(line)
+                      body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+                      print(body + more, end="")
+                  ')
+                  {
+                    echo "slack_content<<CHANGELOG_EOF"
+                    echo "$SLACK_CONTENT"
+                    echo "CHANGELOG_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
             - name: Resolve previous release tag
               id: prev_tag
               if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
@@ -544,7 +574,7 @@ jobs:
                       - type: "section"
                         text:
                           type: "mrkdwn"
-                          text: ${{ toJSON(steps.changelog.outputs.content) }}
+                          text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
                       - type: "context"
                         elements:
                           - type: "mrkdwn"

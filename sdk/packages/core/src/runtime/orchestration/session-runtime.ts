@@ -11,8 +11,15 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
+import type {
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+} from "../../extensions/agent-plugin";
 import type { UserInstructionConfigService } from "../../extensions/config";
-import type { ToolExecutors } from "../../extensions/tools";
+import type {
+	RunCommandExecutionController,
+	ToolExecutors,
+} from "../../extensions/tools";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,
@@ -53,6 +60,11 @@ export interface BuiltRuntime {
 
 export interface RuntimeBuilderInput {
 	config: CoreSessionConfig;
+	/**
+	 * Host-resolved stable end-user identity, forwarded so delegated agents
+	 * (sub-agents / teammates) emit the same telemetry `userId` as the lead.
+	 */
+	distinctId?: string;
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	onTeamEvent?: (event: TeamEvent) => void;
@@ -63,8 +75,11 @@ export interface RuntimeBuilderInput {
 	onTeamRestored?: () => void;
 	userInstructionService?: UserInstructionConfigService;
 	pluginSkillDirectories?: ReadonlyArray<string>;
+	agentPluginSkills?: ReadonlyArray<AgentPluginPackageSkill>;
+	agentPluginMcpServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	runCommandExecutionController?: RunCommandExecutionController;
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;

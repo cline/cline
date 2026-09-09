@@ -228,6 +228,57 @@ describe("translateSessionEvent — pending prompts", () => {
 			}),
 		])
 	})
+
+	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
+		// A bare Resume that races the abort settling is auto-queued by the
+		// runtime; when it drains, the submitted-prompt echo must not leak the
+		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
+		// hidden from every other transcript surface, and a visible bubble
+		// would shift edit/regenerate ordinal mapping).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "[TASK RESUMPTION] Please continue where you left off.",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([])
+	})
+
+	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+		// Attachment-only follow-ups ride on the synthetic prompt; the user's
+		// images/files are real content and must stay visible (matching
+		// isSyntheticSdkUserMessage, which counts such messages as visible).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				delivery: "queue",
+				attachmentCount: 1,
+				userImages: ["image.png"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "",
+				images: ["image.png"],
+			}),
+		])
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -4024,6 +4075,46 @@ describe("tool display paths are relativized to the cwd", () => {
 	it("relativizes the path in tool-approval ask messages", () => {
 		const message = buildToolApprovalAskMessage("editor", { path: `${CWD}/src/index.ts`, content: "x" }, 1, CWD)
 		expect(parseTool(message.text).path).toBe("src/index.ts")
+	})
+
+	it("reconstructs hook status chips from injected hook context and keeps the completion retag", () => {
+		const messages: SdkMessage[] = [
+			{ role: "user", content: '<user_input mode="act">read the readme</user_input>' } as SdkMessage,
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I'll read it." },
+					{ type: "tool_use", id: "t1", name: "read_files", input: { path: "README.md" } },
+				],
+			} as SdkMessage,
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "hello" }] } as SdkMessage,
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<hook_context source="PreToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE\n</hook_context>\n\n<hook_context source="PostToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE2\n</hook_context>',
+					},
+				],
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			} as SdkMessage,
+			{ role: "assistant", content: [{ type: "text", text: "The readme says hello." }] } as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+
+		const hookRows = clineMessages.filter((m) => m.say === "hook_status").map((m) => JSON.parse(m.text ?? "{}"))
+		expect(hookRows).toEqual([
+			{ hookName: "PreToolUse", toolName: "read_files", status: "completed" },
+			{ hookName: "PostToolUse", toolName: "read_files", status: "completed" },
+		])
+
+		// The injected context never renders as a user bubble.
+		expect(clineMessages.some((m) => m.text?.includes("<hook_context"))).toBe(false)
+
+		// The hidden injection is not a turn boundary: the final text keeps the
+		// inferred completion retag.
+		expect(clineMessages.some((m) => m.say === "completion_result" || m.ask === "completion_result")).toBe(true)
 	})
 
 	it("relativizes persisted-history tool paths via options.cwd", () => {

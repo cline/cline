@@ -1,5 +1,5 @@
 // @jsxImportSource @opentui/react
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export function ProviderRow({
 	providerName,
@@ -8,6 +8,7 @@ export function ProviderRow({
 	providerName: string;
 	focused: boolean;
 }) {
+	const palette = useDialogPalette();
 	return (
 		<box flexDirection="row" paddingX={1} gap={1}>
 			<text fg={focused ? palette.selection : "gray"} flexShrink={0}>

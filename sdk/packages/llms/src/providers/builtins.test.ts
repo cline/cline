@@ -90,6 +90,24 @@ describe("cline builtin models", () => {
 			pricing: expect.objectContaining({ input: 0.1, output: 0.2 }),
 		});
 	});
+
+	it("excludes image-output models without changing upstream catalogs", async () => {
+		const modelId = "google/gemini-3-pro-image";
+		const [clineModels, openRouterModels, vercelModels] = await Promise.all([
+			getModelsForProvider("cline"),
+			getModelsForProvider("openrouter"),
+			getModelsForProvider("vercel-ai-gateway"),
+		]);
+
+		expect(clineModels[modelId]).toBeUndefined();
+		expect(
+			Object.values(clineModels).some(
+				(model) => model.modalities?.output.includes("image") === true,
+			),
+		).toBe(false);
+		expect(openRouterModels[modelId]?.modalities?.output).toContain("image");
+		expect(vercelModels[modelId]?.modalities?.output).toContain("image");
+	});
 });
 
 describe("baked anthropic catalog reasoning options", () => {

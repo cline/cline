@@ -16,6 +16,7 @@ sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
+├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
@@ -49,7 +50,7 @@ const sessionManager = await ClineCore.create({
     workspaceRoot,
     cwd: workspaceRoot,
     clientType: "code-sidecar",
-    displayName: "Code App sidecar",
+    displayName: "Cline Desktop sidecar",
   },
   capabilities: {
     requestToolApproval: async (request) => {
@@ -80,6 +81,15 @@ sessionManager.subscribe((event) => {
 The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
 the desktop start the same detached Hub when no CLI process has started it yet.
 Startup discovery and locking ensure concurrent clients converge on one Hub.
+
+Every create, restart, fork, and restore also attaches the serializable Desktop
+`ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
+that context across the Hub transport and scopes the daemon-owned telemetry
+service to the originating surface. This keeps lifecycle events centralized in
+Core while reporting Desktop dimensions (`cline_type: "desktop"`, `platform:
+"Cline Desktop"`, and the Desktop app version) and the current account and
+organization. The shared Hub telemetry singleton is never mutated per session,
+so concurrent CLI and Desktop tasks retain their own attribution.
 
 ### 2. Tool Approval — Client-Owned Promise Resolution
 
@@ -165,6 +175,8 @@ Supported commands:
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
+| `poll_ask_questions` | In-memory pending map |
+| `respond_ask_question` | In-memory promise resolution |
 | `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
@@ -173,7 +185,8 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
+bun run dev:headless  # Start sidecar and Next.js with a fresh shared approval credential
+bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
+bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```

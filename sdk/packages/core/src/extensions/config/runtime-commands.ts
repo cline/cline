@@ -60,6 +60,24 @@ function isCommandEnabled(command: SkillConfig | WorkflowConfig): boolean {
 	return command.disabled !== true;
 }
 
+function resolveCommandInstructions(
+	item: SkillConfig | WorkflowConfig,
+	kind: RuntimeCommandKind,
+): string {
+	if (
+		kind !== "skill" ||
+		!("source" in item) ||
+		item.source?.type !== "agent-plugin"
+	) {
+		return item.instructions;
+	}
+	const skillRoot = item.source.skillRoot
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+	return `<skill-root>${skillRoot}</skill-root>\n${item.instructions}`;
+}
+
 function listCommandsForKind(
 	watcher: UserInstructionConfigWatcher,
 	kind: RuntimeCommandKind,
@@ -72,7 +90,7 @@ function listCommandsForKind(
 			name:
 				normalizeRuntimeCommandName(record.item.name) ||
 				`${kind}-${stableRuntimeCommandSuffix(id)}`,
-			instructions: record.item.instructions,
+			instructions: resolveCommandInstructions(record.item, kind),
 			description: resolveCommandDescription(record.item, kind),
 			kind,
 		}))
@@ -100,9 +118,22 @@ export function listAvailableRuntimeCommandsFromWatcher(
 	return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export type ResolveRuntimeSlashCommandOptions = {
+	/**
+	 * Whether a matched skill command is textually expanded into the prompt.
+	 * Hosts pass false when the session registers the runtime's `skills`
+	 * tool: the typed `/skill args` then goes through as-is and the model
+	 * loads the instructions via the tool, so the persisted transcript keeps
+	 * the typed command instead of the skill body. Workflows always expand —
+	 * the skills tool does not serve them. Defaults to true.
+	 */
+	expandSkillCommands?: boolean;
+};
+
 export function resolveRuntimeSlashCommandFromWatcher(
 	input: string,
 	watcher: UserInstructionConfigWatcher,
+	options?: ResolveRuntimeSlashCommandOptions,
 ): string {
 	if (!input.startsWith("/") || input.length < 2) {
 		return input;
@@ -121,5 +152,11 @@ export function resolveRuntimeSlashCommandFromWatcher(
 	const matched = listAvailableRuntimeCommandsFromWatcher(watcher).find(
 		(command) => command.name === name,
 	);
-	return matched ? `${matched.instructions}${remainder}` : input;
+	if (!matched) {
+		return input;
+	}
+	if (matched.kind === "skill" && options?.expandSkillCommands === false) {
+		return input;
+	}
+	return `${matched.instructions}${remainder}`;
 }

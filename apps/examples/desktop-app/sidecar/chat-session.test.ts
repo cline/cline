@@ -13,15 +13,37 @@ import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
+	createDesktopMistakeLimitPrompt,
+	createDesktopMistakeRecovery,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import {
+	handleCoreSessionEvent,
+	requestSidecarAskQuestion,
+	resolveSidecarAskQuestion,
+} from "./context";
 import type { SidecarContext } from "./types";
+
+describe("resolveDesktopSessionMode", () => {
+	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
+		expect(
+			resolveDesktopSessionMode({ mode: "act", autoApproveTools: true }),
+		).toBe("act");
+		expect(resolveDesktopSessionMode({ autoApproveTools: true })).toBe("act");
+	});
+
+	it("preserves explicit Plan and Yolo modes", () => {
+		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
+		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
+	});
+});
 
 describe("rewriteDesktopTeamPrompt", () => {
 	it("rewrites /team for the core runtime", () => {
@@ -179,25 +201,49 @@ describe("hasProviderChanged", () => {
 
 describe("pathless session starts", () => {
 	it("omits workspace paths and returns the SDK-resolved chat workspace", async () => {
-		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
-			expect(input.config).not.toHaveProperty("cwd");
-			expect(input.config).not.toHaveProperty("workspaceRoot");
-			expect(input.config).not.toHaveProperty("enableSpawnAgent");
-			expect(input.config).not.toHaveProperty("enableAgentTeams");
-			return {
-				sessionId: "session-pathless",
-				manifest: {
-					cwd: "/home/host/.cline/data/workspaces/chat",
-					workspace_root: "/home/host/.cline/data/workspaces/chat",
-				},
-				manifestPath: "/tmp/session-pathless.json",
-				messagesPath: "/tmp/session-pathless.messages.json",
-			};
-		});
+		const start = vi.fn(
+			async (input: {
+				config: Record<string, unknown>;
+				localRuntime?: {
+					extensionContext?: {
+						client?: Record<string, unknown>;
+						user?: Record<string, unknown>;
+					};
+				};
+			}) => {
+				expect(input.config).not.toHaveProperty("cwd");
+				expect(input.config).not.toHaveProperty("workspaceRoot");
+				expect(input.config).not.toHaveProperty("enableSpawnAgent");
+				expect(input.config).not.toHaveProperty("enableAgentTeams");
+				expect(input.localRuntime?.extensionContext?.client).toMatchObject({
+					name: "cline-desktop",
+					platform: "Cline Desktop",
+				});
+				expect(input.localRuntime?.extensionContext?.user).toEqual({
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				});
+				return {
+					sessionId: "session-pathless",
+					manifest: {
+						cwd: "/home/host/.cline/data/workspaces/chat",
+						workspace_root: "/home/host/.cline/data/workspaces/chat",
+					},
+					manifestPath: "/tmp/session-pathless.json",
+					messagesPath: "/tmp/session-pathless.messages.json",
+				};
+			},
+		);
 		const ctx = {
 			liveSessions: new Map(),
 			restoringWorkspacePaths: new Set(),
 			sessionManager: { start },
+			telemetryUser: {
+				distinctId: "account-1",
+				accountId: "account-1",
+				organizationId: "org-1",
+			},
 		} as unknown as SidecarContext;
 
 		const result = (await handleChatSessionCommand(ctx, {
@@ -446,7 +492,90 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it("keeps a full-history fork on the current workspace without restoring", async () => {
+	it("forks trimmed messages without restoring when the edited run has no checkpoint", async () => {
+		const sourceSessionId = `source-imported-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "imported prompt" },
+			{ role: "assistant" as const, content: "imported response" },
+			{ role: "user" as const, content: "prompt to edit" },
+			{ role: "assistant" as const, content: "response to replace" },
+		];
+		const expectedMessages = sourceMessages.slice(0, 2);
+		const start = vi.fn(async () => ({ sessionId: "imported-fork" }));
+		const restore = vi.fn(async () => {
+			throw new Error("restore must not run without a checkpoint");
+		});
+		const readMessages = vi.fn(async () => expectedMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						importedFrom: { tool: "codex", sourceId: "cdx-1" },
+					},
+				})),
+				readMessages,
+				restore,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 2,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		})) as { sessionId: string };
+
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: expectedMessages,
+				sessionMetadata: expect.objectContaining({
+					fork: expect.objectContaining({
+						forkedFromSessionId: sourceSessionId,
+						beforeRunCount: 2,
+					}),
+				}),
+			}),
+		);
+		expect(result.sessionId).toBe("imported-fork");
+		expect(ctx.liveSessions.has(sourceSessionId)).toBe(false);
+		expect(ctx.liveSessions.get("imported-fork")?.messages).toEqual(
+			expectedMessages,
+		);
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("keeps a full-history fork on the current workspace and cancels source questions", async () => {
 		const sourceSessionId = `source-full-fork-${Date.now()}`;
 		const sourceMessages = [
 			{ role: "user" as const, content: "first prompt" },
@@ -489,8 +618,19 @@ describe("session forks", () => {
 			},
 			streamIndices: new Map(),
 			wsClients: new Set(),
+			pendingQuestions: new Map(),
 		} as unknown as SidecarContext;
 
+		const pendingDecision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => sourceSessionId,
+		)({
+			iteration: 5,
+			consecutiveMistakes: 6,
+			maxConsecutiveMistakes: 6,
+			reason: "tool_execution_failed",
+		});
+		expect(ctx.pendingQuestions.size).toBe(1);
 		await handleChatSessionCommand(ctx, {
 			action: "fork",
 			sessionId: sourceSessionId,
@@ -500,6 +640,8 @@ describe("session forks", () => {
 			},
 		});
 
+		await expect(pendingDecision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({ initialMessages: sourceMessages }),
@@ -625,6 +767,81 @@ describe("session forks", () => {
 		).rejects.toThrow("Wait for all turns in this workspace to finish");
 		expect(restore).not.toHaveBeenCalled();
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("allows a workspace restore after a queued turn completes through the event stream", async () => {
+		const sessionId = `queued-turn-session-${Date.now()}`;
+		const dataDir = mkdtempSync(join(tmpdir(), "cline-queued-restore-"));
+		const originalDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		try {
+			const restore = vi.fn(async () => ({
+				sessionId,
+				messages: [{ role: "user", content: "first prompt" }],
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			}));
+			const ctx = {
+				liveSessions: new Map([
+					[
+						sessionId,
+						{
+							config: { cwd: "/workspace/project" },
+							messages: [{ role: "user", content: "first prompt" }],
+							promptsInQueue: [],
+							// A drained queued turn is running: no send() RPC owns
+							// this turn's busy flag, only the event stream does.
+							busy: true,
+							startedAt: Date.now(),
+							status: "running",
+						},
+					],
+				]),
+				restoringWorkspacePaths: new Set(),
+				streamIndices: new Map(),
+				wsClients: new Set(),
+				sessionManager: { restore },
+			} as unknown as SidecarContext;
+			const restoreRequest = {
+				action: "restore_checkpoint" as const,
+				sessionId,
+				checkpointRunCount: 1,
+				config: {
+					cwd: "/workspace/project",
+					provider: "cline",
+					model: "test-model",
+				},
+			};
+
+			// While the queued turn is still running the workspace stays locked.
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).rejects.toThrow("Wait for all turns in this workspace to finish");
+			expect(restore).not.toHaveBeenCalled();
+
+			// The queued turn settles through the event stream: the runtime
+			// host reports the session back at idle (there is no send() RPC
+			// response to clear the busy flag for event-settled turns).
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			});
+			expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+				busy: false,
+				status: "idle",
+			});
+
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).resolves.toMatchObject({ sessionId });
+			expect(restore).toHaveBeenCalledTimes(1);
+		} finally {
+			if (originalDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = originalDataDir;
+			}
+			rmSync(dataDir, { force: true, recursive: true });
+		}
 	});
 
 	it("blocks sends from sibling sessions while their workspace is restored", async () => {
@@ -1292,6 +1509,7 @@ describe("first-send connection updates", () => {
 		});
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
+		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
 });
 
@@ -1386,6 +1604,15 @@ name: desktop-send-skill
 ---
 Follow the desktop send skill instructions.`,
 		);
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		mkdirSync(workflowsDir, { recursive: true });
+		writeFileSync(
+			join(workflowsDir, "desktop-send-workflow.md"),
+			`---
+name: desktop-send-workflow
+---
+Follow the desktop send workflow instructions.`,
+		);
 		return workspace;
 	}
 
@@ -1429,7 +1656,7 @@ Follow the desktop send skill instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
-	it("expands a leading skill command into its instructions", async () => {
+	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
 
@@ -1439,16 +1666,59 @@ Follow the desktop send skill instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
+		// Skills are not expanded into the user message: the runtime's skills
+		// tool loads the instructions, and the persisted transcript keeps the
+		// typed command.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		(session.config as Record<string, unknown>).mode = "yolo";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// The yolo preset has no skills tool, so textual expansion is the only
+		// way the instructions reach the model.
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "Follow the desktop send skill instructions. write the docs",
 			}),
 		);
-		// The session's display prompt keeps the raw token.
-		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
-	it("expands a skill command when a queued prompt is edited", async () => {
+	it("expands a leading workflow command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-workflow ship it",
+		});
+
+		// Workflows are not served by the skills tool, so they keep textual
+		// expansion.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send workflow instructions. ship it",
+			}),
+		);
+		// The session's display prompt keeps the raw token.
+		expect(session.prompt).toBe("/desktop-send-workflow ship it");
+	});
+
+	it("keeps a skill command as typed when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
@@ -1462,7 +1732,25 @@ Follow the desktop send skill instructions.`,
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
-			prompt: "Follow the desktop send skill instructions. later please",
+			prompt: "/desktop-send-skill later please",
+		});
+	});
+
+	it("expands a workflow command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-2",
+			prompt: "/desktop-send-workflow later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-2",
+			prompt: "Follow the desktop send workflow instructions. later please",
 		});
 	});
 
@@ -1506,5 +1794,489 @@ Follow the desktop send skill instructions.`,
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
 		);
+	});
+});
+
+describe("mistake-limit prompt", () => {
+	function createPromptContext() {
+		const send = vi.fn();
+		const steer = vi.fn(async () => undefined);
+		const ctx = {
+			wsClients: new Set([{ send }]),
+			streamIndices: new Map(),
+			pendingQuestions: new Map(),
+			liveSessions: new Map(),
+			sessionManager: {
+				send: steer,
+				stop: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+			},
+		} as unknown as SidecarContext;
+		const readQuestionRequest = () => {
+			const raw = send.mock.calls
+				.map(
+					([encoded]) =>
+						JSON.parse(String(encoded)) as {
+							event: { name: string; payload: Record<string, unknown> };
+						},
+				)
+				.find((message) => message.event.name === "ask_question_requested");
+			return raw?.event.payload as
+				| {
+						requestId: string;
+						sessionId: string;
+						question: string;
+						options: string[];
+				  }
+				| undefined;
+		};
+		return { ctx, steer, readQuestionRequest };
+	}
+	const limitContext = {
+		iteration: 15,
+		consecutiveMistakes: 6,
+		maxConsecutiveMistakes: 6,
+		reason: "tool_execution_failed" as const,
+		details:
+			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
+	};
+
+	it("holds tool and model hooks until Continue has queued recovery guidance", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		let finishSteering!: () => void;
+		steer.mockImplementationOnce(
+			() =>
+				new Promise<undefined>((resolve) => {
+					finishSteering = () => resolve(undefined);
+				}),
+		);
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		expect(recovery.onConsecutiveMistakeLimitReached(limitContext)).toBe(
+			decision,
+		);
+		let released = false;
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]).then((results) => {
+			released = true;
+			return results;
+		});
+		await Promise.resolve();
+		expect(released).toBe(false);
+		expect(ctx.pendingQuestions.size).toBe(1);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await Promise.resolve();
+		expect(steer).toHaveBeenCalledTimes(1);
+		expect(released).toBe(false);
+		finishSteering();
+		await expect(decision).resolves.toMatchObject({ action: "continue" });
+		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
+		expect(released).toBe(true);
+		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
+	});
+
+	it("leaves ordinary questions alone when cancelling a mistake prompt", async () => {
+		const { ctx, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		const mistakeRequestId = readQuestionRequest()?.requestId;
+		const normalQuestion = requestSidecarAskQuestion(
+			ctx,
+			"Which file?",
+			["a", "b"],
+			{ sessionId: "session-1", agentId: "desktop", iteration: 1 },
+		);
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-1",
+		});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(1);
+		const remaining = [...ctx.pendingQuestions.values()][0];
+		expect(remaining.item.requestId).not.toBe(mistakeRequestId);
+		resolveSidecarAskQuestion(ctx, remaining.item.requestId, "a");
+		await expect(normalQuestion).resolves.toBe("a");
+	});
+
+	it.each([
+		"answer",
+		"abort",
+	] as const)("releases waiting hooks with Stop on %s", async (action) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]);
+		if (action === "answer") {
+			resolveSidecarAskQuestion(
+				ctx,
+				readQuestionRequest()?.requestId ?? "",
+				"Stop this run",
+			);
+		} else {
+			await handleChatSessionCommand(ctx, {
+				action: "abort",
+				sessionId: "session-1",
+			});
+		}
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		for (const control of await waiting)
+			expect(control).toMatchObject({ stop: true });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("asks the active session's user instead of stopping silently", async () => {
+		const { ctx, readQuestionRequest } = createPromptContext();
+		// Session ids are only known after start() resolves; the prompt must
+		// read the id at prompt time, not at construction time.
+		let sessionId = "";
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => sessionId);
+		sessionId = "session-late";
+
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		expect(request).toMatchObject({
+			sessionId: "session-late",
+			options: ["Try a different approach", "Stop this run"],
+		});
+		expect(request?.question).toContain("repeated mistakes or tool calls");
+		expect(request?.question).toContain("identical calls to `editor`");
+
+		expect(
+			resolveSidecarAskQuestion(ctx, request?.requestId ?? "", "Stop this run"),
+		).toBe(true);
+		await expect(decision).resolves.toEqual({
+			action: "stop",
+			reason: "stopped after mistake_limit_reached prompt",
+		});
+	});
+
+	it("delivers recovery guidance only through steering", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		resolveSidecarAskQuestion(
+			ctx,
+			request?.requestId ?? "",
+			"Try a different approach",
+		);
+
+		const result = await decision;
+		expect(result).toEqual({ action: "continue" });
+		expect(steer).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining("Do not repeat the same call"),
+			delivery: "steer",
+		});
+		expect(steer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("identical calls to `editor`"),
+			}),
+		);
+	});
+
+	it.each([
+		"stop",
+		" STOP THIS RUN ",
+		"2",
+		"no",
+	])("treats the free-text answer %s as Stop, like the CLI", async (answer) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			answer,
+		);
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"rejected",
+		"unavailable",
+	])("stops waiting hooks when steering is %s", async (failure) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		if (failure === "rejected")
+			steer.mockRejectedValueOnce(new Error("Disconnected"));
+		else ctx.sessionManager = null;
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await expect(decision).resolves.toMatchObject({
+			action: "stop",
+			reason: expect.stringContaining("Could not send recovery guidance"),
+		});
+		for (const result of await waiting)
+			expect(result).toMatchObject({ stop: true });
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it("passes free-text answers through as user guidance", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const decision = decide(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"read the file first, then edit",
+		);
+		await expect(decision).resolves.toEqual({ action: "continue" });
+		expect(steer).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining(
+				"User guidance: read the file first, then edit",
+			),
+			delivery: "steer",
+		});
+	});
+
+	it("reuses Continue for already-started iterations and asks again for new mistakes", async () => {
+		const { ctx, steer } = createPromptContext();
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: 0,
+			status: "running",
+		});
+		const startIteration = (iteration: number) =>
+			handleCoreSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "iteration_start", iteration },
+				},
+			});
+		const answer = (value: string) => {
+			const pending = [...ctx.pendingQuestions.values()][0];
+			expect(pending).toBeDefined();
+			resolveSidecarAskQuestion(ctx, pending.item.requestId, value);
+		};
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		startIteration(15);
+		const first = decide(limitContext);
+		// The model can advance while the client decision is pending.
+		startIteration(20);
+		// Do not extend the covered iterations while waiting for the hub's
+		// steering acknowledgement: a newer step may already have the guidance.
+		steer.mockImplementationOnce(async () => {
+			startIteration(21);
+			return undefined;
+		});
+		answer("Try a different approach");
+		await expect(first).resolves.toMatchObject({ action: "continue" });
+
+		// A batch can have many failures in one iteration, followed by more
+		// failures queued before the user answered. None needs another prompt.
+		for (const iteration of [
+			...Array<number>(20).fill(15),
+			16,
+			17,
+			18,
+			19,
+			20,
+		]) {
+			await expect(decide({ ...limitContext, iteration })).resolves.toEqual({
+				action: "continue",
+			});
+		}
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).toHaveBeenCalledTimes(1);
+
+		startIteration(21);
+		const next = decide({ ...limitContext, iteration: 21 });
+		answer("Try a different approach");
+		await expect(next).resolves.toMatchObject({ action: "continue" });
+		expect(steer).toHaveBeenCalledTimes(2);
+
+		// A new user run must not inherit the previous run's decision, even
+		// though its iteration numbers start over.
+		startIteration(1);
+		startIteration(5);
+		const newRun = decide({ ...limitContext, iteration: 5 });
+		answer("Stop this run");
+		await expect(newRun).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).toHaveBeenCalledTimes(2);
+	});
+
+	it("falls back to stopping when no session owns the question", async () => {
+		const { ctx, steer } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "");
+		await expect(decide(limitContext)).resolves.toEqual({
+			action: "stop",
+			reason: `mistake_limit_reached: ${limitContext.details}`,
+		});
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("removes an aborted run's question and rejects late answers", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		expect(ctx.pendingQuestions.size).toBe(1);
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-1",
+		});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			resolveSidecarAskQuestion(
+				ctx,
+				request?.requestId ?? "",
+				"Try a different approach",
+			),
+		).toBe(false);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"stop",
+		"abort",
+		"reset",
+	] as const)("cancels only the owning session's questions on %s", async (action) => {
+		const { ctx } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const other = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-2",
+		)(limitContext);
+		const decision = decide(limitContext);
+		await handleChatSessionCommand(ctx, { action, sessionId: "session-1" });
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(
+			[...ctx.pendingQuestions.values()].map((p) => p.item.sessionId),
+		).toEqual(["session-2"]);
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-2",
+		});
+		await other;
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it("times out an unanswered question and removes it from polling", async () => {
+		vi.useFakeTimers();
+		try {
+			const { ctx, steer } = createPromptContext();
+			const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+			const decision = decide(limitContext);
+			await vi.advanceTimersByTimeAsync(5 * 60_000);
+			await expect(decision).resolves.toMatchObject({ action: "stop" });
+			expect(ctx.pendingQuestions.size).toBe(0);
+			expect(steer).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		"run",
+		"session",
+	])("cancels the question when the %s ends externally", async (kind) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		const requestId = readQuestionRequest()?.requestId ?? "";
+		if (kind === "session")
+			handleCoreSessionEvent(ctx, {
+				type: "ended",
+				payload: { sessionId: "session-1", reason: "stopped", ts: Date.now() },
+			});
+		else
+			handleCoreSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "aborted",
+						text: "",
+						iterations: 5,
+						usage: { inputTokens: 0, outputTokens: 0 },
+					},
+				},
+			});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			resolveSidecarAskQuestion(ctx, requestId, "Try a different approach"),
+		).toBe(false);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("is wired into freshly started sessions as a local runtime option", async () => {
+		const start = vi.fn(
+			async (input: {
+				config: Record<string, unknown>;
+				localRuntime?: Record<string, unknown>;
+			}) => {
+				expect(input.config).not.toHaveProperty(
+					"onConsecutiveMistakeLimitReached",
+				);
+				expect(
+					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
+				).toBe("function");
+				expect(input.config).not.toHaveProperty("hooks");
+				expect(input.localRuntime?.hooks).toMatchObject({
+					beforeModel: expect.any(Function),
+					beforeTool: expect.any(Function),
+					afterTool: expect.any(Function),
+				});
+				return {
+					sessionId: "session-limit",
+					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },
+					manifestPath: "/tmp/session-limit.json",
+					messagesPath: "/tmp/session-limit.messages.json",
+				};
+			},
+		);
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { start },
+		} as unknown as SidecarContext;
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/tmp/ws",
+			},
+		});
+		expect(start).toHaveBeenCalledTimes(1);
 	});
 });

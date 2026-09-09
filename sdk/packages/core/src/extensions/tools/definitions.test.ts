@@ -1,4 +1,4 @@
-import type { ITelemetryService } from "@cline/shared";
+import type { AgentToolContext, ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRunCommandsDescription,
@@ -715,6 +715,49 @@ describe("default run_commands tool", () => {
 			process.cwd(),
 			expect.objectContaining({ iteration: 1 }),
 		);
+	});
+
+	it("identifies streamed updates from parallel commands", async () => {
+		const updates: unknown[] = [];
+		const execute = vi.fn(
+			async (
+				command: string | { command: string; args?: string[] },
+				_cwd: string,
+				context: AgentToolContext,
+			) => {
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: typeof command === "string" ? command : command.command,
+				});
+				return "done";
+			},
+		);
+		const tool = createShellTool(execute);
+
+		await tool.execute(
+			{ commands: ["pwd", { command: "node", args: ["--version"] }] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(updates).toEqual([
+			{
+				stream: "stdout",
+				chunk: "pwd",
+				commandIndex: 0,
+				query: "pwd",
+			},
+			{
+				stream: "stdout",
+				chunk: "node",
+				commandIndex: 1,
+				query: "node --version",
+			},
+		]);
 	});
 
 	it("rejects invalid text-object command entries", async () => {

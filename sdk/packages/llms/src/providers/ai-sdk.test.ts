@@ -218,11 +218,26 @@ describe("ai-sdk usage normalization", () => {
 	});
 
 	describe("cost extraction with pricing fallback", () => {
-		it("uses market_cost when available (Vercel)", () => {
-			const vercelUsage = (fixtures as Record<string, unknown>)
-				.vercel_stream_usage as Record<string, unknown>;
-			const normalized = normalizeUsage(vercelUsage);
-			expect(normalized.totalCost).toBe(0.000641);
+		it("prefers billed cost over market_cost when Vercel applies a discount", () => {
+			const normalized = normalizeUsage({
+				inputTokens: 11,
+				outputTokens: 5,
+				raw: {
+					cost: 0.0001025,
+					market_cost: 0.000205,
+					cost_details: { upstream_inference_cost: null },
+				},
+			});
+			expect(normalized.totalCost).toBe(0.0001025);
+		});
+
+		it("uses market_cost when billed cost is unavailable", () => {
+			const normalized = normalizeUsage({
+				inputTokens: 11,
+				outputTokens: 5,
+				raw: { market_cost: 0.000205 },
+			});
+			expect(normalized.totalCost).toBe(0.000205);
 		});
 
 		it("sums BYOK fee + upstream provider cost when OpenRouter marks the request as BYOK", () => {

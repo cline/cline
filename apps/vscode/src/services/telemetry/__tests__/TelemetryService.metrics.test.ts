@@ -126,6 +126,49 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
 	})
 
+	it("captures bounded, content-free remote-config rollout signals", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, { extension_variant: "next" })
+
+		service.captureRemoteConfigRefresh({
+			outcome: "applied",
+			durationMs: 12.6,
+			managed: true,
+			configVersion: "v".repeat(120),
+		})
+		service.captureRemoteConfigSessionGate({ outcome: "last_known_good", durationMs: 4.2, managed: true })
+
+		const refresh = provider.logs.find((entry) => entry.event === "remote_config.refresh")
+		assert.strictEqual(refresh?.properties?.outcome, "applied")
+		assert.strictEqual(refresh?.properties?.duration_ms, 13)
+		assert.strictEqual((refresh?.properties?.config_version as string).length, 100)
+		assert.strictEqual(refresh?.properties?.extension_variant, "next")
+		assert.strictEqual(refresh?.properties?.organization_id, undefined)
+		const gate = provider.logs.find((entry) => entry.event === "remote_config.session_gate")
+		assert.strictEqual(gate?.properties?.outcome, "last_known_good")
+		assert.strictEqual(gate?.properties?.duration_ms, 4)
+		assert.strictEqual(gate?.properties?.extension_variant, "next")
+	})
+
+	it("drops unmanaged happy-path remote-config events but keeps failures", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+		const remoteConfigEvents = () => provider.logs.filter((entry) => entry.event.startsWith("remote_config."))
+
+		// Unmanaged happy path: the overwhelming majority of installs, no signal.
+		service.captureRemoteConfigRefresh({ outcome: "applied", durationMs: 1, managed: false })
+		service.captureRemoteConfigRefresh({ outcome: "cleared", durationMs: 1, managed: false })
+		service.captureRemoteConfigSessionGate({ outcome: "unmanaged", durationMs: 1, managed: false })
+		service.captureRemoteConfigSessionGate({ outcome: "refreshed", durationMs: 1, managed: false })
+		assert.strictEqual(remoteConfigEvents().length, 0)
+
+		// Failures and managed-org events are the signal and must still be sent.
+		service.captureRemoteConfigRefresh({ outcome: "failed", durationMs: 1, managed: false })
+		service.captureRemoteConfigRefresh({ outcome: "cleared", durationMs: 1, managed: true })
+		service.captureRemoteConfigSessionGate({ outcome: "blocked", durationMs: 1, managed: true })
+		assert.strictEqual(remoteConfigEvents().length, 3)
+	})
+
 	it("does not capture rollout activation events for ordinary builds", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)

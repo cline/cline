@@ -17,6 +17,15 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
+/**
+ * Sent when the user resumes a task without typing anything: a turn cannot
+ * start without a prompt, so the Resume button needs a synthetic one. Never
+ * include the original task text here — the model treats it as new
+ * instructions and redoes already-completed work (#12975). Hidden from the
+ * transcript by isSyntheticUserPrompt via the [TASK RESUMPTION] prefix.
+ */
+const TASK_RESUMPTION_PROMPT = "[TASK RESUMPTION] Please continue where you left off."
+
 export interface SdkFollowupCoordinatorOptions {
 	stateManager: StateManager
 	interactions: SdkInteractionCoordinator
@@ -74,7 +83,7 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.sendToActiveSession(activeSession, true, prompt, images, files)
+			await this.queueToActiveSession(activeSession, prompt, images, files)
 			return
 		}
 
@@ -96,7 +105,17 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.sendToActiveSession(currentSession, true, prompt, images, files)
+				await this.queueToActiveSession(currentSession, prompt, images, files)
+				return
+			}
+
+			// Stopping a turn keeps the session alive, so a matching idle
+			// session is continued in place — mirroring the CLI, which reuses
+			// the live session after an abort. Rebuilding from task history is
+			// reserved for tasks without a live session (opened from history,
+			// extension host reload).
+			if (currentSession && (!task || currentSession.sessionId === task.taskId)) {
+				await this.continueIdleSession(currentSession, prompt, images, files)
 				return
 			}
 
@@ -106,43 +125,52 @@ export class SdkFollowupCoordinator {
 				return
 			}
 
-			if (!currentSession) {
-				Logger.error("[SdkController] askResponse: No active session")
-				await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
-				return
-			}
-
-			await this.sendToActiveSession(currentSession, false, prompt, images, files)
+			Logger.error("[SdkController] askResponse: No active session")
+			await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
 		})
 	}
 
-	private async sendToActiveSession(
+	/** Queue a follow-up onto a session whose turn is still running. */
+	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
-		shouldQueue: boolean,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
 	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
-		if (shouldQueue) {
-			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
-		}
+		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
 		this.options.sessions.setRunning(true)
-		if (!shouldQueue) {
-			this.emitUserFeedback(sessionId, prompt, images, files)
-			this.options.resetMessageTranslator()
-		}
-
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(
-			sdkHost,
-			sessionId,
-			resolvedPrompt,
-			images,
-			files,
-			shouldQueue ? "queue" : undefined,
-		)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
+	}
+
+	/**
+	 * Continue a live idle session in place instead of tearing it down and
+	 * rebuilding it from task history. A bare resume (no user content) sends
+	 * the synthetic resumption prompt without echoing a user bubble;
+	 * user-provided content is echoed and sent as-is. If the session's abort
+	 * is still settling, the runtime auto-queues the send and drains it once
+	 * the abort completes.
+	 */
+	private async continueIdleSession(
+		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		prompt?: string,
+		images?: string[],
+		files?: string[],
+	): Promise<void> {
+		const { sdkHost, sessionId } = activeSession
+		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
+
+		this.options.sessions.setRunning(true)
+		if (prompt?.trim() || images?.length || files?.length) {
+			this.emitUserFeedback(sessionId, prompt, images, files)
+		}
+		this.options.resetMessageTranslator()
+
+		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
+		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
 	}
 
 	private async tryResumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {
@@ -224,11 +252,7 @@ export class SdkFollowupCoordinator {
 				}
 			}
 
-			const effectivePrompt =
-				prompt?.trim() ||
-				(historyItem
-					? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
-					: "[TASK RESUMPTION] Please continue where you left off.")
+			const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 			if (this.options.getTask()?.taskId !== taskId) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)

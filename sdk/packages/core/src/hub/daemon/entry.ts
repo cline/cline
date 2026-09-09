@@ -9,6 +9,10 @@ import { reconnectDaemonConnectors } from "../../services/connectors/daemon-conn
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
+	HUB_LOCK_HELD_EXIT_CODE,
+	isHubLockHeldError,
+} from "../discovery/instance-lock";
+import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
@@ -55,7 +59,15 @@ async function startHubWebSocketServerWithBindRetry(
 		try {
 			return await startHubWebSocketServer(options);
 		} catch (error) {
-			if (!isAddressInUseError(error) || Date.now() >= bindDeadline) {
+			// A retiring predecessor can hold the port — or the instance lock —
+			// for a couple of seconds after acking shutdown. Wait either out
+			// within the deadline; a lock still held past it means a live Hub
+			// owns this context, and the rule is connect or diagnose, never
+			// replace (exit code 3, below).
+			if (
+				(!isAddressInUseError(error) && !isHubLockHeldError(error)) ||
+				Date.now() >= bindDeadline
+			) {
 				throw error;
 			}
 			await new Promise((resolve) =>
@@ -234,6 +246,7 @@ async function main(): Promise<void> {
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
+			workspaceRoot: options.cwd,
 			onShutdownRequested: () => {
 				void requestOrQueueShutdown({
 					reason: "authenticated HTTP shutdown request",
@@ -345,6 +358,15 @@ async function main(): Promise<void> {
 
 void main().catch((error) => {
 	rejectHubDaemonReady(error);
+	if (isHubLockHeldError(error)) {
+		// A live Hub owns this context. Losing the singleton race is a
+		// diagnosis, not a failure to fight: exit distinctly and leave the
+		// running Hub alone.
+		process.stderr.write(
+			`[hub-daemon] another live Hub owns this data directory: ${error.message}\n`,
+		);
+		process.exit(HUB_LOCK_HELD_EXIT_CODE);
+	}
 	const message =
 		error instanceof Error ? error.stack || error.message : String(error);
 	process.stderr.write(`[hub-daemon] fatal: ${message}\n`);

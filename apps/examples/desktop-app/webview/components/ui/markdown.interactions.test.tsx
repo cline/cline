@@ -5,6 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MarkdownLinkSafetyModal, MemoizedMarkdown } from "./markdown";
 
+HTMLElement.prototype.scrollTo = vi.fn();
+
 const originalClipboard = Object.getOwnPropertyDescriptor(
 	navigator,
 	"clipboard",
@@ -241,6 +243,34 @@ describe("MemoizedMarkdown interactions", () => {
 			expect(writeText).toHaveBeenCalledWith(`${source}\n`);
 			expect(copyButton.querySelector(".lucide-check")).not.toBeNull();
 		});
+	});
+
+	// With lineNumbers off, Streamdown emits one bare inline <span> per Shiki
+	// token line with no newline text between non-empty lines; the shared
+	// @cline/ui markdown.css turns those direct line spans into blocks. This
+	// asserts the one-span-per-line structure that CSS contract depends on,
+	// after the async Shiki highlight replaces the raw fallback render (the
+	// SSR tests never exercise that client-side path).
+	test("keeps highlighted code lines as separate line spans", async () => {
+		await renderMarkdown({
+			content: "```typescript\nconst a = 1;\nconst b = 2;\nconst c = 3;\n```",
+		});
+
+		const code = await vi.waitFor(() => {
+			const rendered = container.querySelector<HTMLElement>(
+				'[data-streamdown="code-block-body"] code',
+			);
+			expect(rendered).not.toBeNull();
+			// Styled token spans only appear once the highlighter callback lands.
+			expect(rendered?.querySelector("span > span[style]")).not.toBeNull();
+			return rendered as HTMLElement;
+		});
+
+		expect([...code.children].map((line) => line.textContent)).toEqual([
+			"const a = 1;",
+			"const b = 2;",
+			"const c = 3;",
+		]);
 	});
 
 	test("rerenders incomplete streaming Markdown as completed static Markdown", async () => {

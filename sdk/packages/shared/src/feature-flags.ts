@@ -1,6 +1,8 @@
 export const FeatureFlag = {
 	/** Enables ClinePass provider/model list exposure in supported clients. */
 	CLINE_PASS: "ext-cline-pass",
+	/** Shows the GitHub integration step in the desktop app */
+	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -62,6 +64,7 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

@@ -11,6 +11,7 @@ import {
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	makeId,
+	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
@@ -29,6 +30,7 @@ import type {
 	ToolApprovalRequestItem,
 	ToolCallEndEvent,
 	ToolCallStartEvent,
+	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
 import {
 	type ChatMessage,
@@ -38,6 +40,7 @@ import {
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -50,6 +53,7 @@ import type {
 	SessionHistoryItem,
 	SessionHistoryStatus,
 } from "@/lib/session-history";
+import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -64,12 +68,19 @@ const MAX_MESSAGES = 800;
 // ~3 frames: fast enough to feel live, slow enough to absorb per-token events.
 const STREAM_FLUSH_INTERVAL_MS = 48;
 
+// How long a turn-end canonical history reconcile waits before reading the
+// persisted transcript. The runtime's final transcript flush (tool results and
+// turn metadata) races the done event by a few milliseconds, so an immediate
+// read could catch the file mid-rewrite.
+const TURN_END_RECONCILE_DELAY_MS = 250;
+
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
 	"chat_media",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
+	"chat_tool_call_update",
 	"chat_tool_call_end",
 	"chat_core_log",
 	"chat_usage",
@@ -81,6 +92,18 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"running",
 	"stopping",
 ]);
+
+// Stale-stream fallback cadence for attached sessions (see the polling
+// effect below): only poll after the live stream has been quiet this long,
+// and re-check at this interval while it stays quiet.
+const STALE_STREAM_QUIET_MS = 5_000;
+const STALE_STREAM_POLL_INTERVAL_MS = 3_000;
+
+type PendingToolOutput = {
+	text: string;
+	truncated: boolean;
+	detachable?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
@@ -136,8 +159,17 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 	});
 }
 
-function chunkCreatedAt(payload: AgentChunkEvent): number {
-	return payload.ts || Date.now();
+// Live rows are stamped on this process's clock, not the sidecar's `ts`.
+// Every timestamp a live row is compared against comes from here: the
+// optimistic user bubble a send appends, `hydrationStartedAt`,
+// `turnStartedAt`, and the preceding row in the thought-duration
+// subtraction. The sidecar can run on another machine's clock (the
+// browser-dev container, a remote hub), and mixing the two turned a
+// finished reasoning row into a durationless "Thinking" whenever that clock
+// trailed the browser by more than the time to first token. Persisted rows
+// keep the runtime's timestamps and are consistent among themselves.
+function chunkCreatedAt(): number {
+	return Date.now();
 }
 
 function mergeHydratedMessagesWithLive(options: {
@@ -174,6 +206,49 @@ function mergeHydratedMessagesWithLive(options: {
 		return true;
 	});
 	return sortMessagesChronologically([...hydrated, ...nonDuplicateLive]);
+}
+
+function deriveLiveToolState(messages: ChatMessage[]): {
+	messageIds: Record<string, string>;
+	inputs: Record<string, unknown>;
+} {
+	const messageIds: Record<string, string> = {};
+	const inputs: Record<string, unknown> = {};
+	for (const message of sortMessagesChronologically(messages)) {
+		const toolCallId = message.meta?.toolCallId;
+		if (!toolCallId) continue;
+		const hookEventName = message.meta?.hookEventName;
+		if (
+			hookEventName === "tool_call_end" ||
+			hookEventName === "history_tool_result"
+		) {
+			delete messageIds[toolCallId];
+			delete inputs[toolCallId];
+			continue;
+		}
+		if (
+			hookEventName !== "tool_call_start" &&
+			hookEventName !== "history_tool_use"
+		) {
+			continue;
+		}
+		messageIds[toolCallId] = message.id;
+		try {
+			const payload = JSON.parse(message.content) as unknown;
+			if (
+				payload &&
+				typeof payload === "object" &&
+				!Array.isArray(payload) &&
+				Object.hasOwn(payload, "input")
+			) {
+				inputs[toolCallId] = (payload as { input?: unknown }).input;
+			}
+		} catch {
+			// Routing only needs the ids. A malformed display payload must not
+			// prevent later progress and completion events from reaching the card.
+		}
+	}
+	return { messageIds, inputs };
 }
 
 function updateMessageById(
@@ -313,6 +388,9 @@ export function useChatSession() {
 	const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<
 		string | null
 	>(null);
+	// Names what the runtime is doing before the first output of a turn (in
+	// place of "Thinking..."); ephemeral, cleared when the turn moves on.
+	const [activityLabel, setActivityLabel] = useState<string | null>(null);
 	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
@@ -324,8 +402,12 @@ export function useChatSession() {
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const messagesRef = useRef<ChatMessage[]>([]);
+	// When the last chat_event chunk for the active session arrived. The
+	// stale-stream fallback below only polls while this stays quiet.
+	const lastLiveChunkAtRef = useRef(0);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
 	// A chat_queued_prompt_start event may only re-key one of these — never a
 	// same-content message left over from an earlier turn (see the handler).
@@ -339,6 +421,7 @@ export function useChatSession() {
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
+	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
 	const abortedRef = useRef(false);
 	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -359,6 +442,10 @@ export function useChatSession() {
 	// trail chat_done; when no new turn has started since the turn settled
 	// (epoch unchanged), such a "running" must not reopen the turn.
 	const turnSettledEpochRef = useRef(-1);
+	// Runtime status changes supersede local status captured by an abort.
+	const authoritativeStatusRevisionRef = useRef(0);
+	// Snapshot used to keep a late send response from overwriting a newer status.
+	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
@@ -439,14 +526,17 @@ export function useChatSession() {
 	const clearLiveToolRefs = useCallback(() => {
 		liveToolMessageIdsRef.current = {};
 		liveToolInputsRef.current = {};
+		pendingToolOutputRef.current = new Map();
 	}, []);
 
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
+			delete lastStreamBootBySessionRef.current[targetSessionId];
 			return;
 		}
 		lastStreamIndexBySessionRef.current = {};
+		lastStreamBootBySessionRef.current = {};
 	}, []);
 
 	const clearAbortFallbackTimeout = useCallback(() => {
@@ -556,6 +646,75 @@ export function useChatSession() {
 		[],
 	);
 
+	// Finalizes a turn that settled through the event stream rather than a
+	// blocking send() RPC. Queued turns (including the first prompt of a fresh
+	// session, which the runtime routes through its queue) resolve their send()
+	// RPC early with { queued: true }, so nothing else clears the streaming
+	// shimmer or reconciles the live-streamed content against the persisted
+	// transcript — without this, a turn whose deltas were incomplete stays
+	// visually "streaming" forever and only heals when a later non-queued send
+	// happens to rehydrate history.
+	const turnEndReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const finalizeSettledTurn = useCallback(
+		(sid: string) => {
+			if (activePromptSubmissionsRef.current > 0) {
+				// A blocking send() RPC is still in flight for this turn: its
+				// completion path applies the result text, rehydrates canonical
+				// history, and clears the streaming id itself. Clearing the id
+				// here would make that path mint a duplicate assistant bubble.
+				return;
+			}
+			activeAssistantMessageIdRef.current = null;
+			setActiveAssistantMessageId(null);
+			const epoch = turnEpochRef.current;
+			if (turnEndReconcileTimerRef.current !== null) {
+				clearTimeout(turnEndReconcileTimerRef.current);
+			}
+			turnEndReconcileTimerRef.current = setTimeout(() => {
+				turnEndReconcileTimerRef.current = null;
+				void desktopClient
+					.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: sid,
+						maxMessages: MAX_MESSAGES,
+					})
+					.then((historyMessages) => {
+						if (
+							activeSessionIdRef.current !== sid ||
+							turnEpochRef.current !== epoch ||
+							activePromptSubmissionsRef.current > 0
+						) {
+							// A new turn started while the read was in flight; its
+							// own lifecycle owns the transcript from here on.
+							return;
+						}
+						if (
+							historyMessages.length === 0 ||
+							!historyMessages.some((message) => message.role === "assistant")
+						) {
+							// Persistence has not caught up: keep the live state
+							// rather than wiping it with an incomplete transcript.
+							return;
+						}
+						applyCanonicalHistory(sid, historyMessages);
+					})
+					.catch(() => {
+						// Keep optimistic state if the hydration read fails.
+					});
+			}, TURN_END_RECONCILE_DELAY_MS);
+		},
+		[applyCanonicalHistory],
+	);
+
+	useEffect(() => {
+		return () => {
+			if (turnEndReconcileTimerRef.current !== null) {
+				clearTimeout(turnEndReconcileTimerRef.current);
+			}
+		};
+	}, []);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
@@ -594,16 +753,20 @@ export function useChatSession() {
 					setPromptsInQueue(items);
 					if (items.length === 0) {
 						turnSettledEpochRef.current = turnEpochRef.current;
+						authoritativeStatusRevisionRef.current += 1;
 						setStatus((current) =>
-							current === "running" ? "completed" : current,
+							current === "running" || current === "stopping"
+								? "completed"
+								: current,
 						);
+						finalizeSettledTurn(sid);
 					}
 				})
 				.catch(() => {
 					// Keep the last known state on transient transport failures.
 				});
 		},
-		[postSession],
+		[finalizeSettledTurn, postSession],
 	);
 
 	const refreshPromptsInQueue = useCallback(
@@ -668,6 +831,21 @@ export function useChatSession() {
 		const index = payload.index;
 		if (typeof index !== "number") {
 			return true;
+		}
+		// `index` counts up inside one sidecar process. When the sidecar is
+		// replaced under a live webview the counter restarts at 1, and without
+		// this the high-water mark below would silently discard the whole
+		// stream — user messages and tool rows included — until the new
+		// process counted past the old run.
+		const boot = payload.boot;
+		if (boot !== undefined) {
+			const previousBoot =
+				lastStreamBootBySessionRef.current[payload.sessionId];
+			if (previousBoot !== boot) {
+				lastStreamBootBySessionRef.current[payload.sessionId] = boot;
+				lastStreamIndexBySessionRef.current[payload.sessionId] = index;
+				return true;
+			}
 		}
 		const previous = lastStreamIndexBySessionRef.current[payload.sessionId];
 		if (previous !== undefined && index <= previous) {
@@ -755,7 +933,7 @@ export function useChatSession() {
 
 	// ---- Stream coalescing ----
 	//
-	// Text/reasoning deltas can arrive per-token, and a React commit per token
+	// Text/reasoning deltas and command chunks can arrive rapidly, and a React commit
 	// re-renders the whole conversation for every word. Deltas are buffered in
 	// refs and flushed on a short timer, so streaming costs at most ~20 commits
 	// per second regardless of token rate while still feeling live.
@@ -788,6 +966,44 @@ export function useChatSession() {
 				appendMessageReasoning(id, entry.text, entry.redacted);
 			}
 		}
+		const toolOutputs = pendingToolOutputRef.current;
+		if (toolOutputs.size > 0) {
+			pendingToolOutputRef.current = new Map();
+			setMessages((prev) =>
+				prev.map((message) => {
+					const pending = toolOutputs.get(message.id);
+					if (!pending) return message;
+					const merged = appendCappedCommandOutput(
+						message.meta?.toolOutput ?? "",
+						pending.text,
+					);
+					const toolOutputTruncated = Boolean(
+						message.meta?.toolOutputTruncated ||
+							pending.truncated ||
+							merged.truncated,
+					);
+					const toolDetachable =
+						pending.detachable ?? message.meta?.toolDetachable;
+					if (
+						merged.output === (message.meta?.toolOutput ?? "") &&
+						toolOutputTruncated ===
+							Boolean(message.meta?.toolOutputTruncated) &&
+						toolDetachable === message.meta?.toolDetachable
+					) {
+						return message;
+					}
+					return {
+						...message,
+						meta: {
+							...message.meta,
+							toolOutput: merged.output,
+							toolOutputTruncated,
+							...(toolDetachable !== undefined ? { toolDetachable } : {}),
+						},
+					};
+				}),
+			);
+		}
 		const transcript = pendingStreamTranscriptRef.current;
 		if (transcript) {
 			pendingStreamTranscriptRef.current = "";
@@ -812,6 +1028,7 @@ export function useChatSession() {
 		}
 		pendingStreamTextRef.current = new Map();
 		pendingStreamReasoningRef.current = new Map();
+		pendingToolOutputRef.current = new Map();
 		pendingStreamTranscriptRef.current = "";
 	}, []);
 
@@ -934,35 +1151,67 @@ export function useChatSession() {
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
+		setPendingToolApprovals([]);
+		setPendingAskQuestions([]);
 		if (!activeSessionId) {
-			setPendingToolApprovals([]);
 			return;
 		}
+		let cancelled = false;
 
 		void desktopClient
 			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
 				sessionId: activeSessionId,
 				limit: 20,
 			})
-			.then((pending) => setPendingToolApprovals(pending))
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingToolApprovals(pending);
+				}
+			})
 			.catch(() => {});
 
-		return desktopClient.subscribe("tool_approval_state", (payload) => {
-			if (!payload || typeof payload !== "object") return;
-			const record = payload as {
-				sessionId?: string;
-				items?: ToolApprovalRequestItem[];
-			};
-			if (record.sessionId !== activeSessionId) return;
-			setPendingToolApprovals(Array.isArray(record.items) ? record.items : []);
-		});
+		void desktopClient
+			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				sessionId: activeSessionId,
+			})
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingAskQuestions(pending);
+				}
+			})
+			.catch(() => {});
+
+		const unsubscribe = desktopClient.subscribe(
+			"tool_approval_state",
+			(payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as {
+					sessionId?: string;
+					items?: ToolApprovalRequestItem[];
+				};
+				if (record.sessionId !== activeSessionId) return;
+				setPendingToolApprovals(
+					Array.isArray(record.items) ? record.items : [],
+				);
+			},
+		);
+
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, [sessionId]);
 
 	useEffect(() => {
 		return desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
-			if (!item.requestId || !item.question || !Array.isArray(item.options)) {
+			if (
+				item.sessionId !== activeSessionIdRef.current ||
+				!item.requestId ||
+				!item.question ||
+				!Array.isArray(item.options)
+			) {
 				return;
 			}
 			setPendingAskQuestions((prev) => {
@@ -1023,7 +1272,8 @@ export function useChatSession() {
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
 				return;
 			}
-			if (abortedRef.current) {
+			lastLiveChunkAtRef.current = Date.now();
+			if (abortedRef.current && payload.stream !== "chat_done") {
 				return;
 			}
 
@@ -1037,7 +1287,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: chunkCreatedAt(payload),
+						createdAt: chunkCreatedAt(),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -1061,7 +1311,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: chunkCreatedAt(payload),
+						createdAt: chunkCreatedAt(),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -1081,6 +1331,51 @@ export function useChatSession() {
 					});
 					schedulePendingStreamFlush();
 				}
+				return;
+			}
+
+			if (payload.stream === "chat_tool_call_update") {
+				let parsed: ToolCallUpdateEvent = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as ToolCallUpdateEvent;
+				} catch {
+					return;
+				}
+				const toolCallId = parsed.toolCallId;
+				const messageId = toolCallId
+					? liveToolMessageIdsRef.current[toolCallId]
+					: undefined;
+				if (!messageId) return;
+				const update =
+					parsed.update &&
+					typeof parsed.update === "object" &&
+					!Array.isArray(parsed.update)
+						? (parsed.update as Record<string, unknown>)
+						: undefined;
+				if (!update) return;
+				const stream = update.stream;
+				const chunk =
+					(stream === "stdout" || stream === "stderr") &&
+					typeof update.chunk === "string"
+						? update.chunk
+						: "";
+				const detachable =
+					typeof update.detachable === "boolean"
+						? update.detachable
+						: undefined;
+				const sourceTruncated = update.truncated === true;
+				if (!chunk && detachable === undefined && !sourceTruncated) return;
+				const pending = pendingToolOutputRef.current;
+				const existing = pending.get(messageId);
+				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
+				pending.set(messageId, {
+					text: appended.output,
+					truncated: Boolean(
+						existing?.truncated || appended.truncated || sourceTruncated,
+					),
+					detachable: detachable ?? existing?.detachable,
+				});
+				schedulePendingStreamFlush();
 				return;
 			}
 
@@ -1119,7 +1414,7 @@ export function useChatSession() {
 							role: "assistant",
 							content: "",
 							media: [media.data],
-							createdAt: chunkCreatedAt(payload),
+							createdAt: chunkCreatedAt(),
 						},
 					]);
 				});
@@ -1131,6 +1426,7 @@ export function useChatSession() {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
+				setActivityLabel(null);
 				// A new turn starts now: an error remembered from an earlier turn
 				// must not be attributed to this one if it fails without detail.
 				delete lastCoreErrorBySessionRef.current[listeningSessionId];
@@ -1250,7 +1546,7 @@ export function useChatSession() {
 								role: "user",
 								content: userLabel,
 								images: images.length > 0 ? images : undefined,
-								createdAt: chunkCreatedAt(payload),
+								createdAt: chunkCreatedAt(),
 							},
 						]);
 					});
@@ -1272,6 +1568,18 @@ export function useChatSession() {
 					) {
 						lastCoreErrorBySessionRef.current[payload.sessionId] =
 							parsed.message.trim();
+					}
+					// An imported session's history is summarized before the first
+					// model call; name that wait instead of showing "Thinking...".
+					const summaryActivity = readImportedHistorySummaryActivity(
+						parsed.metadata,
+					);
+					if (summaryActivity) {
+						setActivityLabel(
+							summaryActivity.phase === "started"
+								? summaryActivity.label
+								: null,
+						);
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
@@ -1309,6 +1617,7 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				setActivityLabel(null);
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
 				// queued prompt that happens to repeat the same text. Clear
@@ -1365,6 +1674,8 @@ export function useChatSession() {
 					verifyQueueStillBusy(listeningSessionId);
 				} else {
 					turnSettledEpochRef.current = turnEpochRef.current;
+					authoritativeStatusRevisionRef.current += 1;
+					finalizeSettledTurn(listeningSessionId);
 				}
 				return;
 			}
@@ -1394,8 +1705,12 @@ export function useChatSession() {
 						input: parsed.input,
 						output: null,
 					}),
-					createdAt: chunkCreatedAt(payload),
-					meta: { toolName, hookEventName: "tool_call_start" },
+					createdAt: chunkCreatedAt(),
+					meta: {
+						toolName,
+						toolCallId,
+						hookEventName: "tool_call_start",
+					},
 				});
 				setToolCalls((prev) => prev + 1);
 				return;
@@ -1432,7 +1747,13 @@ export function useChatSession() {
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
 						content: toolPayload,
-						meta: { ...msg.meta, toolName, hookEventName: "tool_call_end" },
+						meta: {
+							...msg.meta,
+							toolName,
+							toolCallId,
+							toolDetachable: false,
+							hookEventName: "tool_call_end",
+						},
 					})),
 				);
 				return;
@@ -1444,6 +1765,7 @@ export function useChatSession() {
 			addMessage,
 			appendTurnFailureMessage,
 			clearLiveToolRefs,
+			finalizeSettledTurn,
 			flushPendingStream,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
@@ -1504,10 +1826,26 @@ export function useChatSession() {
 				// equals the settled epoch a "running" here can only be stale.
 				if (
 					nextStatus === "running" &&
-					turnEpochRef.current === turnSettledEpochRef.current
+					(abortedRef.current ||
+						turnEpochRef.current === turnSettledEpochRef.current)
 				) {
 					return;
 				}
+				// The reverse case: the hub publishes the session record's status
+				// as soon as the session is created, before the first prompt's
+				// run starts, so an "idle" that lands while a local submission is
+				// still in flight predates the run it is about to start. Applying
+				// it flipped the composer and the request indicator from
+				// "starting" to idle and back for a frame on every new task. The
+				// submission owns status until it hands off (the queued-start
+				// event, or its own completion for a blocking send). Only "idle"
+				// is held back: a terminal status (failed, aborted) during a
+				// submission is real and must still unstick the UI even if the
+				// send response never arrives.
+				if (nextStatus === "idle" && activePromptSubmissionsRef.current > 0) {
+					return;
+				}
+				authoritativeStatusRevisionRef.current += 1;
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1532,14 +1870,136 @@ export function useChatSession() {
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				turnSettledEpochRef.current = turnEpochRef.current;
+				authoritativeStatusRevisionRef.current += 1;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
+				finalizeSettledTurn(targetSessionId);
 			},
 		);
 		return () => {
 			unsubscribeStatus();
 			unsubscribeEnded();
 		};
-	}, [clearLiveToolRefs]);
+	}, [clearLiveToolRefs, finalizeSettledTurn]);
+
+	// ---- Stale-stream fallback for attached sessions ----
+	// Scheduled/automation runs execute on a session host whose events are
+	// not projected through the hub's live pipeline (and with several hub
+	// daemons sharing cron.db, a different daemon can claim the run
+	// entirely), so an attached session can sit at "running" with a dead
+	// event stream — stuck on the thinking shimmer until a remount re-reads
+	// history. While an attached session is busy and the stream is quiet,
+	// poll canonical history and the session record so the transcript and
+	// status heal in place. A locally driven turn keeps chunks flowing, so
+	// the quiet-window guard keeps this fallback out of the way there.
+	useEffect(() => {
+		if (!sessionId || hydratedHistorySessionId !== sessionId) {
+			return;
+		}
+		if (!BUSY_STATUSES.has(status)) {
+			return;
+		}
+		let cancelled = false;
+		let polling = false;
+		const poll = async () => {
+			if (cancelled || polling) {
+				return;
+			}
+			if (Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS) {
+				return;
+			}
+			// An assistant bubble mid-stream means the live pipeline works;
+			// canonical history could lag behind it.
+			if (activeAssistantMessageIdRef.current) {
+				return;
+			}
+			// A locally driven turn is in flight (submit/queue bumps the epoch;
+			// settling closes it). Its optimistic user bubble carries the raw
+			// prompt while canonical history stores it wrapped in a
+			// user_input envelope, so replacing state mid-turn desyncs the
+			// rekey bookkeeping and the stream then appends a duplicate
+			// bubble. The fallback exists for externally driven runs
+			// (schedules, other clients) — stay inert until the local turn
+			// settles.
+			if (
+				turnEpochRef.current !== turnSettledEpochRef.current ||
+				outstandingOptimisticUserIdsRef.current.size > 0
+			) {
+				return;
+			}
+			polling = true;
+			try {
+				const pollStartedAt = Date.now();
+				const [historyMessages, record] = await Promise.all([
+					desktopClient
+						.invoke<ChatMessage[]>("read_session_messages", {
+							sessionId,
+							maxMessages: MAX_MESSAGES,
+						})
+						.catch(() => null),
+					desktopClient
+						.invoke<{ status?: string } | null>("get_discovered_session", {
+							sessionId,
+						})
+						.catch(() => null),
+				]);
+				if (
+					cancelled ||
+					activeSessionIdRef.current !== sessionId ||
+					// The live stream resumed (or a local turn started) while
+					// the poll was in flight; live state is fresher than the
+					// snapshot we just read.
+					Date.now() - lastLiveChunkAtRef.current < STALE_STREAM_QUIET_MS ||
+					activeAssistantMessageIdRef.current ||
+					turnEpochRef.current !== turnSettledEpochRef.current ||
+					outstandingOptimisticUserIdsRef.current.size > 0
+				) {
+					return;
+				}
+				if (Array.isArray(historyMessages) && historyMessages.length > 0) {
+					const mergedMessages = mergeHydratedMessagesWithLive({
+						hydrated: historyMessages,
+						current: messagesRef.current,
+						sessionId,
+						hydrationStartedAt: pollStartedAt,
+					});
+					// Same as hydration: canonical rows may have replaced live
+					// tool rows, so rebuild the tool routing keys or later
+					// tool events would append instead of updating in place.
+					const liveToolState = deriveLiveToolState(mergedMessages);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
+					setMessages(mergedMessages);
+				}
+				// The record is the authority here: the sessions this poll
+				// serves have a live host maintaining their record, and it
+				// flips to a terminal status when the run ends. Transcript
+				// inference (inferHydratedChatStatus) would misread a mid-run
+				// snapshot ending on assistant narration as finished, hiding
+				// the working indicator and disarming this poll.
+				const nextStatus = record?.status?.trim();
+				if (nextStatus) {
+					const mappedStatus = mapSessionRecordStatus(
+						nextStatus as SessionHistoryStatus,
+					);
+					if (abortedRef.current && mappedStatus === "running") {
+						return;
+					}
+					authoritativeStatusRevisionRef.current += 1;
+					setStatus(mappedStatus);
+				}
+			} finally {
+				polling = false;
+			}
+		};
+		const interval = window.setInterval(
+			() => void poll(),
+			STALE_STREAM_POLL_INTERVAL_MS,
+		);
+		return () => {
+			cancelled = true;
+			window.clearInterval(interval);
+		};
+	}, [hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -1859,9 +2319,23 @@ export function useChatSession() {
 				finishPromptSubmission();
 				return;
 			}
+			let abortedReconcileEpoch: number | undefined;
+			const settleAbortedSend = () => {
+				if (!abortedRef.current) return false;
+				if (
+					authoritativeStatusRevisionRef.current ===
+					abortStatusRevisionRef.current
+				) {
+					abortedReconcileEpoch = turnEpochRef.current;
+					turnSettledEpochRef.current = turnEpochRef.current;
+					setStatus("cancelled");
+				}
+				return true;
+			};
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					if (settleAbortedSend()) return;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -1875,22 +2349,24 @@ export function useChatSession() {
 						return;
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
-					if (abortedRef.current) {
-						turnSettledEpochRef.current = turnEpochRef.current;
-						setStatus("cancelled");
-						return;
-					}
 					setStatus("running");
 					return;
 				}
 
+				// The runtime drains the queue before it answers a blocking send,
+				// so the next queued prompt's chat_queued_prompt_start can reach
+				// the webview ahead of this response. That event bumps the epoch
+				// and its turn owns the transcript from then on: its user bubble
+				// exists only in live state until the runtime persists it at the
+				// end of that turn, so replacing the transcript from a canonical
+				// read here would erase it. The newer turn's own completion
+				// reconciles history when it ends.
+				const newerTurnOwnsTranscript = () =>
+					turnEpochRef.current !== turnEpochAtDispatch;
+
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
-				if (abortedRef.current) {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
-					return;
-				}
+				if (settleAbortedSend()) return;
 				// On a failed run the runtime reports the error string in
 				// result.text — it is not assistant content and must not be
 				// rendered as an assistant bubble (canonical rehydration would
@@ -1902,7 +2378,7 @@ export function useChatSession() {
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
 				const resolvedAssistantText = rawAssistantText;
-				if (resolvedAssistantText) {
+				if (resolvedAssistantText && !newerTurnOwnsTranscript()) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
 					activeAssistantMessageIdRef.current = assistantMessageId;
@@ -2015,7 +2491,7 @@ export function useChatSession() {
 					});
 				}
 				const fallbackMedia = fallbackAssistantTurn.media;
-				if (fallbackMedia.length > 0) {
+				if (fallbackMedia.length > 0 && !newerTurnOwnsTranscript()) {
 					setMessages((prev) => {
 						const knownIds = new Set(
 							prev.flatMap((message) =>
@@ -2046,21 +2522,25 @@ export function useChatSession() {
 					fallbackAssistantTurn.reasoningRedacted ||
 					fallbackImages.length > 0 ||
 					fallbackMedia.length > 0;
-				if (!hasFallbackAssistantTurn) {
+				if (!hasFallbackAssistantTurn && !newerTurnOwnsTranscript()) {
 					// Recovery: load canonical messages if transport missed result text.
 					try {
 						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 							"read_session_messages",
 							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
-						if (historyMessages.length > 0) {
+						if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 							applyCanonicalHistory(activeSessionId, historyMessages);
 						}
 					} catch {
 						// Keep optimistic state if hydration read fails.
 					}
 				}
-				if (Array.isArray(result?.toolCalls) && result.toolCalls.length > 0) {
+				if (
+					Array.isArray(result?.toolCalls) &&
+					result.toolCalls.length > 0 &&
+					!newerTurnOwnsTranscript()
+				) {
 					materializeToolMessagesFromResult({
 						sessionId: activeSessionId,
 						turnStartedAt: now,
@@ -2078,6 +2558,7 @@ export function useChatSession() {
 					);
 					if (
 						historyMessages.length > 0 &&
+						!newerTurnOwnsTranscript() &&
 						(!hasFallbackAssistantTurn || hasCanonicalAssistantTurn)
 					) {
 						const assistantIndex = historyMessages.findLastIndex(
@@ -2187,10 +2668,16 @@ export function useChatSession() {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (abortedRef.current) {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
-				} else if (result?.finishReason === "error") {
+				if (settleAbortedSend()) return;
+				// A queued prompt that already started its turn owns the status
+				// and the settled epoch from here: its start set "running", and
+				// its own completion settles it. Settling this turn on top of it
+				// flipped the composer to "completed" while the reply was still
+				// pending (no request indicator at all) and marked the new epoch
+				// settled, so the hub's "running" for that turn then read as
+				// stale and was dropped.
+				const newerTurnOwnsStatus = newerTurnOwnsTranscript();
+				if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
 					// (never assistant content — see isErrorResult above), so it
 					// is the best failure detail available. The reporter dedupes
@@ -2203,11 +2690,17 @@ export function useChatSession() {
 						activeSessionId,
 						runError || toolError?.trim() || "",
 					);
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("failed");
+					if (!newerTurnOwnsStatus) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("failed");
+					}
 				} else if (result?.finishReason === "aborted") {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
+					if (!newerTurnOwnsStatus) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("cancelled");
+					}
+				} else if (newerTurnOwnsStatus) {
+					// Leave status to the turn in flight.
 				} else if (hasQueuedFollowUps) {
 					setStatus("running");
 				} else {
@@ -2216,10 +2709,7 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
-				if (abortedRef.current) {
-					setStatus("cancelled");
-					return;
-				}
+				if (settleAbortedSend()) return;
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -2228,12 +2718,22 @@ export function useChatSession() {
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
 				clearAbortFallbackTimeout();
-				if (!shouldQueue) {
+				// If a queued prompt already started its turn, these refs are that
+				// turn's now (chat_queued_prompt_start reset them for it); clearing
+				// them here would split its streaming assistant bubble.
+				if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
 					activeAssistantMessageIdRef.current = null;
 					setActiveAssistantMessageId(null);
 					clearLiveToolRefs();
 				}
 				finishPromptSubmission();
+				if (
+					abortedReconcileEpoch !== undefined &&
+					activeSessionIdRef.current === activeSessionId &&
+					turnEpochRef.current === abortedReconcileEpoch
+				) {
+					finalizeSettledTurn(activeSessionId);
+				}
 			}
 		},
 		[
@@ -2244,6 +2744,7 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
+			finalizeSettledTurn,
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
@@ -2362,11 +2863,29 @@ export function useChatSession() {
 
 	const abort = useCallback(async () => {
 		if (!sessionId) return;
+		const fallbackStatus: ChatSessionStatus =
+			status === "stopping" ? "running" : status;
+		const statusRevisionAtAbort = authoritativeStatusRevisionRef.current;
+		abortStatusRevisionRef.current = statusRevisionAtAbort;
+		const restoreFallbackStatus = () => {
+			abortedRef.current = false;
+			clearAbortFallbackTimeout();
+			if (
+				activeSessionIdRef.current === sessionId &&
+				authoritativeStatusRevisionRef.current === statusRevisionAtAbort
+			) {
+				setStatus(fallbackStatus);
+			}
+		};
 		abortedRef.current = true;
 		setStatus("stopping");
 		clearAbortFallbackTimeout();
 		abortFallbackTimeoutRef.current = setTimeout(() => {
-			if (abortedRef.current) {
+			if (
+				abortedRef.current &&
+				activeSessionIdRef.current === sessionId &&
+				authoritativeStatusRevisionRef.current === statusRevisionAtAbort
+			) {
 				setStatus("cancelled");
 			}
 			abortFallbackTimeoutRef.current = null;
@@ -2374,16 +2893,32 @@ export function useChatSession() {
 		try {
 			const response = await postSession({ action: "abort", sessionId });
 			if (!response.ok) {
-				abortedRef.current = false;
-				clearAbortFallbackTimeout();
-				setStatus("running");
+				restoreFallbackStatus();
 			}
 		} catch {
-			abortedRef.current = false;
-			clearAbortFallbackTimeout();
-			setStatus("running");
+			restoreFallbackStatus();
 		}
-	}, [clearAbortFallbackTimeout, postSession, sessionId]);
+	}, [clearAbortFallbackTimeout, postSession, sessionId, status]);
+
+	const proceedWhileRunning = useCallback(
+		async (targetSessionId: string, toolCallId?: string) => {
+			const normalizedSessionId = targetSessionId.trim();
+			if (!normalizedSessionId) {
+				throw new Error("No active session.");
+			}
+			const response = await desktopClient.invoke<{ detachedCount?: number }>(
+				"proceed_while_running",
+				{
+					sessionId: normalizedSessionId,
+					...(toolCallId ? { toolCallId } : {}),
+				},
+			);
+			if ((response.detachedCount ?? 0) < 1) {
+				throw new Error("The command finished before it could be detached.");
+			}
+		},
+		[],
+	);
 
 	const reset = useCallback(async () => {
 		const activeSessionId = sessionId;
@@ -2419,6 +2954,7 @@ export function useChatSession() {
 		lastCoreErrorBySessionRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
+		setActivityLabel(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
@@ -2463,6 +2999,11 @@ export function useChatSession() {
 			activeSessionIdRef.current = session.sessionId;
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
+			setActivityLabel(null);
+			// A freshly hydrated session has no local turn in flight; without
+			// this the mount defaults (epoch 0, settled -1) read as an open
+			// turn and keep the stale-stream fallback inert forever.
+			turnSettledEpochRef.current = turnEpochRef.current;
 			setHydratedHistorySessionId(session.sessionId);
 			setPendingToolApprovals([]);
 			setPendingAskQuestions([]);
@@ -2483,6 +3024,12 @@ export function useChatSession() {
 					sessionId: session.sessionId,
 					hydrationStartedAt,
 				});
+				// Hub attachment starts forwarding future events but does not replay the
+				// tool.started event for a command already in flight. Rebuild its routing
+				// key from canonical history before those future updates can arrive.
+				const liveToolState = deriveLiveToolState(mergedMessages);
+				liveToolMessageIdsRef.current = liveToolState.messageIds;
+				liveToolInputsRef.current = liveToolState.inputs;
 				setMessages(mergedMessages);
 				setRawTranscript("");
 				resetCounters();
@@ -2725,6 +3272,7 @@ export function useChatSession() {
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		rawTranscript,
@@ -2747,6 +3295,7 @@ export function useChatSession() {
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		abort,
 		stop: abort,
 		reset,

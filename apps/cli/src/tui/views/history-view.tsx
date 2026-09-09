@@ -15,7 +15,7 @@ import { listSessions } from "../../session/session";
 import { mergeHistoryStatusRows } from "../../utils/history-format";
 import { formatUsd } from "../../utils/output";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
-import { palette } from "../palette";
+import { useDialogPalette } from "../hooks/use-theme";
 import {
 	buildHistoryFooterText,
 	HISTORY_EXPORT_OPTIONS,
@@ -98,6 +98,7 @@ function HistoryListContent({
 	refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
 	registerKeyHandler,
 }: HistoryListContentProps) {
+	const palette = useDialogPalette();
 	const { width } = useTerminalDimensions();
 	const [rows, setRows] = useState<SessionHistoryRecord[]>(
 		() => initialRows ?? [],
