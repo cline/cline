@@ -35,6 +35,8 @@ service TaskService {
   rpc toggleTaskFavorite(TaskFavoriteRequest) returns (Empty);
   // Gets filtered task history
   rpc getTaskHistory(GetTaskHistoryRequest) returns (TaskHistoryArray);
+  // Gets aggregated token usage analytics
+  rpc getUsageAnalytics(UsageAnalyticsRequest) returns (UsageAnalyticsResponse);
   // Sends a response to a previous ask operation
   rpc askResponse(AskResponseRequest) returns (Empty);
   // Edits a previous user message, truncates following conversation, and regenerates
@@ -144,4 +146,45 @@ message ExecuteQuickWinRequest {
 // Results returned when deleting all task history
 message DeleteAllTaskHistoryCount {
   int32 tasks_deleted = 1;
+}
+
+// Request for usage analytics
+message UsageAnalyticsRequest {
+  Metadata metadata = 1;
+  // "today" | "week" | "month" | "all"
+  string period = 2;
+}
+
+// Per-model aggregated usage (summed across the period)
+message ModelUsageSummary {
+  string model_id = 1;
+  int32 tokens_in = 2;
+  int32 tokens_out = 3;
+  int32 cache_reads = 4;
+  int32 cache_writes = 5;
+  double total_cost = 6;
+  int32 api_calls = 7;
+}
+
+// One day's usage (for the chart)
+message DailyUsage {
+  string date = 1;
+  int32 tokens_in = 2;
+  int32 tokens_out = 3;
+  int32 cache_reads = 4;
+  int32 cache_writes = 5;
+  double total_cost = 6;
+  int32 api_calls = 7;
+}
+
+// Full analytics response
+message UsageAnalyticsResponse {
+  int32 total_tokens_in = 1;
+  int32 total_tokens_out = 2;
+  int32 total_cache_reads = 3;
+  int32 total_cache_writes = 4;
+  double total_cost = 5;
+  int32 total_api_calls = 6;
+  repeated ModelUsageSummary model_usage = 7;
+  repeated DailyUsage daily_usage = 8;
 }
