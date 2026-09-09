@@ -117,9 +117,6 @@ class FakeHubClient {
 				payload: { session: { sessionId: "inner-created" } },
 			};
 		}
-		if (command === "approval.list_pending") {
-			return { ok: true, payload: { approvals: [] } };
-		}
 		if (
 			command === "session.pending_prompts" ||
 			command === "session.update_pending_prompt" ||
