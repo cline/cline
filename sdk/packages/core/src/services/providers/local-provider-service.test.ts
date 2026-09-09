@@ -2,14 +2,17 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+import { CLINE_DEFAULT_MODEL_ID, type ITelemetryService } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	getCachedClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "../llms/cline-recommended-models";
-import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
+import {
+	clearLiveModelsCatalogCache,
+	clearPrivateModelsCatalogCache,
+} from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -62,6 +65,7 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	clearPrivateModelsCatalogCache();
 	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
@@ -69,6 +73,111 @@ afterEach(() => {
 });
 
 describe("live provider model loading", () => {
+	it.each([
+		["baseten", "https://inference.baseten.co/v1/models"],
+		["hicap", "https://api.hicap.ai/v2/openai/models"],
+		["poolside", "https://private.example/v1/models"],
+	])("uses only endpoint discovery for %s", async (providerId, endpoint) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ data: [{ id: "deployment-model" }] }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const result = await getLocalProviderModels(providerId, {
+			providerId,
+			modelId: "deployment-model",
+			apiKey: "private-key",
+			baseUrl: "https://private.example/v1",
+		});
+		expect(result.models.some((model) => model.id === "deployment-model")).toBe(
+			true,
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledWith(endpoint, expect.any(Object));
+	});
+
+	it.each([
+		"baseten",
+		"hicap",
+		"poolside",
+		"litellm",
+	])("does not fetch public models for unconfigured %s", async (providerId) => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		await getLocalProviderModels(providerId);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("records fallback load metrics without exposing config or custom identifiers", async () => {
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as ITelemetryService;
+		await getLocalProviderModels(
+			"private-company-provider",
+			{
+				providerId: "private-company-provider",
+				modelId: "confidential-model",
+				apiKey: "secret",
+				baseUrl: "https://private.example",
+			},
+			telemetry,
+		);
+		expect(capture).toHaveBeenCalledExactlyOnceWith({
+			event: "provider.models_loaded",
+			properties: {
+				provider: "custom",
+				duration_ms: expect.any(Number),
+				model_count: 0,
+				outcome: "returned",
+			},
+		});
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+		const result = await getLocalProviderModels(
+			"opencode",
+			undefined,
+			telemetry,
+		);
+		expect(capture).toHaveBeenLastCalledWith({
+			event: "provider.models_loaded",
+			properties: {
+				provider: "opencode",
+				duration_ms: expect.any(Number),
+				model_count: result.models.length,
+				outcome: "returned",
+			},
+		});
+	});
+
+	it("keeps model loading usable when telemetry throws", async () => {
+		const telemetry = {
+			capture: vi.fn(() => {
+				throw new Error("telemetry unavailable");
+			}),
+		} as unknown as ITelemetryService;
+		await expect(
+			getLocalProviderModels("custom", undefined, telemetry),
+		).resolves.toEqual({ providerId: "custom", models: [] });
+	});
+
+	it("records thrown load failures without recording error text", async () => {
+		vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(
+			new Error("secret endpoint failure"),
+		);
+		const capture = vi.fn();
+		await expect(
+			getLocalProviderModels("opencode", undefined, {
+				capture,
+			} as unknown as ITelemetryService),
+		).rejects.toThrow("secret endpoint failure");
+		expect(capture).toHaveBeenCalledExactlyOnceWith({
+			event: "provider.models_loaded",
+			properties: {
+				provider: "opencode",
+				duration_ms: expect.any(Number),
+				model_count: undefined,
+				outcome: "error",
+			},
+		});
+	});
+
 	it("shares one live fetch across providers and reuses it on subsequent loads", async () => {
 		const providerIds = ["opencode", "opencode-go", "anthropic", "openai"];
 		const fetchMock = vi.fn(async (url: string) =>

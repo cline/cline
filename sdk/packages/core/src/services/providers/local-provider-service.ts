@@ -22,7 +22,10 @@ import {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
+import {
+	isPrivateModelCatalogProvider,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
 import {
 	type ModelInfo,
 	type ProviderClient,
@@ -33,6 +36,7 @@ import {
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import { captureProviderModelsLoaded } from "../telemetry/core-events";
 import {
 	readModelsFile,
 	registerCustomProvider,
@@ -167,7 +171,7 @@ async function resolveProviderModelMap(
 	// Endpoint-owned lists do not use the shared catalog.
 	const provider = await LlmsModels.getProvider(providerId);
 	const shouldLoadLiveCatalog =
-		providerId !== "litellm" && !provider?.modelsSourceUrl;
+		!isPrivateModelCatalogProvider(providerId) && !provider?.modelsSourceUrl;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
 
 	const resolved = await resolveProviderConfig(
@@ -854,22 +858,37 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	telemetry?: ITelemetryService,
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await resolveProviderModelMap(id, config);
-	let models = toSortedProviderModels(modelMap);
-	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
-		// Stamp the recommended-feed tiers onto the list so every client's
-		// picker gets Recommended/Free/Subscribed data without fetching and
-		// joining the feed itself. Cached; falls back to a bundled list, so
-		// a failure only means models without tier decoration.
-		models = applyClineFeaturedModels(
-			id,
-			models,
-			await getCachedClineRecommendedModels(),
-		);
+	const startedAt = performance.now();
+	let modelCount: number | undefined;
+	try {
+		const modelMap = await resolveProviderModelMap(id, config);
+		let models = toSortedProviderModels(modelMap);
+		if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+			// Stamp the recommended-feed tiers onto the list so every client's
+			// picker gets Recommended/Free/Subscribed data without fetching and
+			// joining the feed itself. Cached; falls back to a bundled list, so
+			// a failure only means models without tier decoration.
+			models = applyClineFeaturedModels(
+				id,
+				models,
+				await getCachedClineRecommendedModels(),
+			);
+		}
+		modelCount = models.length;
+		return { providerId: id, models };
+	} finally {
+		captureProviderModelsLoaded(telemetry, {
+			provider: Object.hasOwn(LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID, id)
+				? id
+				: "custom",
+			duration_ms: Math.round(performance.now() - startedAt),
+			model_count: modelCount,
+			outcome: modelCount === undefined ? "error" : "returned",
+		});
 	}
-	return { providerId: id, models };
 }
 
 export async function transcribeLocalAudio(

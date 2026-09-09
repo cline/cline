@@ -149,11 +149,16 @@ registered models without network access. It then calls `list_provider_models`
 for the active provider, both on mount and when the provider changes. All built-in
 providers backed by the shared catalog refresh from the live feed (including
 OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
-Endpoint-owned lists such as LiteLLM, Ollama, and LM Studio use their existing
+Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
 discovery endpoints instead. Catalog and public endpoint requests time out after
 five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
+Desktop also passes its opt-out-respecting telemetry service to model loading.
+`provider.models_loaded` records duration, model count, and `returned`/`error`
+outcome. `returned` includes cache hits and bundled fallbacks, not just successful
+network refreshes. Only built-in provider IDs are recorded; custom IDs become
+`custom`, and credentials, endpoint URLs, model IDs, and error text are omitted.
 
 Supported commands:
 
