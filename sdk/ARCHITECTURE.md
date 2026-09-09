@@ -266,6 +266,16 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+Session history listing filters child rows at the persistence layer. Subagent
+and team-task sessions are stored in the same table as the roots that spawned
+them and always sort newer, so `listSessionHistory` asks the runtime host for
+`rootOnly` rows. `LocalRuntimeHost` passes the option to the session backend,
+which applies it in the query before the limit; `HubRuntimeHost` sends it as
+`session.list { limit, rootOnly }` and the hub handler forwards it to its
+session host. Omitting the flag returns every row, which is what callers that
+render subagent trees rely on. History keeps a client-side root filter with a
+widening scan only as a fallback for older hubs that ignore the flag.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat
@@ -293,6 +303,14 @@ the `Sec-WebSocket-Protocol` header and shutdown requests use an
 `Authorization: Bearer` header. Unauthenticated local processes can still probe
 public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
+
+Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
+headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every
+new socket, including reconnects, so hosts can refresh short-lived credentials.
+Header authentication is mutually exclusive with the local hub-token subprotocol;
+the proxy is responsible for authenticating the client and adding any private
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -499,6 +517,7 @@ Design implications:
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
+- a session imported from another coding agent (`metadata.importedFrom`) that is resumed without compaction state summarizes its whole foreign transcript on the first turn, regardless of the auto-compaction setting; the summary persists as normal compaction state, so the model never replays the source agent's tool calls while the canonical transcript stays intact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 

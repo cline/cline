@@ -101,12 +101,20 @@ class OptedOutTelemetryService implements ITelemetryService {
 	private resolveProperties(
 		properties?: TelemetryProperties,
 	): TelemetryProperties {
-		return {
+		const scopedDistinctId =
+			typeof properties?.distinct_id === "string" &&
+			properties.distinct_id.trim()
+				? properties.distinct_id.trim()
+				: this.distinctId;
+		const resolved = {
 			...this.commonProperties,
-			...properties,
 			...this.metadata,
-			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
+			...properties,
+			...(scopedDistinctId ? { distinct_id: scopedDistinctId } : {}),
 		};
+		return Object.fromEntries(
+			Object.entries(resolved).filter(([, value]) => value !== undefined),
+		);
 	}
 }
 

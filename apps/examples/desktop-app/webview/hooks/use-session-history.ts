@@ -75,6 +75,12 @@ type SessionMessage = {
 	meta?: SessionMessageMeta;
 };
 
+type SessionUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	totalCostUsd: number;
+};
+
 type SessionTitleUpdatedEvent = CustomEvent<{
 	sessionId: string;
 	title: string;
@@ -113,6 +119,15 @@ export type UseSessionHistoryOptions = {
 // pages 10 at a time, so the mount fetch (and every 12s poll after it) only
 // needs enough rows for the first few pages. Older pages are fetched on demand.
 const INITIAL_HISTORY_FETCH_LIMIT = 50;
+// Discovery rows carry no token or cost totals; those are summed from each
+// session's transcript in a second round trip. Only the rows that are on
+// screen get that read: the first page of the sessions view (and the
+// sidebar's first threads) by default, plus whatever page a view asks for
+// via requestUsage as the user moves through older sessions.
+const USAGE_HYDRATION_WINDOW = 10;
+// Each usage read parses a whole transcript in the sidecar, so a page of rows
+// is drained a few at a time instead of all at once.
+const MAX_CONCURRENT_USAGE_FETCHES = 4;
 const HISTORY_REFRESH_INTERVAL_MS = 12_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
@@ -541,6 +556,14 @@ export function useSessionHistory({
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
+	// Rows a view currently has on screen beyond the default window (the
+	// sessions view reports its visible page and clears it on unmount). Each
+	// call replaces the previous set rather than adding to it, so the set is
+	// bounded by one page and a running session the user has paged away from
+	// is not re-read on every refresh.
+	const [requestedUsageIds, setRequestedUsageIds] = useState<Set<string>>(
+		() => new Set(),
+	);
 	// Sessions that schedule executions report as their own, keyed by session
 	// id. Scheduled runs executed by the local hub do not reliably carry the
 	// "hub-schedule" origin trigger in their session metadata (the runtime
@@ -557,7 +580,19 @@ export function useSessionHistory({
 	// may itself name a batch that was never fetched.
 	const loadedLimitRef = useRef(0);
 	const mayHaveMoreSessionsRef = useRef(false);
-	const usageLoadingRef = useRef<Set<string>>(new Set());
+	// Every usage read in flight, across effect runs, with the status the read
+	// was started under. Its size is the gauge the concurrency cap is enforced
+	// on; the status tells a restarted run whether the pending read already
+	// covers the row's current status or the row must be read again after it.
+	const usageLoadingRef = useRef<Map<string, SessionHistoryStatus>>(new Map());
+	// Queue drainer of the current hydration run. Finished reads call it so a
+	// freed slot goes to the newest run, not to the run that started the read.
+	const usagePumpRef = useRef<(() => void) | null>(null);
+	// Usage each row was last hydrated with, written the moment a read settles.
+	// threadsRef only catches up after React commits, so the queue consults
+	// this to tell "hydrated" from "not yet" without a stale window in between.
+	// Refreshes also rebuild threads from it, so a row keeps its totals.
+	const usageByIdRef = useRef<Map<string, SessionUsage>>(new Map());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
 	);
@@ -762,16 +797,6 @@ export function useSessionHistory({
 					const existingById = new Map(
 						current.map((thread) => [thread.id, thread]),
 					);
-					const usageById = new Map(
-						current.map((thread) => [
-							thread.id,
-							{
-								inputTokens: thread.inputTokens,
-								outputTokens: thread.outputTokens,
-								totalCostUsd: thread.totalCostUsd,
-							},
-						]),
-					);
 					const next = mapped.map((thread) => {
 						const existing = existingById.get(thread.id);
 						const incomingMetadataTitle = metadataTitleById.get(thread.id);
@@ -783,7 +808,7 @@ export function useSessionHistory({
 							...thread,
 							title:
 								keepExistingTitle && existing ? existing.title : thread.title,
-							...usageById.get(thread.id),
+							...usageByIdRef.current.get(thread.id),
 						};
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
@@ -882,45 +907,82 @@ export function useSessionHistory({
 		};
 	}, [scheduleRefresh]);
 
+	const requestUsage = useCallback((sessionIds: readonly string[]) => {
+		setRequestedUsageIds((current) => {
+			const next = new Set<string>();
+			for (const raw of sessionIds) {
+				const sessionId = raw?.trim();
+				if (sessionId) {
+					next.add(sessionId);
+				}
+			}
+			// Same members, same instance: the sessions view re-reports its
+			// page on every threads change, and a fresh Set would restart the
+			// hydration effect (and its 800ms delay) each time a row filled in.
+			if (
+				next.size === current.size &&
+				[...next].every((sessionId) => current.has(sessionId))
+			) {
+				return current;
+			}
+			return next;
+		});
+	}, []);
+
 	useEffect(() => {
-		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
-			.slice(0, 4);
+		// The active session is skipped: its transcript is still being written
+		// and the chat tracks its usage live.
+		const inactiveSessions = sessions.filter(
+			(session) => session.sessionId !== activeSessionId,
+		);
+		const targets = inactiveSessions.slice(0, USAGE_HYDRATION_WINDOW);
+		if (requestedUsageIds.size > 0) {
+			const queued = new Set(targets.map((session) => session.sessionId));
+			for (const session of inactiveSessions) {
+				if (
+					requestedUsageIds.has(session.sessionId) &&
+					!queued.has(session.sessionId)
+				) {
+					targets.push(session);
+					queued.add(session.sessionId);
+				}
+			}
+		}
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
-			for (const session of recent) {
-				if (cancelled) {
-					return;
-				}
+			// "fetch": the row was never hydrated, is running (its totals keep
+			// moving), or was hydrated under a different status.
+			// "defer": a read is in flight, but it was started under a different
+			// status than the row has now, so its result will already be stale;
+			// keep the row queued and read it again once that read finishes.
+			// "skip": nothing to do, drop the row from this run's queue.
+			const usageFetchVerdict = (
+				session: SessionHistoryItem,
+			): "fetch" | "defer" | "skip" => {
 				const sessionId = session.sessionId;
 				if (!sessionId) {
-					continue;
+					return "skip";
 				}
-				if (usageLoadingRef.current.has(sessionId)) {
-					continue;
+				const inFlightStatus = usageLoadingRef.current.get(sessionId);
+				if (inFlightStatus !== undefined) {
+					return inFlightStatus === session.status ? "skip" : "defer";
 				}
-				const existing = threadsRef.current.find(
-					(item) => item.id === sessionId,
-				);
-				const hasUsage =
-					existing?.inputTokens !== undefined ||
-					existing?.outputTokens !== undefined;
-				const lastHydratedStatus =
-					usageHydratedStatusRef.current.get(sessionId);
-				const shouldFetch =
-					!hasUsage ||
+				const needsFetch =
+					!usageByIdRef.current.has(sessionId) ||
 					session.status === "running" ||
-					lastHydratedStatus !== session.status;
-				if (!shouldFetch) {
-					continue;
-				}
-				usageLoadingRef.current.add(sessionId);
+					usageHydratedStatusRef.current.get(sessionId) !== session.status;
+				return needsFetch ? "fetch" : "skip";
+			};
+
+			const startUsageFetch = (session: SessionHistoryItem): void => {
+				const sessionId = session.sessionId;
+				usageLoadingRef.current.set(sessionId, session.status);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
 						sessionId,
 						maxMessages: 1200,
 					})
-					.then(async (sessionMessages) => {
+					.then(async (sessionMessages): Promise<SessionUsage> => {
 						const usage = summarizeUsageFromMessages(sessionMessages);
 						if (!usage) {
 							const events = await desktopClient.invoke<SessionHookEvent[]>(
@@ -947,52 +1009,101 @@ export function useSessionHistory({
 						}
 						return usage;
 					})
-					.then(({ inputTokens, outputTokens, totalCostUsd }) => {
+					.then((usage) => {
+						usageByIdRef.current.set(sessionId, usage);
 						setThreads((current) =>
 							updateThreadById(current, sessionId, (thread) => {
 								if (
-									thread.inputTokens === inputTokens &&
-									thread.outputTokens === outputTokens &&
-									thread.totalCostUsd === totalCostUsd
+									thread.inputTokens === usage.inputTokens &&
+									thread.outputTokens === usage.outputTokens &&
+									thread.totalCostUsd === usage.totalCostUsd
 								) {
 									return thread;
 								}
-								return { ...thread, inputTokens, outputTokens, totalCostUsd };
+								return { ...thread, ...usage };
 							}),
 						);
 					})
 					.catch(() => {
-						if (!hasUsage) {
-							setThreads((current) =>
-								updateThreadById(current, sessionId, (thread) => {
-									if (
-										thread.inputTokens === 0 &&
-										thread.outputTokens === 0 &&
-										(thread.totalCostUsd ?? 0) === 0
-									) {
-										return thread;
-									}
-									return {
-										...thread,
-										inputTokens: 0,
-										outputTokens: 0,
-										totalCostUsd: 0,
-									};
-								}),
-							);
+						// A failed read on a row that was never hydrated is recorded
+						// as zero usage so the row is not retried on every pass; a
+						// later status change reads it again. A row that already has
+						// totals keeps them.
+						if (usageByIdRef.current.has(sessionId)) {
+							return;
 						}
+						const usage: SessionUsage = {
+							inputTokens: 0,
+							outputTokens: 0,
+							totalCostUsd: 0,
+						};
+						usageByIdRef.current.set(sessionId, usage);
+						setThreads((current) =>
+							updateThreadById(current, sessionId, (thread) => {
+								if (
+									thread.inputTokens === 0 &&
+									thread.outputTokens === 0 &&
+									(thread.totalCostUsd ?? 0) === 0
+								) {
+									return thread;
+								}
+								return { ...thread, ...usage };
+							}),
+						);
 					})
 					.finally(() => {
+						// Record the status the read was started under, not the
+						// row's current one: if the status moved while the read was
+						// pending, the mismatch is what makes the row read again.
 						usageHydratedStatusRef.current.set(sessionId, session.status);
 						usageLoadingRef.current.delete(sessionId);
+						// Hand the freed slot to whichever run is current: this
+						// run may have been replaced while the read was pending.
+						usagePumpRef.current?.();
 					});
-			}
+			};
+
+			// The cap is checked against usageLoadingRef, which counts reads in
+			// flight across effect runs, not against a per-run counter. A refresh
+			// or page change restarts this effect while reads are still pending;
+			// a per-run counter would start at zero and let the new run add four
+			// more on top of them. Each pass walks the whole queue: rows that
+			// need nothing are dropped, rows waiting on a pending read that will
+			// be stale are kept for the next pass, and the rest start as slots
+			// allow, in order.
+			const queue = [...targets];
+			const pump = () => {
+				if (cancelled) {
+					return;
+				}
+				const remaining: SessionHistoryItem[] = [];
+				for (const session of queue) {
+					const verdict = usageFetchVerdict(session);
+					if (verdict === "skip") {
+						continue;
+					}
+					if (
+						verdict === "defer" ||
+						usageLoadingRef.current.size >= MAX_CONCURRENT_USAGE_FETCHES
+					) {
+						remaining.push(session);
+						continue;
+					}
+					startUsageFetch(session);
+				}
+				queue.splice(0, queue.length, ...remaining);
+			};
+			usagePumpRef.current = pump;
+			pump();
 		}, 800);
 		return () => {
+			// Rows still queued are picked up again by the next run; reads
+			// already in flight finish, land on their threads, and pump the run
+			// that is current by then.
 			cancelled = true;
 			window.clearTimeout(timer);
 		};
-	}, [activeSessionId, sessions]);
+	}, [activeSessionId, requestedUsageIds, sessions]);
 
 	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
@@ -1025,9 +1136,12 @@ export function useSessionHistory({
 			if (!sessionId) {
 				return;
 			}
-			usageLoadingRef.current.delete(sessionId);
+			// usageLoadingRef is left to the pending read's own finally: it is
+			// the in-flight gauge for the read cap, so freeing the slot here would
+			// let a fifth read start while the deleted row's read is still running.
 			titleLoadingRef.current.delete(sessionId);
 			usageHydratedStatusRef.current.delete(sessionId);
+			usageByIdRef.current.delete(sessionId);
 			messageHydratedStatusRef.current.delete(sessionId);
 			setSessions((current) =>
 				current.filter((session) => session.sessionId !== sessionId),
@@ -1617,6 +1731,7 @@ export function useSessionHistory({
 		pendingAction,
 		refreshSessions,
 		renameThread,
+		requestUsage,
 		setThreadPinned,
 		deleteThread,
 		forkThread,
