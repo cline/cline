@@ -2492,6 +2492,7 @@ export class CloudSessionManager {
 							// A dropped transport invalidates the duplicate-prompt
 							// baseline send() computes from live.messages.
 							reconnected.transcriptKnown = false;
+							this.subscribeToInnerSession(outerSessionId, reconnected);
 							void this.rehydrateAfterTransportDrop(
 								outerSessionId,
 								reconnected,
