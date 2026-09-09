@@ -38,7 +38,6 @@ function createContext() {
 	const ctx = {
 		telemetry: { capture, setDistinctId, updateCommonProperties },
 		logger: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
-		// switchAccount broadcasts cloud_sessions_changed to open webviews.
 		wsClients: new Set(),
 		liveSessions: new Map(),
 	} as unknown as SidecarContext;
