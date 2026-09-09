@@ -364,6 +364,9 @@ export function useChatSession() {
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
+	// History may guess that assistant narration ended a turn. Tool cleanup
+	// must wait for the attached host (or a live event) to confirm it ended.
+	const [canSettleToolCalls, setCanSettleToolCalls] = useState(true);
 	const [config, setConfig] = useState<ChatSessionConfig>(getInitialChatConfig);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
@@ -521,6 +524,7 @@ export function useChatSession() {
 
 	useEffect(() => {
 		if (
+			!canSettleToolCalls ||
 			isHydratingSession ||
 			status === "starting" ||
 			status === "running" ||
@@ -577,7 +581,7 @@ export function useChatSession() {
 			});
 			return changed ? next : previous;
 		});
-	}, [isHydratingSession, messages, status]);
+	}, [canSettleToolCalls, isHydratingSession, messages, status]);
 
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
@@ -1650,6 +1654,7 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				setCanSettleToolCalls(true);
 				setActivityLabel(null);
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
@@ -1865,6 +1870,9 @@ export function useChatSession() {
 					return;
 				}
 				authoritativeStatusRevisionRef.current += 1;
+				setCanSettleToolCalls(
+					!BUSY_STATUSES.has(nextStatus as ChatSessionStatus),
+				);
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1891,6 +1899,7 @@ export function useChatSession() {
 				turnSettledEpochRef.current = turnEpochRef.current;
 				authoritativeStatusRevisionRef.current += 1;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
+				setCanSettleToolCalls(true);
 				finalizeSettledTurn(targetSessionId);
 			},
 		);
@@ -2004,6 +2013,7 @@ export function useChatSession() {
 						return;
 					}
 					authoritativeStatusRevisionRef.current += 1;
+					setCanSettleToolCalls(!BUSY_STATUSES.has(mappedStatus));
 					setStatus(mappedStatus);
 				}
 			} finally {
@@ -2697,6 +2707,7 @@ export function useChatSession() {
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
+				setCanSettleToolCalls(true);
 			} catch (err) {
 				if (settleAbortedSend()) return;
 				if (optimisticQueuedPromptId) {
@@ -2970,6 +2981,7 @@ export function useChatSession() {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			setCanSettleToolCalls(false);
 			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -3035,6 +3047,7 @@ export function useChatSession() {
 					setIsHydratingSession(false);
 				}
 
+				const statusRevisionAtAttach = authoritativeStatusRevisionRef.current;
 				const attached = await desktopClient
 					.invoke<{
 						sessionId?: string;
@@ -3082,12 +3095,16 @@ export function useChatSession() {
 				}));
 
 				if (historyMessages.length > 0) {
-					setStatus(
-						inferHydratedChatStatus(
-							(attached?.status || session.status) as SessionHistoryStatus,
-							historyMessages,
-						),
-					);
+					if (
+						attached?.status &&
+						authoritativeStatusRevisionRef.current === statusRevisionAtAttach
+					) {
+						const confirmedStatus = mapSessionRecordStatus(
+							attached.status as SessionHistoryStatus,
+						);
+						setStatus(confirmedStatus);
+						setCanSettleToolCalls(!BUSY_STATUSES.has(confirmedStatus));
+					}
 					return;
 				}
 

@@ -807,6 +807,144 @@ describe("useChatSession", () => {
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
 	});
 
+	it.each([
+		"running",
+		"idle",
+		"unavailable",
+		"ended while attaching",
+	] as const)("settles narrated tools only when attachment confirms an end (%s)", async (attachedStatus) => {
+		const sessionId = "narrated-running-tool";
+		const attachment = deferred<
+			{ sessionId: string; status: string } | undefined
+		>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "narration",
+							sessionId,
+							role: "assistant",
+							content: "I will run the tests now.",
+							createdAt: 1,
+						},
+						{
+							id: "command",
+							sessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["bun test"] },
+								result: null,
+							}),
+							createdAt: 2,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-running",
+								hookEventName: "history_tool_use",
+							},
+						},
+					];
+				if (
+					command === "chat_session_command" &&
+					(args?.request as { action?: string })?.action === "attach"
+				)
+					return attachment.promise;
+				return [];
+			},
+		);
+		let hydration!: Promise<void>;
+		await act(async () => {
+			hydration = current.hydrateSession({
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "test",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-08T00:00:00.000Z",
+			});
+		});
+		const tool = () => {
+			const message = current.messages.find(
+				(message) => message.id === "command",
+			);
+			if (!message) throw new Error("Missing command");
+			return message;
+		};
+		expect(buildToolPresentation(tool()).inProgress).toBe(true);
+		if (attachedStatus === "ended while attaching") {
+			await act(async () =>
+				handlerFor("chat_event")({
+					sessionId,
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "aborted" }),
+					index: 1,
+					ts: Date.now(),
+				}),
+			);
+		}
+		await act(async () => {
+			attachment.resolve(
+				attachedStatus === "unavailable"
+					? undefined
+					: {
+							sessionId,
+							status:
+								attachedStatus === "ended while attaching"
+									? "running"
+									: attachedStatus,
+						},
+			);
+			await hydration;
+		});
+		if (
+			attachedStatus === "idle" ||
+			attachedStatus === "ended while attaching"
+		) {
+			if (attachedStatus === "ended while attaching")
+				expect(current.status).toBe("cancelled");
+			expect(buildToolPresentation(tool())).toMatchObject({
+				inProgress: false,
+				summary: { label: "Tool stopped" },
+			});
+			return;
+		}
+		if (attachedStatus === "running") expect(current.status).toBe("running");
+		expect(buildToolPresentation(tool()).inProgress).toBe(true);
+		await act(async () => {
+			handlerFor("chat_event")({
+				sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-running",
+					update: { stream: "stdout", chunk: "tests passed" },
+				}),
+				index: 1,
+				ts: Date.now(),
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(tool().meta?.toolOutput).toBe("tests passed");
+		await act(async () => {
+			handlerFor("chat_event")({
+				sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-running",
+					toolName: "run_commands",
+					output: "all tests passed",
+				}),
+				index: 2,
+				ts: Date.now(),
+			});
+		});
+		expect(buildToolPresentation(tool())).toMatchObject({
+			inProgress: false,
+			payload: { result: "all tests passed", isError: false },
+		});
+	});
+
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
 		let startedSessionId = "";
 		await act(async () => {
