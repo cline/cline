@@ -57,6 +57,7 @@
 		"publish:npm": "bun script/publish-npm.ts",
 		"publish:npm:dry": "bun script/publish-npm.ts --dry-run",
 		"dev": "CLINE_BUILD_ENV=development bun --conditions=development ./src/index.ts",
+		"generate:robot-frames": "bun script/generate-robot-frames.ts",
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts",
