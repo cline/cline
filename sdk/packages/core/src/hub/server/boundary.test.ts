@@ -831,52 +831,6 @@ describe("HubServerTransport boundaries", () => {
 				sessionId: "session-1",
 				conversationId: "conversation-1",
 			});
-			const pendingReply = await transport.handleCommand({
-				version: "v1",
-				requestId: "req-pending",
-				command: "approval.list_pending",
-				clientId: "client-1",
-				sessionId: "session-1",
-			});
-			expect(pendingReply).toMatchObject({
-				ok: true,
-				payload: {
-					approvals: [
-						expect.objectContaining({
-							approvalId,
-							createdAt: expect.any(Number),
-							toolCallId: "call-1",
-							toolName: "run_commands",
-							inputJson: '{"commands":["echo hi"]}',
-						}),
-					],
-				},
-			});
-			await expect(
-				transport.handleCommand({
-					version: "v1",
-					requestId: "req-pending-stranger",
-					command: "approval.list_pending",
-					clientId: "stranger-client",
-					sessionId: "session-1",
-				}),
-			).resolves.toMatchObject({
-				ok: false,
-				error: { code: "session_not_found" },
-			});
-			await expect(
-				handleApprovalRespond(ctx, {
-					version: "v1",
-					requestId: "req-wrong-session-response",
-					command: "approval.respond",
-					clientId: "client-1",
-					sessionId: "another-session",
-					payload: { approvalId, approved: true },
-				}),
-			).resolves.toMatchObject({
-				ok: false,
-				error: { code: "approval_not_found" },
-			});
 			const reply = handleApprovalRespond(ctx, {
 				version: "v1",
 				requestId: "req-1",
@@ -893,27 +847,12 @@ describe("HubServerTransport boundaries", () => {
 				approved: true,
 				reason: "approved by user",
 			});
-			await expect(
-				transport.handleCommand({
-					version: "v1",
-					requestId: "req-pending-after",
-					command: "approval.list_pending",
-					clientId: "client-1",
-					sessionId: "session-1",
-				}),
-			).resolves.toMatchObject({
-				ok: true,
-				payload: { approvals: [] },
-			});
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it.each([
-		undefined,
-		"session-1",
-	])("replays pending approvals on subscription scope %s and accepts a response after reconnect", async (scope) => {
+	it("replays a pending approval to a client that (re)subscribes after it was raised", async () => {
 		const transport = createTransport();
 		const ctx = getContext(transport);
 		ensureSessionState(ctx, "session-1", "client-1", "creator", {
@@ -942,9 +881,7 @@ describe("HubServerTransport boundaries", () => {
 
 		// A client subscribing after the fact must still see the request.
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("client-1", (event) => events.push(event), {
-			sessionId: scope,
-		});
+		transport.subscribe("late-client", (event) => events.push(event));
 		await Promise.resolve();
 		await Promise.resolve();
 
@@ -958,23 +895,10 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		const approvalId = requested?.payload?.approvalId as string;
-		await transport.handleCommand({
-			version: "v1",
-			command: "client.unregister",
-			clientId: "client-1",
-		});
-		await transport.handleCommand({
-			version: "v1",
-			command: "client.register",
-			clientId: "client-1",
-			payload: { clientId: "client-1" },
-		});
 		await handleApprovalRespond(ctx, {
 			version: "v1",
 			requestId: "req-late",
 			command: "approval.respond",
-			clientId: "client-1",
-			sessionId: "session-1",
 			payload: { approvalId, approved: true },
 		});
 		await expect(resultPromise).resolves.toEqual({

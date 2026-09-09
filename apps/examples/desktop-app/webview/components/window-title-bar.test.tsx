@@ -2,18 +2,42 @@
 
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	WindowTitleBar,
 	WindowTitleBarContent,
 	WindowTitleBarProvider,
 } from "@/components/window-title-bar";
 
+const windowMocks = vi.hoisted(() => ({
+	close: vi.fn(),
+	isMaximized: vi.fn(async () => false),
+	minimize: vi.fn(),
+	onResized: vi.fn(async (_listener: () => void) => () => undefined),
+	toggleMaximize: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/window", () => ({
+	getCurrentWindow: () => windowMocks,
+}));
+vi.mock("@/lib/desktop-client", () => ({
+	isTauriAvailable: () => "__TAURI_INTERNALS__" in window,
+}));
+
 let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	windowMocks.close.mockReset();
+	windowMocks.isMaximized.mockReset();
+	windowMocks.isMaximized.mockResolvedValue(false);
+	windowMocks.minimize.mockReset();
+	windowMocks.onResized.mockReset();
+	windowMocks.onResized.mockResolvedValue(() => undefined);
+	windowMocks.toggleMaximize.mockReset();
+	delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+		.__TAURI_INTERNALS__;
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -21,6 +45,9 @@ beforeEach(() => {
 
 afterEach(async () => {
 	await act(async () => root.unmount());
+	delete (window as Window & { __TAURI_INTERNALS__?: unknown })
+		.__TAURI_INTERNALS__;
+	vi.unstubAllGlobals();
 	container.remove();
 });
 
@@ -56,6 +83,115 @@ function renderShell(contentEnabled: boolean) {
 }
 
 describe("WindowTitleBar", () => {
+	it("renders Windows caption controls and invokes the native window actions", async () => {
+		Object.defineProperty(window, "__TAURI_INTERNALS__", {
+			configurable: true,
+			value: {},
+		});
+		vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
+		windowMocks.isMaximized.mockResolvedValue(true);
+
+		await act(async () => root.render(renderShell(true)));
+		await act(async () => Promise.resolve());
+
+		const controls = container.querySelector<HTMLElement>(
+			'[data-slot="window-controls"]',
+		);
+		expect(controls).not.toBeNull();
+		if (!controls) {
+			throw new Error("Expected Windows caption controls");
+		}
+		expect(controls.querySelector('[aria-label="Restore"]')).not.toBeNull();
+		await act(async () => {
+			controls
+				.querySelector<HTMLButtonElement>('[aria-label="Minimize"]')
+				?.click();
+			controls
+				.querySelector<HTMLButtonElement>('[aria-label="Restore"]')
+				?.click();
+			controls
+				.querySelector<HTMLButtonElement>('[aria-label="Close"]')
+				?.click();
+		});
+		expect(windowMocks.minimize).toHaveBeenCalledOnce();
+		expect(windowMocks.toggleMaximize).toHaveBeenCalledOnce();
+		expect(windowMocks.close).toHaveBeenCalledOnce();
+	});
+
+	it("tracks the maximize state across window resizes", async () => {
+		Object.defineProperty(window, "__TAURI_INTERNALS__", {
+			configurable: true,
+			value: {},
+		});
+		vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
+
+		await act(async () => root.render(renderShell(true)));
+		await act(async () => Promise.resolve());
+
+		const controls = container.querySelector<HTMLElement>(
+			'[data-slot="window-controls"]',
+		);
+		expect(controls).not.toBeNull();
+		if (!controls) {
+			throw new Error("Expected Windows caption controls");
+		}
+		const toggleButtonLabel = () =>
+			controls
+				.querySelector(
+					'button[aria-label="Maximize"], button[aria-label="Restore"]',
+				)
+				?.getAttribute("aria-label");
+		expect(toggleButtonLabel()).toBe("Maximize");
+
+		const onResized = windowMocks.onResized.mock.calls.at(-1)?.[0];
+		expect(onResized).toBeTypeOf("function");
+		if (!onResized) {
+			throw new Error("Expected a resize listener");
+		}
+
+		windowMocks.isMaximized.mockResolvedValue(true);
+		await act(async () => {
+			onResized();
+			await Promise.resolve();
+		});
+		expect(toggleButtonLabel()).toBe("Restore");
+
+		windowMocks.isMaximized.mockResolvedValue(false);
+		await act(async () => {
+			onResized();
+			await Promise.resolve();
+		});
+		expect(toggleButtonLabel()).toBe("Maximize");
+	});
+
+	it.each([
+		{ name: "Windows browser", tauri: false, userAgent: "Windows NT 10.0" },
+		{
+			name: "macOS desktop",
+			tauri: true,
+			userAgent: "Macintosh; Intel Mac OS X 10_15_7",
+		},
+		{ name: "Linux desktop", tauri: true, userAgent: "X11; Linux x86_64" },
+	])("does not render caption controls in $name", async ({
+		tauri,
+		userAgent,
+	}) => {
+		if (tauri) {
+			Object.defineProperty(window, "__TAURI_INTERNALS__", {
+				configurable: true,
+				value: {},
+			});
+		}
+		vi.stubGlobal("navigator", { userAgent });
+		await act(async () => root.render(renderShell(true)));
+		expect(container.querySelector('[data-slot="window-controls"]')).toBeNull();
+		expect(
+			document.documentElement.hasAttribute("data-windows-custom-titlebar"),
+		).toBe(false);
+		expect(windowMocks.isMaximized).not.toHaveBeenCalled();
+		expect(windowMocks.onResized).not.toHaveBeenCalled();
+	});
+
 	it("reserves an in-flow draggable row before page content inside main", async () => {
 		await act(async () => root.render(renderShell(false)));
 
@@ -63,7 +199,7 @@ describe("WindowTitleBar", () => {
 		const titleBar = main?.querySelector('[data-slot="window-title-bar"]');
 		const page = main?.querySelector('[data-testid="page"]');
 		expect(titleBar?.getAttribute("data-tauri-drag-region")).toBe("deep");
-		expect(titleBar?.className).toContain("h-12");
+		expect(titleBar?.className).toContain("h-(--window-title-bar-height)");
 		expect(titleBar?.className).toContain("shrink-0");
 		expect(titleBar?.nextElementSibling).toBe(page);
 	});
