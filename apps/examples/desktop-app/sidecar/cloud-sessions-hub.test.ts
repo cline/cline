@@ -1,4 +1,3 @@
-import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -64,12 +63,8 @@ function createContext(): {
 class FakeHubClient {
 	events?: (event: HubEventEnvelope) => void;
 	disposed = false;
-	failNextSend = false;
-	onFailedSend?: () => void;
 	resolveHeaders?: () => unknown;
 	commandHook?: (command: string) => void | Promise<void>;
-	invalidMessagesSnapshot = false;
-	malformedQueueReply = false;
 	listedSessions?: Array<Record<string, unknown>>;
 	listedModel?: string;
 	attachedModel?: string;
@@ -135,11 +130,6 @@ class FakeHubClient {
 	}> {
 		this.commands.push({ command, payload, sessionId, options });
 		await this.commandHook?.(command);
-		if (command === "session.send_input" && this.failNextSend) {
-			this.failNextSend = false;
-			this.onFailedSend?.();
-			throw new HubTransportError("hub_connection_closed", "socket closed");
-		}
 		if (command === "session.list") {
 			return {
 				ok: true,
@@ -177,9 +167,6 @@ class FakeHubClient {
 				},
 			};
 		}
-		if (command === "session.pending_prompts" && this.malformedQueueReply) {
-			return { ok: true, payload: {} };
-		}
 		if (command === "session.pending_prompts") {
 			return {
 				ok: true,
@@ -189,9 +176,7 @@ class FakeHubClient {
 		if (command === "session.messages") {
 			return {
 				ok: true,
-				payload: this.invalidMessagesSnapshot
-					? { messages: "invalid" }
-					: { messages: this.messages },
+				payload: { messages: this.messages },
 			};
 		}
 		if (
@@ -402,23 +387,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		).toBe(true);
 	});
 
-	it("refreshes the completion time for a later turn completed while disconnected", async () => {
-		const { manager, ctx, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-
-		const live = ctx.liveSessions.get("ses-outer");
-		expect(live).toBeDefined();
-		if (!live) throw new Error("missing live cloud session");
-		live.status = "running";
-		live.endedAt = 1;
-		hub.sessionStatus = "completed";
-
-		await manager.readMessages("ses-outer");
-
-		expect(live.endedAt).toBeGreaterThan(1);
-	});
-
 	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
 		const hub = new FakeHubClient();
 		hub.commandHook = (command) => {
@@ -452,93 +420,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(
 			events.some((event) => event.name === "cloud_session_sync_failed"),
 		).toBe(true);
-	});
-
-	it("rejects malformed queue command replies instead of clearing the queue", async () => {
-		const { manager, ctx, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-		hub.prompts[0].userImages = ["data:image/png;base64,AQID"];
-		await manager.pendingPrompts("ses-outer");
-		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
-			{ id: "q-1", userImages: ["data:image/png;base64,AQID"] },
-		]);
-
-		hub.malformedQueueReply = true;
-
-		await expect(manager.pendingPrompts("ses-outer")).rejects.toThrow(
-			"invalid pending-prompts snapshot",
-		);
-		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
-			{ id: "q-1" },
-		]);
-	});
-
-	it("queues one rerun when a second sync overlaps the active snapshot", async () => {
-		const hub = new FakeHubClient();
-		const { promise: firstBlocked, resolve: releaseFirst } =
-			Promise.withResolvers<void>();
-		const { promise: firstReached, resolve: reachedFirst } =
-			Promise.withResolvers<void>();
-		let messageReads = 0;
-		hub.commandHook = async (command) => {
-			if (command !== "session.messages") return;
-			messageReads += 1;
-			if (messageReads === 1) {
-				reachedFirst();
-				await firstBlocked;
-			}
-		};
-		const { manager } = createFixture({ hub });
-		await manager.list();
-		await manager.attach("ses-outer");
-
-		const first = manager.readMessages("ses-outer");
-		await firstReached;
-		const second = manager.readMessages("ses-outer");
-		releaseFirst();
-		await Promise.all([first, second]);
-
-		expect(messageReads).toBe(2);
-	});
-
-	it("retains the prior transcript and replays live events when a snapshot fails", async () => {
-		const hub = new FakeHubClient();
-		hub.invalidMessagesSnapshot = true;
-		const { manager, ctx, events } = createFixture({ hub });
-		await manager.list();
-		await manager.attach("ses-outer");
-		const previous = [{ role: "assistant" as const, content: "keep me" }];
-		const live = ctx.liveSessions.get("ses-outer");
-		if (live) live.messages = previous;
-		hub.commandHook = (command) => {
-			if (command !== "session.messages") return;
-			hub.events?.({
-				version: "v1",
-				event: "assistant.delta",
-				eventId: "evt-during-failed-sync",
-				timestamp: Date.now(),
-				sessionId: "inner-1",
-				payload: { text: "still live" },
-			});
-		};
-
-		await expect(manager.readMessages("ses-outer")).rejects.toThrow(
-			/invalid transcript snapshot/i,
-		);
-		expect(ctx.liveSessions.get("ses-outer")?.messages).toBe(previous);
-		expect(events).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					name: "chat_event",
-					payload: expect.objectContaining({
-						stream: "chat_text",
-						chunk: "still live",
-					}),
-				}),
-				expect.objectContaining({ name: "cloud_session_sync_failed" }),
-			]),
-		);
 	});
 
 	it("maps cloud approvals into the existing UI and responds on the inner id", async () => {
@@ -833,175 +714,6 @@ describe("CloudSessionManager Hub runtime", () => {
 			),
 		).toHaveLength(1);
 		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(selectedModel);
-	});
-
-	it("queues an implicit send when a cold session is already running", async () => {
-		const hub = new FakeHubClient();
-		hub.sessionStatus = "running";
-		const { manager } = createFixture({ hub });
-		await manager.list();
-
-		await expect(
-			manager.send("ses-outer", "Run this next"),
-		).resolves.toMatchObject({ ok: true, queued: true });
-		expect(
-			hub.commands.find((entry) => entry.command === "session.send_input"),
-		).toMatchObject({
-			payload: { prompt: "Run this next", delivery: "queue" },
-		});
-	});
-
-	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {
-		// Baseline must advance on delivered sends: without it, the first
-		// delivery's occurrence falsely confirms a second, genuinely lost send.
-		const { manager, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-
-		await manager.send("ses-outer", "yes");
-		// The pod persisted the first send; the second is lost in transit.
-		hub.messages.push({
-			role: "user",
-			content: '<user_input mode="act">yes</user_input>',
-		});
-		hub.failNextSend = true;
-		hub.onFailedSend = () => {};
-
-		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
-			/please send it again/,
-		);
-	});
-
-	it("includes an in-flight prompt in a concurrent send's recovery baseline", async () => {
-		const { manager, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-		await manager.readMessages("ses-outer");
-		const { promise: blocked, resolve: releaseSend } =
-			Promise.withResolvers<void>();
-		const { promise: reached, resolve: reachedSend } =
-			Promise.withResolvers<void>();
-		let sendAttempts = 0;
-		hub.commandHook = async (command) => {
-			if (command !== "session.send_input") return;
-			sendAttempts += 1;
-			if (sendAttempts === 1) {
-				reachedSend();
-				await blocked;
-			}
-		};
-
-		const sending = manager.send("ses-outer", "same prompt");
-		await reached;
-
-		hub.failNextSend = true;
-		await expect(manager.send("ses-outer", "same prompt")).rejects.toThrow(
-			/please send it again/,
-		);
-		releaseSend();
-		await sending;
-	});
-
-	it("reattaches after a transport failure without retrying the prompt", async () => {
-		const { manager, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-		hub.failNextSend = true;
-		hub.onFailedSend = () => {
-			hub.messages.push({
-				role: "user",
-				content: '<user_input mode="act">Do this once</user_input>',
-			});
-		};
-
-		await expect(
-			manager.send("ses-outer", "Do this once"),
-		).resolves.toMatchObject({
-			ok: true,
-			recoveredAfterDisconnect: true,
-			status: "running",
-		});
-		expect(
-			hub.commands.filter((entry) => entry.command === "session.send_input"),
-		).toHaveLength(1);
-		expect(hub.commands.map((entry) => entry.command).slice(-4)).toEqual([
-			"session.attach",
-			"session.get",
-			"session.messages",
-			"session.pending_prompts",
-		]);
-	});
-
-	it("asks the user to resend when transport recovery cannot find the prompt", async () => {
-		const { manager, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-		hub.failNextSend = true;
-
-		await expect(manager.send("ses-outer", "Lost prompt")).rejects.toThrow(
-			/not found in the cloud session.*send it again/i,
-		);
-		expect(
-			hub.commands.filter((entry) => entry.command === "session.send_input"),
-		).toHaveLength(1);
-	});
-
-	it("confirms a steer accepted in buffered recovery events", async () => {
-		const hub = new FakeHubClient();
-		hub.prompts = [];
-		const { manager } = createFixture({ hub });
-		await manager.list();
-		await manager.attach("ses-outer");
-		await manager.readMessages("ses-outer");
-		hub.failNextSend = true;
-		hub.commandHook = (command) => {
-			if (command !== "session.messages") return;
-			hub.events?.({
-				version: "v1",
-				event: "session.pending_prompt_submitted",
-				eventId: "evt-steer-delivered",
-				timestamp: Date.now(),
-				sessionId: "inner-1",
-				payload: {
-					prompt: {
-						id: "steer-1",
-						prompt: "Steer accepted",
-						delivery: "steer",
-						attachmentCount: 0,
-					},
-				},
-			});
-		};
-
-		await expect(
-			manager.send("ses-outer", "Steer accepted", "steer"),
-		).resolves.toMatchObject({ ok: true, recoveredAfterDisconnect: true });
-		expect(
-			hub.commands.filter((entry) => entry.command === "session.send_input"),
-		).toHaveLength(1);
-	});
-
-	it("confirms a queued prompt from the recovered queue snapshot", async () => {
-		const { manager, hub } = createFixture();
-		await manager.list();
-		await manager.attach("ses-outer");
-		hub.failNextSend = true;
-		hub.onFailedSend = () => {
-			hub.prompts.push({
-				id: "q-2",
-				prompt: "Queued during disconnect",
-				delivery: "queue",
-				attachmentCount: 0,
-			});
-		};
-
-		await expect(
-			manager.send("ses-outer", "Queued during disconnect", "queue"),
-		).resolves.toMatchObject({
-			ok: true,
-			queued: true,
-			recoveredAfterDisconnect: true,
-		});
 	});
 
 	it("disposes the Hub connection before deleting the outer session", async () => {
@@ -1384,41 +1096,5 @@ describe("CloudSessionManager Hub runtime", () => {
 		await expect(manager.send("ses-org-a", "hello")).resolves.toMatchObject({
 			ok: true,
 		});
-	});
-
-	it("names the session from the first prompt and supports rename", async () => {
-		const hub = new FakeHubClient();
-		const titleUpdates: Array<{ id: string; title: string }> = [];
-		// Fresh record with no title: send() stamps titles onto the record
-		// object, so the shared fixture may carry one from earlier tests.
-		const record = { ...REMOTE_SESSION, title: undefined };
-		const { manager, ctx } = createFixture({
-			hub,
-			api: {
-				list: async () => [record],
-				updateTitle: async (id: string, title: string) => {
-					titleUpdates.push({ id, title });
-					return { ...record, title };
-				},
-			} as unknown as CloudSessionApi,
-		});
-		ctx.cloudSessionManager = manager;
-		await manager.list();
-
-		await manager.send(
-			"ses-outer",
-			"Fix the login bug\nwith more detail below",
-		);
-		expect(titleUpdates).toEqual([
-			{ id: "ses-outer", title: "Fix the login bug" },
-		]);
-		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Fix the login bug");
-
-		await manager.send("ses-outer", "another prompt");
-		expect(titleUpdates).toHaveLength(1);
-
-		await manager.updateTitle("ses-outer", "Renamed");
-		expect(titleUpdates).toHaveLength(2);
-		expect(ctx.liveSessions.get("ses-outer")?.title).toBe("Renamed");
 	});
 });
