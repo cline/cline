@@ -23,7 +23,6 @@ export type CloudOnboardingVariant =
 	| "no_repositories"
 	| "error";
 
-/** Setup panel shown when a cloud session cannot start yet. */
 export function CloudOnboardingCard({
 	variant,
 	onConnect,

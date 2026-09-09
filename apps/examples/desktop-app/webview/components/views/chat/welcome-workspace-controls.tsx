@@ -353,7 +353,6 @@ function CloudBranchPicker({
 		} catch {
 			if (requestKeyRef.current === requestKey) setLoadMoreError(true);
 		} finally {
-			// Always release the single in-flight pagination request.
 			setLoadingMore(false);
 		}
 	}, [debouncedQuery, loadingMore, nextToken, onListBranches, repositoryId]);

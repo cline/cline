@@ -264,9 +264,7 @@ function inferStatusFromMessages(
 		return content.trim().length > 0;
 	});
 	if (meaningfulMessages.length === 0) {
-		// Provisioning placeholders legitimately have no messages — inferring
-		// "idle" here would kill the sidebar's provisioning state within one
-		// hydration cycle and flap it on every refresh after.
+		// Empty provisioning history must not reset the status to idle.
 		if (status === "running" || status === "provisioning") {
 			return status;
 		}
@@ -1143,8 +1141,7 @@ export function useSessionHistory({
 				}
 			},
 		);
-		// Account/organization switches re-scope the cloud session list; the
-		// sidebar must reflect the new scope immediately, not on the next poll.
+		// Account/org switches must refresh the sidebar without waiting for polling.
 		const unsubscribeCloudScope = desktopClient.subscribe(
 			"cloud_sessions_changed",
 			() => {
