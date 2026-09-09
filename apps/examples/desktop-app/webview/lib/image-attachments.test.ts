@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { serializeAttachments } from "../hooks/chat-session/attachments";
-import { imageAttachmentMediaType } from "./image-attachments";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "./image-attachments";
 
 describe("image attachments", () => {
 	it.each([
@@ -25,4 +28,20 @@ describe("image attachments", () => {
 			imageAttachmentMediaType({ name: "capture", type: "image/png" }),
 		).toBe("image/png");
 	});
+});
+
+it.each([
+	"bmp",
+	"svg",
+	"heic",
+	"heif",
+	"avif",
+	"tiff",
+	"ico",
+])("rejects unsupported %s images explicitly instead of silently dropping them", async (extension) => {
+	const file = new File(["image data"], `photo.${extension}`);
+	expect(isUnsupportedImageAttachment(file)).toBe(true);
+	await expect(serializeAttachments([file])).rejects.toThrow(
+		"Unsupported image format",
+	);
 });

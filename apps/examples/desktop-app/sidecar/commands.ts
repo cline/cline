@@ -17,6 +17,7 @@ import {
 	ClineAccountService,
 	type ClineAccountUser,
 	captureAuthRefreshSoftFailure,
+	captureDesktopImageAttachmentBlocked,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
@@ -1390,10 +1391,7 @@ export async function handleCommand(
 		) {
 			throw new Error("Invalid image attachment telemetry");
 		}
-		ctx.telemetry?.capture({
-			event: "desktop.image_attachment_blocked",
-			properties: { source, imageCount },
-		});
+		captureDesktopImageAttachmentBlocked(ctx.telemetry, { source, imageCount });
 		return { ok: true };
 	}
 	// ── Chat session commands ──────────────────────────────────────────

@@ -14,6 +14,7 @@ import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
+	captureDesktopImageAttachmentBlocked,
 	captureExtensionActivated,
 	captureMistakeLimitReached,
 	captureProviderConfigured,
@@ -643,6 +644,23 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		return { adapter, emit, emitRequired };
 	}
 
+	test("blocked image telemetry respects the disabled adapter policy", () => {
+		const { adapter, emit, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({
+			distinctId: "test",
+			deviceId: "test",
+			adapters: [adapter],
+		});
+		captureDesktopImageAttachmentBlocked(service, {
+			source: "picker",
+			imageCount: 1,
+		});
+		expect(emit).toHaveBeenCalledWith(
+			CORE_TELEMETRY_EVENTS.DESKTOP.IMAGE_ATTACHMENT_BLOCKED,
+			expect.objectContaining({ source: "picker", imageCount: 1 }),
+		);
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
 	test("captureExtensionActivated never invokes captureRequired", () => {
 		const { adapter, emitRequired } = createDisabledAdapter();
 		const service = new TelemetryService({
@@ -979,6 +997,29 @@ describe("clearAccountTelemetryIdentity", () => {
 	test("no-ops when telemetry is undefined", () => {
 		expect(() =>
 			clearAccountTelemetryIdentity(undefined, "machine-123"),
+		).not.toThrow();
+	});
+});
+
+describe("captureDesktopImageAttachmentBlocked", () => {
+	test("uses ordinary capture so telemetry opt-out applies", () => {
+		const stub = createTelemetryStub();
+		captureDesktopImageAttachmentBlocked(stub.telemetry, {
+			source: "send",
+			imageCount: 2,
+		});
+		expect(stub.capture).toHaveBeenCalledWith({
+			event: CORE_TELEMETRY_EVENTS.DESKTOP.IMAGE_ATTACHMENT_BLOCKED,
+			properties: { source: "send", imageCount: 2 },
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+	});
+	test("no-ops when telemetry is absent", () => {
+		expect(() =>
+			captureDesktopImageAttachmentBlocked(undefined, {
+				source: "paste",
+				imageCount: 1,
+			}),
 		).not.toThrow();
 	});
 });

@@ -36,7 +36,10 @@ import {
 	buildModelPickerData,
 	type ModelPickerData,
 } from "@/lib/featured-models";
-import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -482,11 +485,21 @@ function ChatInputBarImpl({
 	);
 	const handleAttachFiles = useCallback(
 		(files: File[], source: "picker" | "paste") => {
+			const supportedFiles = files.filter(
+				(file) => !isUnsupportedImageAttachment(file),
+			);
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: "Unsupported image format",
+					description:
+						"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+				});
+			}
 			const allowed = imagesUnsupported
-				? files.filter((file) => !imageAttachmentMediaType(file))
-				: files;
-			if (allowed.length !== files.length)
-				reportUnsupportedImages(source, files.length - allowed.length);
+				? supportedFiles.filter((file) => !imageAttachmentMediaType(file))
+				: supportedFiles;
+			if (allowed.length !== supportedFiles.length)
+				reportUnsupportedImages(source, supportedFiles.length - allowed.length);
 			if (allowed.length > 0) onAttachFiles(allowed);
 		},
 		[imagesUnsupported, onAttachFiles, reportUnsupportedImages],

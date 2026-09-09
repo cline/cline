@@ -758,6 +758,7 @@ export {
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureConversationTurnEvent,
+	captureDesktopImageAttachmentBlocked,
 	captureDiffEditFailure,
 	captureExtensionActivated,
 	captureHookDiscovery,

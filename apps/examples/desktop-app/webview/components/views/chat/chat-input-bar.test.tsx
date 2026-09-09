@@ -2034,7 +2034,13 @@ describe("ChatInputBar", () => {
 			container.querySelector<HTMLInputElement>('input[type="file"]');
 		if (!fileInput) throw new Error("File input missing");
 		Object.defineProperty(fileInput, "files", {
-			value: [png, textFile, imageWithoutMime, genericImage],
+			value: [
+				png,
+				textFile,
+				imageWithoutMime,
+				genericImage,
+				new File(["svg"], "image.svg", { type: "image/svg+xml" }),
+			],
 		});
 		await act(async () => {
 			fileInput.dispatchEvent(new Event("change", { bubbles: true }));

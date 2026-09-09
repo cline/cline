@@ -1,3 +1,5 @@
+import { SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared/browser";
+
 const IMAGE_MEDIA_TYPES: Record<string, string> = {
 	png: "image/png",
 	jpg: "image/jpeg",
@@ -28,4 +30,15 @@ export function imageAttachmentMediaType(
 	return Object.hasOwn(IMAGE_MEDIA_TYPES, extension)
 		? IMAGE_MEDIA_TYPES[extension]
 		: undefined;
+}
+
+/** Recognize all images, but only accept formats supported by the image pipeline. */
+export function isUnsupportedImageAttachment(
+	file: Pick<File, "name" | "type">,
+): boolean {
+	const mediaType = imageAttachmentMediaType(file);
+	return (
+		mediaType !== undefined &&
+		!(SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType)
+	);
 }
