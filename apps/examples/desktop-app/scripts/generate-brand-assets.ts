@@ -132,9 +132,9 @@ ${recolor(logoElements, "white")}
 			}),
 		);
 		const fontProcess = Bun.spawn(
-			["bunx", "fantasticon@4.1.0", "--config", configPath],
+			["bun", "run", "fantasticon", "--config", configPath],
 			{
-				cwd: repoRoot,
+				cwd: path.join(repoRoot, "apps/examples/desktop-app"),
 				stdout: "inherit",
 				stderr: "inherit",
 			},
@@ -171,7 +171,7 @@ ${recolor(logoElements, "white")}
 
 	const runTauriIcon = async (input: string, output: string) => {
 		const process = Bun.spawn(
-			["bunx", "tauri", "icon", input, "--output", output],
+			["bun", "run", "tauri", "icon", input, "--output", output],
 			{
 				cwd: path.join(repoRoot, "apps/examples/desktop-app"),
 				stdout: "inherit",
