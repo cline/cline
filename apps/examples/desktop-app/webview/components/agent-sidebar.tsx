@@ -1671,7 +1671,7 @@ export function getSessionOverviewItems(
 		["Provider", thread.provider],
 		["Model", thread.model],
 		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
-		["Cost", formatCostUsd(thread.totalCostUsd)],
+		["Cost", formatCostUsd(thread.totalCostUsd, thread.provider)],
 		["Source", thread.source],
 	];
 	return items.filter((item): item is [string, string, string?] =>

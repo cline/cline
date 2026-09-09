@@ -329,8 +329,19 @@ export function formatTokenCount(
 	return `${total}`;
 }
 
-export function formatCostUsd(value?: number): string | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+export function formatCostUsd(
+	value?: number,
+	providerId?: string,
+): string | null {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return null;
+	}
+	// ClinePass usage is covered by the subscription; the figure the gateway
+	// reports is an API-rate estimate, not a charge.
+	if (providerId === "cline-pass") {
+		return "$0.00";
+	}
+	if (value <= 0) {
 		return null;
 	}
 	if (value < 0.01) {

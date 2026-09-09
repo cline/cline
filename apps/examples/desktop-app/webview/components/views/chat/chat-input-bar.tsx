@@ -1505,6 +1505,7 @@ function ChatInputBarImpl({
 								/>
 							</div>
 							<TokenUsageRing
+								provider={provider}
 								usage={{
 									contextWindow: modelContextWindow,
 									tokensIn: summary.tokensIn,
@@ -2036,7 +2037,13 @@ type TokenUsage = {
 };
 
 /** Current model context relative to the selected model's context window. */
-function TokenUsageRing({ usage }: { usage: TokenUsage }) {
+function TokenUsageRing({
+	provider,
+	usage,
+}: {
+	provider: string;
+	usage: TokenUsage;
+}) {
 	const contextWindow = usage.contextWindow;
 	const totalTokens = usage.tokensIn + usage.tokensOut;
 	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
@@ -2054,7 +2061,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 			: ratio >= 0.5
 				? "stroke-orange-500"
 				: "stroke-primary";
-	const cost = formatCostUsd(usage.totalCost);
+	const cost = formatCostUsd(usage.totalCost, provider);
 	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
 	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
 	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);

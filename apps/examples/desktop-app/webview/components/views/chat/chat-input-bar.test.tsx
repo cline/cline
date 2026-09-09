@@ -1955,6 +1955,7 @@ describe("ChatInputBar token ring", () => {
 	const renderTokenUsage = async (
 		summary: Parameters<typeof ChatInputBar>[0]["summary"],
 		modelContextWindow?: number,
+		provider = "cline",
 	) => {
 		await act(async () => {
 			root.render(
@@ -1994,7 +1995,7 @@ describe("ChatInputBar token ring", () => {
 						onSwitchGitBranch={vi.fn(async () => true)}
 						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
-						provider="cline"
+						provider={provider}
 						reasoningEffort="low"
 						status="idle"
 						summary={summary}
@@ -2130,6 +2131,26 @@ describe("ChatInputBar token ring", () => {
 		expect(outputSegment?.style.width).toBe("0.05%");
 		expect(panel?.textContent).not.toContain("Total");
 		expect(panel?.textContent).not.toContain("usage limit");
+	});
+
+	it("shows a zero cost for ClinePass instead of the gateway estimate", async () => {
+		const trigger = await renderTokenUsage(
+			{
+				toolCalls: 0,
+				tokensIn: 500_000,
+				tokensOut: 500,
+				totalCostUsd: 0.0142,
+			},
+			1_000_000,
+			"cline-pass",
+		);
+		await act(async () => {
+			trigger?.click();
+		});
+
+		const panel = document.querySelector("#token-usage-panel");
+		expect(panel?.textContent).toContain("Cost$0.00");
+		expect(panel?.textContent).not.toContain("$0.014");
 	});
 
 	it("saturates at 100% with the critical ring color", async () => {

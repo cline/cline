@@ -560,7 +560,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												{tokensLabel(thread)}
 											</span>
 											<span className="text-muted-foreground">
-												{formatCostUsd(thread.totalCostUsd) ?? "-"}
+												{formatCostUsd(thread.totalCostUsd, thread.provider) ??
+													"-"}
 											</span>
 											<span className="text-muted-foreground">
 												{updated || thread.time}
@@ -627,7 +628,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												{tokensLabel(thread)}
 											</span>
 											<span className="truncate text-muted-foreground">
-												{formatCostUsd(thread.totalCostUsd) ?? "-"}
+												{formatCostUsd(thread.totalCostUsd, thread.provider) ??
+													"-"}
 											</span>
 											<span className="truncate text-muted-foreground">
 												{updated || thread.time}
