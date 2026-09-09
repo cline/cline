@@ -57,6 +57,19 @@ export function normalizeReasoningRequest(
 
 	const options = context.model.reasoningOptions;
 	if (options === undefined) {
+		// Catalog-known models without reasoning support (e.g. Bedrock Llama,
+		// Nova Pro/Lite/Micro) carry capabilities without "reasoning" and no
+		// reasoningOptions. Forwarding effort there makes Bedrock reject the
+		// request with a validation error, so strip it. Unknown/custom models
+		// (absent capabilities) fail open so reasoning-capable custom ids
+		// keep working.
+		const capabilities = context.model.capabilities;
+		if (
+			capabilities !== undefined &&
+			!capabilities.includes("reasoning")
+		) {
+			return { ...request, reasoning: undefined };
+		}
 		const modelId = request.modelId.toLowerCase();
 		if (
 			reasoning.enabled === false &&
