@@ -874,8 +874,7 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
-		// The Settings → General cloud toggle broadcasts immediately so the
-		// composer reflects the change without a restart or account switch.
+		// Reflect Settings changes without restarting or switching accounts.
 		const unsubscribe = desktopClient.subscribe(
 			"feature_flags_changed",
 			(payload) => {
