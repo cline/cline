@@ -187,6 +187,7 @@ function emitChunk(
 		chunk,
 		ts,
 		index: nextIndex,
+		boot: ctx.bootId,
 	});
 }
 
@@ -344,6 +345,7 @@ function handleAgentEvent(
 					message: event.message,
 					noticeType: event.noticeType,
 					reason: event.reason,
+					metadata: event.metadata,
 				}),
 			);
 			break;
@@ -367,6 +369,7 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -401,7 +404,19 @@ function handleAgentEvent(
 			);
 			break;
 		}
-		case "iteration_start":
+		case "iteration_start": {
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				// Iterations restart at one for each user run. Keep the previous
+				// answer only within the run in which it was supplied.
+				if (event.iteration === 1 || !session.mistakeRecovery) {
+					session.mistakeRecovery = { latestIteration: event.iteration };
+				} else {
+					session.mistakeRecovery.latestIteration = event.iteration;
+				}
+			}
+			break;
+		}
 		case "iteration_end":
 			break;
 	}
@@ -520,6 +535,7 @@ export function handleCoreSessionEvent(
 		}
 		case "ended": {
 			const { sessionId, reason } = event.payload;
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Session ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -577,6 +593,7 @@ export function createSidecarContext(
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -726,6 +743,28 @@ export function resolveSidecarAskQuestion(
 	return true;
 }
 
+/** Remove prompts before their session is stopped or replaced in the UI. */
+export function cancelSidecarMistakeQuestions(
+	ctx: SidecarContext,
+	sessionId: string,
+	reason: string,
+): void {
+	for (const pending of ctx.pendingQuestions?.values() ?? []) {
+		if (
+			pending.item.sessionId !== sessionId ||
+			pending.item.context?.agentId !== "desktop-mistake-limit"
+		)
+			continue;
+		ctx.pendingQuestions.delete(pending.item.requestId);
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+		sendEvent(ctx, "ask_question_cancelled", {
+			requestId: pending.item.requestId,
+			reason,
+		});
+	}
+}
+
 export function createSidecarRuntimeCapabilities(
 	ctx: SidecarContext,
 ): RuntimeCapabilities {
@@ -824,6 +863,15 @@ export function handleHubLiveEvent(
 	}
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
+		return;
+	}
+	// The observer client and ClineCore's own hub client are separate sockets
+	// that both receive this session's events. This projection only exists for
+	// sessions ClineCore is not subscribed to (it subscribes as a side effect
+	// of start/send/pending_prompts and unsubscribes on stop); once it is,
+	// `handleCoreSessionEvent` carries everything below and a second copy here
+	// would double every delta, tool row, and status change.
+	if (ctx.sessionManager?.hasSessionSubscription(sessionId)) {
 		return;
 	}
 

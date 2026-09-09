@@ -44,7 +44,7 @@ The open source coding agent in your IDE, terminal, and desktop.
 ### CLI
 
 Run Cline in your terminal.
-Interactive chat or fully headless
+Interactive chat or fully headless 
 for CI/CD and scripting.
 
 ```
