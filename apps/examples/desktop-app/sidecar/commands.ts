@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, sep } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
@@ -713,6 +713,47 @@ async function createGitWorktree(
 		{ encoding: "utf8" },
 	);
 	return { path: worktreePath, branch };
+}
+
+function taskWorktreesHome(): string {
+	return join(resolveClineDir(), "worktrees");
+}
+
+/**
+ * Removes a worktree created by `createGitWorktree`, discarding any
+ * uncommitted work in it, and deletes its `cline/<id>` branch. Paths outside
+ * `~/.cline/worktrees` are left alone. Best-effort: failures are logged.
+ */
+async function removeTaskWorktree(
+	ctx: SidecarContext,
+	worktreePath: string,
+): Promise<{ path: string; repoRoot?: string }> {
+	const git = (args: string[]) =>
+		execFileAsync("git", ["-C", worktreePath, ...args], {
+			encoding: "utf8",
+		}).then((result) => result.stdout.trim());
+	let repoRoot: string | undefined;
+	try {
+		const [branch, commonDir] = await Promise.all([
+			git(["branch", "--show-current"]),
+			git(["rev-parse", "--path-format=absolute", "--git-common-dir"]),
+		]);
+		repoRoot = dirname(commonDir);
+		await git(["worktree", "remove", "--force", worktreePath]);
+		if (branch) {
+			await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
+				encoding: "utf8",
+			}).catch(() => undefined);
+		}
+	} catch (error) {
+		ctx.logger?.error?.("Failed to remove task worktree", {
+			worktreePath,
+			error,
+		});
+	}
+	// The `<id>` directory that held the worktree.
+	removePathIfExists(dirname(worktreePath), { recursive: true });
+	return { path: worktreePath, repoRoot };
 }
 
 // ---------------------------------------------------------------------------
@@ -1776,6 +1817,9 @@ export async function handleCommand(
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
+		const sessionCwd =
+			row?.cwd?.trim() ||
+			(typeof manifest?.cwd === "string" ? manifest.cwd.trim() : "");
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
@@ -1860,11 +1904,20 @@ export async function handleCommand(
 			sessionId,
 			deleted,
 		});
+		// A task worktree goes with its task, unless another session still
+		// lives in it (e.g. a second thread started while it was the workspace).
+		const removedWorktree =
+			deleted &&
+			sessionCwd.startsWith(taskWorktreesHome() + sep) &&
+			!store.list(10_000).some((other) => other.cwd?.trim() === sessionCwd)
+				? await removeTaskWorktree(ctx, sessionCwd)
+				: undefined;
 		if (deleted) {
 			broadcastEvent(ctx, "session_deleted", {
 				sessionId,
 				command,
 				deleted: true,
+				removedWorktree,
 			});
 		}
 		return deleted;

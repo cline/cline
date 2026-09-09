@@ -1,7 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { SqliteSessionStore } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleCommand } from "./commands";
 import type { SidecarContext } from "./types";
@@ -69,5 +76,93 @@ describe("create_git_worktree command", () => {
 		mkdirSync(plain, { recursive: true });
 
 		await expect(run(plain)).rejects.toThrow("Not a git repository");
+	});
+});
+
+describe("delete_chat_session worktree cleanup", () => {
+	function sessionRecord(sessionId: string, cwd: string) {
+		return {
+			sessionId,
+			source: "desktop",
+			pid: 1,
+			startedAt: new Date().toISOString(),
+			status: "completed",
+			interactive: true,
+			provider: "cline",
+			model: "test",
+			cwd,
+			workspaceRoot: cwd,
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			isSubagent: false,
+		};
+	}
+
+	async function deleteSession(store: SqliteSessionStore, sessionId: string) {
+		const events: Array<{ name: string; payload: unknown }> = [];
+		const ctx = {
+			liveSessions: new Map(),
+			wsClients: new Set([
+				{
+					send: (raw: string) => {
+						events.push(JSON.parse(raw).event);
+					},
+				},
+			]),
+			sessionManager: { delete: async () => true },
+			logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },
+		} as unknown as SidecarContext;
+		const deleted = await handleCommand(ctx, "delete_chat_session", {
+			sessionId,
+		});
+		store.close();
+		return { deleted, events };
+	}
+
+	it("removes the task worktree and its branch, even with uncommitted changes", async () => {
+		const worktree = await run(repo);
+		writeFileSync(join(worktree.path, "wip.txt"), "unsaved work");
+		const store = new SqliteSessionStore();
+		store.create(sessionRecord("session-wt", worktree.path) as never);
+
+		const { deleted, events } = await deleteSession(store, "session-wt");
+
+		expect(deleted).toBe(true);
+		// The UI needs both paths to move off the vanished workspace.
+		expect(events).toContainEqual({
+			name: "session_deleted",
+			payload: expect.objectContaining({
+				sessionId: "session-wt",
+				removedWorktree: { path: worktree.path, repoRoot: repo },
+			}),
+		});
+		expect(existsSync(worktree.path)).toBe(false);
+		expect(existsSync(dirname(worktree.path))).toBe(false);
+		expect(git(repo, "worktree", "list")).not.toContain(worktree.path);
+		expect(git(repo, "branch", "--list", worktree.branch)).toBe("");
+	});
+
+	it("keeps a worktree that another session still uses", async () => {
+		const worktree = await run(repo);
+		const store = new SqliteSessionStore();
+		store.create(sessionRecord("session-a", worktree.path) as never);
+		store.create(sessionRecord("session-b", worktree.path) as never);
+
+		const { events } = await deleteSession(store, "session-a");
+
+		expect(existsSync(worktree.path)).toBe(true);
+		expect(git(repo, "worktree", "list")).toContain(worktree.path);
+		expect(events[0]?.payload).not.toHaveProperty("removedWorktree.path");
+	});
+
+	it("leaves a regular workspace folder alone", async () => {
+		const store = new SqliteSessionStore();
+		store.create(sessionRecord("session-plain", repo) as never);
+
+		await deleteSession(store, "session-plain");
+
+		expect(existsSync(repo)).toBe(true);
+		expect(git(repo, "branch", "--show-current")).toBe("main");
 	});
 });
