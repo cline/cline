@@ -40,6 +40,9 @@ export interface TelemetryAgentIdentityProperties {
 }
 
 export const CORE_TELEMETRY_EVENTS = {
+	MODELS: {
+		CLINE_RECOMMENDATIONS_LOADED: "models.cline_recommendations_loaded",
+	},
 	CLIENT: {
 		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
@@ -162,6 +165,24 @@ function emit(
 	properties?: TelemetryProperties,
 ): void {
 	telemetry?.capture({ event, properties });
+}
+
+/** Aggregate feed diagnostics only; never include URLs, model IDs, or raw errors. */
+export function captureClineRecommendationsLoaded(
+	telemetry: Pick<ITelemetryService, "capture"> | undefined,
+	properties: {
+		source: "live" | "bundled";
+		duration_ms: number;
+		recommended_count: number;
+		free_count: number;
+		subscribed_count: number;
+		failure_reason?: "http" | "invalid_payload" | "request";
+	},
+): void {
+	telemetry?.capture({
+		event: CORE_TELEMETRY_EVENTS.MODELS.CLINE_RECOMMENDATIONS_LOADED,
+		properties,
+	});
 }
 
 function truncateErrorMessage(errorMessage?: string): string | undefined {

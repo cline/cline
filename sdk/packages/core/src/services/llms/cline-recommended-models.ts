@@ -10,6 +10,7 @@ import {
 	type ProviderModelFeaturedTier,
 } from "@cline/shared";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import { captureClineRecommendationsLoaded } from "../telemetry/core-events";
 import { getLiveModelsCatalog } from "./provider-defaults";
 import type { ModelInfo } from "./provider-settings";
 
@@ -268,16 +269,13 @@ export async function fetchClineRecommendedModels(
 		data: ClineRecommendedModelsData,
 	) => {
 		try {
-			options.telemetry?.capture({
-				event: "models.cline_recommendations_loaded",
-				properties: {
-					source,
-					duration_ms: Date.now() - startedAt,
-					recommended_count: data.recommended.length,
-					free_count: data.free.length,
-					subscribed_count: data.clinePass.length,
-					...(source === "bundled" ? { failure_reason: failureReason } : {}),
-				},
+			captureClineRecommendationsLoaded(options.telemetry, {
+				source,
+				duration_ms: Date.now() - startedAt,
+				recommended_count: data.recommended.length,
+				free_count: data.free.length,
+				subscribed_count: data.clinePass.length,
+				...(source === "bundled" ? { failure_reason: failureReason } : {}),
 			});
 		} catch {
 			// Observability must not affect model selection or fallback behavior.

@@ -3,6 +3,7 @@ import {
 	getGeneratedProviderModels,
 } from "@cline/llms";
 import { describe, expect, it, vi } from "vitest";
+import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
@@ -563,7 +564,7 @@ describe("recommendation feed telemetry", () => {
 			telemetry: { capture },
 		});
 		expect(capture).toHaveBeenCalledExactlyOnceWith({
-			event: "models.cline_recommendations_loaded",
+			event: CORE_TELEMETRY_EVENTS.MODELS.CLINE_RECOMMENDATIONS_LOADED,
 			properties: {
 				source: "live",
 				duration_ms: expect.any(Number),
@@ -589,7 +590,7 @@ describe("recommendation feed telemetry", () => {
 			await getCachedClineRecommendedModels(options);
 			expect(capture).toHaveBeenCalledTimes(1);
 			expect(capture).toHaveBeenCalledWith({
-				event: "models.cline_recommendations_loaded",
+				event: CORE_TELEMETRY_EVENTS.MODELS.CLINE_RECOMMENDATIONS_LOADED,
 				properties: {
 					source: "bundled",
 					failure_reason: "http",
