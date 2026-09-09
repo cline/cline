@@ -202,6 +202,26 @@ describe("buildEffectiveProviderConfig", () => {
 		})
 	})
 
+	it("resolves Melious credentials from providers.json without a legacy state key", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		// Melious is providers.json-only: it has no entry in the legacy
+		// apiKeyFields/baseUrlFields maps, so the settings written by the generic
+		// provider form must be what reaches the SDK.
+		mocks.setProviderSettings({
+			melious: {
+				provider: "melious",
+				apiKey: "sk-mel-provider-json-key",
+				baseUrl: "https://api.melious.ai/v1",
+			},
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("melious"))).toEqual({
+			providerId: parseProviderId("melious"),
+			apiKey: "sk-mel-provider-json-key",
+			baseUrl: "https://api.melious.ai/v1",
+		})
+	})
+
 	it("keeps Cline account auth in the auth envelope", async () => {
 		const { buildEffectiveProviderConfig } = await import("./effective-config")
 		mocks.setApiConfiguration({ clineApiKey: "cline-access-token", clineAccountId: "account-123" })

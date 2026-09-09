@@ -1062,6 +1062,10 @@
 			"destination": "/provider-config/openai-compatible"
 		},
 		{
+			"source": "/provider-config/melious",
+			"destination": "/provider-config/other-30-plus-providers#melious"
+		},
+		{
 			"source": "/provider-config/mistral-ai",
 			"destination": "/provider-config/other-30-plus-providers#mistral"
 		},

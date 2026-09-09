@@ -47,6 +47,7 @@ export type ApiProvider =
 	| "aihubmix"
 	| "minimax"
 	| "hicap"
+	| "melious"
 	| "nousResearch"
 	| "wandb"
 	| "xiaomi"
