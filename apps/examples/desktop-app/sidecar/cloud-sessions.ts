@@ -56,7 +56,6 @@ export type CreateCloudSessionInput = {
 	organizationId?: string;
 };
 
-// Re-export the shared repository/branch contract for sidecar consumers.
 export type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
