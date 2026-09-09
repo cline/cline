@@ -96,7 +96,6 @@ export type CreateCloudSessionInput = {
 	organizationId?: string;
 };
 
-// Re-export the shared repository/branch contract for sidecar consumers.
 export type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -1248,7 +1247,6 @@ export function reconcileBufferedCloudEvents(
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
-			// Replay only the newest queue state after the snapshot cutoff.
 			if (
 				event.event === "session.pending_prompts" &&
 				event !== lastQueueEvent
@@ -1396,9 +1394,7 @@ export class CloudSessionManager {
 			this.knownSessions.set(session.id, session);
 			const connection = this.connections.get(session.id);
 			if (connection) {
-				// Keep the connection's record current (title/model changes from
-				// other devices), and reap connections whose sandbox expired so
-				// they stop reconnect-looping against a dead proxy.
+				// Expired sandboxes must stop reconnecting.
 				connection.remote = session;
 				if (isExpiredRecord(session)) {
 					const live = this.ctx.liveSessions.get(session.id);
@@ -2108,8 +2104,7 @@ export class CloudSessionManager {
 			for (const event of buffered) {
 				this.forwardEvent(outerSessionId, connection, event);
 			}
-			// Notify on the transition only: reconnect loops rehydrate on every
-			// attempt, and one toast per attempt would flood the UI.
+			// Notify once per failure transition, not on every reconnect attempt.
 			if (!connection.syncFailureNotified) {
 				connection.syncFailureNotified = true;
 				sendEvent(this.ctx, "cloud_session_sync_failed", {
@@ -2143,7 +2138,6 @@ export class CloudSessionManager {
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
 		const connection = await this.ensureConnection(outerSessionId);
-		// No inner session means nothing was ever queued.
 		if (!connection.innerSessionId) {
 			return { sessionId: outerSessionId, promptsInQueue: [] };
 		}
@@ -2216,8 +2210,7 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		reply: { payload?: Record<string, unknown> },
 	): PromptInQueue[] {
-		// A reply without a prompts array is not a snapshot; treating it as
-		// an empty queue would silently hide queued or steered prompts.
+		// A missing prompts array is invalid, not an empty queue.
 		if (!Array.isArray(reply.payload?.prompts)) {
 			throw new Error("Cloud Hub returned an invalid pending-prompts snapshot");
 		}
@@ -2303,7 +2296,6 @@ export class CloudSessionManager {
 		// a fresh connection for a session that is being torn down.
 		this.deletingSessions.add(outerSessionId);
 		try {
-			// Settle an in-flight connect before deleting its connection.
 			const pendingConnect = this.connectionPromises.get(outerSessionId);
 			if (pendingConnect) {
 				await pendingConnect.catch(() => undefined);
