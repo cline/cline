@@ -30,7 +30,6 @@ export async function resolveFreshClineAuthToken(
 	const persisted = getProviderAuthHandler("cline")?.getApiKey(
 		manager.getProviderSettings("cline"),
 	);
-	// Report a refresh failure only when no persisted fallback exists.
 	if (!persisted && refreshError && ctx) {
 		ctx.logger?.error?.("Cline auth token refresh failed with no fallback", {
 			error: refreshError,
