@@ -323,9 +323,7 @@ export function mergeCloudSnapshotWithLive(
 				continue;
 			}
 		}
-		// UI-only error bubbles never appear in canonical snapshots; dropping
-		// them here would erase the explanation for the most recent failure
-		// (mirrors applyCanonicalHistory for local sessions).
+		// Canonical snapshots omit UI-only errors; retain those bubbles.
 		if (options.preserveUnmatchedLive === false && message.role !== "error") {
 			continue;
 		}
@@ -1772,9 +1770,7 @@ export function useChatSession() {
 								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
 								rekeyedOptimisticIdByMessageIdRef.current[userMessageId] =
 									candidate.id;
-								// Keep the cloud optimistic bookkeeping attached to the
-								// bubble across the re-key, or its failed-send retention
-								// semantics silently stop applying.
+								// Preserve optimistic tracking across re-keying so failed sends remain visible.
 								const cloudState = cloudOptimisticStatesRef.current.get(
 									candidate.id,
 								);
