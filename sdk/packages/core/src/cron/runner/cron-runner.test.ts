@@ -7,8 +7,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ChatStartSessionRequest, CronOneOffSpec } from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type {
+	ChatStartSessionRequest,
+	CronOneOffSpec,
+	ITelemetryService,
+} from "@cline/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DefaultToolNames } from "../../extensions/tools/constants";
 import type {
 	HubScheduleRuntimeHandlers,
@@ -214,6 +218,7 @@ describe("CronRunner", () => {
 	});
 
 	it("executes a queued one-off run end-to-end and writes a report", async () => {
+		const capture = vi.fn();
 		const { handlers, calls } = fakeHandlers();
 		const upserted = store.upsertSpec({
 			externalId: "cleanup",
@@ -239,6 +244,7 @@ describe("CronRunner", () => {
 			store,
 			materializer,
 			runtimeHandlers: handlers,
+			telemetry: { capture } as unknown as ITelemetryService,
 			workspaceRoot,
 			specs: { cronSpecsDir: cronDir },
 			pollIntervalMs: 10_000,
@@ -246,6 +252,26 @@ describe("CronRunner", () => {
 		await runner.tick();
 		await runner.dispose();
 
+		expect(capture.mock.calls.map(([event]) => event)).toEqual([
+			{
+				event: "schedule.run_started",
+				properties: {
+					trigger_kind: "one_off",
+					attempt_count: 1,
+					start_delay_ms: expect.any(Number),
+				},
+			},
+			{
+				event: "schedule.run_finished",
+				properties: {
+					trigger_kind: "one_off",
+					attempt_count: 1,
+					start_delay_ms: expect.any(Number),
+					duration_ms: expect.any(Number),
+					outcome: "success",
+				},
+			},
+		]);
 		expect(calls.start).toBe(1);
 		expect(calls.send).toBe(1);
 		expect(calls.stop).toBe(1);
@@ -372,6 +398,7 @@ describe("CronRunner", () => {
 	});
 
 	it("marks runs failed when the runtime throws", async () => {
+		const capture = vi.fn();
 		const handlers: HubScheduleRuntimeHandlers = {
 			async startSession() {
 				throw new Error("no runtime");
@@ -405,6 +432,7 @@ describe("CronRunner", () => {
 			store,
 			materializer,
 			runtimeHandlers: handlers,
+			telemetry: { capture } as unknown as ITelemetryService,
 			workspaceRoot,
 			specs: { cronSpecsDir: cronDir },
 		});
@@ -414,6 +442,16 @@ describe("CronRunner", () => {
 		const run = requireValue(
 			store.listRuns({ specId: upserted.record.specId })[0],
 		);
+		expect(capture).toHaveBeenLastCalledWith({
+			event: "schedule.run_finished",
+			properties: {
+				trigger_kind: "one_off",
+				attempt_count: 1,
+				start_delay_ms: expect.any(Number),
+				duration_ms: expect.any(Number),
+				outcome: "failed",
+			},
+		});
 		expect(run.status).toBe("failed");
 		expect(run.error).toMatch(/no runtime/);
 	});

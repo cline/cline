@@ -18,6 +18,7 @@ import {
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureScheduleRun,
 	captureTaskCompleted,
 	captureTaskCreated,
 	captureTaskLifecycleEvent,
@@ -981,4 +982,35 @@ describe("clearAccountTelemetryIdentity", () => {
 			clearAccountTelemetryIdentity(undefined, "machine-123"),
 		).not.toThrow();
 	});
+});
+
+test("scheduler telemetry allowlists diagnostics and tolerates capture failures", () => {
+	const { telemetry, capture } = createTelemetryStub();
+	const input = {
+		phase: "finished" as const,
+		triggerKind: "schedule" as const,
+		attemptCount: 2,
+		startDelayMs: 60_000,
+		durationMs: 30_000,
+		outcome: "timeout" as const,
+		prompt: "private prompt",
+		workspaceRoot: "/private/workspace",
+		error: "secret",
+	};
+	captureScheduleRun(telemetry, input);
+	expect(capture).toHaveBeenCalledWith({
+		event: "schedule.run_finished",
+		properties: {
+			trigger_kind: "schedule",
+			attempt_count: 2,
+			start_delay_ms: 60_000,
+			duration_ms: 30_000,
+			outcome: "timeout",
+		},
+	});
+	capture.mockImplementation(() => {
+		throw new Error("telemetry unavailable");
+	});
+	expect(() => captureScheduleRun(telemetry, input)).not.toThrow();
+	expect(() => captureScheduleRun(undefined, input)).not.toThrow();
 });

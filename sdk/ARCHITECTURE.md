@@ -755,7 +755,10 @@ orchestrator used by core and hub layers.
    locally active claims before polling expired work after system sleep. Startup
    installs polling without waiting for the initial batch to finish. It also
    renews the run claim while execution is active, writes a markdown report
-   per run, and transactionally updates status. File specs can constrain
+   per run, and transactionally updates status. Optional scheduler telemetry records
+   run start/finish, trigger kind, attempt count, start delay, duration, and outcome
+   through the normal telemetry service. It excludes prompts, paths, and raw errors;
+   capture failures do not interrupt execution. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
    `plugins`), trigger source, and a notes directory that is injected into
    the system prompt. The automation runtime adapters explicitly persist

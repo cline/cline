@@ -3,12 +3,14 @@ import type {
 	BasicLogger,
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
+	ITelemetryService,
 } from "@cline/shared";
 import { buildClineSystemPrompt } from "@cline/shared";
 import { nowIso } from "@cline/shared/db";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
 import { DefaultToolNames } from "../../extensions/tools/constants";
 import { mergeRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { captureScheduleRun } from "../../services/telemetry/core-events";
 import { buildWorkspaceMetadata } from "../../services/workspace/workspace-manifest";
 import { writeCronRunReport } from "../reports/cron-report-writer";
 import type { HubScheduleRuntimeHandlers } from "../service/schedule-service";
@@ -162,6 +164,7 @@ export interface CronRunnerOptions {
 	/** Cron spec source/report location. Defaults to global `~/.cline/cron`. */
 	specs?: ResolveCronSpecsDirOptions;
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 	pollIntervalMs?: number;
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
@@ -336,6 +339,18 @@ export class CronRunner {
 		let sessionId: string | undefined;
 		let releaseLeaseHeartbeat: (() => void) | undefined;
 		const startMs = Date.now();
+		const runMetrics = {
+			triggerKind: run.triggerKind,
+			attemptCount: run.attemptCount,
+			startDelayMs: Math.max(
+				0,
+				startMs - new Date(run.scheduledFor ?? run.createdAt).getTime(),
+			),
+		};
+		captureScheduleRun(this.options.telemetry, {
+			...runMetrics,
+			phase: "started",
+		});
 		let executionDeadlineMs: number | undefined;
 		if (spec.timeoutSeconds && spec.timeoutSeconds > 0) {
 			executionDeadlineMs = startMs + spec.timeoutSeconds * 1000;
@@ -393,11 +408,17 @@ export class CronRunner {
 					triggerEvent,
 				},
 			});
-			this.store.completeRun(run.runId, {
+			const completed = this.store.completeRun(run.runId, {
 				status: "done",
 				sessionId,
 				reportPath,
 				claimToken: claim.claimToken,
+			});
+			captureScheduleRun(this.options.telemetry, {
+				...runMetrics,
+				phase: "finished",
+				outcome: completed ? "success" : "superseded",
+				durationMs: Math.max(0, endMs - startMs),
 			});
 			this.publishScheduleExecutionEvent(
 				"schedule.execution.completed",
@@ -431,12 +452,18 @@ export class CronRunner {
 					triggerEvent,
 				},
 			});
-			this.store.completeRun(run.runId, {
+			const completed = this.store.completeRun(run.runId, {
 				status: "failed",
 				sessionId,
 				reportPath,
 				error: message,
 				claimToken: claim.claimToken,
+			});
+			captureScheduleRun(this.options.telemetry, {
+				...runMetrics,
+				phase: "finished",
+				outcome: completed ? (isTimeout ? "timeout" : "failed") : "superseded",
+				durationMs: Math.max(0, endMs - startMs),
 			});
 			this.publishScheduleExecutionEvent(
 				"schedule.execution.failed",

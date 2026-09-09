@@ -40,6 +40,10 @@ export interface TelemetryAgentIdentityProperties {
 }
 
 export const CORE_TELEMETRY_EVENTS = {
+	SCHEDULE: {
+		RUN_STARTED: "schedule.run_started",
+		RUN_FINISHED: "schedule.run_finished",
+	},
 	CLIENT: {
 		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
@@ -877,4 +881,40 @@ export function captureCompactionBudgetEmergency(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/** Bounded scheduler diagnostics; never include prompts, paths, or raw errors. */
+export function captureScheduleRun(
+	telemetry: ITelemetryService | undefined,
+	input: {
+		triggerKind: "one_off" | "schedule" | "event" | "manual" | "retry";
+		attemptCount: number;
+		startDelayMs: number;
+	} & (
+		| { phase: "started" }
+		| {
+				phase: "finished";
+				outcome: "success" | "failed" | "timeout" | "superseded";
+				durationMs: number;
+		  }
+	),
+): void {
+	try {
+		emit(
+			telemetry,
+			input.phase === "started"
+				? CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_STARTED
+				: CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_FINISHED,
+			{
+				trigger_kind: input.triggerKind,
+				attempt_count: input.attemptCount,
+				start_delay_ms: input.startDelayMs,
+				...(input.phase === "finished"
+					? { outcome: input.outcome, duration_ms: input.durationMs }
+					: {}),
+			},
+		);
+	} catch {
+		// Observability must never prevent scheduled work from running or completing.
+	}
 }

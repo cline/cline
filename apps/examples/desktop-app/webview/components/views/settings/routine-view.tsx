@@ -78,6 +78,7 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
+import { routineScheduleTimezone } from "@/lib/routine-schedule-timezone";
 import { cn } from "@/lib/utils";
 import {
 	CommandBadge,
@@ -1077,11 +1078,10 @@ export function RoutineSchedulesContent({
 					createForm.scheduleType === "once" ? "once" : "recurring",
 				run_at: runAt,
 				cron_pattern: cronPattern,
-				timezone:
-					createForm.scheduleType === "once"
-						? undefined
-						: (editingSchedule?.timezone ??
-							Intl.DateTimeFormat().resolvedOptions().timeZone),
+				timezone: routineScheduleTimezone(
+					createForm.scheduleType,
+					editingSchedule,
+				),
 				prompt,
 				provider,
 				model,
