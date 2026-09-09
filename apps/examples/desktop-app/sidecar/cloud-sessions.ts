@@ -1765,7 +1765,6 @@ export class CloudSessionManager {
 			throw error;
 		}
 		await this.ensureAttached(connection);
-		await this.refreshPendingApprovals(outerSessionId, connection);
 		const record = connection.remote;
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		return attachResultPayload(
@@ -2071,7 +2070,6 @@ export class CloudSessionManager {
 			const prompts = queueSnapshotValid
 				? this.applyQueueSnapshot(outerSessionId, queueReply)
 				: undefined;
-			await this.refreshPendingApprovals(outerSessionId, connection);
 			connection.transcriptKnown = true;
 
 			// Publish the snapshot before releasing the reconciled tail.
@@ -2646,6 +2644,7 @@ export class CloudSessionManager {
 		connection: CloudConnection,
 		event: HubEventEnvelope,
 	): void {
+		if (this.disposed || connection.disposed) return;
 		if (
 			connection.innerSessionId &&
 			event.sessionId &&
@@ -2654,7 +2653,11 @@ export class CloudSessionManager {
 			return;
 		}
 		const eventId = event.eventId?.trim();
-		if (eventId) {
+		// Pending-approval replays have no sequence and rebuild state after reconnect.
+		if (
+			eventId &&
+			!(event.event === "approval.requested" && event.sequence === undefined)
+		) {
 			if (connection.seenEventIds.has(eventId)) return;
 			connection.seenEventIds.add(eventId);
 			connection.seenEventIdOrder.push(eventId);
@@ -2767,52 +2770,6 @@ export class CloudSessionManager {
 		});
 	}
 
-	private async refreshPendingApprovals(
-		outerSessionId: string,
-		connection: CloudConnection,
-	): Promise<void> {
-		const innerSessionId = connection.innerSessionId;
-		if (!innerSessionId) return;
-		const reply = await connection.client
-			.command(
-				"approval.list_pending",
-				{ sessionId: innerSessionId },
-				innerSessionId,
-			)
-			.catch(() => undefined);
-		// Old pods lack this command; keep observed state unless a list is returned.
-		if (!reply?.ok || !Array.isArray(reply.payload?.approvals)) {
-			return;
-		}
-		if (
-			this.disposed ||
-			connection.disposed ||
-			this.connections.get(outerSessionId) !== connection
-		) {
-			return;
-		}
-		for (const [requestId, pending] of this.ctx.pendingApprovals) {
-			if (pending.item.sessionId === outerSessionId) {
-				this.ctx.pendingApprovals.delete(requestId);
-			}
-		}
-		const approvals = reply.payload.approvals;
-		for (const approval of approvals) {
-			if (
-				approval &&
-				typeof approval === "object" &&
-				!Array.isArray(approval)
-			) {
-				this.storePendingApproval(
-					outerSessionId,
-					connection,
-					approval as Record<string, unknown>,
-				);
-			}
-		}
-		this.sendApprovalSnapshot(outerSessionId);
-	}
-
 	private removeApproval(outerSessionId: string, approvalId: string): void {
 		this.ctx.pendingApprovals.delete(`${outerSessionId}:${approvalId}`);
 		this.sendApprovalSnapshot(outerSessionId);
@@ -2846,6 +2803,13 @@ export class CloudSessionManager {
 		const innerSessionId = connection.innerSessionId;
 		if (!innerSessionId) return;
 		connection.unsubscribe();
+		// Rebuild from the Hub's pending-approval replay, not stale local buttons.
+		for (const [requestId, pending] of this.ctx.pendingApprovals) {
+			if (pending.item.sessionId === outerSessionId) {
+				this.ctx.pendingApprovals.delete(requestId);
+			}
+		}
+		this.sendApprovalSnapshot(outerSessionId);
 		connection.unsubscribe = connection.client.subscribe(
 			(event) => this.handleEvent(outerSessionId, connection, event),
 			{ sessionId: innerSessionId },
