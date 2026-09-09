@@ -105,6 +105,19 @@ class FakeHubClient {
 	): () => void {
 		this.events = listener;
 		this.subscriptionSessionIds.push(options?.sessionId);
+		queueMicrotask(() => {
+			if (this.events !== listener || options?.sessionId !== "inner-1") return;
+			for (const approval of this.pendingApprovals) {
+				listener({
+					version: "v1",
+					event: "approval.requested",
+					eventId: `evt-${approval.approvalId}`,
+					timestamp: 1,
+					sessionId: "inner-1",
+					payload: approval,
+				});
+			}
+		});
 		return () => {
 			this.events = undefined;
 		};
@@ -161,12 +174,6 @@ class FakeHubClient {
 						metadata: { model: this.attachedModel },
 					},
 				},
-			};
-		}
-		if (command === "approval.list_pending") {
-			return {
-				ok: true,
-				payload: { approvals: this.pendingApprovals },
 			};
 		}
 		if (command === "session.pending_prompts" && this.malformedQueueReply) {
@@ -702,30 +709,59 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 	});
 
-	it("does not restore pending approvals after the manager is disposed", async () => {
+	it.each([
+		false,
+		true,
+	])("rebuilds approvals from replay when resolved offline is %s", async (resolvedOffline) => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
 		hub.pendingApprovals = [
-			{
-				approvalId: "approval-old-account",
-				toolCallId: "tool-old-account",
-				toolName: "write_to_file",
-				inputJson: '{"path":"secret.txt"}',
-			},
+			{ approvalId: "approval-replay", toolName: "run_commands" },
 		];
-		let enterList!: () => void;
-		let releaseList!: () => void;
-		const listEntered = new Promise<void>((resolve) => {
-			enterList = resolve;
+		let resolveHeaders: (() => unknown) | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
 		});
-		const listReleased = new Promise<void>((resolve) => {
-			releaseList = resolve;
+		await manager.attach("ses-outer");
+		expect(ctx.pendingApprovals.size).toBe(1);
+		// The durable copy and pending replay share an event ID.
+		hub.events?.({
+			version: "v1",
+			eventId: "evt-approval-replay",
+			event: "approval.requested",
+			timestamp: 1,
+			sequence: 1,
+			sessionId: "inner-1",
+			payload: hub.pendingApprovals[0],
 		});
-		hub.commandHook = async (command) => {
-			if (command !== "approval.list_pending") return;
-			enterList();
-			await listReleased;
-		};
+		await resolveHeaders?.();
+		if (resolvedOffline) hub.pendingApprovals = [];
+		await resolveHeaders?.();
+		await vi.waitFor(() =>
+			expect(
+				events.some(({ name }) => name === "cloud_session_rehydrated"),
+			).toBe(true),
+		);
+		expect(ctx.pendingApprovals.size).toBe(resolvedOffline ? 0 : 1);
+		expect(
+			events.filter(({ name }) => name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toHaveLength(resolvedOffline ? 0 : 1);
+		expect(
+			hub.commands.some(({ command }) => command === "approval.list_pending"),
+		).toBe(false);
+		await manager.dispose();
+	});
+
+	it("does not restore pending approvals after the manager is disposed", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
 			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
@@ -734,11 +770,20 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		await manager.list();
 
-		const attaching = manager.attach("ses-outer");
-		await listEntered;
+		await manager.attach("ses-outer");
+		const deliverLateEvent = hub.events;
 		await manager.dispose();
-		releaseList();
-		await attaching;
+		deliverLateEvent?.({
+			version: "v1",
+			eventId: "evt-late-approval",
+			event: "approval.requested",
+			timestamp: 1,
+			sessionId: "inner-1",
+			payload: {
+				approvalId: "approval-old-account",
+				toolName: "write_to_file",
+			},
+		});
 
 		expect(ctx.pendingApprovals.size).toBe(0);
 		expect(
@@ -1035,12 +1080,11 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
-		expect(hub.commands.map((entry) => entry.command).slice(-5)).toEqual([
+		expect(hub.commands.map((entry) => entry.command).slice(-4)).toEqual([
 			"session.attach",
 			"session.get",
 			"session.messages",
 			"session.pending_prompts",
-			"approval.list_pending",
 		]);
 	});
 

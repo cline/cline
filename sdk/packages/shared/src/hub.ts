@@ -25,7 +25,6 @@ export type HubCapabilityName =
 	| "session.get"
 	| "session.run"
 	| "session.abort"
-	| "approval.list_pending"
 	| "schedule.create"
 	| "schedule.list"
 	| "task.create"
@@ -56,7 +55,6 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"session.get",
 	"session.run",
 	"session.abort",
-	"approval.list_pending",
 	"schedule.create",
 	"schedule.list",
 	"task.create",
@@ -558,7 +556,6 @@ export type HubCommandName =
 	| "hub.drain"
 	| "hub.status"
 	| "approval.request"
-	| "approval.list_pending"
 	| "approval.respond"
 	| "capability.request"
 	| "capability.progress"
