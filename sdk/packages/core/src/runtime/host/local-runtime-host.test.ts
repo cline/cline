@@ -576,7 +576,7 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
-	it("persists provider/model connection updates to the session manifest", async () => {
+	it("persists provider/model connection updates to the session record", async () => {
 		const sessionId = "sess-connection-manifest-update";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -588,6 +588,7 @@ describe("LocalRuntimeHost", () => {
 			}),
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
@@ -622,39 +623,102 @@ describe("LocalRuntimeHost", () => {
 				interactive: true,
 			}),
 		);
-		sessionService.writeSessionManifest.mockClear();
-
-		// A disk-only writer (compaction path, rename) updated the manifest
-		// behind the in-memory copy's back; the connection update must re-read
-		// and preserve it instead of clobbering it with the stale copy.
-		const diskManifest = {
-			...manifest,
-			compaction_path: "/tmp/compaction.json",
-			title: "renamed session",
-		};
-		const readSessionManifest = vi.fn().mockResolvedValue(diskManifest);
-		(sessionService as Record<string, unknown>).readSessionManifest =
-			readSessionManifest;
+		sessionService.updateSession.mockClear();
 
 		await manager.updateSessionConnection(sessionId, {
 			providerId: "openai",
 			modelId: "codex-test",
 		});
 
-		expect(sessionService.writeSessionManifest).toHaveBeenCalledWith(
-			"/tmp/manifest.json",
-			expect.objectContaining({
-				session_id: sessionId,
-				provider: "openai",
-				model: "codex-test",
-				compaction_path: "/tmp/compaction.json",
-				title: "renamed session",
-			}),
-		);
+		// Both the sessions row and the manifest are updated through the
+		// session service so `getSession`/`listSessions` (row-first for
+		// non-resident sessions) stop reporting the model the session started with.
+		expect(sessionService.updateSession).toHaveBeenCalledWith({
+			sessionId,
+			provider: "openai",
+			model: "codex-test",
+		});
+		expect(manifest.provider).toBe("openai");
+		expect(manifest.model).toBe("codex-test");
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			provider: "openai",
+			model: "codex-test",
+		});
 
-		sessionService.writeSessionManifest.mockClear();
+		sessionService.updateSession.mockClear();
 		await manager.updateSessionConnection(sessionId, { thinking: true });
-		expect(sessionService.writeSessionManifest).not.toHaveBeenCalled();
+		expect(sessionService.updateSession).not.toHaveBeenCalled();
+	});
+
+	it("persists the new provider/model when a session is resumed under a different connection", async () => {
+		const sessionId = "sess-resume-connection-change";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn(),
+			readSessionManifest: vi.fn().mockResolvedValue(manifest),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: vi.fn(() => agent as never),
+		});
+		const resume = (modelId: string) =>
+			manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						providerId: "cline-pass",
+						modelId,
+					}),
+					interactive: true,
+					initialMessages: [
+						{ role: "user", content: "hi" },
+					] as StartSessionInput["initialMessages"],
+				}),
+			);
+
+		// Desktop/CLI continue an existing conversation with a new model by
+		// restarting the session under its own id; the record must follow.
+		await resume("cline-pass/kimi-k3");
+
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(sessionService.updateSession).toHaveBeenCalledWith({
+			sessionId,
+			provider: "cline-pass",
+			model: "cline-pass/kimi-k3",
+		});
+		expect(manifest.model).toBe("cline-pass/kimi-k3");
+
+		// Resuming with the connection already on record is not a change.
+		await manager.stopSession(sessionId);
+		sessionService.updateSession.mockClear();
+		await resume("cline-pass/kimi-k3");
+		expect(sessionService.updateSession).not.toHaveBeenCalled();
 	});
 
 	it("persists thinking budget token connection updates", async () => {

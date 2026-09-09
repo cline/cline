@@ -102,6 +102,8 @@ export interface PersistedSessionUpdateInput {
 	prompt?: string | null;
 	metadata?: Record<string, unknown> | null;
 	title?: string | null;
+	provider?: string;
+	model?: string;
 	parentSessionId?: string | null;
 	parentAgentId?: string | null;
 	agentId?: string | null;

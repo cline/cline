@@ -667,6 +667,90 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	sqliteIt(
+		"updates the provider/model on both the session row and the manifest",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "connection-update-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "connection-update-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "connection-update-session";
+			const artifacts = await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.DESKTOP,
+				pid: process.pid,
+				interactive: true,
+				provider: "cline-pass",
+				model: "cline-pass/deepseek-v4-flash",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+
+			await expect(
+				service.updateSession({
+					sessionId,
+					provider: "cline-pass",
+					model: "cline-pass/kimi-k3",
+				}),
+			).resolves.toEqual({ updated: true });
+
+			const [row] = await service.listSessions(10);
+			expect(row).toMatchObject({
+				provider: "cline-pass",
+				model: "cline-pass/kimi-k3",
+				prompt: "hello",
+			});
+			expect(row?.metadata).toMatchObject({ title: "hello" });
+			const manifest = JSON.parse(
+				readFileSync(artifacts.manifestPath, "utf8"),
+			) as Record<string, unknown>;
+			expect(manifest.provider).toBe("cline-pass");
+			expect(manifest.model).toBe("cline-pass/kimi-k3");
+		},
+	);
+
+	it("updates the provider/model in the file-backed session index", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "file-connection-update-"));
+		tempDirs.push(sessionsDir);
+
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "file-connection-update-session";
+		await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "mock-provider",
+			model: "mock-model",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+
+		await expect(
+			service.updateSession({ sessionId, model: "other-model" }),
+		).resolves.toEqual({ updated: true });
+
+		const [row] = await service.listSessions(10);
+		expect(row).toMatchObject({
+			provider: "mock-provider",
+			model: "other-model",
+		});
+	});
+
+	sqliteIt(
 		"uploads messages after persisting them when a messages uploader is configured",
 		async () => {
 			const dbDir = mkdtempSync(join(tmpdir(), "messages-upload-db-"));

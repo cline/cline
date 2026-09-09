@@ -224,6 +224,8 @@ export class UnifiedSessionPersistenceService {
 		prompt?: string | null;
 		metadata?: Record<string, unknown> | null;
 		title?: string | null;
+		provider?: string;
+		model?: string;
 	}): Promise<{ updated: boolean }> {
 		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const row = await this.adapter.getSession(input.sessionId);
@@ -265,6 +267,8 @@ export class UnifiedSessionPersistenceService {
 						: null
 					: undefined,
 				title: nextTitle,
+				provider: input.provider,
+				model: input.model,
 				expectedStatusLock: row.statusLock,
 			});
 			if (!changed.updated) continue;
@@ -275,6 +279,8 @@ export class UnifiedSessionPersistenceService {
 				if (input.prompt !== undefined) {
 					manifest.prompt = input.prompt ?? undefined;
 				}
+				if (input.provider !== undefined) manifest.provider = input.provider;
+				if (input.model !== undefined) manifest.model = input.model;
 				const manifestMeta =
 					input.metadata !== undefined
 						? (sanitizeMetadata(input.metadata) ?? {})

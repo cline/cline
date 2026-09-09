@@ -956,6 +956,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessions.set(sessionId, active);
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
+			// A resume with a different connection (clients restart a session
+			// under its own id to continue it with a new provider/model) must
+			// persist that choice, or the record snaps back to the original
+			// model as soon as the session is served from disk again.
+			if (
+				resumedArtifacts.manifest.provider !== active.config.providerId ||
+				resumedArtifacts.manifest.model !== active.config.modelId
+			) {
+				await this.persistSessionConnection(active);
+			}
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
 		// session recovery) must be durable immediately. Lazy persistence
@@ -1648,14 +1658,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		session.agent.updateConnection(updates);
 		session.runtime.teamRuntime?.updateTeammateConnections(teammateUpdates);
-		// Keep the persisted manifest in sync so session history reflects the
-		// connection the session is now using, not the one it started with.
 		if (updates.providerId || updates.modelId) {
-			await this.mutateSessionManifest(session, (manifest) => {
-				if (updates.providerId) manifest.provider = updates.providerId;
-				if (updates.modelId) manifest.model = updates.modelId;
-			});
+			await this.persistSessionConnection(session);
 		}
+	}
+
+	/**
+	 * Keeps the persisted session record (manifest and sessions row) in sync
+	 * with the provider/model the session is now using, not the one it started
+	 * with. `getSession`/`listSessions` serve non-resident sessions from the
+	 * row, so a manifest-only write would still hand clients the stale model
+	 * once the session leaves memory.
+	 */
+	private async persistSessionConnection(
+		session: ActiveSession,
+	): Promise<void> {
+		if (!session.artifacts) return;
+		const provider = session.config.providerId?.trim();
+		const model = session.config.modelId?.trim();
+		if (!provider || !model) return;
+		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+			"updateSession",
+			{ sessionId: session.sessionId, provider, model },
+		);
+		if (result?.updated === false) return;
+		session.artifacts.manifest.provider = provider;
+		session.artifacts.manifest.model = model;
 	}
 
 	/**

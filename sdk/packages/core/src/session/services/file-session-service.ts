@@ -179,6 +179,8 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				input.metadata !== undefined
 					? (input.metadata ?? null)
 					: (existing.metadata ?? null),
+			provider: input.provider ?? existing.provider,
+			model: input.model ?? existing.model,
 			parentSessionId:
 				input.parentSessionId !== undefined
 					? (input.parentSessionId ?? null)
