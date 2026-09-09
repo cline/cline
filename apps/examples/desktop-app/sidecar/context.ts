@@ -173,10 +173,16 @@ function appendSessionChunk(
 }
 
 /**
- * How long a session stays "served by ClineCore" after its last event. Events
- * arrive many times a second while a turn streams, so a subscription silent
- * for this long has stopped delivering rather than paused, and the observer
- * projection is allowed to take over.
+ * How long an idle session stays "served by ClineCore" after its last event
+ * before the observer projection may take over.
+ *
+ * This window only applies between runs. While a run is busy, silence on the
+ * core pipe is not evidence that its subscription died: a long command, a
+ * slow first token, or a tool-approval prompt the user takes a while to answer
+ * all stall both pipes together. Expiring the mark mid-turn let the observer's
+ * copy of the first post-gap event through ahead of the core copy, doubling a
+ * delta or orphaning a duplicate tool row every time a turn paused for longer
+ * than the window.
  */
 const CORE_PIPE_ACTIVE_MS = 5_000;
 
@@ -200,13 +206,29 @@ function markCorePipeActive(ctx: SidecarContext, sessionId: string): void {
 	ctx.coreStreamActivity.set(sessionId, nowMs());
 }
 
+/**
+ * Forget that the ClineCore subscription served this session. Called when the
+ * session ends and wherever the sidecar stops a session: `stop` disposes the
+ * core subscription without any local `ended` event, and a stale mark would
+ * otherwise mute the observer for the next run another client starts on the
+ * same session, since that run's `run.started` marks the session busy.
+ */
+export function forgetCorePipe(ctx: SidecarContext, sessionId: string): void {
+	ctx.coreStreamActivity.delete(sessionId);
+}
+
 function isCorePipeActive(
 	ctx: SidecarContext,
 	sessionId: string,
 	now: number,
 ): boolean {
 	const lastEventAt = ctx.coreStreamActivity.get(sessionId);
-	return lastEventAt !== undefined && now - lastEventAt <= CORE_PIPE_ACTIVE_MS;
+	if (lastEventAt === undefined) return false;
+	// The mark is cleared when the session ends, so during a busy run it means
+	// the core subscription served this session and is still the pipe to trust
+	// even when neither pipe has had anything to deliver for a while.
+	if (ctx.liveSessions.get(sessionId)?.busy) return true;
+	return now - lastEventAt <= CORE_PIPE_ACTIVE_MS;
 }
 
 function emitChunk(
@@ -501,8 +523,9 @@ export function handleCoreSessionEvent(
 	// first delta through before the mark existed, doubling it every turn.
 	// The cost is the reverse case: if this pipe delivers a status or queue
 	// event and then stops while the observer keeps streaming, the observer is
-	// held off for `CORE_PIPE_ACTIVE_MS`. That needs the subscription torn down
-	// mid-turn, and the turn-end reconcile restores the gap from canonical
+	// held off for the rest of the run (and `CORE_PIPE_ACTIVE_MS` after it).
+	// That needs the subscription torn down mid-turn, which only stop and
+	// detach do, and the turn-end reconcile restores the gap from canonical
 	// history — where doubling would be visible on every turn.
 	const eventSessionId = (event.payload as { sessionId?: string } | undefined)
 		?.sessionId;
@@ -594,7 +617,7 @@ export function handleCoreSessionEvent(
 			}
 			discardAllTrackedAttachments(sessionId, session);
 			// The next run decides afresh which pipe is serving the session.
-			ctx.coreStreamActivity.delete(sessionId);
+			forgetCorePipe(ctx, sessionId);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
