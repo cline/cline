@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
+import { PullRequestBar } from "./pull-request-bar";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -1033,6 +1034,7 @@ function ChatInputBarImpl({
 			)}
 		>
 			{/* Input area */}
+			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<div
 				className={cn(
 					"px-4 py-3",

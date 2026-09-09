@@ -17,6 +17,20 @@ From `apps/examples/desktop-app/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Pull Requests
+
+The composer shows the current branch's GitHub pull request, merge status,
+changed-line totals, and CI checks. Click the PR number to open it in your
+browser, or expand CI to inspect individual checks and their logs. Status
+refreshes every 30 seconds while visible, when the app regains focus, and
+when you click refresh.
+
+This requires GitHub CLI (`gh`) installed and authenticated with `gh auth login`,
+and a GitHub.com `origin` remote (HTTPS or SSH). The row is hidden for the
+default branch, detached HEAD, and unsupported repositories. If the branch
+has no PR, **Create PR** opens GitHub's comparison form; push your commits
+before submitting the form. The app does not push commits or submit PRs itself.
+
 ## Customizing the macOS Install Window
 
 The drag-to-Applications window is configured by `bundle.macOS.dmg` in
