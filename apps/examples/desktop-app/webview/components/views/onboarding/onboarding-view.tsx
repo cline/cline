@@ -43,6 +43,7 @@ import {
 } from "@/lib/provider-model-catalog";
 import type { Provider } from "@/lib/provider-schema";
 import {
+	dismissImportNotice,
 	type ListImportableSessionsResponse,
 	SESSION_IMPORT_TOOL_LABELS,
 	SESSION_IMPORT_TOOL_ORDER,
@@ -973,7 +974,12 @@ function ImportHistoryStep({
 						</Button>
 						<Button
 							className="mt-3"
-							onClick={onContinue}
+							onClick={() => {
+								// The user has seen the offer; the welcome screen
+								// should not repeat it right after onboarding.
+								dismissImportNotice();
+								onContinue();
+							}}
 							size="sm"
 							type="button"
 							variant="ghost"
@@ -983,7 +989,10 @@ function ImportHistoryStep({
 					</>
 				)}
 				<ImportSessionsDialog
-					onImported={() => setImported(true)}
+					onImported={() => {
+						dismissImportNotice();
+						setImported(true);
+					}}
 					onOpenChange={setDialogOpen}
 					open={dialogOpen}
 				/>

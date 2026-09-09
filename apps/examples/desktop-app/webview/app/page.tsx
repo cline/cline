@@ -35,6 +35,7 @@ import {
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
+import { WelcomeImportNotice } from "@/components/views/chat/welcome-import-notice";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
@@ -1627,7 +1628,9 @@ function ChatThreadPane({
 								onOpenModelSettings={onOpenModelSettings}
 								onOpenSetup={onOpenSetup}
 							/>
-						) : undefined
+						) : (
+							<WelcomeImportNotice />
+						)
 					}
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}

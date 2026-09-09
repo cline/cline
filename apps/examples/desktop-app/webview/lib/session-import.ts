@@ -58,6 +58,36 @@ export function importSelectionKey(tool: string, sourceId: string): string {
 	return `${tool}:${sourceId}`;
 }
 
+const IMPORT_NOTICE_DISMISSED_KEY = "cline.code.import-notice-dismissed.v1";
+
+/**
+ * Whether the user has already been offered an import (onboarding step or
+ * the welcome-screen notice) and either did it or turned it down. Import
+ * stays reachable from Settings and the Sessions page; this only stops the
+ * proactive prompt from coming back.
+ */
+export function isImportNoticeDismissed(): boolean {
+	if (typeof window === "undefined") return true;
+	try {
+		return window.localStorage.getItem(IMPORT_NOTICE_DISMISSED_KEY) !== null;
+	} catch {
+		// Unreadable storage: never nag when the dismissal cannot be remembered.
+		return true;
+	}
+}
+
+export function dismissImportNotice(): void {
+	if (typeof window === "undefined") return;
+	try {
+		window.localStorage.setItem(
+			IMPORT_NOTICE_DISMISSED_KEY,
+			new Date().toISOString(),
+		);
+	} catch {
+		// The notice hides for this run either way.
+	}
+}
+
 /**
  * The external tool a session was imported from, read off the
  * `metadata.importedFrom` marker the core import service writes. Forks
