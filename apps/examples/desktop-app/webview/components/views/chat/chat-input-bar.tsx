@@ -1751,7 +1751,6 @@ const ModelSelector = memo(function ModelSelector({
 			""
 		);
 	}, [
-		autoCorrectModel,
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
