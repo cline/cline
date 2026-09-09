@@ -531,10 +531,23 @@ export function useChatSession() {
 		// Stopping at a tool hook can end a turn without a tool-end event or
 		// persisted result. Settle those rows in desktop state, including after
 		// history hydration, so an ended run cannot leave a permanent spinner.
-		const { messageIds, inputs } = deriveLiveToolState(messages);
-		const unfinishedIds = new Set(Object.values(messageIds));
-		if (unfinishedIds.size === 0) return;
+		if (
+			!messages.some(
+				(message) =>
+					message.meta?.hookEventName === "tool_call_start" ||
+					message.meta?.hookEventName === "history_tool_use",
+			)
+		)
+			return;
+		const trackedMessageIds = new Set(
+			Object.values(liveToolMessageIdsRef.current),
+		);
 		setMessages((previous) => {
+			// Derive from the current state: a completion may have arrived
+			// since the render that scheduled this cleanup.
+			const { messageIds, inputs } = deriveLiveToolState(previous);
+			const unfinishedIds = new Set(Object.values(messageIds));
+			if (unfinishedIds.size === 0) return previous;
 			let changed = false;
 			const next = previous.map((message) => {
 				if (!unfinishedIds.has(message.id)) return message;
@@ -543,8 +556,7 @@ export function useChatSession() {
 				if (
 					status === "idle" &&
 					message.meta?.hookEventName === "tool_call_start" &&
-					liveToolMessageIdsRef.current[message.meta.toolCallId ?? ""] ===
-						message.id
+					trackedMessageIds.has(message.id)
 				)
 					return message;
 				changed = true;

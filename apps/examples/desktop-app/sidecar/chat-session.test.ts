@@ -1799,6 +1799,7 @@ describe("mistake-limit prompt", () => {
 		const steer = vi.fn(async () => undefined);
 		const ctx = {
 			wsClients: new Set([{ send }]),
+			streamIndices: new Map(),
 			pendingQuestions: new Map(),
 			liveSessions: new Map(),
 			sessionManager: {
@@ -1960,6 +1961,55 @@ describe("mistake-limit prompt", () => {
 		expect(result).toMatchObject({
 			guidance: expect.stringContaining("identical calls to `editor`"),
 		});
+	});
+
+	it.each([
+		"stop",
+		" STOP THIS RUN ",
+		"2",
+		"no",
+	])("treats the free-text answer %s as Stop, like the CLI", async (answer) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			answer,
+		);
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"rejected",
+		"unavailable",
+	])("stops waiting hooks when steering is %s", async (failure) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		if (failure === "rejected")
+			steer.mockRejectedValueOnce(new Error("Disconnected"));
+		else ctx.sessionManager = null;
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await expect(decision).resolves.toMatchObject({
+			action: "stop",
+			reason: expect.stringContaining("Could not send recovery guidance"),
+		});
+		for (const result of await waiting)
+			expect(result).toMatchObject({ stop: true });
+		expect(ctx.pendingQuestions.size).toBe(0);
 	});
 
 	it("passes free-text answers through as user guidance", async () => {
@@ -2127,6 +2177,43 @@ describe("mistake-limit prompt", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it.each([
+		"run",
+		"session",
+	])("cancels the question when the %s ends externally", async (kind) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		const requestId = readQuestionRequest()?.requestId ?? "";
+		if (kind === "session")
+			handleCoreSessionEvent(ctx, {
+				type: "ended",
+				payload: { sessionId: "session-1", reason: "stopped", ts: Date.now() },
+			});
+		else
+			handleCoreSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "aborted",
+						text: "",
+						iterations: 5,
+						usage: { inputTokens: 0, outputTokens: 0 },
+					},
+				},
+			});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			resolveSidecarAskQuestion(ctx, requestId, "Try a different approach"),
+		).toBe(false);
+		expect(steer).not.toHaveBeenCalled();
 	});
 
 	it("is wired into freshly started sessions as a local runtime option", async () => {

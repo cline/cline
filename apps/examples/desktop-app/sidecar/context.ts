@@ -368,6 +368,7 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
+			cancelSidecarAskQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -533,6 +534,7 @@ export function handleCoreSessionEvent(
 		}
 		case "ended": {
 			const { sessionId, reason } = event.payload;
+			cancelSidecarAskQuestions(ctx, sessionId, "Session ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -746,8 +748,6 @@ export function resolveSidecarAskQuestion(
 	if (!pending) {
 		return false;
 	}
-	ctx.pendingQuestions.delete(requestId);
-	if (pending.timeoutId) clearTimeout(pending.timeoutId);
 	pending.resolve(answer);
 	return true;
 }

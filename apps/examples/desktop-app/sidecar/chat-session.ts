@@ -491,16 +491,18 @@ export function createDesktopMistakeLimitPrompt(
 			};
 		}
 
-		const normalized = answer.trim();
-		if (normalized === MISTAKE_LIMIT_STOP_OPTION) {
+		const normalized = answer.trim().toLowerCase();
+		if (["2", "stop this run", "stop", "n", "no"].includes(normalized)) {
 			return {
 				action: "stop",
 				reason: "stopped after mistake_limit_reached prompt",
 			};
 		}
 		const customGuidance =
-			normalized.length > 0 && normalized !== MISTAKE_LIMIT_CONTINUE_OPTION
-				? normalized
+			normalized.length > 0 &&
+			normalized !== "1" &&
+			normalized !== MISTAKE_LIMIT_CONTINUE_OPTION.toLowerCase()
+				? answer.trim()
 				: "";
 		const guidance = [
 			"The run reached the limit for repeated mistakes or tool calls.",
@@ -513,22 +515,28 @@ export function createDesktopMistakeLimitPrompt(
 		// Use the existing steering queue so the running model receives the
 		// guidance, including any instructions entered in the desktop prompt.
 		const manager = ctx.sessionManager;
-		if (manager && sessionId) {
+		try {
+			if (!manager) throw new Error("Desktop session manager is unavailable");
 			const continuedThroughIteration = Math.max(
 				context.iteration,
 				recovery?.latestIteration ?? context.iteration,
 			);
-			try {
-				await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
-				if (recovery) {
-					recovery.continuedThroughIteration = continuedThroughIteration;
-				}
-			} catch (error) {
-				ctx.logger?.log("Failed to steer mistake-limit guidance", {
-					sessionId,
-					error: error instanceof Error ? error.message : String(error),
-				});
+			await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
+			if (recovery) {
+				recovery.continuedThroughIteration = continuedThroughIteration;
 			}
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			ctx.logger?.log("Failed to steer mistake-limit guidance", {
+				sessionId,
+				error: detail,
+			});
+			// Releasing the hooks without the guidance would resume the same
+			// failing loop. Only Continue after the steering request succeeds.
+			return {
+				action: "stop",
+				reason: `Could not send recovery guidance: ${detail}`,
+			};
 		}
 		return { action: "continue", guidance };
 	};
