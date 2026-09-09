@@ -925,10 +925,12 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});
+		expect(host.hasSessionSubscription("sess-1")).toBe(true);
 
 		commandMock.mockResolvedValue({ ok: true, payload: {} });
 		await host.stopSession("sess-1");
 
+		expect(host.hasSessionSubscription("sess-1")).toBe(false);
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"session.detach",
