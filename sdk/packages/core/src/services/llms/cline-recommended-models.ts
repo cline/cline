@@ -5,6 +5,7 @@ import {
 } from "@cline/llms";
 import {
 	getClineEnvironmentConfig,
+	type ITelemetryService,
 	type ProviderModel,
 	type ProviderModelFeaturedTier,
 } from "@cline/shared";
@@ -36,6 +37,8 @@ export interface FetchClineRecommendedModelsOptions {
 		"getProviderSettings"
 	>;
 	timeoutMs?: number;
+	/** Uses the host telemetry service and its existing opt-out policy. */
+	telemetry?: Pick<ITelemetryService, "capture">;
 	/**
 	 * Loader for the live models catalog used to resolve display names.
 	 * Defaults to the shared live-catalog cache; injectable for tests.
@@ -257,7 +260,29 @@ export async function fetchClineRecommendedModels(
 	// endpoint plus a cold catalog cannot stack two full timeout windows. An
 	// already-cached catalog still applies with an exhausted budget: its
 	// promise resolves on a microtask, ahead of the zero-delay timer.
-	const deadline = Date.now() + timeoutMs;
+	const startedAt = Date.now();
+	const deadline = startedAt + timeoutMs;
+	let failureReason: "http" | "invalid_payload" | "request" = "request";
+	const report = (
+		source: "live" | "bundled",
+		data: ClineRecommendedModelsData,
+	) => {
+		try {
+			options.telemetry?.capture({
+				event: "models.cline_recommendations_loaded",
+				properties: {
+					source,
+					duration_ms: Date.now() - startedAt,
+					recommended_count: data.recommended.length,
+					free_count: data.free.length,
+					subscribed_count: data.clinePass.length,
+					...(source === "bundled" ? { failure_reason: failureReason } : {}),
+				},
+			});
+		} catch {
+			// Observability must not affect model selection or fallback behavior.
+		}
+	};
 	try {
 		const base = getConfiguredApiBaseUrl(options);
 		const fetchImpl = options.fetchImpl ?? fetch;
@@ -266,15 +291,21 @@ export async function fetchClineRecommendedModels(
 			`${base}/api/v1/ai/cline/recommended-models`,
 			timeoutMs,
 		);
-		if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+		if (!resp.ok) {
+			failureReason = "http";
+			throw new Error(`HTTP ${resp.status}`);
+		}
+		failureReason = "invalid_payload";
 		const json: unknown = await resp.json();
 		const data = normalizeResponse(json);
 		if (data) {
-			return await resolveDisplayNames(
+			const resolved = await resolveDisplayNames(
 				data,
 				options.catalogLoader ?? getLiveModelsCatalog,
 				Math.max(0, deadline - Date.now()),
 			);
+			report("live", resolved);
+			return resolved;
 		}
 	} catch {
 		// Fall back to the bundled list when the remote source is unavailable.
@@ -284,6 +315,7 @@ export async function fetchClineRecommendedModels(
 	// returned as-is so callers can detect it by equality with
 	// FALLBACK_CLINE_RECOMMENDED_MODELS (e.g. to avoid caching a transient
 	// failure).
+	report("bundled", FALLBACK_CLINE_RECOMMENDED_MODELS);
 	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
 }
 

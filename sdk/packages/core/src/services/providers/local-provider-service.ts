@@ -852,6 +852,7 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	telemetry?: ITelemetryService,
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
@@ -864,7 +865,7 @@ export async function getLocalProviderModels(
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			await getCachedClineRecommendedModels({ telemetry }),
 		);
 	}
 	return { providerId: id, models };

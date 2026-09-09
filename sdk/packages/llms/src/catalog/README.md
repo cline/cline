@@ -196,3 +196,14 @@ and descriptions and resolving names against the generated model catalog.
 Update these lists by running the generator; do not maintain separate model
 IDs in core. Generation requires both upstream sources to succeed so an
 outage cannot replace the bundled catalogs with partial data.
+
+All generated outputs are staged before replacement. If a replacement fails,
+the writer restores prior files and removes newly created outputs. This handles
+reported filesystem failures, but is not a crash-atomic multi-file transaction.
+If rollback itself fails, recovery files are retained and their paths reported.
+
+Hosts can pass their existing telemetry service to `getLocalProviderModels`.
+The desktop sidecar does so. Each uncached recommendation load emits
+`models.cline_recommendations_loaded` with live/bundled source, duration, tier
+counts, and a bounded fallback reason. Cache hits do not emit another event;
+no endpoint URLs, model IDs, or raw error messages are collected.
