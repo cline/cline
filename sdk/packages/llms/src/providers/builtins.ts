@@ -1234,11 +1234,19 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "OpenCode",
 		description: "OpenCode SDK multi-provider runtime",
 		family: "opencode",
-		capabilities: ["reasoning", "oauth"],
+		// local-auth: the SDK spawns `opencode serve`, which authenticates from
+		// the credentials the user configured in OpenCode itself (`opencode
+		// auth login`). There is no Cline-side OAuth flow, so hosts must not
+		// offer a browser sign-in button for this provider.
+		capabilities: ["reasoning", "local-auth"],
 		defaultModelId: "openai/gpt-5.6-sol",
 		modelsProviderId: "opencode",
+		docsUrl: "https://opencode.ai/docs",
 		defaults: { baseUrl: "" },
 		configFields: [],
+		metadata: {
+			localCliCommand: "opencode",
+		},
 	},
 	{
 		id: "dify",
