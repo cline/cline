@@ -689,10 +689,8 @@ export async function disposeSidecarContext(
 	}
 	ctx.wsClients.clear();
 	for (const pending of ctx.pendingApprovals.values()) {
-		// Cloud sessions outlive this app: denying their approvals on local
-		// shutdown would fail a tool call on a pod that keeps running and
-		// could otherwise be answered later (from here or another surface).
-		// Drop those entries locally and leave the remote approval pending.
+		// Drop remote approvals locally without denying them: the pod outlives
+		// this app, and another client can still answer.
 		if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
 			continue;
 		}
@@ -1028,11 +1026,8 @@ export function handleHubLiveEvent(
 				session,
 				mapped.map((item) => item.id),
 			);
-			// No "head submitted" inference here, unlike the local queue-drain
-			// handler: the hub emits an explicit session.pending_prompt_submitted
-			// for real submissions, and a snapshot can also shrink because a
-			// prompt was REMOVED — inferring a start would render the deleted
-			// prompt in the transcript as if it had been sent.
+			// Queue shrinkage may mean deletion, not submission; only
+			// session.pending_prompt_submitted starts a turn.
 			session.promptsInQueue = mapped;
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			return;
@@ -1138,9 +1133,7 @@ export function handleHubLiveEvent(
 					: event.event === "run.started"
 						? "running"
 						: session.status;
-			// Hub "pending" means the run is blocked on approval or otherwise
-			// still active. Desktop has no pending status, so expose it as running
-			// and keep later prompts on the queue path.
+			// Hub "pending" is still active; map it to running so follow-ups stay queued.
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
 			if (
 				event.event === "session.updated" &&

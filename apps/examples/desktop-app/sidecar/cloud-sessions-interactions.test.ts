@@ -79,7 +79,7 @@ async function createFixture() {
 	};
 	const ensureAttached = vi.fn(async () => {});
 	const forwardEvent = vi.fn();
-	// This PR implements interactions; the next PR supplies the connection/event boundary.
+	// Stub transport ownership; exercise the real interaction logic.
 	Object.assign(manager, {
 		ensureConnection: async () => connection,
 		ensureAttached,
