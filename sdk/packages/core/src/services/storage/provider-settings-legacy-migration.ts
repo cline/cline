@@ -4,9 +4,9 @@ import * as LlmsModels from "@cline/llms";
 import { ReasoningLevelSchema } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
-	emptyStoredProviderSettings,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+	type StoredProviderSettings,
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
@@ -901,9 +901,11 @@ export function migrateLegacyProviderSettings(
 		? normalizeLegacyProviderId(rawOtherModeProvider)
 		: undefined;
 	const candidates = collectCandidateProviderIds(globalState, secrets);
-	const next = emptyStoredProviderSettings();
-	next.providers = { ...existing.providers };
-	next.lastUsedProvider = existing.lastUsedProvider;
+	const removedProviders = new Set(existing.removedProviders ?? []);
+	const next: StoredProviderSettings = {
+		...existing,
+		providers: { ...existing.providers },
+	};
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
 	const modelsPath = join(
@@ -915,7 +917,7 @@ export function migrateLegacyProviderSettings(
 
 	for (const legacyProviderId of candidates) {
 		const providerId = resolveMigratedProviderId(legacyProviderId);
-		if (next.providers[providerId]) {
+		if (next.providers[providerId] || removedProviders.has(providerId)) {
 			continue;
 		}
 		// A provider selected only in the non-current mode must be read through

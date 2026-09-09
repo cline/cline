@@ -31,7 +31,10 @@ import {
 	type ProviderSettings,
 	toProviderConfig,
 } from "../../services/llms/provider-settings";
-import type { ProviderTokenSource } from "../../types/provider-settings";
+import type {
+	ProviderTokenSource,
+	StoredProviderSettings,
+} from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -372,12 +375,26 @@ async function resolveModelIds(params: {
 	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
 }
 
+/**
+ * Records an explicit disconnect so the legacy VS Code import (which re-runs
+ * on every ProviderSettingsManager construction) doesn't re-add the provider
+ * from globalState.json/secrets.json.
+ */
+function markProviderRemoved(
+	state: StoredProviderSettings,
+	providerId: string,
+): boolean {
+	if (!providerId || state.removedProviders?.includes(providerId)) return false;
+	state.removedProviders = [...(state.removedProviders ?? []), providerId];
+	return true;
+}
+
 function removeProviderFromSettingsState(
 	manager: ProviderSettingsManager,
 	providerId: string,
 ): void {
 	const state = manager.read();
-	let mutated = false;
+	let mutated = markProviderRemoved(state, providerId);
 	if (state.providers[providerId]) {
 		delete state.providers[providerId];
 		mutated = true;
@@ -1035,6 +1052,7 @@ export function saveLocalProviderSettings(
 
 	if (request.enabled === false) {
 		const state = manager.read();
+		markProviderRemoved(state, providerId);
 		delete state.providers[providerId];
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
 		if (state.modes.voiceInput?.providerId === providerId) {

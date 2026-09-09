@@ -44,6 +44,12 @@ export interface StoredProviderSettings {
 	lastUsedProvider?: string;
 	modes: StoredProviderModes;
 	providers: Record<string, StoredProviderSettingsEntry>;
+	/**
+	 * Providers the user explicitly disconnected. The legacy VS Code import
+	 * re-runs on every startup and merges any provider it finds missing, so
+	 * without this it would resurrect credentials the user just removed.
+	 */
+	removedProviders?: string[];
 }
 
 export const StoredProviderModesSchema: z.ZodType<StoredProviderModes> =
@@ -64,6 +70,7 @@ export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 		lastUsedProvider: z.string().min(1).optional(),
 		modes: StoredProviderModesSchema.default({}),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
+		removedProviders: z.array(z.string().min(1)).optional(),
 	});
 
 export function emptyStoredProviderSettings(): StoredProviderSettings {

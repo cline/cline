@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
+import { saveLocalProviderSettings } from "../providers/local-provider-service";
 import {
 	type LegacyClineUserInfo,
 	migrateLegacyProviderSettings,
@@ -454,6 +455,59 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 		expect(manager.read().providers["openai-codex"]?.tokenSource).toBe(
 			"migration",
+		);
+	});
+
+	it("does not re-import a provider the user explicitly disconnected", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({ mode: "act", actModeApiProvider: "openai-codex" }),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({
+				"openai-codex-oauth-credentials": JSON.stringify({
+					type: "openai-codex",
+					access_token: "legacy-access",
+					refresh_token: "legacy-refresh",
+					expires: Date.now() + 60_000,
+					accountId: "acct_123",
+				}),
+				apiKey: "legacy-anthropic-key",
+			}),
+		);
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(manager.getProviderSettings("openai-codex")).toBeDefined();
+
+		// Sign out, then simulate the next startup re-running the import.
+		saveLocalProviderSettings(manager, {
+			providerId: "openai-codex",
+			enabled: false,
+		});
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: new ProviderSettingsManager({
+				filePath: providersPath,
+				dataDir: tempDir,
+			}),
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(false);
+		expect(manager.getProviderSettings("openai-codex")).toBeUndefined();
+		expect(manager.read().removedProviders).toEqual(["openai-codex"]);
+		// Other legacy providers are still imported as before.
+		expect(manager.getProviderSettings("anthropic")?.apiKey).toBe(
+			"legacy-anthropic-key",
 		);
 	});
 
