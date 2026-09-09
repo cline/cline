@@ -35,8 +35,6 @@ import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 // Used only until the API's connectUrl arrives (or when it is blank), so a
 // staging/local build still points at its own dashboard.
 const FALLBACK_CONNECT_URL = `${getClineEnvironmentConfig().appBaseUrl}/dashboard/integrations`;
-// The dashboard hand-off happens in the browser, so re-check often enough
-// that the panel flips to ready shortly after the user finishes there.
 const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;
 
 type CloudSetupState = {
@@ -206,10 +204,7 @@ export function WelcomeScreen({
 		onCloudBranchChange("");
 	}, [onCloudBranchChange, onRepoUrlChange]);
 
-	// Check GitHub connectivity whenever the cloud composer becomes relevant
-	// or the signed-in account changes, and keep watching while onboarding is
-	// on screen: the connect flow finishes in the browser, so the panel must
-	// notice on its own.
+	// GitHub setup finishes in the browser; poll while onboarding is visible.
 	useEffect(() => {
 		void accountUserId;
 		if (!cloudModeActive || !signedIn) return;
@@ -235,9 +230,7 @@ export function WelcomeScreen({
 		signedIn,
 	]);
 
-	// Account/organization switches re-scope the repository list on the
-	// sidecar side; refresh the setup snapshot immediately instead of waiting
-	// for a focus event or the onboarding poll (which stops in "ready").
+	// Refresh on account/org switches even after the onboarding poll stops.
 	useEffect(() => {
 		if (!cloudModeActive || !signedIn) return;
 		return desktopClient.subscribe("cloud_sessions_changed", () => {
@@ -310,10 +303,7 @@ export function WelcomeScreen({
 		if (active && executionTarget === "local") void refreshWorkspaces();
 	}, [active, executionTarget, refreshWorkspaces]);
 
-	// A previously selected repository can disappear from the account's reach
-	// (GitHub App access revoked, account/org switched). Clear the stale
-	// selection so the "Repository required" gate re-engages instead of
-	// letting the send fail server-side after the fact.
+	// Clear repositories made inaccessible by account/org or GitHub access changes.
 	useEffect(() => {
 		if (!cloudModeActive || cloudSetup.status === "unknown") return;
 		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
