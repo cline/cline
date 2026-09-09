@@ -179,6 +179,46 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("idle");
 	});
 
+	it("still applies a terminal status that lands while a submission is in flight", async () => {
+		// Only the transient "idle" is held back; a failed session must unstick
+		// the UI even if the send response never arrives.
+		const startResponse = deferred<{ cwd: string; workspaceRoot: string }>();
+		let plannedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						plannedSessionId = request.config?.sessionId ?? "";
+						return {
+							...(await startResponse.promise),
+							sessionId: plannedSessionId,
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			void current.sendPrompt("hello");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(current.status).toBe("starting");
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "failed" });
+		});
+		expect(current.status).toBe("failed");
+	});
+
 	it("preserves authoritative completion across abort races", async () => {
 		vi.useFakeTimers();
 		try {

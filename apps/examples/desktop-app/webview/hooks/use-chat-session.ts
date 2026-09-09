@@ -1838,11 +1838,11 @@ export function useChatSession() {
 				// it flipped the composer and the request indicator from
 				// "starting" to idle and back for a frame on every new task. The
 				// submission owns status until it hands off (the queued-start
-				// event, or its own completion for a blocking send).
-				if (
-					!BUSY_STATUSES.has(nextStatus as ChatSessionStatus) &&
-					activePromptSubmissionsRef.current > 0
-				) {
+				// event, or its own completion for a blocking send). Only "idle"
+				// is held back: a terminal status (failed, aborted) during a
+				// submission is real and must still unstick the UI even if the
+				// send response never arrives.
+				if (nextStatus === "idle" && activePromptSubmissionsRef.current > 0) {
 					return;
 				}
 				authoritativeStatusRevisionRef.current += 1;
