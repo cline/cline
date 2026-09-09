@@ -120,6 +120,16 @@ jobs:
         # just launches it. Node + npm (for `npx ovsx`) are provided by setup-node above.
         run: bun run publish:marketplace:nightly
 
+      # Packaging happens inside publish-nightly.mjs, so this runs post-publish:
+      # detection, not a gate (the stable workflow gates the same esbuild path
+      # pre-publish).
+      - name: Assert content capture inlined
+        run: |
+          if grep -Fq 'process.env.CLINE_TRACE_RECORD_CONTENT' dist/extension.js; then
+            echo "Content-capture env was not inlined into dist/extension.js"
+            exit 1
+          fi
+
       - name: Tag published commit
         working-directory: ${{ github.workspace }}
         env:
