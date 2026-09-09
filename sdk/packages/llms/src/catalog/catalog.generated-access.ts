@@ -2,6 +2,7 @@ import {
 	builtinProviderSupportsModelOperation,
 	normalizeBuiltinModelOperationModalities,
 } from "../providers/model-operations";
+import { withAstra } from "../providers/openai-astra";
 import { GENERATED_PROVIDER_MODELS } from "./catalog.generated";
 import { sortModelsByReleaseDate } from "./catalog-live";
 import {
@@ -23,7 +24,9 @@ function normalizeGeneratedModels(
 	models: Record<string, ModelInfo>,
 ): Record<string, ModelInfo> {
 	return Object.fromEntries(
-		Object.entries(models).flatMap(([modelId, model]) => {
+		Object.entries(
+			providerId === "openai-native" ? withAstra(models) : models,
+		).flatMap(([modelId, model]) => {
 			const operation = resolveCatalogModelOperation(model);
 			const operationModes =
 				model.operationModes ??
