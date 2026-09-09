@@ -451,6 +451,43 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
+	const [imageCapability, setImageCapability] = useState<{
+		provider: string;
+		model: string;
+		supported: boolean | null;
+	} | null>(null);
+	const imagesUnsupported =
+		imageCapability?.provider === provider &&
+		imageCapability.model === model &&
+		imageCapability.supported === false;
+	const handleModelSupportsImagesChange = useCallback(
+		(supported: boolean | null) => {
+			setImageCapability({ provider, model, supported });
+		},
+		[provider, model],
+	);
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const allowed = imagesUnsupported
+				? files.filter(
+						(file) =>
+							!file.type.startsWith("image/") &&
+							!/\.(png|jpe?g|gif|webp|bmp|svg|heic|heif|avif|tiff?|ico)$/i.test(
+								file.name,
+							),
+					)
+				: files;
+			if (allowed.length !== files.length) {
+				toast({
+					title: "This model doesn’t support image input",
+					description:
+						"Choose a model that supports images to attach them. Other files can still be attached.",
+				});
+			}
+			if (allowed.length > 0) onAttachFiles(allowed);
+		},
+		[imagesUnsupported, onAttachFiles],
+	);
 	const canSend = hasDraft && !speechInputActive;
 	const handleSend = useCallback(() => {
 		if (speechInputActive) return;
@@ -1202,7 +1239,7 @@ function ChatInputBarImpl({
 									// Attach the image instead of pasting its fallback
 									// text representation (e.g. a file path or URL).
 									e.preventDefault();
-									onAttachFiles(images);
+									handleAttachFiles(images);
 								}
 							}}
 							onKeyDown={(e) => {
@@ -1396,6 +1433,11 @@ function ChatInputBarImpl({
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
+						title={
+							imagesUnsupported
+								? "Attach files (this model doesn’t support images)"
+								: "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -1408,7 +1450,7 @@ function ChatInputBarImpl({
 						multiple
 						onChange={(event) => {
 							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) onAttachFiles(files);
+							if (files.length > 0) handleAttachFiles(files);
 							event.currentTarget.value = "";
 						}}
 						ref={fileInputRef}
@@ -1451,6 +1493,7 @@ function ChatInputBarImpl({
 							isBusy={isBusy}
 							model={model}
 							onModelChange={onModelChange}
+							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
@@ -1535,6 +1578,7 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
+	onModelSupportsImagesChange,
 }: {
 	provider: string;
 	model: string;
@@ -1542,6 +1586,7 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
+	onModelSupportsImagesChange: (supported: boolean | null) => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1609,6 +1654,17 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[modelDetails, visibleProviderModels],
 	);
+	useEffect(() => {
+		const selected = modelDetails[normalizedProvider]?.find(
+			(entry) => entry.id === model,
+		);
+		onModelSupportsImagesChange(
+			selected?.inputModalities !== undefined
+				? selected.inputModalities.includes("image")
+				: (selected?.supportsVision ?? null),
+		);
+	}, [modelDetails, normalizedProvider, model, onModelSupportsImagesChange]);
+
 	const modelPicker = useMemo(
 		() => pickerDataForProvider(resolvedProvider),
 		[pickerDataForProvider, resolvedProvider],

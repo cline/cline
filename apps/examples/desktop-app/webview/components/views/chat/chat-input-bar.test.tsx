@@ -1864,7 +1864,11 @@ describe("ChatInputBar", () => {
 		});
 	});
 
-	it("attaches clipboard images on paste instead of inserting text", async () => {
+	it.each([
+		true,
+		false,
+		undefined,
+	])("handles clipboard and file images with image support %s", async (supportsImages) => {
 		const onAttachFiles = vi.fn();
 		const onPromptInputChange = vi.fn();
 		await act(async () => {
@@ -1932,22 +1936,58 @@ describe("ChatInputBar", () => {
 			return event;
 		};
 
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{
+					id: "test-model",
+					name: "Test model",
+					inputModalities:
+						supportsImages === undefined
+							? undefined
+							: supportsImages
+								? ["text", "image"]
+								: ["text"],
+				},
+			]);
+		});
 		const png = new File(["fake"], "image.png", { type: "image/png" });
 		const imagePaste = await pasteWithClipboard([
 			{ kind: "file", type: "image/png", getAsFile: () => png },
 		]);
-		expect(onAttachFiles).toHaveBeenCalledTimes(1);
-		const attached = onAttachFiles.mock.calls[0][0] as File[];
-		expect(attached).toHaveLength(1);
-		expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		expect(onAttachFiles).toHaveBeenCalledTimes(
+			supportsImages === false ? 0 : 1,
+		);
+		if (supportsImages !== false) {
+			const attached = onAttachFiles.mock.calls[0][0] as File[];
+			expect(attached).toHaveLength(1);
+			expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		}
 		expect(imagePaste.defaultPrevented).toBe(true);
 
 		// Plain-text pastes stay untouched so normal text pasting keeps working.
 		const textPaste = await pasteWithClipboard([
 			{ kind: "string", type: "text/plain", getAsFile: () => null },
 		]);
-		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		expect(onAttachFiles).toHaveBeenCalledTimes(
+			supportsImages === false ? 0 : 1,
+		);
 		expect(textPaste.defaultPrevented).toBe(false);
+
+		onAttachFiles.mockClear();
+		const textFile = new File(["hello"], "notes.txt", { type: "text/plain" });
+		const imageWithoutMime = new File(["fake"], "photo.JPG");
+		const fileInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		if (!fileInput) throw new Error("File input missing");
+		Object.defineProperty(fileInput, "files", {
+			value: [png, textFile, imageWithoutMime],
+		});
+		await act(async () => {
+			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		expect(onAttachFiles).toHaveBeenCalledWith(
+			supportsImages === false ? [textFile] : [png, textFile, imageWithoutMime],
+		);
 	});
 });
 
