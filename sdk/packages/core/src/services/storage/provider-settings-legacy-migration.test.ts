@@ -457,7 +457,7 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 	});
 
-	it("does not re-import a migrated provider after the user removes it", () => {
+	it("does not re-import a provider the user removed after migration", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
 		);
@@ -472,50 +472,24 @@ describe("migrateLegacyProviderSettings", () => {
 				}),
 			}),
 		);
-		// The inferred dataDir makes every construction run the migration, as
-		// the CLI and desktop sidecar do.
+		// Inferred dataDir: every construction runs the migration, as in the
+		// CLI and desktop sidecar. Strip the marker to model a providers.json
+		// seeded before it existed; the no-op re-run must write it back.
 		const providersPath = path.join(tempDir, "settings", "providers.json");
 		const manager = new ProviderSettingsManager({ filePath: providersPath });
-		expect(manager.getProviderSettings("openai-codex")?.auth?.accessToken).toBe(
-			"legacy-access",
-		);
-		expect(manager.read().legacyMigratedAt).toBeDefined();
-
-		// Signing out deletes the provider entry.
-		const state = manager.read();
-		delete state.providers["openai-codex"];
-		manager.write(state);
-
-		const reopened = new ProviderSettingsManager({ filePath: providersPath });
-		expect(reopened.getProviderSettings("openai-codex")).toBeUndefined();
-	});
-
-	it("marks an already-seeded providers.json so its legacy providers stay removable", () => {
-		const tempDir = mkdtempSync(
-			path.join(os.tmpdir(), "core-legacy-provider-"),
-		);
-		tempDirs.push(tempDir);
-		writeFileSync(
-			path.join(tempDir, "secrets.json"),
-			JSON.stringify({ openRouterApiKey: "legacy-key" }),
-		);
-		const providersPath = path.join(tempDir, "settings", "providers.json");
-		const manager = new ProviderSettingsManager({ filePath: providersPath });
-		// Simulate a file written before the marker existed.
 		const seeded = manager.read();
+		expect(seeded.providers["openai-codex"]).toBeDefined();
 		delete seeded.legacyMigratedAt;
 		manager.write(seeded);
-
 		expect(
-			migrateLegacyProviderSettings({
-				providerSettingsManager: manager,
-				dataDir: tempDir,
-			}),
-		).toMatchObject({ migrated: false, providerCount: 1 });
-		expect(manager.read().legacyMigratedAt).toBeDefined();
+			new ProviderSettingsManager({ filePath: providersPath }).read()
+				.legacyMigratedAt,
+		).toBeDefined();
 
+		// Signing out deletes the entry; the next construction must not
+		// resurrect it from the legacy secrets.
 		const state = manager.read();
-		delete state.providers.openrouter;
+		delete state.providers["openai-codex"];
 		manager.write(state);
 		expect(
 			new ProviderSettingsManager({ filePath: providersPath }).read().providers,

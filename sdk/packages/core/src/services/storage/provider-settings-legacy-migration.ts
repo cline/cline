@@ -872,21 +872,15 @@ export function migrateLegacyProviderSettings(
 	options: MigrateLegacyProviderSettingsOptions,
 ): MigrateLegacyProviderSettingsResult {
 	const existing = options.providerSettingsManager.read();
-	const unchanged: MigrateLegacyProviderSettingsResult = {
-		migrated: false,
-		providerCount: Object.keys(existing.providers).length,
-		lastUsedProvider: existing.lastUsedProvider,
-	};
-	// Legacy state is seeded once. Every ProviderSettingsManager construction
-	// runs this, so without the marker a provider the user removed (e.g. by
-	// signing out of OpenAI Codex, which deletes its entry) would be re-imported
-	// from the legacy secrets on the very next read.
-	if (existing.legacyMigratedAt) {
-		return unchanged;
-	}
 	const legacyStorage = resolveLegacyStorage(options);
-	if (!legacyStorage) {
-		return unchanged;
+	// Seed legacy state once; re-running would re-import providers the user
+	// has since removed (e.g. signing out of OpenAI Codex deletes its entry).
+	if (!legacyStorage || existing.legacyMigratedAt) {
+		return {
+			migrated: false,
+			providerCount: Object.keys(existing.providers).length,
+			lastUsedProvider: existing.lastUsedProvider,
+		};
 	}
 
 	const { globalState, secrets } = legacyStorage;
@@ -912,8 +906,8 @@ export function migrateLegacyProviderSettings(
 	const now = new Date().toISOString();
 	const next: StoredProviderSettings = {
 		...existing,
-		providers: { ...existing.providers },
 		legacyMigratedAt: now,
+		providers: { ...existing.providers },
 	};
 	let addedProviderCount = 0;
 	const modelsPath = join(
@@ -964,10 +958,13 @@ export function migrateLegacyProviderSettings(
 	}
 
 	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
-		// Nothing new, but persist the marker: the legacy providers already
-		// present must stay removable.
+		// Still persist the marker so already-seeded providers stay removable.
 		options.providerSettingsManager.write(next);
-		return unchanged;
+		return {
+			migrated: false,
+			providerCount: Object.keys(existing.providers).length,
+			lastUsedProvider: existing.lastUsedProvider,
+		};
 	}
 
 	const preferredProvider = trimNonEmpty(

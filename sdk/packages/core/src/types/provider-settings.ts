@@ -42,10 +42,7 @@ export interface StoredProviderSettingsEntry {
 export interface StoredProviderSettings {
 	version: 1;
 	lastUsedProvider?: string;
-	/**
-	 * Set once legacy globalState.json/secrets.json have been seeded into this
-	 * file, so providers the user later removes are not re-imported.
-	 */
+	/** Set once legacy globalState.json/secrets.json have been seeded. */
 	legacyMigratedAt?: string;
 	modes: StoredProviderModes;
 	providers: Record<string, StoredProviderSettingsEntry>;
