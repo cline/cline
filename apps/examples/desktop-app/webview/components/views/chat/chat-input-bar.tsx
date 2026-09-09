@@ -5,7 +5,16 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleCheck,
+	CircleDashed,
+	CircleStop,
+	Cpu,
+	Paperclip,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -1554,6 +1563,9 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [configuredProviderIds, setConfiguredProviderIds] = useState<string[]>(
+		[],
+	);
 	const [providerNames, setProviderNames] = useState<Record<string, string>>(
 		{},
 	);
@@ -1717,6 +1729,7 @@ const ModelSelector = memo(function ModelSelector({
 					...(payload.providerModelDetails ?? {}),
 				}));
 				setReasoningCapabilitySource("catalog");
+				setConfiguredProviderIds(payload.configuredProviderIds);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
 					if (normalizedProvider) {
@@ -1923,13 +1936,29 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	// Enabled providers can lack usable credentials (e.g. entries seeded by
+	// legacy migration), so mark which ones are actually ready for a turn.
 	const providerOptions = useMemo(
 		() =>
-			providers.map((value) => ({
-				label: providerNames[value]?.trim() || value,
-				value,
-			})),
-		[providerNames, providers],
+			providers.map((value) => {
+				const configured = configuredProviderIds.includes(value);
+				return {
+					icon: configured ? (
+						<CircleCheck
+							aria-label="Configured"
+							className="size-3 shrink-0 text-emerald-500"
+						/>
+					) : (
+						<CircleDashed
+							aria-label="Not configured"
+							className="size-3 shrink-0 text-muted-foreground"
+						/>
+					),
+					label: providerNames[value]?.trim() || value,
+					value,
+				};
+			}),
+		[configuredProviderIds, providerNames, providers],
 	);
 	const selectedModelLabel =
 		visibleModelPicker.options.find((option) => option.value === resolvedModel)
