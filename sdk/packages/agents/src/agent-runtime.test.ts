@@ -838,6 +838,40 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("passes full model metadata to prepareTurn for compaction budgeting", async () => {
+		const prepareTurn = vi.fn(() => undefined);
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			prepareTurn,
+			messageModelInfo: {
+				id: "qwen3.6:64k",
+				provider: "ollama",
+				contextWindow: 65536,
+				maxInputTokens: 65536,
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: {
+					id: "qwen3.6:64k",
+					provider: "ollama",
+					contextWindow: 65536,
+					maxInputTokens: 65536,
+				},
+			}),
+		);
+	});
+
 	it("lets prepareTurn project tool results after pending user input is added", async () => {
 		const consumePendingUserMessage = vi.fn(() => "latest steering");
 		const hugeToolOutput = "x".repeat(100_000);
