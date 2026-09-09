@@ -22,6 +22,7 @@ import {
 	parseU64Value,
 	stringifyMessageContent,
 } from "./common";
+import { readMistakeToolResults } from "./mistake-tool-results";
 
 type ChatTurnResult = {
 	usage?: {
@@ -355,7 +356,10 @@ export async function readSessionMessages(
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
-	const pendingToolMessages = new Map<string, [number, string, unknown]>();
+	const pendingToolMessages = new Map<
+		string,
+		[number, string, unknown, string]
+	>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
 		const rawMessage = messages[idx];
@@ -574,7 +578,12 @@ export async function readSessionMessages(
 					},
 				});
 				if (toolUseId.trim()) {
-					pendingToolMessages.set(toolUseId, [outIndex, toolName, input]);
+					pendingToolMessages.set(toolUseId, [
+						outIndex,
+						toolName,
+						input,
+						messageIdBase,
+					]);
 				}
 				continue;
 			}
@@ -694,6 +703,33 @@ export async function readSessionMessages(
 		}
 	}
 
+	// Only fill tool calls whose results were lost when desktop stopped at
+	// the mistake-recovery hook. Normal history and canonical results win.
+	if (pendingToolMessages.size > 0) {
+		for (const result of readMistakeToolResults(sessionId).reverse()) {
+			const pending = pendingToolMessages.get(result.toolCallId);
+			if (!pending) continue;
+			const [index, toolName, input, messageId] = pending;
+			const message = out[index];
+			if (
+				!message ||
+				toolName !== result.toolName ||
+				messageId !== result.messageId
+			)
+				continue;
+			message.content = buildToolPayloadJson(
+				toolName,
+				input,
+				result.output,
+				result.isError,
+			);
+			message.meta = {
+				...(message.meta as JsonRecord),
+				hookEventName: "history_tool_result",
+			};
+			pendingToolMessages.delete(result.toolCallId);
+		}
+	}
 	return out;
 }
 

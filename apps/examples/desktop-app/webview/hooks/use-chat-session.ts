@@ -82,6 +82,7 @@ const RELEVANT_STREAMS = new Set([
 	"chat_tool_call_start",
 	"chat_tool_call_update",
 	"chat_tool_call_end",
+	"chat_mistake_tool_result",
 	"chat_core_log",
 	"chat_usage",
 	"chat_done",
@@ -364,9 +365,6 @@ export function useChatSession() {
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
-	// History may guess that assistant narration ended a turn. Tool cleanup
-	// must wait for the attached host (or a live event) to confirm it ended.
-	const [canSettleToolCalls, setCanSettleToolCalls] = useState(true);
 	const [config, setConfig] = useState<ChatSessionConfig>(getInitialChatConfig);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
@@ -521,67 +519,6 @@ export function useChatSession() {
 		liveToolInputsRef.current = {};
 		pendingToolOutputRef.current = new Map();
 	}, []);
-
-	useEffect(() => {
-		if (
-			!canSettleToolCalls ||
-			isHydratingSession ||
-			status === "starting" ||
-			status === "running" ||
-			status === "stopping"
-		) {
-			return;
-		}
-		// Stopping at a tool hook can end a turn without a tool-end event or
-		// persisted result. Settle those rows in desktop state, including after
-		// history hydration, so an ended run cannot leave a permanent spinner.
-		if (
-			!messages.some(
-				(message) =>
-					message.meta?.hookEventName === "tool_call_start" ||
-					message.meta?.hookEventName === "history_tool_use",
-			)
-		)
-			return;
-		const trackedMessageIds = new Set(
-			Object.values(liveToolMessageIdsRef.current),
-		);
-		setMessages((previous) => {
-			// Derive from the current state: a completion may have arrived
-			// since the render that scheduled this cleanup.
-			const { messageIds, inputs } = deriveLiveToolState(previous);
-			const unfinishedIds = new Set(Object.values(messageIds));
-			if (unfinishedIds.size === 0) return previous;
-			let changed = false;
-			const next = previous.map((message) => {
-				if (!unfinishedIds.has(message.id)) return message;
-				// An idle status can precede the first running status event.
-				// Keep tools still tracked by the live stream until it settles.
-				if (
-					status === "idle" &&
-					message.meta?.hookEventName === "tool_call_start" &&
-					trackedMessageIds.has(message.id)
-				)
-					return message;
-				changed = true;
-				return {
-					...message,
-					content: buildToolPayloadString({
-						toolName: message.meta?.toolName ?? "tool",
-						input: inputs[message.meta?.toolCallId ?? ""],
-						output: undefined,
-						error: "Stopped: the run ended before a tool result was received.",
-					}),
-					meta: {
-						...message.meta,
-						toolDetachable: false,
-						hookEventName: "tool_call_interrupted",
-					},
-				};
-			});
-			return changed ? next : previous;
-		});
-	}, [canSettleToolCalls, isHydratingSession, messages, status]);
 
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
@@ -1310,7 +1247,11 @@ export function useChatSession() {
 				return;
 			}
 			lastLiveChunkAtRef.current = Date.now();
-			if (abortedRef.current && payload.stream !== "chat_done") {
+			if (
+				abortedRef.current &&
+				payload.stream !== "chat_done" &&
+				payload.stream !== "chat_mistake_tool_result"
+			) {
 				return;
 			}
 
@@ -1654,7 +1595,6 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
-				setCanSettleToolCalls(true);
 				setActivityLabel(null);
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
@@ -1870,9 +1810,6 @@ export function useChatSession() {
 					return;
 				}
 				authoritativeStatusRevisionRef.current += 1;
-				setCanSettleToolCalls(
-					!BUSY_STATUSES.has(nextStatus as ChatSessionStatus),
-				);
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1899,7 +1836,6 @@ export function useChatSession() {
 				turnSettledEpochRef.current = turnEpochRef.current;
 				authoritativeStatusRevisionRef.current += 1;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
-				setCanSettleToolCalls(true);
 				finalizeSettledTurn(targetSessionId);
 			},
 		);
@@ -2013,7 +1949,6 @@ export function useChatSession() {
 						return;
 					}
 					authoritativeStatusRevisionRef.current += 1;
-					setCanSettleToolCalls(!BUSY_STATUSES.has(mappedStatus));
 					setStatus(mappedStatus);
 				}
 			} finally {
@@ -2707,7 +2642,6 @@ export function useChatSession() {
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
-				setCanSettleToolCalls(true);
 			} catch (err) {
 				if (settleAbortedSend()) return;
 				if (optimisticQueuedPromptId) {
@@ -2981,7 +2915,6 @@ export function useChatSession() {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
-			setCanSettleToolCalls(false);
 			resetStreamDedupe(session.sessionId);
 			abortedRef.current = false;
 			clearAbortFallbackTimeout();
@@ -3047,7 +2980,6 @@ export function useChatSession() {
 					setIsHydratingSession(false);
 				}
 
-				const statusRevisionAtAttach = authoritativeStatusRevisionRef.current;
 				const attached = await desktopClient
 					.invoke<{
 						sessionId?: string;
@@ -3095,16 +3027,12 @@ export function useChatSession() {
 				}));
 
 				if (historyMessages.length > 0) {
-					if (
-						attached?.status &&
-						authoritativeStatusRevisionRef.current === statusRevisionAtAttach
-					) {
-						const confirmedStatus = mapSessionRecordStatus(
-							attached.status as SessionHistoryStatus,
-						);
-						setStatus(confirmedStatus);
-						setCanSettleToolCalls(!BUSY_STATUSES.has(confirmedStatus));
-					}
+					setStatus(
+						inferHydratedChatStatus(
+							(attached?.status || session.status) as SessionHistoryStatus,
+							historyMessages,
+						),
+					);
 					return;
 				}
 

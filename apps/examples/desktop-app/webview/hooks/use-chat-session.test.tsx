@@ -3,7 +3,6 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildToolPresentation } from "@/components/views/chat/messages/tool-summaries";
 import {
 	appendCappedCommandOutput,
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
@@ -80,9 +79,11 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
-	it("settles unfinished tool rows when a run stops and keeps them settled on the next turn", async () => {
+	it("accepts only mistake-recovery tool results after abort", async () => {
 		invokeMock.mockImplementation(async (command: string) =>
-			command === "chat_session_command" ? { sessionId: "stopped-tools" } : [],
+			command === "chat_session_command"
+				? { sessionId: "mistake-stop", ok: true }
+				: [],
 		);
 		await act(async () => current.start(current.config));
 		const emit = (stream: string, chunk: unknown, index: number) =>
@@ -93,105 +94,50 @@ describe("useChatSession", () => {
 				index,
 				ts: Date.now(),
 			});
-		await act(async () => {
-			emit("chat_queued_prompt_start", { prompt: "Edit the file" }, 1);
+		await act(async () =>
 			emit(
 				"chat_tool_call_start",
-				{
-					toolCallId: "finished",
-					toolName: "read_files",
-					input: { paths: ["a.txt"] },
-				},
-				2,
-			);
+				{ toolCallId: "edit", toolName: "editor", input: { path: "a.txt" } },
+				1,
+			),
+		);
+		await act(async () => current.abort());
+		await act(async () =>
 			emit(
 				"chat_tool_call_end",
-				{ toolCallId: "finished", toolName: "read_files", output: "before" },
-				3,
-			);
-			emit(
-				"chat_tool_call_start",
 				{
-					toolCallId: "unfinished",
+					toolCallId: "edit",
 					toolName: "editor",
-					input: { path: "a.txt" },
+					output: "ordinary late event",
 				},
-				4,
-			);
-		});
-		const tool = (id: string) => {
-			const message = current.messages.find(
-				(message) => message.meta?.toolCallId === id,
-			);
-			if (!message) throw new Error(`Missing tool ${id}`);
-			return message;
-		};
-		expect(buildToolPresentation(tool("unfinished")).inProgress).toBe(true);
-		const completedTool = tool("finished");
-		await act(async () => emit("chat_done", { reason: "aborted" }, 5));
-		expect(current.status).toBe("cancelled");
-		expect(buildToolPresentation(tool("unfinished"))).toMatchObject({
-			inProgress: false,
-			payload: { isError: true, input: { path: "a.txt" } },
-		});
-		expect(tool("unfinished").content).toContain("Stopped:");
-		expect(buildToolPresentation(tool("unfinished")).summary.label).toBe(
-			"Tool stopped",
+				2,
+			),
 		);
-		expect(tool("finished")).toBe(completedTool);
+		expect(
+			current.messages.find((message) => message.meta?.toolCallId === "edit")
+				?.meta?.hookEventName,
+		).toBe("tool_call_start");
 		await act(async () =>
-			emit("chat_queued_prompt_start", { prompt: "Try again" }, 6),
+			emit(
+				"chat_mistake_tool_result",
+				{
+					toolCallId: "edit",
+					toolName: "editor",
+					output: "old_text is required",
+					error: "old_text is required",
+				},
+				3,
+			),
 		);
-		expect(current.status).toBe("running");
-		expect(buildToolPresentation(tool("unfinished")).inProgress).toBe(false);
-	});
-
-	it.each([
-		"idle",
-		"cancelled",
-		"running",
-	] as const)("hydrates an unfinished tool with session status %s", async (status) => {
-		invokeMock.mockImplementation(async (command: string) => {
-			if (command === "read_session_messages")
-				return [
-					{
-						id: "orphan",
-						sessionId: "hydrated-tools",
-						role: "tool",
-						createdAt: 1,
-						content: JSON.stringify({
-							toolName: "editor",
-							input: { path: "a.txt" },
-							result: null,
-						}),
-						meta: {
-							toolName: "editor",
-							toolCallId: "orphan",
-							hookEventName: "history_tool_use",
-						},
-					},
-				];
-			if (command === "chat_session_command")
-				return { sessionId: "hydrated-tools", status };
-			return [];
+		const message = current.messages.find(
+			(message) => message.meta?.toolCallId === "edit",
+		);
+		expect(message?.meta?.hookEventName).toBe("tool_call_end");
+		expect(JSON.parse(message?.content ?? "{}")).toMatchObject({
+			input: { path: "a.txt" },
+			result: "old_text is required",
+			isError: true,
 		});
-		await act(async () =>
-			current.hydrateSession({
-				sessionId: "hydrated-tools",
-				status,
-				provider: "cline",
-				model: "test",
-				cwd: "/workspace/cline",
-				workspaceRoot: "/workspace/cline",
-				startedAt: "2026-09-08T00:00:00.000Z",
-			}),
-		);
-		const message = current.messages[0];
-		if (!message) throw new Error("Missing hydrated tool");
-		expect(buildToolPresentation(message).inProgress).toBe(
-			status === "running",
-		);
-		if (status !== "running") expect(message.content).toContain("Stopped:");
 	});
 
 	it("restores an idle parent when aborting its child fails", async () => {
@@ -805,144 +751,6 @@ describe("useChatSession", () => {
 			result: "done",
 		});
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
-	});
-
-	it.each([
-		"running",
-		"idle",
-		"unavailable",
-		"ended while attaching",
-	] as const)("settles narrated tools only when attachment confirms an end (%s)", async (attachedStatus) => {
-		const sessionId = "narrated-running-tool";
-		const attachment = deferred<
-			{ sessionId: string; status: string } | undefined
-		>();
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "read_session_messages")
-					return [
-						{
-							id: "narration",
-							sessionId,
-							role: "assistant",
-							content: "I will run the tests now.",
-							createdAt: 1,
-						},
-						{
-							id: "command",
-							sessionId,
-							role: "tool",
-							content: JSON.stringify({
-								toolName: "run_commands",
-								input: { commands: ["bun test"] },
-								result: null,
-							}),
-							createdAt: 2,
-							meta: {
-								toolName: "run_commands",
-								toolCallId: "call-running",
-								hookEventName: "history_tool_use",
-							},
-						},
-					];
-				if (
-					command === "chat_session_command" &&
-					(args?.request as { action?: string })?.action === "attach"
-				)
-					return attachment.promise;
-				return [];
-			},
-		);
-		let hydration!: Promise<void>;
-		await act(async () => {
-			hydration = current.hydrateSession({
-				sessionId,
-				status: "running",
-				provider: "cline",
-				model: "test",
-				cwd: "/workspace/cline",
-				workspaceRoot: "/workspace/cline",
-				startedAt: "2026-09-08T00:00:00.000Z",
-			});
-		});
-		const tool = () => {
-			const message = current.messages.find(
-				(message) => message.id === "command",
-			);
-			if (!message) throw new Error("Missing command");
-			return message;
-		};
-		expect(buildToolPresentation(tool()).inProgress).toBe(true);
-		if (attachedStatus === "ended while attaching") {
-			await act(async () =>
-				handlerFor("chat_event")({
-					sessionId,
-					stream: "chat_done",
-					chunk: JSON.stringify({ reason: "aborted" }),
-					index: 1,
-					ts: Date.now(),
-				}),
-			);
-		}
-		await act(async () => {
-			attachment.resolve(
-				attachedStatus === "unavailable"
-					? undefined
-					: {
-							sessionId,
-							status:
-								attachedStatus === "ended while attaching"
-									? "running"
-									: attachedStatus,
-						},
-			);
-			await hydration;
-		});
-		if (
-			attachedStatus === "idle" ||
-			attachedStatus === "ended while attaching"
-		) {
-			if (attachedStatus === "ended while attaching")
-				expect(current.status).toBe("cancelled");
-			expect(buildToolPresentation(tool())).toMatchObject({
-				inProgress: false,
-				summary: { label: "Tool stopped" },
-			});
-			return;
-		}
-		if (attachedStatus === "running") expect(current.status).toBe("running");
-		expect(buildToolPresentation(tool()).inProgress).toBe(true);
-		await act(async () => {
-			handlerFor("chat_event")({
-				sessionId,
-				stream: "chat_tool_call_update",
-				chunk: JSON.stringify({
-					toolCallId: "call-running",
-					update: { stream: "stdout", chunk: "tests passed" },
-				}),
-				index: 1,
-				ts: Date.now(),
-			});
-			await new Promise((resolve) => setTimeout(resolve, 60));
-		});
-		expect(tool().meta?.toolOutput).toBe("tests passed");
-		await act(async () => {
-			handlerFor("chat_event")({
-				sessionId,
-				stream: "chat_tool_call_end",
-				chunk: JSON.stringify({
-					toolCallId: "call-running",
-					toolName: "run_commands",
-					output: "all tests passed",
-				}),
-				index: 2,
-				ts: Date.now(),
-			});
-		});
-		expect(buildToolPresentation(tool())).toMatchObject({
-			inProgress: false,
-			payload: { result: "all tests passed", isError: false },
-		});
 	});
 
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {

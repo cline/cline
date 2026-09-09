@@ -135,10 +135,5 @@ export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		isError: Boolean(payload?.isError),
 		inProgress,
 	});
-	if (hookEventName === "tool_call_interrupted") {
-		summary.label = "Tool stopped";
-		summary.labelParts = [{ text: "Tool stopped" }];
-		summary.diff = undefined;
-	}
 	return { message, payload, toolName, inProgress, summary };
 }

@@ -368,7 +368,7 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
-			cancelSidecarAskQuestions(ctx, sessionId, "Run ended");
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -534,7 +534,7 @@ export function handleCoreSessionEvent(
 		}
 		case "ended": {
 			const { sessionId, reason } = event.payload;
-			cancelSidecarAskQuestions(ctx, sessionId, "Session ended");
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Session ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -696,25 +696,18 @@ export function requestSidecarAskQuestion(
 
 	return new Promise<string>((resolve, reject) => {
 		const requestId = randomUUID();
-		const cleanup = () => {
+		const timeoutId = setTimeout(() => {
 			ctx.pendingQuestions.delete(requestId);
-			clearTimeout(timeoutId);
-		};
-		const cancel = (reason: string) => {
-			cleanup();
-			reject(new Error(reason));
-			sendEvent(ctx, "ask_question_cancelled", {
-				requestId,
-				reason,
-			});
-		};
-		const timeoutId = setTimeout(
-			() =>
-				cancel(
+			reject(
+				new Error(
 					`Ask question request timed out after ${ASK_QUESTION_TIMEOUT_MS}ms`,
 				),
-			ASK_QUESTION_TIMEOUT_MS,
-		);
+			);
+			sendEvent(ctx, "ask_question_cancelled", {
+				requestId,
+				reason: "timeout",
+			});
+		}, ASK_QUESTION_TIMEOUT_MS);
 		const pending: PendingAskQuestion = {
 			item: {
 				requestId,
@@ -724,14 +717,8 @@ export function requestSidecarAskQuestion(
 				options: choices,
 				context: serializeQuestionContext(context),
 			},
-			resolve: (answer) => {
-				cleanup();
-				resolve(answer);
-			},
-			reject: (error) => {
-				cleanup();
-				reject(error);
-			},
+			resolve,
+			reject,
 			timeoutId,
 		};
 		ctx.pendingQuestions.set(requestId, pending);
@@ -748,18 +735,26 @@ export function resolveSidecarAskQuestion(
 	if (!pending) {
 		return false;
 	}
+	ctx.pendingQuestions.delete(requestId);
+	if (pending.timeoutId) clearTimeout(pending.timeoutId);
 	pending.resolve(answer);
 	return true;
 }
 
 /** Remove prompts before their session is stopped or replaced in the UI. */
-export function cancelSidecarAskQuestions(
+export function cancelSidecarMistakeQuestions(
 	ctx: SidecarContext,
 	sessionId: string,
 	reason: string,
 ): void {
 	for (const pending of ctx.pendingQuestions?.values() ?? []) {
-		if (pending.item.sessionId !== sessionId) continue;
+		if (
+			pending.item.sessionId !== sessionId ||
+			pending.item.context?.agentId !== "desktop-mistake-limit"
+		)
+			continue;
+		ctx.pendingQuestions.delete(pending.item.requestId);
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
 		pending.reject(new Error(reason));
 		sendEvent(ctx, "ask_question_cancelled", {
 			requestId: pending.item.requestId,
