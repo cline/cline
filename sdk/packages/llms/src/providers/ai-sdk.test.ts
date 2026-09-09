@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fixtures from "../../fixtures/usage.json";
 import { normalizeUsage } from "./ai-sdk";
 
@@ -218,6 +218,61 @@ describe("ai-sdk usage normalization", () => {
 	});
 
 	describe("cost extraction with pricing fallback", () => {
+		it("reports corrected included costs through optional telemetry", () => {
+			const capture = vi.fn();
+			const telemetry = { capture } as unknown as NonNullable<
+				Parameters<typeof normalizeUsage>[4]
+			>;
+			const selection = { providerId: "cline-pass", modelId: "included-model" };
+			normalizeUsage({ cost: 0.5 }, undefined, undefined, selection, telemetry);
+			expect(capture).toHaveBeenCalledWith({
+				event: "sdk.cline_included_cost_corrected",
+				properties: {
+					provider_id: "cline-pass",
+					model_id: "included-model",
+					unadjusted_cost: 0.5,
+					cost_source: "response",
+				},
+			});
+			capture.mockClear();
+			normalizeUsage(
+				{ inputTokens: 1000 },
+				undefined,
+				{ input: 3, output: 15 },
+				selection,
+				telemetry,
+			);
+			expect(capture).toHaveBeenCalledWith({
+				event: "sdk.cline_included_cost_corrected",
+				properties: expect.objectContaining({
+					cost_source: "catalog",
+					unadjusted_cost: 0.003,
+				}),
+			});
+			capture.mockClear();
+			normalizeUsage({ cost: 0 }, undefined, undefined, selection, telemetry);
+			normalizeUsage(
+				{ cost: 0.5 },
+				undefined,
+				undefined,
+				{ providerId: "cline", modelId: "paid-model" },
+				telemetry,
+			);
+			expect(capture).not.toHaveBeenCalled();
+			capture.mockImplementation(() => {
+				throw new Error("telemetry unavailable");
+			});
+			expect(
+				normalizeUsage(
+					{ cost: 0.5 },
+					undefined,
+					undefined,
+					selection,
+					telemetry,
+				).totalCost,
+			).toBe(0);
+		});
+
 		it.each([
 			["cline-pass", "included-model", { input: 3, output: 15 }],
 			["cline", "cline-pass/included-model", undefined],

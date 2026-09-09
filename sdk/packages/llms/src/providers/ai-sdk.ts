@@ -1143,6 +1143,7 @@ export function normalizeUsage(
 	providerMetadata?: unknown,
 	pricingValue?: unknown,
 	selection?: Pick<GatewayStreamRequest, "providerId" | "modelId">,
+	telemetry?: GatewayProviderContext["telemetry"],
 ): GatewayNormalizedUsage {
 	const usage =
 		usageValue && typeof usageValue === "object"
@@ -1280,6 +1281,28 @@ export function normalizeUsage(
 					pricing?.output === 0 &&
 					(pricing.cacheRead ?? 0) === 0 &&
 					(pricing.cacheWrite ?? 0) === 0)));
+	const unadjustedCost =
+		totalCost ?? calculateUsageCostFromPricing(normalizedUsage, pricingValue);
+	if (
+		includedClineUsage &&
+		selection &&
+		unadjustedCost !== undefined &&
+		unadjustedCost > 0
+	) {
+		try {
+			telemetry?.capture({
+				event: "sdk.cline_included_cost_corrected",
+				properties: {
+					provider_id: selection.providerId,
+					model_id: selection.modelId,
+					unadjusted_cost: unadjustedCost,
+					cost_source: totalCost !== undefined ? "response" : "catalog",
+				},
+			});
+		} catch {
+			// Optional diagnostics must never interrupt usage delivery.
+		}
+	}
 	const resolvedTotalCost = includedClineUsage
 		? 0
 		: totalCost !== undefined
@@ -1905,7 +1928,13 @@ async function* emitAiSdkEvents(
 	if (usageToEmit) {
 		yield {
 			type: "usage",
-			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, request),
+			usage: normalizeUsage(
+				usageToEmit,
+				metadataToUse,
+				pricingValue,
+				request,
+				context.telemetry,
+			),
 		};
 	}
 
@@ -2163,6 +2192,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								result.providerMetadata,
 								context.model.metadata?.pricing,
 								request,
+								context.telemetry,
 							),
 						};
 					}
