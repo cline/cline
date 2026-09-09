@@ -36,8 +36,6 @@ export async function withLangfuseTraceAttributes<T>(
 }
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
-const TRACE_SAMPLE_PERCENT_ENV = "CLINE_TRACE_SAMPLE_PERCENT";
-const TRACE_RECORD_CONTENT_ENV = "CLINE_TRACE_RECORD_CONTENT";
 
 let langfuseTelemetryReady: boolean | undefined;
 let langfuseTelemetryInitPromise: Promise<boolean> | undefined;
@@ -58,9 +56,10 @@ const TELEMETRY_DISABLED: AiSdkTelemetryDecision = { isEnabled: false };
  * Decide AI SDK telemetry for one stream. Two independent export paths:
  * - Direct Langfuse (env-configured credentials, hub/internal): unchanged
  *   behavior — full content, every request.
- * - Host OTLP tracer (collector relay): opt-in via CLINE_TRACE_SAMPLE_PERCENT,
- *   sampled per task by `samplingKey` so a task's requests trace together,
- *   and metadata-only unless CLINE_TRACE_RECORD_CONTENT is set.
+ * - Host OTLP tracer (collector relay): a host that registered a traces
+ *   exporter gets every task (100%). CLINE_TRACE_SAMPLE_PERCENT reduces
+ *   that, sampled per task by `samplingKey` so a task's requests trace
+ *   together. Metadata-only unless CLINE_TRACE_RECORD_CONTENT is set.
  */
 export async function resolveAiSdkTelemetry(
 	providerId: string,
@@ -92,7 +91,8 @@ export async function resolveAiSdkTelemetry(
 		return TELEMETRY_DISABLED;
 	}
 
-	const recordContent = isEnvTruthy(process.env[TRACE_RECORD_CONTENT_ENV]);
+	// Literal env access so bundlers can inline a build-time value.
+	const recordContent = isEnvTruthy(process.env.CLINE_TRACE_RECORD_CONTENT);
 	return {
 		isEnabled: true,
 		recordInputs: recordContent,
@@ -101,12 +101,15 @@ export async function resolveAiSdkTelemetry(
 }
 
 function readTraceSamplePercent(): number {
-	const raw = process?.env?.[TRACE_SAMPLE_PERCENT_ENV]?.trim();
+	// Literal env access so bundlers can inline a build-time value.
+	const raw = process.env.CLINE_TRACE_SAMPLE_PERCENT?.trim();
 	if (!raw) {
-		return 0;
+		// Registering a traces exporter is the host's opt-in; default to
+		// everything and let the env (or the collector) reduce volume.
+		return 100;
 	}
 	const percent = Number.parseFloat(raw);
-	return Number.isFinite(percent) ? percent : 0;
+	return Number.isFinite(percent) ? percent : 100;
 }
 
 async function hasHostOtlpTracer(): Promise<boolean> {

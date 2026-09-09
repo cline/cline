@@ -216,8 +216,21 @@ describe("langfuse telemetry", () => {
 			expect(decision).toEqual({ isEnabled: true });
 		});
 
-		it("stays disabled without Langfuse config and without a sample rate", async () => {
+		it("defaults to full sampling when the host registered a tracer and no rate is set", async () => {
 			clearLangfuseEnv();
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision).toEqual({
+				isEnabled: true,
+				recordInputs: false,
+				recordOutputs: false,
+			});
+		});
+
+		it("stays disabled when the sample rate is explicitly zero", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "0";
 
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
