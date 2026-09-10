@@ -10,12 +10,17 @@ From `apps/examples/desktop-app/`:
 - `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
-- `bun run build` - build web assets
+- `bun run build:web` - build production web assets only (includes the shared UI build)
+- `bun run build` - build web assets and the sidecar binary
 - `bun run build:sidecar` - build the Bun sidecar bundle
 - `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+### Checking webview changes
+
+Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
 
 ## Customizing the macOS Install Window
 

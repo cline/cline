@@ -10,6 +10,8 @@
 		"predev:headless": "bun run build:ui",
 		"dev:headless": "bun run scripts/dev-headless.ts",
 		"dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+		"prebuild:web": "bun run build:ui",
+		"build:web": "next build webview",
 		"prebuild": "bun run build:ui",
 		"build": "bun run bun.mts",
 		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
