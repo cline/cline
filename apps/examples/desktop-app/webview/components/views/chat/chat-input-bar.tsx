@@ -9,7 +9,6 @@ import {
 	ArrowUp,
 	Brain,
 	CircleCheck,
-	CircleDashed,
 	CircleStop,
 	Cpu,
 	Paperclip,
@@ -1937,27 +1936,23 @@ const ModelSelector = memo(function ModelSelector({
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
 	// Enabled providers can lack usable credentials (e.g. entries seeded by
-	// legacy migration), so mark which ones are actually ready for a turn.
+	// legacy migration), so mark the ones that are actually ready for a turn.
 	const providerOptions = useMemo(
 		() =>
-			providers.map((value) => {
-				const configured = configuredProviderIds.includes(value);
-				return {
-					icon: configured ? (
-						<CircleCheck
-							aria-label="Configured"
-							className="size-3 shrink-0 text-emerald-500"
-						/>
-					) : (
-						<CircleDashed
-							aria-label="Not configured"
-							className="size-3 shrink-0 text-muted-foreground"
-						/>
-					),
-					label: providerNames[value]?.trim() || value,
-					value,
-				};
-			}),
+			providers.map((value) => ({
+				...(configuredProviderIds.includes(value)
+					? {
+							indicator: (
+								<CircleCheck
+									aria-label="Configured"
+									className="size-3 shrink-0 text-emerald-500"
+								/>
+							),
+						}
+					: {}),
+				label: providerNames[value]?.trim() || value,
+				value,
+			})),
 		[configuredProviderIds, providerNames, providers],
 	);
 	const selectedModelLabel =
