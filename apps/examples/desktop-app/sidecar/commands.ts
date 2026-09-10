@@ -93,6 +93,10 @@ import {
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
+	clearLegacyCodexCredentials,
+	OPENAI_CODEX_PROVIDER_ID,
+} from "./legacy-codex-credentials";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -2094,6 +2098,12 @@ export async function handleCommand(
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
 			syncAccountContextFromSettings(ctx, manager);
+		}
+		// Signing out of ChatGPT removes its providers.json entry; the legacy
+		// import would restore it from the extension's secrets.json on the next
+		// command unless those credentials go too.
+		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
+			clearLegacyCodexCredentials();
 		}
 		return saved;
 	}
