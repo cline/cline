@@ -200,7 +200,7 @@ export function createHubCommand(
 	hub
 		.command("upgrade")
 		.description(
-			"Drain, wait for the hub to go idle, stop it, and start a fresh one",
+			"Upgrade the hub after draining active sessions; leave a hub already on this build at the requested endpoint running",
 		)
 		.option(
 			"--wait <seconds>",
@@ -245,7 +245,13 @@ export function createHubCommand(
 					fail();
 					return;
 				}
-				io.writeln(JSON.stringify({ upgraded: true, url: result.url }));
+				io.writeln(
+					JSON.stringify({
+						upgraded: result.outcome !== "already_current",
+						outcome: result.outcome,
+						url: result.url,
+					}),
+				);
 			}),
 		);
 

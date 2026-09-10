@@ -196,8 +196,26 @@ describe("createHubCommand", () => {
 		);
 		expect(JSON.parse(output[0] || "")).toEqual({
 			upgraded: true,
+			outcome: "replaced",
 			url: "ws://127.0.0.1:26000/hub",
 		});
+	});
+
+	it.each([
+		{ outcome: "already_current", upgraded: false },
+		{ outcome: "started", upgraded: true },
+	])("reports $outcome with upgraded: $upgraded", async ({ outcome, upgraded }) => {
+		const url = "ws://127.0.0.1:25463/hub";
+		mockUpgradeManagedHub.mockResolvedValue({ outcome, url });
+
+		const { cmd, output, errors, exitCode } = createCommand();
+		await cmd.parseAsync(["upgrade"], { from: "user" });
+
+		expect(exitCode()).toBe(0);
+		expect(errors).toEqual([]);
+		expect(output.map((line) => JSON.parse(line))).toEqual([
+			{ upgraded, outcome, url },
+		]);
 	});
 
 	it("reports failure without replacing when the hub stays busy through the wait window", async () => {
