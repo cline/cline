@@ -15,6 +15,7 @@ import {
 	normalizeRuntimeConfig,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
+import { canReplaceFailedTurn } from "@/hooks/chat-session/history-reconciliation";
 import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
@@ -607,21 +608,11 @@ export function useChatSession() {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
 				);
-				let tailErrorStart = sessionMessages.length;
-				while (
-					tailErrorStart > 0 &&
-					sessionMessages[tailErrorStart - 1]?.role === "error"
-				) {
-					tailErrorStart -= 1;
-				}
-				const preservedErrors = sessionMessages.slice(tailErrorStart);
-				if (
-					preservedErrors.length === 0 ||
-					historyMessages.at(-1)?.role === "error"
-				) {
-					return historyMessages;
-				}
-				return sliceMessages([...historyMessages, ...preservedErrors]);
+				// Keep the entire live turn, including partial assistant/tool output,
+				// until canonical history contains this run's terminal error.
+				if (!canReplaceFailedTurn(sessionMessages, historyMessages))
+					return prev;
+				return historyMessages;
 			});
 		},
 		[],

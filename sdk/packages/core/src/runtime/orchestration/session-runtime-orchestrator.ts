@@ -59,6 +59,7 @@ import {
 import {
 	captureAuthRunRetry,
 	captureMistakeLimitReached,
+	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
 import {
 	getMessageBuilderOptionsFromEnv,
@@ -313,6 +314,9 @@ export class SessionRuntime {
 	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
+	private pendingTerminalError:
+		| Extract<AgentEvent, { type: "error" }>
+		| undefined;
 	private readonly mistakeTracker: MistakeTracker;
 	private readonly loopTracker: LoopDetectionTracker;
 	/**
@@ -730,13 +734,68 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunWithAuthRetry(input).finally(() => {
-			if (this.activeRunPromise === activePromise) {
-				this.activeRunPromise = null;
-			}
-		});
+		activePromise = this.executeRunWithAuthRetry(input)
+			.then(
+				(result) => {
+					if (result.finishReason === "error") {
+						this.recordTerminalError(result.text, "result");
+						return { ...result, messages: this.conversation.getMessages() };
+					}
+					this.pendingTerminalError = undefined;
+					return result;
+				},
+				(error: unknown) => {
+					this.recordTerminalError(
+						error instanceof Error ? error.message : String(error),
+						"thrown",
+					);
+					throw error;
+				},
+			)
+			.finally(() => {
+				if (this.activeRunPromise === activePromise) {
+					this.activeRunPromise = null;
+				}
+			});
 		this.activeRunPromise = activePromise;
 		return activePromise;
+	}
+
+	private recordTerminalError(
+		message: string,
+		source: "result" | "thrown",
+	): void {
+		this.conversation.appendMessage({
+			id: `error_${crypto.randomUUID()}`,
+			role: "assistant",
+			content: [{ type: "text", text: message }],
+			ts: Date.now(),
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
+		const event = this.pendingTerminalError;
+		this.pendingTerminalError = undefined;
+		this.emitLegacyEvent(
+			event?.error.message === message
+				? event
+				: {
+						type: "error",
+						error: new Error(message),
+						recoverable: false,
+						iteration: 0,
+					},
+		);
+		// Count terminal visible failures without collecting provider error text,
+		// prompts, credentials, or transcript content.
+		try {
+			captureSessionErrorRecorded(this.telemetry, {
+				sessionId: this.config.sessionId,
+				provider: this.config.providerId,
+				model: this.config.modelId,
+				source,
+			});
+		} catch {
+			// Telemetry must not prevent the transcript from being returned/saved.
+		}
 	}
 
 	/**
@@ -976,19 +1035,6 @@ export class SessionRuntime {
 				runResult.messages,
 			);
 			this.conversation.replaceMessages(replacement);
-		}
-
-		const terminalError =
-			thrownError ??
-			(runResult?.status === "failed" ? runResult.error : undefined);
-		if (terminalError) {
-			this.conversation.appendMessage({
-				id: `error_${crypto.randomUUID()}`,
-				role: "assistant",
-				content: [{ type: "text", text: terminalError.message }],
-				ts: Date.now(),
-				metadata: { displayOnly: true, displayRole: "error" },
-			});
 		}
 
 		const endedAt = new Date();
@@ -1274,6 +1320,11 @@ export class SessionRuntime {
 				break;
 		}
 		for (const legacy of this.eventAdapter.translate(event)) {
+			if (legacy.type === "error" && !legacy.recoverable) {
+				// Auth retry is an internal attempt, not a terminal public failure.
+				this.pendingTerminalError = legacy;
+				continue;
+			}
 			this.emitLegacyEvent(legacy);
 		}
 	}

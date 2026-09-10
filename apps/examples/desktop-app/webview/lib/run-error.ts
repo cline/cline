@@ -1,7 +1,8 @@
 /** The same presentation for live failures and restored transcript errors. */
 export function formatRunError(detail: string): string {
 	const description = detail.trim();
-	if (description.startsWith("The run failed")) return description;
+	const guidance =
+		"Check your model connection in Settings → Models (or sign in with Cline), then try again.";
 	const looksCredentialRelated =
 		!description ||
 		/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
@@ -9,11 +10,11 @@ export function formatRunError(detail: string): string {
 		);
 	return [
 		description
-			? `The run failed: ${description}`
+			? description.startsWith("The run failed")
+				? description
+				: `The run failed: ${description}`
 			: "The run failed before a response was produced.",
-		looksCredentialRelated
-			? "Check your model connection in Settings → Models (or sign in with Cline), then try again."
-			: "",
+		looksCredentialRelated && !description.includes(guidance) ? guidance : "",
 	]
 		.filter(Boolean)
 		.join(" ");
