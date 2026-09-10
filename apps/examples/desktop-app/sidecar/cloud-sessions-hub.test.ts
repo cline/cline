@@ -609,6 +609,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		const { manager, hub } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
+				list: async () => [],
 				create: async () => ({
 					sessionId: "ses-outer",
 					status: "provisioning",
