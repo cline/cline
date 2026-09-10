@@ -675,6 +675,10 @@ export type {
 } from "./services/plugin-uninstall";
 export { uninstallPlugin } from "./services/plugin-uninstall";
 export {
+	checkLocalCliInstalled,
+	type LocalCliStatus,
+} from "./services/providers/local-cli-status";
+export {
 	ensureCustomProvidersLoadedSync,
 	readModelsFileSync,
 	resolveModelsRegistryPath,

@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { useLocalCliStatus } from "@/hooks/use-local-cli-status";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { openExternalUrl } from "@/lib/desktop-client";
 import {
@@ -563,6 +564,9 @@ export function ProviderDetailContent({
 
 	const authKind = getProviderAuthKind(provider);
 	const connected = isProviderConnected(provider);
+	const localCli = useLocalCliStatus(provider.id, authKind === "local");
+	const localCliInstallGuideUrl =
+		localCli && !localCli.status.installed ? localCli.cli.docsUrl : undefined;
 	const configFields = provider.configFields ?? [];
 	const apiKeyField = configFields.find((field) => field.path === "apiKey");
 	const apiKeyValue = fieldValueToString(localConfigValues.apiKey);
@@ -871,6 +875,36 @@ export function ProviderDetailContent({
 							Credentials come from the provider's own CLI on this machine — no
 							API key needed.
 						</p>
+						{localCli ? (
+							<p
+								className={cn(
+									"mt-1 text-xs",
+									localCli.status.installed
+										? "text-muted-foreground"
+										: "text-amber-600 dark:text-amber-400",
+								)}
+								data-testid="local-cli-status"
+							>
+								{localCli.status.installed
+									? `${localCli.cli.command} found (${localCli.status.version})`
+									: `${localCli.status.reason} Install it and sign in, then try again.`}
+								{localCliInstallGuideUrl ? (
+									<>
+										{" "}
+										<button
+											className="inline-flex items-center gap-1 underline underline-offset-2 hover:text-foreground"
+											onClick={() =>
+												void openExternalUrl(localCliInstallGuideUrl)
+											}
+											type="button"
+										>
+											Install guide
+											<ExternalLink className="h-3 w-3" />
+										</button>
+									</>
+								) : null}
+							</p>
+						) : null}
 					</div>
 					{connected
 						? onDisconnect && (

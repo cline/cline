@@ -9,15 +9,24 @@ import {
 	ProviderListContent,
 } from "./provider-list-view";
 
-const { loadProviderModelsMock } = vi.hoisted(() => ({
-	loadProviderModelsMock: vi.fn(),
-}));
+const { loadProviderModelsMock, invokeMock, openExternalUrlMock } = vi.hoisted(
+	() => ({
+		loadProviderModelsMock: vi.fn(),
+		invokeMock: vi.fn(),
+		openExternalUrlMock: vi.fn(),
+	}),
+);
 
 vi.mock("@/lib/provider-model-catalog", async (importOriginal) => {
 	const actual =
 		await importOriginal<typeof import("@/lib/provider-model-catalog")>();
 	return { ...actual, loadProviderModels: loadProviderModelsMock };
 });
+
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke: invokeMock, subscribe: vi.fn(() => () => {}) },
+	openExternalUrl: openExternalUrlMock,
+}));
 
 const provider: Provider = {
 	id: "ollama",
@@ -325,6 +334,92 @@ describe("ProviderDetailContent auth flows", () => {
 		);
 		await act(async () => signOut?.click());
 		expect(onDisconnect).toHaveBeenCalledOnce();
+	});
+
+	const localCliProvider: Provider = {
+		id: "claude-code",
+		name: "Claude Code",
+		models: 0,
+		color: "#000",
+		letter: "CC",
+		enabled: false,
+		capabilities: ["reasoning", "provider-tools", "local-auth"],
+		configFields: [],
+		modelList: [],
+	};
+
+	it("probes the local CLI for local-auth providers and reports when it is missing", async () => {
+		invokeMock.mockReset().mockResolvedValue({
+			provider: "claude-code",
+			cli: { command: "claude", docsUrl: "https://code.claude.com/docs" },
+			status: {
+				installed: false,
+				reason: "The claude executable was not found on PATH.",
+			},
+		});
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onConnect={vi.fn()}
+					onUpdate={vi.fn()}
+					provider={localCliProvider}
+				/>,
+			);
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(invokeMock).toHaveBeenCalledWith("check_local_cli", {
+			provider: "claude-code",
+		});
+		expect(container.textContent).toContain("Uses your local CLI sign-in");
+		const status = container.querySelector('[data-testid="local-cli-status"]');
+		expect(status?.textContent).toContain(
+			"The claude executable was not found on PATH.",
+		);
+		const guide = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent?.includes("Install guide"),
+		);
+		await act(async () => guide?.click());
+		expect(openExternalUrlMock).toHaveBeenCalledWith(
+			"https://code.claude.com/docs",
+		);
+		// The probe reports, it never blocks: Connect stays available.
+		expect(
+			Array.from(container.querySelectorAll("button")).some(
+				(button) => button.textContent === "Connect",
+			),
+		).toBe(true);
+	});
+
+	it("shows the detected CLI version for local-auth providers", async () => {
+		invokeMock.mockReset().mockResolvedValue({
+			provider: "claude-code",
+			cli: { command: "claude", docsUrl: "https://code.claude.com/docs" },
+			status: { installed: true, version: "2.1.0 (Claude Code)" },
+		});
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onUpdate={vi.fn()}
+					provider={localCliProvider}
+				/>,
+			);
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		const status = container.querySelector('[data-testid="local-cli-status"]');
+		expect(status?.textContent).toBe("claude found (2.1.0 (Claude Code))");
+		expect(
+			Array.from(container.querySelectorAll("button")).some((button) =>
+				button.textContent?.includes("Install guide"),
+			),
+		).toBe(false);
 	});
 
 	it("offers connect and disconnect for API-key providers", async () => {

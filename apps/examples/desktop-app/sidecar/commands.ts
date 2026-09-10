@@ -17,6 +17,7 @@ import {
 	ClineAccountService,
 	type ClineAccountUser,
 	captureAuthRefreshSoftFailure,
+	checkLocalCliInstalled,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
@@ -56,7 +57,10 @@ import {
 	updateMcpSettingsFileSync,
 	upgradeManagedHub,
 } from "@cline/core";
-import { resolveAudioTranscriptionRoute } from "@cline/llms";
+import {
+	resolveAudioTranscriptionRoute,
+	resolveProviderLocalCli,
+} from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	formatSessionSearchPreview,
@@ -1944,6 +1948,21 @@ export async function handleCommand(
 			provider,
 			manager.getProviderConfig(provider, { includeKnownModels: false }),
 		);
+	}
+	if (command === "check_local_cli") {
+		// Readiness probe for local-auth providers (Claude Code, Codex CLI,
+		// OpenCode): the same `<cli> --version` check the CLI's setup screen
+		// runs, so "Connect" can say whether the CLI is actually installed.
+		const providerId = String(args?.provider ?? "").trim();
+		const cli = resolveProviderLocalCli(providerId);
+		if (!cli) {
+			return { provider: providerId, cli: null };
+		}
+		return {
+			provider: providerId,
+			cli: { command: cli.command, docsUrl: cli.docsUrl },
+			status: await checkLocalCliInstalled(cli),
+		};
 	}
 	if (command === "list_cline_recommended_models") {
 		// Tiered picker data (recommended / free / clinePass) with
