@@ -1,5 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -48,14 +49,14 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // session-create critical path, which the hub caps at 30s
 // (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
 // then Content-Length framing), so the doubled total MUST stay well under
-// that cap or a hung server takes the whole session down with it. 3s covers
-// typical stdio startup while keeping the worst case (~6s per server, probed
-// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
+// that cap or a hung server takes the whole session down with it. 7.5s covers
+// `npx -y pkg@latest` on a cold cache while keeping the worst case (~15s per
+// server, probed in parallel) at half the hub deadline. Slow-starting servers (JVM-based
 // ones like Oracle SQLcl, uvx downloading a package on first run) need an
 // explicit `timeout`, which overrides this in either direction. Dead commands
 // still fail fast through the spawn error/exit path; only an alive-but-silent
 // server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 7_500;
 // Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
 // configured. Like the stdio initialize budget above, connect runs on the
 // session-create critical path capped by the hub at 30s
@@ -414,7 +415,9 @@ class StdioMcpClient implements McpServerClient {
 					}
 				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
-			cwd: transport.cwd,
+			// Not the host's cwd: the hub daemon inherits whichever workspace
+			// started it, and `npx` crawls that project tree before launching.
+			cwd: transport.cwd ?? homedir(),
 			env: {
 				...process.env,
 				...(transport.env ?? {}),
