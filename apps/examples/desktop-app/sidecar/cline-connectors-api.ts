@@ -120,6 +120,15 @@ async function requestConnectorsApi<T>(
 			`Cline API returned HTTP ${response.status} for ${method} ${path}`;
 		throw new ConnectorsApiError(message, response.status);
 	}
+	// The live backend wraps success bodies as `{"data": ..., "success": true}`.
+	if (
+		typeof parsed === "object" &&
+		parsed !== null &&
+		"data" in parsed &&
+		(parsed as { success?: unknown }).success === true
+	) {
+		return (parsed as { data: T }).data;
+	}
 	return parsed as T;
 }
 
