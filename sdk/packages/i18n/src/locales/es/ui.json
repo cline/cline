@@ -46,7 +46,8 @@
 		"settings": "Configuración"
 	},
 	"thumbnails": {
-		"imageAlt": "Imagen en miniatura {{number}}"
+		"imageAlt": "Imagen en miniatura {{number}}",
+		"imageUnsupportedTitle": "El modelo seleccionado no admite imágenes, por lo que esta imagen se ignorará."
 	},
 	"unsafeImage": {
 		"altLabel": "Texto alternativo:",

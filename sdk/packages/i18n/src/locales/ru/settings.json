@@ -39,6 +39,11 @@
 		"labelCustom": "Использовать собственный базовый URL-адрес"
 	},
 	"clearSearch": "Очистить поиск",
+	"clinePassHint": {
+		"dismissAria": "Скрыть подсказку ClinePass",
+		"tagline": "<b>ClinePass</b> — недорогая подписка на новейшие модели с открытыми весами.",
+		"tryIt": "Попробовать"
+	},
 	"debug": {
 		"resetGlobalState": "Сбросить глобальное состояние",
 		"resetGlobalStateDescription": "Будут сброшены всё глобальное состояние и хранилище секретов расширения.",

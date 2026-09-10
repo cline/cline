@@ -14,6 +14,12 @@
 		"startNewTask": "Start New Task",
 		"startNewTaskWithContext": "Start New Task with Context"
 	},
+	"clinePassPromo": {
+		"description": "A monthly subscription for the latest open-weights models, at much lower cost than paying for direct API access.",
+		"getButton": "Get ClinePass",
+		"switchProvider": "Switch to ClinePass provider to access subscription.",
+		"title": "Try ClinePass"
+	},
 	"queuedPrompts": {
 		"attachments_one": "{{count}} attachment",
 		"attachments_other": "{{count}} attachments",
@@ -29,25 +35,24 @@
 		"analyzing": "Analyzing {{path}}/...",
 		"codebase": "codebase",
 		"contextFallback": "Context",
-		"definitions_one": "{{count}} definition",
-		"definitions_other": "{{count}} definitions",
+		"exploredFolders_one": "explored {{count}} folder",
+		"exploredFolders_other": "explored {{count}} folders",
 		"exploring": "Exploring {{path}}/...",
-		"files_one": "{{count}} file",
-		"files_other": "{{count}} files",
-		"folders_one": "{{count}} folder",
-		"folders_other": "{{count}} folders",
 		"linesFrom": "lines {{start}}+",
 		"linesRange": "lines {{start}}-{{end}}",
 		"patterns_one": "{{count}} pattern",
 		"patterns_other": "{{count}} patterns",
 		"performedSearches_one": "performed {{count}} search",
 		"performedSearches_other": "performed {{count}} searches",
+		"readFiles_one": "read {{count}} file",
+		"readFiles_other": "read {{count}} files",
 		"reading": "Reading {{path}}...",
 		"readingWithLines": "Reading {{path}} ({{lines}})...",
+		"scannedDefinitions_one": "scanned {{count}} definition",
+		"scannedDefinitions_other": "scanned {{count}} definitions",
 		"searchIn": "{{terms}} in {{path}}",
 		"searching": "Searching {{query}}...",
-		"summary": "Cline {{items}}",
-		"summaryRead": "Cline read {{items}}"
+		"summary": "Cline {{items}}"
 	},
 	"welcome": {
 		"currentLabel": "Current:",

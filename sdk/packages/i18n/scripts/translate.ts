@@ -359,8 +359,8 @@ async function regenResources(): Promise<void> {
 	await writeFile(RESOURCES_FILE, lines.join("\n"));
 	// Normalize to the repo's Biome style so --regen never causes format churn.
 	try {
-		const { execSync } = await import("node:child_process");
-		execSync(`bunx biome format --write ${JSON.stringify(RESOURCES_FILE)}`, {
+		const { execFileSync } = await import("node:child_process");
+		execFileSync("bunx", ["biome", "format", "--write", RESOURCES_FILE], {
 			cwd: PACKAGE_ROOT,
 			stdio: "ignore",
 		});

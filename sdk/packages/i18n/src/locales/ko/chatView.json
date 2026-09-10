@@ -14,6 +14,12 @@
 		"startNewTask": "새 작업 시작",
 		"startNewTaskWithContext": "컨텍스트를 유지한 채 새 작업 시작"
 	},
+	"clinePassPromo": {
+		"description": "최신 오픈 웨이트 모델을 월 구독으로 이용하세요. API 직접 결제보다 훨씬 저렴합니다.",
+		"getButton": "ClinePass 구독하기",
+		"switchProvider": "구독을 이용하려면 ClinePass 공급자로 전환하세요.",
+		"title": "ClinePass 사용해 보기"
+	},
 	"queuedPrompts": {
 		"attachments_other": "첨부 파일 {{count}}개",
 		"cancelQueued": "대기 중인 메시지 취소",
@@ -26,20 +32,19 @@
 		"analyzing": "{{path}}/ 분석 중...",
 		"codebase": "코드베이스",
 		"contextFallback": "컨텍스트",
-		"definitions_other": "정의 {{count}}개",
+		"exploredFolders_other": "폴더 {{count}}개를 살펴봄",
 		"exploring": "{{path}}/ 탐색 중...",
-		"files_other": "파일 {{count}}개",
-		"folders_other": "폴더 {{count}}개",
 		"linesFrom": "{{start}}행부터",
 		"linesRange": "{{start}}-{{end}}행",
 		"patterns_other": "패턴 {{count}}개",
 		"performedSearches_other": "검색 {{count}}회 수행",
+		"readFiles_other": "파일 {{count}}개를 읽음",
 		"reading": "{{path}} 읽는 중...",
 		"readingWithLines": "{{path}} 읽는 중({{lines}})...",
+		"scannedDefinitions_other": "정의 {{count}}개를 확인함",
 		"searchIn": "{{path}}에서 {{terms}}",
 		"searching": "{{query}} 검색 중...",
-		"summary": "Cline이 {{items}}",
-		"summaryRead": "Cline이 {{items}} 읽음"
+		"summary": "Cline이 {{items}}"
 	},
 	"welcome": {
 		"currentLabel": "현재:",

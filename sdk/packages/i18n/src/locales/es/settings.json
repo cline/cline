@@ -39,6 +39,11 @@
 		"labelCustom": "Usar URL base personalizada"
 	},
 	"clearSearch": "Borrar búsqueda",
+	"clinePassHint": {
+		"dismissAria": "Descartar la sugerencia de ClinePass",
+		"tagline": "<b>ClinePass</b>: una suscripción de bajo costo a los últimos modelos de pesos abiertos.",
+		"tryIt": "Pruébalo"
+	},
 	"debug": {
 		"resetGlobalState": "Restablecer estado global",
 		"resetGlobalStateDescription": "Esto restablecerá todo el estado global y el almacenamiento de secretos de la extensión.",

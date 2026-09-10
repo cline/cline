@@ -14,6 +14,12 @@
 		"startNewTask": "开始新任务",
 		"startNewTaskWithContext": "携带上下文开始新任务"
 	},
+	"clinePassPromo": {
+		"description": "按月订阅即可使用最新的开放权重模型，成本远低于直接支付 API 费用。",
+		"getButton": "获取 ClinePass",
+		"switchProvider": "切换到 ClinePass 提供商以使用订阅。",
+		"title": "试用 ClinePass"
+	},
 	"queuedPrompts": {
 		"attachments_other": "{{count}} 个附件",
 		"cancelQueued": "取消已排队的消息",
@@ -26,20 +32,19 @@
 		"analyzing": "正在分析 {{path}}/...",
 		"codebase": "代码库",
 		"contextFallback": "上下文",
-		"definitions_other": "{{count}} 个定义",
+		"exploredFolders_other": "浏览了 {{count}} 个文件夹",
 		"exploring": "正在浏览 {{path}}/...",
-		"files_other": "{{count}} 个文件",
-		"folders_other": "{{count}} 个文件夹",
 		"linesFrom": "第 {{start}} 行起",
 		"linesRange": "第 {{start}}-{{end}} 行",
 		"patterns_other": "{{count}} 个模式",
 		"performedSearches_other": "执行了 {{count}} 次搜索",
+		"readFiles_other": "读取了 {{count}} 个文件",
 		"reading": "正在读取 {{path}}...",
 		"readingWithLines": "正在读取 {{path}}（{{lines}}）...",
+		"scannedDefinitions_other": "扫描了 {{count}} 个定义",
 		"searchIn": "{{path}} 中的 {{terms}}",
 		"searching": "正在搜索 {{query}}...",
-		"summary": "Cline {{items}}",
-		"summaryRead": "Cline 读取了 {{items}}"
+		"summary": "Cline {{items}}"
 	},
 	"welcome": {
 		"currentLabel": "当前：",

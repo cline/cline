@@ -46,7 +46,8 @@
 		"settings": "Settings"
 	},
 	"thumbnails": {
-		"imageAlt": "Thumbnail image {{number}}"
+		"imageAlt": "Thumbnail image {{number}}",
+		"imageUnsupportedTitle": "The selected model doesn't support images, so this image will be ignored."
 	},
 	"unsafeImage": {
 		"altLabel": "Alt:",

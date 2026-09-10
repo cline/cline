@@ -3,8 +3,6 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { AccountServiceClient } from "@/services/grpc-client"
 
-const ORG_CLINE_PASS_RESTRICTION_MESSAGE = "Organization accounts cannot use ClinePass subscriptions."
-
 const OrgClinePassRestrictionError = () => {
 	const { t } = useTranslation()
 	const [isSwitching, setIsSwitching] = useState(false)
@@ -50,5 +48,4 @@ const OrgClinePassRestrictionError = () => {
 	)
 }
 
-export { ORG_CLINE_PASS_RESTRICTION_MESSAGE }
 export default OrgClinePassRestrictionError

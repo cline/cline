@@ -39,6 +39,11 @@
 		"labelCustom": "使用自定义基础 URL"
 	},
 	"clearSearch": "清除搜索",
+	"clinePassHint": {
+		"dismissAria": "关闭 ClinePass 提示",
+		"tagline": "<b>ClinePass</b>——以低价订阅最新的开放权重模型。",
+		"tryIt": "试一试"
+	},
 	"debug": {
 		"resetGlobalState": "重置全局状态",
 		"resetGlobalStateDescription": "这将重置扩展中的所有全局状态和机密存储。",

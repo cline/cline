@@ -110,7 +110,7 @@ const Thumbnails = ({
 								justifyContent: "center",
 								alignItems: "center",
 							}}
-							title="The selected model doesn't support images, so this image will be ignored.">
+							title={t("ui:thumbnails.imageUnsupportedTitle")}>
 							<span
 								className="codicon codicon-warning"
 								style={{ color: "var(--vscode-editor-background)", fontSize: 9, fontWeight: "bold" }}

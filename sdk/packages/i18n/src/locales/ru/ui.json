@@ -46,7 +46,8 @@
 		"settings": "Настройки"
 	},
 	"thumbnails": {
-		"imageAlt": "Миниатюра {{number}}"
+		"imageAlt": "Миниатюра {{number}}",
+		"imageUnsupportedTitle": "Выбранная модель не поддерживает изображения, поэтому это изображение будет проигнорировано."
 	},
 	"unsafeImage": {
 		"altLabel": "Альтернативный текст:",

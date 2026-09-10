@@ -39,6 +39,11 @@
 		"labelCustom": "사용자 지정 기본 URL 사용"
 	},
 	"clearSearch": "검색 지우기",
+	"clinePassHint": {
+		"dismissAria": "ClinePass 힌트 닫기",
+		"tagline": "<b>ClinePass</b> — 최신 오픈 웨이트 모델을 위한 저렴한 구독입니다.",
+		"tryIt": "사용해 보기"
+	},
 	"debug": {
 		"resetGlobalState": "전역 상태 초기화",
 		"resetGlobalStateDescription": "확장의 모든 전역 상태와 비밀 저장소가 초기화됩니다.",

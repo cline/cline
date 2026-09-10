@@ -8,6 +8,7 @@ import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
+import { uiLocale } from "@/utils/format"
 import { getIconByToolName, getToolsNotInCurrentActivities, isLowStakesTool } from "../../utils/messageUtils"
 
 interface ToolGroupRendererProps {
@@ -389,16 +390,18 @@ export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[], t: TFu
 		}
 	}
 
+	// Every part is a complete verb phrase so the wrapper sentence needs no verb
+	// of its own — languages that place the verb elsewhere (ko, zh) stay grammatical.
 	const parts: string[] = []
 
 	if (counts.read > 0) {
-		parts.push(t("chatView:toolGroup.files", { count: counts.read }))
+		parts.push(t("chatView:toolGroup.readFiles", { count: counts.read }))
 	}
 	if (counts.list > 0) {
-		parts.push(t("chatView:toolGroup.folders", { count: counts.list }))
+		parts.push(t("chatView:toolGroup.exploredFolders", { count: counts.list }))
 	}
 	if (counts.def > 0) {
-		parts.push(t("chatView:toolGroup.definitions", { count: counts.def }))
+		parts.push(t("chatView:toolGroup.scannedDefinitions", { count: counts.def }))
 	}
 	if (counts.search > 0) {
 		parts.push(t("chatView:toolGroup.performedSearches", { count: counts.search }))
@@ -408,8 +411,6 @@ export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[], t: TFu
 		return t("chatView:toolGroup.contextFallback")
 	}
 
-	const items = parts.join(", ")
-	return counts.read > 0 || counts.list > 0
-		? t("chatView:toolGroup.summaryRead", { items })
-		: t("chatView:toolGroup.summary", { items })
+	const items = new Intl.ListFormat(uiLocale(), { style: "long", type: "conjunction" }).format(parts)
+	return t("chatView:toolGroup.summary", { items })
 }

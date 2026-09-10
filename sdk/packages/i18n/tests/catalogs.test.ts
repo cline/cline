@@ -50,6 +50,56 @@ describe("catalog parity", () => {
 	}
 });
 
+/** Maps each plural-group base key path to the set of CLDR categories the catalog provides for it. */
+function collectPluralGroups(
+	value: unknown,
+	prefix = "",
+	out = new Map<string, Set<string>>(),
+): Map<string, Set<string>> {
+	if (typeof value !== "object" || value === null) {
+		for (const suffix of PLURAL_SUFFIXES) {
+			if (prefix.endsWith(`_${suffix}`)) {
+				const base = prefix.slice(0, -(suffix.length + 1));
+				const group = out.get(base) ?? new Set<string>();
+				group.add(suffix);
+				out.set(base, group);
+				break;
+			}
+		}
+		return out;
+	}
+	for (const [key, child] of Object.entries(value)) {
+		collectPluralGroups(child, prefix ? `${prefix}.${key}` : key, out);
+	}
+	return out;
+}
+
+describe("plural categories", () => {
+	// The parity check above collapses plural suffixes, so it alone would let a
+	// Russian catalog missing _few/_many slip through. Require every plural
+	// group (as defined by en) to carry exactly the locale's CLDR cardinal set.
+	for (const locale of SUPPORTED_LOCALES) {
+		const required = [
+			...new Intl.PluralRules(locale).resolvedOptions().pluralCategories,
+		].sort();
+		for (const ns of NAMESPACES) {
+			it(`${locale}/${ns} provides exactly the CLDR cardinal categories (${required.join("/")}) for every plural group`, () => {
+				const enGroups = collectPluralGroups(resources[DEFAULT_LOCALE][ns]);
+				const localeGroups = collectPluralGroups(resources[locale][ns]);
+				for (const base of enGroups.keys()) {
+					const have = [
+						...(localeGroups.get(base) ?? new Set<string>()),
+					].sort();
+					expect({ base, categories: have }).toEqual({
+						base,
+						categories: required,
+					});
+				}
+			});
+		}
+	}
+});
+
 describe("resolveLocale", () => {
 	it("matches exact locales case-insensitively", () => {
 		expect(resolveLocale("zh-cn")).toBe("zh-CN");

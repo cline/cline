@@ -46,7 +46,8 @@
 		"settings": "설정"
 	},
 	"thumbnails": {
-		"imageAlt": "썸네일 이미지 {{number}}"
+		"imageAlt": "썸네일 이미지 {{number}}",
+		"imageUnsupportedTitle": "선택한 모델이 이미지를 지원하지 않아 이 이미지는 무시됩니다."
 	},
 	"unsafeImage": {
 		"altLabel": "대체 텍스트:",

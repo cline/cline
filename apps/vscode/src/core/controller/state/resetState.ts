@@ -2,7 +2,7 @@ import { Empty } from "@shared/proto/cline/common"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { resetGlobalState, resetWorkspaceState } from "@/core/storage/utils/state-helpers"
 import { HostProvider } from "@/hosts/host-provider"
-import { t } from "@/services/i18n"
+import { t, updateHostLocale } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from ".."
@@ -22,6 +22,8 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 				message: t("state.resettingGlobal"),
 			})
 			await resetGlobalState()
+			// uiLanguage is back to "auto" — re-sync the host translator with it
+			updateHostLocale(undefined)
 		} else {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,

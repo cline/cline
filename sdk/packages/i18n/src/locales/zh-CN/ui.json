@@ -46,7 +46,8 @@
 		"settings": "设置"
 	},
 	"thumbnails": {
-		"imageAlt": "缩略图 {{number}}"
+		"imageAlt": "缩略图 {{number}}",
+		"imageUnsupportedTitle": "所选模型不支持图像，此图像将被忽略。"
 	},
 	"unsafeImage": {
 		"altLabel": "替代文本：",

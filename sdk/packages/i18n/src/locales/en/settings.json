@@ -39,6 +39,11 @@
 		"labelCustom": "Use custom base URL"
 	},
 	"clearSearch": "Clear search",
+	"clinePassHint": {
+		"dismissAria": "Dismiss ClinePass hint",
+		"tagline": "<b>ClinePass</b> — a low-cost subscription for the latest open-weights models.",
+		"tryIt": "Try it"
+	},
 	"debug": {
 		"resetGlobalState": "Reset Global State",
 		"resetGlobalStateDescription": "This will reset all global state and secret storage in the extension.",

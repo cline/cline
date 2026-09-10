@@ -257,23 +257,20 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		return {
 			id: CLINE_PASS_PROMO_BANNER_ID,
 			icon: <Sparkles className="size-4 text-[var(--vscode-charts-yellow)]" />,
-			title: "Try ClinePass",
+			title: t("chatView:clinePassPromo.title"),
 			description: (
 				<div className="flex flex-col gap-2">
-					<p className="m-0">
-						A monthly subscription for the latest open-weights models, at much lower cost than paying for direct API
-						access.
-					</p>
+					<p className="m-0">{t("chatView:clinePassPromo.description")}</p>
 					<div>
 						<Button onClick={openSubscribePage} size="sm">
-							Get ClinePass
+							{t("chatView:clinePassPromo.getButton")}
 						</Button>
 					</div>
 					<button
 						className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
 						onClick={() => void switchToClinePassProvider()}
 						type="button">
-						Switch to ClinePass provider to access subscription.
+						{t("chatView:clinePassPromo.switchProvider")}
 					</button>
 				</div>
 			),
@@ -287,6 +284,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		openSubscribePage,
 		switchToClinePassProvider,
 		handleBannerDismiss,
+		t,
 	])
 
 	/**
