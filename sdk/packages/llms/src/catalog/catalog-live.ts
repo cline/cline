@@ -12,6 +12,10 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
+
+export type { CatalogFetcher } from "./catalog-cline-recommended";
+
+import type { CatalogFetcher } from "./catalog-cline-recommended";
 import {
 	resolveCatalogModelOperation,
 	resolveCatalogModelOperationModes,
@@ -476,7 +480,7 @@ export function normalizeModelsDevProviderSpecs(
 
 async function fetchModelsDevPayload(
 	url: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<ModelsDevPayload> {
 	const response = await fetcher(url);
 	if (!response.ok) {
@@ -490,7 +494,7 @@ async function fetchModelsDevPayload(
 
 export async function fetchModelsDevProviderModels(
 	url: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	return normalizeModelsDevProviderModels(
 		await fetchModelsDevPayload(url, fetcher),
@@ -499,7 +503,7 @@ export async function fetchModelsDevProviderModels(
 
 export async function fetchModelsDevCatalog(
 	url: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<{
 	providerModels: Record<string, Record<string, ModelInfo>>;
 	providerSpecs: Record<string, ModelsDevGeneratedProviderSpec>;
@@ -514,15 +518,24 @@ export async function fetchModelsDevCatalog(
 
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
-	const [providerModels, clineRecommendedPayload] = await Promise.all([
-		fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
-			() => emptyProviderModels,
-		),
-		fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
-	]);
+	// Promise.allSettled keeps the catalog sources independent: one failing
+	// source degrades to its fallback without discarding the other's result.
+	const [providerModelsResult, clineRecommendedResult] =
+		await Promise.allSettled([
+			fetchModelsDevProviderModels(modelsDevUrl, fetcher),
+			fetchClineRecommendedModelsPayload(fetcher),
+		]);
+	const providerModels =
+		providerModelsResult.status === "fulfilled"
+			? providerModelsResult.value
+			: emptyProviderModels;
+	const clineRecommendedPayload =
+		clineRecommendedResult.status === "fulfilled"
+			? clineRecommendedResult.value
+			: undefined;
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
