@@ -2116,25 +2116,6 @@ export function useChatSession() {
 				return false;
 			}
 			let parsed = validation.parsed;
-			if (options?.inNewWorktree) {
-				try {
-					const worktree = await desktopClient.invoke<{ path: string }>(
-						"create_git_worktree",
-						{ cwd: parsed.cwd || parsed.workspaceRoot },
-					);
-					parsed = {
-						...parsed,
-						cwd: worktree.path,
-						workspaceRoot: worktree.path,
-					};
-				} catch (worktreeError) {
-					setErrorState(
-						`Couldn't create a worktree: ${worktreeError instanceof Error ? worktreeError.message : String(worktreeError)}`,
-						activeSessionId,
-					);
-					return false;
-				}
-			}
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
 			activePromptSubmissionsRef.current += 1;
 			let promptSubmissionFinished = false;
@@ -2288,13 +2269,46 @@ export function useChatSession() {
 				}
 
 				if (!activeSessionId) {
-					const startPromise = startSession(
-						{
-							...parsed,
-							sessionId: plannedSessionId,
-						},
-						{ preserveStatus: true },
-					);
+					// Worktree allocation is part of the pending start, so a prompt
+					// submitted while it runs queues behind it instead of cutting a
+					// second worktree and session.
+					const startPromise = options?.inNewWorktree
+						? desktopClient
+								.invoke<{ path: string }>("create_git_worktree", {
+									cwd: parsed.cwd || parsed.workspaceRoot,
+								})
+								.catch((err) => {
+									throw new Error(
+										`Couldn't create a worktree: ${errorMessage(err)}`,
+									);
+								})
+								.then(async (worktree) => {
+									parsed = {
+										...parsed,
+										cwd: worktree.path,
+										workspaceRoot: worktree.path,
+									};
+									try {
+										return await startSession(
+											{ ...parsed, sessionId: plannedSessionId },
+											{ preserveStatus: true },
+										);
+									} catch (err) {
+										// No session owns the worktree yet: drop it rather
+										// than leave an orphan directory and branch behind.
+										void desktopClient
+											.invoke("remove_git_worktree", { path: worktree.path })
+											.catch(() => undefined);
+										throw err;
+									}
+								})
+						: startSession(
+								{
+									...parsed,
+									sessionId: plannedSessionId,
+								},
+								{ preserveStatus: true },
+							);
 					sessionStartPromiseRef.current = startPromise;
 					try {
 						activeSessionId = await startPromise;
