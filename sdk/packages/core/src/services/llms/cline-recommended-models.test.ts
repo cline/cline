@@ -2,8 +2,7 @@ import {
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getGeneratedProviderModels,
 } from "@cline/llms";
-import { describe, expect, it, vi } from "vitest";
-import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
+import { describe, expect, it } from "vitest";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
@@ -551,73 +550,5 @@ describe("generated offline featured models", () => {
 				);
 			}
 		}
-	});
-});
-
-describe("recommendation feed telemetry", () => {
-	it("reports live tier counts without endpoint or model identifiers", async () => {
-		const capture = vi.fn();
-		await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
-			fetchImpl: jsonResponse(ENDPOINT_PAYLOAD),
-			catalogLoader: async () => ({}),
-			telemetry: { capture },
-		});
-		expect(capture).toHaveBeenCalledExactlyOnceWith({
-			event: CORE_TELEMETRY_EVENTS.MODELS.CLINE_RECOMMENDATIONS_LOADED,
-			properties: {
-				source: "live",
-				duration_ms: expect.any(Number),
-				recommended_count: ENDPOINT_PAYLOAD.recommended.length,
-				free_count: ENDPOINT_PAYLOAD.free.length,
-				subscribed_count: ENDPOINT_PAYLOAD.clinePass.length,
-			},
-		});
-	});
-	it("reports fallback once per cached load, including concurrent callers", async () => {
-		resetClineRecommendedModelsCacheForTests();
-		const capture = vi.fn();
-		const options = {
-			baseUrl: BASE_URL,
-			fetchImpl: async () => new Response(null, { status: 503 }),
-			telemetry: { capture },
-		};
-		try {
-			await Promise.all([
-				getCachedClineRecommendedModels(options),
-				getCachedClineRecommendedModels(options),
-			]);
-			await getCachedClineRecommendedModels(options);
-			expect(capture).toHaveBeenCalledTimes(1);
-			expect(capture).toHaveBeenCalledWith({
-				event: CORE_TELEMETRY_EVENTS.MODELS.CLINE_RECOMMENDATIONS_LOADED,
-				properties: {
-					source: "bundled",
-					failure_reason: "http",
-					duration_ms: expect.any(Number),
-					recommended_count:
-						FALLBACK_CLINE_RECOMMENDED_MODELS.recommended.length,
-					free_count: FALLBACK_CLINE_RECOMMENDED_MODELS.free.length,
-					subscribed_count: FALLBACK_CLINE_RECOMMENDED_MODELS.clinePass.length,
-				},
-			});
-		} finally {
-			resetClineRecommendedModelsCacheForTests();
-		}
-	});
-	it("does not fall back when telemetry throws after a successful fetch", async () => {
-		const result = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
-			fetchImpl: jsonResponse(ENDPOINT_PAYLOAD),
-			catalogLoader: async () => ({}),
-			telemetry: {
-				capture: () => {
-					throw new Error("telemetry unavailable");
-				},
-			},
-		});
-		expect(result.recommended.map((entry) => entry.id)).toEqual(
-			ENDPOINT_PAYLOAD.recommended.map((entry) => entry.id),
-		);
 	});
 });

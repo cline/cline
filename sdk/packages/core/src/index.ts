@@ -755,7 +755,6 @@ export {
 	captureAuthRefreshSoftFailure,
 	captureAuthStarted,
 	captureAuthSucceeded,
-	captureClineRecommendationsLoaded,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureConversationTurnEvent,

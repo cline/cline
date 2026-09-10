@@ -150,10 +150,10 @@ scripts/generate-models.ts
 	+--> src/providers/provider-ids.generated.ts
 ```
 
-Use the package script when regenerating:
+From the repository root, regenerate and format the catalogs with:
 
 ```bash
-bun -F @cline/llms generate:models
+bun run build:models
 ```
 
 Catalog changes should usually include tests in `catalog-live.test.ts` that
@@ -189,7 +189,7 @@ and observable.
 
 ### Offline Cline featured lists
 
-`bun -F @cline/llms generate:models` also captures the upstream recommended,
+`bun run build:models` also captures the upstream recommended,
 free, and Cline Pass lists in `cline-recommended.generated.ts`. The SDK uses
 this snapshot when the live feed is unavailable, preserving feed order, tags,
 and descriptions and resolving names against the generated model catalog.
@@ -197,13 +197,7 @@ Update these lists by running the generator; do not maintain separate model
 IDs in core. Generation requires both upstream sources to succeed so an
 outage cannot replace the bundled catalogs with partial data.
 
-All generated outputs are staged before replacement. If a replacement fails,
-the writer restores prior files and removes newly created outputs. This handles
-reported filesystem failures, but is not a crash-atomic multi-file transaction.
-If rollback itself fails, recovery files are retained and their paths reported.
-
-Hosts can pass their existing telemetry service to `getLocalProviderModels`.
-The desktop sidecar does so. Each uncached recommendation load emits
-`models.cline_recommendations_loaded` with live/bundled source, duration, tier
-counts, and a bounded fallback reason. Cache hits do not emit another event;
-no endpoint URLs, model IDs, or raw error messages are collected.
+All upstream fetching, normalization, and output rendering complete before any
+files are written. Unchanged files are skipped; generation logs distinguish
+updated files from unchanged files. The generator writes directly to the git
+checkout, where changes can be inspected and reverted if a write fails.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ModelInfo } from "@cline/shared";
 import {
@@ -10,7 +10,6 @@ import {
 } from "../src/catalog/catalog-cline-recommended";
 import type { ModelsDevGeneratedProviderSpec } from "../src/catalog/catalog-live";
 import { loadModelsDevCatalog } from "./models/generate-models-dev";
-import { writeGeneratedFiles } from "./models/write-generated-files";
 
 const MODEL_OUTPUT_FILE = "src/catalog/catalog.generated.ts";
 const RECOMMENDED_OUTPUT_FILE = "src/catalog/cline-recommended.generated.ts";
@@ -74,7 +73,7 @@ function renderGeneratedProviderSpecs(
  * package supported by catalog-live.ts. Add an ID mapping in provider-keys.ts
  * when Cline's generated ID differs from the models.dev key, and ensure the ID
  * is not in MODELS_DEV_BLOCKED_PROVIDER_IDS. Then run:
- *   bun -F @cline/llms generate:models
+ *   bun run build:models
  *
  * Product/runtime-only providers belong in builtins.ts and are merged with
  * this catalog; they do not need to appear in this generated file.
@@ -192,25 +191,32 @@ export const GENERATED_PROVIDER_MODELS: {
 		}
 	}
 
-	writeGeneratedFiles(
-		new Map([
-			[join(root, RECOMMENDED_OUTPUT_FILE), recommendedOutput],
-			[modelOutputPath, modelOutput],
-			[providerOutputPath, renderGeneratedProviderSpecs(sortedProviderSpecs)],
-			[
-				providerIdsOutputPath,
-				renderGeneratedProviderIds(
-					Object.values(sortedProviderSpecs).map((spec) => spec.id),
-				),
-			],
-		]),
-	);
+	// Fetch, normalize, and render all outputs before changing the checkout.
+	const outputs = new Map([
+		[join(root, RECOMMENDED_OUTPUT_FILE), recommendedOutput],
+		[modelOutputPath, modelOutput],
+		[providerOutputPath, renderGeneratedProviderSpecs(sortedProviderSpecs)],
+		[
+			providerIdsOutputPath,
+			renderGeneratedProviderIds(
+				Object.values(sortedProviderSpecs).map((spec) => spec.id),
+			),
+		],
+	]);
+	for (const [path, contents] of outputs) {
+		if (existsSync(path) && readFileSync(path, "utf8") === contents) {
+			console.log(`No changes detected for ${relative(root, path)}`);
+			continue;
+		}
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, contents, "utf8");
+		console.log(`Generated ${relative(root, path)}`);
+	}
 
 	const totalModels = Object.values(sortedProviders).reduce(
 		(count, models) => count + Object.keys(models).length,
 		0,
 	);
-	console.log(`Generated ${MODEL_OUTPUT_FILE}`);
 	console.log(`Providers: ${Object.keys(sortedProviders).length}`);
 	console.log(`Models: ${totalModels}`);
 }

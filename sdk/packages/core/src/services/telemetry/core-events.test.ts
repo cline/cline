@@ -11,7 +11,6 @@ import {
 import { describe, expect, test, vi } from "vitest";
 import {
 	CORE_TELEMETRY_EVENTS,
-	captureClineRecommendationsLoaded,
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
 	captureCompactionSkipped,
@@ -982,24 +981,4 @@ describe("clearAccountTelemetryIdentity", () => {
 			clearAccountTelemetryIdentity(undefined, "machine-123"),
 		).not.toThrow();
 	});
-});
-
-test("captures aggregate Cline recommendation diagnostics through the event catalog", () => {
-	const stub = createTelemetryStub();
-	const properties = {
-		source: "bundled" as const,
-		duration_ms: 123,
-		recommended_count: 4,
-		free_count: 6,
-		subscribed_count: 14,
-		failure_reason: "http" as const,
-	};
-	captureClineRecommendationsLoaded(stub.telemetry, properties);
-	expect(stub.capture).toHaveBeenCalledExactlyOnceWith({
-		event: CORE_TELEMETRY_EVENTS.MODELS.CLINE_RECOMMENDATIONS_LOADED,
-		properties,
-	});
-	expect(() =>
-		captureClineRecommendationsLoaded(undefined, properties),
-	).not.toThrow();
 });
