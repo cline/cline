@@ -231,49 +231,33 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			import("@opentelemetry/sdk-trace-node"),
 		]);
 
+		// One export path per host: a recording tracer provider means the host
+		// already exports spans somewhere (the OTLP collector relay). Attaching
+		// the direct Langfuse processor to it would ship every span twice —
+		// once direct, once through the collector — so the direct path
+		// declines instead of cooperating. Class names are unreliable here
+		// (release binaries are minified), so provider detection is structural.
+		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
+		const existingDelegate =
+			typeof tracerProvider?.getDelegate === "function"
+				? tracerProvider.getDelegate()
+				: undefined;
+		if (
+			typeof tracerProvider?.addSpanProcessor === "function" ||
+			isRecordingTracerProvider(existingDelegate)
+		) {
+			debugLangfuse(
+				"host tracer provider already registered; declining direct Langfuse export (one export path per host)",
+			);
+			return false;
+		}
+
 		const spanProcessor = new LangfuseSpanProcessor({
 			baseUrl: config.baseUrl,
 			publicKey: config.publicKey,
 			secretKey: config.secretKey,
 		});
 		debugLangfuse(`creating span processor baseUrl=${config.baseUrl}`);
-
-		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
-		if (typeof tracerProvider?.addSpanProcessor === "function") {
-			tracerProvider.addSpanProcessor(spanProcessor);
-			const hasDelegate = hasActiveTracerDelegate(trace);
-			if (hasDelegate) {
-				registerTelemetry(new LangfuseVercelAiSdkIntegration());
-			}
-			debugLangfuse(
-				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
-			);
-			return hasDelegate;
-		}
-
-		// Class names are unreliable here: release binaries are minified, which
-		// renames classes like ProxyTracerProvider, so all provider detection
-		// below is structural (method presence, object identity) instead of
-		// comparing constructor names.
-		const existingDelegate =
-			typeof tracerProvider?.getDelegate === "function"
-				? tracerProvider.getDelegate()
-				: undefined;
-		if (isRecordingTracerProvider(existingDelegate)) {
-			// Another provider already owns the global slot, so registering our
-			// own would be rejected. Attach to it when it accepts processors.
-			const delegate = existingDelegate as MutableTracerProvider;
-			if (typeof delegate.addSpanProcessor === "function") {
-				delegate.addSpanProcessor(spanProcessor);
-				registerTelemetry(new LangfuseVercelAiSdkIntegration());
-				debugLangfuse("attached processor to registered tracer delegate");
-				return true;
-			}
-			debugLangfuse(
-				"tracer provider slot already owned; disabling Langfuse export",
-			);
-			return false;
-		}
 
 		const nodeTracerProvider = new NodeTracerProvider({
 			spanProcessors: [spanProcessor],

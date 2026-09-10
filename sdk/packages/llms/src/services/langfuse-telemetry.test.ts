@@ -102,14 +102,15 @@ describe("langfuse telemetry", () => {
 		shutdownSpy.mockReset();
 		shutdownSpy.mockResolvedValue(undefined);
 		getDelegateSpy.mockReset();
-		getDelegateSpy.mockReturnValue({
-			constructor: { name: "NodeTracerProvider" },
-			forceFlush: forceFlushSpy,
-			shutdown: shutdownSpy,
-		});
 		registeredGlobalProvider.current = undefined;
+		// Default global tracer state: a proxy whose delegate is inert until
+		// something registers — the state where the direct Langfuse path may
+		// register its own provider (no host OTLP exporter present).
+		getDelegateSpy.mockImplementation(
+			() =>
+				registeredGlobalProvider.current ?? { constructor: { name: "Inert" } },
+		);
 		getTracerProviderSpy.mockReturnValue({
-			addSpanProcessor: addSpanProcessorSpy,
 			getDelegate: getDelegateSpy,
 		});
 		process.env.LANGFUSE_BASE_URL = "https://langfuse.example";
@@ -141,12 +142,19 @@ describe("langfuse telemetry", () => {
 		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
 
 		expect(registerDisposableSpy).toHaveBeenCalledTimes(1);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
+		expect(registeredGlobalProvider.current).toBeInstanceOf(
+			MockNodeTracerProvider,
+		);
 		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 		expect(registerTelemetrySpy).toHaveBeenCalledWith(expect.any(Object));
 	});
 
 	it("flushes before shutdown during disposal", async () => {
+		getDelegateSpy.mockReturnValue({
+			forceFlush: forceFlushSpy,
+			shutdown: shutdownSpy,
+		});
+
 		await disposeLangfuseTelemetry();
 
 		expect(forceFlushSpy).toHaveBeenCalledTimes(1);
@@ -156,14 +164,14 @@ describe("langfuse telemetry", () => {
 		);
 	});
 
-	it("recognizes a directly registered tracer provider", async () => {
+	it("declines direct export when the host registered a tracer provider directly (one export path)", async () => {
 		getTracerProviderSpy.mockReturnValue({
 			addSpanProcessor: addSpanProcessorSpy,
 		});
 
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
+		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
+		expect(registerTelemetrySpy).not.toHaveBeenCalled();
 	});
 
 	it("registers its own provider when minification renames the proxy provider", async () => {
@@ -184,14 +192,14 @@ describe("langfuse telemetry", () => {
 		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("attaches to an already registered tracer provider through its delegate", async () => {
+	it("declines direct export when a host tracer provider is registered through the proxy delegate", async () => {
 		getTracerProviderSpy.mockReturnValue({
 			getDelegate: () => ({ addSpanProcessor: addSpanProcessorSpy }),
 		});
 
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
+		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
+		expect(registerTelemetrySpy).not.toHaveBeenCalled();
 	});
 
 	it("disables telemetry when a foreign provider owns the slot and accepts no processors", async () => {
@@ -224,6 +232,16 @@ describe("langfuse telemetry", () => {
 			delete process.env.LANGFUSE_SECRET_KEY;
 		}
 
+		/** Simulates a host whose telemetry service registered an OTLP tracer. */
+		function mockHostOtlpTracer() {
+			getTracerProviderSpy.mockReturnValue({
+				getDelegate: () => ({
+					forceFlush: forceFlushSpy,
+					shutdown: shutdownSpy,
+				}),
+			});
+		}
+
 		it("keeps the direct Langfuse path unchanged: enabled with content recording untouched", async () => {
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
@@ -232,6 +250,7 @@ describe("langfuse telemetry", () => {
 
 		it("defaults to full sampling when the host registered a tracer and no rate is set", async () => {
 			clearLangfuseEnv();
+			mockHostOtlpTracer();
 
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
@@ -262,6 +281,7 @@ describe("langfuse telemetry", () => {
 
 		it("enables metadata-only telemetry at 100% when the host registered a tracer", async () => {
 			clearLangfuseEnv();
+			mockHostOtlpTracer();
 			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
 
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
@@ -275,6 +295,7 @@ describe("langfuse telemetry", () => {
 
 		it("records content only when CLINE_TRACE_RECORD_CONTENT is set", async () => {
 			clearLangfuseEnv();
+			mockHostOtlpTracer();
 			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
 			process.env.CLINE_TRACE_RECORD_CONTENT = "true";
 
@@ -289,6 +310,7 @@ describe("langfuse telemetry", () => {
 
 		it("samples deterministically by key", async () => {
 			clearLangfuseEnv();
+			mockHostOtlpTracer();
 			// FNV-1a buckets: task-b=7, task-c=88. A 50% rate keeps the low
 			// bucket and drops the high one — on every call.
 			process.env.CLINE_TRACE_SAMPLE_PERCENT = "50";
@@ -330,6 +352,7 @@ describe("langfuse telemetry", () => {
 
 		it("stays enabled when the settings file records no opt-out", async () => {
 			clearLangfuseEnv();
+			mockHostOtlpTracer();
 			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
 			const settingsPath = path.join(
 				await fs.mkdtemp(path.join(os.tmpdir(), "lf-optin-")),
