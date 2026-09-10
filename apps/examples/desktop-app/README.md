@@ -22,6 +22,47 @@ From `apps/examples/desktop-app/`:
 
 Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
 
+## Pull Requests
+
+The composer shows the current branch's GitHub pull request, merge status,
+changed-line totals, and CI checks. Click the PR number to open it in your
+browser, or expand CI to inspect individual checks and their logs. Status
+refreshes every 30 seconds while visible, when the app regains focus, and
+when you click refresh.
+
+This requires GitHub CLI (`gh`) installed and authenticated with `gh auth login`,
+and a GitHub.com `origin` remote (HTTPS or SSH). The row is hidden for the
+default branch, detached HEAD, and unsupported repositories. If the branch
+has no PR, **Create PR** opens GitHub's comparison form; push your commits
+before submitting the form. The app does not push commits or submit PRs itself.
+
+Missing or unauthenticated GitHub CLI also hides the row. Availability checks
+are shared across workspaces and cached for five minutes, so unavailable CLI
+installs do not spawn a failing process on every poll or window focus. After
+installing or signing into `gh`, the feature becomes available on the first
+refresh after the cache expires (or after restarting the desktop backend).
+Initial lookup failures stay hidden. Errors after a successful status load
+can be dismissed and remain dismissed through retries until a load succeeds.
+
+### Pull request telemetry
+
+These events use the desktop telemetry service and respect telemetry opt-out:
+
+| Event | Trigger |
+| --- | --- |
+| `desktop.pull_request.shown` | First visible PR/create row per mounted workspace and branch |
+| `desktop.pull_request.open_clicked` | Click the PR link |
+| `desktop.pull_request.create_clicked` | Click Create PR (intent only, not PR submission) |
+| `desktop.pull_request.checks_expanded` | Open the CI popover |
+| `desktop.pull_request.check_clicked` | Click a check's details link |
+| `desktop.pull_request.refresh_clicked` | Click manual refresh |
+
+Each event contains only `prState`, `ciState`, and `mergeTone` categories.
+The sidecar validates these values and strips extra fields. Repository/branch
+names, paths, PR numbers/titles, check names, and URLs are not included.
+Automatic polling does not emit additional impressions. Telemetry delivery
+does not block interactions, and failures do not interrupt the feature.
+
 ## Customizing the macOS Install Window
 
 The drag-to-Applications window is configured by `bundle.macOS.dmg` in
