@@ -12,6 +12,7 @@ import {
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
+	ensureCustomProviderRegisteredSync,
 	parseModelsFile,
 	readModelsFile,
 	registerCustomProvider,
@@ -1343,6 +1344,48 @@ describe("models.json model overlays", () => {
 				path.join(settingsDir, "providers.json"),
 			);
 		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("registers a custom provider written after the manager loaded models.json", () => {
+		const dir = mkdtempSync(
+			path.join(os.tmpdir(), "local-provider-late-register-test-"),
+		);
+		const providerId = "late-compat";
+		try {
+			const settingsDir = path.join(dir, "settings");
+			mkdirSync(settingsDir, { recursive: true });
+			// Construct first (loads the not-yet-existing models.json once),
+			// then write the entry, as a hub that outlives the desktop app sees it.
+			const manager = new ProviderSettingsManager({
+				filePath: path.join(settingsDir, "providers.json"),
+			});
+			writeFileSync(
+				resolveModelsRegistryPath(manager),
+				`${JSON.stringify({
+					version: 1,
+					providers: {
+						[providerId]: {
+							provider: {
+								name: "Late Compat",
+								baseUrl: "https://example.invalid/v1",
+								defaultModelId: "m1",
+							},
+							models: { m1: { id: "m1", name: "m1" } },
+						},
+					},
+				})}\n`,
+			);
+			expect(LlmsModels.getProviderCollectionSync(providerId)).toBeUndefined();
+
+			ensureCustomProviderRegisteredSync(manager, providerId);
+
+			expect(LlmsModels.getProviderCollectionSync(providerId)).toMatchObject({
+				provider: { id: providerId, baseUrl: "https://example.invalid/v1" },
+			});
+		} finally {
+			LlmsModels.unregisterProvider(providerId);
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});

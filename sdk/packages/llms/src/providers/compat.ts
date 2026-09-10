@@ -203,7 +203,13 @@ async function resolveProviderRegistration(
 	};
 }
 
-function resolveProviderRegistrationSync(
+/**
+ * Builds the gateway registration for a provider that is not a builtin (a
+ * custom models.json provider, or a builtin alias routed through another
+ * provider). Returns undefined for plain builtins, which the gateway already
+ * knows about.
+ */
+export function resolveProviderRegistrationSync(
 	config: ProviderConfig,
 ): GatewayProviderRegistration | undefined {
 	const providerId = normalizeProviderId(config.providerId);

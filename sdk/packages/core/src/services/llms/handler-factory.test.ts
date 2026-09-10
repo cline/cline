@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const gatewayMock = vi.hoisted(() => {
 	const createAgentModel = vi.fn();
+	const registerProvider = vi.fn();
 	return {
 		createAgentModel,
-		createGateway: vi.fn(() => ({ createAgentModel })),
+		registerProvider,
+		createGateway: vi.fn(() => ({ createAgentModel, registerProvider })),
 		// Registry helpers used by createAgentModelFromConfig. Default to "no
 		// registered handler" so existing tests exercise the gateway path.
 		hasRegisteredHandler: vi.fn(() => false),
 		createHandlerAsync: vi.fn(),
+		// Builtins need no registration; tests for custom providers override.
+		resolveProviderRegistrationSync: vi.fn(() => undefined),
 	};
 });
 
@@ -18,6 +22,7 @@ vi.mock("@cline/llms", async (importOriginal) => ({
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
+	resolveProviderRegistrationSync: gatewayMock.resolveProviderRegistrationSync,
 	normalizeProviderId: (id: string) => id,
 	// Capability translation is the behaviour under test in the gateway model
 	// assertions below, so use the real translator rather than a stub that
@@ -31,12 +36,65 @@ describe("createAgentModelFromConfig", () => {
 	beforeEach(() => {
 		gatewayMock.createAgentModel.mockReset();
 		gatewayMock.createGateway.mockClear();
+		gatewayMock.registerProvider.mockReset();
 		gatewayMock.createGateway.mockImplementation(() => ({
 			createAgentModel: gatewayMock.createAgentModel,
+			registerProvider: gatewayMock.registerProvider,
 		}));
 		gatewayMock.hasRegisteredHandler.mockReset();
 		gatewayMock.hasRegisteredHandler.mockReturnValue(false);
 		gatewayMock.createHandlerAsync.mockReset();
+		gatewayMock.resolveProviderRegistrationSync.mockReset();
+		gatewayMock.resolveProviderRegistrationSync.mockReturnValue(undefined);
+	});
+
+	it("registers a custom (non-builtin) provider on the gateway before resolving the model", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		const registration = { manifest: { id: "qa-compat" } };
+		gatewayMock.resolveProviderRegistrationSync.mockReturnValue(
+			registration as never,
+		);
+
+		createAgentModelFromConfig(
+			{
+				providerId: "qa-compat",
+				modelId: "anthropic/claude-sonnet-5",
+				apiKey: "key",
+				baseUrl: "https://openrouter.ai/api/v1",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.resolveProviderRegistrationSync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "qa-compat",
+				baseUrl: "https://openrouter.ai/api/v1",
+			}),
+		);
+		expect(gatewayMock.registerProvider).toHaveBeenCalledWith(registration);
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "qa-compat", modelId: "anthropic/claude-sonnet-5" },
+			expect.anything(),
+		);
+	});
+
+	it("does not register anything for a builtin provider", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "anthropic",
+				modelId: "claude-sonnet-5",
+				apiKey: "key",
+				systemPrompt: "",
+				tools: [],
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.registerProvider).not.toHaveBeenCalled();
 	});
 
 	it("forwards effective telemetry into the gateway", async () => {

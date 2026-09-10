@@ -58,6 +58,7 @@ import {
 	filterExtensionToolRegistrations,
 	resolveDisabledAgentPluginNames,
 } from "./global-settings";
+import { ensureCustomProviderRegisteredSync } from "./providers/local-provider-registry";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import {
@@ -165,6 +166,13 @@ function buildProviderConfig(
 	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
 	defaultFetch?: typeof fetch,
 ): ProviderConfig {
+	// A custom provider added while this (possibly long-lived) process was
+	// already running is not in the model registry yet; load it before the
+	// gateway resolves the model.
+	ensureCustomProviderRegisteredSync(
+		providerSettingsManager,
+		config.providerId,
+	);
 	const stored = providerSettingsManager.getProviderSettings(config.providerId);
 	const modelCatalog =
 		modelCatalogDefaults || stored?.modelCatalog

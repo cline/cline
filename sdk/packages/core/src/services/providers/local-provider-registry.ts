@@ -700,6 +700,27 @@ export function ensureCustomProvidersLoadedSync(
 	LOADED_MODELS_REGISTRY_PATHS.add(modelsPath);
 }
 
+/**
+ * Registers a custom provider written to models.json after this process
+ * loaded the file. {@link ensureCustomProvidersLoadedSync} loads once per
+ * process and {@link syncStoredProviderRegistration} only updates the writer's
+ * own registry, so a long-lived hub never learns about providers added later
+ * and rejects sessions on them with "Unknown or disabled provider".
+ */
+export function ensureCustomProviderRegisteredSync(
+	manager: ProviderSettingsManager,
+	providerId: string,
+): void {
+	if (LlmsModels.getProviderCollectionSync(providerId)) {
+		return;
+	}
+	const entry = readModelsFileSync(resolveModelsRegistryPath(manager))
+		.providers[providerId];
+	if (entry) {
+		registerCustomProvider(providerId, entry);
+	}
+}
+
 export async function ensureCustomProvidersLoaded(
 	manager: ProviderSettingsManager,
 ): Promise<void> {
