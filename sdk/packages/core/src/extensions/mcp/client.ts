@@ -1,5 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -47,15 +49,20 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Initialize budget when no timeout is configured. This wait sits on the
 // session-create critical path, which the hub caps at 30s
 // (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
-// then Content-Length framing), so the doubled total MUST stay well under
-// that cap or a hung server takes the whole session down with it. 3s covers
-// typical stdio startup while keeping the worst case (~6s per server, probed
-// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
-// ones like Oracle SQLcl, uvx downloading a package on first run) need an
-// explicit `timeout`, which overrides this in either direction. Dead commands
-// still fail fast through the spawn error/exit path; only an alive-but-silent
-// server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// then Content-Length framing), so the total MUST stay well under that cap or
+// a hung server takes the whole session down with it. 10s covers
+// package-runner starts (`npx -y pkg@latest` / `uvx pkg` resolving and, on a
+// cold cache, downloading the package before the server even exists); the
+// framed retry below gets only 5s, keeping the worst case (15s per server,
+// probed in parallel) at half the hub deadline. Genuinely slow starters
+// (JVM-based ones like Oracle SQLcl) still need an explicit `timeout`, which
+// overrides this in either direction. Dead commands still fail fast through
+// the spawn error/exit path; only an alive-but-silent server waits out this
+// budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 10_000;
+// A newline server that timed out is far more common than a Content-Length
+// server that never saw a frame, so the retry must not double the budget.
+export const DEFAULT_MCP_FRAMED_RETRY_TIMEOUT_MS = 5_000;
 // Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
 // configured. Like the stdio initialize budget above, connect runs on the
 // session-create critical path capped by the hub at 30s
@@ -218,6 +225,7 @@ class StdioMcpClient implements McpServerClient {
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private readonly framedRetryTimeoutMs: number;
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
@@ -227,11 +235,15 @@ class StdioMcpClient implements McpServerClient {
 		// Initialize gets its own default budget so slow-starting servers
 		// connect out of the box; an explicit `timeout` overrides it in
 		// either direction.
-		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
+		const hasConfiguredTimeout = isMcpTimeoutConfigured(
 			registration.timeoutSeconds,
-		)
+		);
+		this.connectAttemptTimeoutMs = hasConfiguredTimeout
 			? this.requestTimeoutMs
 			: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
+		this.framedRetryTimeoutMs = hasConfiguredTimeout
+			? this.requestTimeoutMs
+			: DEFAULT_MCP_FRAMED_RETRY_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -264,7 +276,7 @@ class StdioMcpClient implements McpServerClient {
 				await this.request(
 					"initialize",
 					initializeParams,
-					this.connectAttemptTimeoutMs,
+					this.framedRetryTimeoutMs,
 				);
 			} catch (framedError) {
 				await this.disconnect().catch(() => {});
@@ -413,8 +425,13 @@ class StdioMcpClient implements McpServerClient {
 						shell: true,
 					}
 				: {};
+		// Without a configured cwd the child used to inherit the host's, which
+		// for the hub daemon is whatever workspace first started it. Package
+		// runners walk that project tree before launching (npx from a large
+		// monorepo root takes tens of seconds or never answers), so default to
+		// the home directory: stable across hosts and small.
 		const child = spawn(transport.command, transport.args ?? [], {
-			cwd: transport.cwd,
+			cwd: transport.cwd ?? (existsSync(homedir()) ? homedir() : undefined),
 			env: {
 				...process.env,
 				...(transport.env ?? {}),
