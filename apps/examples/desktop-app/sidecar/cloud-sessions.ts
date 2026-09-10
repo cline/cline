@@ -192,6 +192,28 @@ function cloudErrorForResponse(
 	return new CloudSessionError("request_failed", message, undefined, status);
 }
 
+export type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
+
+function parseCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	switch (value) {
+		case "provisioning":
+		case "cloning_repo":
+		case "agent_starting":
+		case "ready":
+		case "failed":
+			return value;
+		default:
+			return undefined;
+	}
+}
+
 export class CloudSessionApi {
 	private readonly apiBaseUrl: string;
 	private readonly appBaseUrl: string;
@@ -437,7 +459,12 @@ export class CloudSessionApi {
 	async status(
 		sessionId: string,
 		options: { authToken?: string; signal?: AbortSignal } = {},
-	): Promise<{ sessionId?: string; status?: string; statusReason?: string }> {
+	): Promise<{
+		sessionId?: string;
+		status?: string;
+		phase?: CloudProvisioningPhase;
+		statusReason?: string;
+	}> {
 		return await this.request(
 			`/api/v1/session/${encodeURIComponent(sessionId)}/status`,
 			{ signal: options.signal },
@@ -448,6 +475,7 @@ export class CloudSessionApi {
 
 	async create(input: CreateCloudSessionInput): Promise<{
 		sessionId: string;
+		status: string;
 		sandboxUrl: string;
 		cleanupAuthToken: string;
 	}> {
@@ -467,7 +495,6 @@ export class CloudSessionApi {
 		);
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
-		let createdSessionId = "";
 		try {
 			const created = await this.request<{
 				sessionId: string;
@@ -500,41 +527,13 @@ export class CloudSessionApi {
 					"The cloud session service returned no session id.",
 				);
 			}
-			createdSessionId = sessionId;
-			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-				await this.waitUntilReady(sessionId, controller.signal, creationAuth);
-			}
 			return {
 				sessionId,
+				status: created.status?.trim() || "provisioning",
 				sandboxUrl: created.sandboxUrl?.trim() ?? "",
 				cleanupAuthToken: creationAuth.token,
 			};
 		} catch (error) {
-			if (createdSessionId) {
-				if (
-					error instanceof CloudSessionError &&
-					error.code === "session_failed"
-				) {
-					// Clean up a failed sandbox under the identity that created it.
-					try {
-						await this.deleteWithAuth(createdSessionId, creationAuth);
-					} catch (cleanupError) {
-						if (
-							!(
-								cleanupError instanceof CloudSessionError &&
-								(cleanupError.code === "session_not_found" ||
-									cleanupError.code === "session_expired")
-							)
-						) {
-							throw new AggregateError(
-								[error, cleanupError],
-								"The cloud workspace failed to provision and could not be cleaned up.",
-							);
-						}
-					}
-				}
-				throw error;
-			}
 			// Recover only failures that may have followed an accepted POST.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
@@ -567,48 +566,9 @@ export class CloudSessionApi {
 				}
 				const recovered = candidates[0];
 				if (recovered) {
-					if (
-						recovered.status === "provisioning" ||
-						recovered.status === "failed" ||
-						!recovered.sandboxUrl?.trim()
-					) {
-						const recoveryController = new AbortController();
-						const recoveryTimeout = setTimeout(
-							() => recoveryController.abort(),
-							this.createTimeoutMs,
-						);
-						try {
-							await this.waitUntilReady(
-								recovered.id,
-								recoveryController.signal,
-								creationAuth,
-							);
-						} catch (recoveryError) {
-							if (
-								recoveryError instanceof CloudSessionError &&
-								recoveryError.code === "session_failed"
-							) {
-								await this.deleteWithAuth(recovered.id, creationAuth).catch(
-									(cleanupError) => {
-										if (
-											!(
-												cleanupError instanceof CloudSessionError &&
-												(cleanupError.code === "session_not_found" ||
-													cleanupError.code === "session_expired")
-											)
-										) {
-											throw cleanupError;
-										}
-									},
-								);
-							}
-							throw recoveryError;
-						} finally {
-							clearTimeout(recoveryTimeout);
-						}
-					}
 					return {
 						sessionId: recovered.id,
+						status: recovered.status,
 						sandboxUrl: recovered.sandboxUrl,
 						cleanupAuthToken: creationAuth.token,
 					};
@@ -620,14 +580,27 @@ export class CloudSessionApi {
 		}
 	}
 
-	private async waitUntilReady(
+	async waitUntilReady(
 		sessionId: string,
 		signal: AbortSignal,
-		authToken?: RequestAuth,
+		onStatus?: (status: { phase?: CloudProvisioningPhase }) => void,
 	): Promise<void> {
+		signal = AbortSignal.any([
+			signal,
+			AbortSignal.timeout(this.createTimeoutMs),
+		]);
+		const token = await this.options.getAuthToken();
+		const authToken = token
+			? { token, subject: authSubject(token) }
+			: undefined;
 		while (!signal.aborted) {
 			let result:
-				| { sessionId?: string; status?: string; statusReason?: string }
+				| {
+						sessionId?: string;
+						status?: string;
+						phase?: CloudProvisioningPhase;
+						statusReason?: string;
+				  }
 				| undefined;
 			try {
 				result = await this.request(
@@ -653,6 +626,7 @@ export class CloudSessionApi {
 				continue;
 			}
 			const status = result?.status?.trim().toLowerCase();
+			onStatus?.({ phase: parseCloudProvisioningPhase(result?.phase) });
 			if (status === "ready" || status === "active") return;
 			if (status === "failed") {
 				throw new CloudSessionError(
