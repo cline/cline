@@ -219,11 +219,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
+	// Only exclude images from the picker when the model is known not to support them. Unknown capability
+	// data (e.g. model info still resolving or unavailable) fails open, matching ChatTextArea and core.
+	const modelSupportsImages = selectedModelInfo.supportsImages !== false
+
 	const selectFilesAndImages = useCallback(async () => {
 		try {
 			const response = await FileServiceClient.selectFiles(
 				BooleanRequest.create({
-					value: selectedModelInfo.supportsImages,
+					value: modelSupportsImages,
 				}),
 			)
 			if (
@@ -252,7 +256,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		} catch (error) {
 			console.error("Error selecting images & files:", error)
 		}
-	}, [selectedModelInfo.supportsImages])
+	}, [modelSupportsImages])
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
