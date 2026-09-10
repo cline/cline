@@ -26,18 +26,26 @@ function filterOne(
 describe("filterOpenAICodexModels", () => {
 	describe("model eligibility", () => {
 		it.each([
-			["gpt-5.4", true],
-			["gpt-5.5", true],
-			["gpt-5.5-codex", true],
-			["gpt-6.0", true],
-			["gpt-10.1", true],
-		])("allows %s (newer than 5.3)", (id, allowed) => {
-			expect(filterOne(id) !== undefined).toBe(allowed);
+			["gpt-5.5", "explicitly allowed"],
+			["gpt-5.3-codex-spark", "explicitly allowed"],
+			["gpt-5.5-codex", "newer than 5.4"],
+			["gpt-5.6-terra", "newer than 5.4"],
+			["gpt-5.10", "minor version compared numerically"],
+			["gpt-6-astra", "integer major version"],
+			["gpt-6.0", "newer major version"],
+			["gpt-10.1", "newer major version"],
+		])("allows %s (%s)", (id) => {
+			expect(filterOne(id)).toBeDefined();
 		});
 
 		it.each([
-			["gpt-5.3", "at the 5.3 cutoff"],
-			["gpt-5.1", "older than 5.3"],
+			["gpt-5.4", "retired for ChatGPT accounts"],
+			["gpt-5.4-mini", "retired for ChatGPT accounts"],
+			["gpt-5.6", "bare alias of the Sol variant"],
+			["gpt-5.5-pro", "explicitly disallowed"],
+			["gpt-5.3", "older than 5.4"],
+			["gpt-5.3-codex", "older than 5.4"],
+			["gpt-5.1", "older than 5.4"],
 			["gpt-4.1", "older major version"],
 			["gpt-5", "no minor version"],
 			["chatgpt-5.5", "id does not start with gpt-"],
@@ -62,10 +70,10 @@ describe("filterOpenAICodexModels", () => {
 
 	describe("context window adjustment", () => {
 		it.each([
-			"gpt-5.4",
-			"gpt-5.4-mini",
+			"gpt-5.5",
+			"gpt-5.6-terra",
 			"gpt-6.0",
-		])("scales %s maxInputTokens down to the effective Codex budget — the backend cap applies to every model, not just gpt-5.5", (id) => {
+		])("scales %s maxInputTokens down to the effective Codex budget", (id) => {
 			const maxInputTokens = 200_000;
 			const result = filterOne(id, { maxInputTokens });
 			expect(result?.maxInputTokens).toBe(
@@ -73,24 +81,10 @@ describe("filterOpenAICodexModels", () => {
 			);
 		});
 
-		it("leaves other limits untouched for non-5.5 models", () => {
-			const result = filterOne("gpt-6.0", {
-				contextWindow: 500_000,
-				maxTokens: 64_000,
-			});
-			expect(result?.contextWindow).toBe(500_000);
-			expect(result?.maxTokens).toBe(64_000);
-		});
-
-		it("preserves an undefined maxInputTokens instead of producing NaN", () => {
-			const result = filterOne("gpt-6.0", { maxInputTokens: undefined });
-			expect(result?.maxInputTokens).toBeUndefined();
-		});
-
-		it("overrides gpt-5.5 limits with the ChatGPT backend caps", () => {
-			const result = filterOne("gpt-5.5-codex", {
-				contextWindow: 1_000_000,
-				maxInputTokens: 900_000,
+		it("caps limits at the ChatGPT backend budget when the API catalog advertises more", () => {
+			const result = filterOne("gpt-5.6-terra", {
+				contextWindow: 1_050_000,
+				maxInputTokens: 922_000,
 				maxTokens: 900_000,
 			});
 			expect(result).toMatchObject({
@@ -98,6 +92,30 @@ describe("filterOpenAICodexModels", () => {
 				maxInputTokens: 272_000 * CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 				maxTokens: 128_000,
 			});
+		});
+
+		it("keeps smaller catalog limits untouched", () => {
+			const result = filterOne("gpt-5.3-codex-spark", {
+				contextWindow: 128_000,
+				maxInputTokens: 100_000,
+				maxTokens: 32_000,
+			});
+			expect(result).toMatchObject({
+				contextWindow: 128_000,
+				maxInputTokens: 100_000 * CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+				maxTokens: 32_000,
+			});
+		});
+
+		it("preserves undefined limits instead of producing NaN", () => {
+			const result = filterOne("gpt-6.0", {
+				contextWindow: undefined,
+				maxInputTokens: undefined,
+				maxTokens: undefined,
+			});
+			expect(result?.contextWindow).toBeUndefined();
+			expect(result?.maxInputTokens).toBeUndefined();
+			expect(result?.maxTokens).toBeUndefined();
 		});
 
 		it("does not mutate the input models", () => {
@@ -111,12 +129,16 @@ describe("filterOpenAICodexModels", () => {
 	it("keeps allowed models and drops disallowed ones from a mixed catalog", () => {
 		const models: Record<string, ModelInfo> = {
 			"gpt-5.5": makeModel("gpt-5.5"),
+			"gpt-5.4": makeModel("gpt-5.4"),
+			"gpt-5.6": makeModel("gpt-5.6"),
+			"gpt-5.6-sol": makeModel("gpt-5.6-sol"),
 			"gpt-6.0": makeModel("gpt-6.0"),
 			"gpt-5.1": makeModel("gpt-5.1"),
 			"o4-mini": makeModel("o4-mini", { family: "o4" }),
 		};
 		expect(Object.keys(filterOpenAICodexModels(models)).sort()).toEqual([
 			"gpt-5.5",
+			"gpt-5.6-sol",
 			"gpt-6.0",
 		]);
 	});

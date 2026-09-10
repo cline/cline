@@ -8,6 +8,7 @@ import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
+	CircleCheck,
 	CircleStop,
 	Cpu,
 	ImagePlus,
@@ -57,6 +58,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderCatalogInvalidation,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
@@ -66,6 +68,7 @@ import { cn } from "@/lib/utils";
 
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
+import { PullRequestBar } from "./pull-request-bar";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -1109,6 +1112,7 @@ function ChatInputBarImpl({
 			)}
 		>
 			{/* Input area */}
+			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<div
 				className={cn(
 					"px-4 py-3",
@@ -1667,6 +1671,9 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [configuredProviderIds, setConfiguredProviderIds] = useState<string[]>(
+		[],
+	);
 	const [providerNames, setProviderNames] = useState<Record<string, string>>(
 		{},
 	);
@@ -1841,6 +1848,7 @@ const ModelSelector = memo(function ModelSelector({
 					...(payload.providerModelDetails ?? {}),
 				}));
 				setReasoningCapabilitySource("catalog");
+				setConfiguredProviderIds(payload.configuredProviderIds);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
 					if (normalizedProvider) {
@@ -1919,6 +1927,26 @@ const ModelSelector = memo(function ModelSelector({
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
+	}, []);
+
+	// Credentials saved or removed in settings (or OAuth completing) invalidate
+	// the shared catalog; refetch so the readiness indicators don't go stale
+	// while the composer stays mounted.
+	useEffect(() => {
+		let cancelled = false;
+		const unsubscribe = subscribeToProviderCatalogInvalidation(() => {
+			loadProviderModelCatalog()
+				.then((payload) => {
+					if (!cancelled) {
+						setConfiguredProviderIds(payload.configuredProviderIds);
+					}
+				})
+				.catch(() => {});
+		});
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, []);
 
 	// The remembered selection (what new sessions default to) is only written
@@ -2047,13 +2075,25 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	// Enabled providers can lack usable credentials (e.g. entries seeded by
+	// legacy migration), so mark the ones that are actually ready for a turn.
 	const providerOptions = useMemo(
 		() =>
 			providers.map((value) => ({
+				...(configuredProviderIds.includes(value)
+					? {
+							indicator: (
+								<CircleCheck
+									aria-label="Configured"
+									className="size-3 shrink-0 text-emerald-500"
+								/>
+							),
+						}
+					: {}),
 				label: providerNames[value]?.trim() || value,
 				value,
 			})),
-		[providerNames, providers],
+		[configuredProviderIds, providerNames, providers],
 	);
 	const selectedModelLabel =
 		visibleModelPicker.options.find((option) => option.value === resolvedModel)
