@@ -45,10 +45,22 @@ function workspaceName(path: string): string {
 const WORK_IN_OPTIONS: Array<{
 	value: WorkIn;
 	label: string;
+	description: string;
 	Icon: typeof Laptop;
 }> = [
-	{ value: "local", label: "Local", Icon: Laptop },
-	{ value: "worktree", label: "Worktree", Icon: GitFork },
+	{
+		value: "local",
+		label: "Local",
+		description: "Edit the files in this folder directly.",
+		Icon: Laptop,
+	},
+	{
+		value: "worktree",
+		label: "Worktree",
+		description:
+			"Work on a separate copy of this folder on its own branch, so your files stay untouched until you merge.",
+		Icon: GitFork,
+	},
 ];
 
 const TRIGGER_CLASS =
@@ -475,7 +487,7 @@ function WorkInPicker({
 				aria-label="Work in"
 				className={TRIGGER_CLASS}
 				onClick={onToggle}
-				title={`Work in: ${current.label}`}
+				title={`Work in: ${current.label}. ${current.description}`}
 				type="button"
 			>
 				<current.Icon className="size-3.5 shrink-0 text-muted-foreground" />
@@ -483,7 +495,7 @@ function WorkInPicker({
 			</button>
 
 			{open && (
-				<div className={cn(PANEL_CLASS, "w-44")}>
+				<div className={cn(PANEL_CLASS, "w-64")}>
 					<div className="p-1.5">
 						<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 							Work in
@@ -491,7 +503,7 @@ function WorkInPicker({
 						{WORK_IN_OPTIONS.map((option) => (
 							<Button
 								className={cn(
-									"flex h-auto w-full items-center gap-2 rounded-md px-2 py-2 text-left",
+									"flex h-auto w-full items-start gap-2 rounded-md px-2 py-2 text-left",
 									option.value === value
 										? "bg-(--accent-4) hover:bg-(--accent-4)"
 										: "hover:bg-surface-hover",
@@ -503,12 +515,17 @@ function WorkInPicker({
 								}}
 								variant="ghost"
 							>
-								<option.Icon className="size-3 shrink-0 text-muted-foreground" />
-								<span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
-									{option.label}
+								<option.Icon className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+								<span className="flex min-w-0 flex-1 flex-col gap-0.5">
+									<span className="text-xs font-medium text-foreground">
+										{option.label}
+									</span>
+									<span className="whitespace-normal text-[11px] leading-snug text-muted-foreground">
+										{option.description}
+									</span>
 								</span>
 								{option.value === value && (
-									<Check className="ml-auto size-3 shrink-0 text-foreground" />
+									<Check className="ml-auto mt-0.5 size-3 shrink-0 text-foreground" />
 								)}
 							</Button>
 						))}
