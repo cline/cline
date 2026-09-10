@@ -53,6 +53,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderCatalogInvalidation,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
@@ -1807,6 +1808,26 @@ const ModelSelector = memo(function ModelSelector({
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
+	}, []);
+
+	// Credentials saved or removed in settings (or OAuth completing) invalidate
+	// the shared catalog; refetch so the readiness indicators don't go stale
+	// while the composer stays mounted.
+	useEffect(() => {
+		let cancelled = false;
+		const unsubscribe = subscribeToProviderCatalogInvalidation(() => {
+			loadProviderModelCatalog()
+				.then((payload) => {
+					if (!cancelled) {
+						setConfiguredProviderIds(payload.configuredProviderIds);
+					}
+				})
+				.catch(() => {});
+		});
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, []);
 
 	// The remembered selection (what new sessions default to) is only written
