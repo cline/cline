@@ -5,9 +5,11 @@ export interface ClineRecommendedModelEntry {
 	id: string;
 	name?: string;
 	description?: string;
+	tags?: string[];
 }
 
 export interface ClineRecommendedModelsPayload {
+	recommended?: ClineRecommendedModelEntry[];
 	clinePass?: ClineRecommendedModelEntry[];
 	free?: ClineRecommendedModelEntry[];
 }
@@ -83,6 +85,7 @@ export function normalizeClineRecommendedProviderModels(
 			// We should use the OR name, unless there is not one (like when using defaults)
 			name: entry.name,
 			...capabilities,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			id: entry.id,
 			description: entry.description,
 		};

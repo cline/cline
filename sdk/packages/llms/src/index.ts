@@ -17,6 +17,7 @@ export {
 	fetchModelsDevProviderModels,
 	filterImageOutputModels,
 	filterOpenAICodexModels,
+	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
@@ -106,11 +107,11 @@ export {
 } from "./providers/billing";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
-export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	type ProviderLocalCli,
 	resolveProviderLocalCli,
 } from "./providers/local-cli";
+export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	builtinProviderSupportsModelOperation,

@@ -144,6 +144,17 @@ The frontend `desktop-client.ts` connects directly to the sidecar WebSocket:
 
 ## Command Map
 
+The model picker first uses `list_provider_catalog`, which reads the bundled and
+registered models without network access. It then calls `list_provider_models`
+for the active provider, both on mount and when the provider changes. All built-in
+providers backed by the shared catalog refresh from the live feed (including
+OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
+Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
+discovery endpoints instead. Catalog and public endpoint requests time out after
+five seconds, and the initial picker remains usable while a refresh is pending.
+The sidecar omits bundled `knownModels` from the discovery config so they cannot
+override live metadata; explicitly registered model overrides retain precedence.
+
 Supported commands:
 
 | Command | Implementation |

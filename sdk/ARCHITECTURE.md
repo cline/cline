@@ -746,6 +746,14 @@ orchestrator used by core and hub layers.
    declare `automationEvents` and submit normalized events through
    `ctx.automation.ingestEvent(...)`; sandboxed plugins forward those events
    through the core plugin event bridge.
+   Acceptance is one synchronous SQLite write transaction: the event log,
+   matching runs, debounce changes, materialization pointers, and final
+   processing status commit together. A failure rolls all of them back and
+   propagates to the caller, which must redeliver the event to retry. Other
+   connections cannot observe or claim partial fan-out. Committed events remain
+   deduplicated by event ID, including a retry after a lost response. Failures
+   are logged outside the transaction, not persisted as deduplication tombstones.
+
 7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),
