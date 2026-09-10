@@ -40,9 +40,6 @@ export interface TelemetryAgentIdentityProperties {
 }
 
 export const CORE_TELEMETRY_EVENTS = {
-	PROVIDER: {
-		MODELS_LOADED: "provider.models_loaded",
-	},
 	CLIENT: {
 		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
@@ -356,25 +353,6 @@ export function captureProviderConfigured(
 	provider?: string,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.PROVIDER_CONFIGURED, { provider });
-}
-
-/** Measures the full picker load, including cache hits and fallback results.
- * `returned` does not imply that a live network refresh succeeded.
- */
-export function captureProviderModelsLoaded(
-	telemetry: ITelemetryService | undefined,
-	properties: {
-		provider: string;
-		durationMs: number;
-		modelCount?: number;
-		outcome: "returned" | "error";
-	},
-): void {
-	try {
-		emit(telemetry, CORE_TELEMETRY_EVENTS.PROVIDER.MODELS_LOADED, properties);
-	} catch {
-		// Observability must not prevent model selection or mask a load error.
-	}
 }
 
 export function captureTelemetryOptOut(

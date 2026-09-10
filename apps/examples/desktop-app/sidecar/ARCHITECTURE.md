@@ -154,11 +154,6 @@ discovery endpoints instead. Catalog and public endpoint requests time out after
 five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
-Desktop also passes its opt-out-respecting telemetry service to model loading.
-`provider.models_loaded` records duration, model count, and `returned`/`error`
-outcome. `returned` includes cache hits and bundled fallbacks, not just successful
-network refreshes. Only built-in provider IDs are recorded; custom IDs become
-`custom`, and credentials, endpoint URLs, model IDs, and error text are omitted.
 
 Supported commands:
 

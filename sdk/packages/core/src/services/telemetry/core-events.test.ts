@@ -17,7 +17,6 @@ import {
 	captureExtensionActivated,
 	captureMistakeLimitReached,
 	captureProviderConfigured,
-	captureProviderModelsLoaded,
 	captureRunCommandsTimeout,
 	captureTaskCompleted,
 	captureTaskCreated,
@@ -816,12 +815,6 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			resolution_type: "fallback_to_primary",
 		});
 		captureProviderConfigured(service, "test-provider");
-		captureProviderModelsLoaded(service, {
-			provider: "opencode",
-			durationMs: 10,
-			modelCount: 3,
-			outcome: "returned",
-		});
 		captureCompactionExecuted(service, {
 			ulid: "ulid-1",
 			strategy: "basic",
@@ -871,7 +864,6 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 			"workspace.init_error",
 			"workspace.path_resolved",
 			"user.provider_configured",
-			"provider.models_loaded",
 			"task.compaction_executed",
 			"task.compaction_skipped",
 			"sdk.tool_timeout",

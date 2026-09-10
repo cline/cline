@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
-import { CLINE_DEFAULT_MODEL_ID, type ITelemetryService } from "@cline/shared";
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
@@ -105,99 +105,6 @@ describe("live provider model loading", () => {
 		vi.stubGlobal("fetch", fetchMock);
 		await getLocalProviderModels(providerId);
 		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
-	it("records fallback load metrics without exposing config or custom identifiers", async () => {
-		LlmsModels.registerProvider({
-			provider: {
-				id: "private-company-provider",
-				name: "Private Company",
-				defaultModelId: "confidential-model",
-				client: "openai-compatible",
-				protocol: "openai-chat",
-				baseUrl: "https://private.example",
-			},
-			models: {
-				"confidential-model": {
-					id: "confidential-model",
-					name: "Confidential Model",
-				},
-			},
-		});
-		expect(
-			Object.hasOwn(
-				LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID,
-				"private-company-provider",
-			),
-		).toBe(true);
-		const capture = vi.fn();
-		const telemetry = { capture } as unknown as ITelemetryService;
-		await getLocalProviderModels(
-			"private-company-provider",
-			{
-				providerId: "private-company-provider",
-				modelId: "confidential-model",
-				apiKey: "secret",
-				baseUrl: "https://private.example",
-			},
-			telemetry,
-		);
-		expect(capture).toHaveBeenCalledExactlyOnceWith({
-			event: "provider.models_loaded",
-			properties: {
-				provider: "custom",
-				durationMs: expect.any(Number),
-				modelCount: 1,
-				outcome: "returned",
-			},
-		});
-		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
-		const result = await getLocalProviderModels(
-			"opencode",
-			undefined,
-			telemetry,
-		);
-		expect(capture).toHaveBeenLastCalledWith({
-			event: "provider.models_loaded",
-			properties: {
-				provider: "opencode",
-				durationMs: expect.any(Number),
-				modelCount: result.models.length,
-				outcome: "returned",
-			},
-		});
-	});
-
-	it("keeps model loading usable when telemetry throws", async () => {
-		const telemetry = {
-			capture: vi.fn(() => {
-				throw new Error("telemetry unavailable");
-			}),
-		} as unknown as ITelemetryService;
-		await expect(
-			getLocalProviderModels("custom", undefined, telemetry),
-		).resolves.toEqual({ providerId: "custom", models: [] });
-	});
-
-	it("records thrown load failures without recording error text", async () => {
-		vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(
-			new Error("secret endpoint failure"),
-		);
-		const capture = vi.fn();
-		await expect(
-			getLocalProviderModels("opencode", undefined, {
-				capture,
-			} as unknown as ITelemetryService),
-		).rejects.toThrow("secret endpoint failure");
-		expect(capture).toHaveBeenCalledExactlyOnceWith({
-			event: "provider.models_loaded",
-			properties: {
-				provider: "opencode",
-				durationMs: expect.any(Number),
-				modelCount: undefined,
-				outcome: "error",
-			},
-		});
 	});
 
 	it("shares one live fetch across providers and reuses it on subsequent loads", async () => {

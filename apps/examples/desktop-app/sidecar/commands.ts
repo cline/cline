@@ -1934,7 +1934,6 @@ export async function handleCommand(
 			manager.getProviderConfig(String(args?.provider ?? "").trim(), {
 				includeKnownModels: false,
 			}),
-			ctx.telemetry,
 		);
 	}
 	if (command === "list_cline_recommended_models") {

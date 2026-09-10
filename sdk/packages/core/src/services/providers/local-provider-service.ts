@@ -36,7 +36,6 @@ import {
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
-import { captureProviderModelsLoaded } from "../telemetry/core-events";
 import {
 	readModelsFile,
 	registerCustomProvider,
@@ -52,7 +51,6 @@ import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
-const BUILT_IN_PROVIDER_IDS = new Set<string>(LlmsModels.BUILT_IN_PROVIDER_IDS);
 const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
@@ -859,35 +857,22 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
-	telemetry?: ITelemetryService,
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const startedAt = performance.now();
-	let modelCount: number | undefined;
-	try {
-		const modelMap = await resolveProviderModelMap(id, config);
-		let models = toSortedProviderModels(modelMap);
-		if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
-			// Stamp the recommended-feed tiers onto the list so every client's
-			// picker gets Recommended/Free/Subscribed data without fetching and
-			// joining the feed itself. Cached; falls back to a bundled list, so
-			// a failure only means models without tier decoration.
-			models = applyClineFeaturedModels(
-				id,
-				models,
-				await getCachedClineRecommendedModels(),
-			);
-		}
-		modelCount = models.length;
-		return { providerId: id, models };
-	} finally {
-		captureProviderModelsLoaded(telemetry, {
-			provider: BUILT_IN_PROVIDER_IDS.has(id) ? id : "custom",
-			durationMs: Math.round(performance.now() - startedAt),
-			modelCount: modelCount,
-			outcome: modelCount === undefined ? "error" : "returned",
-		});
+	const modelMap = await resolveProviderModelMap(id, config);
+	let models = toSortedProviderModels(modelMap);
+	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+		// Stamp the recommended-feed tiers onto the list so every client's
+		// picker gets Recommended/Free/Subscribed data without fetching and
+		// joining the feed itself. Cached; falls back to a bundled list, so
+		// a failure only means models without tier decoration.
+		models = applyClineFeaturedModels(
+			id,
+			models,
+			await getCachedClineRecommendedModels(),
+		);
 	}
+	return { providerId: id, models };
 }
 
 export async function transcribeLocalAudio(
