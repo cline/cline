@@ -593,7 +593,7 @@ export function useChatSession() {
 			// credential problems and must not point users at Settings → Models.
 			const looksCredentialRelated =
 				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired/i.test(
+				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
 					description,
 				);
 			const content = [
