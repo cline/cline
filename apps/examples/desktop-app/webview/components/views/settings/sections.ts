@@ -11,6 +11,7 @@ const ALL_SETTINGS_SECTIONS = [
 	"Voice",
 	"Channels",
 	"Schedules",
+	"Import",
 	"Account",
 ] as const;
 

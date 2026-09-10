@@ -14,9 +14,1261 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1788321372354,
+  version: 1788996592014,
   providers: {
   "302ai": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "claude-fable-5-1": {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
+    "glm-5.3-flash": {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.075,
+        "output": 0.25,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "qwen3.8-flash": {
+      "id": "qwen3.8-flash",
+      "name": "Qwen3.8 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.18,
+        "output": 0.564,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "qwen"
+    },
+    "glm-5.3": {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
+    "gemini-3.7-flash": {
+      "id": "gemini-3.7-flash",
+      "name": "Gemini 3.7 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-13",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "grok-4.6": {
+      "id": "grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
+    "qwen3.8-max": {
+      "id": "qwen3.8-max",
+      "name": "Qwen3.8 Max",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 2.16,
+        "output": 6.36,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-03",
+      "family": "qwen"
+    },
+    "claude-opus-5": {
+      "id": "claude-opus-5",
+      "name": "Claude Opus 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-24",
+      "family": "claude-opus"
+    },
+    "claude-opus-5-thinking": {
+      "id": "claude-opus-5-thinking",
+      "name": "claude-opus-5-thinking",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 5,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-24",
+      "family": "claude-opus"
+    },
+    "gemini-3.5-flash-lite": {
+      "id": "gemini-3.5-flash-lite",
+      "name": "Gemini 3.5 Flash Lite",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.3,
+        "output": 2.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-21",
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "gemini-3.6-flash": {
+      "id": "gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-21",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "kimi-k3": {
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-16",
+      "family": "kimi-k3"
+    },
+    "gpt-5.6-luna": {
+      "id": "gpt-5.6-luna",
+      "name": "GPT-5.6 Luna",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 1.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-luna"
+    },
+    "gpt-5.6-luna-pro": {
+      "id": "gpt-5.6-luna-pro",
+      "name": "gpt-5.6-luna-pro",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 1.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-luna"
+    },
+    "gpt-5.6-sol": {
+      "id": "gpt-5.6-sol",
+      "name": "GPT-5.6 Sol",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 30,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-sol"
+    },
+    "gpt-5.6-sol-pro": {
+      "id": "gpt-5.6-sol-pro",
+      "name": "gpt-5.6-sol-pro",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 30,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-sol"
+    },
+    "gpt-5.6-terra": {
+      "id": "gpt-5.6-terra",
+      "name": "GPT-5.6 Terra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 12,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-terra"
+    },
+    "gpt-5.6-terra-pro": {
+      "id": "gpt-5.6-terra-pro",
+      "name": "gpt-5.6-terra-pro",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 12,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-terra"
+    },
+    "grok-4.5": {
+      "id": "grok-4.5",
+      "name": "Grok 4.5",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-08",
+      "family": "grok"
+    },
+    "claude-sonnet-5": {
+      "id": "claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-30",
+      "family": "claude-sonnet"
+    },
+    "glm-5.2": {
+      "id": "glm-5.2",
+      "name": "GLM-5.2",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-13",
+      "family": "glm"
+    },
+    "kimi-k2.7-code": {
+      "id": "kimi-k2.7-code",
+      "name": "Kimi K2.7 Code",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-12",
+      "family": "kimi-k2"
+    },
+    "claude-fable-5": {
+      "id": "claude-fable-5",
+      "name": "Claude Fable 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-09",
+      "family": "claude-fable"
+    },
+    "qwen3.7-plus": {
+      "id": "qwen3.7-plus",
+      "name": "Qwen3.7 Plus",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.285,
+        "output": 1.15,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-02",
+      "family": "qwen"
+    },
+    "MiniMax-M3": {
+      "id": "MiniMax-M3",
+      "name": "MiniMax-M3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 512000,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.72,
+        "output": 2.88,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-01",
+      "family": "minimax"
+    },
+    "claude-opus-4-8": {
+      "id": "claude-opus-4-8",
+      "name": "Claude Opus 4.8",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-28",
+      "family": "claude-opus"
+    },
+    "qwen3.7-max": {
+      "id": "qwen3.7-max",
+      "name": "Qwen3.7 Max",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 1.8,
+        "output": 5.3,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-21",
+      "family": "qwen"
+    },
+    "qwen3.7-max-2026-06-08": {
+      "id": "qwen3.7-max-2026-06-08",
+      "name": "qwen3.7-max-2026-06-08",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 1.8,
+        "output": 5.3,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-21",
+      "family": "qwen"
+    },
+    "gemini-3.5-flash": {
+      "id": "gemini-3.5-flash",
+      "name": "Gemini 3.5 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 9,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-19",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "gemini-3.5-flash-thinking": {
+      "id": "gemini-3.5-flash-thinking",
+      "name": "gemini-3.5-flash-thinking",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 1.5,
+        "output": 9,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-19",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "gemini-3.1-flash-lite": {
+      "id": "gemini-3.1-flash-lite",
+      "name": "Gemini 3.1 Flash Lite",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.25,
+        "output": 1.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-07",
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "qwen3.6-flash": {
+      "id": "qwen3.6-flash",
+      "name": "Qwen3.6 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.188,
+        "output": 1.133,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-27",
+      "family": "qwen3.6"
+    },
+    "gpt-5.5": {
+      "id": "gpt-5.5",
+      "name": "GPT-5.5",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 30,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-23",
+      "family": "gpt"
+    },
+    "kimi-k2.6": {
+      "id": "kimi-k2.6",
+      "name": "Kimi K2.6",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-21",
+      "family": "kimi-k2"
+    },
     "claude-opus-4-7": {
       "id": "claude-opus-4-7",
       "name": "claude-opus-4-7",
@@ -54,9 +1306,107 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-17",
       "family": "claude-opus"
     },
+    "grok-4.3": {
+      "id": "grok-4.3",
+      "name": "Grok 4.3",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 30000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 2.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-17",
+      "family": "grok"
+    },
+    "qwen3.6-35b-a3b": {
+      "id": "qwen3.6-35b-a3b",
+      "name": "Qwen3.6 35B-A3B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.283,
+        "output": 1.705,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-17",
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "claude-opus-4-7-thinking": {
+      "id": "claude-opus-4-7-thinking",
+      "name": "claude-opus-4-7-thinking",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 5,
+        "output": 25,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-16",
+      "family": "claude-opus"
+    },
     "glm-5.1": {
       "id": "glm-5.1",
-      "name": "glm-5.1",
+      "name": "GLM-5.1",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
       "maxTokens": 131072,
@@ -72,12 +1422,12 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.86,
-        "output": 3.5,
+        "input": 1.4,
+        "output": 4.4,
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-04-10",
+      "releaseDate": "2026-04-07",
       "family": "glm"
     },
     "glm-5v-turbo": {
@@ -120,42 +1470,39 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "gpt-5.4-mini": {
-      "id": "gpt-5.4-mini",
-      "name": "gpt-5.4-mini",
-      "contextWindow": 400000,
-      "maxInputTokens": 272000,
-      "maxTokens": 128000,
+    "qwen3.6-plus": {
+      "id": "qwen3.6-plus",
+      "name": "Qwen3.6 Plus",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
-        "structured_output"
+        "temperature"
       ],
       "reasoningOptions": [
         {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
         }
       ],
       "pricing": {
-        "input": 0.75,
-        "output": 4.5,
+        "input": 0.3,
+        "output": 1.8,
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-03-19",
-      "family": "gpt-mini"
+      "releaseDate": "2026-04-02",
+      "family": "qwen"
     },
-    "gpt-5.4-mini-2026-03-17": {
-      "id": "gpt-5.4-mini-2026-03-17",
-      "name": "gpt-5.4-mini-2026-03-17",
+    "gpt-5.4-mini": {
+      "id": "gpt-5.4-mini",
+      "name": "gpt-5.4-mini",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
       "maxTokens": 128000,
@@ -219,39 +1566,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-19",
       "family": "gpt-nano"
     },
-    "gpt-5.4-nano-2026-03-17": {
-      "id": "gpt-5.4-nano-2026-03-17",
-      "name": "gpt-5.4-nano-2026-03-17",
-      "contextWindow": 400000,
-      "maxInputTokens": 272000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.2,
-        "output": 1.25,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-19",
-      "family": "gpt-nano"
-    },
     "MiniMax-M2.7": {
       "id": "MiniMax-M2.7",
       "name": "MiniMax-M2.7",
@@ -260,33 +1574,18 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "tools",
+        "reasoning",
         "temperature"
       ],
+      "reasoningOptions": [],
       "pricing": {
         "input": 0.3,
         "output": 1.2,
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-03-19"
-    },
-    "MiniMax-M2.7-highspeed": {
-      "id": "MiniMax-M2.7-highspeed",
-      "name": "MiniMax-M2.7-highspeed",
-      "contextWindow": 204800,
-      "maxInputTokens": 204800,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 4.8,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-19"
+      "releaseDate": "2026-03-18",
+      "family": "minimax"
     },
     "glm-5-turbo": {
       "id": "glm-5-turbo",
@@ -314,25 +1613,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-16",
       "family": "glm"
     },
-    "grok-4.20-beta-0309-non-reasoning": {
-      "id": "grok-4.20-beta-0309-non-reasoning",
-      "name": "grok-4.20-beta-0309-non-reasoning",
-      "contextWindow": 2000000,
-      "maxInputTokens": 2000000,
-      "maxTokens": 30000,
-      "capabilities": [
-        "images",
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 2,
-        "output": 6,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-16"
-    },
     "grok-4.20-beta-0309-reasoning": {
       "id": "grok-4.20-beta-0309-reasoning",
       "name": "grok-4.20-beta-0309-reasoning",
@@ -346,37 +1626,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "reasoningOptions": [],
-      "pricing": {
-        "input": 2,
-        "output": 6,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-16"
-    },
-    "grok-4.20-multi-agent-beta-0309": {
-      "id": "grok-4.20-multi-agent-beta-0309",
-      "name": "grok-4.20-multi-agent-beta-0309",
-      "contextWindow": 2000000,
-      "maxInputTokens": 2000000,
-      "maxTokens": 30000,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
       "pricing": {
         "input": 2,
         "output": 6,
@@ -420,35 +1669,161 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-05",
       "family": "gpt"
     },
-    "gpt-5.4-pro": {
-      "id": "gpt-5.4-pro",
-      "name": "gpt-5.4-pro",
-      "contextWindow": 1050000,
-      "maxInputTokens": 922000,
-      "maxTokens": 128000,
+    "gemini-3.1-flash-lite-preview": {
+      "id": "gemini-3.1-flash-lite-preview",
+      "name": "Gemini 3.1 Flash Lite Preview",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
+        "files",
         "tools",
-        "reasoning"
+        "reasoning",
+        "structured_output",
+        "temperature"
       ],
       "reasoningOptions": [
         {
           "type": "effort",
           "values": [
+            "minimal",
+            "low",
             "medium",
-            "high",
-            "xhigh"
+            "high"
           ]
         }
       ],
       "pricing": {
-        "input": 30,
-        "output": 180,
+        "input": 0.25,
+        "output": 1.5,
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-03-05",
-      "family": "gpt-pro"
+      "releaseDate": "2026-03-03",
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "gpt-5.3-chat-latest": {
+      "id": "gpt-5.3-chat-latest",
+      "name": "GPT-5.3 Chat (latest)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 16384,
+      "capabilities": [
+        "images",
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 1.75,
+        "output": 14,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-03",
+      "family": "gpt"
+    },
+    "qwen3.5-35b-a3b": {
+      "id": "qwen3.5-35b-a3b",
+      "name": "Qwen3.5 35B-A3B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.46,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-23",
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "gemini-3.1-pro-preview": {
+      "id": "gemini-3.1-pro-preview",
+      "name": "Gemini 3.1 Pro Preview",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 12,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-19",
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -504,6 +1879,36 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-18"
     },
+    "qwen3.5-plus": {
+      "id": "qwen3.5-plus",
+      "name": "Qwen3.5 Plus",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.12,
+        "output": 0.69,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-16",
+      "family": "qwen"
+    },
     "glm-5": {
       "id": "glm-5",
       "name": "glm-5",
@@ -529,93 +1934,74 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-12",
       "family": "glm"
     },
-    "claude-opus-4-6": {
-      "id": "claude-opus-4-6",
-      "name": "claude-opus-4-6",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "max"
-          ]
-        },
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 127999
-        }
-      ],
-      "pricing": {
-        "input": 5,
-        "output": 25,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-06",
-      "family": "claude-opus"
-    },
-    "claude-opus-4-6-thinking": {
-      "id": "claude-opus-4-6-thinking",
-      "name": "claude-opus-4-6-thinking",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 5,
-        "output": 25,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-06"
-    },
-    "glm-4.7-flashx": {
-      "id": "glm-4.7-flashx",
-      "name": "glm-4.7-flashx",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
+    "MiniMax-M2.5": {
+      "id": "MiniMax-M2.5",
+      "name": "MiniMax-M2.5",
+      "contextWindow": 204800,
+      "maxInputTokens": 204800,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
         "reasoning",
         "temperature"
       ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-12",
+      "family": "minimax"
+    },
+    "kimi-k2.5": {
+      "id": "kimi-k2.5",
+      "name": "Kimi K2.5",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
       "reasoningOptions": [
         {
           "type": "toggle"
         }
       ],
       "pricing": {
-        "input": 0.0715,
-        "output": 0.429,
+        "input": 0.66,
+        "output": 3.3,
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-01-20",
-      "family": "glm-flash"
+      "releaseDate": "2026-01",
+      "family": "kimi-k2"
+    },
+    "MiniMax-M2.1": {
+      "id": "MiniMax-M2.1",
+      "name": "MiniMax-M2.1",
+      "contextWindow": 204800,
+      "maxInputTokens": 204800,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.3,
+        "output": 1.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-23",
+      "family": "minimax"
     },
     "glm-4.7": {
       "id": "glm-4.7",
@@ -641,24 +2027,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-22",
       "family": "glm"
-    },
-    "MiniMax-M2.1": {
-      "id": "MiniMax-M2.1",
-      "name": "MiniMax-M2.1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-19"
     },
     "doubao-seed-1-8-251215": {
       "id": "doubao-seed-1-8-251215",
@@ -863,46 +2231,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-01"
     },
-    "claude-opus-4-5": {
-      "id": "claude-opus-4-5",
-      "name": "claude-opus-4-5",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        },
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 63999
-        }
-      ],
-      "pricing": {
-        "input": 5,
-        "output": 25,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-25",
-      "family": "claude-opus"
-    },
     "claude-opus-4-5-20251101": {
       "id": "claude-opus-4-5-20251101",
       "name": "claude-opus-4-5-20251101",
@@ -942,46 +2270,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-11-25",
       "family": "claude-opus"
-    },
-    "claude-opus-4-5-20251101-thinking": {
-      "id": "claude-opus-4-5-20251101-thinking",
-      "name": "claude-opus-4-5-20251101-thinking",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 5,
-        "output": 25,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-25"
-    },
-    "grok-4-1-fast-non-reasoning": {
-      "id": "grok-4-1-fast-non-reasoning",
-      "name": "grok-4-1-fast-non-reasoning",
-      "contextWindow": 2000000,
-      "maxInputTokens": 2000000,
-      "maxTokens": 30000,
-      "capabilities": [
-        "images",
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.2,
-        "output": 0.5,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-20"
     },
     "grok-4-1-fast-reasoning": {
       "id": "grok-4-1-fast-reasoning",
@@ -1103,25 +2391,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-11-14",
       "family": "gpt-codex"
     },
-    "doubao-seed-code-preview-251028": {
-      "id": "doubao-seed-code-preview-251028",
-      "name": "doubao-seed-code-preview-251028",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 32000,
-      "capabilities": [
-        "images",
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.17,
-        "output": 1.14,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-11"
-    },
     "MiniMax-M2": {
       "id": "MiniMax-M2",
       "name": "MiniMax-M2",
@@ -1233,38 +2502,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-10-08",
       "family": "gpt-pro"
     },
-    "claude-sonnet-4-5": {
-      "id": "claude-sonnet-4-5",
-      "name": "claude-sonnet-4-5",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 63999
-        }
-      ],
-      "pricing": {
-        "input": 3,
-        "output": 15,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-30",
-      "family": "claude-sonnet"
-    },
     "claude-sonnet-4-5-20250929": {
       "id": "claude-sonnet-4-5-20250929",
       "name": "claude-sonnet-4-5-20250929",
@@ -1357,27 +2594,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.286,
         "output": 1.142,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-30",
-      "family": "glm"
-    },
-    "glm-for-coding": {
-      "id": "glm-for-coding",
-      "name": "glm-for-coding",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.086,
-        "output": 0.343,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -1513,26 +2729,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.575,
         "output": 2.3,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-05"
-    },
-    "kimi-k2-thinking-turbo": {
-      "id": "kimi-k2-thinking-turbo",
-      "name": "kimi-k2-thinking-turbo",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.265,
-        "output": 9.119,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -1725,87 +2921,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-07-29",
       "family": "glm"
     },
-    "glm-4.5-air": {
-      "id": "glm-4.5-air",
-      "name": "glm-4.5-air",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 98304,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.1143,
-        "output": 0.286,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-29",
-      "family": "glm-air"
-    },
-    "glm-4.5-airx": {
-      "id": "glm-4.5-airx",
-      "name": "glm-4.5-airx",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.572,
-        "output": 1.714,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-29",
-      "family": "glm"
-    },
-    "glm-4.5-x": {
-      "id": "glm-4.5-x",
-      "name": "glm-4.5-x",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 1.143,
-        "output": 2.29,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-29",
-      "family": "glm"
-    },
-    "qwen-flash": {
-      "id": "qwen-flash",
-      "name": "Qwen-Flash",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.022,
-        "output": 0.22,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-28"
-    },
     "qwen3-coder-480b-a35b-instruct": {
       "id": "qwen3-coder-480b-a35b-instruct",
       "name": "qwen3-coder-480b-a35b-instruct",
@@ -1945,70 +3060,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-05-27"
     },
-    "claude-opus-4-20250514": {
-      "id": "claude-opus-4-20250514",
-      "name": "claude-opus-4-20250514",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 32000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 31999
-        }
-      ],
-      "pricing": {
-        "input": 15,
-        "output": 75,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-05-22",
-      "family": "claude-opus"
-    },
-    "claude-sonnet-4-20250514": {
-      "id": "claude-sonnet-4-20250514",
-      "name": "claude-sonnet-4-20250514",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 63999
-        }
-      ],
-      "pricing": {
-        "input": 3,
-        "output": 15,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-05-22",
-      "family": "claude-sonnet"
-    },
     "qwen3-235b-a22b": {
       "id": "qwen3-235b-a22b",
       "name": "Qwen3-235B-A22B",
@@ -2046,6 +3097,38 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-04-29",
       "family": "qwen"
+    },
+    "o3": {
+      "id": "o3",
+      "name": "o3",
+      "contextWindow": 200000,
+      "maxInputTokens": 200000,
+      "maxTokens": 100000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 8,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-16",
+      "family": "o"
     },
     "gpt-4.1": {
       "id": "gpt-4.1",
@@ -2112,107 +3195,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-04-14",
       "family": "gpt-nano"
     },
-    "deepseek-reasoner": {
-      "id": "deepseek-reasoner",
-      "name": "Deepseek-Reasoner",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.29,
-        "output": 0.43,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-01-20",
-      "family": "deepseek-thinking"
-    },
-    "deepseek-chat": {
-      "id": "deepseek-chat",
-      "name": "Deepseek-Chat",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.29,
-        "output": 0.43,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-11-29",
-      "family": "deepseek"
-    },
-    "claude-3-5-haiku-20241022": {
-      "id": "claude-3-5-haiku-20241022",
-      "name": "claude-3-5-haiku-20241022",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.8,
-        "output": 4,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-10-22",
-      "family": "claude-haiku"
-    },
-    "claude-3-5-haiku-latest": {
-      "id": "claude-3-5-haiku-latest",
-      "name": "claude-3-5-haiku-latest",
-      "contextWindow": 200000,
-      "maxInputTokens": 200000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.8,
-        "output": 4,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-10-22",
-      "family": "claude-haiku"
-    },
-    "qwen-plus": {
-      "id": "qwen-plus",
-      "name": "Qwen-Plus",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.12,
-        "output": 1.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-07-23",
-      "family": "qwen"
-    },
     "gpt-4o": {
       "id": "gpt-4o",
       "name": "gpt-4o",
@@ -2234,25 +3216,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-05-13",
       "family": "gpt"
-    },
-    "qwen-max-latest": {
-      "id": "qwen-max-latest",
-      "name": "Qwen-Max-Latest",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.343,
-        "output": 1.372,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-04-03",
-      "family": "qwen"
     }
   },
   "abacus": {
@@ -13826,6 +14789,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxInputTokens": 262144,
       "maxTokens": 131072,
       "capabilities": [
+        "images",
         "tools",
         "reasoning",
         "structured_output",
@@ -13850,6 +14814,43 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-27",
       "family": "qwen"
+    },
+    "DeepSeek-V4-Flash-Vision-Exp": {
+      "id": "DeepSeek-V4-Flash-Vision-Exp",
+      "name": "DeepSeek V4 Flash Vision Exp",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.14,
+        "output": 0.28,
+        "cacheRead": 0.0028,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-21",
+      "family": "deepseek-flash"
     },
     "DeepSeek-V4-Flash": {
       "id": "DeepSeek-V4-Flash",
@@ -13886,6 +14887,36 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-07-31",
       "family": "deepseek-flash"
+    },
+    "MiniCPM5-1B": {
+      "id": "MiniCPM5-1B",
+      "name": "MiniCPM5-1B",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.124,
+        "output": 0.7425,
+        "cacheRead": 0.124,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-19"
     }
   },
   "anthropic": {
@@ -16089,6 +17120,39 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-14",
       "family": "glm"
     },
+    "zai-org/GLM-5.3-Fast": {
+      "id": "zai-org/GLM-5.3-Fast",
+      "name": "GLM 5.3 Fast",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2.1,
+        "output": 6.6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
     "deepseek-ai/DeepSeek-V4-Pro-0813": {
       "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
       "name": "DeepSeek V4 Pro 0813",
@@ -16621,6 +17685,111 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "bedrock": {
+    "global.openai.gpt-6-astra": {
+      "id": "global.openai.gpt-6-astra",
+      "name": "GPT-6 Astra (Global)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai.gpt-6-astra": {
+      "id": "openai.gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 11,
+        "output": 55,
+        "cacheRead": 1.1,
+        "cacheWrite": 13.75
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "us.openai.gpt-6-astra": {
+      "id": "us.openai.gpt-6-astra",
+      "name": "GPT-6 Astra (US)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 11,
+        "output": 55,
+        "cacheRead": 1.1,
+        "cacheWrite": 13.75
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
     "anthropic.claude-fable-5-1": {
       "id": "anthropic.claude-fable-5-1",
       "name": "Claude Fable 5.1",
@@ -16722,6 +17891,72 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-09-01",
       "family": "claude-fable"
+    },
+    "global.xai.grok-4.6": {
+      "id": "global.xai.grok-4.6",
+      "name": "Grok 4.6 (Global)",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
+    "us.xai.grok-4.6": {
+      "id": "us.xai.grok-4.6",
+      "name": "Grok 4.6 (US)",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2.2,
+        "output": 6.6,
+        "cacheRead": 0.55,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
     },
     "xai.grok-4.6": {
       "id": "xai.grok-4.6",
@@ -17150,6 +18385,111 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2.2,
+        "output": 13.2,
+        "cacheRead": 0.22,
+        "cacheWrite": 2.75
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-terra"
+    },
+    "us.openai.gpt-5.6-luna": {
+      "id": "us.openai.gpt-5.6-luna",
+      "name": "GPT-5.6 Luna (US)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.22,
+        "output": 1.32,
+        "cacheRead": 0.022,
+        "cacheWrite": 0.275
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-luna"
+    },
+    "us.openai.gpt-5.6-sol": {
+      "id": "us.openai.gpt-5.6-sol",
+      "name": "GPT-5.6 Sol (US)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 4.4,
+        "output": 22,
+        "cacheRead": 0.44,
+        "cacheWrite": 5.5
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-sol"
+    },
+    "us.openai.gpt-5.6-terra": {
+      "id": "us.openai.gpt-5.6-terra",
+      "name": "GPT-5.6 Terra (US)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
         "prompt-cache"
       ],
       "reasoningOptions": [
@@ -17841,6 +19181,40 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": 25,
         "cacheRead": 0.5,
         "cacheWrite": 6.25
+      },
+      "releaseDate": "2026-04-16",
+      "family": "claude-opus"
+    },
+    "au.anthropic.claude-opus-4-7": {
+      "id": "au.anthropic.claude-opus-4-7",
+      "name": "Claude Opus 4.7 (AU)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5.5,
+        "output": 27.5,
+        "cacheRead": 0.55,
+        "cacheWrite": 6.875
       },
       "releaseDate": "2026-04-16",
       "family": "claude-opus"
@@ -18772,6 +20146,154 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-02",
       "family": "kimi-thinking"
     },
+    "eu.amazon.nova-2-lite-v1:0": {
+      "id": "eu.amazon.nova-2-lite-v1:0",
+      "name": "Nova 2 Lite (EU)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.374,
+        "output": 3.157,
+        "cacheRead": 0.0935,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-01",
+      "family": "nova"
+    },
+    "global.amazon.nova-2-lite-v1:0": {
+      "id": "global.amazon.nova-2-lite-v1:0",
+      "name": "Nova 2 Lite (Global)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.3,
+        "output": 2.5,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-01",
+      "family": "nova"
+    },
+    "jp.amazon.nova-2-lite-v1:0": {
+      "id": "jp.amazon.nova-2-lite-v1:0",
+      "name": "Nova 2 Lite (JP)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.396,
+        "output": 3.311,
+        "cacheRead": 0.099,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-01",
+      "family": "nova"
+    },
+    "us.amazon.nova-2-lite-v1:0": {
+      "id": "us.amazon.nova-2-lite-v1:0",
+      "name": "Nova 2 Lite (US)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.33,
+        "output": 2.75,
+        "cacheRead": 0.0825,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-01",
+      "family": "nova"
+    },
     "anthropic.claude-opus-4-5-20251101-v1:0": {
       "id": "anthropic.claude-opus-4-5-20251101-v1:0",
       "name": "Claude Opus 4.5",
@@ -19664,6 +21186,48 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "us.writer.palmyra-x4-v1:0": {
+      "id": "us.writer.palmyra-x4-v1:0",
+      "name": "Palmyra X4 (US)",
+      "contextWindow": 122880,
+      "maxInputTokens": 122880,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 2.5,
+        "output": 10,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-28",
+      "family": "palmyra"
+    },
+    "us.writer.palmyra-x5-v1:0": {
+      "id": "us.writer.palmyra-x5-v1:0",
+      "name": "Palmyra X5 (US)",
+      "contextWindow": 1040000,
+      "maxInputTokens": 1040000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.6,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-28",
+      "family": "palmyra"
+    },
     "writer.palmyra-x4-v1:0": {
       "id": "writer.palmyra-x4-v1:0",
       "name": "Palmyra X4",
@@ -19706,6 +21270,26 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-04-28",
       "family": "palmyra"
     },
+    "eu.mistral.pixtral-large-2502-v1:0": {
+      "id": "eu.mistral.pixtral-large-2502-v1:0",
+      "name": "Pixtral Large (25.02) (EU)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-08",
+      "family": "pixtral"
+    },
     "mistral.pixtral-large-2502-v1:0": {
       "id": "mistral.pixtral-large-2502-v1:0",
       "name": "Pixtral Large (25.02)",
@@ -19725,6 +21309,26 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-04-08",
       "family": "mistral"
+    },
+    "us.mistral.pixtral-large-2502-v1:0": {
+      "id": "us.mistral.pixtral-large-2502-v1:0",
+      "name": "Pixtral Large (25.02) (US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-08",
+      "family": "pixtral"
     },
     "meta.llama4-maverick-17b-instruct-v1:0": {
       "id": "meta.llama4-maverick-17b-instruct-v1:0",
@@ -19867,6 +21471,25 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2024-12-06",
       "family": "llama"
     },
+    "us.meta.llama3-3-70b-instruct-v1:0": {
+      "id": "us.meta.llama3-3-70b-instruct-v1:0",
+      "name": "Llama 3.3 70B Instruct (US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 4096,
+      "capabilities": [
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.72,
+        "output": 0.72,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-06",
+      "family": "llama"
+    },
     "amazon.nova-lite-v1:0": {
       "id": "amazon.nova-lite-v1:0",
       "name": "Nova Lite",
@@ -19912,6 +21535,220 @@ export const GENERATED_PROVIDER_MODELS: {
     "amazon.nova-pro-v1:0": {
       "id": "amazon.nova-pro-v1:0",
       "name": "Nova Pro",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.8,
+        "output": 3.2,
+        "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-pro"
+    },
+    "apac.amazon.nova-lite-v1:0": {
+      "id": "apac.amazon.nova-lite-v1:0",
+      "name": "Nova Lite (APAC)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.063,
+        "output": 0.252,
+        "cacheRead": 0.01575,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-lite"
+    },
+    "apac.amazon.nova-micro-v1:0": {
+      "id": "apac.amazon.nova-micro-v1:0",
+      "name": "Nova Micro (APAC)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.037,
+        "output": 0.148,
+        "cacheRead": 0.00925,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-micro"
+    },
+    "apac.amazon.nova-pro-v1:0": {
+      "id": "apac.amazon.nova-pro-v1:0",
+      "name": "Nova Pro (APAC)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.84,
+        "output": 3.36,
+        "cacheRead": 0.21,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-pro"
+    },
+    "ca.amazon.nova-lite-v1:0": {
+      "id": "ca.amazon.nova-lite-v1:0",
+      "name": "Nova Lite (CA)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.064,
+        "output": 0.256,
+        "cacheRead": 0.016,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-lite"
+    },
+    "eu.amazon.nova-lite-v1:0": {
+      "id": "eu.amazon.nova-lite-v1:0",
+      "name": "Nova Lite (EU)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.069,
+        "output": 0.276,
+        "cacheRead": 0.01725,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-lite"
+    },
+    "eu.amazon.nova-micro-v1:0": {
+      "id": "eu.amazon.nova-micro-v1:0",
+      "name": "Nova Micro (EU)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.04,
+        "output": 0.16,
+        "cacheRead": 0.01,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-micro"
+    },
+    "eu.amazon.nova-pro-v1:0": {
+      "id": "eu.amazon.nova-pro-v1:0",
+      "name": "Nova Pro (EU)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.92,
+        "output": 3.68,
+        "cacheRead": 0.23,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-pro"
+    },
+    "us.amazon.nova-lite-v1:0": {
+      "id": "us.amazon.nova-lite-v1:0",
+      "name": "Nova Lite (US)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.24,
+        "cacheRead": 0.015,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-lite"
+    },
+    "us.amazon.nova-micro-v1:0": {
+      "id": "us.amazon.nova-micro-v1:0",
+      "name": "Nova Micro (US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.035,
+        "output": 0.14,
+        "cacheRead": 0.00875,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-micro"
+    },
+    "us.amazon.nova-pro-v1:0": {
+      "id": "us.amazon.nova-pro-v1:0",
+      "name": "Nova Pro (US)",
       "contextWindow": 300000,
       "maxInputTokens": 300000,
       "maxTokens": 8192,
@@ -20133,14 +21970,52 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-07-23",
       "family": "llama"
+    },
+    "us.meta.llama3-1-70b-instruct-v1:0": {
+      "id": "us.meta.llama3-1-70b-instruct-v1:0",
+      "name": "Llama 3.1 70B Instruct (US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 4096,
+      "capabilities": [
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.72,
+        "output": 0.72,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-07-23",
+      "family": "llama"
+    },
+    "us.meta.llama3-1-8b-instruct-v1:0": {
+      "id": "us.meta.llama3-1-8b-instruct-v1:0",
+      "name": "Llama 3.1 8B Instruct (US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 4096,
+      "capabilities": [
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.22,
+        "output": 0.22,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-07-23",
+      "family": "llama"
     }
   },
   "berget": {
     "zai-org/GLM-5.3-Flash": {
       "id": "zai-org/GLM-5.3-Flash",
       "name": "GLM-5.3-Flash",
-      "contextWindow": 327680,
-      "maxInputTokens": 327680,
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
       "maxTokens": 16384,
       "capabilities": [
         "images",
@@ -20169,13 +22044,14 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-26",
       "family": "glm"
     },
-    "zai-org/GLM-5.3": {
-      "id": "zai-org/GLM-5.3",
-      "name": "GLM-5.3",
-      "contextWindow": 327680,
-      "maxInputTokens": 327680,
-      "maxTokens": 32768,
+    "Qwen/Qwen3.8-27B-FP8": {
+      "id": "Qwen/Qwen3.8-27B-FP8",
+      "name": "Qwen3.8 27B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 65536,
       "capabilities": [
+        "images",
         "tools",
         "reasoning",
         "structured_output",
@@ -20185,20 +22061,21 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "none",
             "low",
-            "high",
-            "max"
+            "medium",
+            "xhigh"
           ]
         }
       ],
       "pricing": {
-        "input": 1.75,
-        "output": 5.82,
+        "input": 0.46,
+        "output": 3.48,
         "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
-      "family": "glm"
+      "family": "qwen"
     },
     "moonshotai/Kimi-K3": {
       "id": "moonshotai/Kimi-K3",
@@ -20261,66 +22138,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-13",
       "family": "glm"
     },
-    "moonshotai/Kimi-K2.6": {
-      "id": "moonshotai/Kimi-K2.6",
-      "name": "Kimi K2.6",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.83,
-        "output": 3.85,
-        "cacheRead": 0.16,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-05-07",
-      "family": "kimi-k2"
-    },
-    "mistralai/Mistral-Medium-3.5-128B": {
-      "id": "mistralai/Mistral-Medium-3.5-128B",
-      "name": "Mistral Medium 3.5 128B",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.65,
-        "output": 5.5,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-29",
-      "family": "mistral-medium"
-    },
     "google/gemma-4-31B-it": {
       "id": "google/gemma-4-31B-it",
       "name": "Gemma 4 31B Instruct",
@@ -20356,28 +22173,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "zai-org/GLM-4.7": {
-      "id": "zai-org/GLM-4.7",
-      "name": "GLM 4.7",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.77,
-        "output": 2.75,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01-19",
-      "family": "glm"
-    },
     "mistralai/Mistral-Small-3.2-24B-Instruct-2506": {
       "id": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
       "name": "Mistral Small 3.2 24B Instruct 2506",
@@ -20399,59 +22194,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-01",
       "family": "mistral-small"
-    },
-    "openai/gpt-oss-120b": {
-      "id": "openai/gpt-oss-120b",
-      "name": "GPT-OSS-120B",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.22,
-        "output": 0.83,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-05",
-      "family": "gpt-oss"
-    },
-    "meta-llama/Llama-3.3-70B-Instruct": {
-      "id": "meta-llama/Llama-3.3-70B-Instruct",
-      "name": "Llama 3.3 70B Instruct",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.99,
-        "output": 0.99,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-04-27",
-      "family": "llama"
     }
   },
   "blueclaw": {
@@ -20560,12 +22302,12 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cerebras": {
-    "gemma-4-31b": {
-      "id": "gemma-4-31b",
-      "name": "Gemma 4 31B IT",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 40960,
+    "qwen-3.8-27b": {
+      "id": "qwen-3.8-27b",
+      "name": "Qwen3.8 27B",
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "tools",
@@ -20590,8 +22332,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "releaseDate": "2026-08-14",
+      "family": "qwen"
     },
     "gpt-oss-120b": {
       "id": "gpt-oss-120b",
@@ -21252,6 +22994,57 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cline": {
+    "cline-free/muse-spark-1.3-contributor": {
+      "id": "cline-free/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor (free)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "description": "Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows."
+    },
     "deepseek/deepseek-v4-flash": {
       "id": "deepseek/deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",
@@ -21321,6 +23114,34 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-26",
       "family": "glm",
       "description": "Latest natively multimodal model in the GLM-5 series."
+    },
+    "cline-free/solar-pro4": {
+      "id": "cline-free/solar-pro4",
+      "name": "Solar Pro 4 (free)",
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-10",
+      "family": "solar",
+      "description": "Strong model for office productivity, document-intensive work, and coding."
     },
     "cline-free/longcat-2.0": {
       "id": "cline-free/longcat-2.0",
@@ -21380,49 +23201,12 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cline-pass": {
-    "cline-pass/qwen3.8-max": {
-      "name": "Qwen3.8 Max",
-      "id": "cline-pass/qwen3.8-max",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 2,
-        "output": 6,
-        "cacheRead": 0.25,
-        "cacheWrite": 2.5
-      },
-      "releaseDate": "2026-08-03",
-      "family": "qwen",
-      "description": "Qwen's New SOTA coding model"
-    },
     "cline-pass/glm-5.2": {
       "name": "GLM-5.2",
       "id": "cline-pass/glm-5.2",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 131072,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -21443,14 +23227,68 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.966,
-        "output": 3.036,
-        "cacheRead": 0.1932,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
       "family": "glm",
       "description": "Top open weights model"
+    },
+    "cline-pass/qwen3.8-max": {
+      "name": "cline-pass/qwen3.8-max",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "id": "cline-pass/qwen3.8-max",
+      "description": "Qwen's New SOTA coding model"
+    },
+    "cline-pass/deepseek-v4-pro": {
+      "name": "DeepSeek V4 Pro",
+      "id": "cline-pass/deepseek-v4-pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-24",
+      "family": "deepseek-thinking",
+      "description": "Frontier reasoning and coding with 1M context window"
     },
     "cline-pass/glm-5.3-flash": {
       "name": "GLM-5.3-Flash",
@@ -21478,9 +23316,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -21516,164 +23354,14 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 3,
-        "output": 15,
-        "cacheRead": 0.3,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-16",
       "family": "kimi-k3",
       "description": "Leading open weights model (reliability might be unstable and will consume usage faster than others)"
-    },
-    "cline-pass/glm-5.3": {
-      "name": "GLM-5.3",
-      "id": "cline-pass/glm-5.3",
-      "contextWindow": 1310720,
-      "maxInputTokens": 1310720,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.4,
-        "output": 4.4,
-        "cacheRead": 0.26,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-14",
-      "family": "glm",
-      "description": "Z-AI's new top open-weights model"
-    },
-    "cline-pass/qwen3.7-plus": {
-      "name": "Qwen3.7 Plus",
-      "id": "cline-pass/qwen3.7-plus",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.32,
-        "output": 1.28,
-        "cacheRead": 0.064,
-        "cacheWrite": 0.4
-      },
-      "releaseDate": "2026-06-02",
-      "family": "qwen",
-      "description": "Fast multimodal agent model with vision and video input"
-    },
-    "cline-pass/qwen3.7-max": {
-      "name": "Qwen3.7 Max",
-      "id": "cline-pass/qwen3.7-max",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 1.475,
-        "output": 4.425,
-        "cacheRead": 0.295,
-        "cacheWrite": 1.84375
-      },
-      "releaseDate": "2026-05-21",
-      "family": "qwen",
-      "description": "Flagship agent model with 1M context window"
-    },
-    "cline-pass/deepseek-v4-pro": {
-      "name": "DeepSeek V4 Pro",
-      "id": "cline-pass/deepseek-v4-pro",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 384000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.04226,
-        "output": 2.08452,
-        "cacheRead": 0.086855,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-24",
-      "family": "deepseek-thinking",
-      "description": "Frontier reasoning and coding with 1M context window"
-    },
-    "cline-pass/kimi-k2.7-code": {
-      "name": "Kimi K2.7 Code",
-      "id": "cline-pass/kimi-k2.7-code",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.66,
-        "output": 3.4,
-        "cacheRead": 0.18,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-12",
-      "family": "kimi-k2",
-      "description": "Latest Kimi model specialized for agentic coding"
     },
     "cline-pass/deepseek-v4-flash": {
       "name": "DeepSeek V4 Flash",
@@ -21701,14 +23389,43 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.088606,
-        "output": 0.177212,
-        "cacheRead": 0.017721,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
       "family": "deepseek-flash",
       "description": "Fast and efficient with 1M context window"
+    },
+    "cline-pass/qwen3.7-plus": {
+      "name": "Qwen3.7 Plus",
+      "id": "cline-pass/qwen3.7-plus",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-02",
+      "family": "qwen",
+      "description": "Fast multimodal agent model with vision and video input"
     },
     "cline-pass/minimax-m3": {
       "name": "MiniMax-M3",
@@ -21731,14 +23448,39 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.06,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
       "family": "minimax",
       "description": "Frontier coding and agent model with 1M context window"
+    },
+    "cline-pass/kimi-k2.7-code": {
+      "name": "Kimi K2.7 Code",
+      "id": "cline-pass/kimi-k2.7-code",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-12",
+      "family": "kimi-k2",
+      "description": "Latest Kimi model specialized for agentic coding"
     },
     "cline-pass/kimi-k2.6": {
       "name": "Kimi K2.6",
@@ -21760,14 +23502,75 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.95,
-        "output": 4,
-        "cacheRead": 0.16,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
       "family": "kimi-k2",
       "description": "Strong multimodal model for long-horizon agent tasks"
+    },
+    "cline-pass/glm-5.3": {
+      "name": "GLM-5.3",
+      "id": "cline-pass/glm-5.3",
+      "contextWindow": 1310720,
+      "maxInputTokens": 1310720,
+      "maxTokens": 943718,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm",
+      "description": "Z-AI's new top open-weights model"
+    },
+    "cline-pass/qwen3.7-max": {
+      "name": "Qwen3.7 Max",
+      "id": "cline-pass/qwen3.7-max",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-21",
+      "family": "qwen",
+      "description": "Flagship agent model with 1M context window"
     },
     "cline-pass/mimo-v2.5-pro": {
       "name": "MiMo-V2.5-Pro",
@@ -21788,9 +23591,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.435,
-        "output": 0.87,
-        "cacheRead": 0.0036,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
@@ -21818,9 +23621,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.14,
-        "output": 0.28,
-        "cacheRead": 0.0028,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
@@ -21837,6 +23640,57 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       },
       "description": "Fast and efficient MiMo for everyday coding"
+    },
+    "cline-free/muse-spark-1.3-contributor": {
+      "id": "cline-free/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor (free)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "description": "Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows."
     },
     "deepseek/deepseek-v4-flash": {
       "id": "deepseek/deepseek-v4-flash",
@@ -21907,6 +23761,34 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-26",
       "family": "glm",
       "description": "Latest natively multimodal model in the GLM-5 series."
+    },
+    "cline-free/solar-pro4": {
+      "id": "cline-free/solar-pro4",
+      "name": "Solar Pro 4 (free)",
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-10",
+      "family": "solar",
+      "description": "Strong model for office productivity, document-intensive work, and coding."
     },
     "cline-free/longcat-2.0": {
       "id": "cline-free/longcat-2.0",
@@ -22137,41 +24019,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-14",
       "family": "qwen"
-    },
-    "@cf/zai-org/glm-5.3": {
-      "id": "@cf/zai-org/glm-5.3",
-      "name": "Glm 5.3",
-      "contextWindow": 1310720,
-      "maxInputTokens": 1310720,
-      "maxTokens": 1310720,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.4,
-        "output": 4.4,
-        "cacheRead": 0.26,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-14",
-      "family": "glm"
     },
     "@cf/deepseek-ai/deepseek-v4-pro-0813": {
       "id": "@cf/deepseek-ai/deepseek-v4-pro-0813",
@@ -22708,6 +24555,51 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cortecs": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65535,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.825,
+        "output": 4.125,
+        "cacheRead": 0.082,
+        "cacheWrite": 0.084
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "qwen3.8-flash-next": {
       "id": "qwen3.8-flash-next",
       "name": "Qwen3.8 Flash Next",
@@ -22746,7 +24638,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3-Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 64000,
+      "maxTokens": 1048576,
       "capabilities": [
         "images",
         "tools",
@@ -22798,9 +24690,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.75,
-        "output": 4.499,
-        "cacheRead": 0.438,
+        "input": 1.114,
+        "output": 3.899,
+        "cacheRead": 0.279,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
@@ -22844,7 +24736,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.7 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -22889,7 +24781,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Pro 0813",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 64000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -22984,7 +24876,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 5",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23021,7 +24913,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.5 Flash Lite",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -23067,7 +24959,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.6 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "tools",
@@ -23117,7 +25009,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "reasoning",
         "structured_output"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
       "pricing": {
         "input": 3,
         "output": 14.999,
@@ -23132,7 +25033,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.6 Luna",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23165,7 +25066,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.6 Sol",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23198,7 +25099,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.6 Terra",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23231,7 +25132,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 5",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23268,7 +25169,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.2",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 1000000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -23318,26 +25219,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-12",
       "family": "kimi-k2"
     },
-    "cosmos3-super-reasoner": {
-      "id": "cosmos3-super-reasoner",
-      "name": "cosmos3-super-reasoner",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 256000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.099,
-        "output": 0.296,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-02"
-    },
     "minicpm-v-4.5": {
       "id": "minicpm-v-4.5",
       "name": "minicpm-v-4.5",
@@ -23385,7 +25266,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.8",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23422,7 +25303,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.5 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "tools",
@@ -23465,7 +25346,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 3.1 Flash Lite",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -23517,26 +25398,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-30"
-    },
-    "nvidia-nemotron-3-nano-omni": {
-      "id": "nvidia-nemotron-3-nano-omni",
-      "name": "nvidia-nemotron-3-nano-omni",
-      "contextWindow": 300000,
-      "maxInputTokens": 300000,
-      "maxTokens": 300000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.059,
-        "output": 0.237,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-29"
     },
     "deepseek-v4-pro": {
       "id": "deepseek-v4-pro",
@@ -23597,7 +25458,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2.6",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 256000,
+      "maxTokens": 262144,
       "capabilities": [
         "images",
         "files",
@@ -23626,7 +25487,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.6 35B-A3B",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 262000,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "tools",
@@ -23649,7 +25510,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.7",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23709,7 +25570,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemma 4 26B A4B IT",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 262000,
+      "maxTokens": 81920,
       "capabilities": [
         "images",
         "tools",
@@ -23779,7 +25640,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2.7",
       "contextWindow": 196608,
       "maxInputTokens": 196608,
-      "maxTokens": 196072,
+      "maxTokens": 196608,
       "capabilities": [
         "tools",
         "reasoning",
@@ -23824,7 +25685,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Mistral Small 4",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 256000,
       "capabilities": [
         "images",
         "tools",
@@ -23848,7 +25709,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.4",
       "contextWindow": 1050000,
       "maxInputTokens": 1050000,
-      "maxTokens": 1050000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23927,7 +25788,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 4.6",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -23965,7 +25826,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 250000,
+      "maxTokens": 262000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24009,7 +25870,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2.5",
       "contextWindow": 196000,
       "maxInputTokens": 196000,
-      "maxTokens": 196608,
+      "maxTokens": 196000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24032,7 +25893,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Opus 4.6",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -24182,7 +26043,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2.5",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 256000,
+      "maxTokens": 262144,
       "capabilities": [
         "images",
         "tools",
@@ -24227,34 +26088,12 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-23",
       "family": "minimax"
     },
-    "glm-4.7": {
-      "id": "glm-4.7",
-      "name": "GLM-4.7",
-      "contextWindow": 202752,
-      "maxInputTokens": 202752,
-      "maxTokens": 198000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.78,
-        "output": 2.785,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-22",
-      "family": "glm"
-    },
     "devstral-2512": {
       "id": "devstral-2512",
       "name": "Devstral 2",
       "contextWindow": 256000,
       "maxInputTokens": 256000,
-      "maxTokens": 262000,
+      "maxTokens": 256000,
       "capabilities": [
         "tools",
         "structured_output",
@@ -24269,28 +26108,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-09",
       "family": "devstral"
-    },
-    "nova-2-lite": {
-      "id": "nova-2-lite",
-      "name": "nova-2-lite",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.373,
-        "output": 3.144,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-04"
     },
     "ministral-14b-2512": {
       "id": "ministral-14b-2512",
@@ -24384,12 +26201,35 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-12-01",
       "family": "deepseek"
     },
+    "nova-2-lite": {
+      "id": "nova-2-lite",
+      "name": "Nova 2 Lite",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65535,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.373,
+        "output": 3.144,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-01",
+      "family": "nova"
+    },
     "claude-opus4-5": {
       "id": "claude-opus4-5",
       "name": "Claude Opus 4.5 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -24427,7 +26267,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5.1",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "files",
@@ -24512,7 +26352,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax-M2",
       "contextWindow": 400000,
       "maxInputTokens": 400000,
-      "maxTokens": 400000,
+      "maxTokens": 196000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24534,7 +26374,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Haiku 4.5 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -24572,7 +26412,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude Sonnet 4.5 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -24610,7 +26450,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Apertus 70B",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
-      "maxTokens": 65536,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "reasoning"
@@ -24624,53 +26464,12 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-09-02"
     },
-    "qwen3-next-80b-a3b-thinking": {
-      "id": "qwen3-next-80b-a3b-thinking",
-      "name": "Qwen3-Next 80B-A3B (Thinking)",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.149,
-        "output": 1.195,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09",
-      "family": "qwen"
-    },
-    "hermes-4-70b": {
-      "id": "hermes-4-70b",
-      "name": "Hermes 4 70B",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.129,
-        "output": 0.399,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-26"
-    },
     "gpt-5": {
       "id": "gpt-5",
       "name": "GPT-5",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24701,7 +26500,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5 Mini",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24732,7 +26531,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-5 Nano",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
-      "maxTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24763,7 +26562,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT OSS 120B",
       "contextWindow": 131000,
       "maxInputTokens": 131000,
-      "maxTokens": 128000,
+      "maxTokens": 131000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24867,7 +26666,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3 235B-A22B Instruct 2507",
       "contextWindow": 262000,
       "maxInputTokens": 262000,
-      "maxTokens": 131000,
+      "maxTokens": 262000,
       "capabilities": [
         "tools",
         "structured_output",
@@ -24888,7 +26687,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Gemini 2.5 Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "files",
@@ -25008,7 +26807,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "mistral-large-2402",
       "contextWindow": 32000,
       "maxInputTokens": 32000,
-      "maxTokens": 32000,
+      "maxTokens": 8192,
       "capabilities": [
         "files",
         "tools",
@@ -25043,34 +26842,12 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-05-26"
     },
-    "pixtral-large-2502": {
-      "id": "pixtral-large-2502",
-      "name": "pixtral-large-2502",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.993,
-        "output": 5.978,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-05-26"
-    },
     "claude-sonnet-4": {
       "id": "claude-sonnet-4",
       "name": "Claude Sonnet 4 (latest)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 200000,
+      "maxTokens": 65000,
       "capabilities": [
         "images",
         "files",
@@ -25108,7 +26885,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4.1",
       "contextWindow": 1047576,
       "maxInputTokens": 1047576,
-      "maxTokens": 1047576,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "files",
@@ -25130,7 +26907,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4.1 mini",
       "contextWindow": 1047576,
       "maxInputTokens": 1047576,
-      "maxTokens": 1047576,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "files",
@@ -25152,7 +26929,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4.1 nano",
       "contextWindow": 1047576,
       "maxInputTokens": 1047576,
-      "maxTokens": 1047576,
+      "maxTokens": 32768,
       "capabilities": [
         "images",
         "files",
@@ -25174,7 +26951,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "nova-lite-v1",
       "contextWindow": 300000,
       "maxInputTokens": 300000,
-      "maxTokens": 300000,
+      "maxTokens": 10000,
       "capabilities": [
         "images",
         "files",
@@ -25196,7 +26973,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "nova-micro-v1",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 10000,
       "capabilities": [
         "images",
         "tools",
@@ -25212,32 +26989,35 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-04-14"
     },
-    "llama-3.1-nemotron-ultra-253b-v1": {
-      "id": "llama-3.1-nemotron-ultra-253b-v1",
-      "name": "llama-3.1-nemotron-ultra-253b-v1",
+    "pixtral-large-2502": {
+      "id": "pixtral-large-2502",
+      "name": "Pixtral Large (25.02)",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
       "maxTokens": 128000,
       "capabilities": [
+        "images",
+        "files",
         "tools",
         "reasoning",
         "structured_output"
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.598,
-        "output": 1.794,
+        "input": 1.993,
+        "output": 5.978,
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-04-07"
+      "releaseDate": "2025-04-08",
+      "family": "pixtral"
     },
     "qwen3-32b": {
       "id": "qwen3-32b",
       "name": "Qwen3 32B",
-      "contextWindow": 40000,
-      "maxInputTokens": 40000,
-      "maxTokens": 40000,
+      "contextWindow": 32000,
+      "maxInputTokens": 32000,
+      "maxTokens": 32000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -25246,8 +27026,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.099,
-        "output": 0.299,
+        "input": 0.089,
+        "output": 0.312,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -25259,7 +27039,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3-Coder 30B-A3B Instruct",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262000,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "structured_output",
@@ -25319,7 +27099,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nova Pro 1.0",
       "contextWindow": 300000,
       "maxInputTokens": 300000,
-      "maxTokens": 5000,
+      "maxTokens": 10000,
       "capabilities": [
         "images",
         "files",
@@ -25343,7 +27123,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "pixtral-12b-2409",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 4096,
       "capabilities": [
         "images",
         "tools",
@@ -25404,7 +27184,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "mistral-nemo-instruct-2407",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 131072,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "structured_output",
@@ -25466,7 +27246,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4o mini",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 16000,
       "capabilities": [
         "images",
         "files",
@@ -25488,7 +27268,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GPT-4o",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
-      "maxTokens": 128000,
+      "maxTokens": 16000,
       "capabilities": [
         "images",
         "files",
@@ -25542,6 +27322,40 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-26",
       "family": "glm"
+    },
+    "deepseek-v4-flash-vision-exp": {
+      "id": "deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek V4 Flash Vision Exp",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.08,
+        "output": 0.2,
+        "cacheRead": 0.007,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-21",
+      "family": "deepseek-flash"
     },
     "glm-5.3": {
       "id": "glm-5.3",
@@ -26172,6 +27986,85 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "crossmodel": {
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "gemini/gemini-3.8-flash": {
+      "id": "gemini/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.75
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5-1": {
       "id": "anthropic/claude-fable-5-1",
       "name": "Claude Fable 5.1",
@@ -26297,10 +28190,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
-        "cacheWrite": 0.075
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.03,
+        "cacheWrite": 0.15
       },
       "releaseDate": "2026-08-26",
       "family": "glm"
@@ -26610,10 +28503,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.5,
-        "output": 7.5,
-        "cacheRead": 0.15,
-        "cacheWrite": 1.5
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.75
       },
       "releaseDate": "2026-07-21",
       "family": "gemini-flash",
@@ -26753,10 +28646,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 5,
-        "output": 30,
-        "cacheRead": 0.5,
-        "cacheWrite": 6.25
+        "input": 4,
+        "output": 20,
+        "cacheRead": 0.4,
+        "cacheWrite": 5
       },
       "releaseDate": "2026-07-09",
       "family": "gpt-sol"
@@ -26833,7 +28726,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -27837,34 +29730,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-12",
       "family": "glm"
     },
-    "moonshot/kimi-k2.5": {
-      "id": "moonshot/kimi-k2.5",
-      "name": "Kimi K2.5",
-      "contextWindow": 262000,
-      "maxInputTokens": 262000,
-      "maxTokens": 262000,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.62,
-        "output": 3.3,
-        "cacheRead": 0.11,
-        "cacheWrite": 0.62
-      },
-      "releaseDate": "2026-01",
-      "family": "kimi-k2"
-    },
     "z-ai/glm-4.7": {
       "id": "z-ai/glm-4.7",
       "name": "GLM-4.7",
@@ -28284,6 +30149,58 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
+    "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B": {
+      "id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B",
+      "name": "Nemotron 3 Super 120B A12B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.3,
+        "output": 2.4,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-11",
+      "family": "nemotron"
+    },
+    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B": {
+      "id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
+      "name": "Nemotron 3 Nano 30B A3B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.2,
+        "cacheRead": 0.03,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-12-15",
+      "family": "nemotron"
+    },
     "openai/gpt-oss-120b": {
       "id": "openai/gpt-oss-120b",
       "name": "GPT OSS 120B",
@@ -28315,6 +30232,26 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-08-05",
       "family": "gpt-oss"
+    },
+    "Qwen/Qwen3-235B-A22B-Instruct-2507": {
+      "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "name": "Qwen3 235B-A22B Instruct 2507",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 16384,
+      "capabilities": [
+        "tools",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.22,
+        "output": 0.8,
+        "cacheRead": 0.11,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-07-21",
+      "family": "qwen"
     },
     "deepseek-ai/DeepSeek-V3-0324": {
       "id": "deepseek-ai/DeepSeek-V3-0324",
@@ -29810,6 +31747,40 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "digitalocean": {
+    "openai-gpt-6-astra": {
+      "id": "openai-gpt-6-astra",
+      "name": "OpenAI GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
     "anthropic-claude-fable-5.1": {
       "id": "anthropic-claude-fable-5.1",
       "name": "Anthropic Claude Fable 5.1",
@@ -32503,6 +34474,394 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "edenai": {
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai/gpt-latest": {
+      "id": "openai/gpt-latest",
+      "name": "GPT Latest (GPT-6 Astra)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "google/gemini-flash-latest": {
+      "id": "google/gemini-flash-latest",
+      "name": "Gemini Flash Latest (Gemini 3.8 Flash)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "qwen/qwen3.8-max-0902": {
+      "id": "qwen/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
+    "vertex/gemini-3.8-flash": {
+      "id": "vertex/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash (Vertex AI)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "vertex/gemini-3.8-flash@eu": {
+      "id": "vertex/gemini-3.8-flash@eu",
+      "name": "Gemini 3.8 Flash (Vertex AI, EU)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "vertex/gemini-3.8-flash@us": {
+      "id": "vertex/gemini-3.8-flash@us",
+      "name": "Gemini 3.8 Flash (Vertex AI, US)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "vertex/gemini-flash-latest": {
+      "id": "vertex/gemini-flash-latest",
+      "name": "Gemini Flash Latest (Gemini 3.8 Flash, Vertex AI)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5-1": {
       "id": "anthropic/claude-fable-5-1",
       "name": "Claude Fable 5.1",
@@ -32540,7 +34899,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "anthropic/claude-fable-latest": {
       "id": "anthropic/claude-fable-latest",
-      "name": "Claude Fable 5.1",
+      "name": "Claude Fable Latest (Claude Fable 5.1)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 128000,
@@ -32599,7 +34958,7 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.16,
+        "input": 0.15,
         "output": 0.47,
         "cacheRead": 0.016,
         "cacheWrite": 0.2
@@ -32789,56 +35148,9 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "google/gemini-flash-latest": {
-      "id": "google/gemini-flash-latest",
-      "name": "Gemini 3.7 Flash",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 65536,
-      "capabilities": [
-        "images",
-        "video",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.75,
-        "output": 3.75,
-        "cacheRead": 0.075,
-        "cacheWrite": 0.041667
-      },
-      "releaseDate": "2026-08-13",
-      "family": "gemini-flash",
-      "modalities": {
-        "input": [
-          "text",
-          "image",
-          "video",
-          "audio",
-          "pdf"
-        ],
-        "output": [
-          "text"
-        ]
-      }
-    },
     "vertex/gemini-3.7-flash": {
       "id": "vertex/gemini-3.7-flash",
-      "name": "Gemini 3.7 Flash",
+      "name": "Gemini 3.7 Flash (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -32885,7 +35197,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.7-flash@eu": {
       "id": "vertex/gemini-3.7-flash@eu",
-      "name": "Gemini 3.7 Flash (EU)",
+      "name": "Gemini 3.7 Flash (Vertex AI, EU)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -32932,54 +35244,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.7-flash@us": {
       "id": "vertex/gemini-3.7-flash@us",
-      "name": "Gemini 3.7 Flash (US)",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 65536,
-      "capabilities": [
-        "images",
-        "video",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.75,
-        "output": 3.75,
-        "cacheRead": 0.075,
-        "cacheWrite": 0.041667
-      },
-      "releaseDate": "2026-08-13",
-      "family": "gemini-flash",
-      "modalities": {
-        "input": [
-          "text",
-          "image",
-          "video",
-          "audio",
-          "pdf"
-        ],
-        "output": [
-          "text"
-        ]
-      }
-    },
-    "vertex/gemini-flash-latest": {
-      "id": "vertex/gemini-flash-latest",
-      "name": "Gemini 3.7 Flash",
+      "name": "Gemini 3.7 Flash (Vertex AI, US)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -33026,7 +35291,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813": {
       "id": "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (Cloudflare)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33059,7 +35324,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "databricks/databricks-deepseek-v4-pro-0813": {
       "id": "databricks/databricks-deepseek-v4-pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (Databricks)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 384000,
@@ -33091,7 +35356,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/deepseek-ai/DeepSeek-V4-Pro-0813": {
       "id": "deepinfra/deepseek-ai/DeepSeek-V4-Pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (Deep Infra)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33124,7 +35389,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "fireworks_ai/accounts/fireworks/models/deepseek-v4-pro-0813": {
       "id": "fireworks_ai/accounts/fireworks/models/deepseek-v4-pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (Fireworks AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33157,7 +35422,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "qwen/deepseek-v4-pro-0813": {
       "id": "qwen/deepseek-v4-pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (Alibaba)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 384000,
@@ -33221,7 +35486,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "tensorx/deepseek/deepseek-v4-pro-0813": {
       "id": "tensorx/deepseek/deepseek-v4-pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (TensorX)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33253,7 +35518,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "together_ai/deepseek-ai/DeepSeek-V4-Pro-0813": {
       "id": "together_ai/deepseek-ai/DeepSeek-V4-Pro-0813",
-      "name": "DeepSeek V4 Pro 0813",
+      "name": "DeepSeek V4 Pro 0813 (Together AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33321,7 +35586,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "xai/grok-latest": {
       "id": "xai/grok-latest",
-      "name": "Grok 4.6",
+      "name": "Grok Latest (Grok 4.6)",
       "contextWindow": 500000,
       "maxInputTokens": 500000,
       "maxTokens": 500000,
@@ -33356,7 +35621,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/meta-models/Muse-Glimmer-30B": {
       "id": "deepinfra/meta-models/Muse-Glimmer-30B",
-      "name": "Muse Glimmer 30B",
+      "name": "Muse Glimmer 30B (Deep Infra)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 131072,
@@ -33390,7 +35655,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "fireworks_ai/accounts/fireworks/models/muse-glimmer-30b": {
       "id": "fireworks_ai/accounts/fireworks/models/muse-glimmer-30b",
-      "name": "Muse Glimmer 30B",
+      "name": "Muse Glimmer 30B (Fireworks AI)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 131072,
@@ -33424,7 +35689,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "together_ai/meta-models/Muse-Glimmer-30B": {
       "id": "together_ai/meta-models/Muse-Glimmer-30B",
-      "name": "Muse Glimmer 30B",
+      "name": "Muse Glimmer 30B (Together AI)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 131072,
@@ -33493,7 +35758,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "cloudflare/@cf/deepseek-ai/deepseek-v4-flash-0731": {
       "id": "cloudflare/@cf/deepseek-ai/deepseek-v4-flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Cloudflare)",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
       "maxTokens": 384000,
@@ -33526,7 +35791,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "databricks/databricks-deepseek-v4-flash-0731": {
       "id": "databricks/databricks-deepseek-v4-flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Databricks)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 384000,
@@ -33558,7 +35823,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731": {
       "id": "deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Deep Infra)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33581,9 +35846,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.08,
+        "input": 0.06,
         "output": 0.18,
-        "cacheRead": 0.016,
+        "cacheRead": 0.015,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-31",
@@ -33591,7 +35856,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "fireworks_ai/accounts/fireworks/models/deepseek-v4-flash-0731": {
       "id": "fireworks_ai/accounts/fireworks/models/deepseek-v4-flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Fireworks AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33624,7 +35889,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "nebius/deepseek-ai/DeepSeek-V4-Flash-0731": {
       "id": "nebius/deepseek-ai/DeepSeek-V4-Flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Nebius)",
       "contextWindow": 1024000,
       "maxInputTokens": 1024000,
       "maxTokens": 384000,
@@ -33657,7 +35922,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "qwen/deepseek-v4-flash-0731": {
       "id": "qwen/deepseek-v4-flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Alibaba)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 384000,
@@ -33689,7 +35954,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "scaleway/deepseek-v4-flash-0731": {
       "id": "scaleway/deepseek-v4-flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Scaleway)",
       "contextWindow": 256000,
       "maxInputTokens": 256000,
       "maxTokens": 384000,
@@ -33710,8 +35975,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.4636,
-        "output": 0.9272,
+        "input": 0.46608,
+        "output": 0.93216,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -33720,7 +35985,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "tensorx/deepseek/deepseek-v4-flash-0731": {
       "id": "tensorx/deepseek/deepseek-v4-flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (TensorX)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33752,7 +36017,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "together_ai/deepseek-ai/DeepSeek-V4-Flash-0731": {
       "id": "together_ai/deepseek-ai/DeepSeek-V4-Flash-0731",
-      "name": "DeepSeek V4 Flash 0731",
+      "name": "DeepSeek V4 Flash 0731 (Together AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 384000,
@@ -33785,7 +36050,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/thinkingmachines/Inkling-Small": {
       "id": "deepinfra/thinkingmachines/Inkling-Small",
-      "name": "Inkling Small",
+      "name": "Inkling Small (Deep Infra)",
       "contextWindow": 524288,
       "maxInputTokens": 524288,
       "maxTokens": 1048576,
@@ -33831,7 +36096,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "together_ai/thinkingmachines/Inkling-Small": {
       "id": "together_ai/thinkingmachines/Inkling-Small",
-      "name": "Inkling Small",
+      "name": "Inkling Small (Together AI)",
       "contextWindow": 524288,
       "maxInputTokens": 524288,
       "maxTokens": 1048576,
@@ -33911,7 +36176,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "anthropic/claude-opus-latest": {
       "id": "anthropic/claude-opus-latest",
-      "name": "Claude Opus 5",
+      "name": "Claude Opus Latest (Claude Opus 5)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 128000,
@@ -34042,7 +36307,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.5-flash-lite": {
       "id": "vertex/gemini-3.5-flash-lite",
-      "name": "Gemini 3.5 Flash Lite",
+      "name": "Gemini 3.5 Flash Lite (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -34090,7 +36355,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.5-flash-lite@eu": {
       "id": "vertex/gemini-3.5-flash-lite@eu",
-      "name": "Gemini 3.5 Flash Lite (EU)",
+      "name": "Gemini 3.5 Flash Lite (Vertex AI, EU)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -34138,7 +36403,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.5-flash-lite@us": {
       "id": "vertex/gemini-3.5-flash-lite@us",
-      "name": "Gemini 3.5 Flash Lite (US)",
+      "name": "Gemini 3.5 Flash Lite (Vertex AI, US)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -34186,7 +36451,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.6-flash": {
       "id": "vertex/gemini-3.6-flash",
-      "name": "Gemini 3.6 Flash",
+      "name": "Gemini 3.6 Flash (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -34234,7 +36499,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.6-flash@eu": {
       "id": "vertex/gemini-3.6-flash@eu",
-      "name": "Gemini 3.6 Flash (EU)",
+      "name": "Gemini 3.6 Flash (Vertex AI, EU)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -34282,7 +36547,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.6-flash@us": {
       "id": "vertex/gemini-3.6-flash@us",
-      "name": "Gemini 3.6 Flash (US)",
+      "name": "Gemini 3.6 Flash (Vertex AI, US)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -34362,9 +36627,44 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-16",
       "family": "kimi-k3"
     },
+    "databricks/databricks-inkling": {
+      "id": "databricks/databricks-inkling",
+      "name": "Inkling (Databricks)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.00002,
+        "output": 4.04999,
+        "cacheRead": 0.17003,
+        "cacheWrite": 1.00002
+      },
+      "releaseDate": "2026-07-15",
+      "family": "ling"
+    },
     "deepinfra/thinkingmachines/Inkling": {
       "id": "deepinfra/thinkingmachines/Inkling",
-      "name": "Inkling",
+      "name": "Inkling (Deep Infra)",
       "contextWindow": 524288,
       "maxInputTokens": 524288,
       "maxTokens": 1048576,
@@ -34408,9 +36708,45 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
+    "fireworks_ai/accounts/fireworks/models/inkling": {
+      "id": "fireworks_ai/accounts/fireworks/models/inkling",
+      "name": "Inkling (Fireworks AI)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1,
+        "output": 4.05,
+        "cacheRead": 0.17,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-15",
+      "family": "ling"
+    },
     "together_ai/thinkingmachines/Inkling": {
       "id": "together_ai/thinkingmachines/Inkling",
-      "name": "Inkling",
+      "name": "Inkling (Together AI)",
       "contextWindow": 524288,
       "maxInputTokens": 524288,
       "maxTokens": 1048576,
@@ -34562,42 +36898,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-09",
       "family": "gpt-terra"
     },
-    "openai/gpt-latest": {
-      "id": "openai/gpt-latest",
-      "name": "GPT-5.6 Sol",
-      "contextWindow": 1050000,
-      "maxInputTokens": 922000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 4,
-        "output": 20,
-        "cacheRead": 0.4,
-        "cacheWrite": 5
-      },
-      "releaseDate": "2026-07-09",
-      "family": "gpt-sol"
-    },
     "xai/grok-4.5": {
       "id": "xai/grok-4.5",
       "name": "Grok 4.5",
@@ -34634,10 +36934,10 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/tencent/Hy3": {
       "id": "deepinfra/tencent/Hy3",
-      "name": "Hy3",
+      "name": "Hy3 (Deep Infra)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 64000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -34702,7 +37002,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "anthropic/claude-sonnet-latest": {
       "id": "anthropic/claude-sonnet-latest",
-      "name": "Claude Sonnet 5",
+      "name": "Claude Sonnet Latest (Claude Sonnet 5)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 128000,
@@ -34827,7 +37127,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/nemotron-3-ultra-550b-a55b": {
       "id": "deepinfra/nemotron-3-ultra-550b-a55b",
-      "name": "Nemotron 3 Ultra 550B A55B",
+      "name": "Nemotron 3 Ultra 550B A55B (Deep Infra)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 128000,
@@ -34859,7 +37159,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "nebius/nvidia/Nemotron-3-Ultra-550b-a55b": {
       "id": "nebius/nvidia/Nemotron-3-Ultra-550b-a55b",
-      "name": "Nemotron 3 Ultra 550B A55B",
+      "name": "Nemotron 3 Ultra 550B A55B (Nebius)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 128000,
@@ -34916,7 +37216,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/stepfun-ai/Step-3.7-Flash": {
       "id": "deepinfra/stepfun-ai/Step-3.7-Flash",
-      "name": "Step 3.7 Flash",
+      "name": "Step 3.7 Flash (Deep Infra)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 256000,
@@ -34925,6 +37225,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "video",
         "tools",
         "reasoning",
+        "structured_output",
         "temperature",
         "prompt-cache"
       ],
@@ -35031,7 +37332,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.5-flash": {
       "id": "vertex/gemini-3.5-flash",
-      "name": "Gemini 3.5 Flash",
+      "name": "Gemini 3.5 Flash (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -35079,7 +37380,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.5-flash@eu": {
       "id": "vertex/gemini-3.5-flash@eu",
-      "name": "Gemini 3.5 Flash (EU)",
+      "name": "Gemini 3.5 Flash (Vertex AI, EU)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -35127,7 +37428,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.5-flash@us": {
       "id": "vertex/gemini-3.5-flash@us",
-      "name": "Gemini 3.5 Flash (US)",
+      "name": "Gemini 3.5 Flash (Vertex AI, US)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -35223,7 +37524,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.1-flash-lite": {
       "id": "vertex/gemini-3.1-flash-lite",
-      "name": "Gemini 3.1 Flash Lite",
+      "name": "Gemini 3.1 Flash Lite (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -35271,7 +37572,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.1-flash-lite@eu": {
       "id": "vertex/gemini-3.1-flash-lite@eu",
-      "name": "Gemini 3.1 Flash Lite (EU)",
+      "name": "Gemini 3.1 Flash Lite (Vertex AI, EU)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -35319,7 +37620,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.1-flash-lite@us": {
       "id": "vertex/gemini-3.1-flash-lite@us",
-      "name": "Gemini 3.1 Flash Lite (US)",
+      "name": "Gemini 3.1 Flash Lite (Vertex AI, US)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -35564,7 +37865,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "openai/gpt-pro-latest": {
       "id": "openai/gpt-pro-latest",
-      "name": "GPT-5.5 Pro",
+      "name": "GPT Pro Latest (GPT-5.5 Pro)",
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
       "maxTokens": 128000,
@@ -35859,7 +38160,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "openai/gpt-mini-latest": {
       "id": "openai/gpt-mini-latest",
-      "name": "GPT-5.4 mini",
+      "name": "GPT Mini Latest (GPT-5.4 mini)",
       "contextWindow": 400000,
       "maxInputTokens": 272000,
       "maxTokens": 128000,
@@ -35982,7 +38283,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "nebius/nvidia/nemotron-3-super-120b-a12b": {
       "id": "nebius/nvidia/nemotron-3-super-120b-a12b",
-      "name": "Nemotron 3 Super 120B A12B",
+      "name": "Nemotron 3 Super 120B A12B (Nebius)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 262144,
@@ -36271,7 +38572,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "google/gemini-pro-latest": {
       "id": "google/gemini-pro-latest",
-      "name": "Gemini 3.1 Pro Preview",
+      "name": "Gemini Pro Latest (Gemini 3.1 Pro Preview)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -36318,7 +38619,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3.1-pro-preview": {
       "id": "vertex/gemini-3.1-pro-preview",
-      "name": "Gemini 3.1 Pro Preview",
+      "name": "Gemini 3.1 Pro Preview (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -36365,7 +38666,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-pro-latest": {
       "id": "vertex/gemini-pro-latest",
-      "name": "Gemini 3.1 Pro Preview",
+      "name": "Gemini Pro Latest (Gemini 3.1 Pro Preview, Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -36447,7 +38748,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/ByteDance/Seed-2.0-code": {
       "id": "deepinfra/ByteDance/Seed-2.0-code",
-      "name": "Seed 2.0 Code",
+      "name": "Seed 2.0 Code (Deep Infra)",
       "contextWindow": 256000,
       "maxInputTokens": 256000,
       "maxTokens": 131072,
@@ -36481,7 +38782,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/ByteDance/Seed-2.0-mini": {
       "id": "deepinfra/ByteDance/Seed-2.0-mini",
-      "name": "Seed 2.0 Mini",
+      "name": "Seed 2.0 Mini (Deep Infra)",
       "contextWindow": 256000,
       "maxInputTokens": 256000,
       "maxTokens": 32000,
@@ -36672,7 +38973,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/stepfun-ai/Step-3.5-Flash": {
       "id": "deepinfra/stepfun-ai/Step-3.5-Flash",
-      "name": "Step 3.5 Flash",
+      "name": "Step 3.5 Flash (Deep Infra)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 256000,
@@ -36702,7 +39003,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "amazon/zai.glm-4.7-flash": {
       "id": "amazon/zai.glm-4.7-flash",
-      "name": "GLM-4.7-Flash",
+      "name": "GLM-4.7-Flash (Amazon Bedrock)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
       "maxTokens": 131072,
@@ -36723,7 +39024,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "amazon/zai.glm-4.7-flash@us": {
       "id": "amazon/zai.glm-4.7-flash@us",
-      "name": "GLM-4.7-Flash (US)",
+      "name": "GLM-4.7-Flash (Amazon Bedrock, US)",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
       "maxTokens": 131072,
@@ -36744,7 +39045,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "cloudflare/@cf/zai-org/glm-4.7-flash": {
       "id": "cloudflare/@cf/zai-org/glm-4.7-flash",
-      "name": "GLM-4.7-Flash",
+      "name": "GLM-4.7-Flash (Cloudflare)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 131072,
@@ -36766,7 +39067,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/zai-org/GLM-4.7-Flash": {
       "id": "deepinfra/zai-org/GLM-4.7-Flash",
-      "name": "GLM-4.7-Flash",
+      "name": "GLM-4.7-Flash (Deep Infra)",
       "contextWindow": 202752,
       "maxInputTokens": 202752,
       "maxTokens": 131072,
@@ -36789,7 +39090,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "amazon/moonshotai.kimi-k2.5": {
       "id": "amazon/moonshotai.kimi-k2.5",
-      "name": "Kimi K2.5",
+      "name": "Kimi K2.5 (Amazon Bedrock)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 262144,
@@ -36810,7 +39111,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/moonshotai/Kimi-K2.5": {
       "id": "deepinfra/moonshotai/Kimi-K2.5",
-      "name": "Kimi K2.5",
+      "name": "Kimi K2.5 (Deep Infra)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 262144,
@@ -36833,7 +39134,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "tensorx/moonshotai/kimi-k2.5": {
       "id": "tensorx/moonshotai/kimi-k2.5",
-      "name": "Kimi K2.5",
+      "name": "Kimi K2.5 (TensorX)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 262144,
@@ -36949,7 +39250,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "vertex/gemini-3-flash-preview": {
       "id": "vertex/gemini-3-flash-preview",
-      "name": "Gemini 3 Flash Preview",
+      "name": "Gemini 3 Flash Preview (Vertex AI)",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
       "maxTokens": 65536,
@@ -36997,7 +39298,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/nvidia/Nemotron-3-Nano-30B-A3B": {
       "id": "deepinfra/nvidia/Nemotron-3-Nano-30B-A3B",
-      "name": "Nemotron 3 Nano 30B A3B",
+      "name": "Nemotron 3 Nano 30B A3B (Deep Infra)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 262144,
@@ -37020,7 +39321,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "azure/gpt-5.2-codex": {
       "id": "azure/gpt-5.2-codex",
-      "name": "GPT-5.2 Codex",
+      "name": "GPT-5.2 Codex (Azure)",
       "contextWindow": 272000,
       "maxInputTokens": 272000,
       "maxTokens": 128000,
@@ -37243,7 +39544,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "azure/gpt-5.1-codex": {
       "id": "azure/gpt-5.1-codex",
-      "name": "GPT-5.1 Codex",
+      "name": "GPT-5.1 Codex (Azure)",
       "contextWindow": 272000,
       "maxInputTokens": 272000,
       "maxTokens": 128000,
@@ -37276,7 +39577,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "azure/gpt-5.1-codex-max": {
       "id": "azure/gpt-5.1-codex-max",
-      "name": "GPT-5.1 Codex Max",
+      "name": "GPT-5.1 Codex Max (Azure)",
       "contextWindow": 272000,
       "maxInputTokens": 272000,
       "maxTokens": 128000,
@@ -37310,7 +39611,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "azure/gpt-5.1-codex-mini": {
       "id": "azure/gpt-5.1-codex-mini",
-      "name": "GPT-5.1 Codex mini",
+      "name": "GPT-5.1 Codex mini (Azure)",
       "contextWindow": 272000,
       "maxInputTokens": 272000,
       "maxTokens": 128000,
@@ -37718,7 +40019,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "cerebras/gpt-oss-120b": {
       "id": "cerebras/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Cerebras)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37750,7 +40051,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "cloudflare/@cf/openai/gpt-oss-120b": {
       "id": "cloudflare/@cf/openai/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Cloudflare)",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
       "maxTokens": 32768,
@@ -37780,7 +40081,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "cloudflare/@cf/openai/gpt-oss-20b": {
       "id": "cloudflare/@cf/openai/gpt-oss-20b",
-      "name": "GPT OSS 20B",
+      "name": "GPT OSS 20B (Cloudflare)",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
       "maxTokens": 32768,
@@ -37810,7 +40111,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "databricks/databricks-gpt-oss-120b": {
       "id": "databricks/databricks-gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Databricks)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37833,7 +40134,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.15001,
         "output": 0.59997,
-        "cacheRead": 0.15001,
+        "cacheRead": 0.015001,
         "cacheWrite": 0.15001
       },
       "releaseDate": "2025-08-05",
@@ -37841,7 +40142,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "databricks/databricks-gpt-oss-120b@eu": {
       "id": "databricks/databricks-gpt-oss-120b@eu",
-      "name": "GPT OSS 120B (EU)",
+      "name": "GPT OSS 120B (Databricks, EU)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37864,7 +40165,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.15001,
         "output": 0.59997,
-        "cacheRead": 0.15001,
+        "cacheRead": 0.015001,
         "cacheWrite": 0.15001
       },
       "releaseDate": "2025-08-05",
@@ -37872,7 +40173,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "databricks/databricks-gpt-oss-20b": {
       "id": "databricks/databricks-gpt-oss-20b",
-      "name": "GPT OSS 20B",
+      "name": "GPT OSS 20B (Databricks)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37895,7 +40196,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.07,
         "output": 0.30002,
-        "cacheRead": 0.07,
+        "cacheRead": 0.007,
         "cacheWrite": 0.07
       },
       "releaseDate": "2025-08-05",
@@ -37903,7 +40204,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "databricks/databricks-gpt-oss-20b@eu": {
       "id": "databricks/databricks-gpt-oss-20b@eu",
-      "name": "GPT OSS 20B (EU)",
+      "name": "GPT OSS 20B (Databricks, EU)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37926,7 +40227,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.07,
         "output": 0.30002,
-        "cacheRead": 0.07,
+        "cacheRead": 0.007,
         "cacheWrite": 0.07
       },
       "releaseDate": "2025-08-05",
@@ -37934,7 +40235,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/openai/gpt-oss-120b": {
       "id": "deepinfra/openai/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Deep Infra)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37965,7 +40266,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/openai/gpt-oss-20b": {
       "id": "deepinfra/openai/gpt-oss-20b",
-      "name": "GPT OSS 20B",
+      "name": "GPT OSS 20B (Deep Infra)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -37994,41 +40295,9 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-08-05",
       "family": "gpt-oss"
     },
-    "fireworks_ai/accounts/fireworks/models/gpt-oss-120b": {
-      "id": "fireworks_ai/accounts/fireworks/models/gpt-oss-120b",
-      "name": "GPT OSS 120B",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.6,
-        "cacheRead": 0.015,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-05",
-      "family": "gpt-oss"
-    },
     "fireworks_ai/gpt-oss-120b": {
       "id": "fireworks_ai/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Fireworks AI)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -38059,7 +40328,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "groq/openai/gpt-oss-120b": {
       "id": "groq/openai/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Groq)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -38091,7 +40360,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "groq/openai/gpt-oss-20b": {
       "id": "groq/openai/gpt-oss-20b",
-      "name": "GPT OSS 20B",
+      "name": "GPT OSS 20B (Groq)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -38123,7 +40392,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "nebius/openai/gpt-oss-120b": {
       "id": "nebius/openai/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Nebius)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -38155,7 +40424,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "scaleway/gpt-oss-120b": {
       "id": "scaleway/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Scaleway)",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
       "maxTokens": 32768,
@@ -38175,8 +40444,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.17385,
-        "output": 0.6954,
+        "input": 0.17478,
+        "output": 0.69912,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -38185,7 +40454,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "together_ai/openai/gpt-oss-120b": {
       "id": "together_ai/openai/gpt-oss-120b",
-      "name": "GPT OSS 120B",
+      "name": "GPT OSS 120B (Together AI)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -38216,7 +40485,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "together_ai/openai/gpt-oss-20b": {
       "id": "together_ai/openai/gpt-oss-20b",
-      "name": "GPT OSS 20B",
+      "name": "GPT OSS 20B (Together AI)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 32768,
@@ -38437,7 +40706,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/nvidia/Llama-3.1-Nemotron-70B-Instruct": {
       "id": "deepinfra/nvidia/Llama-3.1-Nemotron-70B-Instruct",
-      "name": "Llama 3.1 Nemotron 70B Instruct",
+      "name": "Llama 3.1 Nemotron 70B Instruct (Deep Infra)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 8192,
@@ -38523,6 +40792,44 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-04-14",
       "family": "gpt-nano"
     },
+    "amazon/mistral.pixtral-large-2502-v1:0": {
+      "id": "amazon/mistral.pixtral-large-2502-v1:0",
+      "name": "Pixtral Large (25.02) (Amazon Bedrock)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-08",
+      "family": "pixtral"
+    },
+    "amazon/mistral.pixtral-large-2502-v1:0@us": {
+      "id": "amazon/mistral.pixtral-large-2502-v1:0@us",
+      "name": "Pixtral Large (25.02) (Amazon Bedrock, US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-04-08",
+      "family": "pixtral"
+    },
     "qwen/qwen3-coder-30b-a3b-instruct": {
       "id": "qwen/qwen3-coder-30b-a3b-instruct",
       "name": "Qwen3-Coder 30B-A3B Instruct",
@@ -38545,7 +40852,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/deepseek-ai/DeepSeek-V3-0324": {
       "id": "deepinfra/deepseek-ai/DeepSeek-V3-0324",
-      "name": "DeepSeek V3 0324",
+      "name": "DeepSeek V3 0324 (Deep Infra)",
       "contextWindow": 163840,
       "maxInputTokens": 163840,
       "maxTokens": 163840,
@@ -38606,13 +40913,14 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 2,
-        "output": 5,
-        "cacheRead": 0,
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-17",
@@ -38640,7 +40948,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/deepseek-ai/DeepSeek-R1": {
       "id": "deepinfra/deepseek-ai/DeepSeek-R1",
-      "name": "DeepSeek-R1",
+      "name": "DeepSeek-R1 (Deep Infra)",
       "contextWindow": 163840,
       "maxInputTokens": 163840,
       "maxTokens": 32768,
@@ -38661,7 +40969,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/deepseek-ai/DeepSeek-V3": {
       "id": "deepinfra/deepseek-ai/DeepSeek-V3",
-      "name": "DeepSeek-V3",
+      "name": "DeepSeek-V3 (Deep Infra)",
       "contextWindow": 163840,
       "maxInputTokens": 163840,
       "maxTokens": 8192,
@@ -38712,7 +41020,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepinfra/meta-llama/Llama-3.3-70B-Instruct": {
       "id": "deepinfra/meta-llama/Llama-3.3-70B-Instruct",
-      "name": "Llama-3.3-70B-Instruct",
+      "name": "Llama-3.3-70B-Instruct (Deep Infra)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 4096,
@@ -38732,7 +41040,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "nebius/meta-llama/Llama-3.3-70B-Instruct": {
       "id": "nebius/meta-llama/Llama-3.3-70B-Instruct",
-      "name": "Llama-3.3-70B-Instruct",
+      "name": "Llama-3.3-70B-Instruct (Nebius)",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 4096,
@@ -38753,7 +41061,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "scaleway/llama-3.3-70b-instruct": {
       "id": "scaleway/llama-3.3-70b-instruct",
-      "name": "Llama-3.3-70B-Instruct",
+      "name": "Llama-3.3-70B-Instruct (Scaleway)",
       "contextWindow": 128000,
       "maxInputTokens": 128000,
       "maxTokens": 4096,
@@ -38762,8 +41070,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "pricing": {
-        "input": 1.0431,
-        "output": 1.0431,
+        "input": 1.04868,
+        "output": 1.04868,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -38802,6 +41110,134 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-12-05",
       "family": "o"
+    },
+    "amazon/amazon.nova-lite-v1:0": {
+      "id": "amazon/amazon.nova-lite-v1:0",
+      "name": "Nova Lite",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.24,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-lite"
+    },
+    "amazon/amazon.nova-lite-v1:0@us": {
+      "id": "amazon/amazon.nova-lite-v1:0@us",
+      "name": "Nova Lite (US)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.24,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-lite"
+    },
+    "amazon/amazon.nova-micro-v1:0": {
+      "id": "amazon/amazon.nova-micro-v1:0",
+      "name": "Nova Micro",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.035,
+        "output": 0.14,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-micro"
+    },
+    "amazon/amazon.nova-micro-v1:0@us": {
+      "id": "amazon/amazon.nova-micro-v1:0@us",
+      "name": "Nova Micro (US)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.035,
+        "output": 0.14,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-micro"
+    },
+    "amazon/amazon.nova-pro-v1:0": {
+      "id": "amazon/amazon.nova-pro-v1:0",
+      "name": "Nova Pro",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.8,
+        "output": 3.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-pro"
+    },
+    "amazon/amazon.nova-pro-v1:0@us": {
+      "id": "amazon/amazon.nova-pro-v1:0@us",
+      "name": "Nova Pro (US)",
+      "contextWindow": 300000,
+      "maxInputTokens": 300000,
+      "maxTokens": 8192,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "structured_output",
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.8,
+        "output": 3.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-12-03",
+      "family": "nova-pro"
     },
     "cohere/command-r7b-12-2024": {
       "id": "cohere/command-r7b-12-2024",
@@ -39086,6 +41522,42 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "empiriolabs": {
+    "muse-spark-1-3": {
+      "id": "muse-spark-1-3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 1,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse"
+    },
     "glm-5-3-flash": {
       "id": "glm-5-3-flash",
       "name": "GLM 5.3 Flash",
@@ -39353,6 +41825,47 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen3-8-max": {
       "id": "qwen3-8-max",
       "name": "Qwen3.8 Max",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens",
+          "min": 1,
+          "max": 262144
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-03",
+      "family": "qwen"
+    },
+    "qwen3-8-max-0902": {
+      "id": "qwen3-8-max-0902",
+      "name": "Qwen3.8 Max 0902",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 131072,
@@ -42339,11 +44852,43 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "fireworks": {
+    "accounts/fireworks/routers/glm-5p3-fast": {
+      "id": "accounts/fireworks/routers/glm-5p3-fast",
+      "name": "GLM 5.3 Fast",
+      "contextWindow": 1048572,
+      "maxInputTokens": 1048572,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2.1,
+        "output": 6.6,
+        "cacheRead": 0.39,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-28",
+      "family": "glm"
+    },
     "accounts/fireworks/models/glm-5p3-flash": {
       "id": "accounts/fireworks/models/glm-5p3-flash",
       "name": "GLM 5.3 Flash",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
+      "contextWindow": 1048573,
+      "maxInputTokens": 1048573,
       "maxTokens": 131072,
       "capabilities": [
         "images",
@@ -42359,6 +44904,7 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "low",
             "high",
             "max"
           ]
@@ -42367,18 +44913,54 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.15,
         "output": 0.5,
-        "cacheRead": 0.029,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
       "family": "glm"
     },
+    "accounts/fireworks/models/deepseek-v4-flash-vision-exp": {
+      "id": "accounts/fireworks/models/deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek V4 Flash Vision Exp",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.22,
+        "output": 0.66,
+        "cacheRead": 0.007,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-21",
+      "family": "deepseek-flash"
+    },
     "accounts/fireworks/models/glm-5p3": {
       "id": "accounts/fireworks/models/glm-5p3",
       "name": "GLM 5.3",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
+      "contextWindow": 1048573,
+      "maxInputTokens": 1048573,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
@@ -42390,6 +44972,7 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "low",
             "high",
             "max"
           ]
@@ -42437,6 +45020,38 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-12",
       "family": "deepseek-thinking"
+    },
+    "accounts/fireworks/models/qwen3p8-2p4t-a95b": {
+      "id": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+      "name": "Qwen3.8 2.4T A95B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "qwen"
     },
     "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b": {
       "id": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
@@ -44222,6 +46837,53 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "gemini": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "gemini-3.7-flash": {
       "id": "gemini-3.7-flash",
       "name": "Gemini 3.7 Flash",
@@ -45260,6 +47922,108 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "github-copilot": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 936000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash"
+    },
+    "claude-fable-5.1": {
+      "id": "claude-fable-5.1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
     "gemini-3.7-flash": {
       "id": "gemini-3.7-flash",
       "name": "Gemini 3.7 Flash",
@@ -45531,10 +48295,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2,
-        "output": 10,
-        "cacheRead": 0.2,
-        "cacheWrite": 2.5
+        "input": 4,
+        "output": 20,
+        "cacheRead": 0.4,
+        "cacheWrite": 5
       },
       "releaseDate": "2026-07-09",
       "family": "gpt-sol"
@@ -45982,58 +48746,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-05",
       "family": "gpt"
     },
-    "gemini-3.1-pro-preview": {
-      "id": "gemini-3.1-pro-preview",
-      "name": "Gemini 3.1 Pro Preview",
-      "contextWindow": 1000000,
-      "maxInputTokens": 936000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "images",
-        "video",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        },
-        {
-          "type": "budget_tokens",
-          "min": 256,
-          "max": 32000
-        }
-      ],
-      "pricing": {
-        "input": 2,
-        "output": 12,
-        "cacheRead": 0.2,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-19",
-      "family": "gemini-pro",
-      "modalities": {
-        "input": [
-          "text",
-          "image",
-          "video",
-          "audio",
-          "pdf"
-        ],
-        "output": [
-          "text"
-        ]
-      }
-    },
     "claude-sonnet-4.6": {
       "id": "claude-sonnet-4.6",
       "name": "Claude Sonnet 4.6",
@@ -46073,40 +48785,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-17",
       "family": "claude-sonnet"
     },
-    "claude-opus-4.6": {
-      "id": "claude-opus-4.6",
-      "name": "Claude Opus 4.6",
-      "contextWindow": 200000,
-      "maxInputTokens": 168000,
-      "maxTokens": 32000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 5,
-        "output": 25,
-        "cacheRead": 0.5,
-        "cacheWrite": 6.25
-      },
-      "releaseDate": "2026-02-05",
-      "family": "claude-opus"
-    },
     "gpt-5.3-codex": {
       "id": "gpt-5.3-codex",
       "name": "GPT-5.3 Codex",
@@ -46142,84 +48820,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-05",
       "family": "gpt-codex"
     },
-    "gpt-5.2": {
-      "id": "gpt-5.2",
-      "name": "GPT-5.2",
-      "contextWindow": 400000,
-      "maxInputTokens": 272000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.75,
-        "output": 14,
-        "cacheRead": 0.175,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-11",
-      "family": "gpt"
-    },
-    "gpt-5.2-codex": {
-      "id": "gpt-5.2-codex",
-      "name": "GPT-5.2 Codex",
-      "contextWindow": 400000,
-      "maxInputTokens": 272000,
-      "maxTokens": 128000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.75,
-        "output": 14,
-        "cacheRead": 0.175,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-11",
-      "family": "gpt-codex"
-    },
-    "claude-opus-4.5": {
-      "id": "claude-opus-4.5",
-      "name": "Claude Opus 4.5 (latest)",
-      "contextWindow": 200000,
-      "maxInputTokens": 168000,
-      "maxTokens": 32000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 32000
-        }
-      ],
-      "pricing": {
-        "input": 5,
-        "output": 25,
-        "cacheRead": 0.5,
-        "cacheWrite": 6.25
-      },
-      "releaseDate": "2025-11-24",
-      "family": "claude-opus"
-    },
     "claude-haiku-4.5": {
       "id": "claude-haiku-4.5",
       "name": "Claude Haiku 4.5 (latest)",
@@ -46249,36 +48849,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-10-15",
       "family": "claude-haiku"
-    },
-    "claude-sonnet-4.5": {
-      "id": "claude-sonnet-4.5",
-      "name": "Claude Sonnet 4.5 (latest)",
-      "contextWindow": 200000,
-      "maxInputTokens": 168000,
-      "maxTokens": 32000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "budget_tokens",
-          "min": 1024,
-          "max": 32000
-        }
-      ],
-      "pricing": {
-        "input": 3,
-        "output": 15,
-        "cacheRead": 0.3,
-        "cacheWrite": 3.75
-      },
-      "releaseDate": "2025-09-29",
-      "family": "claude-sonnet"
     },
     "gpt-5-mini": {
       "id": "gpt-5-mini",
@@ -46311,53 +48881,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-08-07",
       "family": "gpt-mini"
-    },
-    "claude-sonnet-4": {
-      "id": "claude-sonnet-4",
-      "name": "Claude Sonnet 4 (latest)",
-      "contextWindow": 216000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 3,
-        "output": 15,
-        "cacheRead": 0.3,
-        "cacheWrite": 3.75
-      },
-      "releaseDate": "2025-05-22",
-      "family": "claude-sonnet"
-    },
-    "gpt-4.1": {
-      "id": "gpt-4.1",
-      "name": "GPT-4.1",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 2,
-        "output": 8,
-        "cacheRead": 0.5,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-04-14",
-      "family": "gpt"
     }
   },
   "gmicloud": {
@@ -46759,6 +49282,74 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "greenpt": {
+    "glm-5.3-flash": {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.127754,
+        "output": 0.511016,
+        "cacheRead": 0.0255508,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "glm-5.3": {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.27754,
+        "output": 5.11016,
+        "cacheRead": 0.319385,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
     "deepseek-v4-flash-0731": {
       "id": "deepseek-v4-flash-0731",
       "name": "DeepSeek V4 Flash 0731",
@@ -49874,6 +52465,38 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-26",
       "family": "glm"
     },
+    "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp": {
+      "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
+      "name": "DeepSeek V4 Flash Vision Exp",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.44,
+        "output": 1.32,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-21",
+      "family": "deepseek-flash"
+    },
     "Qwen/Qwen3.8-27B": {
       "id": "Qwen/Qwen3.8-27B",
       "name": "Qwen3.8 27B",
@@ -50118,8 +52741,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/Hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -51523,6 +54146,28 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "hyper": {
+    "kimi-k2-thinking": {
+      "id": "kimi-k2-thinking",
+      "name": "Kimi K2 Thinking",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 26214,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.6,
+        "output": 2.5,
+        "cacheRead": 0,
+        "cacheWrite": 0.3
+      },
+      "releaseDate": "2026-09-02",
+      "family": "kimi-thinking"
+    },
     "glm-5.3": {
       "id": "glm-5.3",
       "name": "GLM-5.3",
@@ -51601,7 +54246,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 2,
         "output": 6,
@@ -51625,7 +54280,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 0.5,
         "output": 3,
@@ -51648,7 +54314,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "structured_output",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 0.15,
         "output": 0.47,
@@ -51657,6 +54334,41 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-26",
       "family": "qwen"
+    },
+    "inkling": {
+      "id": "inkling",
+      "name": "Inkling",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.0888,
+        "output": 4.40964,
+        "cacheRead": 0.185096,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-15",
+      "family": "ling"
     },
     "deepseek-v4-pro-0813": {
       "id": "deepseek-v4-pro-0813",
@@ -51708,7 +54420,6 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
-            "none",
             "low",
             "high",
             "max"
@@ -51802,7 +54513,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 0.2,
         "output": 0.8,
@@ -51825,7 +54547,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 2,
         "output": 6,
@@ -51997,7 +54730,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 1.2,
         "output": 4.8,
@@ -52021,10 +54765,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.404,
-        "output": 1.496,
+        "input": 0.458,
+        "output": 1.712,
         "cacheRead": 0,
-        "cacheWrite": 0.202
+        "cacheWrite": 0.229
       },
       "releaseDate": "2026-06-05",
       "family": "minimax"
@@ -52044,10 +54788,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 1.332,
-        "output": 4.312,
+        "input": 1.386,
+        "output": 4.356,
         "cacheRead": 0,
-        "cacheWrite": 0.666
+        "cacheWrite": 0.693
       },
       "releaseDate": "2026-06-04",
       "family": "glm"
@@ -52064,7 +54808,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 2.5,
         "output": 7.5,
@@ -52088,7 +54843,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 1,
         "output": 4,
@@ -52110,7 +54876,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 2,
         "output": 12,
@@ -52133,7 +54910,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature",
         "prompt-cache"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
       "pricing": {
         "input": 2,
         "output": 6,
@@ -52158,10 +54946,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.12,
-        "output": 0.42,
+        "input": 0.106,
+        "output": 0.368,
         "cacheRead": 0,
-        "cacheWrite": 0.06
+        "cacheWrite": 0.053
       },
       "releaseDate": "2026-04-30",
       "family": "gemma"
@@ -52260,10 +55048,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.91,
-        "output": 2.934,
+        "input": 0.86,
+        "output": 2.784,
         "cacheRead": 0,
-        "cacheWrite": 0.455
+        "cacheWrite": 0.43
       },
       "releaseDate": "2026-04-13",
       "family": "glm"
@@ -52296,10 +55084,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.19,
-        "output": 0.63,
+        "input": 0.18,
+        "output": 0.61,
         "cacheRead": 0,
-        "cacheWrite": 0.095
+        "cacheWrite": 0.09
       },
       "releaseDate": "2026-04-13",
       "family": "gpt-oss"
@@ -52318,10 +55106,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5504,
-        "output": 2.885,
+        "input": 0.5584,
+        "output": 2.935,
         "cacheRead": 0,
-        "cacheWrite": 0.2752
+        "cacheWrite": 0.2792
       },
       "releaseDate": "2026-04-13",
       "family": "kimi-k2"
@@ -56266,8 +59054,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "Hy3",
       "name": "Hy3",
       "contextWindow": 202752,
-      "maxInputTokens": 202752,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -58620,8 +61408,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -58650,8 +61438,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3:free",
       "name": "Hy3 (Free)",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -59887,6 +62675,385 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "kilo": {
+    "inception/mercury-2.5": {
+      "id": "inception/mercury-2.5",
+      "name": "Inception: Mercury 2.5",
+      "contextWindow": 260000,
+      "maxInputTokens": 260000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.75,
+        "cacheRead": 0.02,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "mercury"
+    },
+    "nex-agi/nex-n2.5-mini:free": {
+      "id": "nex-agi/nex-n2.5-mini:free",
+      "name": "Nex AGI: Nex-N2.5-Mini (free)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "agi"
+    },
+    "nex-agi/nex-n2.5-pro:free": {
+      "id": "nex-agi/nex-n2.5-pro:free",
+      "name": "Nex AGI: Nex-N2.5-Pro (free)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "agi"
+    },
+    "inclusionai/ling-3.0-flash-sante:free": {
+      "id": "inclusionai/ling-3.0-flash-sante:free",
+      "name": "inclusionAI: Ling 3.0 Flash Sante (free)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "ling"
+    },
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai/gpt-6-astra-pro": {
+      "id": "openai/gpt-6-astra-pro",
+      "name": "OpenAI: GPT-6 Astra Pro ($$$$)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt"
+    },
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Meta: Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "qwen/qwen3.8-max-0902": {
+      "id": "qwen/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -59946,46 +63113,13 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.1,
-        "output": 0.15,
-        "cacheRead": 0.05,
+        "input": 0.06,
+        "output": 0.25,
+        "cacheRead": 0.015,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-31",
       "family": "granite"
-    },
-    "inception/mercury-2.5-preview": {
-      "id": "inception/mercury-2.5-preview",
-      "name": "Inception: Mercury 2.5 Preview",
-      "contextWindow": 260000,
-      "maxInputTokens": 260000,
-      "maxTokens": 65536,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.2,
-        "output": 0.75,
-        "cacheRead": 0.02,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-31",
-      "family": "mercury"
     },
     "tencent/hy4-preview": {
       "id": "tencent/hy4-preview",
@@ -60045,17 +63179,48 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
+        "input": 0.07,
+        "output": 0.2333,
+        "cacheRead": 0.014,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-27",
       "family": "glm-flash"
     },
+    "inclusionai/ling-3.0-flash-fin": {
+      "id": "inclusionai/ling-3.0-flash-fin",
+      "name": "inclusionAI: Ling 3.0 Flash Fin",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.18,
+        "cacheRead": 0.012,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-27",
+      "family": "ling"
+    },
     "inclusionai/ling-3.0-flash-fin:free": {
       "id": "inclusionai/ling-3.0-flash-fin:free",
-      "name": "Ling 3.0 Flash Fin (free)",
+      "name": "inclusionAI: Ling 3.0 Flash Fin (free)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 32768,
@@ -60154,7 +63319,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash Vision Exp",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 384000,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "tools",
@@ -60235,9 +63400,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "~z-ai/glm-latest": {
       "id": "~z-ai/glm-latest",
       "name": "Z.ai: GLM Latest",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 943718,
+      "contextWindow": 1024000,
+      "maxInputTokens": 1024000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -60256,9 +63421,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.17,
-        "output": 3.96,
-        "cacheRead": 0.234,
+        "input": 1.113,
+        "output": 3.498,
+        "cacheRead": 0.2067,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-19",
@@ -60334,7 +63499,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 131072,
+      "maxTokens": 943718,
       "capabilities": [
         "tools",
         "reasoning",
@@ -60443,9 +63608,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "deepseek/deepseek-v4-pro-0813": {
       "id": "deepseek/deepseek-v4-pro-0813",
       "name": "DeepSeek V4 Pro 0813",
-      "contextWindow": 1024000,
-      "maxInputTokens": 1024000,
-      "maxTokens": 384000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 393216,
       "capabilities": [
         "tools",
         "reasoning",
@@ -60467,7 +63632,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 1.32,
         "output": 3.96,
-        "cacheRead": 0.132,
+        "cacheRead": 0.044,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
@@ -60476,8 +63641,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/qwen3.8-2.4t-a95b": {
       "id": "qwen/qwen3.8-2.4t-a95b",
       "name": "Qwen3.8 2.4T A95B",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -60634,7 +63799,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Muse Glimmer 30B",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 16384,
+      "maxTokens": 117964,
       "capabilities": [
         "images",
         "files",
@@ -60743,42 +63908,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "qwen/qwen3.8-max": {
-      "id": "qwen/qwen3.8-max",
-      "name": "Qwen3.8 Max",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 2,
-        "output": 6,
-        "cacheRead": 0.25,
-        "cacheWrite": 2.5
-      },
-      "releaseDate": "2026-08-03",
-      "family": "qwen"
     },
     "sakana/sakana-namazu": {
       "id": "sakana/sakana-namazu",
@@ -61006,7 +64135,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "inclusionai/ling-3.0-flash": {
       "id": "inclusionai/ling-3.0-flash",
-      "name": "Ling-3.0-flash",
+      "name": "inclusionAI: Ling 3.0 Flash",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 32768,
@@ -61740,7 +64869,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 128000,
       "capabilities": [
         "tools",
@@ -61760,9 +64889,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.14,
-        "output": 0.58,
-        "cacheRead": 0.035,
+        "input": 0.0825,
+        "output": 0.33,
+        "cacheRead": 0.020625,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-06",
@@ -61863,38 +64992,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-30",
       "family": "claude-sonnet"
     },
-    "nex-agi/nex-n2-mini": {
-      "id": "nex-agi/nex-n2-mini",
-      "name": "Nex AGI: Nex-N2-Mini (retires Sep 8)",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.025,
-        "output": 0.1,
-        "cacheRead": 0.0025,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-24",
-      "family": "agi"
-    },
     "cohere/north-mini-code:free": {
       "id": "cohere/north-mini-code:free",
       "name": "Cohere: North Mini Code (free)",
@@ -61959,9 +65056,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "z-ai/glm-5.2": {
       "id": "z-ai/glm-5.2",
       "name": "GLM-5.2",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 131072,
+      "contextWindow": 1024000,
+      "maxInputTokens": 1024000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -62089,37 +65186,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-09",
       "family": "claude-fable"
     },
-    "nex-agi/nex-n2-pro": {
-      "id": "nex-agi/nex-n2-pro",
-      "name": "Nex AGI: Nex-N2-Pro (retires Sep 8)",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.25,
-        "output": 1,
-        "cacheRead": 0.025,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-08",
-      "family": "agi"
-    },
     "nvidia/nemotron-3-ultra-550b-a55b": {
       "id": "nvidia/nemotron-3-ultra-550b-a55b",
       "name": "Nemotron 3 Ultra 550B A55B",
@@ -62242,37 +65308,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.3,
         "output": 1.2,
         "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
-    },
-    "minimax/minimax-m3:free": {
-      "id": "minimax/minimax-m3:free",
-      "name": "MiniMax: MiniMax M3 (free)",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 943718,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -62527,27 +65562,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-05-05",
       "family": "gpt"
-    },
-    "ibm-granite/granite-4.1-8b": {
-      "id": "ibm-granite/granite-4.1-8b",
-      "name": "IBM: Granite 4.1 8B",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 117964,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.05,
-        "output": 0.1,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-30",
-      "family": "granite"
     },
     "mistralai/mistral-medium-3-5": {
       "id": "mistralai/mistral-medium-3-5",
@@ -62813,9 +65827,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.55,
-        "output": 12.75,
-        "cacheRead": 0.256,
+        "input": 2.4,
+        "output": 12,
+        "cacheRead": 0.24,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-27",
@@ -63094,7 +66108,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.6 27B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
@@ -63808,34 +66822,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-18",
       "family": "minimax"
     },
-    "minimax/minimax-m2.7:free": {
-      "id": "minimax/minimax-m2.7:free",
-      "name": "MiniMax: MiniMax M2.7 (free)",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 176947,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -63977,7 +66963,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "tools",
         "reasoning",
-        "structured_output",
         "temperature"
       ],
       "reasoningOptions": [
@@ -64306,9 +67291,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/qwen3.5-35b-a3b": {
       "id": "qwen/qwen3.5-35b-a3b",
       "name": "Qwen3.5 35B-A3B",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 16384,
       "capabilities": [
         "images",
         "video",
@@ -64534,7 +67519,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 65536,
+      "maxTokens": 235929,
       "capabilities": [
         "images",
         "video",
@@ -64930,15 +67915,14 @@ export const GENERATED_PROVIDER_MODELS: {
     "z-ai/glm-4.7-flash": {
       "id": "z-ai/glm-4.7-flash",
       "name": "GLM-4.7-Flash",
-      "contextWindow": 202752,
-      "maxInputTokens": 202752,
-      "maxTokens": 16384,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 117964,
       "capabilities": [
         "tools",
         "reasoning",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "reasoningOptions": [
         {
@@ -64950,9 +67934,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.06,
+        "input": 0.0605,
         "output": 0.4,
-        "cacheRead": 0.01,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-19",
@@ -65168,7 +68152,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nemotron 3 Nano 30B A3B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 228000,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -65188,7 +68172,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.05,
         "output": 0.2,
-        "cacheRead": 0.025,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-15",
@@ -65490,17 +68474,17 @@ export const GENERATED_PROVIDER_MODELS: {
     "deepseek/deepseek-chat": {
       "id": "deepseek/deepseek-chat",
       "name": "DeepSeek Chat",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16000,
+      "contextWindow": 163840,
+      "maxInputTokens": 163840,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
         "temperature"
       ],
       "pricing": {
-        "input": 0.2574,
-        "output": 1.0287,
+        "input": 0.32,
+        "output": 0.89,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -65711,7 +68695,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2 Thinking",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 100352,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -66276,7 +69260,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3-Next 80B-A3B Instruct",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
@@ -66294,9 +69278,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/qwen3-next-80b-a3b-thinking": {
       "id": "qwen/qwen3-next-80b-a3b-thinking",
       "name": "Qwen3-Next 80B-A3B (Thinking)",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 32768,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -66348,35 +69332,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-08-28",
       "family": "qwen"
     },
-    "meituan/longcat-2.0-free": {
-      "id": "meituan/longcat-2.0-free",
-      "name": "Meituan: LongCat 2.0 (free)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-26",
-      "family": "longcat"
-    },
     "openai/gpt-5.6-sol-discounted": {
       "id": "openai/gpt-5.6-sol-discounted",
       "name": "OpenAI: GPT-5.6 Sol (50% off)",
@@ -66405,10 +69360,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.5,
-        "output": 15,
-        "cacheRead": 0.25,
-        "cacheWrite": 3.125
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.2,
+        "cacheWrite": 2.5
       },
       "releaseDate": "2025-08-26",
       "family": "gpt"
@@ -67069,7 +70024,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen: Qwen3 235B A22B Instruct 2507",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
@@ -67529,9 +70484,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/qwen3-14b": {
       "id": "qwen/qwen3-14b",
       "name": "Qwen: Qwen3 14B",
-      "contextWindow": 40960,
-      "maxInputTokens": 40960,
-      "maxTokens": 16384,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 8192,
       "capabilities": [
         "tools",
         "reasoning",
@@ -67565,6 +70520,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "tools",
         "reasoning",
+        "structured_output",
         "temperature"
       ],
       "reasoningOptions": [
@@ -67908,12 +70864,13 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "tools",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "pricing": {
-        "input": 0.25,
-        "output": 1,
-        "cacheRead": 0,
+        "input": 0.29,
+        "output": 1.14,
+        "cacheRead": 0.11,
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-24",
@@ -68076,9 +71033,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "meta-llama/llama-3.3-70b-instruct": {
       "id": "meta-llama/llama-3.3-70b-instruct",
       "name": "Llama-3.3-70B-Instruct",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 115200,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
@@ -68232,9 +71189,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "thedrummer/unslopnemo-12b": {
       "id": "thedrummer/unslopnemo-12b",
       "name": "TheDrummer: UnslopNemo 12B",
-      "contextWindow": 32768,
-      "maxInputTokens": 32768,
-      "maxTokens": 26214,
+      "contextWindow": 1024000,
+      "maxInputTokens": 1024000,
+      "maxTokens": 819200,
       "capabilities": [
         "tools",
         "structured_output",
@@ -68396,7 +71353,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "meta-llama/llama-3.1-70b-instruct": {
       "id": "meta-llama/llama-3.1-70b-instruct",
-      "name": "Meta: Llama 3.1 70B Instruct",
+      "name": "Llama-3.1-70B-Instruct",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 16384,
@@ -69366,6 +72323,197 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "llmgateway": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
+      "maxTokens": 1050000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-03",
+      "family": "gpt"
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.08333
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "muse-spark-1.3": {
+      "id": "muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "muse-spark-1.3-contributor": {
+      "id": "muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse"
+    },
+    "Qwen3.8-27B": {
+      "id": "Qwen3.8-27B",
+      "name": "Qwen3.8 27B",
+      "contextWindow": 32768,
+      "maxInputTokens": 32768,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 2,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02"
+    },
     "claude-fable-5-1": {
       "id": "claude-fable-5-1",
       "name": "Claude Fable 5.1",
@@ -69431,9 +72579,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.13,
-        "output": 0.4,
-        "cacheRead": 0.024,
+        "input": 0.088,
+        "output": 0.25,
+        "cacheRead": 0.025,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -69534,38 +72682,13 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.3,
+        "input": 1.2,
         "output": 4,
-        "cacheRead": 0.25,
+        "cacheRead": 0.2,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
       "family": "glm"
-    },
-    "qwen3.8-27b": {
-      "id": "qwen3.8-27b",
-      "name": "Qwen3.8 27B",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.42,
-        "output": 3,
-        "cacheRead": 0.085,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-14",
-      "family": "qwen"
     },
     "gemini-3.7-flash": {
       "id": "gemini-3.7-flash",
@@ -69649,6 +72772,41 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-12",
       "family": "grok"
+    },
+    "muse-spark-1.2-contributor": {
+      "id": "muse-spark-1.2-contributor",
+      "name": "Muse Spark 1.2 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-06",
+      "family": "muse"
     },
     "muse-spark-1.2": {
       "id": "muse-spark-1.2",
@@ -69920,9 +73078,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.815,
-        "output": 5.4461,
-        "cacheRead": 0.21,
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
         "cacheWrite": 2.5
       },
       "releaseDate": "2026-07-19",
@@ -69957,9 +73115,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.83,
-        "output": 14.13,
-        "cacheRead": 0.28,
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-16",
@@ -70145,8 +73303,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -70231,9 +73389,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.55,
-        "output": 1.784,
-        "cacheRead": 0.111,
+        "input": 0.8,
+        "output": 2.55,
+        "cacheRead": 0.16,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -70254,9 +73412,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 1.99,
-        "output": 6.16,
-        "cacheRead": 0.4,
+        "input": 2.2,
+        "output": 6.5,
+        "cacheRead": 0.45,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -70291,9 +73449,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.89,
-        "output": 3.71,
-        "cacheRead": 0.18,
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0.19,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-12",
@@ -70699,9 +73857,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.051,
-        "output": 0.104,
-        "cacheRead": 0.0097,
+        "input": 0.05,
+        "output": 0.1,
+        "cacheRead": 0.01,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -70923,9 +74081,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.22,
-        "output": 1.137,
-        "cacheRead": 0.048,
+        "input": 0.6,
+        "output": 3.05,
+        "cacheRead": 0.13,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
@@ -71109,7 +74267,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Muse Spark 1.1",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 32000,
+      "maxTokens": 131072,
       "capabilities": [
         "images",
         "video",
@@ -73264,7 +76422,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -73277,9 +76436,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.05,
-        "output": 0.2,
-        "cacheRead": 0,
+        "input": 0.04,
+        "output": 0.19,
+        "cacheRead": 0.01,
         "cacheWrite": 0
       },
       "releaseDate": "2025-08-05",
@@ -74373,6 +77532,280 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "llmgateway-providers": {
+    "azure/gpt-6-astra": {
+      "id": "azure/gpt-6-astra",
+      "name": "GPT-6 Astra (Azure)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra (OpenAI)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-03",
+      "family": "gpt"
+    },
+    "consensusprotocol/Qwen3.8-27B": {
+      "id": "consensusprotocol/Qwen3.8-27B",
+      "name": "Qwen3.8 27B (Consensus Protocol)",
+      "contextWindow": 32768,
+      "maxInputTokens": 32768,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 2,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02"
+    },
+    "google-ai-studio/gemini-3.8-flash": {
+      "id": "google-ai-studio/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash (Google AI Studio)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.08333
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "google-vertex/gemini-3.8-flash": {
+      "id": "google-vertex/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash (Google Vertex AI)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.08333
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta-contributor/muse-spark-1.3-contributor": {
+      "id": "meta-contributor/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor (Meta Contributor)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse"
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3 (Meta)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5-1": {
       "id": "anthropic/claude-fable-5-1",
       "name": "Claude Fable 5.1 (Anthropic)",
@@ -74444,6 +77877,74 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-26",
       "family": "qwen"
+    },
+    "consensusprotocol/glm-5.3-flash": {
+      "id": "consensusprotocol/glm-5.3-flash",
+      "name": "GLM-5.3 Flash (Consensus Protocol)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.25,
+        "cacheRead": 0.02,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "novita/glm-5.3-flash": {
+      "id": "novita/glm-5.3-flash",
+      "name": "GLM-5.3 Flash (NovitaAI)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.03,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
     },
     "novita/qwen3.8-flash": {
       "id": "novita/qwen3.8-flash",
@@ -74545,9 +78046,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.13,
-        "output": 0.4,
-        "cacheRead": 0.024,
+        "input": 0.088,
+        "output": 0.25,
+        "cacheRead": 0.025,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -74704,6 +78205,38 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-14",
       "family": "qwen"
     },
+    "runware/glm-5.3": {
+      "id": "runware/glm-5.3",
+      "name": "GLM-5.3 (Runware)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.2,
+        "output": 4,
+        "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
     "scx-ai-gp/glm-5.3": {
       "id": "scx-ai-gp/glm-5.3",
       "name": "GLM-5.3 (SCX.ai)",
@@ -74727,9 +78260,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.3,
-        "output": 4,
-        "cacheRead": 0.25,
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0.26,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
@@ -74963,6 +78496,41 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-12",
       "family": "grok"
     },
+    "meta-contributor/muse-spark-1.2-contributor": {
+      "id": "meta-contributor/muse-spark-1.2-contributor",
+      "name": "Muse Spark 1.2 Contributor (Meta Contributor)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-06",
+      "family": "muse"
+    },
     "meta/muse-spark-1.2": {
       "id": "meta/muse-spark-1.2",
       "name": "Muse Spark 1.2 (Meta)",
@@ -75116,9 +78684,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.815,
-        "output": 5.4461,
-        "cacheRead": 0.21,
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
         "cacheWrite": 2.5
       },
       "releaseDate": "2026-08-03",
@@ -75649,6 +79217,40 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-16",
       "family": "kimi-k3"
     },
+    "runware/kimi-k3": {
+      "id": "runware/kimi-k3",
+      "name": "Kimi K3 (Runware)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-16",
+      "family": "kimi-k3"
+    },
     "scx-ai-gp/kimi-k3": {
       "id": "scx-ai-gp/kimi-k3",
       "name": "Kimi K3 (SCX.ai)",
@@ -75678,9 +79280,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.83,
-        "output": 14.13,
-        "cacheRead": 0.28,
+        "input": 3.5,
+        "output": 18,
+        "cacheRead": 0.35,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-16",
@@ -76110,7 +79712,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "deepinfra/hy3",
       "name": "Hy3 (DeepInfra)",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -76142,7 +79744,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "novita/hy3",
       "name": "Hy3 (NovitaAI)",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 262144,
       "capabilities": [
         "tools",
@@ -76612,9 +80214,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.55,
-        "output": 1.784,
-        "cacheRead": 0.111,
+        "input": 0.8,
+        "output": 2.55,
+        "cacheRead": 0.16,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -76634,9 +80236,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 1.99,
-        "output": 6.16,
-        "cacheRead": 0.4,
+        "input": 2.2,
+        "output": 6.5,
+        "cacheRead": 0.45,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -76803,9 +80405,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.89,
-        "output": 3.71,
-        "cacheRead": 0.18,
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0.19,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-12",
@@ -77849,9 +81451,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.13,
-        "output": 0.27,
-        "cacheRead": 0.02,
+        "input": 0.05,
+        "output": 0.1,
+        "cacheRead": 0.01,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -78660,41 +82262,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.95,
         "output": 4,
         "cacheRead": 0.16,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-21",
-      "family": "kimi-k2"
-    },
-    "gonka24/kimi-k2.6": {
-      "id": "gonka24/kimi-k2.6",
-      "name": "Kimi K2.6 (Gonka24)",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 98304,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.22,
-        "output": 1.137,
-        "cacheRead": 0.048,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
@@ -81077,42 +84644,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-01",
       "family": "kimi-k2"
     },
-    "deepinfra/kimi-k2.5": {
-      "id": "deepinfra/kimi-k2.5",
-      "name": "Kimi K2.5 (DeepInfra)",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.45,
-        "output": 2.25,
-        "cacheRead": 0.07,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01",
-      "family": "kimi-k2"
-    },
     "embercloud/kimi-k2.5": {
       "id": "embercloud/kimi-k2.5",
       "name": "Kimi K2.5 (EmberCloud)",
@@ -83337,6 +86868,37 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.35,
         "output": 0.75,
         "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-08-05",
+      "family": "gpt-oss"
+    },
+    "consensusprotocol/gpt-oss-20b": {
+      "id": "consensusprotocol/gpt-oss-20b",
+      "name": "GPT OSS 20B (Consensus Protocol)",
+      "contextWindow": 65536,
+      "maxInputTokens": 65536,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.04,
+        "output": 0.19,
+        "cacheRead": 0.01,
         "cacheWrite": 0
       },
       "releaseDate": "2025-08-05",
@@ -86255,6 +89817,105 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "meta": {
+    "muse-spark-1.3": {
+      "id": "muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "muse-spark-1.3-contributor": {
+      "id": "muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "muse-spark-1.2": {
       "id": "muse-spark-1.2",
       "name": "Muse Spark 1.2",
@@ -86356,9 +90017,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "muse-spark-1.1": {
       "id": "muse-spark-1.1",
       "name": "Muse Spark 1.1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 32000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
       "capabilities": [
         "images",
         "video",
@@ -88934,138 +92595,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-21",
       "family": "kimi-k2"
-    },
-    "kimi-k2.5": {
-      "id": "kimi-k2.5",
-      "name": "Kimi K2.5",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 3,
-        "cacheRead": 0.1,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01",
-      "family": "kimi-k2"
-    },
-    "kimi-k2-thinking": {
-      "id": "kimi-k2-thinking",
-      "name": "Kimi K2 Thinking",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.5,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-06",
-      "family": "kimi-thinking"
-    },
-    "kimi-k2-thinking-turbo": {
-      "id": "kimi-k2-thinking-turbo",
-      "name": "Kimi K2 Thinking Turbo",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.15,
-        "output": 8,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-06",
-      "family": "kimi-thinking"
-    },
-    "kimi-k2-0905-preview": {
-      "id": "kimi-k2-0905-preview",
-      "name": "Kimi K2 0905",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.5,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-05",
-      "family": "kimi-k2"
-    },
-    "kimi-k2-turbo-preview": {
-      "id": "kimi-k2-turbo-preview",
-      "name": "Kimi K2 Turbo",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 2.4,
-        "output": 10,
-        "cacheRead": 0.6,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-05",
-      "family": "kimi-k2"
-    },
-    "kimi-k2-0711-preview": {
-      "id": "kimi-k2-0711-preview",
-      "name": "Kimi K2 0711",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 16384,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.5,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-14",
-      "family": "kimi-k2"
     }
   },
   "moonshotai-cn": {
@@ -89181,20 +92710,142 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-21",
       "family": "kimi-k2"
-    },
-    "kimi-k2.5": {
-      "id": "kimi-k2.5",
-      "name": "Kimi K2.5",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
+    }
+  },
+  "nan": {
+    "glm5.3-flash": {
+      "id": "glm5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
       "capabilities": [
         "images",
-        "video",
         "tools",
         "reasoning",
         "structured_output",
-        "prompt-cache"
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "qwen3.8-flash": {
+      "id": "qwen3.8-flash",
+      "name": "Qwen3.8 Flash",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "qwen"
+    },
+    "glm5.2": {
+      "id": "glm5.2",
+      "name": "GLM-5.2",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-13",
+      "family": "glm"
+    },
+    "deepseek-v4-flash": {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-24",
+      "family": "deepseek-flash"
+    },
+    "mimo-v2.5": {
+      "id": "mimo-v2.5",
+      "name": "MiMo-V2.5",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-22",
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "qwen3.6": {
+      "id": "qwen3.6",
+      "name": "Qwen3.6 35B-A3B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
       ],
       "reasoningOptions": [
         {
@@ -89202,120 +92853,584 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.6,
-        "output": 3,
-        "cacheRead": 0.1,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-01",
-      "family": "kimi-k2"
+      "releaseDate": "2026-04-17",
+      "family": "qwen"
     },
-    "kimi-k2-thinking": {
-      "id": "kimi-k2-thinking",
-      "name": "Kimi K2 Thinking",
+    "gemma4": {
+      "id": "gemma4",
+      "name": "Gemma 4 26B A4B IT",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 32768,
       "capabilities": [
+        "images",
         "tools",
         "reasoning",
-        "temperature",
-        "prompt-cache"
+        "structured_output",
+        "temperature"
       ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.5,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-06",
-      "family": "kimi-thinking"
-    },
-    "kimi-k2-thinking-turbo": {
-      "id": "kimi-k2-thinking-turbo",
-      "name": "Kimi K2 Thinking Turbo",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.15,
-        "output": 8,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-06",
-      "family": "kimi-thinking"
-    },
-    "kimi-k2-0905-preview": {
-      "id": "kimi-k2-0905-preview",
-      "name": "Kimi K2 0905",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
       ],
       "pricing": {
-        "input": 0.6,
-        "output": 2.5,
-        "cacheRead": 0.15,
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-09-05",
-      "family": "kimi-k2"
-    },
-    "kimi-k2-turbo-preview": {
-      "id": "kimi-k2-turbo-preview",
-      "name": "Kimi K2 Turbo",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 2.4,
-        "output": 10,
-        "cacheRead": 0.6,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-05",
-      "family": "kimi-k2"
-    },
-    "kimi-k2-0711-preview": {
-      "id": "kimi-k2-0711-preview",
-      "name": "Kimi K2 0711",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 16384,
-      "capabilities": [
-        "tools",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 2.5,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-14",
-      "family": "kimi-k2"
+      "releaseDate": "2026-04-02",
+      "family": "gemma"
     }
   },
   "nano-gpt": {
+    "agnes-3.0-flash": {
+      "id": "agnes-3.0-flash",
+      "name": "Agnes 3.0 Flash",
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.15,
+        "cacheRead": 0.005,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-09"
+    },
+    "gemma-4-12b-it-semancer": {
+      "id": "gemma-4-12b-it-semancer",
+      "name": "Gemma 4 12B Semancer",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.25,
+        "cacheRead": 0.025,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-09",
+      "family": "gemma"
+    },
+    "gemma-4-12b-it-station-keeper": {
+      "id": "gemma-4-12b-it-station-keeper",
+      "name": "Gemma 4 12B StationKeeper",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.25,
+        "cacheRead": 0.025,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-09",
+      "family": "gemma"
+    },
+    "inclusionai/ling-3.0-flash-vl": {
+      "id": "inclusionai/ling-3.0-flash-vl",
+      "name": "Ling 3.0 Flash VL",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.18,
+        "cacheRead": 0.012,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-09",
+      "family": "ling"
+    },
+    "k2-horizon-7b": {
+      "id": "k2-horizon-7b",
+      "name": "K2-Horizon-7B",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.2,
+        "cacheRead": 0.04,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-09"
+    },
+    "qwen/qwen3.8-27b-queen": {
+      "id": "qwen/qwen3.8-27b-queen",
+      "name": "Qwen 3.8 27B Queen",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.25,
+        "output": 1.5,
+        "cacheRead": 0.125,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-09",
+      "family": "qwen"
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "id": "deepseek/deepseek-v4.1-flash",
+      "name": "DeepSeek V4.1 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1562,
+        "output": 0.3124,
+        "cacheRead": 0.03124,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "deepseek"
+    },
+    "deepseek/deepseek-v4.1-flash:thinking": {
+      "id": "deepseek/deepseek-v4.1-flash:thinking",
+      "name": "DeepSeek V4.1 Flash Thinking",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1562,
+        "output": 0.3124,
+        "cacheRead": 0.03124,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "deepseek"
+    },
+    "deepseek/deepseek-v4-flash-vision-exp-uncensored": {
+      "id": "deepseek/deepseek-v4-flash-vision-exp-uncensored",
+      "name": "DeepSeek V4 Flash Vision Exp Uncensored",
+      "contextWindow": 524288,
+      "maxInputTokens": 524288,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.44,
+        "output": 1.6,
+        "cacheRead": 0.22,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-07",
+      "family": "deepseek"
+    },
+    "TheDrummer/Artemis-v1.1": {
+      "id": "TheDrummer/Artemis-v1.1",
+      "name": "TheDrummer/Artemis v1.1",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 32768,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.45,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-06"
+    },
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT 6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai/gpt-6-astra-pro": {
+      "id": "openai/gpt-6-astra-pro",
+      "name": "GPT 6 Astra Pro",
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt"
+    },
+    "TEE/qwen3-8b": {
+      "id": "TEE/qwen3-8b",
+      "name": "Qwen3 8B TEE",
+      "contextWindow": 40960,
+      "maxInputTokens": 40960,
+      "maxTokens": 8192,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.11,
+        "output": 0.45,
+        "cacheRead": 0.11,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04"
+    },
+    "alibaba/qwen3.8-max-0902": {
+      "id": "alibaba/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 991808,
+      "maxInputTokens": 991808,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.17,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -89382,6 +93497,36 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-09-01",
       "family": "mercury"
+    },
+    "abliteration-ai/abliterated-model-large-v2": {
+      "id": "abliteration-ai/abliterated-model-large-v2",
+      "name": "Abliterated Model Large V2",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 999990,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 5,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-31"
     },
     "ibm-granite/granite-4.2-8b": {
       "id": "ibm-granite/granite-4.2-8b",
@@ -89605,9 +93750,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.44,
-        "output": 1.32,
-        "cacheRead": 0.014,
+        "input": 0.22,
+        "output": 0.66,
+        "cacheRead": 0.007,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-21",
@@ -89682,40 +93827,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-16",
       "family": "qwen3.5"
     },
-    "dots-studio/dots-3-note-preview": {
-      "id": "dots-studio/dots-3-note-preview",
-      "name": "Dots3-Note Preview",
-      "contextWindow": 393216,
-      "maxInputTokens": 393216,
-      "maxTokens": 393216,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.1,
-        "output": 0.2,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-15"
-    },
     "qwen3.8-27b": {
       "id": "qwen3.8-27b",
       "name": "Qwen3.8 27B",
@@ -89724,6 +93835,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 32768,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -89748,6 +93860,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 32768,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -89912,10 +94025,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.375,
-        "output": 1.875,
-        "cacheRead": 0.0375,
-        "cacheWrite": 0.020833
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
       },
       "releaseDate": "2026-08-13",
       "family": "gemini-flash",
@@ -89960,10 +94073,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.375,
-        "output": 1.875,
-        "cacheRead": 0.0375,
-        "cacheWrite": 0.020833
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.075
       },
       "releaseDate": "2026-08-13",
       "family": "gemini-flash",
@@ -89985,7 +94098,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "ByteDance Seed 2.1 Turbo",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 235929,
       "capabilities": [
         "images",
         "video",
@@ -90132,7 +94245,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Grok 4.6",
       "contextWindow": 500000,
       "maxInputTokens": 500000,
-      "maxTokens": 500000,
+      "maxTokens": 450000,
       "capabilities": [
         "images",
         "tools",
@@ -90226,7 +94339,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Muse Glimmer 30B",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 131072,
+      "maxTokens": 117964,
       "capabilities": [
         "images",
         "tools",
@@ -90673,7 +94786,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-30",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "thinkingmachines/Inkling-Small:thinking": {
       "id": "thinkingmachines/Inkling-Small:thinking",
@@ -90707,7 +94830,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-30",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemma-4-26b-a4b-it-chimerax": {
       "id": "gemma-4-26b-a4b-it-chimerax",
@@ -91404,8 +95537,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "z-ai/glm-5.3-flash-uncensored": {
       "id": "z-ai/glm-5.3-flash-uncensored",
       "name": "GLM 5.3 Flash Uncensored",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 32768,
       "capabilities": [
         "images",
@@ -91808,7 +95941,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K3",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -91841,7 +95974,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K3 TEE",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "tools",
@@ -92010,46 +96143,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "kwaipilot/kat-coder-air-v2.5": {
-      "id": "kwaipilot/kat-coder-air-v2.5",
-      "name": "KAT Coder Air V2.5",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 80000,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.6,
-        "cacheRead": 0.03,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-14",
-      "family": "kat-coder"
-    },
-    "kwaipilot/kat-coder-pro-v2.5": {
-      "id": "kwaipilot/kat-coder-pro-v2.5",
-      "name": "KAT Coder Pro V2.5",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 80000,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.74,
-        "output": 2.96,
-        "cacheRead": 0.15,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-07-14",
-      "family": "kat-coder"
     },
     "openai/gpt-5.6-luna": {
       "id": "openai/gpt-5.6-luna",
@@ -92272,7 +96365,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Grok 4.5",
       "contextWindow": 500000,
       "maxInputTokens": 500000,
-      "maxTokens": 500000,
+      "maxTokens": 450000,
       "capabilities": [
         "images",
         "tools",
@@ -92345,7 +96438,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Tencent Hy3",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -92473,41 +96566,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-30",
       "family": "longcat"
     },
-    "nex-agi/nex-n2-mini": {
-      "id": "nex-agi/nex-n2-mini",
-      "name": "Nex N2 Mini",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.025,
-        "output": 0.1,
-        "cacheRead": 0.0025,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-24",
-      "family": "agi"
-    },
     "crofai/greg-2-super": {
       "id": "crofai/greg-2-super",
       "name": "Greg 2 Super",
@@ -92594,8 +96652,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [],
       "pricing": {
         "input": 1.4,
-        "output": 4.6,
-        "cacheRead": 0.5,
+        "output": 4.4,
+        "cacheRead": 0.7,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -92628,8 +96686,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 1.4,
-        "output": 4.6,
-        "cacheRead": 0.5,
+        "output": 4.4,
+        "cacheRead": 0.7,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -92828,46 +96886,11 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 10,
         "output": 50,
-        "cacheRead": 1,
+        "cacheRead": 0.25,
         "cacheWrite": 12.5
       },
       "releaseDate": "2026-06-09",
       "family": "claude-fable"
-    },
-    "nex-agi/nex-n2-pro": {
-      "id": "nex-agi/nex-n2-pro",
-      "name": "Nex N2 Pro",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.5,
-        "output": 2.5,
-        "cacheRead": 0.25,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-04",
-      "family": "agi"
     },
     "nvidia/nemotron-3-ultra-550b-a55b": {
       "id": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -93287,6 +97310,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -93316,6 +97340,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
@@ -93723,7 +97748,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi Latest",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -93792,7 +97817,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Grok Latest",
       "contextWindow": 500000,
       "maxInputTokens": 500000,
-      "maxTokens": 500000,
+      "maxTokens": 450000,
       "capabilities": [
         "images",
         "tools",
@@ -94106,26 +98131,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-30",
       "family": "qwen3.5"
     },
-    "ibm-granite/granite-4.1-8b": {
-      "id": "ibm-granite/granite-4.1-8b",
-      "name": "Granite 4.1 8B",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.05,
-        "output": 0.1,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-29",
-      "family": "granite"
-    },
     "mistral/mistral-medium-3.5": {
       "id": "mistral/mistral-medium-3.5",
       "name": "Mistral Medium 3.5",
@@ -94156,29 +98161,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-29",
       "family": "mistral-medium"
-    },
-    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning": {
-      "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-      "name": "Nvidia Nemotron 3 Nano Omni",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 65536,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.105,
-        "output": 0.42,
-        "cacheRead": 0.0525,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-28",
-      "family": "nemotron"
     },
     "deepseek/deepseek-v4-flash": {
       "id": "deepseek/deepseek-v4-flash",
@@ -94313,7 +98295,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash TEE",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
+      "maxTokens": 393216,
       "capabilities": [
         "tools",
         "reasoning",
@@ -94334,8 +98316,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "openai/gpt-5.5": {
       "id": "openai/gpt-5.5",
       "name": "GPT 5.5",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
       "maxTokens": 128000,
       "capabilities": [
         "images",
@@ -94449,7 +98431,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi/mimo-v2.5-pro": {
       "id": "xiaomi/mimo-v2.5-pro",
@@ -94544,7 +98537,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/kimi-k2.6": {
       "id": "moonshotai/kimi-k2.6",
@@ -94662,7 +98666,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Grok 4.3",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 1000000,
+      "maxTokens": 900000,
       "capabilities": [
         "images",
         "tools",
@@ -94765,7 +98769,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Grok Build 0.1",
       "contextWindow": 256000,
       "maxInputTokens": 256000,
-      "maxTokens": 256000,
+      "maxTokens": 230400,
       "capabilities": [
         "images",
         "tools",
@@ -95013,6 +99017,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -95041,6 +99046,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -95065,6 +99071,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -95093,6 +99100,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -95186,6 +99194,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "structured_output",
         "temperature",
@@ -95208,6 +99217,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -95360,8 +99370,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "google/gemini-pro-latest": {
       "id": "google/gemini-pro-latest",
       "name": "Gemini Pro Latest",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
@@ -95417,7 +99427,6 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
-            "none",
             "low",
             "medium",
             "high",
@@ -95427,10 +99436,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2,
-        "output": 10,
-        "cacheRead": 0.2,
-        "cacheWrite": 2.5
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
       },
       "releaseDate": "2026-03-29",
       "family": "gpt"
@@ -95654,8 +99663,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "openai/gpt-5.4": {
       "id": "openai/gpt-5.4",
       "name": "GPT 5.4",
-      "contextWindow": 922000,
-      "maxInputTokens": 922000,
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
       "maxTokens": 128000,
       "capabilities": [
         "images",
@@ -95748,6 +99757,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature",
@@ -95929,11 +99939,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "google/gemini-3.1-pro-preview-high": {
       "id": "google/gemini-3.1-pro-preview-high",
       "name": "Gemini 3.1 Pro (Preview High)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -95952,6 +99963,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
@@ -95962,8 +99974,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "google/gemini-3.1-pro-preview-low": {
       "id": "google/gemini-3.1-pro-preview-low",
       "name": "Gemini 3.1 Pro (Preview Low)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
@@ -95995,11 +100007,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "google/gemini-3.1-pro-preview": {
       "id": "google/gemini-3.1-pro-preview",
       "name": "Gemini 3.1 Pro (Preview)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -96028,6 +100041,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
@@ -96038,11 +100052,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "google/gemini-3.1-pro-preview-customtools": {
       "id": "google/gemini-3.1-pro-preview-customtools",
       "name": "Gemini 3.1 Pro (Preview Custom Tools)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -96071,43 +100086,13 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
           "text"
         ]
       }
-    },
-    "sarvam-30b": {
-      "id": "sarvam-30b",
-      "name": "Sarvam 30B",
-      "contextWindow": 65536,
-      "maxInputTokens": 65536,
-      "maxTokens": 4096,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.028,
-        "output": 0.111,
-        "cacheRead": 0.017,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-18",
-      "family": "sarvam"
     },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
@@ -96909,11 +100894,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "google/gemini-3-flash-preview": {
       "id": "google/gemini-3-flash-preview",
       "name": "Gemini 3 Flash (Preview)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -96943,32 +100929,13 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
           "text"
         ]
       }
-    },
-    "kimi-k2-instruct-fast": {
-      "id": "kimi-k2-instruct-fast",
-      "name": "Kimi K2 0711 Fast",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 16384,
-      "capabilities": [
-        "files",
-        "tools",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.4,
-        "output": 1.8,
-        "cacheRead": 0.2,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-15",
-      "family": "kimi-k2"
     },
     "openai/gpt-5.2": {
       "id": "openai/gpt-5.2",
@@ -97259,7 +101226,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude 4.5 Opus",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 32000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -97295,7 +101262,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Claude 4.5 Opus Thinking",
       "contextWindow": 200000,
       "maxInputTokens": 200000,
-      "maxTokens": 32000,
+      "maxTokens": 64000,
       "capabilities": [
         "images",
         "files",
@@ -97513,8 +101480,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-flash-lite-preview-09-2025": {
       "id": "gemini-2.5-flash-lite-preview-09-2025",
       "name": "Gemini 2.5 Flash Lite Preview (09/2025)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
@@ -97557,8 +101524,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-flash-lite-preview-09-2025-thinking": {
       "id": "gemini-2.5-flash-lite-preview-09-2025-thinking",
       "name": "Gemini 2.5 Flash Lite Preview (09/2025) – Thinking",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
@@ -97601,8 +101568,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-flash-preview-09-2025": {
       "id": "gemini-2.5-flash-preview-09-2025",
       "name": "Gemini 2.5 Flash Preview (09/2025)",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
@@ -97645,8 +101612,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-flash-preview-09-2025-thinking": {
       "id": "gemini-2.5-flash-preview-09-2025-thinking",
       "name": "Gemini 2.5 Flash Preview (09/2025) – Thinking",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
@@ -97689,9 +101656,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "moonshotai/Kimi-K2-Instruct-0905": {
       "id": "moonshotai/Kimi-K2-Instruct-0905",
       "name": "Kimi K2 0905",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 262144,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 100352,
       "capabilities": [
         "tools",
         "structured_output",
@@ -97706,34 +101673,12 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-09-25",
       "family": "kimi-k2"
     },
-    "openai/gpt-5-codex": {
-      "id": "openai/gpt-5-codex",
-      "name": "GPT-5 Codex",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.25,
-        "output": 10,
-        "cacheRead": 0.125,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-09-15",
-      "family": "gpt-codex"
-    },
     "qwen/Qwen3-235B-A22B-Thinking-2507": {
       "id": "qwen/Qwen3-235B-A22B-Thinking-2507",
       "name": "Qwen 3 235b A22B 2507 Thinking",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 262144,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 117964,
       "capabilities": [
         "tools",
         "prompt-cache"
@@ -97792,9 +101737,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/Qwen3-Next-80B-A3B-Instruct": {
       "id": "qwen/Qwen3-Next-80B-A3B-Instruct",
       "name": "Qwen3 Next 80B A3B (Instruct)",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 262144,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "structured_output",
@@ -97833,9 +101778,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.045,
-        "output": 0.177,
-        "cacheRead": 0.028,
+        "input": 0.054,
+        "output": 0.2124,
+        "cacheRead": 0.0336,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-01",
@@ -98146,9 +102091,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/Qwen3-235B-A22B-Instruct-2507": {
       "id": "qwen/Qwen3-235B-A22B-Instruct-2507",
       "name": "Qwen 3 235b A22B 2507",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 262144,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "structured_output",
@@ -98186,11 +102131,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-flash": {
       "id": "gemini-2.5-flash",
       "name": "Gemini 2.5 Flash",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature",
@@ -98218,6 +102164,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
@@ -98228,11 +102175,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
       "name": "Gemini 2.5 Flash Lite",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature",
@@ -98260,6 +102208,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
@@ -98270,11 +102219,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
       "name": "Gemini 2.5 Pro",
-      "contextWindow": 1048756,
-      "maxInputTokens": 1048756,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 65536,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "temperature",
@@ -98302,6 +102252,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": [
           "text",
           "image",
+          "video",
           "audio"
         ],
         "output": [
@@ -98312,9 +102263,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "deepseek-ai/DeepSeek-R1-0528": {
       "id": "deepseek-ai/DeepSeek-R1-0528",
       "name": "DeepSeek R1 0528",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 163840,
+      "contextWindow": 163840,
+      "maxInputTokens": 163840,
+      "maxTokens": 32768,
       "capabilities": [
         "tools",
         "reasoning",
@@ -98728,26 +102679,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2025-04-15",
       "family": "deepseek"
     },
-    "glm-z1-air": {
-      "id": "glm-z1-air",
-      "name": "GLM Z1 Air",
-      "contextWindow": 32000,
-      "maxInputTokens": 32000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.07,
-        "output": 0.07,
-        "cacheRead": 0.035,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-04-15",
-      "family": "glm"
-    },
     "glm-z1-airx": {
       "id": "glm-z1-airx",
       "name": "GLM Z1 AirX",
@@ -98794,9 +102725,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/qwen3-235b-a22b": {
       "id": "qwen/qwen3-235b-a22b",
       "name": "Qwen 3 235b A22B",
-      "contextWindow": 41000,
-      "maxInputTokens": 41000,
-      "maxTokens": 32768,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 16384,
       "capabilities": [
         "files",
         "tools",
@@ -99032,67 +102963,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2024-01-01",
       "family": "llama"
     },
-    "azure-gpt-4o": {
-      "id": "azure-gpt-4o",
-      "name": "Azure gpt-4o",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "images",
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 2.5,
-        "output": 10,
-        "cacheRead": 1.25,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-01-01",
-      "family": "gpt"
-    },
-    "azure-gpt-4o-mini": {
-      "id": "azure-gpt-4o-mini",
-      "name": "Azure gpt-4o-mini",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "images",
-        "tools",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.6,
-        "cacheRead": 0.075,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-01-01",
-      "family": "gpt"
-    },
-    "baseten/Kimi-K2-Instruct-FP4": {
-      "id": "baseten/Kimi-K2-Instruct-FP4",
-      "name": "Kimi K2 0711 Instruct FP4",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.4,
-        "output": 1.8,
-        "cacheRead": 0.2,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2024-01-01",
-      "family": "kimi-k2"
-    },
     "deepseek-ai/DeepSeek-V3.1-Terminus:thinking": {
       "id": "deepseek-ai/DeepSeek-V3.1-Terminus:thinking",
       "name": "DeepSeek V3.1 Terminus (Thinking)",
@@ -99137,7 +103007,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Holo3-35B-A3B",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
-      "maxTokens": 65536,
+      "maxTokens": 8192,
       "capabilities": [
         "images",
         "tools",
@@ -99163,7 +103033,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Holo3-35B-A3B Thinking",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
-      "maxTokens": 65536,
+      "maxTokens": 8192,
       "capabilities": [
         "images",
         "tools",
@@ -99245,9 +103115,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "openai/gpt-5.1-2025-11-13": {
       "id": "openai/gpt-5.1-2025-11-13",
       "name": "GPT-5.1 (2025-11-13)",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 32768,
+      "contextWindow": 400000,
+      "maxInputTokens": 400000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -99454,7 +103324,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen 3.6 35B A3B FP8",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 32768,
+      "maxTokens": 8192,
       "capabilities": [
         "tools",
         "reasoning",
@@ -99503,39 +103373,12 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-16",
       "family": "claude-opus"
     },
-    "google/gemma-4-31B-it": {
-      "id": "google/gemma-4-31B-it",
-      "name": "Gemma 4 31B IT",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.13,
-        "output": 0.4,
-        "cacheRead": 0.026,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-02",
-      "family": "gemma"
-    },
     "zai-org/GLM-5.1-FP8": {
       "id": "zai-org/GLM-5.1-FP8",
       "name": "GLM-5.1 FP8",
       "contextWindow": 202752,
       "maxInputTokens": 202752,
-      "maxTokens": 131072,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "reasoning",
@@ -99548,8 +103391,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.85,
-        "output": 3.3,
+        "input": 1.4,
+        "output": 4.4,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -99662,32 +103505,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-05",
       "family": "gpt"
     },
-    "Qwen/Qwen3.5-122B-A10B": {
-      "id": "Qwen/Qwen3.5-122B-A10B",
-      "name": "Qwen3.5 122B-A10B",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.4,
-        "output": 3.2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-23",
-      "family": "qwen"
-    },
     "anthropic/claude-sonnet-4-6": {
       "id": "anthropic/claude-sonnet-4-6",
       "name": "Claude Sonnet 4.6",
@@ -99779,50 +103596,13 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.8,
-        "output": 15.5,
-        "cacheRead": 0.18,
+        "input": 1.75,
+        "output": 14,
+        "cacheRead": 0.175,
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-11",
       "family": "gpt"
-    },
-    "google/gemini-3-pro": {
-      "id": "google/gemini-3-pro",
-      "name": "Gemini 3 Pro Preview",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 65536,
-      "capabilities": [
-        "images",
-        "video",
-        "files",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.25,
-        "output": 15,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-18",
-      "family": "gemini-pro",
-      "modalities": {
-        "input": [
-          "text",
-          "image",
-          "video",
-          "audio",
-          "pdf"
-        ],
-        "output": [
-          "text"
-        ]
-      }
     },
     "openai/gpt-5.1": {
       "id": "openai/gpt-5.1",
@@ -99915,7 +103695,7 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 3,
-        "output": 15.5,
+        "output": 15,
         "cacheRead": 0.3,
         "cacheWrite": 3.75
       },
@@ -99925,9 +103705,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "Qwen/Qwen3-VL-30B-A3B-Instruct": {
       "id": "Qwen/Qwen3-VL-30B-A3B-Instruct",
       "name": "Qwen3-VL 30B-A3B Instruct",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 32768,
+      "contextWindow": 16384,
+      "maxInputTokens": 16384,
+      "maxTokens": 8192,
       "capabilities": [
         "images",
         "tools",
@@ -100041,57 +103821,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-08-07",
       "family": "gpt-nano"
-    },
-    "openai/gpt-oss-120b": {
-      "id": "openai/gpt-oss-120b",
-      "name": "GPT-OSS 120B",
-      "contextWindow": 131000,
-      "maxInputTokens": 131000,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.55,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-08-05",
-      "family": "gpt-oss"
-    },
-    "Qwen/Qwen3-30B-A3B-Instruct-2507": {
-      "id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
-      "name": "Qwen3 30B-A3B Instruct 2507",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 32768,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature"
-      ],
-      "pricing": {
-        "input": 0.15,
-        "output": 0.55,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-07-29",
-      "family": "qwen"
     },
     "google/gemini-2.5-flash": {
       "id": "google/gemini-2.5-flash",
@@ -100380,7 +104109,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [],
       "pricing": {
         "input": 0.01,
-        "output": 0,
+        "output": 0.01,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -100401,6 +104130,102 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "nebius": {
+    "zai-org/GLM-5.3-Flash": {
+      "id": "zai-org/GLM-5.3-Flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1024000,
+      "maxInputTokens": 1024000,
+      "maxTokens": 1024000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "nvidia/Nemotron-3_5-Lightning": {
+      "id": "nvidia/Nemotron-3_5-Lightning",
+      "name": "Nemotron 3.5 Lightning 30B A3B",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.24,
+        "cacheRead": 0.06,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "nemotron"
+    },
+    "deepseek-ai/DeepSeek-V4-Flash-0731": {
+      "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "name": "DeepSeek V4 Flash 0731",
+      "contextWindow": 1024000,
+      "maxInputTokens": 1024000,
+      "maxTokens": 1024000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.14,
+        "output": 0.28,
+        "cacheRead": 0.14,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-31",
+      "family": "deepseek-flash"
+    },
     "moonshotai/Kimi-K3": {
       "id": "moonshotai/Kimi-K3",
       "name": "Kimi K3",
@@ -100437,9 +104262,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "zai-org/GLM-5.2": {
       "id": "zai-org/GLM-5.2",
       "name": "GLM-5.2",
-      "contextWindow": 432000,
-      "maxInputTokens": 432000,
-      "maxTokens": 432000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
       "capabilities": [
         "tools",
         "reasoning",
@@ -100486,6 +104311,36 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-12",
       "family": "kimi-k2"
     },
+    "nvidia/Nemotron-3-Ultra-550b-a55b": {
+      "id": "nvidia/Nemotron-3-Ultra-550b-a55b",
+      "name": "Nemotron 3 Ultra 550B A55B",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1,
+        "output": 3,
+        "cacheRead": 1,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-04",
+      "family": "nemotron"
+    },
     "MiniMaxAI/MiniMax-M3": {
       "id": "MiniMaxAI/MiniMax-M3",
       "name": "MiniMax-M3",
@@ -100507,12 +104362,12 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-01",
       "family": "minimax"
     },
-    "deepseek-ai/DeepSeek-V4-Flash": {
-      "id": "deepseek-ai/DeepSeek-V4-Flash",
-      "name": "DeepSeek V4 Flash",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 131072,
+    "deepseek-ai/DeepSeek-V4-Pro": {
+      "id": "deepseek-ai/DeepSeek-V4-Pro",
+      "name": "DeepSeek V4 Pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
       "capabilities": [
         "tools",
         "reasoning",
@@ -100532,41 +104387,6 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.14,
-        "output": 0.28,
-        "cacheRead": 0.14,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-24",
-      "family": "deepseek-flash"
-    },
-    "deepseek-ai/DeepSeek-V4-Pro": {
-      "id": "deepseek-ai/DeepSeek-V4-Pro",
-      "name": "DeepSeek V4 Pro",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 384000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
         "input": 1.75,
         "output": 3.5,
         "cacheRead": 0.15,
@@ -100578,8 +104398,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "nvidia/nemotron-3-super-120b-a12b": {
       "id": "nvidia/nemotron-3-super-120b-a12b",
       "name": "Nemotron-3-Super-120B-A12B",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
       "maxTokens": 32768,
       "capabilities": [
         "tools",
@@ -100600,7 +104420,7 @@ export const GENERATED_PROVIDER_MODELS: {
     "NousResearch/Hermes-4-405B": {
       "id": "NousResearch/Hermes-4-405B",
       "name": "Hermes-4-405B",
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "maxInputTokens": 120000,
       "maxTokens": 8192,
       "capabilities": [
@@ -100619,33 +104439,11 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-01-30"
     },
-    "NousResearch/Hermes-4-70B": {
-      "id": "NousResearch/Hermes-4-70B",
-      "name": "Hermes-4-70B",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.13,
-        "output": 0.4,
-        "cacheRead": 0.013,
-        "cacheWrite": 0.16
-      },
-      "releaseDate": "2026-01-30"
-    },
     "Qwen/Qwen3-30B-A3B-Instruct-2507": {
       "id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
       "name": "Qwen3-30B-A3B-Instruct-2507",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
       "maxTokens": 8192,
       "capabilities": [
         "tools",
@@ -100658,48 +104456,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": 0.3,
         "cacheRead": 0.01,
         "cacheWrite": 0.125
-      },
-      "releaseDate": "2026-01-28"
-    },
-    "Qwen/Qwen3-32B": {
-      "id": "Qwen/Qwen3-32B",
-      "name": "Qwen3-32B",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.1,
-        "output": 0.3,
-        "cacheRead": 0.01,
-        "cacheWrite": 0.125
-      },
-      "releaseDate": "2026-01-28"
-    },
-    "Qwen/Qwen3-Next-80B-A3B-Thinking": {
-      "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
-      "name": "Qwen3-Next-80B-A3B-Thinking",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.15,
-        "output": 1.2,
-        "cacheRead": 0.015,
-        "cacheWrite": 0.18
       },
       "releaseDate": "2026-01-28"
     },
@@ -100727,7 +104483,7 @@ export const GENERATED_PROVIDER_MODELS: {
     "openai/gpt-oss-120b": {
       "id": "openai/gpt-oss-120b",
       "name": "gpt-oss-120b",
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "maxInputTokens": 124000,
       "maxTokens": 8192,
       "capabilities": [
@@ -100754,47 +104510,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.18
       },
       "releaseDate": "2026-01-10"
-    },
-    "meta-llama/Llama-3.3-70B-Instruct": {
-      "id": "meta-llama/Llama-3.3-70B-Instruct",
-      "name": "Llama-3.3-70B-Instruct",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.13,
-        "output": 0.4,
-        "cacheRead": 0.013,
-        "cacheWrite": 0.16
-      },
-      "releaseDate": "2025-12-05"
-    },
-    "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B": {
-      "id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
-      "name": "Nemotron-3-Nano-30B-A3B",
-      "contextWindow": 32000,
-      "maxInputTokens": 30000,
-      "maxTokens": 4096,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.06,
-        "output": 0.24,
-        "cacheRead": 0.006,
-        "cacheWrite": 0.075
-      },
-      "releaseDate": "2025-08-10",
-      "family": "nemotron"
     },
     "Qwen/Qwen3-235B-A22B-Instruct-2507": {
       "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
@@ -100840,96 +104555,111 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.75
       },
       "releaseDate": "2025-07-15"
-    },
-    "MiniMaxAI/MiniMax-M2.5": {
-      "id": "MiniMaxAI/MiniMax-M2.5",
-      "name": "MiniMax-M2.5",
-      "contextWindow": 196608,
-      "maxInputTokens": 190000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.3,
-        "output": 1.2,
-        "cacheRead": 0.03,
-        "cacheWrite": 0.375
-      },
-      "releaseDate": "2025-01-20"
-    },
-    "nvidia/Nemotron-3-Nano-Omni": {
-      "id": "nvidia/Nemotron-3-Nano-Omni",
-      "name": "Nemotron-3-Nano-Omni",
-      "contextWindow": 65536,
-      "maxInputTokens": 60000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0.06,
-        "output": 0.24,
-        "cacheRead": 0.006,
-        "cacheWrite": 0.075
-      },
-      "releaseDate": "2025-01-20",
-      "family": "nemotron"
-    },
-    "Qwen/Qwen2.5-VL-72B-Instruct": {
-      "id": "Qwen/Qwen2.5-VL-72B-Instruct",
-      "name": "Qwen2.5-VL-72B-Instruct",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
-      "maxTokens": 8192,
-      "capabilities": [
-        "images",
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.25,
-        "output": 0.75,
-        "cacheRead": 0.025,
-        "cacheWrite": 0.31
-      },
-      "releaseDate": "2025-01-20"
-    },
-    "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1": {
-      "id": "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
-      "name": "Llama-3.1-Nemotron-Ultra-253B-v1",
-      "contextWindow": 128000,
-      "maxInputTokens": 120000,
-      "maxTokens": 4096,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.6,
-        "output": 1.8,
-        "cacheRead": 0.06,
-        "cacheWrite": 0.75
-      },
-      "releaseDate": "2025-01-15",
-      "family": "nemotron"
     }
   },
   "neon": {
+    "claude-fable-5-1": {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
+    "glm-5-3-flash": {
+      "id": "glm-5-3-flash",
+      "name": "GLM-5.3 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.03,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "grok-4-6": {
+      "id": "grok-4-6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 524288,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "claude-opus-5": {
       "id": "claude-opus-5",
       "name": "Claude Opus 5",
@@ -101113,7 +104843,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "images",
         "tools",
         "reasoning",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -101132,9 +104863,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
+        "input": 1,
+        "output": 4.05,
+        "cacheRead": 0.17,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
@@ -101805,8 +105536,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.072,
-        "output": 0.28,
+        "input": 0.15,
+        "output": 0.6,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -101836,8 +105567,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.05,
-        "output": 0.2,
+        "input": 0.07,
+        "output": 0.3,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -105973,6 +109704,117 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "ofox": {
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "bailian/qwen3.8-max-0902": {
+      "id": "bailian/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        },
+        {
+          "type": "budget_tokens",
+          "min": 0,
+          "max": 262144
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
+    "anthropic/claude-fable-5.1": {
+      "id": "anthropic/claude-fable-5.1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
     "z-ai/glm-5.3-flash": {
       "id": "z-ai/glm-5.3-flash",
       "name": "GLM-5.3-Flash",
@@ -110064,6 +113906,41 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "openai-native": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
     "gpt-5.6": {
       "id": "gpt-5.6",
       "name": "GPT-5.6",
@@ -110483,28 +114360,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-05",
       "family": "gpt-pro"
     },
-    "gpt-5.3-chat-latest": {
-      "id": "gpt-5.3-chat-latest",
-      "name": "GPT-5.3 Chat (latest)",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "images",
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 1.75,
-        "output": 14,
-        "cacheRead": 0.175,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-03",
-      "family": "gpt"
-    },
     "gpt-5.3-codex": {
       "id": "gpt-5.3-codex",
       "name": "GPT-5.3 Codex",
@@ -110638,36 +114493,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-12-11",
       "family": "gpt"
-    },
-    "gpt-5.2-chat-latest": {
-      "id": "gpt-5.2-chat-latest",
-      "name": "GPT-5.2 Chat",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 16384,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "medium"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.75,
-        "output": 14,
-        "cacheRead": 0.175,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-12-11",
-      "family": "gpt-codex"
     },
     "gpt-5.2-pro": {
       "id": "gpt-5.2-pro",
@@ -111119,6 +114944,220 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "opencode": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "muse-spark-1.3": {
+      "id": "muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "muse-spark-1.3-contributor-free": {
+      "id": "muse-spark-1.3-contributor-free",
+      "name": "Muse Spark 1.3 Free",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse-free",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "claude-fable-5-1": {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
     "ling-3.0-flash-fin-free": {
       "id": "ling-3.0-flash-fin-free",
       "name": "Ling 3.0 Flash Fin Free",
@@ -111143,6 +115182,109 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-27",
       "family": "ling"
+    },
+    "glm-5.3-flash": {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.03,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "deepseek-v4-flash-vision-exp": {
+      "id": "deepseek-v4-flash-vision-exp",
+      "name": "DeepSeek V4 Flash Vision Exp",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.14,
+        "output": 0.28,
+        "cacheRead": 0.028,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-21",
+      "family": "deepseek-flash"
+    },
+    "glm-5.3": {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0.26,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
     },
     "gemini-3.7-flash": {
       "id": "gemini-3.7-flash",
@@ -113161,6 +117303,86 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "opencode-go": {
+    "omen-alpha": {
+      "id": "omen-alpha",
+      "name": "Omen Alpha",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.66,
+        "cacheRead": 0.04,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04"
+    },
+    "muse-spark-1.3-contributor": {
+      "id": "muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "hy4-preview": {
       "id": "hy4-preview",
       "name": "Hy4 preview",
@@ -113193,7 +117415,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "glm-5.3-flash": {
       "id": "glm-5.3-flash",
-      "name": "GLM-5.3-Flash (2x usage)",
+      "name": "GLM-5.3-Flash",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 131072,
@@ -113218,9 +117440,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -113561,8 +117783,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -114044,6 +118266,381 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "openrouter": {
+    "inception/mercury-2.5": {
+      "id": "inception/mercury-2.5",
+      "name": "Mercury 2.5",
+      "contextWindow": 260000,
+      "maxInputTokens": 260000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.04,
+        "output": 0.15,
+        "cacheRead": 0.004,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "mercury"
+    },
+    "nex-agi/nex-n2.5-mini:free": {
+      "id": "nex-agi/nex-n2.5-mini:free",
+      "name": "Nex-N2.5-Mini (free)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "agi"
+    },
+    "nex-agi/nex-n2.5-pro:free": {
+      "id": "nex-agi/nex-n2.5-pro:free",
+      "name": "Nex-N2.5-Pro (free)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "agi"
+    },
+    "inclusionai/ling-3.0-flash-sante:free": {
+      "id": "inclusionai/ling-3.0-flash-sante:free",
+      "name": "Ling 3.0 Flash Sante (free)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "ling"
+    },
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai/gpt-6-astra-pro": {
+      "id": "openai/gpt-6-astra-pro",
+      "name": "GPT-6 Astra Pro",
+      "contextWindow": 1050000,
+      "maxInputTokens": 1050000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt"
+    },
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0.041667
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 943718,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "qwen/qwen3.8-max-0902": {
+      "id": "qwen/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -114103,46 +118700,13 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.1,
-        "output": 0.15,
-        "cacheRead": 0.05,
+        "input": 0.06,
+        "output": 0.25,
+        "cacheRead": 0.015,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-31",
       "family": "granite"
-    },
-    "inception/mercury-2.5-preview": {
-      "id": "inception/mercury-2.5-preview",
-      "name": "Mercury 2.5 Preview",
-      "contextWindow": 260000,
-      "maxInputTokens": 260000,
-      "maxTokens": 65536,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.04,
-        "output": 0.15,
-        "cacheRead": 0.004,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-31",
-      "family": "mercury"
     },
     "tencent/hy4-preview": {
       "id": "tencent/hy4-preview",
@@ -114202,13 +118766,40 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
+        "input": 0.07,
+        "output": 0.2333,
+        "cacheRead": 0.014,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-27",
       "family": "glm-flash"
+    },
+    "inclusionai/ling-3.0-flash-fin": {
+      "id": "inclusionai/ling-3.0-flash-fin",
+      "name": "Ling 3.0 Flash Fin",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 235929,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.18,
+        "cacheRead": 0.012,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-27",
+      "family": "ling"
     },
     "inclusionai/ling-3.0-flash-fin:free": {
       "id": "inclusionai/ling-3.0-flash-fin:free",
@@ -114293,9 +118884,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
+        "input": 0.07,
+        "output": 0.2333,
+        "cacheRead": 0.014,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -114306,7 +118897,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash Vision Exp",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 384000,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "tools",
@@ -114329,9 +118920,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.44,
-        "output": 1.32,
-        "cacheRead": 0.014,
+        "input": 0.22,
+        "output": 0.66,
+        "cacheRead": 0.007,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-21",
@@ -114391,7 +118982,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM Latest",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 943718,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -114410,9 +119001,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.17,
-        "output": 3.96,
-        "cacheRead": 0.234,
+        "input": 1.113,
+        "output": 3.498,
+        "cacheRead": 0.2067,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-19",
@@ -114473,10 +119064,10 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.425,
-        "output": 2.55,
+        "input": 0.42,
+        "output": 3,
         "cacheRead": 0.085,
-        "cacheWrite": 0.53125
+        "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
       "family": "qwen"
@@ -114486,7 +119077,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 131072,
+      "maxTokens": 943718,
       "capabilities": [
         "tools",
         "reasoning",
@@ -114593,7 +119184,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Pro 0813",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 384000,
+      "maxTokens": 393216,
       "capabilities": [
         "tools",
         "reasoning",
@@ -114615,9 +119206,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.1154,
-        "output": 3.3462,
-        "cacheRead": 0.03718,
+        "input": 0.57948,
+        "output": 1.73844,
+        "cacheRead": 0.018438,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
@@ -114649,7 +119240,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 2,
         "output": 6,
-        "cacheRead": 0.2,
+        "cacheRead": 0.25,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
@@ -114769,7 +119360,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Muse Glimmer 30B",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 16384,
+      "maxTokens": 117964,
       "capabilities": [
         "images",
         "tools",
@@ -114791,7 +119382,7 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.3,
-        "output": 1.2,
+        "output": 1.1,
         "cacheRead": 0.04,
         "cacheWrite": 0
       },
@@ -114873,42 +119464,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "qwen/qwen3.8-max": {
-      "id": "qwen/qwen3.8-max",
-      "name": "Qwen3.8 Max",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 2,
-        "output": 6,
-        "cacheRead": 0.25,
-        "cacheWrite": 2.5
-      },
-      "releaseDate": "2026-08-03",
-      "family": "qwen"
     },
     "sakana/sakana-namazu": {
       "id": "sakana/sakana-namazu",
@@ -115142,7 +119697,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "inclusionai/ling-3.0-flash": {
       "id": "inclusionai/ling-3.0-flash",
-      "name": "Ling-3.0-flash",
+      "name": "Ling 3.0 Flash",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
       "maxTokens": 32768,
@@ -115851,7 +120406,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "maxInputTokens": 192000,
       "maxTokens": 128000,
       "capabilities": [
         "tools",
@@ -115871,9 +120426,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.132,
-        "output": 0.528,
-        "cacheRead": 0.033,
+        "input": 0.0825,
+        "output": 0.33,
+        "cacheRead": 0.020625,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-06",
@@ -116010,34 +120565,6 @@ export const GENERATED_PROVIDER_MODELS: {
         ]
       }
     },
-    "nex-agi/nex-n2-mini": {
-      "id": "nex-agi/nex-n2-mini",
-      "name": "Nex-N2-Mini",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.025,
-        "output": 0.1,
-        "cacheRead": 0.0025,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-24",
-      "family": "agi"
-    },
     "cohere/north-mini-code:free": {
       "id": "cohere/north-mini-code:free",
       "name": "North Mini Code (free)",
@@ -116100,7 +120627,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.2",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 131072,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -116121,42 +120648,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.966,
-        "output": 3.036,
-        "cacheRead": 0.1932,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-13",
-      "family": "glm"
-    },
-    "z-ai/glm-5.2:free": {
-      "id": "z-ai/glm-5.2:free",
-      "name": "GLM 5.2 (free)",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 230400,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
+        "input": 0.28,
+        "output": 0.88,
+        "cacheRead": 0.052,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -116178,9 +120672,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.66,
-        "output": 3.4,
-        "cacheRead": 0.18,
+        "input": 0.71,
+        "output": 3.5,
+        "cacheRead": 0.15,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-12",
@@ -116255,33 +120749,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-06-09",
       "family": "claude-fable"
-    },
-    "nex-agi/nex-n2-pro": {
-      "id": "nex-agi/nex-n2-pro",
-      "name": "Nex-N2-Pro",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 235929,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0.25,
-        "output": 1,
-        "cacheRead": 0.025,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-08",
-      "family": "agi"
     },
     "nvidia/nemotron-3-ultra-550b-a55b": {
       "id": "nvidia/nemotron-3-ultra-550b-a55b",
@@ -116407,33 +120874,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.3,
         "output": 1.2,
         "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
-    },
-    "minimax/minimax-m3:free": {
-      "id": "minimax/minimax-m3:free",
-      "name": "MiniMax M3 (free)",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 943718,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -116736,27 +121176,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-05-05",
       "family": "gpt"
     },
-    "ibm-granite/granite-4.1-8b": {
-      "id": "ibm-granite/granite-4.1-8b",
-      "name": "Granite 4.1 8B",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 117964,
-      "capabilities": [
-        "tools",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "pricing": {
-        "input": 0.05,
-        "output": 0.1,
-        "cacheRead": 0.05,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-30",
-      "family": "granite"
-    },
     "mistralai/mistral-medium-3-5": {
       "id": "mistralai/mistral-medium-3-5",
       "name": "Mistral Medium 3.5",
@@ -117020,9 +121439,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.55,
-        "output": 12.75,
-        "cacheRead": 0.256,
+        "input": 2.4,
+        "output": 12,
+        "cacheRead": 0.24,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-27",
@@ -117183,9 +121602,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.088606,
-        "output": 0.177212,
-        "cacheRead": 0.017721,
+        "input": 0.07,
+        "output": 0.14,
+        "cacheRead": 0.014,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -117217,9 +121636,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.04226,
-        "output": 2.08452,
-        "cacheRead": 0.086855,
+        "input": 0.87,
+        "output": 1.74,
+        "cacheRead": 0.0725,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -117297,7 +121716,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.6 27B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
@@ -117313,9 +121732,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.6,
-        "output": 3.6,
-        "cacheRead": 0.12,
+        "input": 0.3,
+        "output": 2,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
@@ -118046,27 +122465,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-18",
       "family": "minimax"
     },
-    "minimax/minimax-m2.7:free": {
-      "id": "minimax/minimax-m2.7:free",
-      "name": "MiniMax M2.7 (free)",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 176947,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
     "openai/gpt-5.4-mini": {
       "id": "openai/gpt-5.4-mini",
       "name": "GPT-5.4 mini",
@@ -118198,13 +122596,12 @@ export const GENERATED_PROVIDER_MODELS: {
     "nvidia/nemotron-3-super-120b-a12b": {
       "id": "nvidia/nemotron-3-super-120b-a12b",
       "name": "Nemotron 3 Super 120B A12B",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
       "maxTokens": 16384,
       "capabilities": [
         "tools",
         "reasoning",
-        "structured_output",
         "temperature"
       ],
       "reasoningOptions": [
@@ -118420,7 +122817,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "google/gemini-3.1-flash-image-preview": {
       "id": "google/gemini-3.1-flash-image-preview",
-      "name": "Nano Banana 2",
+      "name": "Nano Banana 2 Preview",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
       "maxTokens": 58982,
@@ -118571,7 +122968,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 35B-A3B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 16384,
       "capabilities": [
         "images",
         "video",
@@ -118587,9 +122984,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.25,
+        "input": 0.3125,
         "output": 1.25,
-        "cacheRead": 0.25,
+        "cacheRead": 0.15625,
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
@@ -118788,14 +123185,15 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 65536,
+      "maxTokens": 235929,
       "capabilities": [
         "images",
         "video",
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -118803,9 +123201,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.39,
-        "output": 2.34,
-        "cacheRead": 0,
+        "input": 0.55,
+        "output": 3.5,
+        "cacheRead": 0.225,
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
@@ -119226,13 +123624,12 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-4.7-Flash",
       "contextWindow": 202752,
       "maxInputTokens": 202752,
-      "maxTokens": 16384,
+      "maxTokens": 117964,
       "capabilities": [
         "tools",
         "reasoning",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "reasoningOptions": [
         {
@@ -119240,9 +123637,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.06,
+        "input": 0.0605,
         "output": 0.4,
-        "cacheRead": 0.01,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-19",
@@ -119437,7 +123834,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nemotron 3 Nano 30B A3B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 228000,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -119453,7 +123850,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.05,
         "output": 0.2,
-        "cacheRead": 0.025,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-15",
@@ -119748,15 +124145,15 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek Chat",
       "contextWindow": 163840,
       "maxInputTokens": 163840,
-      "maxTokens": 16000,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
         "temperature"
       ],
       "pricing": {
-        "input": 0.2574,
-        "output": 1.0287,
+        "input": 0.32,
+        "output": 0.89,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -119821,7 +124218,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "google/gemini-3-pro-image-preview": {
       "id": "google/gemini-3-pro-image-preview",
-      "name": "Nano Banana Pro",
+      "name": "Nano Banana Pro Preview",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
       "maxTokens": 32768,
@@ -119991,19 +124388,18 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2 Thinking",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 100352,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "reasoningOptions": [],
       "pricing": {
         "input": 0.6,
         "output": 2.5,
-        "cacheRead": 0.15,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-06",
@@ -120574,17 +124970,16 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3-Next 80B-A3B Instruct",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "pricing": {
-        "input": 0.1,
+        "input": 0.09,
         "output": 1.1,
-        "cacheRead": 0.07,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09",
@@ -120595,7 +124990,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3-Next 80B-A3B (Thinking)",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 32768,
+      "maxTokens": 235929,
       "capabilities": [
         "tools",
         "reasoning",
@@ -121116,17 +125511,16 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3 235B A22B Instruct 2507",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 235929,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "pricing": {
-        "input": 0.0875,
-        "output": 0.35,
-        "cacheRead": 0.0175,
+        "input": 0.22,
+        "output": 0.88,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2025-07-21",
@@ -121545,7 +125939,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3 14B",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 16384,
+      "maxTokens": 8192,
       "capabilities": [
         "tools",
         "reasoning",
@@ -121558,8 +125952,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.12,
-        "output": 0.24,
+        "input": 0.2275,
+        "output": 0.91,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -121575,6 +125969,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "tools",
         "reasoning",
+        "structured_output",
         "temperature"
       ],
       "reasoningOptions": [
@@ -121894,12 +126289,13 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "tools",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "pricing": {
-        "input": 0.25,
-        "output": 1,
-        "cacheRead": 0,
+        "input": 0.29,
+        "output": 1.14,
+        "cacheRead": 0.11,
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-24",
@@ -122054,17 +126450,16 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Llama-3.3-70B-Instruct",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 115200,
+      "maxTokens": 16384,
       "capabilities": [
         "tools",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "pricing": {
-        "input": 0.71,
-        "output": 0.71,
-        "cacheRead": 0.71,
+        "input": 0.1,
+        "output": 0.32,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2024-12-06",
@@ -122207,7 +126602,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "UnslopNemo 12B",
       "contextWindow": 1024000,
       "maxInputTokens": 1024000,
-      "maxTokens": 26214,
+      "maxTokens": 819200,
       "capabilities": [
         "tools",
         "structured_output",
@@ -122369,7 +126764,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "meta-llama/llama-3.1-70b-instruct": {
       "id": "meta-llama/llama-3.1-70b-instruct",
-      "name": "Llama 3.1 70B Instruct",
+      "name": "Llama-3.1-70B-Instruct",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
       "maxTokens": 16384,
@@ -124109,6 +128504,40 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-26",
       "family": "glm"
     },
+    "z-ai/glm-5.3-flash-free": {
+      "id": "z-ai/glm-5.3-flash-free",
+      "name": "GLM-5.3-Flash (free)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
     "deepseek/deepseek-v4-flash-vision-exp": {
       "id": "deepseek/deepseek-v4-flash-vision-exp",
       "name": "DeepSeek V4 Flash Vision Exp",
@@ -124173,40 +128602,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.33,
         "output": 2.4,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-08-14",
-      "family": "qwen"
-    },
-    "qwen/qwen3.8-27b-free": {
-      "id": "qwen/qwen3.8-27b-free",
-      "name": "Qwen3.8 27B (free)",
-      "contextWindow": 65536,
-      "maxInputTokens": 65536,
-      "maxTokens": 32768,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "low",
-            "medium",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -124875,8 +129270,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -124906,8 +129301,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "tencent/hy3-free",
       "name": "Hy3 (free)",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -125747,9 +130142,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "meta/muse-spark-1.1": {
       "id": "meta/muse-spark-1.1",
       "name": "Muse Spark 1.1",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 32000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
       "capabilities": [
         "images",
         "video",
@@ -127793,6 +132188,40 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "ovhcloud": {
+    "qwen3.8-27b": {
+      "id": "qwen3.8-27b",
+      "name": "Qwen3.8-27B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
     "qwen3.6-27b": {
       "id": "qwen3.6-27b",
       "name": "Qwen3.6-27B",
@@ -134424,6 +138853,70 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "privatemode-ai": {
+    "glm-5.3": {
+      "id": "glm-5.3",
+      "name": "GLM-5.3",
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.791,
+        "output": 8.9436,
+        "cacheRead": 0.1733,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
+    "glm-latest": {
+      "id": "glm-latest",
+      "name": "GLM (latest)",
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.791,
+        "output": 8.9436,
+        "cacheRead": 0.1733,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
     "kimi-k2.6": {
       "id": "kimi-k2.6",
       "name": "Kimi K2.6",
@@ -137011,12 +141504,50 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "requesty": {
-    "glm-5.3-flash": {
-      "id": "glm-5.3-flash",
-      "name": "GLM-5.3-Flash",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 131072,
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65535,
       "capabilities": [
         "images",
         "video",
@@ -137043,13 +141574,349 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.015,
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "gemini-3.8-flash@eu": {
+      "id": "gemini-3.8-flash@eu",
+      "name": "Gemini 3.8 Flash (EU)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65535,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.825,
+        "output": 4.125,
+        "cacheRead": 0.0825,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "claude-fable-5.1": {
+      "id": "claude-fable-5.1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
+    "claude-fable-5.1@eu": {
+      "id": "claude-fable-5.1@eu",
+      "name": "Claude Fable 5.1 (EU)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 11,
+        "output": 55,
+        "cacheRead": 0.275,
+        "cacheWrite": 13.75
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
+    "qwen3.8-flash-next": {
+      "id": "qwen3.8-flash-next",
+      "name": "Qwen3.8 Flash Next",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.5,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-27",
+      "family": "qwen"
+    },
+    "qwen3.8-flash-next@eu": {
+      "id": "qwen3.8-flash-next@eu",
+      "name": "Qwen3.8 Flash Next (EU)",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.5,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-27",
+      "family": "qwen"
+    },
+    "glm-5.3-flash": {
+      "id": "glm-5.3-flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.6,
+        "cacheRead": 0.07,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
       "family": "glm"
+    },
+    "glm-5.3-flash@eu": {
+      "id": "glm-5.3-flash@eu",
+      "name": "GLM-5.3-Flash (EU)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 0.6,
+        "cacheRead": 0.07,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "qwen3.8-flash": {
+      "id": "qwen3.8-flash",
+      "name": "Qwen3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 0.16,
+        "output": 0.47,
+        "cacheRead": 0.016,
+        "cacheWrite": 0.2
+      },
+      "releaseDate": "2026-08-26",
+      "family": "qwen"
     },
     "nemotron-lightning-3.5-30b-a3b": {
       "id": "nemotron-lightning-3.5-30b-a3b",
@@ -137300,6 +142167,43 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-12",
       "family": "deepseek-thinking"
     },
+    "deepseek-v4-pro-0813@eu": {
+      "id": "deepseek-v4-pro-0813@eu",
+      "name": "DeepSeek V4 Pro 0813 (EU)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 1.75,
+        "output": 3.5,
+        "cacheRead": 0.44,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
     "grok-4.6": {
       "id": "grok-4.6",
       "name": "Grok 4.6",
@@ -137370,6 +142274,43 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 2,
         "output": 6,
         "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "qwen"
+    },
+    "qwen3.8-2.4T-A95B@eu": {
+      "id": "qwen3.8-2.4T-A95B@eu",
+      "name": "Qwen3.8 2.4T A95B (EU)",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
+      "pricing": {
+        "input": 2.5,
+        "output": 6,
+        "cacheRead": 0.63,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
@@ -137524,17 +142465,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash 0731",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 384000,
+      "maxTokens": 131072,
       "capabilities": [
         "tools",
+        "reasoning",
         "structured_output",
         "temperature",
         "prompt-cache"
       ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
       "pricing": {
-        "input": 0.076,
-        "output": 0.153,
-        "cacheRead": 0.014,
+        "input": 0.28,
+        "output": 0.56,
+        "cacheRead": 0.07,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-31",
@@ -137569,8 +142526,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.14,
-        "output": 0.28,
+        "input": 0.28,
+        "output": 0.56,
         "cacheRead": 0.07,
         "cacheWrite": 0
       },
@@ -137874,9 +142831,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.25,
-        "output": 11.25,
-        "cacheRead": 0.225,
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.45,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-16",
@@ -137912,9 +142869,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2.25,
-        "output": 11.25,
-        "cacheRead": 0.225,
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.45,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-16",
@@ -138030,8 +142987,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.4,
-        "output": 3,
-        "cacheRead": 0.26,
+        "output": 2.6,
+        "cacheRead": 0.05,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-13",
@@ -138065,8 +143022,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.4,
-        "output": 3,
-        "cacheRead": 0.26,
+        "output": 2.6,
+        "cacheRead": 0.05,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-13",
@@ -138460,7 +143417,23 @@ export const GENERATED_PROVIDER_MODELS: {
       "capabilities": [
         "images",
         "tools",
+        "reasoning",
         "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
       ],
       "pricing": {
         "input": 5,
@@ -138591,7 +143564,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "video",
         "tools",
         "reasoning",
-        "structured_output",
         "prompt-cache"
       ],
       "reasoningOptions": [
@@ -139630,18 +144602,35 @@ export const GENERATED_PROVIDER_MODELS: {
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 384000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
       "capabilities": [
         "tools",
+        "reasoning",
+        "structured_output",
         "temperature",
         "prompt-cache"
       ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
+      ],
       "pricing": {
-        "input": 0.44,
-        "output": 1.32,
-        "cacheRead": 0.014,
+        "input": 0.28,
+        "output": 0.56,
+        "cacheRead": 0.07,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -139652,7 +144641,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Pro",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 384000,
+      "maxTokens": 131072,
       "capabilities": [
         "tools",
         "reasoning",
@@ -139862,8 +144851,24 @@ export const GENERATED_PROVIDER_MODELS: {
         "images",
         "video",
         "tools",
+        "reasoning",
         "temperature",
         "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
       ],
       "pricing": {
         "input": 0.14,
@@ -139893,8 +144898,24 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 131072,
       "capabilities": [
         "tools",
+        "reasoning",
         "temperature",
         "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        },
+        {
+          "type": "budget_tokens"
+        }
       ],
       "pricing": {
         "input": 0.435,
@@ -144254,6 +149275,80 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "scnet-token-plan": {
+    "GLM-5.3-Flash": {
+      "id": "GLM-5.3-Flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
+    "Qwen3.8-Flash": {
+      "id": "Qwen3.8-Flash",
+      "name": "Qwen3.8 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "qwen"
+    },
+    "GLM-5.3": {
+      "id": "GLM-5.3",
+      "name": "GLM-5.3",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
     "DeepSeek-V4-Pro-0813": {
       "id": "DeepSeek-V4-Pro-0813",
       "name": "DeepSeek V4 Pro 0813",
@@ -144806,6 +149901,39 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "sensenova": {
+    "deepseek-v4-pro": {
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
     "sensenova-6.8-flash-lite": {
       "id": "sensenova-6.8-flash-lite",
       "name": "SenseNova 6.8 Flash Lite",
@@ -144837,6 +149965,37 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-11"
+    },
+    "kimi-k3": {
+      "id": "kimi-k3",
+      "name": "Kimi K3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-16",
+      "family": "kimi-k3"
     },
     "glm-5.2": {
       "id": "glm-5.2",
@@ -149224,8 +154383,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -149291,8 +154450,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "hy3",
       "name": "Hy3",
       "contextWindow": 256000,
-      "maxInputTokens": 256000,
-      "maxTokens": 64000,
+      "maxInputTokens": 192000,
+      "maxTokens": 128000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -150522,6 +155681,41 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "tinfoil": {
+    "glm-5-3-flash": {
+      "id": "glm-5-3-flash",
+      "name": "GLM-5.3-Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.4,
+        "output": 1.25,
+        "cacheRead": 0.1,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash 0731",
@@ -150591,42 +155785,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-16",
       "family": "kimi-k3"
     },
-    "glm-5-2": {
-      "id": "glm-5-2",
-      "name": "GLM-5.2",
-      "contextWindow": 393216,
-      "maxInputTokens": 393216,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.5,
-        "output": 5.25,
-        "cacheRead": 0.375,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-13",
-      "family": "glm"
-    },
     "gemma4-31b": {
       "id": "gemma4-31b",
       "name": "Gemma 4 31B IT",
@@ -150671,19 +155829,8 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 32768,
       "capabilities": [
         "tools",
-        "reasoning",
         "structured_output",
         "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
       ],
       "pricing": {
         "input": 0.15,
@@ -153560,6 +158707,362 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "vercel-ai-gateway": {
+    "deepseek/deepseek-v4.1-flash-beta": {
+      "id": "deepseek/deepseek-v4.1-flash-beta",
+      "name": "DeepSeek V4.1 Flash Beta",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.22,
+        "output": 0.66,
+        "cacheRead": 0.007,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "deepseek"
+    },
+    "inception/mercury-2.5": {
+      "id": "inception/mercury-2.5",
+      "name": "Mercury 2.5",
+      "contextWindow": 260000,
+      "maxInputTokens": 260000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.04,
+        "output": 0.15,
+        "cacheRead": 0.004,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "mercury"
+    },
+    "openai/gpt-image-2.5-flare": {
+      "id": "openai/gpt-image-2.5-flare",
+      "name": "GPT Image 2.5 Flare",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 30,
+        "cacheRead": 1.25,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "gpt-image",
+      "operation": "image-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      }
+    },
+    "openai/gpt-image-2.5-sunburst": {
+      "id": "openai/gpt-image-2.5-sunburst",
+      "name": "GPT Image 2.5 Sunburst",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 30,
+        "cacheRead": 1.25,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-08",
+      "family": "gpt-image",
+      "operation": "image-generation",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "image"
+        ]
+      }
+    },
+    "inclusionai/ling-3.0-flash-sante": {
+      "id": "inclusionai/ling-3.0-flash-sante",
+      "name": "Ling 3.0 Flash Sante",
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 32000,
+      "capabilities": [
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "ling"
+    },
+    "inclusionai/ling-3.0-flash-sante-free": {
+      "id": "inclusionai/ling-3.0-flash-sante-free",
+      "name": "Ling 3.0 Flash Sante (Free)",
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 32000,
+      "capabilities": [
+        "tools",
+        "reasoning"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-04",
+      "family": "ling"
+    },
+    "openai/gpt-6-astra": {
+      "id": "openai/gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "openai/gpt-6-astra-fast": {
+      "id": "openai/gpt-6-astra-fast",
+      "name": "GPT-6 Astra (Fast)",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 20,
+        "output": 100,
+        "cacheRead": 2,
+        "cacheWrite": 25
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "alibaba/qwen3.8-max-0902": {
+      "id": "alibaba/qwen3.8-max-0902",
+      "name": "Qwen3.8 Max 0902",
+      "contextWindow": 991000,
+      "maxInputTokens": 991000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        },
+        {
+          "type": "budget_tokens",
+          "min": 0,
+          "max": 262144
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.25,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-09-02",
+      "family": "qwen"
+    },
+    "google/gemini-3.8-flash": {
+      "id": "google/gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash"
+    },
+    "meta/muse-spark-1.3": {
+      "id": "meta/muse-spark-1.3",
+      "name": "Muse Spark 1.3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 4.25,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse"
+    },
+    "meta/muse-spark-1.3-contributor": {
+      "id": "meta/muse-spark-1.3-contributor",
+      "name": "Muse Spark 1.3 Contributor",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.002,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "muse"
+    },
     "anthropic/claude-fable-5.1": {
       "id": "anthropic/claude-fable-5.1",
       "name": "Claude Fable 5.1",
@@ -153950,6 +159453,38 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 1.4,
         "output": 4.4,
         "cacheRead": 0.14,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "glm"
+    },
+    "zai/glm-5.3-fast": {
+      "id": "zai/glm-5.3-fast",
+      "name": "GLM 5.3 Fast",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2.1,
+        "output": 6.6,
+        "cacheRead": 0.21,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-14",
@@ -154817,7 +160352,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.4,
         "output": 2.4,
         "cacheRead": 0.04,
-        "cacheWrite": 0.25
+        "cacheWrite": 0.5
       },
       "releaseDate": "2026-07-09",
       "family": "gpt-luna"
@@ -154890,7 +160425,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 4,
         "output": 20,
         "cacheRead": 0.4,
-        "cacheWrite": 2.5
+        "cacheWrite": 5
       },
       "releaseDate": "2026-07-09",
       "family": "gpt-sol"
@@ -154963,7 +160498,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 4,
         "output": 24,
         "cacheRead": 0.4,
-        "cacheWrite": 2.5
+        "cacheWrite": 5
       },
       "releaseDate": "2026-07-09",
       "family": "gpt-terra"
@@ -155279,32 +160814,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-09",
       "family": "claude-fable"
     },
-    "xiaomi/mimo-v2.5-pro-ultraspeed": {
-      "id": "xiaomi/mimo-v2.5-pro-ultraspeed",
-      "name": "MiMo V2.5 Pro UltraSpeed",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 1.305,
-        "output": 2.61,
-        "cacheRead": 0.0108,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-08",
-      "family": "mimo"
-    },
     "nvidia/nemotron-3-ultra-550b-a55b": {
       "id": "nvidia/nemotron-3-ultra-550b-a55b",
       "name": "Nemotron 3 Ultra",
@@ -155387,32 +160896,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.3,
         "output": 1.2,
         "cacheRead": 0.06,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax"
-    },
-    "minimax/minimax-m3-free": {
-      "id": "minimax/minimax-m3-free",
-      "name": "MiniMax M3 (Free)",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 1048576,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-01",
@@ -156561,27 +162044,6 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": 1.2,
         "cacheRead": 0.06,
         "cacheWrite": 0.375
-      },
-      "releaseDate": "2026-03-18",
-      "family": "minimax"
-    },
-    "minimax/minimax-m2.7-free": {
-      "id": "minimax/minimax-m2.7-free",
-      "name": "Minimax M2.7 (Free)",
-      "contextWindow": 196608,
-      "maxInputTokens": 196608,
-      "maxTokens": 196608,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
       },
       "releaseDate": "2026-03-18",
       "family": "minimax"
@@ -160890,6 +166352,53 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "vertex": {
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "claude-fable-5-1@default": {
       "id": "claude-fable-5-1@default",
       "name": "Claude Fable 5.1",
@@ -162038,6 +167547,123 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "vivgrid": {
+    "gpt-6-astra": {
+      "id": "gpt-6-astra",
+      "name": "GPT-6 Astra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-04",
+      "family": "gpt-astra"
+    },
+    "gemini-3.8-flash": {
+      "id": "gemini-3.8-flash",
+      "name": "Gemini 3.8 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 3.75,
+        "cacheRead": 0.15,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-02",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "claude-fable-5-1": {
+      "id": "claude-fable-5-1",
+      "name": "Claude Fable 5.1",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 0.5,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-09-01",
+      "family": "claude-fable"
+    },
     "glm-5.3-flash": {
       "id": "glm-5.3-flash",
       "name": "GLM-5.3-Flash",
@@ -162151,6 +167777,40 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
+    },
+    "deepseek-v4-pro-0813": {
+      "id": "deepseek-v4-pro-0813",
+      "name": "DeepSeek V4 Pro 0813",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.35,
+        "output": 3,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
     },
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
@@ -162352,6 +168012,41 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-06-13",
       "family": "glm"
+    },
+    "claude-fable-5": {
+      "id": "claude-fable-5",
+      "name": "Claude Fable 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 10,
+        "output": 50,
+        "cacheRead": 1.25,
+        "cacheWrite": 12.5
+      },
+      "releaseDate": "2026-06-09",
+      "family": "claude-fable"
     },
     "deepseek-v4-pro": {
       "id": "deepseek-v4-pro",
@@ -163963,6 +169658,30 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "wandb": {
+    "zai-org/GLM-5.3-Flash": {
+      "id": "zai-org/GLM-5.3-Flash",
+      "name": "GLM 5.3 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-26",
+      "family": "glm"
+    },
     "ibm-granite/granite-4.2-8b": {
       "id": "ibm-granite/granite-4.2-8b",
       "name": "Granite 4.2 8B",
@@ -164644,8 +170363,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "grok-imagine-image-2.0": {
       "id": "grok-imagine-image-2.0",
       "name": "Grok Imagine Image 2.0",
-      "contextWindow": 8000,
-      "maxInputTokens": 8000,
+      "contextWindow": 64000,
+      "maxInputTokens": 64000,
       "maxTokens": 0,
       "capabilities": [
         "images",
@@ -164767,8 +170486,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "grok-imagine-image-quality": {
       "id": "grok-imagine-image-quality",
       "name": "Grok Imagine Image Quality",
-      "contextWindow": 8000,
-      "maxInputTokens": 8000,
+      "contextWindow": 16000,
+      "maxInputTokens": 16000,
       "maxTokens": 0,
       "capabilities": [
         "images",
@@ -164844,8 +170563,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "grok-imagine-image": {
       "id": "grok-imagine-image",
       "name": "Grok Imagine Image",
-      "contextWindow": 8000,
-      "maxInputTokens": 8000,
+      "contextWindow": 16000,
+      "maxInputTokens": 16000,
       "maxTokens": 0,
       "capabilities": [
         "images",
@@ -166273,6 +171992,7 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "low",
             "high",
             "max"
           ]
@@ -166284,7 +172004,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-04-15"
+      "releaseDate": "2026-08-26"
     }
   },
   "zenifra": {
@@ -168682,27 +174402,6 @@ export const GENERATED_PROVIDER_MODELS: {
             "high"
           ]
         }
-      ],
-      "pricing": {
-        "input": 1.25,
-        "output": 10,
-        "cacheRead": 0.12,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2025-11-13"
-    },
-    "openai/gpt-5.1-chat": {
-      "id": "openai/gpt-5.1-chat",
-      "name": "GPT-5.1 Chat",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "images",
-        "files",
-        "tools",
-        "temperature",
-        "prompt-cache"
       ],
       "pricing": {
         "input": 1.25,
