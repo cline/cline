@@ -766,13 +766,17 @@ describe("resolveProviderConfig", () => {
 		const openAiResolved = await resolveProviderConfig("openai-native");
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
 
-		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.5", "gpt-5.4"]));
+		expect(modelIds).toEqual(
+			expect.arrayContaining(["gpt-5.5", "gpt-5.6-terra", "gpt-6-astra"]),
+		);
 		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.4");
+		expect(modelIds).not.toContain("gpt-5.4-mini");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(modelIds).not.toContain("gpt-5.6");
 		expect(modelIds).not.toContain("o3");
-		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 		expect(resolved?.knownModels?.["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiResolved?.knownModels?.["gpt-5.5"],
@@ -790,23 +794,24 @@ describe("resolveProviderConfig", () => {
 			{ cacheTtlMs: 1 },
 			{
 				providerId: "openai-codex",
-				modelId: "gpt-5.4",
+				modelId: "gpt-5.6-terra",
 				apiKey: "oauth-token",
 				accountId: "acct_123",
 			},
 		);
 
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
-			expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini", "gpt-5.5"]),
+			expect.arrayContaining(["gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"]),
 		);
-		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
+		expect(resolved?.knownModels?.["gpt-5.6-luna"]).toEqual(
 			expect.objectContaining({
-				name: "GPT-5.4 mini",
-				// catalog input cap scaled to the 95% effective Codex budget
+				name: "GPT-5.6 Luna",
+				// Codex backend caps, scaled to the 95% effective budget
 				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
 			}),
 		);
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
 });

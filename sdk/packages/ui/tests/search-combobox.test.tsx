@@ -174,6 +174,7 @@ describe("SearchCombobox", () => {
 		const sectionedOptions = [
 			{
 				badge: "NEW",
+				indicator: <span data-testid="indicator" />,
 				label: "Claude Opus 5",
 				section: "recommended",
 				value: "anthropic/claude-opus-5",
@@ -201,8 +202,11 @@ describe("SearchCombobox", () => {
 			),
 		);
 
-		await act(async () => container.querySelector("button")?.click());
+		const trigger = container.querySelector("button");
+		expect(trigger?.querySelector('[data-testid="indicator"]')).toBeNull();
+		await act(async () => trigger?.click());
 		const panel = container.querySelector('[role="dialog"]');
+		expect(panel?.querySelector('[data-testid="indicator"]')).not.toBeNull();
 		expect(panel?.textContent).toContain("Recommended");
 		expect(panel?.textContent).toContain("Free");
 		expect(panel?.textContent).toContain("No cost");
