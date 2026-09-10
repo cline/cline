@@ -1430,6 +1430,18 @@ async function* emitAiSdkEvents(
 	// error parts are matched by ID because some providers omit the
 	// providerExecuted flag on the result half of the pair.
 	const observationalProviderToolCallIds = new Set<string>();
+	// When the provider runs its own tools we never send it Cline's tool
+	// definitions, so a `dynamic` tool call (one outside the caller's tool
+	// set) it streams back was executed on its side even when the SDK omits
+	// `providerExecuted` — ai-sdk-provider-opencode-sdk marks its server-side
+	// tool activity `dynamic` only. Without this those calls would enter the
+	// runtime loop as calls to tools Cline doesn't own, and their results
+	// would be dropped.
+	const providerExecutesAllTools =
+		providerDisablesExternalToolExecution(context);
+	const isProviderExecuted = (part: AiSdkStreamPart): boolean =>
+		part.providerExecuted === true ||
+		(providerExecutesAllTools && part.dynamic === true);
 
 	try {
 		if (stream.fullStream) {
@@ -1548,7 +1560,7 @@ async function* emitAiSdkEvents(
 						};
 						continue;
 					}
-					if (part.providerExecuted === true) {
+					if (isProviderExecuted(part)) {
 						const toolCallId =
 							(part.toolCallId as string | undefined) ??
 							(part.id as string | undefined) ??
@@ -1643,7 +1655,7 @@ async function* emitAiSdkEvents(
 						(part.toolCallId as string | undefined) ??
 						(part.id as string | undefined);
 					if (
-						part.providerExecuted === true ||
+						isProviderExecuted(part) ||
 						(toolCallId && observationalProviderToolCallIds.has(toolCallId))
 					) {
 						if (part.preliminary !== true) {
@@ -1704,7 +1716,7 @@ async function* emitAiSdkEvents(
 							(part.toolCallId as string | undefined) ??
 							(part.id as string | undefined);
 						if (
-							part.providerExecuted === true ||
+							isProviderExecuted(part) ||
 							(errorToolCallId &&
 								observationalProviderToolCallIds.has(errorToolCallId))
 						) {

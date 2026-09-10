@@ -81,6 +81,11 @@ const claudeCodeSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "claude-code",
 }));
+const opencodeFactorySpy = vi.fn();
+const opencodeSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "opencode",
+}));
 
 function createFetchMock() {
 	const fetchMock = vi.fn(
@@ -179,6 +184,13 @@ vi.mock("ai-sdk-provider-claude-code", () => ({
 	createClaudeCode: (config: unknown) => {
 		claudeCodeFactorySpy(config);
 		return (modelId: string) => claudeCodeSpy(modelId);
+	},
+}));
+
+vi.mock("ai-sdk-provider-opencode-sdk", () => ({
+	createOpencode: (config: unknown) => {
+		opencodeFactorySpy(config);
+		return (modelId: string) => opencodeSpy(modelId);
 	},
 }));
 
@@ -4692,6 +4704,141 @@ describe("sdk-gateway", () => {
 			defaultSettings?: Record<string, unknown>;
 		};
 		expect(factoryOptions.defaultSettings).not.toHaveProperty("cwd");
+	});
+
+	it("anchors the Codex CLI session on the workspace cwd", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		codexExecFactorySpy.mockClear();
+
+		const workspaceDir = mkdtempSync(join(tmpdir(), "codex-cli-cwd-"));
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "openai-codex-cli", options: { cwd: workspaceDir } },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex-cli",
+				modelId: "gpt-5.3-codex",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(codexExecFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultSettings: expect.objectContaining({ cwd: workspaceDir }),
+			}),
+		);
+		expect(codexExecFactorySpy.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+			"cwd",
+		);
+	});
+
+	it("anchors the OpenCode session directory on the workspace cwd", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		opencodeFactorySpy.mockClear();
+
+		const workspaceDir = mkdtempSync(join(tmpdir(), "opencode-cwd-"));
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "opencode", options: { cwd: workspaceDir } },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "opencode",
+				modelId: "openai/gpt-5.4",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(opencodeFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultSettings: expect.objectContaining({ directory: workspaceDir }),
+			}),
+		);
+		expect(opencodeFactorySpy.mock.calls.at(-1)?.[0]).not.toHaveProperty("cwd");
+	});
+
+	it("surfaces OpenCode's server-side (dynamic) tool activity as observational events", async () => {
+		// ai-sdk-provider-opencode-sdk marks the tools the OpenCode server ran
+		// as `dynamic` without `providerExecuted`; they must not reach the
+		// runtime as executable tool calls, and their results must be kept.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "read",
+					input: { filePath: "README.md" },
+					dynamic: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "call_1",
+					toolName: "read",
+					result: "# hello",
+					dynamic: true,
+				},
+				{ type: "text-delta", text: "done" },
+				{
+					type: "finish",
+					finishReason: "stop",
+					usage: { inputTokens: 1, outputTokens: 1 },
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "opencode" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "opencode",
+				modelId: "openai/gpt-5.4",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy.mock.calls.at(-1)?.[0]).not.toHaveProperty("tools");
+		expect(events.find((event) => event.type === "tool-call-delta")).toEqual({
+			type: "tool-call-delta",
+			toolCallId: "call_1",
+			toolName: "read",
+			execution: "provider",
+			input: { filePath: "README.md" },
+		});
+		expect(events.find((event) => event.type === "tool-result")).toEqual({
+			type: "tool-result",
+			toolCallId: "call_1",
+			toolName: "read",
+			execution: "provider",
+			input: undefined,
+			output: "# hello",
+		});
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "stop",
+			error: undefined,
+		});
 	});
 
 	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {

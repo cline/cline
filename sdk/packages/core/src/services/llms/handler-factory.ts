@@ -17,6 +17,17 @@ import type {
 import { createAgentModelFromApiHandler } from "./apihandler-agent-model-adapter";
 import type { ProviderConfig } from "./provider-settings";
 
+/**
+ * Providers backed by a local CLI/server that runs tools on the user's machine
+ * (Claude Code, Codex CLI, OpenCode). They need the workspace forwarded as
+ * `cwd` because they don't receive Cline's tool definitions.
+ */
+const LOCAL_CLI_PROVIDER_IDS = new Set([
+	"claude-code",
+	"openai-codex-cli",
+	"opencode",
+]);
+
 function compactOptions(
 	options: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
@@ -75,11 +86,13 @@ function buildGatewayProviderOptions(
 		});
 	}
 
-	if (config.providerId === "claude-code") {
-		// The Claude Code CLI executes its own tools, so its session must be
-		// anchored on the workspace. Without an explicit cwd the spawned CLI
-		// inherits the host process cwd — `/` in GUI extension hosts — and
-		// then refuses writes outside its allowed working directories.
+	if (LOCAL_CLI_PROVIDER_IDS.has(config.providerId)) {
+		// These providers execute their own tools inside a spawned local CLI or
+		// server, so the session must be anchored on the workspace. Without an
+		// explicit cwd the child inherits the host process cwd — `/` in GUI
+		// hosts such as the desktop app's shared Hub daemon or VS Code
+		// extension hosts — and then reads and writes the wrong tree (or
+		// refuses writes outside its allowed working directories).
 		const workspace = config.extensionContext?.workspace;
 		Object.assign(options, {
 			cwd: workspace?.cwd ?? workspace?.rootPath,

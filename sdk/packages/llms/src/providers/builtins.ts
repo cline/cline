@@ -1255,10 +1255,13 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "OpenCode",
 		description: "OpenCode SDK multi-provider runtime",
 		family: "opencode",
+		// provider-tools: the OpenCode server executes its own tools server-side
+		// and ignores client tool definitions, so Cline must not send its tools
+		// or try to run the calls the server streams back (see claude-code).
 		// local-auth: the spawned `opencode` server authenticates from the
 		// credentials `opencode auth login` stores on this machine. Cline has
 		// no OAuth flow or API key for it.
-		capabilities: ["reasoning", "local-auth"],
+		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "openai/gpt-5.6-sol",
 		modelsProviderId: "opencode",
 		docsUrl: "https://opencode.ai/docs",

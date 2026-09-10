@@ -157,7 +157,23 @@ export async function createOpenAICodexProviderModule(
 			{ cause: error },
 		);
 	}
-	const provider = createCodexExec(readOptions(config));
+	const { cwd: workspaceCwd, ...options } = readOptions(config);
+	const defaultSettings: Record<string, unknown> = {
+		...((options.defaultSettings as Record<string, unknown> | undefined) ?? {}),
+	};
+	// `codex exec` runs its own tools relative to its cwd; anchor it on the
+	// host-forwarded workspace instead of the host process cwd (see the Claude
+	// Code module above). The provider validates settings strictly, so only
+	// forward directories that exist.
+	if (
+		defaultSettings.cwd === undefined &&
+		typeof workspaceCwd === "string" &&
+		workspaceCwd.length > 0 &&
+		existsSync(workspaceCwd)
+	) {
+		defaultSettings.cwd = workspaceCwd;
+	}
+	const provider = createCodexExec({ ...options, defaultSettings });
 	return {
 		operations: { language: (modelId) => provider(modelId) },
 	};
@@ -195,6 +211,22 @@ async function stripRogueSignalHandlers<T>(fn: () => Promise<T>): Promise<T> {
 export async function createOpenCodeProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
+	const { cwd: workspaceCwd, ...options } = readOptions(config);
+	const defaultSettings: Record<string, unknown> = {
+		...((options.defaultSettings as Record<string, unknown> | undefined) ?? {}),
+	};
+	// OpenCode executes tools server-side in the session's project directory,
+	// which defaults to the `opencode serve` process cwd (the host process
+	// cwd). Point it at the host-forwarded workspace instead.
+	if (
+		defaultSettings.directory === undefined &&
+		defaultSettings.cwd === undefined &&
+		typeof workspaceCwd === "string" &&
+		workspaceCwd.length > 0 &&
+		existsSync(workspaceCwd)
+	) {
+		defaultSettings.directory = workspaceCwd;
+	}
 	// Dynamic import is intentional: ai-sdk-provider-opencode-sdk runs
 	// `var opencode = createOpencode()` at module scope, which registers
 	// process.once("SIGINT") / process.once("SIGTERM") handlers that call
@@ -205,7 +237,7 @@ export async function createOpenCodeProviderModule(
 	// calling process.exit() from signal handlers.
 	const provider = await stripRogueSignalHandlers(async () => {
 		const { createOpencode } = await import("ai-sdk-provider-opencode-sdk");
-		return createOpencode(readOptions(config));
+		return createOpencode({ ...options, defaultSettings });
 	});
 	return {
 		operations: { language: (modelId) => provider(modelId) },

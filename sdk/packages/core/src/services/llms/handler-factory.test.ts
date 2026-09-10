@@ -278,13 +278,17 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
-	it("forwards the workspace cwd as a Claude Code gateway provider option", async () => {
+	it.each([
+		["claude-code", "sonnet"],
+		["openai-codex-cli", "gpt-5.6-sol"],
+		["opencode", "openai/gpt-5.6-sol"],
+	])("forwards the workspace cwd as a %s gateway provider option", async (providerId, modelId) => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
 		createAgentModelFromConfig(
 			{
-				providerId: "claude-code",
-				modelId: "sonnet",
+				providerId,
+				modelId,
 				systemPrompt: "",
 				tools: [],
 				extensionContext: {
@@ -294,8 +298,8 @@ describe("createAgentModelFromConfig", () => {
 					},
 				},
 				providerConfig: {
-					providerId: "claude-code",
-					modelId: "sonnet",
+					providerId,
+					modelId,
 				},
 			},
 			undefined,
@@ -305,7 +309,7 @@ describe("createAgentModelFromConfig", () => {
 			expect.objectContaining({
 				providerConfigs: [
 					expect.objectContaining({
-						providerId: "claude-code",
+						providerId,
 						options: expect.objectContaining({
 							cwd: "/home/user/project/packages/app",
 						}),
