@@ -4,11 +4,13 @@ import { act, type MouseEvent as ReactMouseEvent } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
+import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
@@ -27,7 +29,11 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
-	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
+	subscribeToProviderModelsMock: vi.fn<
+		(
+			listener: (providerId: string, models: ProviderModel[]) => void,
+		) => () => void
+	>(() => vi.fn()),
 }));
 
 type MockSpeechInputProps = {
@@ -817,7 +823,7 @@ describe("ChatInputBar", () => {
 			subscribeToProviderModelsMock.mock.calls[0]?.[0];
 		await act(async () => {
 			providerModelsListener?.("cline", [
-				{ id: "refreshed-model", name: "Refreshed model" },
+				{ id: "test-model", name: "Refreshed model" },
 			]);
 		});
 		await vi.waitFor(() => {
@@ -1551,6 +1557,185 @@ describe("ChatInputBar", () => {
 			window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
 		});
 
+		const kimi: ProviderModel = {
+			id: "cline-pass/kimi-k3",
+			name: "Kimi K3",
+			featured: { tier: "subscribed", rank: 0, tags: [] },
+		};
+		const flash: ProviderModel = {
+			id: "deepseek/deepseek-v4-flash",
+			name: "DeepSeek V4 Flash",
+			featured: { tier: "free", rank: 0, tags: [] },
+		};
+
+		function mockBundledCatalog() {
+			loadProviderModelCatalogMock.mockResolvedValue({
+				providers: [],
+				enabledProviderIds: ["cline", "cline-pass"],
+				providerModels: {
+					cline: ["test-model"],
+					"cline-pass": [flash.id],
+				},
+				providerModelDetails: { "cline-pass": [flash] },
+				providerNames: { cline: "Cline", "cline-pass": "ClinePass" },
+				providerReasoningModels: { cline: [], "cline-pass": [] },
+			});
+		}
+
+		it.each([
+			"success",
+			"failure",
+		])("preserves the saved model through a delayed live catalog %s", async (outcome) => {
+			mockBundledCatalog();
+			const selection = {
+				lastProvider: "cline-pass",
+				lastModelByProvider: { "cline-pass": kimi.id },
+			};
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify(selection),
+			);
+			let resolveModels!: (models: ProviderModel[]) => void;
+			let rejectModels!: (error: Error) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve, reject) => {
+					resolveModels = resolve;
+					rejectModels = reject;
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: kimi.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			expect(loadProviderModelsMock).toHaveBeenCalledWith("cline-pass");
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(kimi.id);
+
+			await act(async () => {
+				if (outcome === "success") resolveModels([flash, kimi]);
+				else rejectModels(new Error("offline"));
+			});
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(outcome === "success" ? kimi.name : kimi.id);
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				),
+			).toEqual(selection);
+		});
+
+		it.each([
+			"catalog refresh",
+			"new chat",
+		])("preserves an explicit pick through a %s with an incomplete catalog", async (transition) => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			let publishModels!: (providerId: string, models: ProviderModel[]) => void;
+			subscribeToProviderModelsMock.mockImplementation((listener) => {
+				publishModels = listener;
+				return vi.fn();
+			});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: flash.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label^="Model:"]')
+					?.click(),
+			);
+			const option = [
+				...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((entry) => entry.textContent?.includes(kimi.name));
+			expect(option).toBeTruthy();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenCalledWith(kimi.id);
+			await renderComposer({
+				model: kimi.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			onModelChange.mockClear();
+			if (transition === "new chat") {
+				// New chat remounts the pane and seeds its config from storage.
+				// The app stays open, but this picker has to load live models again.
+				await act(async () => root.unmount());
+				root = createRoot(container);
+				const initial = getInitialChatConfig();
+				expect(initial).toMatchObject({
+					provider: "cline-pass",
+					model: kimi.id,
+				});
+				let resolveModels!: (models: ProviderModel[]) => void;
+				loadProviderModelsMock.mockReturnValue(
+					new Promise<ProviderModel[]>((resolve) => {
+						resolveModels = resolve;
+					}),
+				);
+				await renderComposer({
+					model: initial.model,
+					provider: initial.provider,
+					onModelChange,
+				});
+				expect(onModelChange).not.toHaveBeenCalled();
+				expect(
+					container.querySelector('[aria-label^="Model:"]')?.textContent,
+				).toContain(kimi.id);
+				await act(async () => resolveModels([flash, kimi]));
+			} else {
+				await act(async () => publishModels("cline-pass", [flash]));
+			}
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(transition === "new chat" ? kimi.name : kimi.id);
+		});
+
+		it("restores a remembered live model when switching back before live models load", async () => {
+			mockBundledCatalog();
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: { cline: "test-model", "cline-pass": kimi.id },
+				}),
+			);
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			await renderComposer({
+				model: "test-model",
+				provider: "cline",
+				onModelChange,
+				onProviderChange,
+			});
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label^="Provider:"]')
+					?.click(),
+			);
+			const option = [
+				...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((entry) => entry.textContent?.includes("ClinePass"));
+			expect(option).toBeTruthy();
+			await act(async () => option?.click());
+			expect(onProviderChange).toHaveBeenCalledWith("cline-pass");
+			expect(onModelChange).toHaveBeenCalledWith(kimi.id);
+			expect(onModelChange).not.toHaveBeenCalledWith(flash.id);
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				).lastModelByProvider["cline-pass"],
+			).toBe(kimi.id);
+		});
+
 		it("does not resurrect a stale remembered model the picker hides", async () => {
 			window.localStorage.setItem(
 				MODEL_SELECTION_STORAGE_KEY,
@@ -1580,6 +1765,25 @@ describe("ChatInputBar", () => {
 			const panel = document.querySelector('[role="dialog"]');
 			expect(panel?.textContent).not.toContain("Stale Legacy");
 			expect(panel?.textContent).not.toContain("Current model");
+		});
+
+		it("does not apply another provider's remembered model to an empty selection", async () => {
+			mockBundledCatalog();
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: { cline: "test-model" },
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "",
+				provider: "cline-pass",
+				onModelChange,
+			});
+			expect(onModelChange).toHaveBeenCalledWith(flash.id);
+			expect(onModelChange).not.toHaveBeenCalledWith("test-model");
 		});
 
 		it("keeps an explicitly active out-of-offer model visible and selectable", async () => {

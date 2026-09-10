@@ -43,6 +43,7 @@ function renderView({
 	openThread = vi.fn(),
 	loadAllSessions = vi.fn(async () => true),
 	loadOlderSessions = vi.fn(),
+	requestUsage = vi.fn(),
 	mayHaveMoreSessions = false,
 	threads = [thread],
 	hasLoadedHistory = true,
@@ -50,6 +51,7 @@ function renderView({
 	openThread?: ReturnType<typeof vi.fn>;
 	loadAllSessions?: ReturnType<typeof vi.fn>;
 	loadOlderSessions?: ReturnType<typeof vi.fn>;
+	requestUsage?: ReturnType<typeof vi.fn>;
 	mayHaveMoreSessions?: boolean;
 	threads?: SessionThread[];
 	hasLoadedHistory?: boolean;
@@ -65,6 +67,7 @@ function renderView({
 		openThread,
 		pendingAction: null,
 		renameThread: vi.fn(),
+		requestUsage,
 		setThreadPinned: vi.fn(),
 		sessionById: new Map(
 			threads.map((item) => [item.id, { ...session, sessionId: item.id }]),
@@ -76,6 +79,7 @@ function renderView({
 		loadAllSessions,
 		loadOlderSessions,
 		openThread,
+		requestUsage,
 		render: () =>
 			act(async () => {
 				root.render(
@@ -306,6 +310,33 @@ describe("SessionsView pagination", () => {
 		await clickNext();
 		expect(rowTitles()[0]).toBe("Session 10");
 		expect(container.textContent).toContain("11-20 of 25");
+	});
+
+	it("asks the history hook for usage of the rows on the visible page", async () => {
+		const view = renderView({ threads: manyThreads });
+		await view.render();
+
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(0, 10).map((item) => item.id),
+		);
+
+		await clickNext();
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(10, 20).map((item) => item.id),
+		);
+	});
+
+	it("releases its usage request when it unmounts", async () => {
+		const view = renderView({ threads: manyThreads });
+		await view.render();
+		expect(view.requestUsage).toHaveBeenLastCalledWith(
+			manyThreads.slice(0, 10).map((item) => item.id),
+		);
+
+		await act(async () => {
+			root.render(<div />);
+		});
+		expect(view.requestUsage).toHaveBeenLastCalledWith([]);
 	});
 
 	it("only asks the backend for older sessions at the last page", async () => {
