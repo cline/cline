@@ -31,6 +31,14 @@ default branch, detached HEAD, and unsupported repositories. If the branch
 has no PR, **Create PR** opens GitHub's comparison form; push your commits
 before submitting the form. The app does not push commits or submit PRs itself.
 
+Missing or unauthenticated GitHub CLI also hides the row. Availability checks
+are shared across workspaces and cached for five minutes, so unavailable CLI
+installs do not spawn a failing process on every poll or window focus. After
+installing or signing into `gh`, the feature becomes available on the first
+refresh after the cache expires (or after restarting the desktop backend).
+Initial lookup failures stay hidden. Errors after a successful status load
+can be dismissed and remain dismissed through retries until a load succeeds.
+
 ### Pull request telemetry
 
 These events use the desktop telemetry service and respect telemetry opt-out:

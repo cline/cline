@@ -8,6 +8,7 @@ import {
 	GitPullRequestClosed,
 	GitPullRequestDraft,
 	RefreshCw,
+	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -66,6 +67,8 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 	const refresh = useRef<() => void>(() => {});
 	const [loading, setLoading] = useState(false);
 	const hasReportedShown = useRef(false);
+	const hasLoadedStatus = useRef(false);
+	const errorDismissed = useRef(false);
 
 	useEffect(() => {
 		if (hasReportedShown.current || document.visibilityState === "hidden")
@@ -89,17 +92,21 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 					{ cwd },
 				);
 				if (!disposed) {
+					hasLoadedStatus.current = result !== null;
+					errorDismissed.current = false;
 					setData(result);
 					setError(null);
 				}
 			} catch (cause) {
 				if (!disposed) {
 					setData(null);
-					setError(
-						cause instanceof Error
-							? cause.message
-							: "Could not load pull request status.",
-					);
+					if (hasLoadedStatus.current && !errorDismissed.current) {
+						setError(
+							cause instanceof Error
+								? cause.message
+								: "Could not load pull request status.",
+						);
+					}
 				}
 			} finally {
 				inFlight = false;
@@ -148,7 +155,20 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 			aria-label="Pull request status"
 		>
 			{error && (
-				<output className="mb-1 block text-muted-foreground">{error}</output>
+				<div className="mb-1 flex items-start gap-2 text-muted-foreground">
+					<output className="min-w-0 flex-1">{error}</output>
+					<button
+						type="button"
+						aria-label="Dismiss pull request error"
+						className="shrink-0 rounded p-1 hover:bg-muted"
+						onClick={() => {
+							errorDismissed.current = true;
+							setError(null);
+						}}
+					>
+						<X className="size-3" />
+					</button>
+				</div>
 			)}
 			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				{data && (

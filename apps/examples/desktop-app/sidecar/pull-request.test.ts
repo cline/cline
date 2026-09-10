@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { getMergeStatus, summarizeChecks } from "../webview/lib/pull-request";
 import {
-	getPullRequestStatus,
+	createPullRequestStatusReader,
+	GITHUB_AVAILABILITY_CACHE_MS,
 	githubRepository,
 	normalizeCheck,
 } from "./pull-request";
@@ -49,7 +50,7 @@ describe("pull request status", () => {
 			{ ...pr, number: 41, state: "MERGED" },
 			pr,
 		]);
-		const result = await getPullRequestStatus("/worktree", run);
+		const result = await createPullRequestStatusReader({ run })("/worktree");
 		expect(result?.pullRequest?.number).toBe(42);
 		expect(result?.pullRequest?.checks[0].state).toBe("success");
 		expect(result?.createUrl).toBe(
@@ -62,40 +63,135 @@ describe("pull request status", () => {
 	});
 	it("offers creation for a feature branch and hides it for the default branch", async () => {
 		expect(
-			(await getPullRequestStatus("/repo", runner([])))?.pullRequest,
+			(await createPullRequestStatusReader({ run: runner([]) })("/repo"))
+				?.pullRequest,
 		).toBeNull();
-		expect(await getPullRequestStatus("/repo", runner([], "main"))).toBeNull();
+		expect(
+			await createPullRequestStatusReader({ run: runner([], "main") })("/repo"),
+		).toBeNull();
 	});
 	it("keeps merged and closed PR states", async () => {
 		for (const state of ["MERGED", "CLOSED"] as const) {
-			const result = await getPullRequestStatus(
-				"/repo",
-				runner([{ ...pr, state }]),
-			);
+			const result = await createPullRequestStatusReader({
+				run: runner([{ ...pr, state }]),
+			})("/repo");
 			expect(result?.pullRequest?.state).toBe(state);
 		}
 	});
 	it("does not invoke GitHub for detached HEAD or unsupported remotes", async () => {
 		const detached = runner([], "");
-		expect(await getPullRequestStatus("/repo", detached)).toBeNull();
+		expect(
+			await createPullRequestStatusReader({ run: detached })("/repo"),
+		).toBeNull();
 		expect(detached).toHaveBeenCalledTimes(1);
 		const local = vi.fn(async () => "local");
-		expect(await getPullRequestStatus("/repo", local)).toBeNull();
+		expect(
+			await createPullRequestStatusReader({ run: local })("/repo"),
+		).toBeNull();
 		expect(local).toHaveBeenCalledTimes(2);
 	});
-	it("distinguishes a missing CLI from a failed lookup, rather than offering creation", async () => {
-		for (const code of ["ENOENT", "ETIMEDOUT"]) {
-			const base = runner();
-			const run = async (file: string, args: string[], cwd: string) => {
-				if (file === "gh")
-					throw Object.assign(new Error("private stderr"), { code });
-				return base(file, args, cwd);
-			};
-			await expect(getPullRequestStatus("/repo", run)).rejects.toThrow(
-				code === "ENOENT" ? "Install GitHub CLI" : "Could not load",
-			);
-		}
+	it.each([
+		"ENOENT",
+		1,
+		4,
+	])("hides unavailable GitHub CLI (%s), shares the cooldown, and recovers after login", async (code) => {
+		let time = 0;
+		let authenticated = false;
+		const base = runner();
+		const run = vi.fn(async (file: string, args: string[], cwd: string) => {
+			if (file === "gh" && args[0] === "auth" && !authenticated)
+				throw Object.assign(new Error("private stderr"), { code });
+			return base(file, args, cwd);
+		});
+		const read = createPullRequestStatusReader({ run, now: () => time });
+		expect(await read("/repo")).toBeNull();
+		const attempts = run.mock.calls.length;
+		authenticated = true;
+		time = GITHUB_AVAILABILITY_CACHE_MS - 1;
+		expect(await read("/other-workspace")).toBeNull();
+		expect(run).toHaveBeenCalledTimes(attempts);
+		time++;
+		expect((await read("/repo"))?.pullRequest?.number).toBe(42);
+		expect(run.mock.calls.filter((call) => call[1][0] === "auth")).toHaveLength(
+			2,
+		);
 	});
+
+	it("shares an in-flight availability check across concurrent workspaces", async () => {
+		let finish!: () => void;
+		const waiting = new Promise<void>((resolve) => {
+			finish = resolve;
+		});
+		const base = runner();
+		const run = vi.fn(async (file: string, args: string[], cwd: string) => {
+			if (args[0] === "auth") await waiting;
+			return base(file, args, cwd);
+		});
+		const read = createPullRequestStatusReader({ run });
+		const first = read("/first");
+		const second = read("/second");
+		await vi.waitFor(() =>
+			expect(
+				run.mock.calls.filter((call) => call[1][0] === "auth"),
+			).toHaveLength(1),
+		);
+		finish();
+		await Promise.all([first, second]);
+		expect(run.mock.calls.filter((call) => call[1][0] === "auth")).toHaveLength(
+			1,
+		);
+	});
+
+	it("hides default-branch authentication failures before any repository query", async () => {
+		const base = runner([], "main");
+		const run = vi.fn(async (file: string, args: string[], cwd: string) => {
+			if (file === "gh")
+				throw Object.assign(new Error("Not logged in"), { code: 1 });
+			return base(file, args, cwd);
+		});
+		expect(await createPullRequestStatusReader({ run })("/repo")).toBeNull();
+		expect(
+			run.mock.calls.filter((call) => call[0] === "gh").map((call) => call[1]),
+		).toEqual([["auth", "status", "--active", "--hostname", "github.com"]]);
+	});
+
+	it.each([
+		{ code: 4 },
+		{ code: 1, stderr: "HTTP 401: Bad credentials" },
+	])("invalidates cached availability if authentication expires during a lookup", async (failure) => {
+		let expired = false;
+		const base = runner();
+		const run = vi.fn(async (file: string, args: string[], cwd: string) => {
+			if (args[0] === "repo" && expired)
+				throw Object.assign(new Error("Failed"), failure);
+			return base(file, args, cwd);
+		});
+		const read = createPullRequestStatusReader({ run });
+		expect((await read("/repo"))?.pullRequest?.number).toBe(42);
+		expired = true;
+		expect(await read("/repo")).toBeNull();
+		const attempts = run.mock.calls.length;
+		expect(await read("/other")).toBeNull();
+		expect(run).toHaveBeenCalledTimes(attempts);
+	});
+
+	it("preserves transient lookup errors after successful authentication", async () => {
+		const base = runner();
+		const run = async (file: string, args: string[], cwd: string) => {
+			if (args[0] === "repo")
+				throw Object.assign(new Error("private stderr"), {
+					code: 1,
+					stderr: "error connecting to api.github.com",
+				});
+			return base(file, args, cwd);
+		};
+		await expect(
+			createPullRequestStatusReader({ run })("/repo"),
+		).rejects.toThrow(
+			"Could not load pull request status. Check your connection and try again.",
+		);
+	});
+
 	it("accepts GitHub SSH/HTTPS remotes only", () => {
 		for (const remote of [
 			"git@github.com:cline/cline.git",
@@ -134,7 +230,9 @@ describe("check and merge states", () => {
 		expect(summarizeChecks([])).toBe("none");
 	});
 	it("never calls an unknown, draft or blocked PR ready to merge", async () => {
-		const result = await getPullRequestStatus("/repo", runner());
+		const result = await createPullRequestStatusReader({ run: runner() })(
+			"/repo",
+		);
 		const value = result!.pullRequest!;
 		expect(
 			getMergeStatus({ ...value, mergeStateStatus: "BLOCKED" }).label,

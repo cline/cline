@@ -192,6 +192,49 @@ it("refreshes and replaces stale status with an actionable error on failure", as
 	await click("Refresh pull request status");
 	expect(container.textContent).toContain("#42");
 });
+
+it("silently hides initial lookup failures and can recover on a later refresh", async () => {
+	invoke.mockRejectedValue(new Error("GitHub unavailable"));
+	await render();
+	expect(container.textContent).toBe("");
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(30_000);
+	});
+	expect(container.textContent).toBe("");
+	invoke.mockResolvedValue(data);
+	await clickRefreshViaFocus();
+	expect(container.textContent).toContain("#42");
+});
+
+it("keeps a dismissed error hidden through polling and focus until recovery", async () => {
+	await render();
+	invoke.mockRejectedValue(new Error("Connection failed"));
+	await clickRefreshViaFocus();
+	expect(container.textContent).toContain("Connection failed");
+	await click("Dismiss pull request error");
+	expect(container.textContent).toBe("");
+	await clickRefreshViaFocus();
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(30_000);
+	});
+	expect(container.textContent).toBe("");
+	invoke.mockResolvedValue(data);
+	await clickRefreshViaFocus();
+	expect(container.textContent).toContain("#42");
+	invoke.mockRejectedValue(new Error("New connection failure"));
+	await clickRefreshViaFocus();
+	expect(container.textContent).toContain("New connection failure");
+});
+
+it("hides a formerly working row when GitHub becomes unavailable", async () => {
+	await render();
+	invoke.mockResolvedValue(null);
+	await clickRefreshViaFocus();
+	expect(container.textContent).toBe("");
+	invoke.mockRejectedValue(new Error("Connection failed"));
+	await clickRefreshViaFocus();
+	expect(container.textContent).toBe("");
+});
 it("does not fetch for a non-repository", async () => {
 	await render("/repo", "no-git");
 	expect(invoke).not.toHaveBeenCalled();
