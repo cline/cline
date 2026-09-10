@@ -1167,6 +1167,7 @@ export function normalizeUsage(
 		| undefined,
 	providerMetadata?: unknown,
 	pricingValue?: unknown,
+	selection?: Pick<GatewayStreamRequest, "providerId" | "modelId">,
 ): GatewayNormalizedUsage {
 	const usage =
 		usageValue && typeof usageValue === "object"
@@ -1291,8 +1292,22 @@ export function normalizeUsage(
 		[usage, rawUsage, providerUsage ?? {}],
 		REASONING_TOKEN_PATHS,
 	);
-	const resolvedTotalCost =
-		totalCost !== undefined
+	const pricing = pricingValue as Record<string, unknown> | undefined;
+	// Cline's included models have no per-request charge, even when the
+	// response includes the upstream inference or market cost.
+	const includedClineUsage =
+		selection?.providerId === "cline-pass" ||
+		(selection?.providerId === "cline" &&
+			(selection.modelId.startsWith("cline-pass/") ||
+				selection.modelId.startsWith("cline-free/") ||
+				selection.modelId.endsWith(":free") ||
+				(pricing?.input === 0 &&
+					pricing?.output === 0 &&
+					(pricing.cacheRead ?? 0) === 0 &&
+					(pricing.cacheWrite ?? 0) === 0)));
+	const resolvedTotalCost = includedClineUsage
+		? 0
+		: totalCost !== undefined
 			? totalCost
 			: hasExplicitCost
 				? undefined
@@ -1915,7 +1930,7 @@ async function* emitAiSdkEvents(
 	if (usageToEmit) {
 		yield {
 			type: "usage",
-			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue),
+			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, request),
 		};
 	}
 
@@ -2172,6 +2187,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								result.usage as Record<string, unknown>,
 								result.providerMetadata,
 								context.model.metadata?.pricing,
+								request,
 							),
 						};
 					}

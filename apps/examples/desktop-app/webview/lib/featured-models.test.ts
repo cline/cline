@@ -102,25 +102,50 @@ describe("buildModelPickerData", () => {
 		).toBe(false);
 	});
 
-	it("falls back to the full cline-pass catalog when the subscribed tier is empty", () => {
+	it("keeps subscription and free fallback models separated with a partial feed", () => {
 		const { options, sections } = buildModelPickerData("cline-pass", [
 			model("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash", {
 				tier: "free",
 				rank: 0,
 				tags: [],
 			}),
+			model("cline-pass/kimi-k3", "Kimi K3"),
 			model("nvidia/nemotron-ultra", "Nemotron Ultra"),
 		]);
 		expect(sections?.map((section) => section.id)).toEqual([
 			"subscribed",
 			"free",
-			"all",
 		]);
-		expect(options.map((option) => option.value)).toEqual([
-			"deepseek/deepseek-v4-flash",
-			"nvidia/nemotron-ultra",
+		expect(options.map((option) => [option.value, option.section])).toEqual([
+			["cline-pass/kimi-k3", "subscribed"],
+			["deepseek/deepseek-v4-flash", "free"],
+			["nvidia/nemotron-ultra", "free"],
 		]);
-		expect(options[1]?.section).toBe("all");
+	});
+
+	it("groups the offline ClinePass catalog without confusing identical model names", () => {
+		const { options, sections } = buildModelPickerData("cline-pass", [
+			model("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash"),
+			model("cline-pass/glm-5.3-flash", "GLM-5.3-Flash"),
+			model("cline-free/longcat-2.0", "LongCat 2.0 (free)"),
+			model("cline-pass/deepseek-v4-flash", "DeepSeek V4 Flash"),
+			model("z-ai/glm-5.3-flash", "GLM-5.3-Flash"),
+		]);
+		expect(sections?.map((section) => section.label)).toEqual([
+			"Subscribed",
+			"Free",
+		]);
+		expect(options.map((option) => [option.value, option.section])).toEqual([
+			["cline-pass/deepseek-v4-flash", "subscribed"],
+			["cline-pass/glm-5.3-flash", "subscribed"],
+			["deepseek/deepseek-v4-flash", "free"],
+			["z-ai/glm-5.3-flash", "free"],
+			["cline-free/longcat-2.0", "free"],
+		]);
+		expect(options[0]?.label).toBe("DeepSeek V4 Flash");
+		expect(options.slice(2).every((option) => option.badge === "Free")).toBe(
+			true,
+		);
 	});
 
 	it("falls back to a flat name-sorted list when nothing is featured", () => {
@@ -131,6 +156,34 @@ describe("buildModelPickerData", () => {
 		expect(sections).toBeUndefined();
 		expect(options.map((option) => option.label)).toEqual(["AAA", "ZZZ"]);
 		expect(options[0]?.section).toBeUndefined();
+	});
+
+	it.each([
+		"cline",
+		"other-provider",
+	])("distinguishes colliding names in the %s fallback without hiding model routes", (providerId) => {
+		const models = [
+			model("cline-pass/deepseek-v4-flash", "DeepSeek V4 Flash"),
+			model("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash"),
+			model("cline-pass/glm-5.3-flash", "GLM-5.3-Flash"),
+			model("z-ai/glm-5.3-flash", "GLM-5.3-Flash"),
+			model("cline-pass/kimi-k3", "Kimi K3"),
+		];
+		const { options } = buildModelPickerData(providerId, models);
+		expect(options).toHaveLength(models.length);
+		expect(new Set(options.map((option) => option.label)).size).toBe(
+			models.length,
+		);
+		for (const entry of models.slice(0, 4)) {
+			expect(options).toContainEqual({
+				label: `${entry.name} (${entry.id})`,
+				value: entry.id,
+			});
+		}
+		expect(options).toContainEqual({
+			label: "Kimi K3",
+			value: "cline-pass/kimi-k3",
+		});
 	});
 
 	it("renders other providers as a flat list with display names", () => {

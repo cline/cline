@@ -10,7 +10,7 @@ import { isClineProvider } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import type { DialogActions } from "@opentui-ui/dialog/react";
 import { useCallback } from "react";
-import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
+import { getLocalCliInfo } from "../../utils/local-cli";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,
@@ -20,8 +20,8 @@ import type { Config } from "../../utils/types";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import {
 	ClinePassSubscriptionContent,
-	CodexCliStatusContent,
 	type ExistingProviderOption,
+	LocalCliStatusContent,
 	OAuthApiKeyInputContent,
 	OAuthLoginContent,
 	type OAuthLoginResult,
@@ -43,6 +43,7 @@ import {
 	type ThinkingLevel,
 	ThinkingLevelContent,
 } from "../components/model-selector/model-selector";
+import { resolveProviderSetupRoute } from "../views/onboarding/model";
 
 export interface OpenModelSelectorOptions {
 	onCancel?: () => Promise<void> | void;
@@ -178,6 +179,9 @@ async function runProviderChange(
 		async () => await getProviderDisplayName(newProviderId),
 	);
 	const existingSettings = manager.getProviderSettings(newProviderId);
+	const needsLocalCliSetup =
+		resolveProviderSetupRoute(newProviderId) === "local_cli";
+	const localCliProvider = getLocalCliInfo(newProviderId);
 
 	// Manual API key entry is the escape hatch for when OAuth login isn't
 	// working; only the Cline providers accept a dashboard API key.
@@ -246,12 +250,16 @@ async function runProviderChange(
 				loginResult === "use_api_key"
 					? await openManualApiKeyDialog()
 					: loginResult;
-		} else if (isOpenAICodexCliProvider(newProviderId)) {
+		} else if (needsLocalCliSetup) {
 			saved = await dialog.choice<boolean>({
 				style: { maxHeight: termHeight - 2 },
 				closeOnEscape: false,
 				content: (ctx: ChoiceContext<boolean>) => (
-					<CodexCliStatusContent {...ctx} providerName={displayName} />
+					<LocalCliStatusContent
+						{...ctx}
+						cli={localCliProvider}
+						providerName={displayName}
+					/>
 				),
 			});
 			if (saved) {
