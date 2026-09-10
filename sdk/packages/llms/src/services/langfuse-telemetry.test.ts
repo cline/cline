@@ -55,6 +55,10 @@ class MockNodeTracerProvider {
 
 vi.mock("@cline/shared", () => ({
 	registerDisposable: registerDisposableSpy,
+	isOtlpTraceRelayProvider: (provider: unknown) =>
+		!!provider &&
+		typeof provider === "object" &&
+		(provider as Record<string, unknown>)._clineOtlpTraceRelay === true,
 }));
 
 const { globalSettingsPathRef } = vi.hoisted(() => ({
@@ -164,14 +168,25 @@ describe("langfuse telemetry", () => {
 		);
 	});
 
-	it("declines direct export when the host registered a tracer provider directly (one export path)", async () => {
+	it("declines direct export when the host's OTLP relay is registered directly (one export path)", async () => {
 		getTracerProviderSpy.mockReturnValue({
 			addSpanProcessor: addSpanProcessorSpy,
+			_clineOtlpTraceRelay: true,
 		});
 
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
 		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
 		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+	});
+
+	it("still attaches to a non-relay mutable tracer provider (base compatibility)", async () => {
+		getTracerProviderSpy.mockReturnValue({
+			addSpanProcessor: addSpanProcessorSpy,
+		});
+
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
+		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
+		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("registers its own provider when minification renames the proxy provider", async () => {
@@ -192,14 +207,27 @@ describe("langfuse telemetry", () => {
 		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("declines direct export when a host tracer provider is registered through the proxy delegate", async () => {
+	it("declines direct export when the OTLP relay is registered through the proxy delegate", async () => {
 		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({ addSpanProcessor: addSpanProcessorSpy }),
+			getDelegate: () => ({
+				addSpanProcessor: addSpanProcessorSpy,
+				_clineOtlpTraceRelay: true,
+			}),
 		});
 
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
 		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
 		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+	});
+
+	it("still attaches through the proxy delegate of a non-relay provider (base compatibility)", async () => {
+		getTracerProviderSpy.mockReturnValue({
+			getDelegate: () => ({ addSpanProcessor: addSpanProcessorSpy }),
+		});
+
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
+		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
+		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("disables telemetry when a foreign provider owns the slot and accepts no processors", async () => {
@@ -232,12 +260,13 @@ describe("langfuse telemetry", () => {
 			delete process.env.LANGFUSE_SECRET_KEY;
 		}
 
-		/** Simulates a host whose telemetry service registered an OTLP tracer. */
+		/** Simulates a host whose telemetry service registered the OTLP relay. */
 		function mockHostOtlpTracer() {
 			getTracerProviderSpy.mockReturnValue({
 				getDelegate: () => ({
 					forceFlush: forceFlushSpy,
 					shutdown: shutdownSpy,
+					_clineOtlpTraceRelay: true,
 				}),
 			});
 		}
@@ -415,6 +444,45 @@ describe("langfuse telemetry", () => {
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
 			expect(decision).toEqual({ isEnabled: true });
+		});
+
+		it("does not treat a console-only tracer as the relay", async () => {
+			clearLangfuseEnv();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			// Recording provider without the relay marker — e.g. the SDK's
+			// console traces exporter.
+			getTracerProviderSpy.mockReturnValue({
+				getDelegate: () => ({
+					forceFlush: forceFlushSpy,
+					shutdown: shutdownSpy,
+				}),
+			});
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("retries direct Langfuse once a declined relay goes away", async () => {
+			mockHostOtlpTracer();
+			// Relay present: direct declines, relay path serves the stream.
+			const withRelay = await resolveAiSdkTelemetry("cline", "task-a");
+			expect(withRelay).toEqual({
+				isEnabled: true,
+				recordInputs: false,
+				recordOutputs: false,
+			});
+
+			// Relay disposed: the decline must not have been cached, so the
+			// credentialed direct path now initializes its own provider.
+			getTracerProviderSpy.mockReturnValue({
+				getDelegate: getDelegateSpy,
+			});
+			const withoutRelay = await resolveAiSdkTelemetry("cline", "task-a");
+			expect(withoutRelay).toEqual({ isEnabled: true });
+			expect(registeredGlobalProvider.current).toBeInstanceOf(
+				MockNodeTracerProvider,
+			);
 		});
 
 		it("stays disabled when no recording tracer provider is registered", async () => {

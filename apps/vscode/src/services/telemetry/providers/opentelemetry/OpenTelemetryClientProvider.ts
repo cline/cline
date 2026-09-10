@@ -3,6 +3,7 @@ import { logs } from "@opentelemetry/api-logs"
 import { Resource } from "@opentelemetry/resources"
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
+import { markOtlpTraceRelayProvider } from "@cline/shared"
 import { BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -243,6 +244,10 @@ export class OpenTelemetryClientProvider {
 		for (const processor of processors) {
 			tracerProvider.addSpanProcessor(processor)
 		}
+
+		// Every processor here wraps an OTLP exporter, so this provider IS the
+		// collector relay — downstream trace decisions key off this marker.
+		markOtlpTraceRelayProvider(tracerProvider)
 
 		// register() sets the global tracer provider plus the async context
 		// manager spans need for parent/child relationships.

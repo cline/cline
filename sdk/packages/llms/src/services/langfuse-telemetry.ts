@@ -38,7 +38,9 @@ export async function withLangfuseTraceAttributes<T>(
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
 
 let langfuseTelemetryReady: boolean | undefined;
-let langfuseTelemetryInitPromise: Promise<boolean> | undefined;
+let langfuseTelemetryInitPromise:
+	| Promise<boolean | "relay-active">
+	| undefined;
 
 function isClineProviderId(providerId: string): boolean {
 	return providerId === "cline" || providerId === "cline-pass";
@@ -147,10 +149,27 @@ async function isTelemetryOptedOutGlobally(): Promise<boolean> {
 	}
 }
 
+/**
+ * True only when the globally registered tracer provider is the intended
+ * OTLP collector relay — identified by the marker its creator stamped, not
+ * by "some recording tracer exists". A console-only tracer must neither
+ * enable the relay path nor suppress direct Langfuse export.
+ */
 async function hasHostOtlpTracer(): Promise<boolean> {
 	try {
-		const { trace } = await import("@opentelemetry/api");
-		return hasActiveTracerDelegate(trace);
+		const [{ trace }, { isOtlpTraceRelayProvider }] = await Promise.all([
+			import("@opentelemetry/api"),
+			import("@cline/shared"),
+		]);
+		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
+		return (
+			isOtlpTraceRelayProvider(tracerProvider) ||
+			isOtlpTraceRelayProvider(
+				typeof tracerProvider?.getDelegate === "function"
+					? tracerProvider.getDelegate()
+					: undefined,
+			)
+		);
 	} catch {
 		return false;
 	}
@@ -207,12 +226,19 @@ export async function ensureLangfuseTelemetry(
 		langfuseTelemetryInitPromise = initializeLangfuseTelemetry();
 	}
 
-	langfuseTelemetryReady = await langfuseTelemetryInitPromise;
+	const result = await langfuseTelemetryInitPromise;
+	if (result === "relay-active") {
+		// Not cached: the relay owning the tracer slot now may be disposed
+		// later, at which point the direct path should get to try again.
+		langfuseTelemetryInitPromise = undefined;
+		return false;
+	}
+	langfuseTelemetryReady = result;
 	debugLangfuse(`initialized readiness=${String(langfuseTelemetryReady)}`);
 	return langfuseTelemetryReady;
 }
 
-async function initializeLangfuseTelemetry(): Promise<boolean> {
+async function initializeLangfuseTelemetry(): Promise<boolean | "relay-active"> {
 	// Register for cleanup once, when initialization begins.
 	const { registerDisposable } = await import("@cline/shared");
 	registerDisposable(disposeLangfuseTelemetry);
@@ -241,25 +267,28 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			import("@opentelemetry/sdk-trace-node"),
 		]);
 
-		// One export path per host: a recording tracer provider means the host
-		// already exports spans somewhere (the OTLP collector relay). Attaching
-		// the direct Langfuse processor to it would ship every span twice —
-		// once direct, once through the collector — so the direct path
-		// declines instead of cooperating. Class names are unreliable here
-		// (release binaries are minified), so provider detection is structural.
+		// One export path per host: when the registered tracer provider is the
+		// OTLP collector relay (identified by its creator's marker, so a
+		// console-only tracer never trips this), attaching the direct Langfuse
+		// processor to it would ship every span twice — once direct, once
+		// through the collector — so the direct path declines. Non-relay
+		// providers keep the original cooperative behavior below. Class names
+		// are unreliable here (release binaries are minified), so all other
+		// provider detection is structural.
+		const { isOtlpTraceRelayProvider } = await import("@cline/shared");
 		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
 		const existingDelegate =
 			typeof tracerProvider?.getDelegate === "function"
 				? tracerProvider.getDelegate()
 				: undefined;
 		if (
-			typeof tracerProvider?.addSpanProcessor === "function" ||
-			isRecordingTracerProvider(existingDelegate)
+			isOtlpTraceRelayProvider(tracerProvider) ||
+			isOtlpTraceRelayProvider(existingDelegate)
 		) {
 			debugLangfuse(
-				"host tracer provider already registered; declining direct Langfuse export (one export path per host)",
+				"OTLP relay tracer registered; declining direct Langfuse export (one export path per host)",
 			);
-			return false;
+			return "relay-active";
 		}
 
 		const spanProcessor = new LangfuseSpanProcessor({
@@ -268,6 +297,34 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			secretKey: config.secretKey,
 		});
 		debugLangfuse(`creating span processor baseUrl=${config.baseUrl}`);
+
+		if (typeof tracerProvider?.addSpanProcessor === "function") {
+			tracerProvider.addSpanProcessor(spanProcessor);
+			const hasDelegate = hasActiveTracerDelegate(trace);
+			if (hasDelegate) {
+				registerTelemetry(new LangfuseVercelAiSdkIntegration());
+			}
+			debugLangfuse(
+				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
+			);
+			return hasDelegate;
+		}
+
+		if (isRecordingTracerProvider(existingDelegate)) {
+			// A non-relay provider owns the global slot, so registering our own
+			// would be rejected. Attach to it when it accepts processors.
+			const delegate = existingDelegate as MutableTracerProvider;
+			if (typeof delegate.addSpanProcessor === "function") {
+				delegate.addSpanProcessor(spanProcessor);
+				registerTelemetry(new LangfuseVercelAiSdkIntegration());
+				debugLangfuse("attached processor to registered tracer delegate");
+				return true;
+			}
+			debugLangfuse(
+				"tracer provider slot already owned; disabling Langfuse export",
+			);
+			return false;
+		}
 
 		const nodeTracerProvider = new NodeTracerProvider({
 			spanProcessors: [spanProcessor],
