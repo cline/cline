@@ -1,4 +1,7 @@
-import { getProviderCollectionSync } from "@cline/llms/browser";
+import {
+	getProviderCollectionSync,
+	resolveProviderLocalCli,
+} from "@cline/llms/browser";
 import {
 	createSessionId,
 	type GeneratedMedia,
@@ -189,6 +192,21 @@ export function resolveCredentialError(
 		return null;
 	}
 	return `Missing API key for provider "${config.provider}". Add credentials in Settings, or switch providers.`;
+}
+
+/**
+ * Where to send the user after a credential-looking turn failure. Local-auth
+ * providers (Claude Code, Codex CLI, OpenCode) borrow their login from a CLI
+ * on this machine, so Settings → Models has nothing to fix — e.g. Claude
+ * Code's "OAuth session expired and could not be refreshed" needs a fresh
+ * sign-in in the `claude` CLI itself.
+ */
+export function resolveCredentialFailureHint(providerId: string): string {
+	const cli = resolveProviderLocalCli(providerId);
+	if (cli) {
+		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
+	}
+	return "Check your model connection in Settings → Models (or sign in with Cline), then try again.";
 }
 
 function mapHistoryStatusToChatStatus(

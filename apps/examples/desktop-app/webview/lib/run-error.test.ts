@@ -18,3 +18,15 @@ describe("formatRunError", () => {
 		).not.toContain("Settings");
 	});
 });
+
+it.each([
+	"session expired",
+	"not logged in",
+	"Please /login",
+	"Please authenticate",
+])("preserves CLI guidance for %s", (detail) => {
+	const text = formatRunError(detail, "claude-code");
+	expect(text).toContain("`claude` CLI");
+	expect(text).not.toContain("Settings");
+	expect(formatRunError(text, "claude-code")).toBe(text);
+});

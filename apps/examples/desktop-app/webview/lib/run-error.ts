@@ -1,11 +1,12 @@
+import { resolveCredentialFailureHint } from "@/hooks/chat-session/helpers";
+
 /** The same presentation for live failures and restored transcript errors. */
-export function formatRunError(detail: string): string {
+export function formatRunError(detail: string, providerId = ""): string {
 	const description = detail.trim();
-	const guidance =
-		"Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+	const guidance = resolveCredentialFailureHint(providerId);
 	const looksCredentialRelated =
 		!description ||
-		/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
+		/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
 			description,
 		);
 	return [

@@ -43,6 +43,7 @@ import {
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import { formatRunError } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
@@ -421,6 +422,7 @@ export function useChatSession() {
 	const rekeyedOptimisticIdByMessageIdRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
+	const providerIdRef = useRef(config.provider);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -479,6 +481,9 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		providerIdRef.current = config.provider;
+	}, [config.provider]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -584,7 +589,7 @@ export function useChatSession() {
 		(sid: string, detail: string) => {
 			const description =
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
-			const content = formatRunError(description);
+			const content = formatRunError(description, providerIdRef.current);
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
@@ -593,7 +598,13 @@ export function useChatSession() {
 				if (last?.role === "error") {
 					return prev;
 				}
-				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
+				return sliceMessages([
+					...prev,
+					{
+						...makeErrorChatMessage(sid, content),
+						meta: { providerId: providerIdRef.current },
+					},
+				]);
 			});
 			setError(content);
 		},
@@ -2122,7 +2133,7 @@ export function useChatSession() {
 				(error: unknown) => ({ ok: false as const, error }),
 			);
 			const attachedFileCount = attachedFiles.filter(
-				(file) => !file.type.startsWith("image/"),
+				(file) => !imageAttachmentMediaType(file),
 			).length;
 			const userLabel =
 				attachedFileCount > 0

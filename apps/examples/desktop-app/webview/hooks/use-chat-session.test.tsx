@@ -2997,6 +2997,63 @@ describe("useChatSession", () => {
 		expect(errorMessage?.content).not.toContain("Check your model connection");
 	});
 
+	it("points local-auth providers at their CLI for credential failures", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "claude-code",
+				model: "sonnet",
+			}));
+		});
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Failed to authenticate: OAuth session expired and could not be refreshed.",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		// Claude Code's login lives in the `claude` CLI; Settings → Models has
+		// nothing that could fix an expired session there.
+		expect(errorMessage?.content).toContain("OAuth session expired");
+		expect(errorMessage?.content).toContain(
+			"Sign in again with the `claude` CLI",
+		);
+		expect(errorMessage?.content).not.toContain("Settings → Models");
+	});
+
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
 		const history: Array<Record<string, unknown>> = [];
 		invokeMock.mockImplementation(

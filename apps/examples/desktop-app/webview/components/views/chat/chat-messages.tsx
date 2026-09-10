@@ -147,7 +147,10 @@ function ChatMessagesImpl({
 	const shouldShowErrorBanner =
 		Boolean(error) &&
 		(!lastErrorMessage ||
-			formatRunError(lastErrorMessage.content) !== formatRunError(error ?? ""));
+			formatRunError(
+				lastErrorMessage.content,
+				lastErrorMessage.meta?.providerId,
+			) !== formatRunError(error ?? "", lastErrorMessage.meta?.providerId));
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&

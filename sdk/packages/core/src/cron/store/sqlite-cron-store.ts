@@ -1294,6 +1294,19 @@ export class SqliteCronStore {
 		return count > 0 ? count : undefined;
 	}
 
+	/** Execute synchronous event acceptance and materialization as one atomic write. */
+	public eventTransaction<T>(work: () => T): T {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const result = work();
+			this.db.exec("COMMIT;");
+			return result;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
 	public insertEventLog(
 		event: AutomationEventEnvelope,
 		options: { receivedAtIso?: string } = {},

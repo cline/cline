@@ -4,6 +4,7 @@ import {
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	resolveCredentialError,
+	resolveCredentialFailureHint,
 } from "./helpers";
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
@@ -70,6 +71,26 @@ describe("resolveCredentialError", () => {
 		expect(
 			resolveCredentialError(makeConfig({ provider: "Cline-Pass" })),
 		).toBeNull();
+	});
+});
+
+describe("resolveCredentialFailureHint", () => {
+	it("points local-auth providers at their own CLI", () => {
+		expect(resolveCredentialFailureHint("claude-code")).toBe(
+			"Sign in again with the `claude` CLI in a terminal, then try again.",
+		);
+		expect(resolveCredentialFailureHint("openai-codex-cli")).toMatch(
+			/`codex` CLI/,
+		);
+		expect(resolveCredentialFailureHint("opencode")).toMatch(/`opencode` CLI/);
+	});
+
+	it("points everything else at Settings → Models", () => {
+		for (const providerId of ["anthropic", "cline", "openai-codex", ""]) {
+			expect(resolveCredentialFailureHint(providerId)).toMatch(
+				/Settings → Models/,
+			);
+		}
 	});
 });
 

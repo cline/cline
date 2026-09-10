@@ -5,8 +5,9 @@ import { formatRunError } from "@/lib/run-error";
 export function formatChatMessageContent(
 	role: ChatMessage["role"],
 	content: string,
+	providerId?: string,
 ): string {
 	const trimmed = content.trim();
-	if (role === "error") return formatRunError(trimmed);
+	if (role === "error") return formatRunError(trimmed, providerId);
 	return role === "user" ? formatDisplayUserInput(trimmed) : trimmed;
 }

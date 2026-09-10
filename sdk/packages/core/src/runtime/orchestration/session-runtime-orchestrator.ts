@@ -771,6 +771,7 @@ export class SessionRuntime {
 			content: [{ type: "text", text: message }],
 			ts: Date.now(),
 			metadata: { displayOnly: true, displayRole: "error" },
+			modelInfo: { id: this.config.modelId, provider: this.config.providerId },
 		});
 		const event = this.pendingTerminalError;
 		this.pendingTerminalError = undefined;
