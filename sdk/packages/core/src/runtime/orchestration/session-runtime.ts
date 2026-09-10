@@ -55,6 +55,13 @@ export interface BuiltRuntime {
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
+	/**
+	 * Releases resources an idle session does not need between turns (today:
+	 * disconnects MCP servers, which stops their child processes). Must be
+	 * safe to call repeatedly; the runtime re-acquires them lazily on the
+	 * next use.
+	 */
+	releaseIdleResources?: () => Promise<void>;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 

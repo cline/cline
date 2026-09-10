@@ -537,7 +537,7 @@ function handle(message) {
     return;
   }
   if (message.method === "tools/call") {
-    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null } });
+    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null, pid: process.pid } });
   }
 }
 process.stdin.on("data", (chunk) => {
@@ -577,8 +577,43 @@ process.stdin.on("data", (chunk) => {
 			const runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
 			});
-			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
+			const echo = runtime.tools.find((tool) => tool.name === "mock__echo");
+			expect(echo).toBeDefined();
+			if (!echo) throw new Error("Expected mock__echo tool.");
+			const context = {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			};
+			const isAlive = (pid: number) => {
+				try {
+					process.kill(pid, 0);
+					return true;
+				} catch {
+					return false;
+				}
+			};
+
+			const first = (await echo.execute({ value: "a" }, context)) as {
+				pid: number;
+			};
+			expect(isAlive(first.pid)).toBe(true);
+
+			// Releasing idle resources stops the server process but keeps the tool
+			// usable: the next call transparently respawns the server.
+			await runtime.releaseIdleResources?.();
+			await expect.poll(() => isAlive(first.pid)).toBe(false);
+
+			const second = (await echo.execute({ value: "b" }, context)) as {
+				echoed: string;
+				pid: number;
+			};
+			expect(second.echoed).toBe("b");
+			expect(second.pid).not.toBe(first.pid);
+			expect(isAlive(second.pid)).toBe(true);
+
 			await runtime.shutdown("test");
+			await expect.poll(() => isAlive(second.pid)).toBe(false);
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
 		}

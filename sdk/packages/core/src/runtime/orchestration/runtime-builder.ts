@@ -209,6 +209,7 @@ async function loadConfiguredMcpTools(options: {
 	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 }): Promise<{
 	tools: AgentTool[];
+	releaseIdleResources?: () => Promise<void>;
 	shutdown?: () => Promise<void>;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
@@ -304,6 +305,9 @@ async function loadConfiguredMcpTools(options: {
 
 	return {
 		tools,
+		releaseIdleResources: async () => {
+			await manager.disconnectAll();
+		},
 		shutdown: async () => {
 			await manager.dispose();
 		},
@@ -461,6 +465,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		let teamToolsRegistered = false;
 		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
+		let mcpReleaseIdleResources: (() => Promise<void>) | undefined;
 		let mcpShutdown: (() => Promise<void>) | undefined;
 
 		for (const error of configuredAgents.errors) {
@@ -592,6 +597,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					agentPluginServers: agentPluginMcpServers,
 				});
 				tools.push(...mcpRuntime.tools);
+				mcpReleaseIdleResources = mcpRuntime.releaseIdleResources;
 				mcpShutdown = mcpRuntime.shutdown;
 			}
 		}
@@ -873,6 +879,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					);
 				}
 			},
+			releaseIdleResources: mcpReleaseIdleResources,
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);

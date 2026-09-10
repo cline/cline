@@ -211,4 +211,35 @@ describe("InMemoryMcpManager", () => {
 		await manager.connectServer(registration.name);
 		expect(clientFactory).toHaveBeenCalledTimes(1);
 	});
+
+	it("disconnectAll keeps registrations so the next tool call reconnects", async () => {
+		const clients = [createClient(), createClient()];
+		const manager = new InMemoryMcpManager({
+			clientFactory: vi.fn(async (registration) =>
+				registration.name === "alpha" ? clients[0] : clients[1],
+			),
+		});
+		for (const name of ["alpha", "beta"]) {
+			await manager.registerServer({
+				name,
+				transport: { type: "stdio", command: "node" },
+			});
+			await manager.connectServer(name);
+		}
+
+		await manager.disconnectAll();
+
+		expect(clients[0].disconnect).toHaveBeenCalledTimes(1);
+		expect(clients[1].disconnect).toHaveBeenCalledTimes(1);
+		expect(manager.listServers().map((server) => server.status)).toEqual([
+			"disconnected",
+			"disconnected",
+		]);
+
+		await manager.callTool({ serverName: "alpha", toolName: "echo" });
+
+		expect(clients[0].connect).toHaveBeenCalledTimes(2);
+		expect(clients[0].callTool).toHaveBeenCalledTimes(1);
+		expect(clients[1].connect).toHaveBeenCalledTimes(1);
+	});
 });

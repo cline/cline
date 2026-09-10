@@ -178,14 +178,29 @@ export class InMemoryMcpManager implements McpManager {
 		});
 	}
 
+	/**
+	 * Disconnects every server (stopping stdio children, closing remote
+	 * connections) while keeping the registrations, so the next
+	 * `callTool`/`listTools` transparently reconnects. Used to release idle
+	 * sessions' server processes without invalidating their tool wrappers.
+	 */
+	async disconnectAll(): Promise<void> {
+		await this.forEachServer((name) => this.disconnectServer(name));
+	}
+
 	async dispose(): Promise<void> {
-		const names = [...this.servers.keys()];
+		await this.forEachServer((name) => this.unregisterServer(name));
+	}
+
+	private async forEachServer(
+		operation: (serverName: string) => Promise<void>,
+	): Promise<void> {
 		// One wedged server (e.g. a stdio child that never exits) must not stop
 		// the remaining servers from being disconnected.
 		const errors: unknown[] = [];
-		for (const name of names) {
+		for (const name of [...this.servers.keys()]) {
 			try {
-				await this.unregisterServer(name);
+				await operation(name);
 			} catch (error) {
 				errors.push(error);
 			}

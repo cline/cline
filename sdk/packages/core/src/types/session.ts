@@ -35,6 +35,8 @@ export type ActiveSession = {
 	pendingPrompts: PendingPrompt[];
 	drainingPendingPrompts: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
+	/** Pending `runtime.releaseIdleResources` timer; armed while no turn is in flight. */
+	idleReleaseTimer?: ReturnType<typeof setTimeout>;
 	turnUsageBaseline?: SessionAccumulatedUsage;
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
 	turnPrimaryUsage?: SessionAccumulatedUsage;

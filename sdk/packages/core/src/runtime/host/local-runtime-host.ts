@@ -256,7 +256,21 @@ export interface LocalRuntimeHostOptions {
 	 * the AI gateway providers when issuing HTTP requests.
 	 */
 	fetch?: typeof fetch;
+	/**
+	 * How long an interactive session may sit idle (no turn in flight) before
+	 * its runtime releases resources it only needs while running, e.g. MCP
+	 * server processes. Defaults to {@link DEFAULT_IDLE_RESOURCE_RELEASE_MS}.
+	 */
+	idleResourceReleaseMs?: number;
 }
+
+/**
+ * Resident hub sessions live until deleted, so without this every session
+ * ever created keeps its MCP server processes alive. 30s covers quick
+ * follow-up prompts without paying the respawn cost, while bounding how long
+ * an abandoned session (client quit, tab closed) holds those processes.
+ */
+export const DEFAULT_IDLE_RESOURCE_RELEASE_MS = 30_000;
 
 export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
@@ -273,6 +287,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly distinctId: string;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
+	private readonly idleResourceReleaseMs: number;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
@@ -321,6 +336,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.defaultTelemetry?.setDistinctId(distinctId);
 		}
 		this.defaultFetch = options.fetch;
+		this.idleResourceReleaseMs =
+			options.idleResourceReleaseMs ?? DEFAULT_IDLE_RESOURCE_RELEASE_MS;
 		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
@@ -992,6 +1009,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		this.emitStatus(sessionId, active.status);
+		if (startsWithoutTurn) {
+			this.scheduleIdleResourceRelease(active);
+		}
 
 		let result: AgentResult | undefined;
 		try {
@@ -1730,6 +1750,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			userFiles?: string[];
 		},
 	): Promise<AgentResult> {
+		this.cancelIdleResourceRelease(session);
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
 		const images = preparedInput?.userImages?.length;
@@ -1796,6 +1817,50 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session.lastInteractiveTurnFinishReason = finishReason;
 		await this.markTurnIdle(session);
 		session.aborting = false;
+		this.scheduleIdleResourceRelease(session);
+	}
+
+	/**
+	 * Arms the idle-release timer for a session with no turn in flight. The
+	 * timer is cancelled by the next `executeTurn`, so the runtime only ever
+	 * releases resources (MCP server processes) between turns, never mid-run.
+	 */
+	private scheduleIdleResourceRelease(session: ActiveSession): void {
+		this.cancelIdleResourceRelease(session);
+		const release = session.runtime.releaseIdleResources;
+		if (!release) return;
+		const timer = setTimeout(() => {
+			session.idleReleaseTimer = undefined;
+			if (
+				this.sessions.get(session.sessionId) !== session ||
+				!session.agent.canStartRun()
+			) {
+				return;
+			}
+			void release().catch((error) => {
+				session.config.logger?.log("Session idle resource release failed", {
+					sessionId: session.sessionId,
+					error,
+					severity: "warn",
+				});
+				captureSdkError(session.config.telemetry, {
+					component: "core",
+					operation: "session.release_idle_resources",
+					error,
+					severity: "warn",
+					handled: true,
+					context: { sessionId: session.sessionId },
+				});
+			});
+		}, this.idleResourceReleaseMs);
+		timer.unref?.();
+		session.idleReleaseTimer = timer;
+	}
+
+	private cancelIdleResourceRelease(session: ActiveSession): void {
+		if (!session.idleReleaseTimer) return;
+		clearTimeout(session.idleReleaseTimer);
+		session.idleReleaseTimer = undefined;
 	}
 
 	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
@@ -2307,6 +2372,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// the shared teardown choke point so it can neither double-fire nor
 		// be skipped by teardown routing.
 		this.emitTaskCompletedOnTeardown(session, input.status);
+		this.cancelIdleResourceRelease(session);
 		notifyTeamRunWaiters(session);
 
 		// Drain an in-flight run before tearing anything down. `stopSession` aborts
@@ -2394,6 +2460,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// this is the branch that silently dropped `task.completed` when
 		// truthful status reporting re-routed interactive stops onto it.
 		this.emitTaskCompletedOnTeardown(session);
+		this.cancelIdleResourceRelease(session);
 		const cleanupErrors: unknown[] = [];
 		const recordCleanupError = (stage: string, error: unknown) => {
 			cleanupErrors.push(error);

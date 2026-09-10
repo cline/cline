@@ -8023,4 +8023,132 @@ describe("LocalRuntimeHost", () => {
 			expect(agent.abort).toHaveBeenCalledTimes(1);
 		});
 	});
+
+	describe("idle resource release", () => {
+		const idleResourceReleaseMs = 25;
+		const sleep = (ms: number) =>
+			new Promise((resolve) => setTimeout(resolve, ms));
+
+		function createIdleReleaseHarness() {
+			let running = false;
+			let finishRun: (() => void) | undefined;
+			// First turns go through run(), follow-ups through continue(); both
+			// block until the test releases them so "mid-run" is observable.
+			const executeTurn = vi.fn(async () => {
+				running = true;
+				await new Promise<void>((resolve) => {
+					finishRun = resolve;
+				});
+				running = false;
+				return createResult();
+			});
+			const agent = {
+				run: executeTurn,
+				continue: executeTurn,
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-idle"),
+				getConversationId: vi.fn().mockReturnValue("conv-idle"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn(() => !running),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const releaseIdleResources = vi.fn().mockResolvedValue(undefined);
+			const shutdown = vi.fn().mockResolvedValue(undefined);
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: new FileSessionService(
+					join(isolatedHomeDir, "sessions"),
+				),
+				runtimeBuilder: {
+					build: vi
+						.fn()
+						.mockReturnValue({ tools: [], releaseIdleResources, shutdown }),
+				} as never,
+				createAgent: () => agent as never,
+				idleResourceReleaseMs,
+			});
+			return {
+				manager,
+				agent,
+				releaseIdleResources,
+				shutdown,
+				finishRun: () => finishRun?.(),
+			};
+		}
+
+		it("releases idle resources after a turn completes, not while it runs", async () => {
+			const harness = createIdleReleaseHarness();
+			const turn = harness.manager.startSession(
+				normalizeStartInput({
+					config: createConfig(),
+					prompt: "hello",
+					interactive: true,
+				}),
+			);
+			await vi.waitFor(() => expect(harness.agent.run).toHaveBeenCalled());
+
+			await sleep(idleResourceReleaseMs * 3);
+			expect(harness.releaseIdleResources).not.toHaveBeenCalled();
+
+			harness.finishRun();
+			await turn;
+			await vi.waitFor(() =>
+				expect(harness.releaseIdleResources).toHaveBeenCalledTimes(1),
+			);
+			expect(harness.shutdown).not.toHaveBeenCalled();
+			await harness.manager.dispose();
+		});
+
+		it("keeps the runtime resident so a follow-up turn runs and re-arms the release", async () => {
+			const harness = createIdleReleaseHarness();
+			const started = harness.manager.startSession(
+				normalizeStartInput({
+					config: createConfig(),
+					prompt: "hello",
+					interactive: true,
+				}),
+			);
+			await vi.waitFor(() => expect(harness.agent.run).toHaveBeenCalled());
+			harness.finishRun();
+			const { sessionId } = await started;
+			await vi.waitFor(() =>
+				expect(harness.releaseIdleResources).toHaveBeenCalledTimes(1),
+			);
+
+			const followUp = harness.manager.runTurn({ sessionId, prompt: "again" });
+			await vi.waitFor(() =>
+				expect(harness.agent.run).toHaveBeenCalledTimes(2),
+			);
+			await sleep(idleResourceReleaseMs * 3);
+			expect(harness.releaseIdleResources).toHaveBeenCalledTimes(1);
+
+			harness.finishRun();
+			await followUp;
+			await vi.waitFor(() =>
+				expect(harness.releaseIdleResources).toHaveBeenCalledTimes(2),
+			);
+			await harness.manager.dispose();
+		});
+
+		it("arms the release for a session created without a prompt and cancels it on stop", async () => {
+			const harness = createIdleReleaseHarness();
+			const { sessionId } = await harness.manager.startSession(
+				normalizeStartInput({ config: createConfig(), interactive: true }),
+			);
+			await vi.waitFor(() =>
+				expect(harness.releaseIdleResources).toHaveBeenCalledTimes(1),
+			);
+
+			const followUp = harness.manager.runTurn({ sessionId, prompt: "hello" });
+			await vi.waitFor(() => expect(harness.agent.run).toHaveBeenCalled());
+			harness.finishRun();
+			await followUp;
+			await harness.manager.stopSession(sessionId);
+
+			expect(harness.shutdown).toHaveBeenCalledTimes(1);
+			await sleep(idleResourceReleaseMs * 3);
+			expect(harness.releaseIdleResources).toHaveBeenCalledTimes(1);
+		});
+	});
 });
