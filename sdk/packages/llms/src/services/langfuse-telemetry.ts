@@ -125,15 +125,25 @@ function readTraceSamplePercent(): number {
  * on explicit operator-supplied credentials.
  */
 async function isTelemetryOptedOutGlobally(): Promise<boolean> {
+	let raw: string;
 	try {
 		const [{ readFileSync }, { resolveGlobalSettingsPath }] = await Promise.all(
 			[import("node:fs"), import("@cline/shared/storage")],
 		);
-		const raw = readFileSync(resolveGlobalSettingsPath(), "utf8");
+		raw = readFileSync(resolveGlobalSettingsPath(), "utf8");
+	} catch (error) {
+		// A genuinely absent file means no opt-out was ever recorded (first
+		// run). Every other failure — permissions, I/O, no fs in this runtime —
+		// fails closed: consent that cannot be verified is not consent.
+		return (error as NodeJS.ErrnoException)?.code !== "ENOENT";
+	}
+	try {
 		return JSON.parse(raw)?.telemetryOptOut === true;
 	} catch {
-		// No settings file (or unreadable) means no opt-out was recorded.
-		return false;
+		// Malformed settings (e.g. a torn read while the non-atomic writer is
+		// mid-rewrite) fail closed: a user who opted out must not start
+		// tracing because their settings file was corrupted.
+		return true;
 	}
 }
 

@@ -350,6 +350,38 @@ describe("langfuse telemetry", () => {
 			expect(decision.isEnabled).toBe(false);
 		});
 
+		it("fails closed when the settings file is malformed", async () => {
+			clearLangfuseEnv();
+			mockHostOtlpTracer();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			process.env.CLINE_TRACE_RECORD_CONTENT = "true";
+			const settingsPath = path.join(
+				await fs.mkdtemp(path.join(os.tmpdir(), "lf-torn-")),
+				"settings.json",
+			);
+			// A torn read of the non-atomic settings writer: truncated JSON.
+			await fs.writeFile(settingsPath, '{"telemetryOptOut":tr');
+			globalSettingsPathRef.current = settingsPath;
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
+		it("fails closed when the settings file exists but cannot be read", async () => {
+			clearLangfuseEnv();
+			mockHostOtlpTracer();
+			process.env.CLINE_TRACE_SAMPLE_PERCENT = "100";
+			// A directory at the settings path raises EISDIR, not ENOENT.
+			globalSettingsPathRef.current = await fs.mkdtemp(
+				path.join(os.tmpdir(), "lf-unreadable-"),
+			);
+
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+
+			expect(decision.isEnabled).toBe(false);
+		});
+
 		it("stays enabled when the settings file records no opt-out", async () => {
 			clearLangfuseEnv();
 			mockHostOtlpTracer();
