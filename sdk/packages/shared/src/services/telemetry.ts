@@ -463,6 +463,17 @@ export interface OpenTelemetryClientConfig {
 	tracesExporter?: string;
 
 	/**
+	 * OTel resource `service.name` (default "cline"). Distinguishes processes
+	 * that ship in the same binary — e.g. the CLI vs the detached hub daemon.
+	 */
+	serviceName?: string;
+
+	/**
+	 * OTel resource `service.version`.
+	 */
+	serviceVersion?: string;
+
+	/**
 	 * Protocol for OTLP exporters. SDK support is currently limited to "http/json".
 	 */
 	otlpProtocol?: string;

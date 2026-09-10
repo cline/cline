@@ -82,6 +82,20 @@ describe("createHubDaemonTelemetry", () => {
 		);
 	});
 
+	it("carries a daemon-distinct trace resource identity", () => {
+		mockGetProviderSettings.mockReturnValue(undefined);
+		createHubDaemonTelemetry();
+		// The daemon ships in the same binary as the CLI; without its own
+		// service name, daemon-emitted spans would be indistinguishable from
+		// CLI-local ones.
+		expect(mockCreateConfiguredTelemetryHandle).toHaveBeenCalledWith(
+			expect.objectContaining({
+				serviceName: "cline-hub-daemon",
+				serviceVersion: expect.any(String),
+			}),
+		);
+	});
+
 	it("stays anonymous when no cached account exists, then identifies once the user logs in", () => {
 		mockGetProviderSettings.mockReturnValue(undefined);
 		createHubDaemonTelemetry();
