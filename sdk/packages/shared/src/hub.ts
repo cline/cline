@@ -1000,3 +1000,25 @@ export interface HubUIShowWindowPayload {
 	windowId?: string;
 	focus?: boolean;
 }
+
+/**
+ * Human phrase for the live work an outdated Hub is serving, used by the
+ * "Hub update required" surfaces in the CLI and the desktop app - the two
+ * must read identically, which is why the copy lives here. Falls back to an
+ * unquantified phrase when the Hub could not answer the activity query.
+ */
+export function describeOutdatedHubSessions(counts: {
+	activeSessionCount?: number;
+	participantClientCount?: number;
+}): string {
+	const sessions = counts.activeSessionCount;
+	if (typeof sessions !== "number" || sessions <= 0) {
+		return "active sessions from other Cline clients";
+	}
+	const sessionsPhrase = `${sessions} active session${sessions === 1 ? "" : "s"}`;
+	const clients = counts.participantClientCount;
+	if (typeof clients !== "number" || clients <= 0) {
+		return sessionsPhrase;
+	}
+	return `${sessionsPhrase} from ${clients} connected Cline client${clients === 1 ? "" : "s"}`;
+}

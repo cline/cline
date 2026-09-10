@@ -15,6 +15,8 @@ export interface SearchComboboxOption {
 	badge?: string;
 	description?: string;
 	icon?: ReactNode;
+	/** Small status node after the label, shown in list rows but not the trigger. */
+	indicator?: ReactNode;
 	label: string;
 	/** Id of the section this option belongs to (see `sections`). */
 	section?: string;
@@ -260,6 +262,7 @@ export function SearchCombobox({
 								{option.badge}
 							</span>
 						) : null}
+						{option.indicator}
 					</span>
 					{option.description ? (
 						<small className="truncate text-[0.625rem] text-cline-ui-muted-foreground">
