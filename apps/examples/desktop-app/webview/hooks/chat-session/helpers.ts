@@ -1,3 +1,4 @@
+import { getProviderCollectionSync } from "@cline/llms/browser";
 import {
 	createSessionId,
 	type GeneratedMedia,
@@ -8,6 +9,7 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { normalizeProviderId } from "@/lib/provider-id";
 import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
@@ -169,6 +171,14 @@ export function resolveCredentialError(
 		return "Provider is required before starting a chat session.";
 	}
 	if (OAUTH_MANAGED_PROVIDERS.has(providerId)) {
+		return null;
+	}
+	// OAuth and local-auth providers (Claude Code, Codex CLI) keep their
+	// credentials outside the webview config and never read an API key.
+	const capabilities = getProviderCollectionSync(
+		normalizeProviderId(providerId),
+	)?.provider.capabilities;
+	if (capabilities?.includes("oauth") || capabilities?.includes("local-auth")) {
 		return null;
 	}
 	if (config.apiKey.trim().length > 0) {

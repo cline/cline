@@ -212,12 +212,8 @@ export function toProviderConfig(
 		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
 
 	const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[normalizedProviderId];
-	const generatedKnownModels = Object.assign(
-		{},
-		...Llms.resolveProviderModelCatalogKeys(normalizedProviderId).map(
-			(catalogKey) => Llms.getGeneratedModelsForProvider(catalogKey),
-		),
-	);
+	const generatedKnownModels =
+		Llms.getGeneratedModelsForRuntimeProvider(normalizedProviderId);
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
 	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
