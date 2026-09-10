@@ -269,7 +269,6 @@ export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
-	getPowerShellEdition,
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
