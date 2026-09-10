@@ -672,13 +672,10 @@ export function McpServersContent({
 		// The hub records the outcome of its last connect attempt per server;
 		// a disabled server is not connected, so its stale record is not shown,
 		// and a failure already shown by the probe/OAuth box is not repeated.
-		const connection =
-			server.disabled ||
-			(server.connection &&
-				!server.connection.connected &&
-				server.connection.error === serverError)
-				? undefined
-				: server.connection;
+		const connection = server.disabled ? undefined : server.connection;
+		const showConnectionLine =
+			connection !== undefined &&
+			(connection.connected || connection.error !== serverError);
 
 		return (
 			<div
@@ -712,7 +709,7 @@ export function McpServersContent({
 					{renderServerToggle(server)}
 				</div>
 				<div className="mt-2.5 grid gap-2">
-					{connection ? (
+					{connection && showConnectionLine ? (
 						<p
 							className={cn(
 								"wrap-break-word text-xs",
