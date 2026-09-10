@@ -2,7 +2,7 @@
 
 import * as Llms from "@cline/llms";
 import {
-	fetchModelIdsFromSource,
+	fetchModelEntriesFromSource,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -714,12 +714,21 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId)
-		.then((modelIds) => {
+	const request = fetchModelEntriesFromSource(sourceUrl, providerId)
+		.then((modelEntries) => {
 			const data = Object.fromEntries(
-				modelIds.map((id) => [
+				modelEntries.map(({ id, contextWindow }) => [
 					id,
-					buildModelFromPrivateSource(id, { name: id }),
+					buildModelFromPrivateSource(id, {
+						name: id,
+						// Local sources (LM Studio) report the loaded model's
+						// real context length per entry; keep it so context
+						// management budgets against the server's window
+						// instead of the generic safe default (#13457).
+						...(contextWindow !== undefined
+							? { contextWindow, maxInputTokens: contextWindow }
+							: {}),
+					}),
 				]),
 			);
 			PUBLIC_MODELS_CACHE.set(cacheKey, {
