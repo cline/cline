@@ -45,8 +45,7 @@ async function loadCliRemoteConfigBundleUncached(): Promise<
 	}
 
 	const service = new ClineAccountService({
-		apiBaseUrl:
-			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		apiBaseUrl: getClineEnvironmentConfig().apiBaseUrl,
 		getAuthToken: async () => authToken,
 	});
 	const response = await service.fetchRemoteConfig().catch(() => null);

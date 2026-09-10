@@ -90,8 +90,7 @@ export function runDeviceCodeAuthFlow(input: {
 	const existing = input.providerSettingsManager.getProviderSettings(
 		input.providerId,
 	);
-	const apiBaseUrl =
-		existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+	const apiBaseUrl = getClineEnvironmentConfig().apiBaseUrl;
 
 	// `startClineDeviceAuth` only requests the user/device code pair; the
 	// `auth_started` telemetry event is emitted by `completeClineDeviceAuth`

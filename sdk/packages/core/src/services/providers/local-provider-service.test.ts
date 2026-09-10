@@ -1895,7 +1895,7 @@ describe("listLocalProviders", () => {
 		);
 		const [recommendedId, freeId] = clineModelIds;
 		await getCachedClineRecommendedModels({
-			baseUrl: "https://api.example.test",
+			apiBaseUrl: "https://api.example.test",
 			fetchImpl: async () =>
 				new Response(
 					JSON.stringify({

@@ -10,10 +10,12 @@ import {
 afterEach(() => {
 	clearClineFreeModelCostCache();
 	vi.unstubAllGlobals();
+	vi.unstubAllEnvs();
 });
 
 describe("shouldZeroClineFreeModelCost", () => {
-	it("uses the Cline free model list", async () => {
+	it("uses the platform free model list independently of inference settings", async () => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://platform.test");
 		const fetchMock = vi.fn(
 			async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) => {
 				return new Response(
@@ -35,7 +37,7 @@ describe("shouldZeroClineFreeModelCost", () => {
 		).resolves.toBe(true);
 
 		expect(fetchMock.mock.calls[0]?.[0]).toBe(
-			"https://cline.test/api/v1/ai/cline/recommended-models",
+			"https://platform.test/api/v1/ai/cline/recommended-models",
 		);
 	});
 

@@ -1,11 +1,24 @@
 import type { ProviderSettingsManager } from "@cline/core";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	cancelProviderOAuthLogin,
 	cancelProviderOAuthLoginsForOwner,
 	OAuthLoginCancelledError,
 	runCancellableProviderOAuthLogin,
 } from "./oauth-login";
+
+const deviceAuth = vi.hoisted(() => ({
+	start: vi.fn(),
+	complete: vi.fn(),
+	save: vi.fn(),
+}));
+vi.mock("@cline/core", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/core")>()),
+	startClineDeviceAuth: deviceAuth.start,
+	completeClineDeviceAuth: deviceAuth.complete,
+	saveLocalProviderOAuthCredentials: deviceAuth.save,
+	markLocalProviderEnabled: vi.fn(),
+}));
 
 type Credentials = { accessToken: string };
 
@@ -160,5 +173,44 @@ describe("runCancellableProviderOAuthLogin", () => {
 		resolveLogin({ accessToken: "late-token" });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(save).not.toHaveBeenCalled();
+	});
+});
+
+describe("desktop Cline platform auth", () => {
+	afterEach(() => vi.unstubAllEnvs());
+	it.each([
+		"cline",
+		"cline-pass",
+	])("uses the platform root for %s device auth", async (providerId) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://platform.test");
+		deviceAuth.start.mockResolvedValue({
+			deviceCode: "code",
+			userCode: "user-code",
+			verificationUri: "https://verify.test",
+			expiresInSeconds: 600,
+			pollIntervalSeconds: 5,
+		});
+		deviceAuth.complete.mockResolvedValue({
+			access: "token",
+			refresh: "refresh",
+			expires: 0,
+		});
+		deviceAuth.save.mockReturnValue({
+			provider: "cline",
+			auth: { accessToken: "token" },
+		});
+		const manager = {
+			getProviderSettings: () => ({
+				provider: "cline",
+				baseUrl: "https://inference.test/api/v1",
+			}),
+		} as unknown as ProviderSettingsManager;
+		await runCancellableProviderOAuthLogin(manager, providerId, vi.fn());
+		expect(deviceAuth.complete).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				apiBaseUrl: "https://platform.test",
+				provider: providerId,
+			}),
+		);
 	});
 });

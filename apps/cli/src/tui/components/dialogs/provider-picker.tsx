@@ -798,8 +798,7 @@ export function OAuthLoginContent(
 
 		const manager = new ProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
-		const apiBaseUrl =
-			existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+		const apiBaseUrl = getClineEnvironmentConfig().apiBaseUrl;
 
 		startClineDeviceAuth()
 			.then((result) => {

@@ -1883,10 +1883,8 @@ export async function handleCommand(
 			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
-		const settings = manager.getProviderSettings("cline");
 		const accountService = new ClineAccountService({
-			apiBaseUrl:
-				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+			apiBaseUrl: getClineEnvironmentConfig().apiBaseUrl,
 			getAuthToken: async () => authToken,
 		});
 		const result = await executeClineAccountAction(
@@ -1907,10 +1905,9 @@ export async function handleCommand(
 		if (!authToken) {
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
-		const settings = manager.getProviderSettings("cline");
 		const environment = getClineEnvironmentConfig();
 		const requestOptions = {
-			apiBaseUrl: settings?.baseUrl?.trim() || environment.apiBaseUrl,
+			apiBaseUrl: environment.apiBaseUrl,
 			appBaseUrl: environment.appBaseUrl,
 			authToken,
 		};

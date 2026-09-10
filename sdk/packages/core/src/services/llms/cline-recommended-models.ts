@@ -8,7 +8,6 @@ import {
 	type ProviderModel,
 	type ProviderModelFeaturedTier,
 } from "@cline/shared";
-import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { getLiveModelsCatalog } from "./provider-defaults";
 import type { ModelInfo } from "./provider-settings";
 
@@ -29,12 +28,9 @@ export interface ClineRecommendedModelsData {
 type ModelsCatalog = Record<string, Record<string, ModelInfo>>;
 
 export interface FetchClineRecommendedModelsOptions {
-	baseUrl?: string;
+	/** Platform API root, separate from the provider inference baseUrl. */
+	apiBaseUrl?: string;
 	fetchImpl?: typeof fetch;
-	providerSettingsManager?: Pick<
-		ProviderSettingsManager,
-		"getProviderSettings"
-	>;
 	timeoutMs?: number;
 	/**
 	 * Loader for the live models catalog used to resolve display names.
@@ -110,23 +106,6 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 	}
 
 	return { recommended, free, clinePass };
-}
-
-function getConfiguredApiBaseUrl(
-	options: FetchClineRecommendedModelsOptions,
-): string {
-	const explicitBaseUrl = options.baseUrl?.trim();
-	if (explicitBaseUrl) return explicitBaseUrl;
-
-	const fallbackBaseUrl = getClineEnvironmentConfig().apiBaseUrl;
-	try {
-		const manager =
-			options.providerSettingsManager ?? new ProviderSettingsManager();
-		const settings = manager.getProviderSettings("cline");
-		return settings?.baseUrl?.trim() || fallbackBaseUrl;
-	} catch {
-		return fallbackBaseUrl;
-	}
 }
 
 async function fetchWithTimeout(
@@ -259,7 +238,9 @@ export async function fetchClineRecommendedModels(
 	// promise resolves on a microtask, ahead of the zero-delay timer.
 	const deadline = Date.now() + timeoutMs;
 	try {
-		const base = getConfiguredApiBaseUrl(options);
+		const base = (
+			options.apiBaseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl
+		).replace(/\/+$/, "");
 		const fetchImpl = options.fetchImpl ?? fetch;
 		const resp = await fetchWithTimeout(
 			fetchImpl,

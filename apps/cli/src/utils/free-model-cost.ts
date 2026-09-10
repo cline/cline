@@ -19,14 +19,6 @@ function modelIdsMatch(selectedModelId: string, freeModelId: string): boolean {
 	return selected === free;
 }
 
-function resolveClineRecommendedModelsUrl(baseUrl: string): string {
-	const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-	const apiBaseUrl = normalizedBaseUrl.endsWith("/api/v1")
-		? normalizedBaseUrl.slice(0, -"/api/v1".length)
-		: normalizedBaseUrl;
-	return `${apiBaseUrl}/api/v1/ai/cline/recommended-models`;
-}
-
 async function fetchClineFreeModelIds(
 	baseUrl: string,
 ): Promise<readonly string[] | undefined> {
@@ -36,9 +28,12 @@ async function fetchClineFreeModelIds(
 		CLINE_RECOMMENDED_MODELS_TIMEOUT_MS,
 	);
 	try {
-		const response = await fetch(resolveClineRecommendedModelsUrl(baseUrl), {
-			signal: controller.signal,
-		});
+		const response = await fetch(
+			`${baseUrl.trim().replace(/\/+$/, "")}/api/v1/ai/cline/recommended-models`,
+			{
+				signal: controller.signal,
+			},
+		);
 		if (!response.ok) return undefined;
 		const json = (await response.json()) as { free?: unknown };
 		return Array.isArray(json.free)
@@ -79,8 +74,7 @@ export async function shouldZeroClineFreeModelCost(
 	const modelId = normalizeModelId(config.modelId);
 	if (!modelId) return false;
 
-	const baseUrl =
-		config.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+	const baseUrl = getClineEnvironmentConfig().apiBaseUrl;
 	const freeModelIds = await getClineFreeModelIds(baseUrl);
 	return freeModelIds.some((freeModelId) =>
 		modelIdsMatch(modelId, freeModelId),

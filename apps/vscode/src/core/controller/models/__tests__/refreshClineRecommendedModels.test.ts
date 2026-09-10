@@ -35,6 +35,10 @@ describe("refreshClineRecommendedModels", () => {
 		const result = await refreshClineRecommendedModels()
 
 		expect(sdkSpy).toHaveBeenCalledTimes(1)
+		expect(sdkSpy).toHaveBeenCalledWith({
+			apiBaseUrl: "https://api.cline-test.bot",
+			fetchImpl: expect.any(Function),
+		})
 		expect(result).toEqual(sdkResult)
 	})
 
