@@ -553,6 +553,16 @@ Design implications:
   state belongs in persistent storage
 - a sandbox must never outlive its owning hub process
 
+MCP servers follow the same shape at the session level. Each session runtime
+owns its `InMemoryMcpManager` (and so its own stdio child per enabled server),
+and resident hub sessions live until deleted, so `LocalRuntimeHost` calls the
+runtime's `releaseIdleResources` once an interactive session has had no turn in
+flight for 30 seconds (`LocalRuntimeHostOptions.idleResourceReleaseMs`). That
+disconnects every server, stopping its process, while keeping the registration
+and tool wrappers; the next tool call reconnects transparently. Starting a turn
+cancels the pending release, so servers are never stopped mid-run, and session
+teardown or hub stop still disposes the manager outright.
+
 ## Architectural Constraints
 
 ### Keep `agents` Stateless
