@@ -23,13 +23,6 @@ export type CloudBranchListOptions = {
 	query?: string;
 };
 
-/** Client-only ID prefix for sessions without a server record yet. */
-export const CLOUD_PROVISIONING_SESSION_ID_PREFIX = "cloud-provisioning-";
-
-export function isCloudProvisioningSessionId(sessionId: string): boolean {
-	return sessionId.startsWith(CLOUD_PROVISIONING_SESSION_ID_PREFIX);
-}
-
 export function normalizeCloudRepositoryUrl(value: string): string {
 	return value.trim().replace(/\/+$/, "");
 }
