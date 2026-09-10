@@ -44,4 +44,7 @@ export type {
 	UserInstructionConfigRecord,
 	UserInstructionConfigService,
 } from "./user-instruction-service";
-export { createUserInstructionConfigService } from "./user-instruction-service";
+export {
+	combineUserInstructionConfigServices,
+	createUserInstructionConfigService,
+} from "./user-instruction-service";

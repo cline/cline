@@ -32,6 +32,313 @@ describe("shell helpers", () => {
 		}
 	});
 
+	it("runs the PowerShell script under fail-fast error semantics", () => {
+		for (const shell of [
+			"powershell",
+			"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+		]) {
+			const { args, input } = getShellInvocation(
+				shell,
+				"param($x = 5) Write-Output $x",
+			);
+			// The bootstrap sets $ErrorActionPreference='Stop' before reading the
+			// script from stdin, so per-item pipeline errors terminate immediately
+			// instead of flooding stderr. It must be set in the bootstrap scope —
+			// not prepended to the script text — so the user script stays
+			// byte-identical: a leading param(...) keeps its mandatory
+			// first-statement position and error positions are unshifted.
+			expect(args[3]).toContain(
+				"$ErrorActionPreference='Stop';$c=[Console]::In.ReadToEnd();",
+			);
+			expect(input).toBe("param($x = 5) Write-Output $x");
+		}
+	});
+
+	it("unwraps a nested powershell -Command so $_ reaches the script literally", () => {
+		// GitHub #13284: the stdin bootstrap parses the command as outer
+		// PowerShell source, so the nested double-quoted argument had its $_
+		// interpolated away before the nested shell ever saw it.
+		const nested =
+			"powershell -NoProfile -Command \" Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm' } | ForEach-Object { $_.FullName } \"";
+		const { input } = getShellInvocation("powershell", nested);
+		expect(input).toBe(
+			"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm' } | ForEach-Object { $_.FullName }",
+		);
+	});
+
+	it("selects the requested executable across editions", () => {
+		const nested = 'pwsh -NoProfile -Command "Write-Output $_"';
+		for (const shell of ["pwsh", "powershell"]) {
+			expect(getShellInvocation(shell, nested)).toMatchObject({
+				executable: "pwsh",
+				input: "Write-Output $_",
+			});
+		}
+		const issueCommand =
+			"powershell -NoProfile -Command \"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm|EditContext|Validator' } | ForEach-Object { $_.FullName }\"";
+		expect(getShellInvocation("pwsh.exe", issueCommand)).toMatchObject({
+			executable: "powershell",
+			input:
+				"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm|EditContext|Validator' } | ForEach-Object { $_.FullName }",
+		});
+	});
+
+	it("decodes each wrapper in its outer edition and retains literal executable paths", () => {
+		const path = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+		expect(
+			getShellInvocation(
+				"powershell",
+				`& '${path}' -NoProfile -Command "Write-Output 'a\`eb'"`,
+			),
+		).toMatchObject({ executable: path, input: "Write-Output 'aeb'" });
+		expect(
+			getShellInvocation(
+				"pwsh",
+				"powershell.exe -NoProfile -Command \"Write-Output 'a`eb'\"",
+			),
+		).toMatchObject({
+			executable: "powershell.exe",
+			input: "Write-Output 'a\x1bb'",
+		});
+		expect(
+			getShellInvocation(
+				"pwsh",
+				'powershell -NoProfile -Command "pwsh -NoProfile -Command `"Write-Output $_`""',
+			),
+		).toMatchObject({ executable: "pwsh", input: "Write-Output $_" });
+	});
+
+	it("unwraps bootstrap-equivalent flags and the non-interactive banner flag", () => {
+		for (const flags of [
+			"-NoProfile",
+			"-NoProfile -NonInteractive",
+			"-NoLogo -NoProfile -NonInteractive",
+		]) {
+			expect(
+				getShellInvocation(
+					"powershell",
+					`powershell ${flags} -Command "Get-Date"`.replace(/\s+/g, " "),
+				),
+			).toMatchObject({ executable: "powershell", input: "Get-Date" });
+		}
+		const path = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+		expect(
+			getShellInvocation("pwsh", `& "${path}" -NoProfile -Command "Get-Date"`),
+		).toMatchObject({ executable: path, input: "Get-Date" });
+	});
+
+	it.each(["'", '"'])("requires & before a %s-quoted executable", (quote) => {
+		for (const executable of [
+			"powershell.exe",
+			"pwsh.exe",
+			"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+		]) {
+			const command = `${quote}${executable}${quote} -NoProfile -Command 'Write-Output 42'`;
+			for (const shell of ["powershell.exe", "pwsh.exe"]) {
+				expect(getShellInvocation(shell, command)).toMatchObject({
+					executable: shell,
+					input: command,
+				});
+				expect(getShellInvocation(shell, ` \t&\t${command}`)).toMatchObject({
+					executable,
+					input: "Write-Output 42",
+				});
+			}
+		}
+	});
+
+	it("accepts bare executable names with or without &", () => {
+		for (const executable of ["powershell.exe", "pwsh.exe"]) {
+			for (const prefix of ["", "& "]) {
+				expect(
+					getShellInvocation(
+						"powershell.exe",
+						`${prefix}${executable} -NoProfile -Command 'Write-Output 42'`,
+					),
+				).toMatchObject({
+					executable,
+					input: "Write-Output 42",
+				});
+			}
+		}
+	});
+
+	it("unwraps recursive double-shells one layer per pass", () => {
+		expect(
+			getShellInvocation(
+				"powershell",
+				'powershell -NoProfile -Command "powershell -NoProfile -Command `"Write-Output $_`""',
+			),
+		).toMatchObject({ executable: "powershell", input: "Write-Output $_" });
+	});
+
+	it("does not join statements separated by bare newlines", () => {
+		for (const shell of ["powershell", "pwsh"]) {
+			for (const newline of ["\n", "\r", "\r\n"]) {
+				const tokens = [shell, "-NoProfile", "-Command", '"Write-Output 42"'];
+				for (let boundary = 1; boundary < tokens.length; boundary++) {
+					const command = `${tokens.slice(0, boundary).join(" ")}${newline}\t${tokens.slice(boundary).join(" ")}`;
+					expect(getShellInvocation(shell, command).input).toBe(command);
+				}
+			}
+		}
+	});
+
+	it("preserves quoted multiline scripts and leaves outer line continuations untouched", () => {
+		for (const shell of ["powershell", "pwsh"]) {
+			for (const newline of ["\n", "\r\n"]) {
+				const script = `Write-Output 'first'${newline}Write-Output 'second'`;
+				expect(
+					getShellInvocation(
+						shell,
+						`\t${shell}\t-NoProfile \t-Command\t"${script}"`,
+					).input,
+				).toBe(script);
+				const continued = `${shell} -NoProfile -Command \`${newline}"Write-Output 'continued'"`;
+				expect(getShellInvocation(shell, continued).input).toBe(continued);
+			}
+		}
+	});
+
+	it("decodes PowerShell escape sequences while unwrapping", () => {
+		// The outer shell's edition decides how a double-quoted body decodes:
+		// `u{…} and `e exist only in PowerShell 7+, and a malformed `u{…} stays
+		// literal. Doubled quotes decode to a single embedded quote.
+		const cases: [shell: string, body: string, script: string][] = [
+			["powershell", '`"`n`$literal`"', 'Write-Output "\n$literal"'],
+			["powershell", '\'say ""hi""\'', "Write-Output 'say \"hi\"'"],
+			["pwsh", "`u{41} `u{1F600}", "Write-Output A 😀"],
+			["powershell", "`u{41}", "Write-Output u{41}"],
+			["pwsh", "`u{zz}", "Write-Output u{zz}"],
+			["pwsh", "`e[31mred`e[0m", "Write-Output \x1b[31mred\x1b[0m"],
+			["powershell", "`e", "Write-Output e"],
+		];
+		for (const [shell, body, script] of cases) {
+			expect(
+				getShellInvocation(
+					shell,
+					`${shell} -NoProfile -Command "Write-Output ${body}"`,
+				).input,
+			).toBe(script);
+		}
+	});
+
+	it("leaves non-rewritable nested invocations byte-identical", () => {
+		const untouched = [
+			// Comments and expressions are not literal executable names.
+			'#/pwsh -NoProfile -Command "Write-Output 42"',
+			'@("pwsh") -NoProfile -Command "Write-Output 42"',
+			'& "$env:ProgramFiles/PowerShell/7/pwsh.exe" -NoProfile -Command "Write-Output 42"',
+			'&\npwsh -NoProfile -Command "Write-Output 42"',
+			"powershell -NoProfile -EncodedCommand VwByAGkAdABlAA==",
+			'powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Date"',
+			// Other flags can change semantics in the nested shell.
+			'powershell -ExecutionPolicy Bypass -Command "Get-Date"',
+			"powershell -File script.ps1",
+			// Abbreviated -Command is ambiguous; only the full name is rewritten.
+			'powershell -c "Get-Date"',
+			// Without -NoProfile the nested shell would load the user's
+			// profile, which the profile-less outer process cannot reproduce.
+			'powershell -Command "Get-Date"',
+			'powershell -NonInteractive -Command "Get-Date"',
+			// Extra statements after the quoted script belong to the outer shell.
+			'powershell -NoProfile -Command "Get-Date"; Write-Output after',
+			// An unquoted tail is already parsed by the outer shell.
+			"powershell -Command Get-Date",
+			// Single-quoted wrappers also need -NoProfile to be rewritten.
+			"powershell -Command 'Get-Date'",
+			// Unterminated or stray quotes make the tail ambiguous.
+			'powershell -Command "Get-Date',
+			'powershell -Command "Get-Date" "other"',
+			// Empty script.
+			'powershell -Command ""',
+			// Plain commands, other executables, and non-PowerShell executables
+			// that merely carry a -Command flag.
+			"Write-Output hello",
+			'cmd /c "echo hello"',
+			'Write-Output -Command "Get-Date"',
+			'notepad -Command "Get-Date"',
+			'"" -Command "Get-Date"',
+		];
+		for (const command of untouched) {
+			for (const shell of ["powershell", "pwsh"]) {
+				expect(getShellInvocation(shell, command)).toMatchObject({
+					executable: shell,
+					input: command,
+				});
+			}
+		}
+	});
+
+	it("unwraps the single-quoted message-box script without changing its quotes or variables", () => {
+		const script =
+			'Add-Type -AssemblyName PresentationFramework; Write-Output ("ready-pid=" + $PID); [void][System.Windows.MessageBox]::Show(("PID: " + $PID), "PowerShell PID"); Start-Sleep -Seconds 30; Write-Output "after"';
+		for (const shell of ["powershell.exe", "pwsh.exe"]) {
+			expect(
+				getShellInvocation(shell, `pwsh.exe -NoProfile -Command '${script}'`),
+			).toMatchObject({
+				executable: "pwsh.exe",
+				input: script,
+			});
+		}
+	});
+
+	it.each([
+		[
+			"doubled apostrophes",
+			"'Write-Output ''it''''s fine'''",
+			"Write-Output 'it''s fine'",
+		],
+		[
+			"literal escapes",
+			"'Write-Output ''$PID `n `e `u{41} C:\\temp \"text\"'''",
+			"Write-Output '$PID `n `e `u{41} C:\\temp \"text\"'",
+		],
+		[
+			"backtick before the closing quote",
+			"'Write-Output value`'",
+			"Write-Output value`",
+		],
+		[
+			"multiline body",
+			"'Write-Output 1\r\nWrite-Output 2' \t\r\n",
+			"Write-Output 1\r\nWrite-Output 2",
+		],
+	])("decodes a single-quoted body with %s", (_name, tail, script) => {
+		for (const shell of ["powershell.exe", "pwsh.exe"]) {
+			expect(
+				getShellInvocation(shell, `powershell.exe -NoProfile -Command ${tail}`),
+			).toMatchObject({
+				executable: "powershell.exe",
+				input: script,
+			});
+		}
+	});
+
+	it.each([
+		"'Write-Output 42",
+		"'Write-Output 42''",
+		"'Write-Output 42' 'extra'",
+		"'Write-Output 42'; Write-Output 7",
+		"'Write-Output 42'\nWrite-Output 7",
+		"'Write-Output 42' | Out-String",
+		"'Write-Output 42' > output.txt",
+		"'Write-Output value`' trailing'",
+		"\n'Write-Output 42'",
+		"''",
+		"@'\nWrite-Output 42\n'@",
+		'@"\nWrite-Output 42\n"@',
+	])("leaves an unsupported or incomplete quoted tail unchanged: %s", (tail) => {
+		const command = `pwsh.exe -NoProfile -Command ${tail}`;
+		for (const shell of ["powershell.exe", "pwsh.exe"]) {
+			expect(getShellInvocation(shell, command)).toMatchObject({
+				executable: shell,
+				input: command,
+			});
+		}
+	});
+
 	it("keeps getShellArgs self-contained for PowerShell callers", () => {
 		expect(getShellArgs("powershell", "Write-Output 'hi'")).toEqual([
 			"-NoProfile",

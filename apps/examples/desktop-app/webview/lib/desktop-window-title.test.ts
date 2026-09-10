@@ -49,7 +49,7 @@ describe("desktop window title", () => {
 	it("titles beta builds with the beta product name", async () => {
 		const { buildDesktopWindowTitle } = await importFresh();
 		expect(buildDesktopWindowTitle("0.0.14-beta.1")).toBe(
-			"Cline Code Beta v0.0.14-beta.1",
+			"Cline Beta v0.0.14-beta.1",
 		);
 	});
 

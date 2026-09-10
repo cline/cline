@@ -4,11 +4,13 @@ import { act, type MouseEvent as ReactMouseEvent } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
+import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
@@ -19,6 +21,7 @@ const {
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
+	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
 	loadProviderModelCatalogMock: vi.fn(),
@@ -27,7 +30,14 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
-	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
+	subscribeToProviderCatalogInvalidationMock: vi.fn<
+		(listener: () => void) => () => void
+	>(() => vi.fn()),
+	subscribeToProviderModelsMock: vi.fn<
+		(
+			listener: (providerId: string, models: ProviderModel[]) => void,
+		) => () => void
+	>(() => vi.fn()),
 }));
 
 type MockSpeechInputProps = {
@@ -72,6 +82,8 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	subscribeToProviderCatalogInvalidation:
+		subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
@@ -87,6 +99,7 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
+		configuredProviderIds: [],
 		enabledProviderIds: ["cline"],
 		providerModels: { cline: ["test-model"] },
 		providerReasoningModels: { cline: [] },
@@ -100,6 +113,9 @@ beforeEach(() => {
 		cancel: vi.fn(),
 	});
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
+	subscribeToProviderCatalogInvalidationMock
+		.mockReset()
+		.mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 	HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -136,6 +152,7 @@ function providerCatalog(
 ) {
 	return {
 		providers: [],
+		configuredProviderIds: [],
 		enabledProviderIds: ["cline"],
 		providerModels: { cline: ["test-model"] },
 		providerReasoningModels: { cline: [] },
@@ -152,25 +169,36 @@ function deferred<T>() {
 }
 
 async function renderVoiceComposer({
+	attachments = [],
+	model = "test-model",
+	hasRunningAgents = false,
+	onAbort = vi.fn(),
 	onPromptInputChange = vi.fn(),
 	onSend = vi.fn(),
 	prompt = "",
 	promptVersion = 0,
+	status = "idle",
 }: {
+	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
+	model?: string;
+	hasRunningAgents?: boolean;
+	onAbort?: ReturnType<typeof vi.fn>;
 	onPromptInputChange?: ReturnType<typeof vi.fn>;
 	onSend?: ReturnType<typeof vi.fn>;
 	prompt?: string;
 	promptVersion?: number;
+	status?: ChatSessionStatus;
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
-					attachments={[]}
+					attachments={attachments}
 					gitBranch="main"
+					hasRunningAgents={hasRunningAgents}
 					mode="act"
-					model="test-model"
-					onAbort={vi.fn()}
+					model={model}
+					onAbort={onAbort}
 					onAttachFiles={vi.fn()}
 					onEditPromptInQueue={vi.fn()}
 					onListGitBranches={vi.fn(async () => ({
@@ -191,7 +219,7 @@ async function renderVoiceComposer({
 					promptsInQueue={[]}
 					provider="cline"
 					reasoningEffort="low"
-					status="idle"
+					status={status}
 					summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
 					thinking
 				/>
@@ -202,6 +230,63 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("blocks sending existing draft images after switching models and preserves the draft", async () => {
+		const onSend = vi.fn();
+		const attachments = [{ id: "image", name: "photo.jfif", isImage: true }];
+		await renderVoiceComposer({ onSend, attachments, prompt: "Describe it" });
+		await renderVoiceComposer({
+			onSend,
+			attachments,
+			prompt: "Describe it",
+			model: "text-only",
+		});
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{ id: "text-only", name: "Text only", inputModalities: ["text"] },
+			]);
+		});
+		expect(container.querySelector("output")?.textContent).toContain(
+			"doesn’t support",
+		);
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+		expect(textarea?.value).toBe("Describe it");
+		await renderVoiceComposer({
+			onSend,
+			attachments: [],
+			prompt: "Describe it",
+			model: "text-only",
+		});
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("Describe it");
+	});
+
+	it("allows a parent session with a running child agent to be stopped", async () => {
+		const onAbort = vi.fn();
+		await renderVoiceComposer({
+			hasRunningAgents: true,
+			onAbort,
+			status: "idle",
+		});
+
+		const stopButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Stop agent"]',
+		);
+		expect(stopButton).not.toBeNull();
+
+		await act(async () => stopButton?.click());
+		expect(onAbort).toHaveBeenCalledOnce();
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
@@ -793,7 +878,7 @@ describe("ChatInputBar", () => {
 			subscribeToProviderModelsMock.mock.calls[0]?.[0];
 		await act(async () => {
 			providerModelsListener?.("cline", [
-				{ id: "refreshed-model", name: "Refreshed model" },
+				{ id: "test-model", name: "Refreshed model" },
 			]);
 		});
 		await vi.waitFor(() => {
@@ -821,7 +906,8 @@ describe("ChatInputBar", () => {
 		expect(
 			container.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
 		).toHaveLength(2);
-		expect(container.textContent).toContain("refreshed-model");
+		// The picker labels models by display name, not raw id.
+		expect(container.textContent).toContain("Refreshed model");
 		await act(async () =>
 			container
 				.querySelector<HTMLButtonElement>('[aria-label="Close model selector"]')
@@ -902,19 +988,17 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.parentElement?.className).toContain("items-start");
 		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
-		expect(promptInput?.parentElement?.contains(speechTrigger)).toBe(true);
+		// The mic button is hidden for now (SHOW_VOICE_INPUT_BUTTON).
+		expect(speechTrigger).toBeNull();
 		expect(sendTrigger?.parentElement?.className).toContain("self-end");
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
-		expect(rightControls?.contains(speechTrigger ?? null)).toBe(false);
-		expect(speechTrigger?.parentElement?.nextElementSibling).toBe(sendTrigger);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
-		await act(async () => speechTrigger?.click());
-		expect(onOpenVoiceInputSettings).toHaveBeenCalledOnce();
 	});
 
 	it("selects High from the supported model thinking menu", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
+			configuredProviderIds: [],
 			enabledProviderIds: ["cline"],
 			providerModels: { cline: ["test-model"] },
 			providerReasoningModels: { cline: ["test-model"] },
@@ -1243,6 +1327,7 @@ describe("ChatInputBar", () => {
 		);
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
+			configuredProviderIds: [],
 			enabledProviderIds: ["openrouter"],
 			providerModels: {
 				openrouter: ["old-session-model", "user-picked-model"],
@@ -1339,7 +1424,596 @@ describe("ChatInputBar", () => {
 		window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
 	});
 
-	it("attaches clipboard images on paste instead of inserting text", async () => {
+	it("renders the cline model picker with recommended and free sections", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			configuredProviderIds: [],
+			enabledProviderIds: ["cline"],
+			providerModels: {
+				cline: [
+					"anthropic/claude-opus-5",
+					"deepseek/deepseek-v4-flash",
+					"zzz/other-model",
+				],
+			},
+			// Tier data arrives on the models themselves, stamped by the SDK.
+			providerModelDetails: {
+				cline: [
+					{
+						id: "anthropic/claude-opus-5",
+						name: "Claude Opus 5",
+						description: "Most intelligent model",
+						featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+					},
+					{
+						id: "deepseek/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+						description: "Fast and efficient",
+						featured: { tier: "free", rank: 0, tags: [] },
+					},
+					{ id: "zzz/other-model", name: "Other Model" },
+				],
+			},
+			providerNames: { cline: "Cline" },
+			providerReasoningModels: { cline: [] },
+		});
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="anthropic/claude-opus-5"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		// The provider trigger uses the catalog display name, the model
+		// trigger the model's display name.
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await vi.waitFor(() => {
+			expect(providerTrigger?.textContent).toContain("Cline");
+		});
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
+		);
+		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+
+		await act(async () => modelTrigger?.click());
+		const panel = document.querySelector('[role="dialog"]');
+		expect(panel?.textContent).toContain("Recommended");
+		expect(panel?.textContent).toContain("Free");
+		expect(panel?.textContent).toContain("All models");
+		expect(panel?.textContent).toContain("Most intelligent model");
+		expect(
+			panel?.querySelector(".cline-ui-search-combobox__badge")?.textContent,
+		).toBe("NEW");
+		// Featured entries lead; the rest of the catalog follows.
+		const optionLabels = [
+			...(panel?.querySelectorAll('[role="option"]') ?? []),
+		].map((option) => option.textContent);
+		expect(optionLabels[0]).toContain("Claude Opus 5");
+		expect(optionLabels[1]).toContain("DeepSeek V4 Flash");
+		expect(optionLabels[2]).toContain("Other Model");
+	});
+
+	it("marks configured providers in the picker and refreshes on catalog invalidation", async () => {
+		const catalog = {
+			providers: [],
+			configuredProviderIds: ["anthropic"],
+			enabledProviderIds: ["cline", "anthropic"],
+			providerModels: { cline: ["test-model"], anthropic: ["claude"] },
+			providerNames: { cline: "Cline", anthropic: "Anthropic" },
+			providerReasoningModels: {},
+		};
+		loadProviderModelCatalogMock.mockResolvedValue(catalog);
+		let invalidate!: () => void;
+		subscribeToProviderCatalogInvalidationMock.mockImplementation(
+			(listener) => {
+				invalidate = listener;
+				return vi.fn();
+			},
+		);
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await vi.waitFor(() => {
+			expect(providerTrigger?.textContent).toContain("Cline");
+		});
+		// The trigger never carries the status; only list rows do.
+		expect(providerTrigger?.querySelector('[aria-label="Configured"]')).toBe(
+			null,
+		);
+		const configuredRows = () =>
+			[...document.querySelectorAll('[role="option"]')]
+				.filter((option) => option.querySelector('[aria-label="Configured"]'))
+				.map((option) => option.textContent);
+
+		await act(async () => providerTrigger?.click());
+		expect(configuredRows()).toEqual(["Anthropic"]);
+
+		// Credentials saved in settings invalidate the shared catalog; the open
+		// picker must reflect the new readiness without a remount.
+		loadProviderModelCatalogMock.mockResolvedValue({
+			...catalog,
+			configuredProviderIds: ["cline", "anthropic"],
+		});
+		await act(async () => invalidate());
+		await vi.waitFor(() => {
+			expect(configuredRows()).toEqual(["Cline", "Anthropic"]);
+		});
+	});
+
+	describe("cline-pass picker offer", () => {
+		const renderComposer = async (props: {
+			model: string;
+			provider: string;
+			onModelChange?: ReturnType<typeof vi.fn>;
+			onProviderChange?: ReturnType<typeof vi.fn>;
+		}) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider value={workspaceValue}>
+						<ChatInputBar
+							attachments={[]}
+							gitBranch="main"
+							mode="act"
+							model={props.model}
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={props.onModelChange ?? vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={props.onProviderChange ?? vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider={props.provider}
+							reasoningEffort="low"
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking={false}
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+			await vi.waitFor(() => {
+				expect(loadProviderModelCatalogMock).toHaveBeenCalled();
+			});
+		};
+
+		beforeEach(() => {
+			// The ClinePass offer: one subscribed and one free model, stamped
+			// by the SDK onto ProviderModel.featured. The catalog additionally
+			// contains a stale unstamped model outside the offer, which the
+			// picker hides while the subscribed tier is non-empty.
+			loadProviderModelCatalogMock.mockResolvedValue({
+				providers: [],
+				configuredProviderIds: [],
+				enabledProviderIds: ["cline", "cline-pass"],
+				providerModels: {
+					cline: ["test-model"],
+					"cline-pass": [
+						"openai/gpt-5",
+						"google/gemini-flash",
+						"legacy/stale-model",
+					],
+				},
+				providerModelDetails: {
+					"cline-pass": [
+						{
+							id: "openai/gpt-5",
+							name: "GPT-5",
+							featured: { tier: "subscribed", rank: 0, tags: [] },
+						},
+						{
+							id: "google/gemini-flash",
+							name: "Gemini Flash",
+							featured: { tier: "free", rank: 0, tags: [] },
+						},
+						{ id: "legacy/stale-model", name: "Stale Legacy" },
+					],
+				},
+				providerNames: { cline: "Cline", "cline-pass": "ClinePass" },
+				providerReasoningModels: { cline: [], "cline-pass": [] },
+			});
+		});
+
+		afterEach(() => {
+			window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
+		});
+
+		const kimi: ProviderModel = {
+			id: "cline-pass/kimi-k3",
+			name: "Kimi K3",
+			featured: { tier: "subscribed", rank: 0, tags: [] },
+		};
+		const flash: ProviderModel = {
+			id: "deepseek/deepseek-v4-flash",
+			name: "DeepSeek V4 Flash",
+			featured: { tier: "free", rank: 0, tags: [] },
+		};
+
+		function mockBundledCatalog() {
+			loadProviderModelCatalogMock.mockResolvedValue({
+				providers: [],
+				configuredProviderIds: [],
+				enabledProviderIds: ["cline", "cline-pass"],
+				providerModels: {
+					cline: ["test-model"],
+					"cline-pass": [flash.id],
+				},
+				providerModelDetails: { "cline-pass": [flash] },
+				providerNames: { cline: "Cline", "cline-pass": "ClinePass" },
+				providerReasoningModels: { cline: [], "cline-pass": [] },
+			});
+		}
+
+		it.each([
+			"success",
+			"failure",
+		])("preserves the saved model through a delayed live catalog %s", async (outcome) => {
+			mockBundledCatalog();
+			const selection = {
+				lastProvider: "cline-pass",
+				lastModelByProvider: { "cline-pass": kimi.id },
+			};
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify(selection),
+			);
+			let resolveModels!: (models: ProviderModel[]) => void;
+			let rejectModels!: (error: Error) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve, reject) => {
+					resolveModels = resolve;
+					rejectModels = reject;
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: kimi.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			expect(loadProviderModelsMock).toHaveBeenCalledWith("cline-pass");
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(kimi.id);
+
+			await act(async () => {
+				if (outcome === "success") resolveModels([flash, kimi]);
+				else rejectModels(new Error("offline"));
+			});
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(outcome === "success" ? kimi.name : kimi.id);
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				),
+			).toEqual(selection);
+		});
+
+		it.each([
+			"catalog refresh",
+			"new chat",
+		])("preserves an explicit pick through a %s with an incomplete catalog", async (transition) => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			let publishModels!: (providerId: string, models: ProviderModel[]) => void;
+			subscribeToProviderModelsMock.mockImplementation((listener) => {
+				publishModels = listener;
+				return vi.fn();
+			});
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: flash.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label^="Model:"]')
+					?.click(),
+			);
+			const option = [
+				...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((entry) => entry.textContent?.includes(kimi.name));
+			expect(option).toBeTruthy();
+			await act(async () => option?.click());
+			expect(onModelChange).toHaveBeenCalledWith(kimi.id);
+			await renderComposer({
+				model: kimi.id,
+				provider: "cline-pass",
+				onModelChange,
+			});
+			onModelChange.mockClear();
+			if (transition === "new chat") {
+				// New chat remounts the pane and seeds its config from storage.
+				// The app stays open, but this picker has to load live models again.
+				await act(async () => root.unmount());
+				root = createRoot(container);
+				const initial = getInitialChatConfig();
+				expect(initial).toMatchObject({
+					provider: "cline-pass",
+					model: kimi.id,
+				});
+				let resolveModels!: (models: ProviderModel[]) => void;
+				loadProviderModelsMock.mockReturnValue(
+					new Promise<ProviderModel[]>((resolve) => {
+						resolveModels = resolve;
+					}),
+				);
+				await renderComposer({
+					model: initial.model,
+					provider: initial.provider,
+					onModelChange,
+				});
+				expect(onModelChange).not.toHaveBeenCalled();
+				expect(
+					container.querySelector('[aria-label^="Model:"]')?.textContent,
+				).toContain(kimi.id);
+				await act(async () => resolveModels([flash, kimi]));
+			} else {
+				await act(async () => publishModels("cline-pass", [flash]));
+			}
+			expect(onModelChange).not.toHaveBeenCalled();
+			expect(
+				container.querySelector('[aria-label^="Model:"]')?.textContent,
+			).toContain(transition === "new chat" ? kimi.name : kimi.id);
+		});
+
+		it("restores a remembered live model when switching back before live models load", async () => {
+			mockBundledCatalog();
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: { cline: "test-model", "cline-pass": kimi.id },
+				}),
+			);
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			await renderComposer({
+				model: "test-model",
+				provider: "cline",
+				onModelChange,
+				onProviderChange,
+			});
+			await act(async () =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label^="Provider:"]')
+					?.click(),
+			);
+			const option = [
+				...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+			].find((entry) => entry.textContent?.includes("ClinePass"));
+			expect(option).toBeTruthy();
+			await act(async () => option?.click());
+			expect(onProviderChange).toHaveBeenCalledWith("cline-pass");
+			expect(onModelChange).toHaveBeenCalledWith(kimi.id);
+			expect(onModelChange).not.toHaveBeenCalledWith(flash.id);
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				).lastModelByProvider["cline-pass"],
+			).toBe(kimi.id);
+		});
+
+		it("does not resurrect a stale remembered model the picker hides", async () => {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline-pass",
+					lastModelByProvider: { "cline-pass": "legacy/stale-model" },
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "",
+				onModelChange,
+				provider: "cline-pass",
+			});
+
+			// The default selection must come from the visible offer, not the
+			// hidden remembered id.
+			await vi.waitFor(() => {
+				expect(onModelChange).toHaveBeenCalledWith("openai/gpt-5");
+			});
+			expect(onModelChange).not.toHaveBeenCalledWith("legacy/stale-model");
+
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await act(async () => modelTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			expect(panel?.textContent).not.toContain("Stale Legacy");
+			expect(panel?.textContent).not.toContain("Current model");
+		});
+
+		it("does not apply another provider's remembered model to an empty selection", async () => {
+			mockBundledCatalog();
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: { cline: "test-model" },
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "",
+				provider: "cline-pass",
+				onModelChange,
+			});
+			expect(onModelChange).toHaveBeenCalledWith(flash.id);
+			expect(onModelChange).not.toHaveBeenCalledWith("test-model");
+		});
+
+		it("keeps an explicitly active out-of-offer model visible and selectable", async () => {
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "legacy/stale-model",
+				onModelChange,
+				provider: "cline-pass",
+			});
+
+			// The session's configured model stays active…
+			expect(onModelChange).not.toHaveBeenCalled();
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain("Stale Legacy");
+			});
+
+			// …and the picker surfaces it under its own section instead of
+			// selecting a value that does not exist in the list.
+			await act(async () => modelTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			expect(panel?.textContent).toContain("Current model");
+			const staleOption = [
+				...(panel?.querySelectorAll<HTMLButtonElement>('[role="option"]') ??
+					[]),
+			].find((option) => option.textContent?.includes("Stale Legacy"));
+			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
+		});
+
+		it("falls back to a visible model when switching providers with a hidden remembered model", async () => {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: {
+						cline: "test-model",
+						"cline-pass": "legacy/stale-model",
+					},
+				}),
+			);
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			await renderComposer({
+				model: "test-model",
+				onModelChange,
+				onProviderChange,
+				provider: "cline",
+			});
+
+			const providerTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Provider:"]',
+			);
+			await act(async () => providerTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			const clinePassOption = [
+				...(panel?.querySelectorAll<HTMLButtonElement>('[role="option"]') ??
+					[]),
+			].find((option) => option.textContent?.includes("ClinePass"));
+			await act(async () => clinePassOption?.click());
+
+			expect(onProviderChange).toHaveBeenCalledWith("cline-pass");
+			// The hidden remembered model is not restored; the selection falls
+			// back to the offer and the remembered slot is repaired.
+			expect(onModelChange).toHaveBeenCalledWith("openai/gpt-5");
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				),
+			).toEqual({
+				lastProvider: "cline-pass",
+				lastModelByProvider: {
+					cline: "test-model",
+					"cline-pass": "openai/gpt-5",
+				},
+			});
+		});
+	});
+
+	it.each([
+		true,
+		false,
+		undefined,
+	])("handles clipboard and file images with image support %s", async (supportsImages) => {
 		const onAttachFiles = vi.fn();
 		const onPromptInputChange = vi.fn();
 		await act(async () => {
@@ -1407,22 +2081,70 @@ describe("ChatInputBar", () => {
 			return event;
 		};
 
+		await act(async () => {
+			subscribeToProviderModelsMock.mock.calls.at(-1)?.[0]("cline", [
+				{
+					id: "test-model",
+					name: "Test model",
+					inputModalities:
+						supportsImages === undefined
+							? undefined
+							: supportsImages
+								? ["text", "image"]
+								: ["text"],
+				},
+			]);
+		});
+		expect(container.querySelector('[aria-label="Attach images"]')).toBeNull();
+		expect(
+			container.querySelector<HTMLButtonElement>('[aria-label="Attach files"]')
+				?.disabled,
+		).toBe(false);
+
 		const png = new File(["fake"], "image.png", { type: "image/png" });
 		const imagePaste = await pasteWithClipboard([
 			{ kind: "file", type: "image/png", getAsFile: () => png },
 		]);
-		expect(onAttachFiles).toHaveBeenCalledTimes(1);
-		const attached = onAttachFiles.mock.calls[0][0] as File[];
-		expect(attached).toHaveLength(1);
-		expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		expect(onAttachFiles).toHaveBeenCalledTimes(
+			supportsImages === false ? 0 : 1,
+		);
+		if (supportsImages !== false) {
+			const attached = onAttachFiles.mock.calls[0][0] as File[];
+			expect(attached).toHaveLength(1);
+			expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		}
 		expect(imagePaste.defaultPrevented).toBe(true);
 
 		// Plain-text pastes stay untouched so normal text pasting keeps working.
 		const textPaste = await pasteWithClipboard([
 			{ kind: "string", type: "text/plain", getAsFile: () => null },
 		]);
-		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		expect(onAttachFiles).toHaveBeenCalledTimes(
+			supportsImages === false ? 0 : 1,
+		);
 		expect(textPaste.defaultPrevented).toBe(false);
+
+		onAttachFiles.mockClear();
+		const textFile = new File(["hello"], "notes.txt", { type: "text/plain" });
+		const imageWithoutMime = new File(["fake"], "photo.JFIF");
+		const genericImage = new File(["fake"], "photo.jpe", {
+			type: "application/octet-stream",
+		});
+		const fileInput = container.querySelector<HTMLInputElement>(
+			'input[type="file"][accept="*/*"]',
+		);
+		if (!fileInput) throw new Error("File input missing");
+		Object.defineProperty(fileInput, "files", {
+			value: [png, textFile, imageWithoutMime, genericImage],
+		});
+		await act(async () => {
+			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+		});
+		expect(onAttachFiles).toHaveBeenCalledWith(
+			supportsImages === false
+				? [textFile]
+				: [png, textFile, imageWithoutMime, genericImage],
+		);
 	});
 });
 

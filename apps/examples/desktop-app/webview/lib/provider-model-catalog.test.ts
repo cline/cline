@@ -237,6 +237,10 @@ describe("transcription model selection", () => {
 
 		const catalog = buildProviderModelCatalog([provider]);
 		expect(catalog.providerModels.openai).toEqual(["gpt-audio", "gpt-text"]);
+		expect(catalog.providerModelDetails.openai).toEqual(
+			provider.modelList?.slice(1),
+		);
+		expect(catalog.providerNames.openai).toBe("OpenAI");
 		expect(
 			filterChatModels(provider.modelList).map((model) => model.id),
 		).toEqual(["gpt-audio", "gpt-text"]);
@@ -284,5 +288,36 @@ describe("transcription model selection", () => {
 				modelId: "openai/gpt-realtime-whisper",
 			}),
 		).toMatchObject({ supportsStreaming: true });
+	});
+
+	it("separates enabled providers from ones with usable credentials", () => {
+		const chatModel = {
+			id: "model",
+			name: "Model",
+			inputModalities: ["text"],
+			outputModalities: ["text"],
+		};
+		const base = { models: 1, color: "#000000", letter: "P" };
+		const catalog = buildProviderModelCatalog([
+			{
+				...base,
+				id: "anthropic",
+				name: "Anthropic",
+				enabled: true,
+				apiKey: "sk-123",
+				modelList: [chatModel],
+			},
+			{
+				...base,
+				id: "openai",
+				name: "OpenAI",
+				enabled: true,
+				configured: false,
+				modelList: [chatModel],
+			},
+		]);
+
+		expect(catalog.enabledProviderIds).toEqual(["anthropic", "openai"]);
+		expect(catalog.configuredProviderIds).toEqual(["anthropic"]);
 	});
 });

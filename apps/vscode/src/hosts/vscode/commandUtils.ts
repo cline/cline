@@ -45,6 +45,23 @@ export async function findMatchingNotebookCell(filePath: string, notebookCell?: 
 }
 
 /**
+ * Returns the editor selection, expanded to the surrounding lines when it is empty.
+ * Used by commands invoked without an explicit range (e.g. code actions triggered
+ * from the lightbulb with just a cursor position).
+ */
+function getSelectionOrExpandedCursorRange(editor: vscode.TextEditor): vscode.Range {
+	const CONTEXT_LINES_TO_EXPAND = 3
+	const selection = editor.selection
+	if (!selection.isEmpty) {
+		return selection
+	}
+	const lastLine = editor.document.lineCount - 1
+	const startLine = Math.max(0, selection.start.line - CONTEXT_LINES_TO_EXPAND)
+	const endLine = Math.min(lastLine, selection.end.line + CONTEXT_LINES_TO_EXPAND)
+	return new vscode.Range(startLine, 0, endLine, editor.document.lineAt(endLine).text.length)
+}
+
+/**
  * Gets the context needed for VSCode commands that interact with the editor
  * @param range Optional range to use instead of current selection
  * @param vscodeDiagnostics Optional diagnostics to include
@@ -84,12 +101,20 @@ export async function getContextForCommand(
 	}
 	// Use provided range if available, otherwise use current selection
 	// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
-	const textRange = range instanceof vscode.Range ? range : editor.selection
+	const intentRange = range instanceof vscode.Range ? range : editor.selection
+	const textRange = range instanceof vscode.Range ? range : getSelectionOrExpandedCursorRange(editor)
 	const selectedText = editor.document.getText(textRange)
 
 	const filePath = editor.document.uri.fsPath
 	const language = editor.document.languageId
-	const diagnostics = convertVscodeDiagnostics(vscodeDiagnostics || [])
+	// When diagnostics aren't passed explicitly (e.g. code actions, which must not carry
+	// command arguments), gather the document's diagnostics at the selection/cursor. This
+	// matches CodeActionContext.diagnostics, which only covers the range the code action
+	// was requested for, not the surrounding lines the text is expanded to.
+	const effectiveDiagnostics =
+		vscodeDiagnostics ??
+		vscode.languages.getDiagnostics(editor.document.uri).filter((d) => d.range.intersection(intentRange) !== undefined)
+	const diagnostics = convertVscodeDiagnostics(effectiveDiagnostics)
 	const commandContext: CommandContext = {
 		selectedText,
 		filePath,

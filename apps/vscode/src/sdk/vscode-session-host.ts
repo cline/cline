@@ -32,7 +32,13 @@ import {
 	type StartSessionResult,
 	type ToolExecutors,
 } from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import {
+	type AgentToolContext,
+	RUNTIME_CONFIG_EXTENSION_KINDS,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolPolicy,
+} from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -154,6 +160,16 @@ export class VscodeSessionHost implements SdkSessionHost {
 			return {
 				...inputWithRemoteConfig,
 				source: inputWithRemoteConfig.source ?? "vscode",
+				// The extension runs file hooks through its own hooks adapter
+				// (status chips, hooksEnabled setting, HookFactory discovery).
+				// Exclude the SDK core's file-hook extension or every hook
+				// would execute twice per event.
+				localRuntime: {
+					...(inputWithRemoteConfig.localRuntime ?? {}),
+					configExtensions: (
+						inputWithRemoteConfig.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
+					).filter((kind) => kind !== "hooks"),
+				},
 				config: {
 					...inputWithRemoteConfig.config,
 					telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,

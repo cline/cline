@@ -9,6 +9,7 @@
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
 import {
+	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
 	type CoreSessionConfig,
 	getProviderAuthHandler,
@@ -25,7 +26,7 @@ import {
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
-import { buildClineSystemPrompt } from "@cline/shared"
+import { buildClineSystemPrompt, isClineProvider } from "@cline/shared"
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -258,13 +259,21 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	setCapability("prompt-cache", modelInfo.supportsPromptCache)
 	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
 	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
-	if (preservedCapabilities === undefined) {
+	if (preservedCapabilities === undefined || preservedCapabilities.length === 0) {
 		// No authoritative SDK list survived to here (dynamic-list snapshot,
 		// fallback metadata, or a custom model). The array we are rebuilding
 		// from booleans must still carry a definitive tool-calling signal,
 		// because a non-empty capabilities array without "tools" reads as
 		// "cannot call tools" to the SDK runtime. Legacy metadata only models
 		// tool support for OpenAI-compatible entries via `supportsTools`.
+		//
+		// An EMPTY array is the same "no signal" state as an absent one —
+		// modelHasCapability treats both as unspecified — and configs carried
+		// over from before the field existed (or round-tripped through a
+		// boundary that defaults it to []) land exactly here. Guarding only
+		// `undefined` let those custom models keep a non-empty, tool-less
+		// array once any boolean projection (e.g. reasoning) populated it,
+		// silently disabling tool calling at the runtime gate (#13463).
 		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
 		setCapability("tools", supportsTools !== false)
 	}
@@ -893,10 +902,17 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			? (resolveOcaReasoningConfig(mode, apiConfig) ?? resolveProviderReasoningConfig(providerId))
 			: resolveProviderReasoningConfig(providerId)
 
-	// Build the system prompt using the shared prompt builder. Core still
-	// expects callers to provide a concrete systemPrompt, but the prompt builder
-	// can derive baseline workspace context from the root path and workspace
-	// name, so we avoid duplicating core's richer workspace metadata pass here.
+	// Include rich workspace metadata so Cline API observability can extract
+	// git remotes and the latest commit hash from the system message.
+	let workspaceMetadata: string | undefined
+	if (isClineProvider(providerId)) {
+		try {
+			workspaceMetadata = await buildWorkspaceMetadata(workspaceRoot)
+		} catch (error) {
+			Logger.warn("[SessionFactory] Failed to build workspace metadata:", error)
+		}
+	}
+
 	let systemPrompt = ""
 	try {
 		const workspaceName = resolveWorkspaceName(cwd)
@@ -904,6 +920,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			ide: "VS Code",
 			workspaceRoot,
 			workspaceName,
+			metadata: workspaceMetadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,

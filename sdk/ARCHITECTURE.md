@@ -130,12 +130,16 @@ Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
 moment a successful `submit_and_exit` (the SDK analog of original
-Cline's `attempt_completion`) is observed. `shutdownSession(...)`
-retains a fallback emission for completed sessions that finished
-without an explicit completion-tool observation, so non-interactive
-runs not using the yolo preset still produce a `task.completed` signal.
-Each session emits at most one `task.completed`. See `DOC.md` for the
-event payload and `source` field.
+Cline's `attempt_completion`) is observed. A single teardown choke
+point (`emitTaskCompletedOnTeardown(...)`) retains a fallback emission
+for sessions whose final turn finished cleanly without an explicit
+completion-tool observation (non-interactive runs not using the yolo
+preset, or hosts that disable `submit_and_exit`). It is invoked from
+every session exit path — both `shutdownSession(...)` and
+`releaseSessionRuntime(...)` — so the emission never depends on which
+teardown branch a stop routes through. Each session emits at most one
+`task.completed`. See `DOC.md` for the event payload and `source`
+field.
 
 ### Hub-Backed Runtime
 
@@ -148,6 +152,19 @@ event payload and `source` field.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+Session status is reported, never fabricated. A session's initial status
+reflects whether a turn actually runs inside `start(...)`: prompt-bearing
+starts (one-shot or interactive) begin `running`, interactive starts without a
+prompt begin `idle` until their first turn, and resumed sessions report their
+persisted status. Each turn owns its `running` → `idle` transition. On the
+client side, `HubRuntimeHost` projects a status event only when the hub
+session record or the session snapshot actually carries one; snapshot-only
+`session.updated` events (asynchronous persistence updates, which can trail a
+turn's final idle update) report the snapshot's real status. Hosts that gate
+workspace-wide operations on busy sessions (for example the desktop's
+checkpoint-restore gate) depend on this: a defaulted `running` with no owning
+turn leaves such gates blocked with nothing to clear them.
 
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through
@@ -249,6 +266,16 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+Session history listing filters child rows at the persistence layer. Subagent
+and team-task sessions are stored in the same table as the roots that spawned
+them and always sort newer, so `listSessionHistory` asks the runtime host for
+`rootOnly` rows. `LocalRuntimeHost` passes the option to the session backend,
+which applies it in the query before the limit; `HubRuntimeHost` sends it as
+`session.list { limit, rootOnly }` and the hub handler forwards it to its
+session host. Omitting the flag returns every row, which is what callers that
+render subagent trees rely on. History keeps a client-side root filter with a
+widening scan only as a fallback for older hubs that ignore the flag.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat
@@ -276,6 +303,14 @@ the `Sec-WebSocket-Protocol` header and shutdown requests use an
 `Authorization: Bearer` header. Unauthenticated local processes can still probe
 public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
+
+Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
+headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every
+new socket, including reconnects, so hosts can refresh short-lived credentials.
+Header authentication is mutually exclusive with the local hub-token subprotocol;
+the proxy is responsible for authenticating the client and adding any private
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -386,6 +421,15 @@ Design implication:
   model switching are also service-style capabilities exposed through
   `ClineCore` when the concrete transport implements them. These service APIs
   are intentionally outside the minimal `RuntimeHost` primitive vocabulary.
+- `session.abort` remains the cancellation boundary for a root session in both
+  local and hub-backed execution. The owning `LocalRuntimeHost` aborts the lead
+  agent and asks only that session's team runtime to cancel active synchronous
+  teammate work plus running or queued async runs. Teammate definitions and
+	conversation state remain available for later turns; idle and unrelated team
+	runtimes are not stopped. One-off `spawn_agent` delegations observe the parent
+	turn's abort signal through their `SessionRuntime`. The team runtime marks
+	intentional abort task-end events as cancelled so persistence does not record
+	them as failures.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks
@@ -473,6 +517,7 @@ Design implications:
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
+- a session imported from another coding agent (`metadata.importedFrom`) that is resumed without compaction state summarizes its whole foreign transcript on the first turn, regardless of the auto-compaction setting; the summary persists as normal compaction state, so the model never replays the source agent's tool calls while the canonical transcript stays intact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 
@@ -533,6 +578,128 @@ Lower layers should not depend on optional feature packages.
 
 For remote config, that means shared owns the reusable bundle/materialization/blob primitives and core owns only the session-oriented wrapper exported to apps.
 
+## Hub-Owned Agenda Task Queue
+
+Agenda tasks are durable proposals for future work. They are intentionally
+separate from cron specs, queued prompts inside an existing session, and the
+agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
+and `AgendaTaskRunRecord`; orchestration and persistence remain in
+`@cline/core`.
+
+> **Status:** the agent-facing `kind: "todo"` half of the `tasks` tool and the
+> desktop Agenda UI are temporarily disabled while the Agenda UX is reworked
+> (`AGENDA_TODO_TOOL_ENABLED` in `hub-server-transport.ts` and
+> `AGENDA_UI_ENABLED` in the desktop webview). While the flag is off the Hub
+> also skips the agenda spec-file watchers — nothing consumes watcher-driven
+> task events, and `task.*` commands reconcile spec files on demand. The
+> backend described below — the manager, storage, `task.*` Hub commands, and
+> desktop plumbing — stays fully wired, and the schedule kind remains active.
+
+### Authority and persistence
+
+- A Hub process owns one Agenda task manager. Its
+  `AgendaTaskManagerApi` boundary is the only place allowed to change task
+  lifecycle, approval, run, or session-link state. Hub commands, file import,
+  and the agent tool all route mutations through that boundary.
+- User-editable intent is represented as Markdown with YAML frontmatter in
+  `~/.cline/tasks/*.task.md` for global tasks and
+  `<workspace>/.cline/tasks/*.task.md` for workspace tasks. Operational fields
+  such as status, revision, approval, and session IDs are not writable in a
+  spec. `AgendaTaskSpecFileStore` confines paths to the selected task directory
+  and writes specs atomically.
+- `SqliteAgendaTaskStore` owns `tasks.db` (resolved by
+  `resolveTasksDbPath()`). SQLite is the operational source of truth for task
+  status, revisions, run attempts, session links, and the automation policy;
+  the Markdown file is the canonical editable task description, not an
+  append-only queue or a substitute for concurrency control.
+- Task-file parsing and reconciliation must feed the manager instead of
+  writing SQLite directly. This preserves one validation and audit boundary
+  whether a change came from an editor, desktop client, SDK client, or agent.
+- Manager startup scans global task specs, recovers persisted task/run state,
+  and reattaches every known workspace whose directory still exists. Missing
+  historical workspaces are preserved in SQLite without recreating project
+  directories. Selecting/listing a workspace registers it so even its first
+  hand-authored task file is discovered and watched. Filesystem changes are
+  reconciled back through the same manager rather than applied from watcher
+  callbacks.
+- Raw-file creation and edits are attributed to `system:file_reconciler` and
+  always leave changed intent awaiting manual task approval. File edits never
+  reopen completed, cancelled, or expired tasks; terminal records remain
+  terminal and retain their last-known-good operational state.
+
+### Approval and session execution
+
+- Every new task starts at `pending_approval`. Approval is bound to the exact
+  task `revision` through `approvedRevision`; an execution-relevant edit
+  increments the revision and revokes stale approval. An approved revision is
+  therefore immutable at the point it is claimed for execution.
+- Approval and execution synchronously reconcile the backing Markdown file to
+  close the watcher debounce window. Both fail closed if that canonical spec
+  is missing, malformed, or does not semantically match the SQLite revision;
+  stale last-known-good intent is never approved or executed.
+- Hub `task.create` and `task.update` payloads omit actor fields; the command
+  service derives the user actor from the calling Hub client. Update,
+  approval, cancellation, and run requests carry the caller's displayed
+  `expectedRevision`; specifically, `task.approve`, `task.cancel`, and
+  `task.run` reject a missing or stale revision.
+- P0 is the most urgent priority and P5 is the least urgent. `expiresAt` is a
+  required latest-start boundary: expiry prevents a new run but does not abort
+  a session that already started.
+- Starting a task creates an `AgendaTaskRunRecord` and a normal Hub session.
+  The run owns the task/revision/session association, while the task keeps
+  `currentRunId`, `lastRunId`, and `lastSessionId` projections for UI lookup.
+  A global task remains globally scoped and resolves the Hub's shared chat
+  workspace only when its session starts.
+- The manager correlates Hub session completion, failure, and cancellation
+  with the linked run and updates both run and task. Startup recovery follows
+  the same boundary rather than manufacturing a second run. A completed task
+  does not own or delete its session; the linked session remains normal
+  session history that a user can reopen.
+
+### Hub, agent, and desktop surfaces
+
+- The Hub command family is `task.create`, `task.list`, `task.get`,
+  `task.update`, `task.approve`, `task.cancel`, `task.run`,
+  `task.automation.get`, and `task.automation.set`. Registered task events are
+  `task.created`, `task.updated`, `task.deleted`, `task.run.started`,
+  `task.run.completed`, `task.run.failed`, and `task.automation.updated`.
+  Events are invalidation and lifecycle signals; clients re-read the current
+  task or policy projection rather than rebuilding authority state from the
+  event stream.
+- Hub-hosted agent sessions receive one snake-case `tasks` tool with a required
+  `kind` discriminator. `kind: "todo"` creates, updates, lists, and gets durable
+  Agenda items within the current session's workspace (or the global scope for
+  chat sessions). It cannot approve, cancel, or start a Todo, so an agent cannot
+  self-authorize or terminate queue work.
+- `kind: "scheduled"` routes to `HubScheduleService` and manages the same
+  records shown by the desktop Routine view; the unified tool does not merge
+  the two persistence or lifecycle domains. Scheduled operations inherit the
+  current session workspace, cwd, and model, filter reads and mutations to that
+  workspace, and allow mutations only from an interactive session. One-time
+  schedules accept an exact future ISO timestamp; recurring schedules accept a
+  five-field cron expression and optional IANA timezone.
+- The Hub contributes one tool-conditional system-prompt rule for `tasks`. It
+  distinguishes reviewed Todo work from autonomous scheduled execution, states
+  that Todo `available_at` is not a timer, requires clarification for ambiguous
+  “remind me” requests, and prevents creating both record kinds unless the user
+  explicitly requests both.
+- `AgendaAutomationPolicy` is user-owned Hub state. `manual` preserves the
+  per-task review gate; `auto_start` and `unattended` are explicit opt-ins. The
+  manager's automation pump enforces the policy's concurrency, chain-depth,
+  and hourly-start guardrails. `auto_start` waits for a connected client with
+  the tool-approval capability and starts an interactive task session that
+  conservatively requires approval for each tool. Explicit `unattended` mode
+  may run headlessly and auto-approves enabled tools.
+- Automation never infers user consent from a raw task-file change. For
+  manager-backed intent, `applyToAgentCreated` governs tasks originally
+  created by an agent and tasks whose latest manager-backed edit came from an
+  agent; disabling it leaves those revisions pending manual approval.
+- Cline Code projects the same Hub state into an Agenda section in the desktop
+  sidebar and workspace-filtered `suggestion`/`reminder` quick actions below
+  the welcome composer. The sidebar supports review, start, cancellation,
+  linked-session navigation, and the automation toggle; it does not maintain a
+  second task store.
+
 ## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
 
 `@cline/core` ships a file-based automation subsystem under
@@ -579,6 +746,14 @@ orchestrator used by core and hub layers.
    declare `automationEvents` and submit normalized events through
    `ctx.automation.ingestEvent(...)`; sandboxed plugins forward those events
    through the core plugin event bridge.
+   Acceptance is one synchronous SQLite write transaction: the event log,
+   matching runs, debounce changes, materialization pointers, and final
+   processing status commit together. A failure rolls all of them back and
+   propagates to the caller, which must redeliver the event to retry. Other
+   connections cannot observe or claim partial fan-out. Committed events remain
+   deduplicated by event ID, including a retry after a lost response. Failures
+   are logged outside the transaction, not persisted as deduplication tombstones.
+
 7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),

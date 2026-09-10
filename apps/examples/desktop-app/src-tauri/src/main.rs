@@ -9,7 +9,8 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 #[cfg(target_os = "macos")]
@@ -112,6 +113,12 @@ struct UpdateState {
     // concurrently and the later one can overwrite a freshly staged "ready"
     // with "idle"/"error" decided from its stale pre-await snapshot.
     cycle: tokio::sync::Mutex<()>,
+    // Windows only: the downloaded-but-not-installed update. On Windows,
+    // Update::install launches the NSIS installer and std::process::exit(0)s
+    // immediately, so installation must wait for the user-initiated restart
+    // instead of running inside the background cycle like it does on macOS.
+    #[cfg(windows)]
+    pending_install: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
 }
 
 impl UpdateState {
@@ -162,7 +169,7 @@ fn running_sessions_text(running_sessions: u32) -> String {
 }
 
 // app_name is package_info().name (the configured productName), so beta
-// builds ("Cline Code Beta") identify themselves in the tooltip too.
+// builds ("Cline Beta") identify themselves in the tooltip too.
 fn tray_tooltip_text(app_name: &str, running_sessions: u32) -> String {
     if running_sessions == 0 {
         app_name.to_string()
@@ -224,8 +231,26 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
                 return;
             }
             set_update_status(app, state, "downloading", Some(version.clone()), None);
+            // macOS: install right away — it only swaps the .app on disk and
+            // the running app keeps going until the user restarts. Windows:
+            // download only, because install() launches the NSIS installer
+            // and exits the process on the spot; the staged bytes are
+            // installed by restart_to_apply_update instead.
+            #[cfg(not(windows))]
             match update.download_and_install(|_, _| {}, || {}).await {
                 Ok(()) => set_update_status(app, state, "ready", Some(version), None),
+                Err(error) => {
+                    set_update_status(app, state, "error", Some(version), Some(error.to_string()))
+                }
+            }
+            #[cfg(windows)]
+            match update.download(|_, _| {}, || {}).await {
+                Ok(bytes) => {
+                    if let Ok(mut pending) = state.pending_install.lock() {
+                        *pending = Some((update, bytes));
+                    }
+                    set_update_status(app, state, "ready", Some(version), None);
+                }
                 Err(error) => {
                     set_update_status(app, state, "error", Some(version), Some(error.to_string()))
                 }
@@ -259,51 +284,35 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
 struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
-    shutting_down: Mutex<bool>,
+    shutting_down: AtomicBool,
 }
 
 impl DesktopBackendState {
     fn is_shutting_down(&self) -> bool {
-        self.shutting_down
-            .lock()
-            .map(|guard| *guard)
-            .unwrap_or(true)
+        self.shutting_down.load(AtomicOrdering::Acquire)
     }
 
     fn stop(&self) {
-        if let Ok(mut guard) = self.shutting_down.lock() {
-            *guard = true;
-        }
-
-        if let Ok(endpoint_guard) = self.ws_endpoint.lock() {
-            if let Some(endpoint) = endpoint_guard.as_ref() {
-                request_desktop_backend_shutdown(endpoint);
-            }
-        }
+        self.shutting_down.store(true, AtomicOrdering::Release);
 
         if let Ok(mut process_guard) = self.process.lock() {
             if let Some(child) = process_guard.as_mut() {
-                // The sidecar bounds its own graceful shutdown with
-                // SHUTDOWN_TIMEOUT_MS (5s in sidecar/index.ts) and then exits
-                // itself; wait past that window before escalating to kill so
-                // an active session can finish persisting.
-                for _ in 0..70 {
-                    match child.try_wait() {
-                        Ok(Some(_)) => break,
-                        Ok(None) => thread::sleep(Duration::from_millis(100)),
-                        Err(_) => break,
-                    }
-                }
-                match child.try_wait() {
-                    Ok(Some(_)) => {}
-                    Ok(None) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                    }
-                    Err(_) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                    }
+                // Quit runs this on the main thread (on macOS inside
+                // applicationWillTerminate:, where blocking beach-balls the
+                // app), so signal the sidecar and return without waiting.
+                // SIGTERM triggers its own bounded graceful shutdown
+                // (SHUTDOWN_TIMEOUT_MS in sidecar/index.ts), after which it
+                // exits itself, finishing session persistence as an orphan.
+                #[cfg(unix)]
+                let _ = Command::new("kill").arg(child.id().to_string()).status();
+                // Windows has no SIGTERM equivalent, so terminate outright.
+                // Reap the child too: TerminateProcess is quick, and the
+                // update-restart path needs the sidecar exe's file lock
+                // released before the NSIS installer replaces it.
+                #[cfg(not(unix))]
+                {
+                    let _ = child.kill();
+                    let _ = child.wait();
                 }
             }
             *process_guard = None;
@@ -332,13 +341,29 @@ struct DesktopBackendReadyLine {
     mode: Option<String>,
 }
 
+/// The release binary is a GUI-subsystem app (no console), so on Windows
+/// every console-subsystem child (git, cmd, the sidecar) would otherwise
+/// allocate its own visible console window. Piped stdio does not prevent
+/// that; only CREATE_NO_WINDOW does.
+#[cfg(windows)]
+fn hide_console_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn hide_console_window(_command: &mut Command) {}
+
 fn resolve_workspace_root(launch_cwd: &str) -> String {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    command
         .arg("-C")
         .arg(launch_cwd)
         .arg("rev-parse")
-        .arg("--show-toplevel")
-        .output();
+        .arg("--show-toplevel");
+    hide_console_window(&mut command);
+    let output = command.output();
 
     match output {
         Ok(result) if result.status.success() => {
@@ -350,51 +375,6 @@ fn resolve_workspace_root(launch_cwd: &str) -> String {
             }
         }
         _ => launch_cwd.to_string(),
-    }
-}
-
-fn request_desktop_backend_shutdown(endpoint: &str) {
-    let trimmed = endpoint.trim();
-    if trimmed.is_empty() {
-        return;
-    }
-    let base = trimmed.strip_suffix('/').unwrap_or(trimmed);
-    let url = format!("{base}/shutdown");
-    let timeout_seconds = "2";
-
-    #[cfg(target_os = "windows")]
-    {
-        let _ = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!(
-                    "try {{ Invoke-WebRequest -UseBasicParsing -Method Post -Uri '{}' -TimeoutSec {} | Out-Null }} catch {{ }}",
-                    url.replace('\'', "''"),
-                    timeout_seconds
-                ),
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = Command::new("curl")
-            .args([
-                "-fsS",
-                "--connect-timeout",
-                timeout_seconds,
-                "--max-time",
-                timeout_seconds,
-                "-X",
-                "POST",
-                &url,
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
     }
 }
 
@@ -501,7 +481,9 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    hide_console_window(&mut command);
+    command
         .spawn()
         .map_err(|e| format!("failed to start desktop backend sidecar: {e}"))
 }
@@ -525,10 +507,26 @@ fn ensure_desktop_backend_started_with(
     // callers (setup, the health-check loop, endpoint fetches from the
     // webview) serialize: the second caller blocks here, then sees the live
     // child and returns instead of spawning a duplicate.
-    let mut process_guard = state
+    let process_guard = state
         .process
         .lock()
         .map_err(|_| "failed to lock desktop backend process state")?;
+    ensure_desktop_backend_started_locked(state, process_guard, spawn_backend)
+}
+
+/// The check-and-spawn that runs under the process lock. Split from the lock
+/// acquisition so a test can establish "shutdown began after the unlocked
+/// check but before the lock was taken" deterministically.
+fn ensure_desktop_backend_started_locked(
+    state: &Arc<DesktopBackendState>,
+    mut process_guard: MutexGuard<'_, Option<Child>>,
+    spawn_backend: impl FnOnce() -> Result<Child, String>,
+) -> Result<(), String> {
+    // stop() marks shutdown before taking this same process lock. Recheck
+    // under the lock so a queued startup cannot spawn after shutdown.
+    if state.is_shutting_down() {
+        return Ok(());
+    }
     if let Some(existing) = process_guard.as_mut() {
         match existing.try_wait() {
             // A live child owns startup even while its endpoint is still
@@ -624,7 +622,11 @@ fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
             return Ok(PathBuf::from(trimmed));
         }
     }
-    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
+    // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
+    // homedir() resolves there); HOME is usually unset on Windows.
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
     Ok(PathBuf::from(home)
         .join(".cline")
         .join("data")
@@ -648,8 +650,10 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         let path_arg = path.to_string_lossy().to_string();
-        let status = Command::new("cmd")
-            .args(["/C", "start", "", &path_arg])
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", &path_arg]);
+        hide_console_window(&mut command);
+        let status = command
             .status()
             .map_err(|e| format!("failed to open path: {e}"))?;
         if status.success() {
@@ -675,17 +679,29 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn get_desktop_backend_endpoint(
+async fn get_desktop_backend_endpoint(
     backend_state: State<'_, Arc<DesktopBackendState>>,
     context: State<'_, AppContext>,
 ) -> Result<String, String> {
-    ensure_desktop_backend_started(backend_state.inner(), context.inner())?;
+    let backend_state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    let state_for_start = backend_state.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_desktop_backend_started(&state_for_start, &context)
+    })
+    .await
+    .map_err(|error| format!("desktop backend startup task failed: {error}"))??;
+
     // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
     // see sidecar/shell-path.ts) plus session-manager init, whose duration
     // varies by machine. Poll well past that combined worst case; the loop
     // returns as soon as the ready line arrives, so only failure waits long.
     // While pending this only waits — respawning is ensure's job, and it
     // refuses to start a second sidecar while the first one is still alive.
+    // A child that dies mid-poll makes this return an error rather than
+    // respawn: the next ensure call — the health-check loop within 5 seconds,
+    // or this command when the webview reconnects — replaces the dead child.
+    // Async sleeps keep Tauri's window event loop responsive while pending.
     for _ in 0..150 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
@@ -708,7 +724,7 @@ fn get_desktop_backend_endpoint(
         if child_exited {
             return Err("desktop backend exited before publishing its endpoint".to_string());
         }
-        thread::sleep(Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
     Err("desktop backend endpoint not ready".to_string())
 }
@@ -736,11 +752,50 @@ fn get_update_status(update_state: State<'_, Arc<UpdateState>>) -> UpdateStatus 
 fn restart_to_apply_update(
     app: tauri::AppHandle,
     backend_state: State<'_, Arc<DesktopBackendState>>,
+    update_state: State<'_, Arc<UpdateState>>,
 ) {
-    // restart() never returns, so the run-loop Exit handler does not get a
-    // chance to stop the sidecar; shut it down explicitly first.
+    // Neither restart() nor install() returns, so the run-loop Exit handler
+    // does not get a chance to stop the sidecar; shut it down explicitly
+    // first. On Windows this also releases the sidecar exe's file lock,
+    // which the NSIS installer needs in order to replace it.
+    backend_state.stop();
+    // Windows: install the bytes staged by the background cycle. install()
+    // launches the NSIS installer (which relaunches the app when done) and
+    // exits this process, so it only returns on failure — fall through to a
+    // plain restart of the current version in that case.
+    #[cfg(windows)]
+    if let Some((update, bytes)) = update_state
+        .pending_install
+        .lock()
+        .ok()
+        .and_then(|mut pending| pending.take())
+    {
+        if let Err(error) = update.install(bytes) {
+            eprintln!("[updater] failed to launch the update installer: {error}");
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = update_state;
+    app.restart();
+}
+
+/// Relaunch the current version of the app. Used after the sidecar replaces
+/// the shared Cline Hub under the running app (the "Cline Hub update
+/// required" flow): a fresh launch attaches everything to the new Hub instead
+/// of trying to migrate live connections. restart() never returns, so the
+/// run-loop Exit handler cannot stop the sidecar; do it explicitly first.
+#[tauri::command]
+fn relaunch_app(app: tauri::AppHandle, backend_state: State<'_, Arc<DesktopBackendState>>) {
     backend_state.stop();
     app.restart();
+}
+
+/// Quit the app. Used by the "Cline Hub update required" flow when the user
+/// chooses to keep the older running Hub (and its live sessions) and update
+/// later. The run-loop Exit handler stops the sidecar.
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 /// Run one updater check/download/stage cycle immediately instead of waiting
@@ -758,56 +813,82 @@ async fn check_for_update_now(
 }
 
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
-/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
-/// resource at icons/dock/<id>.png.
-const APP_DOCK_ICONS: [&str; 4] = ["classic", "sunrise", "steel", "midnight"];
+/// webview/lib/app-icon.ts. Every id has a matching bundled resource at
+/// icons/app/<id>.png.
+const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, String> {
+    let icon_path = app
+        .path()
+        .resolve(
+            format!("icons/app/{icon}.png"),
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map_err(|e| format!("failed resolving app icon resource: {e}"))?;
+    if !icon_path.exists() {
+        return Err(format!(
+            "app icon resource missing: {}",
+            icon_path.display()
+        ));
+    }
+    Ok(icon_path)
+}
 
 #[tauri::command]
-fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
-    if !APP_DOCK_ICONS.contains(&icon.as_str()) {
+async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
+    if !APP_ICONS.contains(&icon.as_str()) {
         return Err(format!("unknown app icon: {icon}"));
     }
     #[cfg(target_os = "macos")]
     {
-        // "classic" also ships as a dock resource, so every choice loads the
-        // same way; setApplicationIconImage's binding warns that passing nil
-        // to restore the bundled icon may not be allowed.
-        let icon_path = app
-            .path()
-            .resolve(
-                format!("icons/dock/{icon}.png"),
-                tauri::path::BaseDirectory::Resource,
-            )
-            .map_err(|e| format!("failed resolving dock icon resource: {e}"))?;
-        if !icon_path.exists() {
-            return Err(format!(
-                "dock icon resource missing: {}",
-                icon_path.display()
-            ));
-        }
+        // Every choice uses a resource because AppKit does not support restoring
+        // the bundled icon by passing a nil application icon.
+        let icon_path = resolve_app_icon(&app, &icon)?;
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
         app.run_on_main_thread(move || {
             use objc2::{AllocAnyThread, MainThreadMarker};
             use objc2_app_kit::{NSApplication, NSImage};
             use objc2_foundation::NSString;
 
-            let Some(mtm) = MainThreadMarker::new() else {
-                return;
-            };
-            let ns_app = NSApplication::sharedApplication(mtm);
-            let Some(image) = NSImage::initWithContentsOfFile(
-                NSImage::alloc(),
-                &NSString::from_str(&icon_path.to_string_lossy()),
-            ) else {
-                eprintln!("[dock-icon] failed loading image: {}", icon_path.display());
-                return;
-            };
-            // SAFETY: called on the main thread with a valid, non-nil image.
-            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+            let result: Result<(), String> = (|| {
+                let mtm = MainThreadMarker::new().ok_or_else(|| {
+                    "app icon update did not run on the main thread".to_string()
+                })?;
+                let ns_app = NSApplication::sharedApplication(mtm);
+                let image = NSImage::initWithContentsOfFile(
+                    NSImage::alloc(),
+                    &NSString::from_str(&icon_path.to_string_lossy()),
+                )
+                .ok_or_else(|| {
+                    format!("failed loading app icon image: {}", icon_path.display())
+                })?;
+                // SAFETY: called on the main thread with a valid, non-nil image.
+                unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+                Ok(())
+            })();
+            let _ = result_tx.send(result);
         })
-        .map_err(|e| format!("failed switching dock icon: {e}"))?;
+        .map_err(|e| format!("failed switching app icon: {e}"))?;
+        result_rx
+            .await
+            .map_err(|_| "app icon update ended before AppKit completed".to_string())??;
         Ok(true)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let icon_path = resolve_app_icon(&app, &icon)?;
+        let image = tauri::image::Image::from_path(&icon_path)
+            .map_err(|e| format!("failed loading app icon image: {e}"))?;
+        let window = app
+            .get_webview_window(MAIN_WINDOW_LABEL)
+            .ok_or_else(|| "main window is unavailable".to_string())?;
+        window
+            .set_icon(image)
+            .map_err(|e| format!("failed switching taskbar icon: {e}"))?;
+        Ok(true)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = app;
         Ok(false)
@@ -1036,7 +1117,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
         .text(
             TRAY_OPEN_MENU_ID,
             // package_info().name is the configured productName, so beta
-            // builds ("Cline Code Beta") identify themselves in the tray too.
+            // builds ("Cline Beta") identify themselves in the tray too.
             format!(
                 "{} v{}",
                 app.package_info().name,
@@ -1159,9 +1240,15 @@ fn main() {
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
-            if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
-                eprintln!("[desktop-backend] startup failed: {error}");
-            }
+            let state_for_start = backend_state.clone();
+            let context_for_start = app_context.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(error) =
+                    ensure_desktop_backend_started(&state_for_start, &context_for_start)
+                {
+                    eprintln!("[desktop-backend] startup failed: {error}");
+                }
+            });
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
             if !cfg!(debug_assertions) {
@@ -1200,7 +1287,9 @@ fn main() {
             set_app_icon,
             show_session_notification,
             drain_desktop_actions,
-            set_tray_status
+            set_tray_status,
+            relaunch_app,
+            quit_app
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri app")
@@ -1224,6 +1313,16 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn macos_bundle_declares_voice_input_permissions() {
+        let info_plist = include_str!("../Info.plist");
+        assert!(info_plist.contains("<key>NSMicrophoneUsageDescription</key>"));
+        assert!(info_plist.contains("<key>NSSpeechRecognitionUsageDescription</key>"));
+
+        let entitlements = include_str!("../entitlements.plist");
+        assert!(entitlements.contains("<key>com.apple.security.device.audio-input</key>"));
+    }
 
     #[test]
     fn desktop_actions_are_buffered_in_order_until_drained() {
@@ -1326,14 +1425,11 @@ mod tests {
         assert_eq!(running_sessions_text(0), "0 sessions running");
         assert_eq!(running_sessions_text(1), "1 session running");
         assert_eq!(running_sessions_text(3), "3 sessions running");
-        assert_eq!(tray_tooltip_text("Cline Code", 0), "Cline Code");
+        assert_eq!(tray_tooltip_text("Cline", 0), "Cline");
+        assert_eq!(tray_tooltip_text("Cline", 3), "Cline — 3 sessions running");
         assert_eq!(
-            tray_tooltip_text("Cline Code", 3),
-            "Cline Code — 3 sessions running"
-        );
-        assert_eq!(
-            tray_tooltip_text("Cline Code Beta", 2),
-            "Cline Code Beta — 2 sessions running"
+            tray_tooltip_text("Cline Beta", 2),
+            "Cline Beta — 2 sessions running"
         );
         assert_eq!(tray_badge_text(0), None);
         assert_eq!(tray_badge_text(3), Some("3".to_string()));
@@ -1401,6 +1497,28 @@ mod tests {
             }
         }
         state.stop();
+    }
+
+    /// The interleaving where only the recheck under the lock stands between
+    /// shutdown and a fresh spawn: startup has passed its unlocked shutdown
+    /// check, stop() marks shutdown while startup is still waiting for the
+    /// process lock, and then startup acquires the lock. Played out directly
+    /// on one thread so the ordering is exact rather than scheduled.
+    #[test]
+    fn startup_queued_on_process_lock_does_not_spawn_after_shutdown() {
+        let state = Arc::new(DesktopBackendState::default());
+        let spawn_count = AtomicUsize::new(0);
+
+        assert!(!state.is_shutting_down(), "the unlocked check passes");
+        state.shutting_down.store(true, AtomicOrdering::Release);
+        let process_guard = state.process.lock().expect("process lock should succeed");
+        ensure_desktop_backend_started_locked(&state, process_guard, || {
+            spawn_count.fetch_add(1, Ordering::SeqCst);
+            spawn_pending_sidecar()
+        })
+        .expect("shutdown should make startup a no-op");
+
+        assert_eq!(spawn_count.load(Ordering::SeqCst), 0);
     }
 
     #[test]

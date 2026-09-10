@@ -465,6 +465,11 @@ export async function readSessionMessages(
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
+		let reasoningSegmentIndex = 0;
+		// The text row pushed since the last reasoning flush. Reasoning that
+		// streamed alongside it (the classic [thinking, text] shape) attaches
+		// there instead of becoming a separate row.
+		let reasoningTextTarget: JsonRecord | undefined;
 		const outStartIndex = out.length;
 		const flushTextParts = () => {
 			if (textParts.length === 0) {
@@ -475,7 +480,7 @@ export async function readSessionMessages(
 			if (!joined.trim()) {
 				return;
 			}
-			out.push({
+			const textRow: JsonRecord = {
 				id: `${messageIdBase}_text_${textSegmentIndex}`,
 				sessionId,
 				role,
@@ -486,8 +491,48 @@ export async function readSessionMessages(
 				// the run; later segments must not acquire a fallback ordinal in
 				// the webview.
 				meta: textMeta ?? (role === "user" ? { userRunSpan: 0 } : undefined),
-			});
+			};
+			out.push(textRow);
+			reasoningTextTarget = textRow;
 			textSegmentIndex += 1;
+			textMeta = undefined;
+		};
+		const flushReasoningParts = () => {
+			const reasoning = reasoningParts.join("\n").trim();
+			const redacted = reasoningRedacted;
+			reasoningParts.length = 0;
+			reasoningRedacted = false;
+			// Consumed per flush: reasoning must only attach to a text row from
+			// its own segment, never to one emitted before an earlier tool call.
+			const target = reasoningTextTarget;
+			reasoningTextTarget = undefined;
+			if (!reasoning && !redacted) {
+				return;
+			}
+			if (target) {
+				if (reasoning) {
+					const existing =
+						typeof target.reasoning === "string" && target.reasoning
+							? `${target.reasoning}\n`
+							: "";
+					target.reasoning = `${existing}${reasoning}`;
+				}
+				if (redacted) {
+					target.reasoningRedacted = true;
+				}
+				return;
+			}
+			out.push({
+				id: `${messageIdBase}_reasoning_${reasoningSegmentIndex}`,
+				sessionId,
+				role,
+				content: "",
+				reasoning: reasoning || undefined,
+				reasoningRedacted: redacted || undefined,
+				createdAt: nextPartCreatedAt(),
+				meta: textMeta,
+			});
+			reasoningSegmentIndex += 1;
 			textMeta = undefined;
 		};
 
@@ -504,6 +549,13 @@ export async function readSessionMessages(
 			const blockType = typeof record.type === "string" ? record.type : "";
 			if (blockType === "tool_use") {
 				flushTextParts();
+				// Everything the model emitted in this message — thinking
+				// included — happened before the tool executed. Flushing the
+				// reasoning here keeps the thinking row ahead of the tool row
+				// (matching the live-stream order) so the webview never attaches
+				// pre-tool reasoning to a later answer, which would drag the
+				// work summary's duration anchor back before the tool ran.
+				flushReasoningParts();
 				const toolName =
 					typeof record.name === "string" ? record.name : "tool_call";
 				const toolUseId = typeof record.id === "string" ? record.id : "";
@@ -631,32 +683,7 @@ export async function readSessionMessages(
 				textMeta = undefined;
 			}
 		}
-		if (reasoningParts.length > 0 || reasoningRedacted) {
-			const reasoning = reasoningParts.join("\n").trim();
-			const target = out
-				.slice(outStartIndex)
-				.find((item) => item.role === role);
-			if (target) {
-				if (reasoning) {
-					target.reasoning = reasoning;
-				}
-				if (reasoningRedacted) {
-					target.reasoningRedacted = true;
-				}
-			} else {
-				out.push({
-					id: `${messageIdBase}_reasoning`,
-					sessionId,
-					role,
-					content: "",
-					reasoning: reasoning || undefined,
-					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt: nextPartCreatedAt(),
-					meta: textMeta,
-				});
-				textMeta = undefined;
-			}
-		}
+		flushReasoningParts();
 		if (textMeta && out[outStartIndex]) {
 			out[outStartIndex].meta = {
 				...(typeof out[outStartIndex].meta === "object"

@@ -55,7 +55,14 @@ export function isSyntheticUserPrompt(text: string): boolean {
 	// the synthetic prompt would start counting as a visible user message and
 	// shift every later edit/regenerate ordinal by one.
 	const normalized = stripModeNotices(normalizeUserInput(text))
-	return normalized.startsWith("[TASK RESUMPTION]") || normalized === ACT_MODE_CONTINUATION_PROMPT
+	return (
+		normalized.startsWith("[TASK RESUMPTION]") ||
+		normalized === ACT_MODE_CONTINUATION_PROMPT ||
+		// Hook-injected context is model-facing only; the runtime stamps these
+		// messages displayRole "system", and this text guard keeps transcripts
+		// clean on paths where that metadata is unavailable.
+		normalized.startsWith("<hook_context")
+	)
 }
 
 function hasAttachmentBlocks(message: SdkUserMessage): boolean {
@@ -85,7 +92,48 @@ function hasAttachmentBlocks(message: SdkUserMessage): boolean {
  * attachment-only continuation carries the synthetic text alongside the
  * user's image/file blocks AND a visible bubble, so it must still be counted.
  */
+export interface PersistedHookContextChip {
+	hookName: string
+	toolName?: string
+	status: "completed"
+}
+
+/**
+ * Parses hook-context blocks out of a runtime-injected user message so replay
+ * can reconstruct the hook status rows shown live. Returns [] for anything
+ * that is not a hook-context injection. Forged tags inside hook output are
+ * escaped by the runtime (`<\hook_context`), so only real blocks match.
+ */
+export function extractPersistedHookContextChips(message: SdkUserMessage): PersistedHookContextChip[] {
+	if (message.role !== "user") {
+		return []
+	}
+	const text = extractSdkUserText(message)
+	if (!text.startsWith("<hook_context")) {
+		return []
+	}
+	const chips: PersistedHookContextChip[] = []
+	const blockPattern = /<hook_context source="([^"]+)"(?:\s+tool_name="([^"]*)")?[^>]*>/g
+	let match: RegExpExecArray | null = blockPattern.exec(text)
+	while (match !== null) {
+		chips.push({
+			hookName: match[1],
+			...(match[2] ? { toolName: match[2] } : {}),
+			status: "completed",
+		})
+		match = blockPattern.exec(text)
+	}
+	return chips
+}
+
 export function isSyntheticSdkUserMessage(message: SdkUserMessage): boolean {
+	// Runtime-generated messages (hook context, compaction summaries) carry a
+	// display role that marks them model-facing only.
+	const metadata = message.metadata as { displayRole?: unknown } | undefined
+	const displayRole = typeof metadata?.displayRole === "string" ? metadata.displayRole.trim().toLowerCase() : undefined
+	if (displayRole === "system" || displayRole === "status") {
+		return true
+	}
 	const text = extractSdkUserText(message)
 	return !!text && isSyntheticUserPrompt(text) && !hasAttachmentBlocks(message)
 }

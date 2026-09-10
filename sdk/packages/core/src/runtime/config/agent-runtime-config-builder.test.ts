@@ -13,6 +13,7 @@ import type {
 	ITelemetryService,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { version as clineCoreVersion } from "../../../package.json";
 import {
 	buildMessageModelInfo,
 	buildModelOptions,
@@ -190,6 +191,32 @@ describe("createAgentRuntimeConfig", () => {
 		expect(runtimeConfig.consumePendingUserMessage).toBe(
 			agentConfig.consumePendingUserMessage,
 		);
+	});
+
+	it("maps telemetry identity fields from AgentConfig", () => {
+		const runtimeConfig = createAgentRuntimeConfig({
+			agentConfig: makeAgentConfig({
+				distinctId: "user-123",
+				extensionContext: {
+					client: { name: "cline-cli", version: "3.0.38" },
+				},
+			}),
+			agentId: "a",
+			model: nullModel,
+		});
+		expect(runtimeConfig.distinctId).toBe("user-123");
+		expect(runtimeConfig.clientName).toBe("cline-cli");
+		expect(runtimeConfig.clientVersion).toBe("3.0.38");
+		expect(runtimeConfig.clineCoreVersion).toBe(clineCoreVersion);
+	});
+
+	it("falls back to AgentConfig.sessionId when the input has none", () => {
+		const runtimeConfig = createAgentRuntimeConfig({
+			agentConfig: makeAgentConfig({ sessionId: "sess-parent" }),
+			agentId: "a",
+			model: nullModel,
+		});
+		expect(runtimeConfig.sessionId).toBe("sess-parent");
 	});
 
 	it("uses the override systemPrompt when provided", () => {

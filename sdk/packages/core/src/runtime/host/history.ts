@@ -13,7 +13,7 @@ import type {
 	SessionRecord,
 } from "../../types/sessions";
 import type { SessionBackend } from "./host";
-import type { RuntimeHost } from "./runtime-host";
+import type { ListSessionsOptions, RuntimeHost } from "./runtime-host";
 import { readPersistedMessagesFile } from "./runtime-host-support";
 
 export interface SessionHistoryListOptions {
@@ -72,11 +72,13 @@ function normalizeHistoryLimit(limit: number | undefined): number {
 	return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 200;
 }
 
+const MAX_HISTORY_SCAN_LIMIT = 2000;
+
 function normalizeHistoryScanLimit(limit: number): number {
 	if (limit === 0) {
 		return 0;
 	}
-	return Math.min(Math.max(limit * 2, 20), 2000);
+	return Math.min(Math.max(limit * 2, 20), MAX_HISTORY_SCAN_LIMIT);
 }
 
 function isRootSessionRecord(
@@ -193,14 +195,27 @@ async function listHostSessionRows(
 		await host.listSessions(0);
 		return [];
 	}
-	const scanLimit = options.includeSubagents
-		? requestedLimit
-		: normalizeHistoryScanLimit(requestedLimit);
-	const rows = await host.listSessions(scanLimit);
-	const filtered = options.includeSubagents
-		? rows
-		: rows.filter(isRootSessionRecord);
-	return filtered.slice(0, requestedLimit);
+	if (options.includeSubagents) {
+		const rows = await host.listSessions(requestedLimit);
+		return rows.slice(0, requestedLimit);
+	}
+	// Ask the backend for root rows only so child rows (subagent / team-task
+	// runs) cannot crowd roots out of the page. Older hubs ignore the flag and
+	// return every row, so keep filtering here and widen the scan until the
+	// page fills or the backend runs out of rows.
+	let scanLimit = normalizeHistoryScanLimit(requestedLimit);
+	for (;;) {
+		const rows = await host.listSessions(scanLimit, { rootOnly: true });
+		const roots = rows.filter(isRootSessionRecord);
+		if (
+			roots.length >= requestedLimit ||
+			rows.length < scanLimit ||
+			scanLimit >= MAX_HISTORY_SCAN_LIMIT
+		) {
+			return roots.slice(0, requestedLimit);
+		}
+		scanLimit = Math.min(scanLimit * 2, MAX_HISTORY_SCAN_LIMIT);
+	}
 }
 
 function extractTextFromContent(
@@ -495,8 +510,11 @@ export async function listSessionHistoryFromBackend(
 ): Promise<SessionHistoryRecord[]> {
 	const rowsById = new Map<string, SessionRow>();
 	const host = {
-		listSessions: async (limit?: number): Promise<SessionRecord[]> => {
-			const rows = await backend.listSessions(limit);
+		listSessions: async (
+			limit?: number,
+			options?: ListSessionsOptions,
+		): Promise<SessionRecord[]> => {
+			const rows = await backend.listSessions(limit, options);
 			rowsById.clear();
 			for (const row of rows) {
 				rowsById.set(row.sessionId, row);

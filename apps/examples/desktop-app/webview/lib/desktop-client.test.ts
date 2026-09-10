@@ -6,6 +6,7 @@ import { writeDesktopDebugLog } from "./desktop-client";
 type SentDesktopRequest = {
 	id: string;
 	command: string;
+	args?: Record<string, unknown>;
 };
 
 class FakeWebSocket {
@@ -107,6 +108,50 @@ afterEach(() => {
 });
 
 describe("DesktopClient command deadlines", () => {
+	it("sends the displayed revision for Agenda approval, cancellation, and run", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const approval = desktopClient.approveAgendaTask({
+			taskId: "task-7",
+			expectedRevision: 7,
+		});
+		const socket = await connectLatestSocket();
+		expect(socket.lastRequest()).toMatchObject({
+			command: "task.approve",
+			args: { taskId: "task-7", expectedRevision: 7 },
+		});
+		socket.respond({ task: {} });
+		await approval;
+
+		const cancellation = desktopClient.cancelAgendaTask({
+			taskId: "task-7",
+			expectedRevision: 7,
+			reason: "Superseded",
+		});
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(2));
+		expect(socket.lastRequest()).toMatchObject({
+			command: "task.cancel",
+			args: {
+				taskId: "task-7",
+				expectedRevision: 7,
+				reason: "Superseded",
+			},
+		});
+		socket.respond({ task: {} });
+		await cancellation;
+
+		const run = desktopClient.runAgendaTask({
+			taskId: "task-7",
+			expectedRevision: 7,
+		});
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(3));
+		expect(socket.lastRequest()).toMatchObject({
+			command: "task.run",
+			args: { taskId: "task-7", expectedRevision: 7 },
+		});
+		socket.respond({ task: {} });
+		await run;
+	});
+
 	it("reports the same error object only once across local and global handlers", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const error = new Error("native command failed");

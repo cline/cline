@@ -134,7 +134,7 @@ describe("ChatMessages tool disclosures", () => {
 			}),
 			createdAt: 1,
 		};
-		await renderMessages([pendingTool]);
+		await renderMessages([pendingTool], { status: "running" });
 
 		const pendingTitle = container.querySelector(
 			".cline-chat-tool-label > span",
@@ -160,6 +160,93 @@ describe("ChatMessages tool disclosures", () => {
 		expect(
 			completedTitle?.classList.contains("cline-chat-streaming-title"),
 		).toBe(false);
+	});
+
+	it.each([
+		"cancelled",
+		"failed",
+		"completed",
+		"idle",
+	] as const)("stops animating missing tool results when the run is %s, including on reopen", async (status) => {
+		const tool: ChatMessage = {
+			id: "unfinished",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "read_files", hookEventName: "tool_call_start" },
+		};
+		const snapshot = JSON.stringify(tool);
+		await renderMessages([tool], { status: "running" });
+		expect(
+			container.querySelector(".cline-chat-streaming-title"),
+		).not.toBeNull();
+		await renderMessages([tool], { status });
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		expect(JSON.stringify(tool)).toBe(snapshot);
+		await renderMessages(
+			[{ ...tool, meta: { ...tool.meta, hookEventName: "history_tool_use" } }],
+			{ status },
+		);
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		// A later turn must not reactivate the old unfinished tool.
+		await renderMessages(
+			[
+				tool,
+				{
+					id: "next-turn",
+					sessionId: "session-1",
+					role: "user",
+					content: "Continue",
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+	});
+
+	it("keeps late results renderable after an inactive status", async () => {
+		const tool: ChatMessage = {
+			id: "late-result",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "custom_tool",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "custom_tool", hookEventName: "history_tool_use" },
+		};
+		await renderMessages([tool], { status: "completed" });
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], { status: "running" });
+		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
+		await renderMessages(
+			[
+				{
+					...tool,
+					content: JSON.stringify({
+						toolName: "custom_tool",
+						input: { paths: ["pending.ts"] },
+						result: "Actual late result",
+					}),
+					meta: { ...tool.meta, hookEventName: "tool_call_end" },
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		const trigger = container.querySelector("button.cline-chat-tool-trigger");
+		await act(async () => (trigger as HTMLButtonElement).click());
+		expect(container.textContent).toContain("Actual late result");
 	});
 
 	it("exposes and toggles expandable tool details", async () => {
@@ -189,6 +276,201 @@ describe("ChatMessages tool disclosures", () => {
 		expect(document.getElementById(panelId ?? "")?.textContent).toContain(
 			"workspace selector",
 		);
+	});
+
+	it("renders image content returned by a tool instead of raw base64", async () => {
+		const screenshotData = "aGVsbG8=";
+		await renderMessages([
+			{
+				id: "tool-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{
+							type: "text",
+							text: "Screenshot captured at /tmp/screenshot.png",
+						},
+						{
+							type: "image",
+							data: screenshotData,
+							mimeType: "image/png",
+						},
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Computer use"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.textContent).toContain(
+			"Screenshot captured at /tmp/screenshot.png",
+		);
+		expect(container.textContent).not.toContain(screenshotData);
+
+		const image = container.querySelector<HTMLImageElement>(
+			'img[alt="Generated result 1"]',
+		);
+		expect(image?.src).toBe(`data:image/png;base64,${screenshotData}`);
+
+		await act(async () => image?.closest("button")?.click());
+		expect(
+			container.querySelector(
+				'[role="dialog"][aria-label="Expanded attachment"]',
+			),
+		).not.toBeNull();
+	});
+
+	it("navigates multiple images returned by a single tool call", async () => {
+		await renderMessages([
+			{
+				id: "tool-multi-screenshot",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "computer_use",
+					input: { action: "screenshot" },
+					result: [
+						{ type: "image", data: "Zmlyc3Q=", mimeType: "image/png" },
+						{ type: "image", data: "c2Vjb25k", mimeType: "image/png" },
+					],
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+	});
+
+	it("auto-expands submit_and_exit and renders its summary as markdown", async () => {
+		const summary = "## Report\n\nChecked **3 feeds**, all healthy.";
+		await renderMessages([
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		// The final answer of the run is visible without a click…
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Scheduled task completed"),
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		// …rendered as markdown structure, not a monospace code block.
+		const panel = document.getElementById(
+			trigger?.getAttribute("aria-controls") ?? "",
+		);
+		const markdown = panel?.querySelector(".cline-markdown");
+		expect(markdown?.querySelector("h2")?.textContent).toBe("Report");
+		expect(markdown?.textContent).toContain("3 feeds");
+		expect(markdown?.textContent).not.toContain("##");
+		expect(markdown?.textContent).not.toContain("**");
+		// The final answer renders in full foreground color, overriding the
+		// panel's muted tool-detail gray.
+		expect(markdown?.closest(".text-foreground")).not.toBeNull();
+	});
+
+	it("labels an errored submit_and_exit as failed", async () => {
+		await renderMessages([
+			{
+				id: "tool-submit-error",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary: "Attempted report.", verified: false },
+					isError: true,
+					result: { error: "submit_and_exit timed out after 15000ms" },
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		expect(container.textContent).toContain("Scheduled task failed");
+		expect(container.textContent).not.toContain("Scheduled task completed");
+	});
+
+	it("keeps the scheduled-task report visible when the run collapses", async () => {
+		// A follow-up prompt settles the scheduled run's span and folds its
+		// working rows into the work summary; the submit_and_exit row is the
+		// run's final report and must stay visible below it.
+		const summary = "All feeds healthy.";
+		await renderMessages([
+			{
+				id: "user-schedule",
+				sessionId: "session-1",
+				role: "user",
+				content: "Check the feeds",
+				createdAt: 1_000,
+			},
+			{
+				id: "tool-read",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["feeds.json"] },
+					result: {},
+				}),
+				createdAt: 2_000,
+			},
+			{
+				id: "tool-submit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "submit_and_exit",
+					input: { summary, verified: true },
+					result: summary,
+				}),
+				createdAt: 3_000,
+			},
+			{
+				id: "user-followup",
+				sessionId: "session-1",
+				role: "user",
+				content: "Thanks!",
+				createdAt: 9_000,
+			},
+		]);
+
+		// The working rows folded into a collapsed work summary…
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		);
+		expect(workTrigger?.getAttribute("aria-expanded")).toBe("false");
+		// …but the report row did not fold with them: it stays visible and
+		// expanded outside the summary.
+		expect(container.textContent).toContain("Scheduled task completed");
+		expect(container.textContent).toContain(summary);
 	});
 
 	it("renders consecutive tool calls as individual rows", async () => {
@@ -798,6 +1080,129 @@ describe("ChatMessages tool disclosures", () => {
 			"editable-user",
 			"Original prompt",
 			2,
+		);
+	});
+
+	it("copies a user message without its transport envelope", async () => {
+		const writeText = vi.fn(async () => undefined);
+		Object.assign(navigator, { clipboard: { writeText } });
+		await renderMessages([
+			{
+				id: "copyable-user",
+				sessionId: "session-1",
+				role: "user",
+				content: '<user_input mode="act">Original prompt</user_input>',
+				createdAt: 1,
+			},
+		]);
+
+		const copyButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Copy user message"]',
+		);
+		await act(async () => copyButton?.click());
+
+		expect(writeText).toHaveBeenCalledOnce();
+		expect(writeText).toHaveBeenCalledWith("Original prompt");
+	});
+
+	it("hides runtime steering notes from the transcript", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "tell me the current time",
+				createdAt: 1,
+			},
+			{
+				id: "steer-1",
+				sessionId: "session-1",
+				role: "user",
+				content:
+					"[SYSTEM] This run is not complete until you call one of these terminal completion tools: submit_and_exit.",
+				createdAt: 2,
+				meta: { userRunSpan: 0 },
+			},
+		]);
+
+		// Steering nudges are machinery talking to the model — not rendered
+		// at all, and never as a user bubble.
+		expect(container.textContent).toContain("tell me the current time");
+		expect(container.textContent).not.toContain("[SYSTEM]");
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you call",
+		);
+	});
+
+	it("shows a genuine user prompt that happens to start with [SYSTEM]", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] is a prefix I typed myself, explain it",
+				createdAt: 1,
+			},
+		]);
+
+		// Only injected reminders (userRunSpan 0) are steering; a person's
+		// own prompt stays visible.
+		expect(container.textContent).toContain(
+			"is a prefix I typed myself, explain it",
+		);
+	});
+
+	it("keeps steering notes hidden inside the expanded work block", async () => {
+		await renderMessages([
+			{
+				id: "user-prompt",
+				sessionId: "session-1",
+				role: "user",
+				content: "tell me the current time",
+				createdAt: 1,
+			},
+			{
+				id: "steer-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "[SYSTEM] This run is not complete until you finish.",
+				createdAt: 2,
+				meta: { userRunSpan: 0 },
+			},
+			{
+				id: "tool-1",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: {},
+					result: {},
+				}),
+				createdAt: 3,
+			},
+			{
+				id: "answer",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "It is 12:28 PM PT.",
+				createdAt: 4,
+			},
+		]);
+
+		// The steering note is working-rows machinery grouped with the run,
+		// and stays hidden even when the work block is expanded.
+		expect(container.textContent).toContain("It is 12:28 PM PT.");
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you finish.",
+		);
+
+		const trigger = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.includes("Worked"));
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).not.toContain(
+			"This run is not complete until you finish.",
 		);
 	});
 
@@ -1619,17 +2024,18 @@ describe("ChatMessages work collapse", () => {
 		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
 	});
 
-	it.each(["cancelled", "failed", "error"] as const)(
-		"keeps an interrupted run's rows visible even with partial trailing text (%s)",
-		async (status) => {
-			// Stop can land mid-answer, leaving partial assistant text after the
-			// tool calls; the run still must not fold into a summary.
-			await renderMessages(completedRun, { status });
+	it.each([
+		"cancelled",
+		"failed",
+		"error",
+	] as const)("keeps an interrupted run's rows visible even with partial trailing text (%s)", async (status) => {
+		// Stop can land mid-answer, leaving partial assistant text after the
+		// tool calls; the run still must not fold into a summary.
+		await renderMessages(completedRun, { status });
 
-			expect(container.querySelector(".cline-chat-work")).toBeNull();
-			expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
-		},
-	);
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
 });
 
 describe("ChatMessages thinking indicator", () => {
@@ -1797,5 +2203,26 @@ describe("ChatMessages tool approvals", () => {
 
 		await act(async () => reject?.click());
 		expect(onReject).toHaveBeenCalledWith("req-1");
+	});
+
+	it("leads an imported transcript with a notice naming the source tool", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "user-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "imported prompt",
+				createdAt: 1,
+			},
+		];
+		await renderMessages(messages, { importedFromTool: "claude-code" });
+
+		const notice = container.querySelector("output");
+		expect(notice?.textContent).toContain("Imported from Claude Code");
+		expect(notice?.parentElement?.firstElementChild).toBe(notice);
+		expect(notice?.parentElement?.textContent).toContain("imported prompt");
+
+		await renderMessages(messages);
+		expect(container.querySelector("output")).toBeNull();
 	});
 });

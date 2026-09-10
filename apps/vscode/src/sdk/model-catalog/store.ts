@@ -161,6 +161,21 @@ function patchStringValue(value: string | null | undefined): string | undefined 
 	return patched === "" ? undefined : patched
 }
 
+/**
+ * API keys are opaque pasted tokens. Clipboards smuggle in control and
+ * invisible formatting characters (newlines, zero-width spaces, BOM,
+ * direction marks) that make the provider reject the key with a 401 that is
+ * indistinguishable from a genuinely wrong key — while the field's masked
+ * rendering hides the corruption from the user. Strip those characters and
+ * surrounding whitespace before the value reaches either backing store.
+ */
+function sanitizeApiKeyPatch(patch: ProviderConfigPatch): ProviderConfigPatch {
+	if (!("apiKey" in patch) || typeof patch.apiKey !== "string") {
+		return patch
+	}
+	return { ...patch, apiKey: patch.apiKey.replace(/[\p{Cc}\p{Cf}]/gu, "").trim() }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -731,7 +746,13 @@ function legacyModelInfoToOverrides(modelInfo: ModelInfo, fallback: ModelInfo): 
 	if (Boolean(modelInfo.supportsReasoning) !== Boolean(fallback.supportsReasoning))
 		overrides.supportsReasoning = Boolean(modelInfo.supportsReasoning)
 	if (modelInfo.supportsPromptCache !== fallback.supportsPromptCache) {
-		const capabilities: string[] = []
+		// Legacy ModelInfo has no tool-calling boolean, so this projection
+		// carries no "no tools" signal. Persisting the list without "tools"
+		// would read as an authoritative tool-less capability list to the SDK
+		// runtime once stored in models.json, silently disabling tool calling
+		// (#13463). Match the providers.json migration, which always writes
+		// "tools" for OpenAI-compatible custom models.
+		const capabilities: string[] = ["tools"]
 		if (supportsVision) capabilities.push("images")
 		if (modelInfo.supportsPromptCache) capabilities.push("prompt-cache")
 		overrides.capabilities = capabilities
@@ -912,8 +933,9 @@ export function createProviderConfigStore(): ProviderConfigStore {
 		},
 
 		write(providerId: ProviderId, patch: ProviderConfigPatch): EffectiveProviderConfig {
-			writeStateFields(providerId, patch)
-			writeProviderSettingsFields(providerId, patch)
+			const sanitizedPatch = sanitizeApiKeyPatch(patch)
+			writeStateFields(providerId, sanitizedPatch)
+			writeProviderSettingsFields(providerId, sanitizedPatch)
 			const config = this.read(providerId)
 			emit({ kind: "fields", providerId, config })
 			return config

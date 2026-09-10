@@ -99,11 +99,25 @@ describe("HubRuntimeHost", () => {
 		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		const started = await host.startSession({
-			config: createConfig(),
+			config: {
+				...createConfig(),
+				agentPluginPaths: ["./portable-plugin"],
+			},
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
-					client: { name: "cline-cli", version: "3.0.38" },
+					client: {
+						name: "cline-cli",
+						version: "3.0.38",
+						platform: "cli",
+						platformVersion: "3.0.38",
+						isMultiRoot: false,
+					},
+					user: {
+						distinctId: "account-1",
+						accountId: "account-1",
+						organizationId: "org-1",
+					},
 				},
 			},
 			prompt: "Hey",
@@ -126,6 +140,7 @@ describe("HubRuntimeHost", () => {
 				systemPrompt: "system",
 				mode: "act",
 				checkpoint: { enabled: true },
+				agentPluginPaths: ["./portable-plugin"],
 				enableTools: true,
 				enableSpawnAgent: true,
 				enableAgentTeams: true,
@@ -151,7 +166,20 @@ describe("HubRuntimeHost", () => {
 					version: "3.0.38",
 				},
 			}),
-			runtimeOptions: {},
+			runtimeOptions: {
+				clientContext: {
+					name: "cline-cli",
+					version: "3.0.38",
+					platform: "cli",
+					platformVersion: "3.0.38",
+					isMultiRoot: false,
+				},
+				userContext: {
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				},
+			},
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
@@ -508,6 +536,27 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
+		// A snapshot-only session.updated reports the snapshot's status; it
+		// must not fabricate "running" for a session whose turn has finished.
+		const statusEvents = events.filter(
+			(event): event is { type: "status"; payload: { status: string } } =>
+				(event as { type?: unknown }).type === "status",
+		);
+		expect(statusEvents.at(-1)?.payload).toMatchObject({
+			status: "completed",
+		});
+
+		// A session.updated with neither session nor snapshot reports nothing.
+		onEvent?.({
+			version: "v1",
+			event: "session.updated",
+			sessionId: "sess-snapshot",
+			payload: {},
+		});
+		expect(
+			events.filter((event) => (event as { type?: unknown }).type === "status")
+				.length,
+		).toBe(statusEvents.length);
 
 		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
 		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({
@@ -876,10 +925,12 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});
+		expect(host.hasSessionSubscription("sess-1")).toBe(true);
 
 		commandMock.mockResolvedValue({ ok: true, payload: {} });
 		await host.stopSession("sess-1");
 
+		expect(host.hasSessionSubscription("sess-1")).toBe(false);
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"session.detach",

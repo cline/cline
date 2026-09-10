@@ -817,7 +817,22 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
+	// Bound both catalog sources, including response-body reads, while keeping
+	// any cancellation supplied by the source fetcher.
+	const fetchWithTimeout = Object.assign(
+		(...args: Parameters<typeof fetch>) => {
+			const [input, init] = args;
+			const timeout = AbortSignal.timeout(
+				DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
+			);
+			const signal = init?.signal
+				? AbortSignal.any([init.signal, timeout])
+				: timeout;
+			return globalThis.fetch(input, { ...init, signal });
+		},
+		globalThis.fetch,
+	);
+	return Llms.fetchLiveProviderModels(url, fetchWithTimeout);
 }
 
 export async function getLiveModelsCatalog(

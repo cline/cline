@@ -6,15 +6,94 @@ Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspectin
 
 From `apps/examples/desktop-app/`:
 
-- `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
-- `bun run dev:sidecar` - sidecar backend only
+- `bun run dev:headless` - Next.js UI (`http://localhost:3125`) and sidecar backend with a fresh shared approval credential
+- `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
+- `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
-- `bun run build` - build web assets
+- `bun run build:web` - build production web assets only (includes the shared UI build)
+- `bun run build` - build web assets and the sidecar binary
 - `bun run build:sidecar` - build the Bun sidecar bundle
 - `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
+
+### Checking webview changes
+
+Run `bun run build:web` from this directory when changing webview imports or shared browser APIs. Type checking and Vitest do not check the production browser bundle: a valid TypeScript import can still pull Node-only modules into a client chunk. Use `@cline/shared/browser` for runtime imports in the webview; the bare `@cline/shared` source alias points to the Node entry point.
+
+## Pull Requests
+
+The composer shows the current branch's GitHub pull request, merge status,
+changed-line totals, and CI checks. Click the PR number to open it in your
+browser, or expand CI to inspect individual checks and their logs. Status
+refreshes every 30 seconds while visible, when the app regains focus, and
+when you click refresh.
+
+This requires GitHub CLI (`gh`) installed and authenticated with `gh auth login`,
+and a GitHub.com `origin` remote (HTTPS or SSH). The row is hidden for the
+default branch, detached HEAD, and unsupported repositories. If the branch
+has no PR, **Create PR** opens GitHub's comparison form; push your commits
+before submitting the form. The app does not push commits or submit PRs itself.
+
+Missing or unauthenticated GitHub CLI also hides the row. Availability checks
+are shared across workspaces and cached for five minutes, so unavailable CLI
+installs do not spawn a failing process on every poll or window focus. After
+installing or signing into `gh`, the feature becomes available on the first
+refresh after the cache expires (or after restarting the desktop backend).
+Initial lookup failures stay hidden. Errors after a successful status load
+can be dismissed and remain dismissed through retries until a load succeeds.
+
+### Pull request telemetry
+
+These events use the desktop telemetry service and respect telemetry opt-out:
+
+| Event | Trigger |
+| --- | --- |
+| `desktop.pull_request.shown` | First visible PR/create row per mounted workspace and branch |
+| `desktop.pull_request.open_clicked` | Click the PR link |
+| `desktop.pull_request.create_clicked` | Click Create PR (intent only, not PR submission) |
+| `desktop.pull_request.checks_expanded` | Open the CI popover |
+| `desktop.pull_request.check_clicked` | Click a check's details link |
+| `desktop.pull_request.refresh_clicked` | Click manual refresh |
+
+Each event contains only `prState`, `ciState`, and `mergeTone` categories.
+The sidecar validates these values and strips extra fields. Repository/branch
+names, paths, PR numbers/titles, check names, and URLs are not included.
+Automatic polling does not emit additional impressions. Telemetry delivery
+does not block interactions, and failures do not interrupt the feature.
+
+## Customizing the macOS Install Window
+
+The drag-to-Applications window is configured by `bundle.macOS.dmg` in
+[`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json). Its artwork comes
+from the PNG sources in [`src-tauri/dmg/`](./src-tauri/dmg/); the
+`background.gen.tiff` Finder actually renders is a gitignored build artifact
+regenerated from them on every build.
+
+1. The current source artwork is `640x400`. Export `background.png` at 1x and
+   `background@2x.png` at 2x.
+2. Currently the app icons are centered at `(140, 200)` and
+   the Applications folder centered at `(500, 200)`. If updating artwork, update `appPosition`
+   and `applicationFolderPosition` to reposition the app icons.
+3. Build with `bun run build:binary`. Before compiling, the build validates
+   both PNG dimensions, combines them with `tiffutil` into the Retina-aware
+   `src-tauri/dmg/background.gen.tiff`, and verifies the TIFF contains the
+   expected 1x and 2x representations. Run `bun run dmg:background` to do just
+   that step, e.g. to sanity-check new artwork without a full build. The DMG
+   is written beneath `src-tauri/target/release/bundle/dmg/`.
+
+Run `bun run test:dmg-background` for the cross-platform checks covering the
+committed PNG dimensions and TIFF validation logic.
+
+The configured `640x432` Finder window is intentionally 32 points taller than
+the `640x400` background. That extra height matches the Finder chrome in the
+currently verified packaged layout; re-check it after material macOS or Finder
+changes. The project deliberately uses a multi-resolution TIFF even though
+Tauri's documented background formats are PNG, JPG, and GIF: Finder renders
+both the 1x and 2x representations from a single background file. Re-check the
+packaged DMG after upgrading Tauri in case its background validation changes.
+
 
 ## Login Shell PATH Resolution
 
@@ -55,7 +134,7 @@ lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
 apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
 shipped apps can't verify new updates).
 
-There is also a beta channel ("Cline Code Beta", a separate app that installs
+There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
 served by the rolling `desktop-beta` release — the same never-delete rule
 applies to it. The experimental-branch process and beta release flow live in

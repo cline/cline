@@ -27,7 +27,11 @@ export async function openAiCodexSignIn(controller: Controller, _: EmptyRequest)
 			.catch((error) => {
 				Logger.error("[openAiCodexSignIn] OAuth flow failed:", error)
 				const errorMessage = error instanceof Error ? error.message : String(error)
-				if (!errorMessage.includes("timed out")) {
+				// "Missing authorization code" is the abandoned-flow shape of a
+				// timeout here: the webview provides no manual code entry, so it
+				// only occurs when the callback wait expires without a redirect.
+				const isAbandonedFlow = errorMessage.includes("timed out") || errorMessage.includes("Missing authorization code")
+				if (!isAbandonedFlow) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: `OpenAI Codex sign in failed: ${errorMessage}`,

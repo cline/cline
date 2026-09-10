@@ -1,7 +1,7 @@
 # Desktop Experimental Branch & Beta Channel
 
 How experimental desktop features are developed on the `desktop-experimental`
-branch, shipped to users as **Cline Code Beta**, and graduated into `main`.
+branch, shipped to users as **Cline Beta**, and graduated into `main`.
 The release mechanics (workflow internals, secrets) live in
 [`.github/workflows/desktop-publish.yml`](../../../.github/workflows/desktop-publish.yml)
 and the `publish-desktop` skill
@@ -12,8 +12,8 @@ this doc is the process.
 
 The beta is a **separate app**, not a mode of the stable app:
 
-- Product name `Cline Code Beta`, bundle identifier `bot.cline.app.beta`
-  (stable is `Cline Code` / `bot.cline.app`) — set by
+- Product name `Cline Beta`, bundle identifier `bot.cline.app.beta`
+  (stable is `Cline` / `bot.cline.app`) — set by
   [`src-tauri/tauri.beta.conf.json`](./src-tauri/tauri.beta.conf.json), which
   is layered over `tauri.release.conf.json` at build time.
 - Both apps install and run **side by side**, so people can compare beta

@@ -2,6 +2,7 @@
 
 import { isChatCompatibleModel } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
+import { isProviderConnected } from "@/lib/provider-connection";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -13,7 +14,13 @@ import type {
 export type ProviderModelCatalog = {
 	providers: Provider[];
 	enabledProviderIds: string[];
+	/** Providers with usable credentials (see `isProviderConnected`). */
+	configuredProviderIds: string[];
 	providerModels: Record<string, string[]>;
+	/** Full chat-model entries per provider (display names, capabilities). */
+	providerModelDetails: Record<string, ProviderModel[]>;
+	/** Display name per provider id, for pickers that show providers. */
+	providerNames: Record<string, string>;
 	providerReasoningModels: Record<string, string[]>;
 	voiceInput: TranscriptionModelTarget | null;
 };
@@ -91,6 +98,7 @@ export function buildProviderModelCatalog(
 		const chatModels = filterChatModels(provider.modelList);
 		return {
 			provider,
+			chatModels,
 			modelIds: chatModels.map((model) => model.id),
 			reasoningModelIds: chatModels
 				.filter((model) => model.supportsReasoning)
@@ -105,8 +113,20 @@ export function buildProviderModelCatalog(
 				({ provider, modelIds }) => provider.enabled && modelIds.length > 0,
 			)
 			.map(({ provider }) => provider.id),
+		configuredProviderIds: providers
+			.filter(isProviderConnected)
+			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providerEntries.map(({ provider, modelIds }) => [provider.id, modelIds]),
+		),
+		providerModelDetails: Object.fromEntries(
+			providerEntries.map(({ provider, chatModels }) => [
+				provider.id,
+				chatModels,
+			]),
+		),
+		providerNames: Object.fromEntries(
+			providers.map((provider) => [provider.id, provider.name]),
 		),
 		providerReasoningModels: Object.fromEntries(
 			providerEntries.map(({ provider, reasoningModelIds }) => [

@@ -640,6 +640,17 @@ export class ClineCore {
 		return this.host.subscribe(listener, options);
 	}
 	/**
+	 * Whether this instance is subscribed to a session's live events.
+	 *
+	 * In hub mode ClineCore subscribes to a session when it starts, sends to,
+	 * or lists pending prompts for it, and unsubscribes on stop. A client that
+	 * also observes the hub directly can use this to render one copy of the
+	 * session's events instead of both.
+	 */
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.host.hasSessionSubscription?.(sessionId) ?? false;
+	}
+	/**
 	 * Updates the AI model used by an active session.
 	 *
 	 * Switches the session to use a different AI model while maintaining the session state

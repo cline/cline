@@ -1,27 +1,27 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline Code desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main) or beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Code Beta" app). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
+description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main) or beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
 ---
 
 # Desktop App Release
 
-Use this skill when the user asks to release the desktop app, publish Cline Code, cut a desktop beta, bump the desktop version, create a `desktop-vX.Y.Z` (or `desktop-vX.Y.Z-beta.N`) tag, or trigger the desktop publish workflow.
+Use this skill when the user asks to release the desktop app, publish the Cline desktop app, cut a desktop beta, bump the desktop version, create a `desktop-vX.Y.Z` (or `desktop-vX.Y.Z-beta.N`) tag, or trigger the desktop publish workflow.
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases are macOS-only today (a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel) and are built entirely in GitHub Actions — there is no local publish path. Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
+Desktop releases ship two platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
 
 ## Release contract
 
 - Two channels, one workflow (`channel` input on `desktop-publish.yml`):
-  - **stable** — tag `desktop-vX.Y.Z` (no suffix; the workflow rejects prerelease suffixes on this channel), cut from `main`, feeds the rolling `desktop-latest` release, ships as "Cline Code".
-  - **beta** — tag `desktop-vX.Y.Z-beta.N`, cut from `desktop-experimental`, feeds the rolling `desktop-beta` release, ships as "Cline Code Beta" (separate bundle identifier `bot.cline.app.beta`; installs side by side with stable). Built with the extra `src-tauri/tauri.beta.conf.json` overlay. Process background: `apps/examples/desktop-app/EXPERIMENTAL.md`.
+  - **stable** — tag `desktop-vX.Y.Z` (no suffix; the workflow rejects prerelease suffixes on this channel), cut from `main`, feeds the rolling `desktop-latest` release, ships as "Cline".
+  - **beta** — tag `desktop-vX.Y.Z-beta.N`, cut from `desktop-experimental`, feeds the rolling `desktop-beta` release, ships as "Cline Beta" (separate bundle identifier `bot.cline.app.beta`; installs side by side with stable). Built with the extra `src-tauri/tauri.beta.conf.json` overlay. Process background: `apps/examples/desktop-app/EXPERIMENTAL.md`.
 - Version sources (must match each other and the tag): `apps/examples/desktop-app/package.json` and `apps/examples/desktop-app/src-tauri/tauri.conf.json`. (`src-tauri/Cargo.toml` has its own version but `tauri.conf.json` overrides it; no need to touch it.)
 - Beta versions are prereleases of the **next** stable: stable `0.0.13` → betas `0.0.14-beta.1`, `-beta.2`, … Once a stable ≥ the beta base ships, the next beta bumps its base (`0.0.15-beta.1`).
 - Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update — committed on `main` for stable, on `desktop-experimental` for beta.
 - Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch, requires the tag to exist, point at the checked-out commit, and be reachable from the channel's branch — `origin/main` for stable, `origin/desktop-experimental` for beta).
 - **Both channels dispatch from `main`.** This is a security invariant, not a convenience: the run executes `main`'s workflow copy and only the checkout points at the tag, so the signing-secret gates (the `github.ref == main` check and the PublishDesktop environment's main-only deployment-branch policy) hold for beta too. Never add `desktop-experimental` to the PublishDesktop deployment-branch policy.
-- The workflow creates the tag's GitHub release (universal DMG + updater artifact + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
+- The workflow creates the tag's GitHub release (universal DMG + macOS updater artifact + Windows NSIS installer with its updater signature + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
 - The changelog's `## <version>` section (exact-match, not "topmost") is extracted verbatim into the GitHub release body, the Slack announcement, and the updater manifest notes.
 - Always ask before pushing commits or tags.
 
@@ -120,7 +120,7 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments \
 
 Nothing after `validate` runs — and no signing key is readable — until then.
 
-The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the Bun sidecar is lipo'd by `build-sidecar-bin.ts`; beta adds the `tauri.beta.conf.json` overlay), verifies every Mach-O in the bundle carries both slices and that the compiled binary embeds exactly its own channel's feed URL, signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs the updater artifact with the Tauri updater key, creates the GitHub release (prerelease for beta), refreshes the channel's feed (`desktop-latest/latest.json` or `desktop-beta/latest.json`), and posts to Slack. Notarization typically adds 2–10 minutes.
+The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the Bun sidecar is lipo'd by `build-sidecar-bin.ts`; beta adds the `tauri.beta.conf.json` overlay), verifies every Mach-O in the bundle carries both slices and that the compiled binary embeds exactly its own channel's feed URL, signs with the Developer ID certificate, notarizes with the App Store Connect API key, and signs the updater artifact with the Tauri updater key. In parallel, `build-windows` builds the x64 NSIS installer on a Windows runner, Authenticode-signs every binary via Azure Trusted Signing (Tauri `signCommand` -> `scripts/tauri-sign-windows.ps1`), runs the same feed-endpoint and telemetry guardrails, and verifies the shipped installer with `Get-AuthenticodeSignature`. The release job then creates the GitHub release (prerelease for beta), refreshes the channel's feed (`desktop-latest/latest.json` or `desktop-beta/latest.json`), and posts to Slack. Notarization typically adds 2–10 minutes.
 
 If the workflow fails on missing credentials, see "Publish secrets (one-time setup)" below.
 
@@ -131,7 +131,7 @@ curl -sL https://github.com/cline/cline/releases/download/desktop-latest/latest.
 curl -sL https://github.com/cline/cline/releases/download/desktop-beta/latest.json | head -30    # beta
 ```
 
-The `version` field must be the new release and both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new universal `.app.tar.gz` asset under the release tag (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact). Installed apps on that channel — including older per-arch installs — pick the update up on next launch or within 2 hours.
+The `version` field must be the new release; both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new universal `.app.tar.gz` asset under the release tag (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact), and the `windows-x86_64` entry must point at the new `*_x64-setup.exe` asset. Installed apps on that channel — including older per-arch installs — pick the update up on next launch or within 2 hours.
 
 After a **beta** publish, also confirm the stable feed was not touched: `desktop-latest/latest.json` must still serve the previous stable version. (The workflow guards this fail-closed, but it is cheap to verify and catastrophic to miss — the updater comparator is a plain semver "newer than", so a beta manifest on `desktop-latest` would auto-update every stable install onto the beta.)
 
