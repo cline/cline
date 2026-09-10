@@ -4,9 +4,9 @@ import * as LlmsModels from "@cline/llms";
 import { ReasoningLevelSchema } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import {
-	emptyStoredProviderSettings,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+	type StoredProviderSettings,
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
@@ -901,9 +901,10 @@ export function migrateLegacyProviderSettings(
 		? normalizeLegacyProviderId(rawOtherModeProvider)
 		: undefined;
 	const candidates = collectCandidateProviderIds(globalState, secrets);
-	const next = emptyStoredProviderSettings();
-	next.providers = { ...existing.providers };
-	next.lastUsedProvider = existing.lastUsedProvider;
+	const next: StoredProviderSettings = {
+		...existing,
+		providers: { ...existing.providers },
+	};
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
 	const modelsPath = join(
@@ -912,10 +913,21 @@ export function migrateLegacyProviderSettings(
 	);
 	const modelsState = readModelsFileSync(modelsPath);
 	let addedCustomProviderCount = 0;
+	// Every legacy provider is imported at most once. Without this, a provider
+	// the user removed (sign out / disconnect) would be resurrected from the
+	// still-present legacy files on the next startup. Providers that already
+	// have an entry are recorded too, so removing them later sticks as well.
+	const migratedLegacyProviders = new Set(existing.migratedLegacyProviders);
+	let recordedProviderCount = 0;
 
 	for (const legacyProviderId of candidates) {
 		const providerId = resolveMigratedProviderId(legacyProviderId);
+		if (migratedLegacyProviders.has(providerId)) {
+			continue;
+		}
 		if (next.providers[providerId]) {
+			migratedLegacyProviders.add(providerId);
+			recordedProviderCount += 1;
 			continue;
 		}
 		// A provider selected only in the non-current mode must be read through
@@ -939,6 +951,7 @@ export function migrateLegacyProviderSettings(
 			updatedAt: now,
 			tokenSource: "migration",
 		};
+		migratedLegacyProviders.add(providerId);
 		addedProviderCount += 1;
 		const registration = resolveLegacyCustomProviderRegistration(
 			providerId,
@@ -953,7 +966,14 @@ export function migrateLegacyProviderSettings(
 		}
 	}
 
+	if (migratedLegacyProviders.size > 0) {
+		next.migratedLegacyProviders = [...migratedLegacyProviders];
+	}
+
 	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
+		if (recordedProviderCount > 0) {
+			options.providerSettingsManager.write(next);
+		}
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,

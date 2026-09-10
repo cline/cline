@@ -44,6 +44,13 @@ export interface StoredProviderSettings {
 	lastUsedProvider?: string;
 	modes: StoredProviderModes;
 	providers: Record<string, StoredProviderSettingsEntry>;
+	/**
+	 * Provider ids the legacy globalState.json/secrets.json import has already
+	 * handled. Each legacy provider is imported at most once, so removing a
+	 * provider afterwards (sign out / disconnect) is not undone by the next
+	 * startup while legacy credentials still exist on disk.
+	 */
+	migratedLegacyProviders?: string[];
 }
 
 export const StoredProviderModesSchema: z.ZodType<StoredProviderModes> =
@@ -64,6 +71,7 @@ export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 		lastUsedProvider: z.string().min(1).optional(),
 		modes: StoredProviderModesSchema.default({}),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
+		migratedLegacyProviders: z.array(z.string().min(1)).optional(),
 	});
 
 export function emptyStoredProviderSettings(): StoredProviderSettings {
