@@ -986,6 +986,29 @@ async function toggleHubSetting(
 	return reply.payload?.snapshot as CoreSettingsSnapshot;
 }
 
+/**
+ * MCP server list for the desktop view. Connection status lives in the hub
+ * (sessions connect servers there), so it is merged from `settings.list` when
+ * the sidecar is already connected; the list still renders from the settings
+ * file alone if the hub is unavailable.
+ */
+async function readMcpServersWithConnectionStatus(
+	ctx: SidecarContext,
+): Promise<JsonRecord> {
+	const response = readMcpServersResponse();
+	if (!ctx.hubClient) {
+		return response;
+	}
+	try {
+		const hubSettings = await listHubSettings(ctx, {
+			includePluginTools: false,
+		});
+		return attachMcpConnectionStatus(response, hubSettings.mcp);
+	} catch {
+		return response;
+	}
+}
+
 async function listUserInstructionConfigs(
 	ctx: SidecarContext,
 	settingsSnapshot?: CoreSettingsSnapshot,
@@ -2236,17 +2259,7 @@ export async function handleCommand(
 
 	// ── MCP server management ─────────────────────────────────────────
 	if (command === "list_mcp_servers") {
-		const response = readMcpServersResponse();
-		// Connection status lives in the hub (sessions connect servers there);
-		// the list must still render from the file alone if the hub is down.
-		try {
-			const hubSettings = await listHubSettings(ctx, {
-				includePluginTools: false,
-			});
-			return attachMcpConnectionStatus(response, hubSettings.mcp);
-		} catch {
-			return response;
-		}
+		return await readMcpServersWithConnectionStatus(ctx);
 	}
 	if (command === "authorize_mcp_server_oauth") {
 		const name = String(args?.name ?? "").trim();
@@ -2285,16 +2298,16 @@ export async function handleCommand(
 					disabled: false,
 				});
 			}
-			return readMcpServersResponse();
+			return await readMcpServersWithConnectionStatus(ctx);
 		}
 		setMcpServerDisabled({ filePath: settingsPath, name, disabled: false });
-		return readMcpServersResponse();
+		return await readMcpServersWithConnectionStatus(ctx);
 	}
 	if (command === "cancel_mcp_server_oauth") {
 		const name = String(args?.name ?? "").trim();
 		if (!name) throw new Error("server name is required");
 		cancelMcpOAuthAuthorizationForReason(name, "user");
-		return readMcpServersResponse();
+		return await readMcpServersWithConnectionStatus(ctx);
 	}
 	if (command === "set_mcp_server_disabled") {
 		const name = String(args?.name ?? "").trim();
@@ -2303,7 +2316,7 @@ export async function handleCommand(
 		if (disabled) {
 			cancelMcpOAuthAuthorizationForReason(name, "server-disabled");
 			setMcpServerDisabled({ filePath: path, name, disabled: true });
-			return readMcpServersResponse();
+			return await readMcpServersWithConnectionStatus(ctx);
 		}
 		const registration = resolveMcpServerRegistration(name, { filePath: path });
 		if (!registration) {
@@ -2316,11 +2329,11 @@ export async function handleCommand(
 				filePath: path,
 			});
 			if (!probe.connected) {
-				return readMcpServersResponse();
+				return await readMcpServersWithConnectionStatus(ctx);
 			}
 		}
 		setMcpServerDisabled({ filePath: path, name, disabled: false });
-		return readMcpServersResponse();
+		return await readMcpServersWithConnectionStatus(ctx);
 	}
 	if (command === "upsert_mcp_server") {
 		const input =
@@ -2431,7 +2444,7 @@ export async function handleCommand(
 				setMcpServerDisabled({ filePath: path, name, disabled: false });
 			}
 		}
-		return readMcpServersResponse();
+		return await readMcpServersWithConnectionStatus(ctx);
 	}
 	if (command === "delete_mcp_server") {
 		const path = ensureMcpSettingsFile();
@@ -2441,7 +2454,7 @@ export async function handleCommand(
 			delete servers[String(args?.name ?? "")];
 			settings.mcpServers = servers;
 		});
-		return readMcpServersResponse();
+		return await readMcpServersWithConnectionStatus(ctx);
 	}
 	if (command === "ensure_mcp_settings_file") {
 		return ensureMcpSettingsFile();

@@ -670,8 +670,15 @@ export function McpServersContent({
 			serverActionErrors[server.name] ??
 			(server.disabled ? undefined : server.oauthStatus?.lastError);
 		// The hub records the outcome of its last connect attempt per server;
-		// a disabled server is not connected, so its stale record is not shown.
-		const connection = server.disabled ? undefined : server.connection;
+		// a disabled server is not connected, so its stale record is not shown,
+		// and a failure already shown by the probe/OAuth box is not repeated.
+		const connection =
+			server.disabled ||
+			(server.connection &&
+				!server.connection.connected &&
+				server.connection.error === serverError)
+				? undefined
+				: server.connection;
 
 		return (
 			<div
