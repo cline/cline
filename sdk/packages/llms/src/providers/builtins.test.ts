@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
 	BUILTIN_SPECS,
+	getGeneratedModelsForRuntimeProvider,
 	resolveProviderApiLineBaseUrl,
 } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
@@ -429,6 +430,22 @@ describe("built-in provider metadata", () => {
 				maxTokens: 128_000,
 			}),
 		);
+	});
+
+	it("applies the ChatGPT subscription filter to the shared OpenAI catalog", () => {
+		const openAiModelIds = Object.keys(
+			getGeneratedModelsForRuntimeProvider("openai-native"),
+		);
+		const chatGptModelIds = Object.keys(
+			getGeneratedModelsForRuntimeProvider("openai-codex"),
+		);
+
+		expect(openAiModelIds).toEqual(
+			expect.arrayContaining(["gpt-4o", "gpt-5.5", "o3"]),
+		);
+		expect(chatGptModelIds).toContain("gpt-5.5");
+		expect(chatGptModelIds).not.toContain("gpt-4o");
+		expect(chatGptModelIds).not.toContain("o3");
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {

@@ -212,18 +212,8 @@ export function toProviderConfig(
 		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
 
 	const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[normalizedProviderId];
-	const catalogKnownModels = Object.assign(
-		{},
-		...Llms.resolveProviderModelCatalogKeys(normalizedProviderId).map(
-			(catalogKey) => Llms.getGeneratedModelsForProvider(catalogKey),
-		),
-	);
-	// The ChatGPT subscription backend shares the OpenAI API catalog but only
-	// serves a subset of it, with tighter context budgets.
 	const generatedKnownModels =
-		normalizedProviderId === BUILT_IN_PROVIDER.OPENAI_CODEX
-			? Llms.filterOpenAICodexModels(catalogKnownModels)
-			: catalogKnownModels;
+		Llms.getGeneratedModelsForRuntimeProvider(normalizedProviderId);
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
 	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
