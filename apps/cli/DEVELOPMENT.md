@@ -496,7 +496,6 @@ On startup, `cline` also attempts a legacy settings import:
 - Target file: `<CLINE_DATA_DIR>/settings/providers.json` (or `CLINE_PROVIDER_SETTINGS_PATH`)
 - Existing providers in `providers.json` are never overwritten
 - Missing providers discovered in legacy files are merged into `providers.json`
-- Each legacy provider is imported at most once (tracked in `migratedLegacyProviders`), so a provider the user later removes is not re-imported while the legacy files still exist
 - Migrated provider entries are annotated with `tokenSource: "migration"`
 
 Custom provider registry notes:
