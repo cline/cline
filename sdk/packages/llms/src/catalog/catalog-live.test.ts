@@ -14,6 +14,44 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("preserves model adapters and narrowly fills missing Go Qwen declarations", () => {
+		const models = {
+			muse: { tool_call: true, provider: { npm: "@ai-sdk/openai" } },
+			minimax: { tool_call: true, provider: { npm: "@ai-sdk/anthropic" } },
+			google: { tool_call: true, provider: { npm: "@ai-sdk/google" } },
+			qwen: { tool_call: true, family: "qwen3.7-plus" },
+			explicitQwen: {
+				tool_call: true,
+				family: "qwen",
+				provider: { npm: "@ai-sdk/openai-compatible" },
+			},
+			unknownQwen: {
+				tool_call: true,
+				family: "qwen",
+				provider: { npm: "unknown-sdk" },
+			},
+			glm: { tool_call: true, family: "glm" },
+		};
+		const result = normalizeModelsDevProviderModels({
+			"opencode-go": { npm: "@ai-sdk/openai-compatible", models },
+			"other-gateway": { npm: "@ai-sdk/openai-compatible", models },
+		});
+		expect(result["opencode-go"].muse.metadata?.apiProtocol).toBe(
+			"openai-responses",
+		);
+		expect(result["opencode-go"].minimax.metadata?.apiProtocol).toBe(
+			"anthropic",
+		);
+		expect(result["opencode-go"].google.metadata?.apiProtocol).toBe("gemini");
+		expect(result["opencode-go"].qwen.metadata?.apiProtocol).toBe("anthropic");
+		expect(result["opencode-go"].explicitQwen.metadata?.apiProtocol).toBe(
+			"openai-chat",
+		);
+		expect(result["opencode-go"].unknownQwen.metadata).toBeUndefined();
+		expect(result["opencode-go"].glm.metadata).toBeUndefined();
+		expect(result["other-gateway"].qwen.metadata).toBeUndefined();
+	});
+
 	it("bundles zero prices for every Cline Pass model without a live refresh", () => {
 		const models = Object.values(getGeneratedModelsForProvider("cline-pass"));
 		expect(models.length).toBeGreaterThan(0);
