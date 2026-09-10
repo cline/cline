@@ -1628,10 +1628,9 @@ function ChatThreadPane({
 								onOpenModelSettings={onOpenModelSettings}
 								onOpenSetup={onOpenSetup}
 							/>
-						) : (
-							<WelcomeImportNotice />
-						)
+						) : undefined
 					}
+					footnote={<WelcomeImportNotice />}
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Import } from "lucide-react";
+import { Import, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import { Button } from "@/components/ui/button";
@@ -81,45 +81,33 @@ export function WelcomeImportNotice() {
 		.map((tool) => SESSION_IMPORT_TOOL_LABELS[tool])
 		.join(found.tools.length === 2 ? " and " : ", ");
 	const sessionsNoun = found.count === 1 ? "session" : "sessions";
-	const pronoun = found.count === 1 ? "it" : "them";
 
 	return (
 		<>
-			<output className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 backdrop-blur-sm">
-				<div className="flex min-w-0 items-start gap-3">
-					<span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-						<Import className="size-4" />
-					</span>
-					<div className="min-w-0">
-						<p className="text-sm font-semibold text-foreground">
-							Bring your history from {toolList}
-						</p>
-						<p className="mt-0.5 text-[13px] text-muted-foreground">
-							Cline found {found.count} {sessionsNoun} on this machine. Import{" "}
-							{pronoun} to keep your past conversations and continue {pronoun}{" "}
-							here.
-						</p>
-					</div>
-				</div>
-				<div className="flex shrink-0 items-center gap-2">
-					<Button
-						className="rounded-full"
-						onClick={() => setDialogOpen(true)}
-						size="sm"
-						type="button"
-					>
-						Import sessions
-					</Button>
-					<Button
-						className="rounded-full"
-						onClick={dismiss}
-						size="sm"
-						type="button"
-						variant="ghost"
-					>
-						Not now
-					</Button>
-				</div>
+			<output className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+				<Import aria-hidden="true" className="size-3.5 shrink-0" />
+				<span>
+					{found.count} {sessionsNoun} from {toolList} found on this machine.
+				</span>
+				<Button
+					className="h-auto p-0 text-xs font-medium"
+					onClick={() => setDialogOpen(true)}
+					type="button"
+					variant="link"
+				>
+					Import
+				</Button>
+				<Button
+					aria-label="Dismiss"
+					className="ml-1 size-5 text-muted-foreground hover:text-foreground"
+					onClick={dismiss}
+					size="icon"
+					title="Dismiss"
+					type="button"
+					variant="ghost"
+				>
+					<X className="size-3.5" />
+				</Button>
 			</output>
 			<ImportSessionsDialog
 				onImported={() => {

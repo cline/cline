@@ -85,8 +85,10 @@ async function renderNotice() {
 }
 
 function click(label: string) {
-	const button = [...container.querySelectorAll("button")].find((element) =>
-		element.textContent?.includes(label),
+	const button = [...container.querySelectorAll("button")].find(
+		(element) =>
+			element.textContent?.includes(label) ||
+			element.getAttribute("aria-label") === label,
 	);
 	if (!button) throw new Error(`no button "${label}"`);
 	act(() => button.click());
@@ -118,9 +120,8 @@ describe("WelcomeImportNotice", () => {
 		});
 		await renderNotice();
 		expect(container.textContent).toContain(
-			"Bring your history from Claude Code and Codex",
+			"3 sessions from Claude Code and Codex found on this machine.",
 		);
-		expect(container.textContent).toContain("Cline found 3 sessions");
 	});
 
 	it("does not scan once dismissed, and remembers the dismissal", async () => {
@@ -131,7 +132,7 @@ describe("WelcomeImportNotice", () => {
 		await renderNotice();
 		expect(container.textContent).toContain("opencode");
 
-		click("Not now");
+		click("Dismiss");
 		expect(container.textContent).toBe("");
 		expect(isImportNoticeDismissed()).toBe(true);
 
@@ -149,14 +150,14 @@ describe("WelcomeImportNotice", () => {
 			sessions: [session("codex")],
 		});
 		await renderNotice();
-		click("Import sessions");
+		click("Import");
 		expect(container.querySelector("[data-testid=import-dialog]")).not.toBe(
 			null,
 		);
 
 		click("stub-import");
 		expect(isImportNoticeDismissed()).toBe(true);
-		expect(container.textContent).toContain("Bring your history from Codex");
+		expect(container.textContent).toContain("1 session from Codex found");
 
 		click("stub-close");
 		expect(container.textContent).toBe("");

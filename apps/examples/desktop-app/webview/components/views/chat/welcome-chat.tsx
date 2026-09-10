@@ -21,6 +21,7 @@ export function WelcomeScreen({
 	body,
 	composer,
 	notice,
+	footnote,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -31,6 +32,8 @@ export function WelcomeScreen({
 	composer: ReactNode;
 	/** Rendered above the composer on the welcome state (e.g. setup notice). */
 	notice?: ReactNode;
+	/** Low-key line rendered under the composer on the welcome state. */
+	footnote?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
@@ -171,6 +174,8 @@ export function WelcomeScreen({
 					>
 						{active ? composer : <SessionContent>{composer}</SessionContent>}
 					</div>
+
+					{active && footnote ? footnote : null}
 
 					{active && AGENDA_UI_ENABLED ? (
 						<>
