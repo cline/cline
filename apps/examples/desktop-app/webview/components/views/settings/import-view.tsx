@@ -1,7 +1,7 @@
 "use client";
 
 import { Import } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import { Button } from "@/components/ui/button";
 import { desktopClient } from "@/lib/desktop-client";
@@ -33,8 +33,12 @@ export function ImportContent() {
 	const [scan, setScan] = useState<ListImportableSessionsResponse | null>(null);
 	const [scanError, setScanError] = useState<string | null>(null);
 	const [dialogOpen, setDialogOpen] = useState(false);
+	// A slow initial scan can finish after the post-import rescan; only the
+	// latest request may update the counts.
+	const scanRequestRef = useRef(0);
 
 	const rescan = useCallback(async () => {
+		const requestId = ++scanRequestRef.current;
 		setScanError(null);
 		try {
 			const response =
@@ -43,11 +47,13 @@ export function ImportContent() {
 					{},
 					{ timeoutMs: 120_000 },
 				);
+			if (scanRequestRef.current !== requestId) return;
 			setScan({
 				installedTools: response.installedTools ?? [],
 				sessions: response.sessions ?? [],
 			});
 		} catch (error) {
+			if (scanRequestRef.current !== requestId) return;
 			setScanError(error instanceof Error ? error.message : String(error));
 		}
 	}, []);

@@ -115,6 +115,40 @@ describe("ImportContent", () => {
 		expect(invoke).toHaveBeenCalledTimes(2);
 	});
 
+	it("ignores a slow earlier scan that resolves after a rescan", async () => {
+		let resolveFirst: (value: unknown) => void = () => {};
+		invoke
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveFirst = resolve;
+					}),
+			)
+			.mockResolvedValueOnce({
+				installedTools: ["codex"],
+				sessions: [session("codex", "existing")],
+			});
+		await render();
+		expect(container.textContent).toContain("Scanning…");
+
+		click("Import sessions");
+		click("stub-close");
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain(
+			"1 session found · 1 already imported",
+		);
+
+		await act(async () => {
+			resolveFirst({ installedTools: ["codex"], sessions: [session("codex")] });
+			await Promise.resolve();
+		});
+		expect(container.textContent).toContain(
+			"1 session found · 1 already imported",
+		);
+	});
+
 	it("reports a failed scan", async () => {
 		invoke.mockRejectedValue(new Error("disk on fire"));
 		await render();
