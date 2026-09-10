@@ -159,6 +159,18 @@ function getConfiguredApiBaseUrl(
 	}
 }
 
+const RECOMMENDED_MODELS_PATH = "/api/v1/ai/cline/recommended-models";
+
+function buildRecommendedModelsUrl(base: string): string {
+	try {
+		const url = new URL(base);
+		url.pathname = RECOMMENDED_MODELS_PATH;
+		return url.toString();
+	} catch {
+		return `${base}${RECOMMENDED_MODELS_PATH}`;
+	}
+}
+
 async function fetchWithTimeout(
 	fetchImpl: typeof fetch,
 	input: string,
@@ -282,13 +294,9 @@ export async function fetchClineRecommendedModels(
 	// promise resolves on a microtask, ahead of the zero-delay timer.
 	const deadline = Date.now() + timeoutMs;
 	try {
-		const base = getConfiguredApiBaseUrl(options);
+		const url = buildRecommendedModelsUrl(getConfiguredApiBaseUrl(options));
 		const fetchImpl = options.fetchImpl ?? fetch;
-		const resp = await fetchWithTimeout(
-			fetchImpl,
-			`${base}/api/v1/ai/cline/recommended-models`,
-			timeoutMs,
-		);
+		const resp = await fetchWithTimeout(fetchImpl, url, timeoutMs);
 		if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 		const json: unknown = await resp.json();
 		const data = normalizeResponse(json);

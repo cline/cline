@@ -90,6 +90,38 @@ function namesOf(data: ClineRecommendedModelsData) {
 }
 
 describe("fetchClineRecommendedModels", () => {
+	it("requests the same endpoint for host-only and endpoint-root bases", async () => {
+		for (const base of [BASE_URL, `${BASE_URL}/api/v1`]) {
+			let requested: string | undefined;
+			await fetchClineRecommendedModels({
+				baseUrl: base,
+				fetchImpl: (async (input: string) => {
+					requested = input;
+					return jsonResponse(ENDPOINT_PAYLOAD)(input);
+				}) as unknown as typeof fetch,
+				catalogLoader: async () => CATALOG,
+			});
+
+			expect(requested).toBe(
+				`${BASE_URL}/api/v1/ai/cline/recommended-models`,
+			);
+		}
+	});
+
+	it("falls back to plain concatenation when the base is not a parseable URL", async () => {
+		let requested: string | undefined;
+		await fetchClineRecommendedModels({
+			baseUrl: "not a url",
+			fetchImpl: (async (input: string) => {
+				requested = input;
+				return jsonResponse(ENDPOINT_PAYLOAD)(input);
+			}) as unknown as typeof fetch,
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(requested).toBe("not a url/api/v1/ai/cline/recommended-models");
+	});
+
 	it("resolves display names from the models catalog", async () => {
 		const data = await fetchClineRecommendedModels({
 			baseUrl: BASE_URL,
