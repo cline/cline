@@ -237,6 +237,10 @@ describe("transcription model selection", () => {
 
 		const catalog = buildProviderModelCatalog([provider]);
 		expect(catalog.providerModels.openai).toEqual(["gpt-audio", "gpt-text"]);
+		expect(catalog.providerModelDetails.openai).toEqual(
+			provider.modelList?.slice(1),
+		);
+		expect(catalog.providerNames.openai).toBe("OpenAI");
 		expect(
 			filterChatModels(provider.modelList).map((model) => model.id),
 		).toEqual(["gpt-audio", "gpt-text"]);
