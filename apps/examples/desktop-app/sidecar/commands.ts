@@ -1931,9 +1931,13 @@ export async function handleCommand(
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
+		const provider = String(args?.provider ?? "").trim();
+		// Known models are merged in unfiltered after the provider's own model
+		// rules run, so including them here would leak e.g. the full OpenAI
+		// catalog into the ChatGPT Subscription (codex) picker.
 		return await getLocalProviderModels(
-			String(args?.provider ?? ""),
-			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+			provider,
+			manager.getProviderConfig(provider, { includeKnownModels: false }),
 		);
 	}
 	if (command === "list_cline_recommended_models") {
