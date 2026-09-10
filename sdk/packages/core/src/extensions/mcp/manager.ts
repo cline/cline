@@ -185,15 +185,22 @@ export class InMemoryMcpManager implements McpManager {
 	 * sessions' server processes without invalidating their tool wrappers.
 	 */
 	async disconnectAll(): Promise<void> {
-		await this.forEachServer((name) => this.disconnectServer(name));
+		await this.forEachServer(
+			(name) => this.disconnectServer(name),
+			"MCP manager disconnect failed",
+		);
 	}
 
 	async dispose(): Promise<void> {
-		await this.forEachServer((name) => this.unregisterServer(name));
+		await this.forEachServer(
+			(name) => this.unregisterServer(name),
+			"MCP manager dispose failed",
+		);
 	}
 
 	private async forEachServer(
 		operation: (serverName: string) => Promise<void>,
+		failureMessage: string,
 	): Promise<void> {
 		// One wedged server (e.g. a stdio child that never exits) must not stop
 		// the remaining servers from being disconnected.
@@ -206,7 +213,7 @@ export class InMemoryMcpManager implements McpManager {
 			}
 		}
 		if (errors.length > 0) {
-			throw new AggregateError(errors, "MCP manager dispose failed");
+			throw new AggregateError(errors, failureMessage);
 		}
 	}
 
