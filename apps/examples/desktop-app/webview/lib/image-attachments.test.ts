@@ -38,10 +38,7 @@ it.each([
 	"avif",
 	"tiff",
 	"ico",
-])("rejects unsupported %s images explicitly instead of silently dropping them", async (extension) => {
+])("identifies unsupported %s images for the attachment checkpoint", async (extension) => {
 	const file = new File(["image data"], `photo.${extension}`);
 	expect(isUnsupportedImageAttachment(file)).toBe(true);
-	await expect(serializeAttachments([file])).rejects.toThrow(
-		"Unsupported image format",
-	);
 });

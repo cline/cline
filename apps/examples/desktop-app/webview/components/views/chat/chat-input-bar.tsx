@@ -11,7 +11,6 @@ import {
 	CircleCheck,
 	CircleStop,
 	Cpu,
-	ImagePlus,
 	Paperclip,
 	X,
 } from "lucide-react";
@@ -45,10 +44,7 @@ import {
 	buildModelPickerData,
 	type ModelPickerData,
 } from "@/lib/featured-models";
-import {
-	imageAttachmentMediaType,
-	isUnsupportedImageAttachment,
-} from "@/lib/image-attachments";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -481,36 +477,19 @@ function ChatInputBarImpl({
 		},
 		[provider, model],
 	);
-	const reportUnsupportedImages = useCallback(
-		(source: "picker" | "paste" | "send", imageCount: number) => {
-			toast({
-				title: "This model doesn’t support image input",
-				description:
-					"Choose a model that supports images or remove the images before sending. Other files can still be attached.",
-			});
-			void desktopClient
-				.invoke("record_image_attachment_blocked", { source, imageCount })
-				.catch(() => {});
-		},
-		[],
-	);
+	const reportUnsupportedImages = useCallback(() => {
+		toast({
+			title: "This model doesn’t support image input",
+			description:
+				"Choose a model that supports images or remove the images before sending. Other files can still be attached.",
+		});
+	}, []);
 	const handleAttachFiles = useCallback(
-		(files: File[], source: "picker" | "paste") => {
-			const supportedFiles = files.filter(
-				(file) => !isUnsupportedImageAttachment(file),
-			);
-			if (supportedFiles.length !== files.length) {
-				toast({
-					title: "Unsupported image format",
-					description:
-						"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
-				});
-			}
+		(files: File[]) => {
 			const allowed = imagesUnsupported
-				? supportedFiles.filter((file) => !imageAttachmentMediaType(file))
-				: supportedFiles;
-			if (allowed.length !== supportedFiles.length)
-				reportUnsupportedImages(source, supportedFiles.length - allowed.length);
+				? files.filter((file) => !imageAttachmentMediaType(file))
+				: files;
+			if (allowed.length !== files.length) reportUnsupportedImages();
 			if (allowed.length > 0) onAttachFiles(allowed);
 		},
 		[imagesUnsupported, onAttachFiles, reportUnsupportedImages],
@@ -522,7 +501,7 @@ function ChatInputBarImpl({
 	const handleSend = useCallback(() => {
 		if (speechInputActive) return;
 		if (unsupportedDraftImageCount > 0) {
-			reportUnsupportedImages("send", unsupportedDraftImageCount);
+			reportUnsupportedImages();
 			return;
 		}
 		const prompt = promptInput.trim();
@@ -537,7 +516,6 @@ function ChatInputBarImpl({
 		reportUnsupportedImages,
 	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
-	const imageInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
 	const updateTranscriptionTarget = useCallback(
@@ -1282,7 +1260,7 @@ function ChatInputBarImpl({
 									// Attach the image instead of pasting its fallback
 									// text representation (e.g. a file path or URL).
 									e.preventDefault();
-									handleAttachFiles(images, "paste");
+									handleAttachFiles(images);
 								}
 							}}
 							onKeyDown={(e) => {
@@ -1481,35 +1459,12 @@ function ChatInputBarImpl({
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
-						aria-label="Attach images"
-						disabled={imagesUnsupported}
+						aria-label="Attach files"
 						title={
 							imagesUnsupported
-								? "This model doesn’t support image attachments"
-								: "Attach images"
+								? "Attach files (this model doesn’t support images)"
+								: "Attach files"
 						}
-						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40"
-						onClick={() => imageInputRef.current?.click()}
-						type="button"
-					>
-						<ImagePlus className="size-3" />
-					</button>
-					<input
-						accept="image/png,image/jpeg,image/gif,image/webp"
-						disabled={imagesUnsupported}
-						className="hidden"
-						multiple
-						onChange={(event) => {
-							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) handleAttachFiles(files, "picker");
-							event.currentTarget.value = "";
-						}}
-						ref={imageInputRef}
-						type="file"
-					/>
-					<button
-						aria-label="Attach files"
-						title="Attach files"
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -1522,7 +1477,7 @@ function ChatInputBarImpl({
 						multiple
 						onChange={(event) => {
 							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) handleAttachFiles(files, "picker");
+							if (files.length > 0) handleAttachFiles(files);
 							event.currentTarget.value = "";
 						}}
 						ref={fileInputRef}

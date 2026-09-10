@@ -1119,15 +1119,6 @@ function ChatThreadPane({
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
 			}
-			if (pendingAttachments.some(isUnsupportedImageAttachment)) {
-				setPromptInput(prompt);
-				toast({
-					title: "Unsupported image format",
-					description:
-						"Remove unsupported images or convert them to PNG, JPEG, GIF, or WebP before sending.",
-				});
-				return;
-			}
 			onThreadStarted?.(threadId);
 			// Also clear the injected draft: the composer cleared its local copy,
 			// but a stale non-empty draft would repopulate the input if the

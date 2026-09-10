@@ -1,9 +1,6 @@
 import { validateImageMedia } from "@cline/shared/browser";
 import type { ChatMessageImage } from "@/lib/chat-schema";
-import {
-	imageAttachmentMediaType,
-	isUnsupportedImageAttachment,
-} from "@/lib/image-attachments";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import type { SerializedAttachmentFile, SerializedAttachments } from "./types";
 
 async function readFileAsDataUrl(file: File): Promise<string> {
@@ -27,10 +24,6 @@ export async function serializeAttachments(
 	const userFiles: SerializedAttachmentFile[] = [];
 
 	for (const file of files) {
-		if (isUnsupportedImageAttachment(file))
-			throw new Error(
-				"Unsupported image format. Convert images to PNG, JPEG, GIF, or WebP before attaching them.",
-			);
 		const mediaType = imageAttachmentMediaType(file);
 		if (mediaType) {
 			const dataUrl = await readFileAsDataUrl(

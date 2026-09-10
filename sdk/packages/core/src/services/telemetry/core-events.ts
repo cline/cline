@@ -40,7 +40,6 @@ export interface TelemetryAgentIdentityProperties {
 }
 
 export const CORE_TELEMETRY_EVENTS = {
-	DESKTOP: { IMAGE_ATTACHMENT_BLOCKED: "desktop.image_attachment_blocked" },
 	CLIENT: {
 		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
@@ -877,16 +876,5 @@ export function captureCompactionBudgetEmergency(
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_BUDGET_EMERGENCY, {
 		...properties,
 		timestamp: new Date().toISOString(),
-	});
-}
-
-/** Records blocked image attempts without filenames, contents, or user text. */
-export function captureDesktopImageAttachmentBlocked(
-	telemetry: ITelemetryService | undefined,
-	properties: { source: "picker" | "paste" | "send"; imageCount: number },
-): void {
-	emit(telemetry, CORE_TELEMETRY_EVENTS.DESKTOP.IMAGE_ATTACHMENT_BLOCKED, {
-		source: properties.source,
-		imageCount: properties.imageCount,
 	});
 }

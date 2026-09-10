@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
-import { desktopClient } from "@/lib/desktop-client";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
@@ -97,7 +96,6 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
-	vi.spyOn(desktopClient, "invoke").mockResolvedValue({ ok: true });
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
@@ -258,10 +256,6 @@ describe("ChatInputBar", () => {
 		});
 		expect(onSend).not.toHaveBeenCalled();
 		expect(textarea?.value).toBe("Describe it");
-		expect(desktopClient.invoke).toHaveBeenCalledWith(
-			"record_image_attachment_blocked",
-			{ source: "send", imageCount: 1 },
-		);
 		await renderVoiceComposer({
 			onSend,
 			attachments: [],
@@ -1667,7 +1661,6 @@ describe("ChatInputBar", () => {
 		};
 
 		beforeEach(() => {
-			vi.spyOn(desktopClient, "invoke").mockResolvedValue({ ok: true });
 			// The ClinePass offer: one subscribed and one free model, stamped
 			// by the SDK onto ProviderModel.featured. The catalog additionally
 			// contains a stale unstamped model outside the offer, which the
@@ -2102,14 +2095,12 @@ describe("ChatInputBar", () => {
 				},
 			]);
 		});
-		const attachButton = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Attach images"]',
-		);
-		expect(attachButton?.disabled).toBe(supportsImages === false);
+		expect(container.querySelector('[aria-label="Attach images"]')).toBeNull();
 		expect(
 			container.querySelector<HTMLButtonElement>('[aria-label="Attach files"]')
 				?.disabled,
 		).toBe(false);
+
 		const png = new File(["fake"], "image.png", { type: "image/png" });
 		const imagePaste = await pasteWithClipboard([
 			{ kind: "file", type: "image/png", getAsFile: () => png },
@@ -2144,13 +2135,7 @@ describe("ChatInputBar", () => {
 		);
 		if (!fileInput) throw new Error("File input missing");
 		Object.defineProperty(fileInput, "files", {
-			value: [
-				png,
-				textFile,
-				imageWithoutMime,
-				genericImage,
-				new File(["svg"], "image.svg", { type: "image/svg+xml" }),
-			],
+			value: [png, textFile, imageWithoutMime, genericImage],
 		});
 		await act(async () => {
 			fileInput.dispatchEvent(new Event("change", { bubbles: true }));
