@@ -77,6 +77,7 @@ export {
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	getGeneratedModelsForRuntimeProvider,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
