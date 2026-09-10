@@ -318,7 +318,7 @@ export class CronRunner {
 			this.store.requeueRun({
 				runId: run.runId,
 				claimToken: claim.claimToken,
-				error: "concurrency limit reached",
+				releaseAttempt: true,
 			});
 			return;
 		}

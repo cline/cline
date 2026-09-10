@@ -158,7 +158,13 @@ describe("CronRunner", () => {
 			const otherSchedule = enqueue("other");
 			await runner.tick();
 			expect(store.getRun(otherSchedule.runId)?.status).toBe("done");
-			expect(store.getRun(sameSchedule.runId)?.status).toBe("queued");
+			for (let poll = 0; poll < 5; poll += 1) {
+				await runner.tick();
+				const waiting = store.getRun(sameSchedule.runId);
+				expect(waiting?.status).toBe("queued");
+				expect(waiting?.attemptCount).toBe(0);
+				expect(waiting?.error).toBeUndefined();
+			}
 			expect(store.getRun(blocked.runId)?.status).toBe("running");
 			expect(store.getRun(blocked.runId)?.attemptCount).toBe(1);
 			expect(calls.start).toBe(2);
@@ -555,8 +561,8 @@ describe("CronRunner", () => {
 
 		const requeued = store.getRun(blocked.runId);
 		expect(requeued?.status).toBe("queued");
-		expect(requeued?.attemptCount).toBe(1);
-		expect(requeued?.error).toBe("concurrency limit reached");
+		expect(requeued?.attemptCount).toBe(0);
+		expect(requeued?.error).toBeUndefined();
 	});
 
 	it("requeues active runs on stop and allows them to be reclaimed", async () => {

@@ -1732,6 +1732,8 @@ export class SqliteCronStore {
 		update: ClaimBoundUpdate & {
 			error?: string;
 			scheduledFor?: string;
+			/** Undo the claim's attempt increment when execution never started. */
+			releaseAttempt?: boolean;
 		},
 	): boolean {
 		const updatedAt = nowIso();
@@ -1740,6 +1742,7 @@ export class SqliteCronStore {
 				.prepare(
 					`UPDATE cron_runs SET
 						status = 'queued',
+						attempt_count = MAX(0, attempt_count - ?),
 						claim_started_at = NULL,
 						claim_token = NULL,
 						claim_until_at = NULL,
@@ -1753,6 +1756,7 @@ export class SqliteCronStore {
 					WHERE run_id = ? AND claim_token = ?`,
 				)
 				.run(
+					update.releaseAttempt ? 1 : 0,
 					update.error ?? null,
 					update.scheduledFor ?? null,
 					updatedAt,
