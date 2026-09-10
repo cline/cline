@@ -3516,9 +3516,7 @@ describe("sdk-gateway", () => {
 				},
 			]),
 		});
-		const { telemetry, capture } = createTelemetryMock();
 		const gateway = createGateway({
-			telemetry,
 			providerConfigs: [
 				{
 					providerId,
@@ -3550,15 +3548,6 @@ describe("sdk-gateway", () => {
 				cacheReadTokens: 0,
 				cacheWriteTokens: 0,
 				totalCost: 0,
-			},
-		});
-		expect(capture).toHaveBeenCalledWith({
-			event: "sdk.cline_included_cost_corrected",
-			properties: {
-				provider_id: providerId,
-				model_id: "included-model",
-				unadjusted_cost: 0.5,
-				cost_source: "response",
 			},
 		});
 	});
