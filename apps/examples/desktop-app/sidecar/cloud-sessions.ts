@@ -13,12 +13,10 @@ import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 } from "@cline/shared";
-import {
-	CLOUD_PROVISIONING_SESSION_ID_PREFIX,
-	type CloudBranchListOptions,
-	type CloudBranchListResult,
-	type CloudRepositoryListResult,
-	cloudRepositoryLabel,
+import type {
+	CloudBranchListOptions,
+	CloudBranchListResult,
+	CloudRepositoryListResult,
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
@@ -81,11 +79,6 @@ export type CloudProvisioningPhase =
 	| "agent_starting"
 	| "ready"
 	| "failed";
-
-export type CloudProvisioningOutcome =
-	| { status: "provisioning"; phase?: CloudProvisioningPhase }
-	| { status: "ready"; sessionId: string }
-	| { status: "failed"; message: string };
 
 export function deriveCloudSessionTitle(prompt: string): string {
 	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
@@ -525,11 +518,9 @@ export class CloudSessionApi {
 		);
 	}
 
-	async create(
-		input: CreateCloudSessionInput,
-		onProvisioningStatus?: (status: { phase?: CloudProvisioningPhase }) => void,
-	): Promise<{
+	async create(input: CreateCloudSessionInput): Promise<{
 		sessionId: string;
+		status: string;
 		sandboxUrl: string;
 		cleanupAuthToken: string;
 	}> {
@@ -549,7 +540,6 @@ export class CloudSessionApi {
 		);
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
-		let createdSessionId = "";
 		try {
 			const created = await this.request<{
 				sessionId: string;
@@ -582,46 +572,13 @@ export class CloudSessionApi {
 					"The cloud session service returned no session id.",
 				);
 			}
-			createdSessionId = sessionId;
-			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-				await this.waitUntilReady(
-					sessionId,
-					controller.signal,
-					creationAuth,
-					onProvisioningStatus,
-				);
-			}
 			return {
 				sessionId,
+				status: created.status?.trim() || "provisioning",
 				sandboxUrl: created.sandboxUrl?.trim() ?? "",
 				cleanupAuthToken: creationAuth.token,
 			};
 		} catch (error) {
-			if (createdSessionId) {
-				if (
-					error instanceof CloudSessionError &&
-					error.code === "session_failed"
-				) {
-					// Clean up a failed sandbox under the identity that created it.
-					try {
-						await this.deleteWithAuth(createdSessionId, creationAuth);
-					} catch (cleanupError) {
-						if (
-							!(
-								cleanupError instanceof CloudSessionError &&
-								(cleanupError.code === "session_not_found" ||
-									cleanupError.code === "session_expired")
-							)
-						) {
-							throw new AggregateError(
-								[error, cleanupError],
-								"The cloud workspace failed to provision and could not be cleaned up.",
-							);
-						}
-					}
-				}
-				throw error;
-			}
 			// Recover only failures that may have followed an accepted POST.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
@@ -654,49 +611,9 @@ export class CloudSessionApi {
 				}
 				const recovered = candidates[0];
 				if (recovered) {
-					if (
-						recovered.status === "provisioning" ||
-						recovered.status === "failed" ||
-						!recovered.sandboxUrl?.trim()
-					) {
-						const recoveryController = new AbortController();
-						const recoveryTimeout = setTimeout(
-							() => recoveryController.abort(),
-							this.createTimeoutMs,
-						);
-						try {
-							await this.waitUntilReady(
-								recovered.id,
-								recoveryController.signal,
-								creationAuth,
-								onProvisioningStatus,
-							);
-						} catch (recoveryError) {
-							if (
-								recoveryError instanceof CloudSessionError &&
-								recoveryError.code === "session_failed"
-							) {
-								await this.deleteWithAuth(recovered.id, creationAuth).catch(
-									(cleanupError) => {
-										if (
-											!(
-												cleanupError instanceof CloudSessionError &&
-												(cleanupError.code === "session_not_found" ||
-													cleanupError.code === "session_expired")
-											)
-										) {
-											throw cleanupError;
-										}
-									},
-								);
-							}
-							throw recoveryError;
-						} finally {
-							clearTimeout(recoveryTimeout);
-						}
-					}
 					return {
 						sessionId: recovered.id,
+						status: recovered.status,
 						sandboxUrl: recovered.sandboxUrl,
 						cleanupAuthToken: creationAuth.token,
 					};
@@ -708,12 +625,19 @@ export class CloudSessionApi {
 		}
 	}
 
-	private async waitUntilReady(
+	async waitUntilReady(
 		sessionId: string,
 		signal: AbortSignal,
-		authToken?: RequestAuth,
 		onStatus?: (status: { phase?: CloudProvisioningPhase }) => void,
 	): Promise<void> {
+		signal = AbortSignal.any([
+			signal,
+			AbortSignal.timeout(this.createTimeoutMs),
+		]);
+		const token = await this.options.getAuthToken();
+		const authToken = token
+			? { token, subject: authSubject(token) }
+			: undefined;
 		while (!signal.aborted) {
 			let result:
 				| {
@@ -876,6 +800,7 @@ type CloudSessionManagerOptions = {
 		| "delete"
 		| "list"
 		| "status"
+		| "waitUntilReady"
 		| "history"
 		| "updateTitle"
 		| "listRepositories"
@@ -1332,12 +1257,7 @@ export class CloudSessionManager {
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
-	private readonly pendingCreates = new Map<string, JsonRecord>();
-	private readonly pendingCreateRecoveryTitles = new Map<string, string>();
-	private readonly provisioningOutcomes = new Map<
-		string,
-		Exclude<CloudProvisioningOutcome, { status: "provisioning" }>
-	>();
+	private readonly provisioningControllers = new Map<string, AbortController>();
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1356,8 +1276,6 @@ export class CloudSessionManager {
 		return (
 			isCloudOuterSessionId(sessionId) ||
 			this.knownSessions.has(sessionId) ||
-			this.pendingCreates.has(sessionId) ||
-			this.provisioningOutcomes.has(sessionId) ||
 			this.connections.has(sessionId) ||
 			this.ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud"
 		);
@@ -1393,19 +1311,6 @@ export class CloudSessionManager {
 			// A scope/auth/network failure cannot prove the cached session is gone.
 			return cached;
 		}
-	}
-
-	getProvisioningOutcome(
-		placeholderId: string,
-	): CloudProvisioningOutcome | null {
-		const pending = this.pendingCreates.get(placeholderId);
-		if (pending) {
-			return {
-				status: "provisioning",
-				phase: parseCloudProvisioningPhase(pending.provisioningPhase),
-			};
-		}
-		return this.provisioningOutcomes.get(placeholderId) ?? null;
 	}
 
 	async list(): Promise<CloudSessionRecord[]> {
@@ -1449,6 +1354,13 @@ export class CloudSessionManager {
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
+			const live = this.ctx.liveSessions.get(session.id);
+			if (
+				live?.status === "provisioning" &&
+				session.status !== "provisioning"
+			) {
+				live.status = session.status;
+			}
 			const connection = this.connections.get(session.id);
 			if (connection) {
 				// Expired sandboxes must stop reconnecting.
@@ -1551,16 +1463,7 @@ export class CloudSessionManager {
 			records = result.value;
 		}
 
-		const placeholders = Array.from(this.pendingCreates.values());
-		const unmatchedRecoveryTitles = new Set(
-			this.pendingCreateRecoveryTitles.values(),
-		);
-		const listedRecords = records.filter((record) => {
-			const title =
-				record.metadata.createRequestTitle?.trim() ?? record.title?.trim();
-			return !title || !unmatchedRecoveryTitles.delete(title);
-		});
-		const listed = listedRecords.map((record) => {
+		const listed = records.map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.ctx.liveSessions.get(record.id);
 			if (!live) {
@@ -1586,7 +1489,7 @@ export class CloudSessionManager {
 				},
 			};
 		});
-		return [...placeholders, ...listed];
+		return listed;
 	}
 
 	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
@@ -1606,112 +1509,14 @@ export class CloudSessionManager {
 	private async createOnce(
 		input: CreateCloudSessionInput,
 	): Promise<JsonRecord> {
-		if (this.disposed) {
-			throw new Error("Cloud session manager was disposed");
-		}
-		const placeholderId = `${CLOUD_PROVISIONING_SESSION_ID_PREFIX}${randomUUID()}`;
-		const requestId = input.requestId?.trim();
-		if (requestId) {
-			this.pendingCreateRecoveryTitles.set(
-				placeholderId,
-				createRequestTitle(requestId),
-			);
-		}
-		const startedAt = new Date().toISOString();
-		this.pendingCreates.set(placeholderId, {
-			sessionId: placeholderId,
-			origin: "cloud",
-			executionTarget: "cloud",
-			status: "provisioning",
-			provider: "cline",
-			model: input.modelId,
-			repoUrl: input.repoUrl,
-			branch: input.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
-			workspaceRoot: CLOUD_WORKSPACE_ROOT,
-			...(input.initialPrompt?.trim()
-				? { prompt: input.initialPrompt.trim() }
-				: {}),
-			startedAt,
-			updatedAt: startedAt,
-			metadata: {
-				origin: "cloud",
-				repoUrl: input.repoUrl,
-				git: { url: input.repoUrl, branch: input.branch ?? "" },
-				title: `Provisioning ${cloudRepositoryLabel(input.repoUrl, "repository")}…`,
-			},
-		});
-		sendEvent(this.ctx, "chat_session_status", {
-			sessionId: placeholderId,
-			status: "provisioning",
-		});
-		try {
-			const created = await this.createProvisionedSession(
-				input,
-				({ phase }) => {
-					const pending = this.pendingCreates.get(placeholderId);
-					if (!pending) return;
-					pending.provisioningPhase = phase;
-					const metadata = pending.metadata;
-					if (
-						metadata &&
-						typeof metadata === "object" &&
-						!Array.isArray(metadata)
-					) {
-						(metadata as JsonRecord).provisioningPhase = phase;
-					}
-				},
-			);
-			const sessionId = String(created.sessionId ?? "");
-			this.provisioningOutcomes.set(placeholderId, {
-				status: "ready",
-				sessionId,
-			});
-			sendEvent(this.ctx, "cloud_session_provisioned", {
-				placeholderId,
-				sessionId,
-			});
-			return created;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			this.provisioningOutcomes.set(placeholderId, {
-				status: "failed",
-				message,
-			});
-			// A thread opened on the placeholder needs a terminal signal, or
-			// its provisioning pane spins forever after the row disappears.
-			sendEvent(this.ctx, "cloud_session_provisioning_failed", {
-				placeholderId,
-				message,
-			});
-			throw error;
-		} finally {
-			this.pendingCreates.delete(placeholderId);
-			this.pendingCreateRecoveryTitles.delete(placeholderId);
-			sendEvent(this.ctx, "chat_session_status", {
-				sessionId: placeholderId,
-				status: "ended",
-			});
-		}
-	}
-
-	private async createProvisionedSession(
-		input: CreateCloudSessionInput,
-		onProvisioningStatus?: (status: { phase?: CloudProvisioningPhase }) => void,
-	): Promise<JsonRecord> {
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		const organizationId =
 			input.organizationId ??
 			(await this.resolveActiveOrganizationId({ fresh: true }));
 		let created: Awaited<ReturnType<CloudSessionApi["create"]>> | undefined;
 		for (let attempt = 0; attempt < 3; attempt += 1) {
 			try {
-				created = await this.options.api.create(
-					{
-						...input,
-						organizationId,
-					},
-					onProvisioningStatus,
-				);
+				created = await this.options.api.create({ ...input, organizationId });
 				break;
 			} catch (error) {
 				// The secrets proxy occasionally 502s while vending the GitHub
@@ -1742,27 +1547,18 @@ export class CloudSessionManager {
 				"Cline account changed while the cloud session was starting",
 			);
 		}
-		const canonical = (
-			await this.options.api.list(organizationId).catch(() => [])
-		).find((session) => session.id === created.sessionId);
-		const record: CloudSessionRecord = canonical
-			? {
-					...canonical,
-					status:
-						canonical.status === "provisioning" ? "ready" : canonical.status,
-				}
-			: {
-					id: created.sessionId,
-					status: "ready",
-					sandboxUrl: created.sandboxUrl,
-					repoContext: {
-						repoUrl: input.repoUrl,
-						...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
-					},
-					metadata: { modelId: input.modelId },
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-				};
+		const record: CloudSessionRecord = {
+			id: created.sessionId,
+			status: created.status,
+			sandboxUrl: created.sandboxUrl,
+			repoContext: {
+				repoUrl: input.repoUrl,
+				...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
+			},
+			metadata: { modelId: input.modelId },
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
 		this.knownSessions.set(record.id, record);
 		const live = recordToLiveSession(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1777,24 +1573,10 @@ export class CloudSessionManager {
 			live.config.reasoningEffort = input.reasoningEffort;
 		}
 		this.ctx.liveSessions.set(record.id, live);
-		// Provisioning succeeded; a transient Hub connect must not report create failure.
-		try {
-			await this.ensureConnection(record.id, { createInner: true });
-		} catch (error) {
-			this.ctx.logger?.log(
-				"Cloud session provisioned but initial connect failed; will connect on demand",
-				{ sessionId: record.id, error },
-			);
-		}
-		if (this.disposed) {
-			await this.deleteProvisionedSessionAfterDispose(
-				record.id,
-				created.cleanupAuthToken,
-			);
-			throw new Error(
-				"Cline account changed while the cloud session was starting",
-			);
-		}
+		sendEvent(this.ctx, "chat_session_status", {
+			sessionId: record.id,
+			status: live.status,
+		});
 		return {
 			sessionId: record.id,
 			origin: "cloud",
@@ -1825,14 +1607,13 @@ export class CloudSessionManager {
 	}
 
 	async attach(outerSessionId: string): Promise<JsonRecord> {
-		// Opening a placeholder keeps the loading pane stable during provisioning.
-		const placeholder = this.pendingCreates.get(outerSessionId);
-		if (placeholder) {
-			return { ...placeholder };
-		}
 		const known = await this.ensureKnownSession(outerSessionId);
 		if (known.status === "provisioning" || known.status === "failed") {
-			return attachResultPayload(known, known.status);
+			return attachResultPayload(
+				known,
+				known.status,
+				this.ctx.liveSessions.get(outerSessionId)?.prompt,
+			);
 		}
 		if (isExpiredRecord(known)) {
 			// A connection left over from before expiry would reconnect-loop
@@ -2214,6 +1995,11 @@ export class CloudSessionManager {
 	async abort(
 		outerSessionId: string,
 	): Promise<{ sessionId: string; ok: true }> {
+		const provisioning = this.provisioningControllers.get(outerSessionId);
+		if (provisioning) {
+			provisioning.abort(new Error("Cloud session prompt cancelled"));
+			return { sessionId: outerSessionId, ok: true };
+		}
 		const connection = await this.ensureConnection(outerSessionId);
 		if (connection.innerSessionId) {
 			await this.ensureAttached(connection);
@@ -2232,6 +2018,9 @@ export class CloudSessionManager {
 	}
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
+		if (this.knownSessions.get(outerSessionId)?.status === "provisioning") {
+			return { sessionId: outerSessionId, promptsInQueue: [] };
+		}
 		const connection = await this.ensureConnection(outerSessionId);
 		if (!connection.innerSessionId) {
 			return { sessionId: outerSessionId, promptsInQueue: [] };
@@ -2333,9 +2122,6 @@ export class CloudSessionManager {
 	}
 
 	async readMessages(outerSessionId: string): Promise<unknown[]> {
-		if (this.pendingCreates.has(outerSessionId)) {
-			return [];
-		}
 		const known = this.knownSessions.get(outerSessionId);
 		if (known?.status === "provisioning" || known?.status === "failed") {
 			return [];
@@ -2381,15 +2167,10 @@ export class CloudSessionManager {
 	}
 
 	async delete(outerSessionId: string): Promise<void> {
-		if (this.pendingCreates.has(outerSessionId)) {
-			throw new CloudSessionError(
-				"request_failed",
-				"This cloud session is still provisioning and cannot be deleted yet.",
-			);
-		}
 		// Tombstone the id so a concurrent attach/send/readMessages cannot dial
 		// a fresh connection for a session that is being torn down.
 		this.deletingSessions.add(outerSessionId);
+		this.provisioningControllers.get(outerSessionId)?.abort();
 		try {
 			const pendingConnect = this.connectionPromises.get(outerSessionId);
 			if (pendingConnect) {
@@ -2420,6 +2201,8 @@ export class CloudSessionManager {
 
 	async dispose(): Promise<void> {
 		this.disposed = true;
+		for (const controller of this.provisioningControllers.values())
+			controller.abort();
 		const sessionIds = new Set([
 			...this.connections.keys(),
 			...this.knownSessions.keys(),
@@ -2436,9 +2219,6 @@ export class CloudSessionManager {
 			this.sendApprovalSnapshot(sessionId);
 		}
 		this.knownSessions.clear();
-		this.pendingCreates.clear();
-		this.pendingCreateRecoveryTitles.clear();
-		this.provisioningOutcomes.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
 				this.disposeConnection(sessionId),
@@ -2477,6 +2257,7 @@ export class CloudSessionManager {
 		const sessions = await this.options.api
 			.list(organizationId)
 			.catch(() => undefined);
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
 		if (!sessions) {
 			return this.knownSessions.get(outerSessionId);
 		}
@@ -2489,12 +2270,6 @@ export class CloudSessionManager {
 	private async ensureKnownSession(
 		outerSessionId: string,
 	): Promise<CloudSessionRecord> {
-		if (this.pendingCreates.has(outerSessionId)) {
-			throw new CloudSessionError(
-				"request_failed",
-				"This cloud session is still provisioning — it will be ready shortly.",
-			);
-		}
 		const known = this.knownSessions.get(outerSessionId);
 		if (known) {
 			return known;
@@ -2544,7 +2319,65 @@ export class CloudSessionManager {
 		}
 
 		const connecting = (async () => {
-			const remote = await this.ensureKnownSession(outerSessionId);
+			let remote = await this.ensureKnownSession(outerSessionId);
+			if (this.disposed) throw new Error("Cloud session manager was disposed");
+			if (remote.status === "provisioning") {
+				const controller = new AbortController();
+				this.provisioningControllers.set(outerSessionId, controller);
+				try {
+					await this.options.api.waitUntilReady(
+						outerSessionId,
+						controller.signal,
+						({ phase }) => {
+							remote.metadata.provisioningPhase = phase;
+							sendEvent(this.ctx, "chat_session_status", {
+								sessionId: outerSessionId,
+								status: "provisioning",
+								phase,
+							});
+						},
+					);
+					if (this.disposed)
+						throw new Error("Cloud session manager was disposed");
+					remote = (await this.refreshKnownSession(outerSessionId)) ?? remote;
+					controller.signal.throwIfAborted();
+					if (remote.status === "provisioning") remote.status = "ready";
+					const live = this.ctx.liveSessions.get(outerSessionId);
+					if (live?.status === "provisioning") live.status = "idle";
+				} catch (error) {
+					if (
+						error instanceof CloudSessionError &&
+						error.code === "session_failed"
+					) {
+						remote.status = "failed";
+						remote.metadata.statusReason = error.detail;
+						remote.metadata.provisioningPhase = "failed";
+						if (!this.disposed) this.knownSessions.set(outerSessionId, remote);
+						const live = this.ctx.liveSessions.get(outerSessionId);
+						if (live) live.status = "error";
+						sendEvent(this.ctx, "chat_session_status", {
+							sessionId: outerSessionId,
+							status: "error",
+						});
+					}
+					throw error;
+				} finally {
+					this.provisioningControllers.delete(outerSessionId);
+				}
+			}
+			if (this.disposed) throw new Error("Cloud session manager was disposed");
+			if (this.deletingSessions.has(outerSessionId))
+				throw new CloudSessionError(
+					"session_not_found",
+					"This cloud session is being deleted.",
+				);
+			if (remote.status === "failed") {
+				throw new CloudSessionError(
+					"session_failed",
+					remote.metadata.statusReason ||
+						"The cloud sandbox could not be prepared.",
+				);
+			}
 			// Surface expiry before the proxy turns it into an upgrade failure.
 			if (isExpiredRecord(remote)) {
 				throw new CloudSessionError(

@@ -225,6 +225,43 @@ function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it.each([
+		"abort",
+		"dispose",
+	] as const)("%s cancels a provisioning send before opening the Hub", async (action) => {
+		let provisioningSignal: AbortSignal | undefined;
+		const { manager, hub, ctx } = createFixture({
+			api: {
+				create: async () => ({
+					sessionId: "ses-outer",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list: async () => [],
+				waitUntilReady: (_id: string, signal: AbortSignal) =>
+					new Promise<void>((_resolve, reject) => {
+						provisioningSignal = signal;
+						signal.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+					}),
+			} as unknown as CloudSessionApi,
+		});
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+		});
+		const rejected = expect(
+			manager.send("ses-outer", "Fix this"),
+		).rejects.toThrow();
+		await vi.waitFor(() => expect(provisioningSignal).toBeDefined());
+		if (action === "abort") await manager.abort("ses-outer");
+		else await manager.dispose();
+		await rejected;
+		expect(provisioningSignal?.aborted).toBe(true);
+		expect(hub.commands).toEqual([]);
+		expect(ctx.liveSessions.has("ses-outer")).toBe(action === "abort");
+	});
 	it("reuses the newest inner Hub session and translates events to the outer id", async () => {
 		const { manager, events, hub } = createFixture();
 
@@ -830,8 +867,10 @@ describe("CloudSessionManager Hub runtime", () => {
 				],
 				create: async () => ({
 					sessionId: "ses-outer",
+					status: "provisioning",
 					sandboxUrl: "",
 				}),
+				waitUntilReady: async () => {},
 			} as unknown as CloudSessionApi,
 		});
 

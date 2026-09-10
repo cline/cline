@@ -68,12 +68,12 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	getCloudSessionManager,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
-import { resolveDesktopTelemetryUser } from "./client-context";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
@@ -1462,11 +1462,6 @@ export async function handleCommand(
 			cursor: typeof args?.cursor === "string" ? args.cursor : undefined,
 			query: typeof args?.query === "string" ? args.query : undefined,
 		});
-	}
-	if (command === "get_cloud_provisioning_outcome") {
-		const placeholderId = String(args?.placeholderId ?? "").trim();
-		if (!placeholderId) throw new Error("placeholderId is required");
-		return getCloudSessionManager(ctx).getProvisioningOutcome(placeholderId);
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
