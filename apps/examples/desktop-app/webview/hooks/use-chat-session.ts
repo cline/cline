@@ -42,6 +42,7 @@ import {
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -2147,7 +2148,7 @@ export function useChatSession() {
 				(error: unknown) => ({ ok: false as const, error }),
 			);
 			const attachedFileCount = attachedFiles.filter(
-				(file) => !file.type.startsWith("image/"),
+				(file) => !imageAttachmentMediaType(file),
 			).length;
 			const userLabel =
 				attachedFileCount > 0
