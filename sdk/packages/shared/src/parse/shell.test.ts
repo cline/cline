@@ -4,7 +4,6 @@ import {
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
-	unwrapNestedPowerShellCommand,
 } from "./shell";
 
 describe("shell helpers", () => {
@@ -67,22 +66,14 @@ describe("shell helpers", () => {
 		);
 	});
 
-	it("keeps the text-only helper edition-bound but selects the requested executable for execution", () => {
+	it("selects the requested executable across editions", () => {
 		const nested = 'pwsh -NoProfile -Command "Write-Output $_"';
-		expect(unwrapNestedPowerShellCommand(nested, "pwsh")).toBe(
-			"Write-Output $_",
-		);
-		expect(unwrapNestedPowerShellCommand(nested, "powershell")).toBeUndefined();
-		expect(getShellInvocation("powershell", nested)).toMatchObject({
-			executable: "pwsh",
-			input: "Write-Output $_",
-		});
-		expect(
-			unwrapNestedPowerShellCommand(
-				'powershell -NoProfile -Command "Write-Output $_"',
-				"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-			),
-		).toBeUndefined();
+		for (const shell of ["pwsh", "powershell"]) {
+			expect(getShellInvocation(shell, nested)).toMatchObject({
+				executable: "pwsh",
+				input: "Write-Output $_",
+			});
+		}
 		const issueCommand =
 			"powershell -NoProfile -Command \"Get-ChildItem . -Recurse -File | Where-Object { $_.Name -match 'MyEditForm|EditContext|Validator' } | ForEach-Object { $_.FullName }\"";
 		expect(getShellInvocation("pwsh.exe", issueCommand)).toMatchObject({
@@ -124,19 +115,16 @@ describe("shell helpers", () => {
 			"-NoLogo -NoProfile -NonInteractive",
 		]) {
 			expect(
-				unwrapNestedPowerShellCommand(
-					`powershell ${flags} -Command "Get-Date"`.replace(/\s+/g, " "),
+				getShellInvocation(
 					"powershell",
+					`powershell ${flags} -Command "Get-Date"`.replace(/\s+/g, " "),
 				),
-			).toBe("Get-Date");
+			).toMatchObject({ executable: "powershell", input: "Get-Date" });
 		}
-		// Quoted executable paths count as the same shell when the edition matches.
+		const path = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
 		expect(
-			unwrapNestedPowerShellCommand(
-				'& "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command "Get-Date"',
-				"pwsh",
-			),
-		).toBe("Get-Date");
+			getShellInvocation("pwsh", `& "${path}" -NoProfile -Command "Get-Date"`),
+		).toMatchObject({ executable: path, input: "Get-Date" });
 	});
 
 	it.each(["'", '"'])("requires & before a %s-quoted executable", (quote) => {
@@ -152,7 +140,6 @@ describe("shell helpers", () => {
 					executable: shell,
 					input: command,
 				});
-				expect(unwrapNestedPowerShellCommand(command, shell)).toBeUndefined();
 				expect(getShellInvocation(shell, ` \t&\t${command}`)).toMatchObject({
 					executable,
 					input: "Write-Output 42",
@@ -179,11 +166,11 @@ describe("shell helpers", () => {
 
 	it("unwraps recursive double-shells one layer per pass", () => {
 		expect(
-			unwrapNestedPowerShellCommand(
-				'powershell -NoProfile -Command "powershell -NoProfile -Command `"Write-Output $_`""',
+			getShellInvocation(
 				"powershell",
+				'powershell -NoProfile -Command "powershell -NoProfile -Command `"Write-Output $_`""',
 			),
-		).toBe("Write-Output $_");
+		).toMatchObject({ executable: "powershell", input: "Write-Output $_" });
 	});
 
 	it("does not join statements separated by bare newlines", () => {
@@ -192,7 +179,6 @@ describe("shell helpers", () => {
 				const tokens = [shell, "-NoProfile", "-Command", '"Write-Output 42"'];
 				for (let boundary = 1; boundary < tokens.length; boundary++) {
 					const command = `${tokens.slice(0, boundary).join(" ")}${newline}\t${tokens.slice(boundary).join(" ")}`;
-					expect(unwrapNestedPowerShellCommand(command, shell)).toBeUndefined();
 					expect(getShellInvocation(shell, command).input).toBe(command);
 				}
 			}
@@ -204,65 +190,38 @@ describe("shell helpers", () => {
 			for (const newline of ["\n", "\r\n"]) {
 				const script = `Write-Output 'first'${newline}Write-Output 'second'`;
 				expect(
-					unwrapNestedPowerShellCommand(
-						`\t${shell}\t-NoProfile \t-Command\t"${script}"`,
+					getShellInvocation(
 						shell,
-					),
+						`\t${shell}\t-NoProfile \t-Command\t"${script}"`,
+					).input,
 				).toBe(script);
 				const continued = `${shell} -NoProfile -Command \`${newline}"Write-Output 'continued'"`;
-				expect(unwrapNestedPowerShellCommand(continued, shell)).toBeUndefined();
 				expect(getShellInvocation(shell, continued).input).toBe(continued);
 			}
 		}
 	});
 
 	it("decodes PowerShell escape sequences while unwrapping", () => {
-		expect(
-			unwrapNestedPowerShellCommand(
-				'powershell -NoProfile -Command "Write-Output `"`n`$literal`""',
-				"powershell",
-			),
-		).toBe('Write-Output "\n$literal"');
-		// Doubled quotes decode to a single embedded quote.
-		expect(
-			unwrapNestedPowerShellCommand(
-				'powershell -NoProfile -Command "Write-Output \'say ""hi""\'"',
-				"powershell",
-			),
-		).toBe("Write-Output 'say \"hi\"'");
-		// `u{…} code-point escapes are PowerShell 7+ only.
-		expect(
-			unwrapNestedPowerShellCommand(
-				'pwsh -NoProfile -Command "Write-Output `u{41} `u{1F600}"',
-				"pwsh",
-			),
-		).toBe("Write-Output A 😀");
-		expect(
-			unwrapNestedPowerShellCommand(
-				'powershell -NoProfile -Command "Write-Output `u{41}"',
-				"powershell",
-			),
-		).toBe("Write-Output u{41}");
-		// A malformed escape stays literal.
-		expect(
-			unwrapNestedPowerShellCommand(
-				'pwsh -NoProfile -Command "Write-Output `u{zz}"',
-				"pwsh",
-			),
-		).toBe("Write-Output u{zz}");
-		// The `e ESC escape is PowerShell 7+ only as well.
-		expect(
-			unwrapNestedPowerShellCommand(
-				'pwsh -NoProfile -Command "Write-Output `e[31mred`e[0m"',
-				"pwsh",
-			),
-		).toBe("Write-Output \x1b[31mred\x1b[0m");
-		expect(
-			unwrapNestedPowerShellCommand(
-				'powershell -NoProfile -Command "Write-Output `e"',
-				"powershell",
-			),
-		).toBe("Write-Output e");
+		// The outer shell's edition decides how a double-quoted body decodes:
+		// `u{…} and `e exist only in PowerShell 7+, and a malformed `u{…} stays
+		// literal. Doubled quotes decode to a single embedded quote.
+		const cases: [shell: string, body: string, script: string][] = [
+			["powershell", '`"`n`$literal`"', 'Write-Output "\n$literal"'],
+			["powershell", '\'say ""hi""\'', "Write-Output 'say \"hi\"'"],
+			["pwsh", "`u{41} `u{1F600}", "Write-Output A 😀"],
+			["powershell", "`u{41}", "Write-Output u{41}"],
+			["pwsh", "`u{zz}", "Write-Output u{zz}"],
+			["pwsh", "`e[31mred`e[0m", "Write-Output \x1b[31mred\x1b[0m"],
+			["powershell", "`e", "Write-Output e"],
+		];
+		for (const [shell, body, script] of cases) {
+			expect(
+				getShellInvocation(
+					shell,
+					`${shell} -NoProfile -Command "Write-Output ${body}"`,
+				).input,
+			).toBe(script);
+		}
 	});
 
 	it("leaves non-rewritable nested invocations byte-identical", () => {
@@ -303,14 +262,12 @@ describe("shell helpers", () => {
 			'"" -Command "Get-Date"',
 		];
 		for (const command of untouched) {
-			expect(
-				unwrapNestedPowerShellCommand(command, "powershell"),
-			).toBeUndefined();
-			expect(getShellInvocation("powershell", command).input).toBe(command);
-			expect(getShellInvocation("pwsh", command)).toMatchObject({
-				executable: "pwsh",
-				input: command,
-			});
+			for (const shell of ["powershell", "pwsh"]) {
+				expect(getShellInvocation(shell, command)).toMatchObject({
+					executable: shell,
+					input: command,
+				});
+			}
 		}
 	});
 

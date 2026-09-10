@@ -212,6 +212,58 @@ function splitNestedCommandToScript(
 	return script.length > 0 ? script : undefined;
 }
 
+/**
+ * Detect a standalone nested `powershell|pwsh [-flags] -Command <quoted script>`
+ * invocation and return the requested executable together with the decoded
+ * script, so getShellInvocation can run the script in that executable through
+ * the bootstrap instead of spawning an extra shell layer. Returns undefined
+ * when the command does not match; the caller then runs it unchanged.
+ *
+ * The stdin bootstrap executes the submitted command as *outer* PowerShell
+ * source, so a nested `-Command "…"` argument is parsed by the outer parser:
+ * `$_` inside the double quotes is interpolated away before the nested shell
+ * ever sees it. A pipeline like `… | Where-Object { $_.Name … }` then errors
+ * once per enumerated item — a flood that looks like a hang (GitHub #13284).
+ * Feeding the decoded script directly preserves its variables and embedded
+ * quotes for the intended script, bypassing outer interpolation and native
+ * argument quoting. Single-quoted arguments avoid interpolation but can still
+ * lose embedded double quotes through Windows PowerShell's native argv handling.
+ * Recognised wrappers carry script text, not legacy native-argument escapes:
+ * backslashes remain literal rather than compensating for native quote loss.
+ * This normalization is deliberately not equivalent to outer-shell execution.
+ *
+ * Unwrapping is limited to redundant invocations:
+ *
+ * - quoted executable names and paths require the call operator `&`;
+ *   bare executable names and paths may omit it
+ * - the nested executable is `powershell` or `pwsh` (either edition; the
+ *   requested one is returned so cross-edition wrappers such as `powershell`
+ *   inside `pwsh` run in the edition the command asked for)
+ * - the nested invocation carries `-NoProfile` (written in full), and every
+ *   other flag before `-Command` is bootstrap-equivalent (-NonInteractive)
+ *   or a no-op under -Command (-NoLogo) — without -NoProfile the shell would
+ *   load the user's profile (functions, aliases, modules), which the
+ *   profile-less outer process cannot reproduce, and other flags
+ *   (`-ExecutionPolicy`, `-File`, `-WorkingDirectory`, abbreviations such as
+ *   `-c`) can change semantics, so the command is left untouched
+ * - the entire `-Command` tail is one complete ASCII single- or double-quoted
+ *   string; anything else (`"…"; more`, unquoted tails, stray inner quotes) is
+ *   left byte-identical
+ * - executable, flags and quoted tail are separated by spaces or tabs, not
+ *   statement-ending newlines; newlines within the quoted body remain valid
+ *
+ * A double-quoted body is decoded with the rules of the OUTER shell's edition,
+ * because that is the parser that owns the string.
+ *
+ * One deliberate difference: the unwrapped script runs under the bootstrap's
+ * `$ErrorActionPreference='Stop'` like every other command through this
+ * wrapper. Previously the nested child process ran with its own default
+ * 'Continue', so a nested script with non-terminating errors (Write-Error)
+ * could keep going and exit 0 where the same script run directly fails fast.
+ * The unwrap makes nested commands consistent with the fail-fast semantics
+ * documented on the bootstrap, which is the same tradeoff GitHub Actions
+ * makes for its powershell steps.
+ */
 function parseNestedPowerShellCommand(
 	command: string,
 	shell: string,
@@ -252,77 +304,6 @@ function parseNestedPowerShellCommand(
 	}
 }
 
-/**
- * Detect a standalone nested `powershell|pwsh [-flags] -Command <quoted script>`
- * invocation and return the script so the executor runs it directly, without
- * the extra shell layer. Returns undefined when the command does not match.
- *
- * The stdin bootstrap executes the submitted command as *outer* PowerShell
- * source, so a nested `-Command "…"` argument is parsed by the outer parser:
- * `$_` inside the double quotes is interpolated away before the nested shell
- * ever sees it. A pipeline like `… | Where-Object { $_.Name … }` then errors
- * once per enumerated item — a flood that looks like a hang (GitHub #13284).
- * Feeding the decoded script directly preserves its variables and embedded
- * quotes for the intended script, bypassing outer interpolation and native
- * argument quoting. Single-quoted arguments avoid interpolation but can still
- * lose embedded double quotes through Windows PowerShell's native argv handling.
- * Recognised wrappers carry script text, not legacy native-argument escapes:
- * backslashes remain literal rather than compensating for native quote loss.
- * This normalization is deliberately not equivalent to outer-shell execution.
- *
- * Unwrapping is limited to redundant invocations:
- *
- * - quoted executable names and paths require the call operator `&`;
- *   bare executable names and paths may omit it
- * - the nested executable is the same PowerShell edition as the configured
- *   outer shell (`powershell` nested in `powershell`, `pwsh` in `pwsh`);
- *   cross-edition nesting (`powershell` inside `pwsh` or the reverse) is left
- *   untouched by this text-only helper. Execution uses getShellInvocation,
- *   which also returns the requested executable and supports edition switches
- * - the nested invocation carries `-NoProfile` (written in full), and every
- *   other flag before `-Command` is bootstrap-equivalent (-NonInteractive)
- *   or a no-op under -Command (-NoLogo) — without -NoProfile the shell would
- *   load the user's profile (functions, aliases, modules), which the
- *   profile-less outer process cannot reproduce, and other flags
- *   (`-ExecutionPolicy`, `-File`, `-WorkingDirectory`, abbreviations such as
- *   `-c`) can change semantics, so the command is left untouched
- * - the entire `-Command` tail is one complete ASCII single- or double-quoted
- *   string; anything else (`"…"; more`, unquoted tails, stray inner quotes) is
- *   left byte-identical
- * - executable, flags and quoted tail are separated by spaces or tabs, not
- *   statement-ending newlines; newlines within the quoted body remain valid
- *
- * One deliberate difference: the unwrapped script runs under the bootstrap's
- * `$ErrorActionPreference='Stop'` like every other command through this
- * wrapper. Previously the nested child process ran with its own default
- * 'Continue', so a nested script with non-terminating errors (Write-Error)
- * could keep going and exit 0 where the same script run directly fails fast.
- * The unwrap makes nested commands consistent with the fail-fast semantics
- * documented on the bootstrap, which is the same tradeoff GitHub Actions
- * makes for its powershell steps.
- *
- * This function unwraps same-edition double-shells to a fixpoint.
- * @deprecated Use getShellInvocation for execution: script text alone cannot
- * preserve a requested executable, even within the same PowerShell edition.
- */
-export function unwrapNestedPowerShellCommand(
-	command: string,
-	shell: string,
-): string | undefined {
-	let current = command;
-	// One iteration strips one shell layer; stop at the first non-rewrite.
-	for (;;) {
-		const nested = parseNestedPowerShellCommand(current, shell);
-		if (
-			!nested ||
-			getPowerShellEdition(nested.executable) !== getPowerShellEdition(shell)
-		) {
-			return current === command ? undefined : current;
-		}
-		current = nested.script;
-	}
-}
-
 export function getShellInvocation(
 	shell: string,
 	command: string,
@@ -334,6 +315,8 @@ export function getShellInvocation(
 			// run its requested executable (not an edition-equivalent substitute) with
 			// the existing bootstrap. This avoids both outer $ interpolation and native
 			// argv quote loss, including pwsh -> powershell.exe and the reverse (#13284).
+			// Each pass strips one wrapper layer, decoding it with the edition of the
+			// shell that would have parsed it, until no wrapper remains.
 			let selected = { executable: shell, script: command };
 			for (;;) {
 				const nested = parseNestedPowerShellCommand(
