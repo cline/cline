@@ -2898,6 +2898,104 @@ describe("useChatSession", () => {
 		expect(errorMessages[0]?.content).toContain("The run failed");
 	});
 
+	it("shows an MCP load-failure notice as a system row that survives canonical hydration", async () => {
+		// The runtime emits the notice when the session starts; it is not part
+		// of the conversation, so the persisted transcript never contains it.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "hist_user_1",
+							sessionId: args?.sessionId,
+							role: "user",
+							content: "First prompt",
+							createdAt: Date.now(),
+						},
+						{
+							id: "hist_assistant_1",
+							sessionId: args?.sessionId,
+							role: "assistant",
+							content: "Done.",
+							createdAt: Date.now() + 1,
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<void> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const notice =
+			'MCP server "silent-stdio" failed to connect; its tools are unavailable in this session. MCP request to "silent-stdio" (initialize) timed out after 5s.';
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "info",
+					message: notice,
+					noticeType: "status",
+					metadata: { source: "mcp", serverName: "silent-stdio" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			// Ordinary info logs stay console-only.
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({ level: "info", message: "plugin loaded" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		const systemRows = () =>
+			current.messages.filter((message) => message.role === "system");
+		expect(systemRows()).toHaveLength(1);
+		expect(systemRows()[0]?.content).toBe(notice);
+
+		await act(async () => {
+			resolveSend?.({ ok: true, result: { text: "Done." } });
+			await sendPromise;
+		});
+
+		expect(
+			current.messages.filter((message) => message.role === "assistant"),
+		).toHaveLength(1);
+		expect(systemRows()).toHaveLength(1);
+		expect(systemRows()[0]?.content).toBe(notice);
+	});
+
 	it("does not give credential guidance for non-credential failures", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

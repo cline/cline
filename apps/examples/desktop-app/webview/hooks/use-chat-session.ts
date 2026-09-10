@@ -349,6 +349,8 @@ function shouldLogVerboseCoreLogs(): boolean {
 	return verboseCoreLogs;
 }
 
+const MCP_NOTICE_MESSAGE_KIND = "mcp_notice";
+
 function isMcpNoticeMetadata(metadata: unknown): boolean {
 	return (
 		typeof metadata === "object" &&
@@ -645,10 +647,22 @@ export function useChatSession() {
 					tailErrorStart -= 1;
 				}
 				const preservedErrors = sessionMessages.slice(tailErrorStart);
-				if (preservedErrors.length === 0) {
+				// MCP load notices are live-only rows (the runtime does not put
+				// them in the conversation), so canonical history would erase
+				// them the moment the first turn settles.
+				const preservedNotices = sessionMessages.filter(
+					(message) => message.meta?.messageKind === MCP_NOTICE_MESSAGE_KIND,
+				);
+				if (preservedErrors.length === 0 && preservedNotices.length === 0) {
 					return historyMessages;
 				}
-				return sliceMessages([...historyMessages, ...preservedErrors]);
+				return sliceMessages([
+					...sortMessagesChronologically([
+						...historyMessages,
+						...preservedNotices,
+					]),
+					...preservedErrors,
+				]);
 			});
 		},
 		[],
@@ -1598,6 +1612,7 @@ export function useChatSession() {
 							role: "system",
 							content: parsed.message.trim(),
 							createdAt: chunkCreatedAt(),
+							meta: { messageKind: MCP_NOTICE_MESSAGE_KIND },
 						});
 					}
 				} catch {
