@@ -467,6 +467,25 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
+	it("reports the spawn error for a command that does not exist", async () => {
+		const client = await createDefaultMcpServerClientFactory()({
+			name: "missing-binary",
+			transport: { type: "stdio", command: "/usr/bin/nonexistent-mcp" },
+		});
+		const startedAt = Date.now();
+		try {
+			await expect(client.connect()).rejects.toThrow(
+				/MCP process error: .*nonexistent-mcp/,
+			);
+			// Dead commands fail through the spawn error path, not the budget.
+			expect(Date.now() - startedAt).toBeLessThan(
+				DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+			);
+		} finally {
+			await client.disconnect().catch(() => {});
+		}
+	}, 30_000);
+
 	it("spawns settings-file stdio servers from the home directory when no cwd is configured", async () => {
 		// The hub daemon's cwd is whatever workspace first started it; package
 		// runners walk that project tree before launching, which made `npx`

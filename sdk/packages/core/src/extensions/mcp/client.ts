@@ -333,8 +333,8 @@ class StdioMcpClient implements McpServerClient {
 			clientInfo: { name: "@cline/core", version: "0.0.0" },
 		};
 		await this.ensureAgentPluginDataDirectory();
-		this.spawnProcess("newline");
 		try {
+			await this.spawnProcess("newline");
 			await this.request(
 				"initialize",
 				initializeParams,
@@ -342,8 +342,8 @@ class StdioMcpClient implements McpServerClient {
 			);
 		} catch (newlineError) {
 			await this.disconnect().catch(() => {});
-			this.spawnProcess("framed");
 			try {
+				await this.spawnProcess("framed");
 				await this.request(
 					"initialize",
 					initializeParams,
@@ -476,7 +476,12 @@ class StdioMcpClient implements McpServerClient {
 		);
 	}
 
-	private spawnProcess(protocolMode: StdioProtocolMode): void {
+	/**
+	 * Resolves once the child is running, or rejects with the spawn error
+	 * (e.g. ENOENT for a missing command) so a dead command reports why instead
+	 * of a bare "is not connected".
+	 */
+	private spawnProcess(protocolMode: StdioProtocolMode): Promise<void> {
 		const transport = this.registration.transport;
 		if (transport.type !== "stdio") {
 			throw new Error(
@@ -509,6 +514,12 @@ class StdioMcpClient implements McpServerClient {
 		this.process = child;
 		this.processClose = new Promise((resolve) => {
 			child.once("close", () => resolve());
+		});
+		const spawned = new Promise<void>((resolve, reject) => {
+			child.once("spawn", () => resolve());
+			child.once("error", (error) =>
+				reject(new Error(`MCP process error: ${toErrorMessage(error)}`)),
+			);
 		});
 		child.stdout.on("data", (chunk: Buffer) => this.handleStdout(chunk));
 		child.stderr.on("data", (chunk: Buffer) => {
@@ -543,6 +554,7 @@ class StdioMcpClient implements McpServerClient {
 				),
 			);
 		});
+		return spawned;
 	}
 
 	private handleStdout(chunk: Buffer): void {
