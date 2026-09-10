@@ -39,13 +39,14 @@ import {
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
-import { normalizeProviderId } from "./ids";
+import { BUILT_IN_PROVIDER, normalizeProviderId } from "./ids";
 import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	BUILTIN_TRANSCRIPTION_TRANSPORTS,
 } from "./model-operations";
 import { filterOpenAICodexModels } from "./openai-codex-models";
+import { resolveProviderModelCatalogKeys } from "./provider-keys";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -61,7 +62,7 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
-const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.6-terra";
 const NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
 	[{ name: "web_search" }];
 const OPENAI_NATIVE_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
@@ -448,6 +449,26 @@ function buildClaudeCodeModels(): Record<string, ModelInfo> {
 
 function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
+}
+
+/**
+ * Generated catalog models a runtime provider reads from, with that provider's
+ * catalog rules applied. Most runtime providers read their mapped catalog(s)
+ * as-is; the ChatGPT subscription provider shares the OpenAI catalog but only
+ * serves a filtered subset of it.
+ */
+export function getGeneratedModelsForRuntimeProvider(
+	providerId: string,
+): Record<string, ModelInfo> {
+	const models: Record<string, ModelInfo> = Object.assign(
+		{},
+		...resolveProviderModelCatalogKeys(providerId).map((catalogKey) =>
+			getGeneratedModelsForProvider(catalogKey),
+		),
+	);
+	return providerId === BUILT_IN_PROVIDER.OPENAI_CODEX
+		? filterOpenAICodexModels(models)
+		: models;
 }
 
 // Vercel-only model ids surfaced for the Cline provider while the OpenRouter
