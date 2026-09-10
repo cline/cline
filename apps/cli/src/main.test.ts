@@ -22,6 +22,8 @@ const originalStdinIsTTY = process.stdin.isTTY;
 const originalStdoutIsTTY = process.stdout.isTTY;
 const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const mockState = vi.hoisted(() => ({
+	coreImports: 0,
+	wizardImports: [] as string[],
 	runAgentImports: 0,
 	runInteractiveImports: 0,
 	runAgentCalls: 0,
@@ -102,6 +104,12 @@ const historyMocks = vi.hoisted(() => ({
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
 }));
+
+const wizardMocks = vi.hoisted(() => ({
+	connect: vi.fn(async () => 0),
+	mcp: vi.fn(async () => 0),
+	schedule: vi.fn(async () => 0),
+}));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
 		core: {
@@ -165,10 +173,16 @@ vi.mock("./runtime/run-interactive", () => {
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./session/session", () => sessionMocks);
 vi.mock("@cline/core", async () => {
+	mockState.coreImports += 1;
+	// Keep settings round-trips real without loading the agent runtime and
+	// every provider through core's package index for dispatch-only tests.
+	const { readGlobalSettings } = await vi.importActual<
+		typeof import("../../../sdk/packages/core/src/services/global-settings")
+	>("../../../sdk/packages/core/src/services/global-settings");
 	return {
-		...(await vi.importActual("@cline/core")),
+		readGlobalSettings,
+		setSdkLogger: vi.fn(),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
-		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({
 			start: vi.fn(async () => {}),
 			stop: vi.fn(),
@@ -212,6 +226,18 @@ vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
+vi.mock("./wizards/connect", () => {
+	mockState.wizardImports.push("connect");
+	return { runConnectWizard: wizardMocks.connect };
+});
+vi.mock("./wizards/mcp", () => {
+	mockState.wizardImports.push("mcp");
+	return { runMcpWizard: wizardMocks.mcp };
+});
+vi.mock("./wizards/schedule", () => {
+	mockState.wizardImports.push("schedule");
+	return { runScheduleWizard: wizardMocks.schedule };
+});
 
 describe("runCli lightweight command dispatch", () => {
 	let globalSettingsRoot: string | undefined;
@@ -225,6 +251,12 @@ describe("runCli lightweight command dispatch", () => {
 			globalSettingsRoot,
 			"global-settings.json",
 		);
+		mockState.coreImports = 0;
+		mockState.wizardImports = [];
+		for (const wizard of Object.values(wizardMocks)) {
+			wizard.mockReset();
+			wizard.mockResolvedValue(0);
+		}
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
 		mockState.runAgentCalls = 0;
@@ -368,9 +400,29 @@ describe("runCli lightweight command dispatch", () => {
 		const historyListCalls = historyMocks.runHistoryList.mock
 			.calls as unknown as Array<[Record<string, unknown>]>;
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
+		expect(mockState.coreImports).toBe(0);
+		expect(mockState.wizardImports).toEqual([]);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	}, 30_000);
+
+	it.each([
+		"connect",
+		"mcp",
+		"schedule",
+	] as const)("runs the %s wizard only when its interactive command is selected", async (command) => {
+		process.argv = ["bun", "src/index.ts", command];
+		wizardMocks[command].mockResolvedValue(7);
+
+		const { runCli } = await import("./main");
+		await runCli();
+
+		expect(process.exitCode).toBe(7);
+		for (const [name, wizard] of Object.entries(wizardMocks)) {
+			expect(wizard).toHaveBeenCalledTimes(name === command ? 1 : 0);
+		}
+		expect(mockState.runAgentCalls).toBe(0);
+	});
 
 	it("routes connector restart arguments through the restart lifecycle", async () => {
 		process.argv = [
