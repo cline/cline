@@ -16,16 +16,6 @@ export const OAUTH_PROVIDER_IDS = new Set([
 	"openai-codex",
 ]);
 
-/**
- * Providers that authenticate through their own CLI installed on this machine
- * (`local-auth` in the SDK catalog). Cline never holds a key for them, so the
- * chat pre-flight must not demand one.
- */
-export const LOCAL_AUTH_PROVIDER_IDS = new Set([
-	"claude-code",
-	"openai-codex-cli",
-]);
-
 export type ProviderAuthKind = "oauth" | "local" | "api-key";
 
 /**

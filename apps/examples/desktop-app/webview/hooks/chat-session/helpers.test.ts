@@ -51,8 +51,8 @@ describe("resolveCredentialError", () => {
 		"claude-code",
 		"openai-codex-cli",
 	])("allows local-CLI provider %s without an API key", (provider) => {
-		// These authenticate from the CLI's own credential store; Cline
-		// never holds a key for them.
+		// Resolved from the catalog's `localCliCommand` metadata, so a new
+		// local-auth provider is exempt without touching the webview.
 		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
 	});
 

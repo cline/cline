@@ -1,3 +1,4 @@
+import { resolveProviderLocalCli } from "@cline/llms/browser";
 import {
 	createSessionId,
 	type GeneratedMedia,
@@ -8,7 +9,6 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
-import { LOCAL_AUTH_PROVIDER_IDS } from "@/lib/provider-connection";
 import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
@@ -169,10 +169,12 @@ export function resolveCredentialError(
 	if (!providerId) {
 		return "Provider is required before starting a chat session.";
 	}
-	if (
-		OAUTH_MANAGED_PROVIDERS.has(providerId) ||
-		LOCAL_AUTH_PROVIDER_IDS.has(providerId)
-	) {
+	if (OAUTH_MANAGED_PROVIDERS.has(providerId)) {
+		return null;
+	}
+	// Local-CLI providers (Claude Code, Codex CLI) authenticate from the
+	// CLI's own credential store; Cline never holds a key for them.
+	if (resolveProviderLocalCli(providerId)) {
 		return null;
 	}
 	if (config.apiKey.trim().length > 0) {
