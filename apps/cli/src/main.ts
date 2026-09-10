@@ -58,9 +58,6 @@ import {
 	identifyTelemetryAccount,
 } from "./utils/telemetry";
 import type { Config } from "./utils/types";
-import { runConnectWizard } from "./wizards/connect";
-import { runMcpWizard } from "./wizards/mcp";
-import { runScheduleWizard } from "./wizards/schedule";
 
 export function stdinHasPipedInput(): boolean {
 	if (process.stdin.isTTY) return false;
@@ -453,6 +450,7 @@ export async function runCli(): Promise<void> {
 					io,
 				);
 			} else if (isFullTTY) {
+				const { runConnectWizard } = await import("./wizards/connect");
 				ctx.exitCode = await runConnectWizard();
 			} else {
 				writeln(`\nAdapters:\n${formatAdapterList()}`);
@@ -465,6 +463,7 @@ export async function runCli(): Promise<void> {
 		.description("Manage MCP servers")
 		.action(async () => {
 			if (isFullTTY) {
+				const { runMcpWizard } = await import("./wizards/mcp");
 				ctx.exitCode = await runMcpWizard();
 			} else {
 				writeln(
@@ -590,6 +589,7 @@ export async function runCli(): Promise<void> {
 		.passThroughOptions()
 		.action(async (_opts: unknown, cmd: Command) => {
 			if (cmd.args.length === 0 && isFullTTY) {
+				const { runScheduleWizard } = await import("./wizards/schedule");
 				ctx.exitCode = await runScheduleWizard();
 				return;
 			}
