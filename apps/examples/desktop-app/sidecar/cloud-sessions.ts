@@ -2278,23 +2278,20 @@ export class CloudSessionManager {
 				"This cloud session is being deleted.",
 			);
 		}
-		// The client is registered early to retain its reconnect loop, before
-		// initial root resolution finishes. Callers must await that resolution.
-		const pending = this.connectionPromises.get(outerSessionId);
-		const existing = pending
-			? await pending
-			: this.connections.get(outerSessionId);
+		const existing = this.connections.get(outerSessionId);
 		if (existing) {
-			// Reconnect clears the id while looking up the existing root session.
-			if (options.createInner) await existing.reconnectResolution;
 			if (options.createInner && !existing.innerSessionId) {
-				// An initial failed upgrade can leave a retained, unresolved client.
-				await existing.client.connect();
-				await existing.reconnectResolution;
-				await this.resolveInnerSession(outerSessionId, existing);
 				await this.createInnerSession(existing);
 			}
 			return existing;
+		}
+		const pending = this.connectionPromises.get(outerSessionId);
+		if (pending) {
+			const connection = await pending;
+			if (options.createInner && !connection.innerSessionId) {
+				await this.createInnerSession(connection);
+			}
+			return connection;
 		}
 
 		const connecting = (async () => {
@@ -2383,34 +2380,23 @@ export class CloudSessionManager {
 					const reconnecting = socketAttempt > 0;
 					socketAttempt += 1;
 					if (reconnecting) {
-						const reconnected = connection;
-						if (reconnected && !reconnected.disposed) {
-							// Publish reconnect recovery synchronously so a concurrent send
-							// cannot capture the previous inner-session id.
+						setTimeout(() => {
+							const reconnected = connection;
+							if (!reconnected || reconnected.disposed) return;
+							// A dropped transport invalidates the duplicate-prompt
+							// baseline send() computes from live.messages.
 							reconnected.transcriptKnown = false;
-							reconnected.innerSessionId = undefined;
-							const resolution = (async () => {
-								await this.resolveInnerSession(outerSessionId, reconnected);
-								if (reconnected.innerSessionId) {
-									await this.rehydrateAfterTransportDrop(
-										outerSessionId,
-										reconnected,
-									);
-								}
-							})()
-								.catch(() =>
-									this.disposeConnectionIfSessionGone(
-										outerSessionId,
-										reconnected,
-									),
-								)
-								.finally(() => {
-									if (reconnected.reconnectResolution === resolution) {
-										reconnected.reconnectResolution = undefined;
-									}
-								});
-							reconnected.reconnectResolution = resolution;
-						}
+							this.subscribeToInnerSession(outerSessionId, reconnected);
+							void this.rehydrateAfterTransportDrop(
+								outerSessionId,
+								reconnected,
+							).catch(() =>
+								this.disposeConnectionIfSessionGone(
+									outerSessionId,
+									reconnected,
+								),
+							);
+						}, 0);
 					}
 					const token = await this.options.getAuthToken();
 					if (!token?.trim()) {
@@ -2432,34 +2418,32 @@ export class CloudSessionManager {
 				seenEventIdOrder: [],
 				unsubscribe: () => {},
 			};
-			// A scoped placeholder subscription keeps the client's built-in retry
-			// loop alive if the first WebSocket upgrade races pod startup.
-			connection.unsubscribe = client.subscribe(() => {}, {
-				sessionId: remote.metadata.taskId?.trim() || outerSessionId,
-			});
-			this.connections.set(outerSessionId, connection);
 			try {
 				await client.connect();
 				if (this.disposed) {
 					throw new Error("Cloud session manager was disposed");
 				}
-				await this.resolveInnerSession(outerSessionId, connection);
+				const listed = await client.command("session.list", { limit: 100 });
+				const newest = readSessionRows(listed.payload)
+					.filter(isRootSessionRow)
+					.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
+				const innerSessionId = String(newest?.sessionId ?? "").trim();
+				if (innerSessionId) {
+					connection.innerSessionId = innerSessionId;
+					this.subscribeToInnerSession(outerSessionId, connection);
+					const modelId = sessionRowModelId(newest);
+					if (modelId) this.applyModel(connection, modelId);
+					await this.ensureAttached(connection);
+				}
 				if (this.disposed) {
 					throw new Error("Cloud session manager was disposed");
 				}
+				this.connections.set(outerSessionId, connection);
 				if (options.createInner && !connection.innerSessionId) {
 					await this.createInnerSession(connection);
 				}
 				return connection;
 			} catch (error) {
-				if (
-					isHubReconnectableTransportError(error) &&
-					!this.disposed &&
-					!connection.disposed
-				) {
-					if (options.createInner) throw error;
-					return connection;
-				}
 				this.connections.delete(outerSessionId);
 				connection.disposed = true;
 				connection.unsubscribe();
