@@ -2101,7 +2101,8 @@ export async function handleCommand(
 		}
 		// Signing out of ChatGPT removes its providers.json entry; the legacy
 		// import would restore it from the extension's secrets.json on the next
-		// command unless those credentials go too.
+		// command unless those credentials go too. A failed write throws so
+		// the webview reports the sign-out as failed and resyncs.
 		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
 			clearLegacyCodexCredentials();
 		}

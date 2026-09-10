@@ -45,5 +45,8 @@ describe("clearLegacyCodexCredentials", () => {
 		expect(readFileSync(secretsPath, "utf8")).toBe(
 			JSON.stringify({ apiKey: "keep" }),
 		);
+
+		writeFileSync(secretsPath, "{not json");
+		expect(clearLegacyCodexCredentials(dataDir)).toBe(false);
 	});
 });
