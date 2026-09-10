@@ -16,6 +16,7 @@ sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
+├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
@@ -80,6 +81,15 @@ sessionManager.subscribe((event) => {
 The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
 the desktop start the same detached Hub when no CLI process has started it yet.
 Startup discovery and locking ensure concurrent clients converge on one Hub.
+
+Every create, restart, fork, and restore also attaches the serializable Desktop
+`ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
+that context across the Hub transport and scopes the daemon-owned telemetry
+service to the originating surface. This keeps lifecycle events centralized in
+Core while reporting Desktop dimensions (`cline_type: "desktop"`, `platform:
+"Cline Desktop"`, and the Desktop app version) and the current account and
+organization. The shared Hub telemetry singleton is never mutated per session,
+so concurrent CLI and Desktop tasks retain their own attribution.
 
 ### 2. Tool Approval — Client-Owned Promise Resolution
 

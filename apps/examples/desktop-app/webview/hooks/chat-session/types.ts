@@ -14,6 +14,12 @@ export type AgentChunkEvent = {
 	chunk: string;
 	ts: number;
 	index?: number;
+	/**
+	 * Identifies the sidecar process that numbered this chunk. `index` restarts
+	 * whenever the sidecar does, so a changed `boot` means the counter reset
+	 * rather than the stream replaying.
+	 */
+	boot?: string;
 };
 
 export type ReasoningDeltaEvent = {
