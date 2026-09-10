@@ -1,7 +1,8 @@
 import { validateWithZod } from "@cline/shared";
+import { DEFAULT_CONTEXT_LIMITS } from "../../settings/context-limits";
 import {
+	EDITOR_INPUT_CHAR_LIMIT,
 	type EditFileInput,
-	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
 	RunCommandsInputUnionSchema,
 	type StructuredCommandInput,
@@ -17,16 +18,16 @@ export function formatError(error: unknown): string {
 	return String(error);
 }
 
-export function getEditorSizeError(input: EditFileInput): string | null {
-	if (
-		typeof input.old_text === "string" &&
-		input.old_text.length > INPUT_ARG_CHAR_LIMIT
-	) {
-		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+export function getEditorSizeError(
+	input: EditFileInput,
+	limit: number = EDITOR_INPUT_CHAR_LIMIT,
+): string | null {
+	if (typeof input.old_text === "string" && input.old_text.length > limit) {
+		return `Editor input too large: old_text was ${input.old_text.length} characters, over the ${limit} limit. Target a smaller region, or edit the file in sections.`;
 	}
 
-	if (input.new_text.length > INPUT_ARG_CHAR_LIMIT) {
-		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+	if (input.new_text.length > limit) {
+		return `Editor input too large: new_text was ${input.new_text.length} characters, over the ${limit} limit. Target a smaller region, or edit the file in sections.`;
 	}
 
 	return null;
@@ -188,7 +189,8 @@ export function formatRunCommandQuery(
  * input, so repeating it in the result only duplicates tokens in the
  * provider request (expensive for large heredoc/file-generation commands).
  */
-export const RUN_COMMAND_QUERY_PREVIEW_LIMIT = 200;
+export const RUN_COMMAND_QUERY_PREVIEW_LIMIT =
+	DEFAULT_CONTEXT_LIMITS.tool.commandPreviewChars;
 
 /**
  * Bound the command echo placed in a provider-facing tool result.
@@ -197,11 +199,12 @@ export const RUN_COMMAND_QUERY_PREVIEW_LIMIT = 200;
  */
 export function formatRunCommandQueryPreview(
 	command: string | StructuredCommandInput,
+	limit: number = RUN_COMMAND_QUERY_PREVIEW_LIMIT,
 ): string {
 	const rendered = formatRunCommandQuery(command);
-	if (rendered.length <= RUN_COMMAND_QUERY_PREVIEW_LIMIT) {
+	if (rendered.length <= limit) {
 		return rendered;
 	}
-	const truncatedChars = rendered.length - RUN_COMMAND_QUERY_PREVIEW_LIMIT;
-	return `${rendered.slice(0, RUN_COMMAND_QUERY_PREVIEW_LIMIT)} ... [command truncated: ${truncatedChars} more chars; full command is in the tool call input]`;
+	const truncatedChars = rendered.length - limit;
+	return `${rendered.slice(0, limit)} ... [command truncated: ${truncatedChars} more chars; full command is in the tool call input]`;
 }

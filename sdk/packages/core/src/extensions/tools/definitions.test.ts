@@ -11,7 +11,7 @@ import {
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
-import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import { EDITOR_INPUT_CHAR_LIMIT, type EditFileInput } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 function hasSchemaKey(value: unknown, key: string): boolean {
@@ -1998,6 +1998,44 @@ describe("default editor tool", () => {
 		);
 	});
 
+	it("accepts a whole-file write in a single call", async () => {
+		const execute = vi.fn(async () => "created");
+		const tools = createDefaultTools({
+			executors: {
+				editor: execute,
+			},
+			enableReadFiles: false,
+			enableSearch: false,
+			enableBash: false,
+			enableWebFetch: false,
+			enableSkills: false,
+			enableAskQuestion: false,
+			enableApplyPatch: false,
+			enableEditor: true,
+		});
+		const editorTool = tools.find((tool) => tool.name === "editor");
+		if (!editorTool) {
+			throw new Error("Expected editor tool to be defined.");
+		}
+
+		// Comfortably past the old 6k guard and around the 90th percentile of
+		// this repo's own source files, so a typical file arrives in one call.
+		const wholeFile = "x".repeat(16_000);
+		const result = await editorTool.execute(
+			{ path: "/tmp/example.ts", new_text: wholeFile },
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(result).toMatchObject({ success: true });
+		expect(execute).toHaveBeenCalledTimes(1);
+		// The payload reaches the executor whole.
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({ new_text: wholeFile }),
+			expect.anything(),
+			expect.anything(),
+		);
+	});
+
 	it("returns a recoverable tool error when text exceeds the soft character limit", async () => {
 		const execute = vi.fn(async () => "patched");
 		const tools = createDefaultTools({
@@ -2019,7 +2057,7 @@ describe("default editor tool", () => {
 			throw new Error("Expected editor tool to be defined.");
 		}
 
-		const oversizedText = "x".repeat(INPUT_ARG_CHAR_LIMIT + 1);
+		const oversizedText = "x".repeat(EDITOR_INPUT_CHAR_LIMIT + 1);
 		const result = await editorTool.execute(
 			{
 				path: "/tmp/example.ts",
@@ -2041,9 +2079,7 @@ describe("default editor tool", () => {
 		if (typeof result !== "object" || result == null || !("error" in result)) {
 			throw new Error("Expected editor tool result to include an error.");
 		}
-		expect(result.error).toContain(
-			`recommended limit of ${INPUT_ARG_CHAR_LIMIT}`,
-		);
+		expect(result.error).toContain(`over the ${EDITOR_INPUT_CHAR_LIMIT} limit`);
 		expect(execute).not.toHaveBeenCalled();
 	});
 });

@@ -14,6 +14,36 @@ export interface StartSessionResult {
 
 export const MAX_COMMAND_OUTPUT_CHARS = 200_000
 
+export const DEFAULT_CONTEXT_LIMITS = {
+	message: {
+		toolResultChars: 50_000,
+		fileContentChars: 50_000,
+		totalTextBytes: 6_000_000,
+		assistantTextChars: 200_000,
+		assistantToolMarkupChars: 12_000,
+		minOutdatedRewriteBytes: 65_536,
+	},
+	tool: {
+		commandOutputChars: 48_000,
+		readLines: 2_000,
+		lineChars: 2_000,
+		readOutputChars: 48_000,
+		searchOutputChars: 48_000,
+		webFetchContentChars: 50_000,
+		editorInputChars: 50_000,
+		commandInputChars: 12_000,
+		editorDiffLines: 200,
+		commandPreviewChars: 200,
+	},
+}
+
+export type ContextLimits = typeof DEFAULT_CONTEXT_LIMITS
+export type ToolContextLimits = ContextLimits["tool"]
+
+export function resolveContextLimits() {
+	return DEFAULT_CONTEXT_LIMITS
+}
+
 export interface StoredModelEntry {
 	id?: string
 	name?: string

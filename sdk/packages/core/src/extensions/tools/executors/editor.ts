@@ -7,6 +7,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { AgentToolContext } from "@cline/shared";
+import { DEFAULT_CONTEXT_LIMITS } from "../../../settings/context-limits";
 import type { EditFileInput } from "../schemas";
 import type { EditorExecutor } from "../types";
 import {
@@ -224,7 +225,7 @@ export function createEditorExecutor(
 	const {
 		encoding = "utf-8",
 		restrictToCwd = true,
-		maxDiffLines = 200,
+		maxDiffLines = DEFAULT_CONTEXT_LIMITS.tool.editorDiffLines,
 	} = options;
 
 	return async (

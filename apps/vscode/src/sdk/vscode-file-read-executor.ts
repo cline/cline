@@ -1,4 +1,4 @@
-import { createDefaultExecutors, type ToolExecutors } from "@cline/core"
+import { createDefaultExecutors, resolveContextLimits, type ToolExecutors } from "@cline/core"
 import * as path from "path"
 
 type FileReadExecutor = NonNullable<ToolExecutors["readFile"]>
@@ -13,7 +13,16 @@ type FileReadExecutor = NonNullable<ToolExecutors["readFile"]>
  * and editor tools already run against the workspace root; this makes reads match.
  */
 export function createWorkspaceFileReadExecutor(getWorkspaceRoot: () => Promise<string>): FileReadExecutor {
-	const readFile = createDefaultExecutors().readFile
+	// Without resolved limits this executor would silently keep the compiled
+	// defaults, ignoring every CLINE_TOOL_* override the rest of the host honors.
+	const limits = resolveContextLimits().tool
+	const readFile = createDefaultExecutors({
+		fileRead: {
+			maxReadLines: limits.readLines,
+			maxLineChars: limits.lineChars,
+			maxReadOutputChars: limits.readOutputChars,
+		},
+	}).readFile
 	if (!readFile) {
 		throw new Error("SDK default executors did not provide a readFile executor")
 	}

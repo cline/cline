@@ -5,6 +5,7 @@
  */
 
 import type { AgentToolContext } from "@cline/shared";
+import { DEFAULT_CONTEXT_LIMITS } from "../../../settings/context-limits";
 import type { WebFetchExecutor } from "../types";
 
 /**
@@ -45,6 +46,12 @@ export interface WebFetchExecutorOptions {
 	 * @default 5
 	 */
 	maxRedirects?: number;
+
+	/**
+	 * Max characters of fetched content included in the result.
+	 * @default DEFAULT_CONTEXT_LIMITS.tool.webFetchContentChars
+	 */
+	maxContentChars?: number;
 }
 
 /**
@@ -101,6 +108,7 @@ export function createWebFetchExecutor(
 	const {
 		timeoutMs = 30000,
 		maxResponseBytes = 5_000_000,
+		maxContentChars = DEFAULT_CONTEXT_LIMITS.tool.webFetchContentChars,
 		userAgent = "Mozilla/5.0 (compatible; AgentBot/1.0)",
 		headers = {},
 		followRedirects = true,
@@ -228,12 +236,12 @@ export function createWebFetchExecutor(
 				`Size: ${totalSize} bytes`,
 				``,
 				`--- Content ---`,
-				content.slice(0, 50000), // Limit content size for output
+				content.slice(0, maxContentChars),
 			];
 
-			if (content.length > 50000) {
+			if (content.length > maxContentChars) {
 				outputLines.push(
-					`\n[Content truncated: showing first 50000 of ${content.length} characters]`,
+					`\n[Content truncated: showing first ${maxContentChars} of ${content.length} characters]`,
 				);
 			}
 

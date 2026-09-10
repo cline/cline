@@ -8,14 +8,22 @@
  * reference them so the model pages or narrows instead of retrying.
  *
  * Truncation notices always live in the preserved head/tail of an entry,
- * never in the elided middle. Provider-request building may re-truncate
- * long strings with its own (possibly tighter) middle-cut backstop
- * (session/services/message-builder.ts); keeping the notices at the edges
- * means the recovery guidance survives that cut too.
+ * never in the elided middle, so they survive a later cut. Provider-request
+ * building keeps its own backstop (session/services/message-builder.ts) above
+ * these budgets, so an executor's own sizing stands.
+ */
+
+import { DEFAULT_CONTEXT_LIMITS } from "../../../settings/context-limits";
+
+/**
+ * Compile-time defaults. Each executor takes its effective cap from resolved
+ * options at construction; these remain for callers that build an executor
+ * without configuring one.
  */
 
 /** Max characters of command output kept; beyond this the middle is elided. */
-export const MAX_COMMAND_OUTPUT_CHARS = 48_000;
+export const MAX_COMMAND_OUTPUT_CHARS =
+	DEFAULT_CONTEXT_LIMITS.tool.commandOutputChars;
 
 export function truncateCommandOutput(
 	text: string,
@@ -38,13 +46,15 @@ export function truncateCommandOutput(
 }
 
 /** Max lines returned per file read when the range is larger or absent. */
-export const MAX_READ_LINES = 2_000;
+export const MAX_READ_LINES = DEFAULT_CONTEXT_LIMITS.tool.readLines;
 
 /** Max characters kept per line in file reads (defangs minified files). */
-export const MAX_LINE_CHARS = 2_000;
+export const MAX_LINE_CHARS = DEFAULT_CONTEXT_LIMITS.tool.lineChars;
 
 /** Max characters returned per file read window. */
-export const MAX_READ_OUTPUT_CHARS = 48_000;
+export const MAX_READ_OUTPUT_CHARS =
+	DEFAULT_CONTEXT_LIMITS.tool.readOutputChars;
 
 /** Max characters returned per search query; beyond this the middle is elided. */
-export const MAX_SEARCH_OUTPUT_CHARS = 48_000;
+export const MAX_SEARCH_OUTPUT_CHARS =
+	DEFAULT_CONTEXT_LIMITS.tool.searchOutputChars;

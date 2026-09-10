@@ -55,6 +55,18 @@ export interface SearchExecutorOptions {
 	 * @default 20
 	 */
 	maxDepth?: number;
+
+	/**
+	 * Max characters returned per query; beyond this the middle is elided.
+	 * @default MAX_SEARCH_OUTPUT_CHARS
+	 */
+	maxSearchOutputChars?: number;
+
+	/**
+	 * Max characters kept per matched line.
+	 * @default MAX_LINE_CHARS
+	 */
+	maxLineChars?: number;
 }
 
 const DEFAULT_INCLUDE_EXTENSIONS = [
@@ -333,6 +345,8 @@ export function createSearchExecutor(
 		maxResults = 100,
 		contextLines = 2,
 		maxDepth = 20,
+		maxSearchOutputChars = MAX_SEARCH_OUTPUT_CHARS,
+		maxLineChars = MAX_LINE_CHARS,
 	} = options;
 	const excludeDirsSet = new Set(excludeDirs);
 	const includeExtensionsSet = new Set(
@@ -371,7 +385,15 @@ export function createSearchExecutor(
 
 			for (const match of rgMatches) {
 				resultLines.push(`${match.file}:${match.line}:${match.column}`);
-				resultLines.push(...match.context);
+				// Matches the regex fallback below: a minified file must not be
+				// able to return one multi-megabyte line through this path.
+				resultLines.push(
+					...match.context.map((line) =>
+						line.length > maxLineChars
+							? `${line.slice(0, maxLineChars)} [line truncated]`
+							: line,
+					),
+				);
 				resultLines.push("");
 			}
 
@@ -381,7 +403,7 @@ export function createSearchExecutor(
 				);
 			}
 
-			return capSearchOutput(resultLines.join("\n"));
+			return capSearchOutput(resultLines.join("\n"), maxSearchOutputChars);
 		}
 
 		// Fallback to manual regex search
@@ -445,7 +467,7 @@ export function createSearchExecutor(
 						for (let i = contextStart; i <= contextEnd; i++) {
 							const prefix = i === lineIdx ? ">" : " ";
 							contextLinesArr.push(
-								`${prefix} ${i + 1}: ${lines[i].slice(0, MAX_LINE_CHARS)}`,
+								`${prefix} ${i + 1}: ${lines[i].slice(0, maxLineChars)}`,
 							);
 						}
 
@@ -490,7 +512,7 @@ export function createSearchExecutor(
 			);
 		}
 
-		return capSearchOutput(resultLines.join("\n"));
+		return capSearchOutput(resultLines.join("\n"), maxSearchOutputChars);
 	};
 }
 
@@ -501,12 +523,15 @@ export function createSearchExecutor(
  * are preserved and the middle is elided with a notice teaching the model
  * to narrow the pattern instead of retrying.
  */
-function capSearchOutput(text: string): string {
-	if (text.length <= MAX_SEARCH_OUTPUT_CHARS) {
+function capSearchOutput(
+	text: string,
+	maxChars: number = MAX_SEARCH_OUTPUT_CHARS,
+): string {
+	if (text.length <= maxChars) {
 		return text;
 	}
-	const headLimit = Math.ceil(MAX_SEARCH_OUTPUT_CHARS / 2);
-	const tailLimit = Math.max(1, MAX_SEARCH_OUTPUT_CHARS - headLimit);
+	const headLimit = Math.ceil(maxChars / 2);
+	const tailLimit = Math.max(1, maxChars - headLimit);
 	return (
 		`${text.slice(0, headLimit)}\n` +
 		`[... search output truncated: ${text.length} chars total. ` +
