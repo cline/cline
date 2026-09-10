@@ -287,6 +287,16 @@ function extractErrorText(
 	return capText(extractOutputText(normalized), maxChars);
 }
 
+/**
+ * The default tools report a rejected operation as a normal result
+ * (`{ success: false, error }`) rather than a thrown error, so without this
+ * check a failed edit is indistinguishable from an applied one.
+ */
+function resultReportsFailure(result: unknown): boolean {
+	const normalized = normalizeValue(result);
+	return isRecord(normalized) && normalized.success === false;
+}
+
 function fallbackLabel(kind: ToolKind, toolName: string, inProgress: boolean) {
 	switch (kind) {
 		case "read":
@@ -579,8 +589,31 @@ export function buildToolSummary(
 		}
 	}
 
+	// A rejected edit wrote nothing: say so, and never draw the diff the
+	// model asked for as if it had been applied.
+	const editFailed =
+		kind === "edit" &&
+		!inProgress &&
+		(isError || resultReportsFailure(payload.result));
+	if (editFailed) {
+		base.errorText ??= extractErrorText(payload.result, opts.maxOutputChars);
+		Object.assign(base, labeled([{ text: "Failed to edit file" }]), {
+			aggregate: undefined,
+		});
+	}
+
 	if (toolName === "apply_patch") {
 		const info = parseApplyPatchInput(input);
+		if (info && editFailed) {
+			return {
+				...base,
+				...labeled([{ text: "Failed to apply patch" }]),
+				aggregate: undefined,
+				details: info.files.map((file) =>
+					formatPath(file.path, opts.pathStyle),
+				),
+			};
+		}
 		if (info) {
 			const single = info.files.length === 1 ? info.files[0] : null;
 			const actionVerb = (action: "add" | "update" | "delete") =>
@@ -659,8 +692,16 @@ export function buildToolSummary(
 		}
 		return {
 			...base,
-			...labeled([{ text: inProgress ? "Applying patch" : "Applied patch" }]),
-			aggregate: { ...EDIT_AGGREGATE, count: 1 },
+			...labeled([
+				{
+					text: inProgress
+						? "Applying patch"
+						: editFailed
+							? "Failed to apply patch"
+							: "Applied patch",
+				},
+			]),
+			aggregate: editFailed ? undefined : { ...EDIT_AGGREGATE, count: 1 },
 		};
 	}
 
@@ -687,15 +728,23 @@ export function buildToolSummary(
 				: command === "insert"
 					? "Inserting into"
 					: "Editing file"
-			: command === "create"
-				? "Created file"
-				: command === "insert"
-					? "Inserted into"
-					: "Edited file";
+			: editFailed
+				? command === "create"
+					? "Failed to create file"
+					: command === "insert"
+						? "Failed to insert into"
+						: "Failed to edit file"
+				: command === "create"
+					? "Created file"
+					: command === "insert"
+						? "Inserted into"
+						: "Edited file";
 
 		let diff: ToolSummary["diff"];
 		let diffText: string | undefined;
-		if (info && (info.oldText !== undefined || command === "create")) {
+		if (editFailed) {
+			// Nothing was written; the requested change is not a diff.
+		} else if (info && (info.oldText !== undefined || command === "create")) {
 			// str_replace texts are fragments of the file, not whole contents;
 			// fragment mode keeps the hunk header from claiming line positions.
 			diffText = makeUnifiedDiff(
@@ -719,7 +768,7 @@ export function buildToolSummary(
 					{ text: `${verb} ` },
 					{ text: displayFileName(path), code: true },
 				]),
-				aggregate: { ...EDIT_AGGREGATE, count: 1 },
+				aggregate: editFailed ? undefined : { ...EDIT_AGGREGATE, count: 1 },
 				diff,
 				items: [
 					{
@@ -730,8 +779,8 @@ export function buildToolSummary(
 						additions: diff?.additions,
 						deletions: diff?.deletions,
 						diff: diffText,
-						oldText: info?.oldText,
-						newText: info?.newText,
+						oldText: editFailed ? undefined : info?.oldText,
+						newText: editFailed ? undefined : info?.newText,
 						fragment: command !== "create",
 					},
 				],

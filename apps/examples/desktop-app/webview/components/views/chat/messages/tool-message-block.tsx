@@ -186,7 +186,7 @@ const ToolCallRow = memo(function ToolCallRow({
 		}
 	}, [isProceeding, onProceedWhileRunning, toolCallId, toolSessionId]);
 
-	const hasError = Boolean(payload?.isError);
+	const hasError = Boolean(payload?.isError) || Boolean(summary.errorText);
 	const Icon = getToolNameIcon(toolName);
 	const details = summary.details.map((detail, index) => ({
 		detail,

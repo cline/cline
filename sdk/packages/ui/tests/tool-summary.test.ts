@@ -310,6 +310,71 @@ describe("editor summaries", () => {
 		expect(summary.label).toBe("Editing file a.ts");
 	});
 
+	it("reports a rejected edit as failed instead of drawing its diff", () => {
+		// The editor tool returns `{ success: false, error }` as a normal
+		// result rather than throwing, so this must not depend on isError.
+		const rejected = buildToolSummary({
+			toolName: "editor",
+			input: { path: "todo.txt", new_text: "hello" },
+			result: {
+				query: "edit:todo.txt",
+				result: "",
+				error:
+					"Editor operation failed: todo.txt already exists, but `old_text` was omitted.",
+				success: false,
+			},
+		});
+		expect(rejected.label).toBe("Failed to create file todo.txt");
+		expect(rejected.errorText).toContain("already exists");
+		expect(rejected.diff).toBeUndefined();
+		expect(rejected.aggregate).toBeUndefined();
+		const item = rejected.items[0];
+		expect(item.type).toBe("file");
+		if (item.type === "file") {
+			expect(item.diff).toBeUndefined();
+			expect(item.newText).toBeUndefined();
+			expect(item.additions).toBeUndefined();
+		}
+
+		const notFound = buildToolSummary({
+			toolName: "editor",
+			input: { path: "todo.txt", old_text: "MISSING", new_text: "hello" },
+			result: {
+				error: "No replacement performed: text not found",
+				success: false,
+			},
+		});
+		expect(notFound.label).toBe("Failed to edit file todo.txt");
+		expect(notFound.diff).toBeUndefined();
+
+		// An in-flight call has no result yet and must keep its progress verb.
+		expect(
+			buildToolSummary({
+				toolName: "editor",
+				input: { path: "todo.txt", new_text: "hello" },
+				inProgress: true,
+			}).label,
+		).toBe("Creating file todo.txt");
+	});
+
+	it("labels a failed apply_patch without a diff", () => {
+		const summary = buildToolSummary({
+			toolName: "apply_patch",
+			input: {
+				input:
+					"*** Begin Patch\n*** Update File: src/a.ts\n@@\n-old\n+new\n*** End Patch",
+			},
+			result: {
+				error: "apply_patch failed: context not found",
+				success: false,
+			},
+		});
+		expect(summary.label).toBe("Failed to apply patch");
+		expect(summary.errorText).toBe("apply_patch failed: context not found");
+		expect(summary.diff).toBeUndefined();
+		expect(summary.details).toEqual(["src/a.ts"]);
+	});
+
 	it("falls back to +N:/-N: counts from the result", () => {
 		const summary = buildToolSummary({
 			toolName: "editor",
