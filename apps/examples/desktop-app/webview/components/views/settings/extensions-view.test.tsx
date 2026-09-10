@@ -137,3 +137,52 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 		});
 	});
 });
+
+describe("tool state controls", () => {
+	it.each([
+		true,
+		false,
+	])("sets duplicate built-in names explicitly (enabled=%s)", async (initialEnabled) => {
+		let enabled = initialEnabled;
+		const inventory = () => ({
+			workspaceRoot: "/workspace",
+			tools: [
+				{
+					id: "web_search",
+					name: "web_search",
+					headlessToolNames: ["web_search"],
+					source: "builtin",
+					enabled,
+				},
+			],
+		});
+		invoke.mockImplementation(async (command, args) => {
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			if (command === "list_user_instruction_configs") return inventory();
+			if (command === "set_tool_disabled") {
+				enabled = !args.disabled;
+				return inventory();
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+		await act(async () => {
+			root.render(<CustomizationSectionView section="Tools" />);
+		});
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Toggle web_search"]')
+				?.click();
+		});
+		expect(enabled).toBe(!initialEnabled);
+		expect(invoke).toHaveBeenCalledWith("set_tool_disabled", {
+			names: ["web_search", "web_search"],
+			disabled: initialEnabled,
+		});
+		expect(
+			container
+				.querySelector('[aria-label="Toggle web_search"]')
+				?.getAttribute("aria-checked"),
+		).toBe(String(!initialEnabled));
+	});
+});
