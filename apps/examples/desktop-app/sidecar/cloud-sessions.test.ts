@@ -2,11 +2,11 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
-	CloudSessionApi,
+	type CloudSessionApi,
+	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
 } from "./cloud-sessions";
-import { handleCommand } from "./commands";
 import { disposeSidecarContext } from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
@@ -474,7 +474,11 @@ describe("Cloud sessions sidecar wiring", () => {
 				list: async () => [],
 				create: async (input: Record<string, unknown>) => {
 					createBody = input;
-					return { sessionId: "ses-created", sandboxUrl: "pod" };
+					return {
+						sessionId: "ses-created",
+						status: "ready",
+						sandboxUrl: "pod",
+					};
 				},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
@@ -502,6 +506,7 @@ describe("Cloud sessions sidecar wiring", () => {
 			branch: "feature/login-fix",
 			autoApproveTools: false,
 		});
+		await manager.send("ses-created", "Fix the provisioning flow");
 		const innerCreate = hub.commands.find(
 			(entry) => entry.command === "session.create",
 		);
@@ -510,140 +515,118 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
-	it("shows a provisioning placeholder in the session list until create settles", async () => {
+	it("returns the real id immediately and sends only after readiness", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient(false);
-		let serverReady = false;
-		let finishCreate:
-			| ((value: { sessionId: string; sandboxUrl: string }) => void)
-			| undefined;
+		let finishProvisioning: (() => void) | undefined;
+		const waitUntilReady = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					finishProvisioning = resolve;
+				}),
+		);
+		const session = {
+			...REMOTE_SESSION,
+			id: "ses-created",
+			status: "provisioning",
+		};
 		const manager = new CloudSessionManager(ctx, {
 			api: {
-				list: async () => [
-					{
-						...REMOTE_SESSION,
-						id: "ses-existing",
-						status: "failed",
-						title: "Existing session",
-					},
-					{
-						...REMOTE_SESSION,
-						id: "ses-created",
-						status: serverReady ? "ready" : "provisioning",
-						title: undefined,
-						metadata: {
-							...REMOTE_SESSION.metadata,
-							createRequestTitle: "__cline_create_request__:client-start-1",
-						},
-					},
-				],
-				create: () =>
-					new Promise((resolve) => {
-						finishCreate = resolve;
-					}),
+				create: async () => ({
+					sessionId: session.id,
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list: async () => [REMOTE_SESSION, session],
+				waitUntilReady,
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
 		});
-		ctx.cloudSessionManager = manager;
-
-		const creating = manager.create({
-			requestId: "client-start-1",
-			modelId: "anthropic/claude-sonnet-5",
+		const created = await manager.create({
+			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
-			initialPrompt: "Fix the provisioning flow",
+			initialPrompt: "Fix this",
 		});
-		await new Promise((resolve) => setTimeout(resolve, 0));
-
-		const during = await manager.listForDiscovery();
-		const provisioning = during.filter(
-			(session) => session.status === "provisioning",
-		);
-		expect(provisioning).toHaveLength(1);
-		const placeholder = provisioning[0];
-		expect(during.some((session) => session.sessionId === "ses-existing")).toBe(
-			true,
-		);
-		expect(during.some((session) => session.sessionId === "ses-created")).toBe(
-			false,
-		);
-		expect(placeholder).toMatchObject({
-			origin: "cloud",
-			prompt: "Fix the provisioning flow",
-			repoUrl: "https://github.com/cline/test",
-			metadata: expect.objectContaining({
-				title: "Provisioning cline/test…",
-			}),
-		});
-
-		// Opening the placeholder is benign (loading state), reads are empty,
-		// and only mutating actions fail with a clear message.
-		const placeholderId = String(placeholder?.sessionId);
-		await expect(
-			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
-		).resolves.toEqual({ status: "provisioning" });
-		await expect(manager.attach(placeholderId)).resolves.toMatchObject({
-			sessionId: placeholderId,
+		expect(created).toMatchObject({
+			sessionId: "ses-created",
 			status: "provisioning",
 		});
-		await expect(manager.readMessages(placeholderId)).resolves.toEqual([]);
-		await expect(manager.send(placeholderId, "hello")).rejects.toThrow(
-			/still provisioning/,
-		);
-
-		serverReady = true;
-		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
-		await creating;
-
-		const after = await manager.listForDiscovery();
-		expect(after.some((session) => session.status === "provisioning")).toBe(
-			false,
-		);
-
-		const provisioned = events.find(
-			(event) => event.name === "cloud_session_provisioned",
-		);
-		expect(provisioned?.payload).toMatchObject({
-			placeholderId,
+		expect(waitUntilReady).not.toHaveBeenCalled();
+		expect(hub.commands).toEqual([]);
+		expect(
+			(await manager.listForDiscovery()).map((row) => row.sessionId),
+		).toEqual(["ses-outer", "ses-created"]);
+		await expect(manager.attach("ses-created")).resolves.toMatchObject({
 			sessionId: "ses-created",
+			status: "provisioning",
 		});
-		await expect(
-			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
-		).resolves.toEqual({ status: "ready", sessionId: "ses-created" });
+		await expect(manager.readMessages("ses-created")).resolves.toEqual([]);
+		await expect(manager.pendingPrompts("ses-created")).resolves.toMatchObject({
+			promptsInQueue: [],
+		});
+		expect(waitUntilReady).not.toHaveBeenCalled();
+		const sending = manager.send("ses-created", "Fix this");
+		await vi.waitFor(() => expect(waitUntilReady).toHaveBeenCalledOnce());
+		expect(hub.commands).toEqual([]);
+		finishProvisioning?.();
+		await sending;
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.send_input"),
+		).toHaveLength(1);
+		expect(
+			events.some(
+				(event) =>
+					event.name === "chat_session_status" &&
+					event.payload.sessionId === "ses-created" &&
+					event.payload.status === "provisioning",
+			),
+		).toBe(true);
 	});
 
-	it("retains a failed provisioning outcome after removing its placeholder", async () => {
+	it("retains a failed real session and rejects its first send", async () => {
 		const { ctx, events } = createContext();
+		const hub = new FakeHubClient(false);
 		const manager = new CloudSessionManager(ctx, {
 			api: {
-				create: async () => {
-					throw new Error("sandbox failed");
-				},
+				create: async () => ({
+					sessionId: "ses-created",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
 				list: async () => [],
+				waitUntilReady: async () => {
+					throw new CloudSessionError("session_failed", "clone failed");
+				},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
 		});
-		ctx.cloudSessionManager = manager;
-
-		const creating = manager.create({
-			modelId: "anthropic/claude-sonnet-5",
+		await manager.create({
+			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 		});
-		const rejected = expect(creating).rejects.toThrow("sandbox failed");
-		const placeholderId = String(
-			events.find(
+		await expect(manager.send("ses-created", "Fix this")).rejects.toThrow(
+			/clone failed/,
+		);
+		await expect(manager.attach("ses-created")).resolves.toMatchObject({
+			sessionId: "ses-created",
+			status: "failed",
+		});
+		await expect(manager.send("ses-created", "Retry")).rejects.toMatchObject({
+			detail: "clone failed",
+		});
+		expect(hub.commands).toEqual([]);
+		expect(
+			events.some(
 				(event) =>
 					event.name === "chat_session_status" &&
-					event.payload.status === "provisioning",
-			)?.payload.sessionId,
-		);
-		await rejected;
-
-		await expect(
-			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
-		).resolves.toEqual({ status: "failed", message: "sandbox failed" });
+					event.payload.sessionId === "ses-created" &&
+					event.payload.status === "error",
+			),
+		).toBe(true);
 	});
 
 	it("surfaces run.failed errors as a visible error message", async () => {
