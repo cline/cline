@@ -382,8 +382,19 @@ export class TelemetryService {
 		this.providers.push(provider)
 	}
 
-	public removeProvider(name: string) {
+	public async removeProvider(name: string): Promise<void> {
+		const removed = this.providers.filter((p) => p.name === name)
+		// Stop routing events before waiting for exporters to shut down.
 		this.providers = this.providers.filter((p) => p.name !== name)
+		await Promise.all(
+			removed.map(async (provider) => {
+				try {
+					await provider.dispose()
+				} catch (error) {
+					Logger.error(`[TelemetryService] Failed to dispose provider ${name}`, error)
+				}
+			}),
+		)
 	}
 
 	/**

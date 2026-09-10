@@ -1,5 +1,5 @@
-import { markOtlpTraceRelayProvider } from "@cline/shared"
-import { metrics } from "@opentelemetry/api"
+import { markOtlpTraceRelayProvider, OTLP_TRACE_RELAY_MARKER } from "@cline/shared"
+import { metrics, trace } from "@opentelemetry/api"
 import { logs } from "@opentelemetry/api-logs"
 import { Resource } from "@opentelemetry/resources"
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
@@ -19,13 +19,15 @@ import {
 
 /**
  * OpenTelemetry client provider.
- * Manages meter and logger providers for telemetry collection.
+ * Owns meter, logger and tracer providers for telemetry collection.
  */
 export class OpenTelemetryClientProvider {
 	readonly meterProvider: MeterProvider | null = null
 	readonly loggerProvider: LoggerProvider | null = null
 	readonly tracerProvider: NodeTracerProvider | null = null
 	private readonly config: OpenTelemetryClientValidConfig | null
+	private disposal?: Promise<void>
+	private rejectedTracerShutdown?: Promise<void>
 
 	/**
 	 * Check if debug diagnostics are enabled.
@@ -252,13 +254,43 @@ export class OpenTelemetryClientProvider {
 		// register() sets the global tracer provider plus the async context
 		// manager spans need for parent/child relationships.
 		tracerProvider.register()
+		if (!this.isGlobalTracerProvider(tracerProvider)) {
+			// OTel registration is first-wins. Never retain an orphaned exporter
+			// or displace a build/runtime/third-party provider with remote config.
+			Logger.warn("[OTEL] Global tracer already owned; discarding unregistered trace exporter")
+			this.rejectedTracerShutdown = tracerProvider.shutdown().catch((error) => {
+				Logger.error("Error shutting down unregistered tracer:", error)
+			})
+			return null
+		}
 		Logger.log(`[OTEL] TracerProvider initialized with ${processors.length} exporter(s)`)
 
 		return tracerProvider
 	}
 
-	public async dispose(): Promise<void> {
+	private isGlobalTracerProvider(provider: NodeTracerProvider): boolean {
+		const globalProvider = trace.getTracerProvider() as { getDelegate?: () => unknown }
+		return globalProvider === provider || globalProvider.getDelegate?.() === provider
+	}
+
+	public dispose(): Promise<void> {
+		return (this.disposal ??= this.shutdown())
+	}
+
+	private async shutdown(): Promise<void> {
+		if (this.tracerProvider) {
+			// Stop new relay decisions and release only our own global slot before
+			// flushing. shutdown() alone leaves a dead delegate that rejects the
+			// next registration. Cached tracers stop exporting after shutdown.
+			delete (this.tracerProvider as unknown as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER]
+			if (this.isGlobalTracerProvider(this.tracerProvider)) {
+				trace.disable()
+			}
+		}
 		const promises: Promise<void>[] = []
+		if (this.rejectedTracerShutdown) {
+			promises.push(this.rejectedTracerShutdown)
+		}
 
 		if (this.meterProvider) {
 			promises.push(
