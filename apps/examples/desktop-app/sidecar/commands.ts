@@ -74,7 +74,6 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { resolveDesktopTelemetryUser } from "./client-context";
-import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
