@@ -14,6 +14,7 @@ import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
 type RpcMessageLike = {
+	metadata?: { displayOnly?: boolean };
 	role?: string;
 	content?: unknown;
 };
@@ -78,7 +79,10 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
-		if (message?.role !== "assistant") {
+		if (
+			message?.role !== "assistant" ||
+			message.metadata?.displayOnly === true
+		) {
 			continue;
 		}
 		const reasoningParts: string[] = [];

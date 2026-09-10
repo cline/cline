@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { inferHydratedChatStatus, resolveCredentialError } from "./helpers";
+import {
+	extractAssistantTurnDataFromRpcMessages,
+	inferHydratedChatStatus,
+	resolveCredentialError,
+} from "./helpers";
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 	return {
@@ -93,5 +97,26 @@ describe("inferHydratedChatStatus", () => {
 				},
 			]),
 		).toBe("completed");
+	});
+});
+
+describe("extractAssistantTurnDataFromRpcMessages", () => {
+	it("does not render a display-only error as an assistant response", () => {
+		expect(
+			extractAssistantTurnDataFromRpcMessages([
+				{ role: "user", content: "hi" },
+				{
+					role: "assistant",
+					content: "API key expired.",
+					metadata: { displayOnly: true, displayRole: "error" },
+				},
+			]),
+		).toEqual({
+			text: "",
+			reasoning: "",
+			reasoningRedacted: false,
+			images: [],
+			media: [],
+		});
 	});
 });

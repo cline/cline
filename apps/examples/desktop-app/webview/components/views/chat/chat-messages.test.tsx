@@ -2226,3 +2226,25 @@ describe("ChatMessages tool approvals", () => {
 		expect(container.querySelector("output")).toBeNull();
 	});
 });
+
+describe("persisted run errors", () => {
+	it("renders one complete failure before and after reopening the session", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "expired-key",
+				sessionId: "session-1",
+				role: "error",
+				content: "API key expired.",
+				createdAt: 1,
+			},
+		];
+		const fullError =
+			"The run failed: API key expired. Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+		await renderMessages(messages, { error: fullError, status: "failed" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError);
+		await renderMessages(messages, { error: null, status: "idle" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError);
+	});
+});

@@ -852,3 +852,9 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+Terminal run errors are persisted in session message history with
+`metadata.displayOnly: true` and `metadata.displayRole: "error"`. Desktop and CLI
+render these entries on history reload. The core message codec excludes them
+from agent state (including model requests and compaction); the conversation
+store retains their transcript positions when replacing agent snapshots.

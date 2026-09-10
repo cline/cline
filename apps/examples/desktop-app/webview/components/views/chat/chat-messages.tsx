@@ -26,6 +26,7 @@ import type {
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { formatRunError } from "@/lib/run-error";
 import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
 import { ImportedSessionNotice } from "./imported-session-notice";
@@ -144,7 +145,9 @@ function ChatMessagesImpl({
 		};
 	}, [messages]);
 	const shouldShowErrorBanner =
-		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+		Boolean(error) &&
+		(!lastErrorMessage ||
+			formatRunError(lastErrorMessage.content) !== formatRunError(error ?? ""));
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&

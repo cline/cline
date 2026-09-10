@@ -823,7 +823,11 @@ export class SessionRuntime {
 				input.userFiles,
 				this.config.userFileContentLoader,
 			);
-			this.conversation.appendMessage({ role: "user", content });
+			this.conversation.appendMessage({
+				id: crypto.randomUUID(),
+				role: "user",
+				content,
+			});
 		}
 
 		// Build the AgentRuntime for this turn.
@@ -972,6 +976,19 @@ export class SessionRuntime {
 				runResult.messages,
 			);
 			this.conversation.replaceMessages(replacement);
+		}
+
+		const terminalError =
+			thrownError ??
+			(runResult?.status === "failed" ? runResult.error : undefined);
+		if (terminalError) {
+			this.conversation.appendMessage({
+				id: `error_${crypto.randomUUID()}`,
+				role: "assistant",
+				content: [{ type: "text", text: terminalError.message }],
+				ts: Date.now(),
+				metadata: { displayOnly: true, displayRole: "error" },
+			});
 		}
 
 		const endedAt = new Date();
@@ -1410,9 +1427,7 @@ export class SessionRuntime {
 					totalCost: runResult.usage.totalCost,
 				}
 			: this.currentRunUsage;
-		const messages = runResult
-			? agentMessagesToMessagesWithMetadata(runResult.messages)
-			: this.conversation.getMessages();
+		const messages = this.conversation.getMessages();
 		const modelInfo = tryGetModelInfo(this.config);
 		if (thrownError) {
 			throw thrownError;

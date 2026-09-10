@@ -20,6 +20,8 @@ import { toPersistedToolResultContent } from "../../session/persisted-tool-resul
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
 ): AgentMessage[] {
+	// Display-only history must never enter agent state or model requests.
+	if (message.metadata?.displayOnly === true) return [];
 	const blocks = normalizeContentBlocks(message.content);
 	const out: AgentMessage[] = [];
 	const baseId = message.id ?? generateMessageId();

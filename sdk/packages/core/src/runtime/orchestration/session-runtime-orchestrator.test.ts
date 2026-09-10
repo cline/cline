@@ -1117,6 +1117,10 @@ describe("SessionRuntime.run", () => {
 		const { deps } = withFakeRuntime({ throwError: new Error("boom") });
 		const session = new SessionRuntime(makeAgentConfig(), deps);
 		await expect(session.run("go")).rejects.toThrow("boom");
+		expect(session.getMessages().at(-1)).toMatchObject({
+			content: [{ type: "text", text: "boom" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
 	});
 
 	it("rejects re-entrant run while the previous run is still active", async () => {
@@ -1674,13 +1678,25 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		const first = await session.run("first");
 		expect(first.finishReason).toBe("error");
 		expect(first.text).toBe("upstream failed");
-		expect(session.getMessages().map((message) => message.role)).toEqual([
-			"user",
-		]);
+		expect(first.messages.at(-1)).toMatchObject({
+			content: [{ type: "text", text: "upstream failed" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
+		// Exercise a disk round-trip before retrying.
+		session.restore(JSON.parse(JSON.stringify(first.messages)));
 
 		const second = await session.continue("second");
 		expect(second.finishReason).toBe("completed");
 		expect(second.text).toBe("second ok");
+		expect(
+			second.messages.filter((message) => message.metadata?.displayOnly),
+		).toHaveLength(1);
+		expect(second.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
 		expect(modelRequests).toHaveLength(2);
 		expect(
 			modelRequests[1]?.some((message) =>
@@ -1757,8 +1773,9 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"user",
 			"assistant",
 			"user",
+			"assistant",
 		]);
-		const lastContent = session.getMessages().at(-1)?.content[0];
+		const lastContent = session.getMessages().at(-2)?.content[0];
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
