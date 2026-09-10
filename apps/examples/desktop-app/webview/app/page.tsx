@@ -98,6 +98,7 @@ import {
 } from "@/lib/work-in-selection";
 import {
 	filterWorkspacePaths,
+	isTaskWorktreePath,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -723,7 +724,12 @@ function ChatThreadPane({
 	}, [knownWorkspacePaths]);
 
 	useEffect(() => {
-		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
+		const active = (config.workspaceRoot || config.cwd || "").trim();
+		// A task worktree is transient: keep remembering the repo it was cut
+		// from, so the next thread (and next launch) start back on that repo.
+		const lastWorkspace = isTaskWorktreePath(active)
+			? readWorkspaceSelectionFromWindow().lastWorkspace
+			: active;
 		writeWorkspaceSelectionToWindow({
 			lastWorkspace,
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
@@ -989,28 +995,6 @@ function ChatThreadPane({
 		setWorkspacePath("");
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
-
-	// Deleting a worktree task removes its folder; if that folder was the
-	// active workspace, fall back to the repo the worktree came from.
-	useEffect(() => {
-		return desktopClient.subscribe("session_deleted", (payload) => {
-			const removed = (
-				payload as {
-					removedWorktree?: { path?: string; repoRoot?: string };
-				} | null
-			)?.removedWorktree;
-			if (!removed?.path || !removed.repoRoot) {
-				return;
-			}
-			const active =
-				workspaceRef.current.workspaceRoot || workspaceRef.current.cwd || "";
-			if (
-				normalizeWorkspacePath(active) === normalizeWorkspacePath(removed.path)
-			) {
-				void switchWorkspace(removed.repoRoot);
-			}
-		});
-	}, [switchWorkspace]);
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures

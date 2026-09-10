@@ -55,6 +55,7 @@ import type {
 } from "@/lib/session-history";
 import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
+	isTaskWorktreePath,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
@@ -2991,6 +2992,11 @@ export function useChatSession() {
 			// a historical session does not retain that session's
 			// provider/model for the next chat.
 			const initial = getInitialChatConfig();
+			// A task worktree belongs to the thread that created it; the next
+			// thread goes back to the remembered repo (and its branch).
+			const leavingTaskWorktree = isTaskWorktreePath(
+				prev.workspaceRoot || prev.cwd || "",
+			);
 			return {
 				...prev,
 				sessionId: undefined,
@@ -2998,6 +3004,9 @@ export function useChatSession() {
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
+				...(leavingTaskWorktree
+					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
+					: {}),
 			};
 		});
 		activeSessionIdRef.current = null;

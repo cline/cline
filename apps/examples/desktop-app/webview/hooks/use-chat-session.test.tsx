@@ -8,6 +8,7 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
 	buildPreviousTimestampMap,
 	getThoughtDurationMilliseconds,
@@ -918,6 +919,67 @@ describe("useChatSession", () => {
 		expect(current.config).toMatchObject({
 			cwd: worktreePath,
 			workspaceRoot: worktreePath,
+		});
+	});
+
+	it("returns to the remembered repo when a new thread follows a worktree task", async () => {
+		const repo = "/repos/demo";
+		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		// The page remembers the repo, never the worktree it was cut from.
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace: repo,
+			workspaces: [repo],
+		});
+		await act(async () => {
+			current.setWorkspacePath(repo);
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+		expect(current.config.cwd).toBe(worktreePath);
+
+		await act(async () => current.reset());
+
+		expect(current.config).toMatchObject({ cwd: repo, workspaceRoot: repo });
+	});
+
+	it("keeps the workspace across a reset when it is not a task worktree", async () => {
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace: "/repos/other",
+			workspaces: ["/repos/other"],
+		});
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+
+		await act(async () => current.reset());
+
+		expect(current.config).toMatchObject({
+			cwd: "/repos/demo",
+			workspaceRoot: "/repos/demo",
 		});
 	});
 
