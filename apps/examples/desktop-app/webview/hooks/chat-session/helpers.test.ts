@@ -47,6 +47,21 @@ describe("resolveCredentialError", () => {
 		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
 	});
 
+	it.each([
+		"claude-code",
+		"openai-codex-cli",
+	])("allows local-auth provider %s without an API key", (provider) => {
+		// Local CLI providers authenticate from the CLI's own credential
+		// store; the catalog marks them `local-auth` and the key is inert.
+		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
+	});
+
+	it("allows a catalog-declared OAuth provider outside the fallback id set", () => {
+		expect(
+			resolveCredentialError(makeConfig({ provider: "opencode" })),
+		).toBeNull();
+	});
+
 	it("treats provider ids case-insensitively", () => {
 		expect(
 			resolveCredentialError(makeConfig({ provider: "Cline-Pass" })),

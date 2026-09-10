@@ -949,6 +949,68 @@ describe("useChatSession", () => {
 		).toContain(expected);
 	});
 
+	it.each([
+		// The sidecar synthesizes a messages-less error result when the runtime
+		// threw before the turn began (e.g. the Codex OAuth refresh failed on a
+		// provider switch): the prompt never entered the session, so it must be
+		// handed back to the composer instead of vanishing.
+		{
+			label: "hands the prompt back when the runtime threw before the turn",
+			messages: undefined,
+			expectedTaken: false,
+			expectedUserMessages: 0,
+		},
+		// A run that failed mid-turn persisted the user turn; the prompt stays
+		// in the transcript and must not be duplicated into the composer.
+		{
+			label: "keeps the prompt when the run failed mid-turn",
+			messages: [{ role: "user", content: "Rebase the branch" }],
+			expectedTaken: true,
+			expectedUserMessages: 1,
+		},
+	])("$label", async ({ messages, expectedTaken, expectedUserMessages }) => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: {
+								finishReason: "error",
+								text: "Token refresh failed: 401 - Could not validate your refresh token.",
+								messages,
+							},
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		let taken: boolean | undefined;
+		await act(async () => {
+			taken = await current.sendPrompt("Rebase the branch");
+		});
+
+		expect(taken).toBe(expectedTaken);
+		expect(current.status).toBe("failed");
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toHaveLength(expectedUserMessages);
+		expect(
+			current.messages.findLast((message) => message.role === "error")?.content,
+		).toContain("Token refresh failed: 401");
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {
