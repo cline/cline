@@ -16,6 +16,10 @@ describe("resolveProviderLocalCli", () => {
 			command: "claude",
 			docsUrl: "https://code.claude.com/docs/en/setup",
 		});
+		expect(resolveProviderLocalCli("opencode")).toEqual({
+			command: "opencode",
+			docsUrl: "https://opencode.ai/docs",
+		});
 	});
 
 	it("returns undefined for providers that name no local CLI", () => {
