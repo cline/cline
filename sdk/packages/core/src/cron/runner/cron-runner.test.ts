@@ -402,6 +402,48 @@ describe("CronRunner", () => {
 		expect(requeued?.error).toBe("concurrency limit reached");
 	});
 
+	it("does not reclaim an expired running lease on its first tick", async () => {
+		const { handlers, calls } = fakeHandlers();
+		const upserted = store.upsertSpec({
+			externalId: "in-flight",
+			sourcePath: "in-flight.md",
+			triggerKind: "one_off",
+			sourceHash: "h",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "in-flight",
+				title: "In flight",
+				prompt: "Do it",
+				workspaceRoot,
+				enabled: true,
+			},
+		});
+		const run = store.enqueueRun({
+			specId: upserted.record.specId,
+			specRevision: upserted.record.revision,
+			triggerKind: "one_off",
+		});
+		// Another runner owns this run; its lease lapsed while the OS slept.
+		store.claimDueRuns({
+			nowIso: new Date(Date.now() - 60_000).toISOString(),
+			leaseMs: 1_000,
+		});
+		const runner = new CronRunner({
+			store,
+			materializer,
+			runtimeHandlers: handlers,
+			workspaceRoot,
+			specs: { cronSpecsDir: cronDir },
+		});
+		await runner.tick();
+		await runner.dispose();
+
+		expect(calls.start).toBe(0);
+		expect(store.getRun(run.runId)?.status).toBe("running");
+		expect(store.getRun(run.runId)?.attemptCount).toBe(1);
+	});
+
 	it("requeues active runs on stop and allows them to be reclaimed", async () => {
 		let aborted = 0;
 		const handlers: HubScheduleRuntimeHandlers = {
