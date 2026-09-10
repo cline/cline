@@ -52,7 +52,6 @@ import {
 	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
-import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
@@ -674,12 +673,10 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														{thread.pinned ? "Unpin" : "Pin"}
 													</DropdownMenuItem>
 												) : null}
-												{!isCloudProvisioningSessionId(thread.id) ? (
-													<DropdownMenuItem onClick={() => startRename(thread)}>
-														<Pencil className="size-4" />
-														Rename
-													</DropdownMenuItem>
-												) : null}
+												<DropdownMenuItem onClick={() => startRename(thread)}>
+													<Pencil className="size-4" />
+													Rename
+												</DropdownMenuItem>
 												{thread.origin !== "cloud" ? (
 													<DropdownMenuItem
 														onClick={() => void history.forkThread(thread.id)}
@@ -690,7 +687,6 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
-													disabled={isCloudProvisioningSessionId(thread.id)}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"
 												>

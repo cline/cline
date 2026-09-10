@@ -109,9 +109,9 @@ describe("CloudSessionApi", () => {
 		expect(await api.history("ses-1")).toBeNull();
 	});
 
-	it("waits for the current asynchronous provisioning contract", async () => {
+	it("returns the real id before polling readiness and reports provisioning phases", async () => {
 		vi.useFakeTimers();
-		const tokens = ["workos:create", "workos:new-account"];
+		const tokens = ["workos:create", "workos:create", "workos:new-account"];
 		const authorizations: string[] = [];
 		let statusCalls = 0;
 		const phases: Array<string | undefined> = [];
@@ -147,20 +147,24 @@ describe("CloudSessionApi", () => {
 				},
 			});
 
-			const creating = api.create(
-				{
-					modelId: "anthropic/claude-sonnet-5",
-					repoUrl: "https://github.com/cline/test",
-				},
+			const created = await api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			});
+			expect(created).toMatchObject({
+				sessionId: "ses-1",
+				status: "provisioning",
+			});
+			expect(statusCalls).toBe(0);
+			const ready = api.waitUntilReady(
+				created.sessionId,
+				new AbortController().signal,
 				({ phase }) => phases.push(phase),
 			);
 			await vi.waitFor(() => expect(statusCalls).toBe(1));
 			await vi.advanceTimersByTimeAsync(3_000);
 
-			await expect(creating).resolves.toMatchObject({
-				sessionId: "ses-1",
-				sandboxUrl: "",
-			});
+			await expect(ready).resolves.toBeUndefined();
 			expect(statusCalls).toBe(2);
 			expect(phases).toEqual(["cloning_repo", "ready"]);
 			expect(authorizations).toEqual([
@@ -187,15 +191,6 @@ describe("CloudSessionApi", () => {
 				const authorization =
 					new Headers(init?.headers).get("Authorization") ?? "";
 				authorizations.push(authorization);
-				if (init?.method === "POST") {
-					return jsonResponse(
-						{
-							success: true,
-							data: { sessionId: "ses-1", status: "provisioning" },
-						},
-						201,
-					);
-				}
 				if (authorization === `Bearer ${original}`) {
 					return jsonResponse(
 						{ success: false, error: "authentication required" },
@@ -210,13 +205,9 @@ describe("CloudSessionApi", () => {
 		});
 
 		await expect(
-			api.create({
-				modelId: "model",
-				repoUrl: "https://github.com/cline/test",
-			}),
-		).resolves.toMatchObject({ cleanupAuthToken: refreshed });
+			api.waitUntilReady("ses-1", new AbortController().signal),
+		).resolves.toBeUndefined();
 		expect(authorizations).toEqual([
-			`Bearer ${original}`,
 			`Bearer ${original}`,
 			`Bearer ${refreshed}`,
 		]);
@@ -231,16 +222,7 @@ describe("CloudSessionApi", () => {
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
 			getAuthToken: async () => tokens.shift(),
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					return jsonResponse(
-						{
-							success: true,
-							data: { sessionId: "ses-1", status: "provisioning" },
-						},
-						201,
-					);
-				}
+			fetch: async () => {
 				statusCalls += 1;
 				return jsonResponse(
 					{ success: false, error: "authentication required" },
@@ -250,15 +232,12 @@ describe("CloudSessionApi", () => {
 		});
 
 		await expect(
-			api.create({
-				modelId: "model",
-				repoUrl: "https://github.com/cline/test",
-			}),
+			api.waitUntilReady("ses-1", new AbortController().signal),
 		).rejects.toMatchObject({ code: "authentication_required" });
 		expect(statusCalls).toBe(1);
 	});
 
-	it("waits for a recovered provisioning session before returning it", async () => {
+	it("returns a recovered real id without waiting for provisioning", async () => {
 		vi.useFakeTimers();
 		let statusCalls = 0;
 		let recoveryTitle = "";
@@ -306,19 +285,18 @@ describe("CloudSessionApi", () => {
 				modelId: "anthropic/claude-sonnet-5",
 				repoUrl: "https://github.com/cline/test",
 			});
-			await vi.waitFor(() => expect(statusCalls).toBe(1));
-			await vi.advanceTimersByTimeAsync(3_000);
 
 			await expect(creating).resolves.toMatchObject({
 				sessionId: "ses-recovered",
+				status: "provisioning",
 			});
-			expect(statusCalls).toBe(2);
+			expect(statusCalls).toBe(0);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("uses a fresh timeout while recovering after the create request times out", async () => {
+	it("recovers the real id after the create request times out", async () => {
 		vi.useFakeTimers();
 		let statusCalls = 0;
 		let recoveryTitle = "";
@@ -375,13 +353,13 @@ describe("CloudSessionApi", () => {
 			await expect(creating).resolves.toMatchObject({
 				sessionId: "ses-recovered",
 			});
-			expect(statusCalls).toBe(1);
+			expect(statusCalls).toBe(0);
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("rejects and deletes a recovered session that failed provisioning", async () => {
+	it("returns a failed recovered session without hiding its real id", async () => {
 		let recoveryTitle = "";
 		let deleted = false;
 		const now = new Date().toISOString();
@@ -426,8 +404,8 @@ describe("CloudSessionApi", () => {
 				modelId: REMOTE_SESSION.metadata.modelId ?? "",
 				repoUrl: REMOTE_SESSION.repoContext.repoUrl ?? "",
 			}),
-		).rejects.toMatchObject({ code: "session_failed" });
-		expect(deleted).toBe(true);
+		).resolves.toMatchObject({ sessionId: "ses-outer", status: "failed" });
+		expect(deleted).toBe(false);
 	});
 
 	it("recovers a create accepted before a raw network failure", async () => {
@@ -761,7 +739,7 @@ describe("CloudSessionApi", () => {
 		expect(String(error)).toContain("ambiguous result");
 	});
 
-	it("cleans up terminal provisioning failures with the creation identity", async () => {
+	it("reports provisioning failure without deleting the known session", async () => {
 		const authorizations: string[] = [];
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -771,18 +749,6 @@ describe("CloudSessionApi", () => {
 				authorizations.push(
 					new Headers(init?.headers).get("Authorization") ?? "",
 				);
-				if (init?.method === "POST") {
-					return jsonResponse({
-						success: true,
-						data: { sessionId: "ses-failed", status: "provisioning" },
-					});
-				}
-				if (init?.method === "DELETE") {
-					expect(new URL(String(input)).pathname).toBe(
-						"/api/v1/session/ses-failed",
-					);
-					return new Response(undefined, { status: 204 });
-				}
 				expect(new URL(String(input)).pathname).toBe(
 					"/api/v1/session/ses-failed/status",
 				);
@@ -798,16 +764,9 @@ describe("CloudSessionApi", () => {
 		});
 
 		await expect(
-			api.create({
-				modelId: "model",
-				repoUrl: "https://github.com/cline/test",
-			}),
+			api.waitUntilReady("ses-failed", new AbortController().signal),
 		).rejects.toMatchObject({ code: "session_failed", detail: "clone failed" });
-		expect(authorizations).toEqual([
-			"Bearer workos:create",
-			"Bearer workos:create",
-			"Bearer workos:create",
-		]);
+		expect(authorizations).toEqual(["Bearer workos:create"]);
 	});
 
 	it("turns a generic forbidden response into actionable account guidance", async () => {

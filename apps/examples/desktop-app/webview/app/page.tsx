@@ -48,10 +48,6 @@ import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
-import {
-	type CloudProvisioningPhase,
-	useProvisioningOutcome,
-} from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -59,10 +55,7 @@ import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
-import {
-	cloudRepositoryLabel,
-	isCloudProvisioningSessionId,
-} from "@/lib/cloud-repositories";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import {
 	humanizeCloudSessionError,
 	parseCloudSessionError,
@@ -103,8 +96,8 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { readImportedFromTool } from "@/lib/session-import";
+import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -169,6 +162,13 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
 
 function readCloudProvisioningPhase(
 	value: unknown,
@@ -545,46 +545,6 @@ export default function Home() {
 		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 
-	useEffect(() => {
-		return desktopClient.subscribe("cloud_session_provisioned", (payload) => {
-			if (!payload || typeof payload !== "object") {
-				return;
-			}
-			const { placeholderId, sessionId } = payload as {
-				placeholderId?: string;
-				sessionId?: string;
-			};
-			if (!placeholderId?.trim() || !sessionId?.trim()) {
-				return;
-			}
-			const placeholderThread = threadsRef.current.find(
-				(thread) => thread.historySession?.sessionId === placeholderId,
-			);
-			if (!placeholderThread) {
-				return;
-			}
-			if (
-				navigationRef.current.view === "chat" &&
-				placeholderThread.id === navigationRef.current.activeThreadId
-			) {
-				void handleOpenSessionById(sessionId, {
-					silent: true,
-					expectedActiveThreadId: placeholderThread.id,
-				}).then((opened) => {
-					if (
-						opened ||
-						navigationRef.current.view !== "chat" ||
-						navigationRef.current.activeThreadId !== placeholderThread.id
-					) {
-						handleDeleteSession(placeholderId, placeholderThread.id);
-					}
-				});
-				return;
-			}
-			handleDeleteSession(placeholderId, placeholderThread.id);
-		});
-	}, [handleDeleteSession, handleOpenSessionById]);
-
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
@@ -938,51 +898,31 @@ function ChatThreadPane({
 		isCloudSession,
 		liveHistoryStatus,
 	});
-	const [provisioningError, setProvisioningError] = useState<string | null>(
-		null,
-	);
 	const [liveProvisioningPhase, setLiveProvisioningPhase] =
 		useState<CloudProvisioningPhase>();
-	const provisioningPlaceholderId =
-		historySession?.sessionId &&
-		isCloudProvisioningSessionId(historySession.sessionId)
-			? historySession.sessionId
-			: undefined;
 	useEffect(() => {
-		void provisioningPlaceholderId;
-		setProvisioningError(null);
 		setLiveProvisioningPhase(undefined);
-	}, [provisioningPlaceholderId]);
-	const handleProvisioningReady = useCallback(
-		async (sessionId: string) =>
-			Boolean(
-				await onOpenSessionById?.(sessionId, {
-					silent: true,
-					expectedActiveThreadId: threadId,
-				}),
-			),
-		[onOpenSessionById, threadId],
-	);
-	const handleProvisioningResolved = useCallback(() => {
-		if (provisioningPlaceholderId) {
-			onDeleteSession?.(provisioningPlaceholderId, threadId);
-		}
-	}, [onDeleteSession, provisioningPlaceholderId, threadId]);
-	useProvisioningOutcome({
-		placeholderId: provisioningPlaceholderId,
-		onOpenReady: handleProvisioningReady,
-		onResolved: handleProvisioningResolved,
-		onError: setProvisioningError,
-		onPhase: setLiveProvisioningPhase,
-	});
-	// The placeholder id covers list-refresh lag before live status arrives.
+		return desktopClient.subscribe("chat_session_status", (payload) => {
+			if (
+				payload &&
+				typeof payload === "object" &&
+				"sessionId" in payload &&
+				payload.sessionId === sessionId &&
+				"phase" in payload
+			) {
+				setLiveProvisioningPhase(
+					payload.phase === "ready"
+						? undefined
+						: readCloudProvisioningPhase(payload.phase),
+				);
+			}
+		});
+	}, [sessionId]);
 	const isProvisioningCloudSession =
-		!provisioningError &&
+		isCloudSession &&
+		status === "starting" &&
 		(liveHistoryStatus === "provisioning" ||
-			Boolean(
-				historySession?.sessionId &&
-					isCloudProvisioningSessionId(historySession.sessionId),
-			));
+			liveProvisioningPhase !== undefined);
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
 		isProvisioningCloudSession || (isCloudSession && status === "starting"),
@@ -2010,12 +1950,8 @@ function ChatThreadPane({
 										: undefined
 								}
 								parentSession={hideDeletedSessionUi ? undefined : parentSession}
-								canEditTitle={
-									Boolean(activeSessionForTitle) && !isProvisioningCloudSession
-								}
-								canDeleteSession={
-									Boolean(activeSessionToDelete) && !isProvisioningCloudSession
-								}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
 								deletingSession={deletingSession}
 								diff={isCloudSession ? undefined : headerDiff}
 								onDeleteSession={requestDeleteSession}
@@ -2032,25 +1968,10 @@ function ChatThreadPane({
 				<WelcomeScreen
 					active={isWelcomeState}
 					body={
-						provisioningError ? (
-							<div className="px-6 py-6">
-								<div
-									className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
-									role="alert"
-								>
-									<p className="font-medium">
-										This cloud session could not be started
-									</p>
-									<p className="mt-1">{provisioningError}</p>
-									<p className="mt-1 text-destructive/80">
-										Start a new cloud session to try again.
-									</p>
-								</div>
-							</div>
-						) : isCloudSession &&
-							displayedIsSwitching &&
-							displayedMessages.length === 0 ? (
-							// Keep the placeholder handoff visually continuous.
+						isCloudSession &&
+						displayedIsSwitching &&
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
 						) : showDiffView && !isCloudSession ? (
 							<DiffView

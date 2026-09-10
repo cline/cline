@@ -355,6 +355,13 @@ describe("useChatSession", () => {
 			}),
 		);
 
+		await act(async () => {
+			handlerFor("chat_session_status")({
+				sessionId: "ses-cloud",
+				status: "provisioning",
+			});
+		});
+		expect(current.status).toBe("starting");
 		expect(invokeMock).toHaveBeenCalledWith(
 			"chat_session_command",
 			{

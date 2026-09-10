@@ -2086,9 +2086,11 @@ export function useChatSession() {
 				}
 				authoritativeStatusRevisionRef.current += 1;
 				setStatus(
-					(nextStatus === "aborted"
-						? "cancelled"
-						: nextStatus) as ChatSessionStatus,
+					(nextStatus === "provisioning"
+						? "starting"
+						: nextStatus === "aborted"
+							? "cancelled"
+							: nextStatus) as ChatSessionStatus,
 				);
 			},
 		);

@@ -89,7 +89,6 @@ import {
 	isBetaVersion,
 	productNameForVersion,
 } from "@/lib/app-channel";
-import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -1601,7 +1600,7 @@ function ThreadItem({
 							<Button
 								aria-label={`Delete ${title}`}
 								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
-								disabled={pending || isCloudProvisioningSessionId(thread.id)}
+								disabled={pending}
 								onClick={(event) => {
 									event.stopPropagation();
 									onDelete();
@@ -1650,8 +1649,7 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowPin={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				allowRename={!isCloudProvisioningSessionId(thread.id)}
-				allowDelete={!isCloudProvisioningSessionId(thread.id)}
+				allowRename
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
