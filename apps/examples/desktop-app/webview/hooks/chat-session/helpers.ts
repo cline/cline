@@ -173,6 +173,8 @@ export function mapCloudRuntimeStatus(
 	status: string | undefined,
 ): ChatSessionStatus | null {
 	switch (status) {
+		case "provisioning":
+			return "starting";
 		case "failed":
 		case "error":
 			return "failed";

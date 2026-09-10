@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	CloudSessionApi,
+	type CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
@@ -148,7 +148,11 @@ describe("CloudSessionManager lifecycle", () => {
 		const { ctx } = createContext();
 		let createCalls = 0;
 		let finishCreate:
-			| ((value: { sessionId: string; sandboxUrl: string }) => void)
+			| ((value: {
+					sessionId: string;
+					status: string;
+					sandboxUrl: string;
+			  }) => void)
 			| undefined;
 		const manager = new CloudSessionManager(ctx, {
 			api: {
@@ -173,13 +177,13 @@ describe("CloudSessionManager lifecycle", () => {
 		const second = manager.create(input);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(createCalls).toBe(1);
-		expect(
-			(await manager.listForDiscovery()).filter(
-				(session) => session.status === "provisioning",
-			),
-		).toHaveLength(1);
+		expect(await manager.listForDiscovery()).toEqual([]);
 
-		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
+		finishCreate?.({
+			sessionId: "ses-created",
+			status: "provisioning",
+			sandboxUrl: "",
+		});
 		await expect(Promise.all([first, second])).resolves.toEqual([
 			expect.objectContaining({ sessionId: "ses-created" }),
 			expect.objectContaining({ sessionId: "ses-created" }),
@@ -262,7 +266,11 @@ describe("CloudSessionManager lifecycle", () => {
 				},
 				create: async (input: Record<string, unknown>) => {
 					createInput = input;
-					return { sessionId: "ses-created", sandboxUrl: "pod" };
+					return {
+						sessionId: "ses-created",
+						status: "provisioning",
+						sandboxUrl: "",
+					};
 				},
 				listRepositories: async (organizationId?: string) => {
 					repositoryScopes.push(organizationId);
@@ -306,7 +314,11 @@ describe("CloudSessionManager lifecycle", () => {
 				list: async () => [],
 				create: async (input: Record<string, unknown>) => {
 					createInput = input;
-					return { sessionId: "ses-created", sandboxUrl: "pod" };
+					return {
+						sessionId: "ses-created",
+						status: "provisioning",
+						sandboxUrl: "",
+					};
 				},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
@@ -337,7 +349,11 @@ describe("CloudSessionManager lifecycle", () => {
 				list: async () => [],
 				create: async (input: Record<string, unknown>) => {
 					createInput = input;
-					return { sessionId: "ses-created", sandboxUrl: "pod" };
+					return {
+						sessionId: "ses-created",
+						status: "provisioning",
+						sandboxUrl: "",
+					};
 				},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
