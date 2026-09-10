@@ -79,6 +79,29 @@ describe("create_git_worktree command", () => {
 	});
 });
 
+describe("remove_git_worktree command", () => {
+	const ctx = {
+		logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },
+	} as unknown as SidecarContext;
+
+	it("rolls back a worktree whose session never started", async () => {
+		const worktree = await run(repo);
+
+		await handleCommand(ctx, "remove_git_worktree", { path: worktree.path });
+
+		expect(existsSync(dirname(worktree.path))).toBe(false);
+		expect(git(repo, "worktree", "list")).not.toContain(worktree.path);
+		expect(git(repo, "branch", "--list", worktree.branch)).toBe("");
+	});
+
+	it("refuses paths outside ~/.cline/worktrees/<id>/<repo>", async () => {
+		await expect(
+			handleCommand(ctx, "remove_git_worktree", { path: repo }),
+		).rejects.toThrow("Not a task worktree");
+		expect(existsSync(repo)).toBe(true);
+	});
+});
+
 describe("delete_chat_session worktree cleanup", () => {
 	function sessionRecord(sessionId: string, cwd: string) {
 		return {
@@ -141,6 +164,22 @@ describe("delete_chat_session worktree cleanup", () => {
 		expect(existsSync(dirname(worktree.path))).toBe(false);
 		expect(git(repo, "worktree", "list")).not.toContain(worktree.path);
 		expect(git(repo, "branch", "--list", worktree.branch)).toBe("");
+	});
+
+	it("keeps a branch the task switched to, deleting only cline/<id>", async () => {
+		const worktree = await run(repo);
+		git(worktree.path, "checkout", "-q", "-b", "feature/keep-me");
+		git(worktree.path, "commit", "-q", "--allow-empty", "-m", "task work");
+		const store = new SqliteSessionStore();
+		store.create(sessionRecord("session-wt", worktree.path) as never);
+
+		await deleteSession(store, "session-wt");
+
+		expect(existsSync(worktree.path)).toBe(false);
+		expect(git(repo, "branch", "--list", worktree.branch)).toBe("");
+		expect(git(repo, "branch", "--list", "feature/keep-me")).toContain(
+			"feature/keep-me",
+		);
 	});
 
 	it("keeps a worktree that another session still uses", async () => {

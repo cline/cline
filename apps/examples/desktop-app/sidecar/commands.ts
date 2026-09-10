@@ -725,7 +725,9 @@ function isTaskWorktreePath(path: string): boolean {
 
 /**
  * Removes a worktree created by `createGitWorktree`, discarding any
- * uncommitted work in it, and deletes its `cline/<id>` branch. Paths outside
+ * uncommitted work in it, and deletes its `cline/<id>` branch. Only that
+ * generated branch is deleted: if the task switched the worktree to another
+ * branch, that branch (and its commits) is kept. Paths outside
  * `~/.cline/worktrees` are left alone. Best-effort: failures are logged.
  */
 async function removeTaskWorktree(
@@ -736,19 +738,19 @@ async function removeTaskWorktree(
 		execFileAsync("git", ["-C", worktreePath, ...args], {
 			encoding: "utf8",
 		}).then((result) => result.stdout.trim());
+	const branch = `cline/${basename(dirname(worktreePath))}`;
 	let repoRoot: string | undefined;
 	try {
-		const [branch, commonDir] = await Promise.all([
-			git(["branch", "--show-current"]),
-			git(["rev-parse", "--path-format=absolute", "--git-common-dir"]),
+		const commonDir = await git([
+			"rev-parse",
+			"--path-format=absolute",
+			"--git-common-dir",
 		]);
 		repoRoot = dirname(commonDir);
 		await git(["worktree", "remove", "--force", worktreePath]);
-		if (branch) {
-			await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
-				encoding: "utf8",
-			}).catch(() => undefined);
-		}
+		await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
+			encoding: "utf8",
+		}).catch(() => undefined);
 	} catch (error) {
 		ctx.logger?.error?.("Failed to remove task worktree", {
 			worktreePath,
@@ -2563,6 +2565,17 @@ export async function handleCommand(
 				? args.cwd.trim()
 				: ctx.workspaceRoot;
 		return await createGitWorktree(cwd);
+	}
+
+	// Rolls back a worktree from `create_git_worktree` whose session never
+	// started. Only the generated `~/.cline/worktrees/<id>/<repo>` shape is
+	// accepted, since removal also deletes the `<id>` parent directory.
+	if (command === "remove_git_worktree") {
+		const path = typeof args?.path === "string" ? args.path.trim() : "";
+		if (!isTaskWorktreePath(path)) {
+			throw new Error(`Not a task worktree: ${path}`);
+		}
+		return await removeTaskWorktree(ctx, path);
 	}
 
 	// ── Routine schedules ─────────────────────────────────────────────
