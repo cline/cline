@@ -83,6 +83,8 @@ interface McpServer {
 	url?: string;
 	headers?: Record<string, string>;
 	metadata?: unknown;
+	/** Request/initialize timeout in seconds from the settings entry. */
+	timeout?: number;
 	configurationError?: string;
 	oauthStatus?: {
 		supported: boolean;
@@ -91,6 +93,23 @@ interface McpServer {
 		lastError?: string;
 		lastAuthenticatedAt?: number;
 	};
+	/** Outcome of the hub's last attempt to connect this server for a session. */
+	connection?: McpConnectionStatus;
+}
+
+interface McpConnectionStatus {
+	connected: boolean;
+	toolCount?: number;
+	error?: string;
+	updatedAt: number;
+}
+
+export function formatMcpConnectionStatus(status: McpConnectionStatus): string {
+	if (!status.connected) {
+		return `Failed: ${status.error ?? "unknown error"}`;
+	}
+	const toolCount = status.toolCount ?? 0;
+	return `Connected, ${toolCount} tool${toolCount === 1 ? "" : "s"}`;
 }
 
 interface McpServersResponse {
@@ -110,6 +129,7 @@ interface McpServerUpsertInput {
 	url?: string;
 	headers?: Record<string, string>;
 	disabled?: boolean;
+	timeout?: number;
 	metadata?: unknown;
 }
 
@@ -124,8 +144,21 @@ type McpServerFormState = {
 	url: string;
 	headersText: string;
 	disabled: boolean;
+	timeoutText: string;
 	metadataText: string;
 };
+
+function parseTimeoutSeconds(text: string): number | undefined {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	const timeout = Number(trimmed);
+	if (!Number.isFinite(timeout) || timeout <= 0) {
+		throw new Error("Timeout must be a positive number of seconds.");
+	}
+	return timeout;
+}
 
 function splitCsv(text: string): string[] {
 	return text
@@ -200,6 +233,8 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 		url: existing?.url ?? "",
 		headersText: stringifyKeyValuePairs(existing?.headers),
 		disabled: existing?.disabled ?? false,
+		timeoutText:
+			existing?.timeout === undefined ? "" : String(existing.timeout),
 		metadataText:
 			existing?.metadata === undefined
 				? ""
@@ -412,6 +447,7 @@ export function McpServersContent({
 		const metadataText = form.metadataText.trim();
 		const metadata =
 			metadataText.length > 0 ? JSON.parse(metadataText) : undefined;
+		const timeout = parseTimeoutSeconds(form.timeoutText);
 		if (form.transportType === "stdio") {
 			const command = form.command.trim();
 			if (!command) {
@@ -427,6 +463,7 @@ export function McpServersContent({
 				cwd: form.cwd.trim() || undefined,
 				env: Object.keys(env).length > 0 ? env : undefined,
 				disabled: form.disabled,
+				timeout,
 				metadata,
 			} satisfies McpServerUpsertInput;
 		}
@@ -441,6 +478,7 @@ export function McpServersContent({
 			url,
 			headers: parseKeyValuePairs(form.headersText),
 			disabled: form.disabled,
+			timeout,
 			metadata,
 		} satisfies McpServerUpsertInput;
 	}, []);
@@ -457,7 +495,9 @@ export function McpServersContent({
 		setEditorMode("edit");
 		setFormState(createServerFormState(server));
 		setAdvancedOpen(
-			Boolean(server.cwd?.trim()) || server.metadata !== undefined,
+			Boolean(server.cwd?.trim()) ||
+				server.metadata !== undefined ||
+				server.timeout !== undefined,
 		);
 		setFormErrorMessage(null);
 		setEditorOpen(true);
@@ -611,6 +651,12 @@ export function McpServersContent({
 					{stringifyKeyValuePairs(server.headers)}
 				</p>
 			)}
+			{server.timeout !== undefined && (
+				<p>
+					<span className="text-muted-foreground/70">Timeout:</span>{" "}
+					{server.timeout}s
+				</p>
+			)}
 		</div>
 	);
 
@@ -623,6 +669,9 @@ export function McpServersContent({
 		const serverError =
 			serverActionErrors[server.name] ??
 			(server.disabled ? undefined : server.oauthStatus?.lastError);
+		// The hub records the outcome of its last connect attempt per server;
+		// a disabled server is not connected, so its stale record is not shown.
+		const connection = server.disabled ? undefined : server.connection;
 
 		return (
 			<div
@@ -635,7 +684,9 @@ export function McpServersContent({
 							"h-2.5 w-2.5 shrink-0",
 							server.disabled
 								? "fill-muted-foreground/40 text-muted-foreground/40"
-								: "fill-primary text-primary",
+								: connection && !connection.connected
+									? "fill-destructive text-destructive"
+									: "fill-primary text-primary",
 						)}
 					/>
 					<h3 className="min-w-0 truncate text-sm font-semibold text-foreground">
@@ -654,6 +705,19 @@ export function McpServersContent({
 					{renderServerToggle(server)}
 				</div>
 				<div className="mt-2.5 grid gap-2">
+					{connection ? (
+						<p
+							className={cn(
+								"wrap-break-word text-xs",
+								connection.connected
+									? "text-muted-foreground"
+									: "text-destructive",
+							)}
+							title={`Last connection attempt: ${new Date(connection.updatedAt).toLocaleString()}`}
+						>
+							{formatMcpConnectionStatus(connection)}
+						</p>
+					) : null}
 					{server.configurationError ? (
 						<div
 							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
@@ -1086,6 +1150,27 @@ export function McpServersContent({
 										/>
 									</div>
 								)}
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-timeout">Timeout (seconds)</Label>
+									<Input
+										id="mcp-timeout"
+										type="number"
+										inputMode="numeric"
+										min={1}
+										value={formState.timeoutText}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												timeoutText: event.target.value,
+											}))
+										}
+										placeholder="60"
+									/>
+									<p className="text-xs text-muted-foreground">
+										Applies to tool calls and to the initial connection. Raise
+										it for servers that start slowly.
+									</p>
+								</div>
 								<div className="grid gap-2">
 									<Label htmlFor="mcp-metadata">Metadata JSON</Label>
 									<Textarea

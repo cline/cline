@@ -99,8 +99,10 @@ import {
 	uninstallMarketplaceEntryForDesktopCommand,
 } from "./marketplace";
 import {
+	attachMcpConnectionStatus,
 	ensureMcpSettingsFile,
 	readMcpServersResponse,
+	readMcpTimeoutInput,
 	shouldProbeMcpServerAfterUpsert,
 } from "./mcp";
 import {
@@ -945,11 +947,13 @@ function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
 
 async function listHubSettings(
 	ctx: SidecarContext,
+	options: { includePluginTools?: boolean } = {},
 ): Promise<CoreSettingsSnapshot> {
 	const hubClient = await ensureSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.list", {
 		workspaceRoot: ctx.workspaceRoot,
 		cwd: ctx.workspaceRoot,
+		...options,
 	});
 	if (!reply.ok) {
 		throw new Error(
@@ -2232,7 +2236,17 @@ export async function handleCommand(
 
 	// ── MCP server management ─────────────────────────────────────────
 	if (command === "list_mcp_servers") {
-		return readMcpServersResponse();
+		const response = readMcpServersResponse();
+		// Connection status lives in the hub (sessions connect servers there);
+		// the list must still render from the file alone if the hub is down.
+		try {
+			const hubSettings = await listHubSettings(ctx, {
+				includePluginTools: false,
+			});
+			return attachMcpConnectionStatus(response, hubSettings.mcp);
+		} catch {
+			return response;
+		}
 	}
 	if (command === "authorize_mcp_server_oauth") {
 		const name = String(args?.name ?? "").trim();
@@ -2323,6 +2337,7 @@ export async function handleCommand(
 		).trim();
 		const requestedDisabled = Boolean(input.disabled);
 		const isRemote = transportType !== "stdio";
+		const timeout = readMcpTimeoutInput(input.timeout);
 		const next: JsonRecord =
 			transportType === "stdio"
 				? {
@@ -2334,6 +2349,7 @@ export async function handleCommand(
 							env: input.env,
 						},
 						disabled: requestedDisabled,
+						timeout,
 						metadata: input.metadata,
 					}
 				: {
@@ -2343,6 +2359,7 @@ export async function handleCommand(
 							headers: input.headers,
 						},
 						disabled: requestedDisabled,
+						timeout,
 						metadata: input.metadata,
 					};
 		const path = ensureMcpSettingsFile();

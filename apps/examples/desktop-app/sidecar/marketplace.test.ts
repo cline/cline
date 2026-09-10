@@ -1,7 +1,10 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { installPlugin } from "@cline/core";
+import {
+	installPlugin,
+	PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS,
+} from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	getOfficialPluginInstallPath,
@@ -151,13 +154,20 @@ describe("official plugin install detection", () => {
 				message: "Installed Aikido.",
 			});
 			const settings = JSON.parse(await readFile(settingsPath, "utf8")) as {
-				mcpServers: Record<string, { transport?: unknown }>;
+				mcpServers: Record<string, { transport?: unknown; timeout?: number }>;
 			};
 			expect(settings.mcpServers.aikido?.transport).toEqual({
 				type: "stdio",
 				command: "npx",
 				args: ["-y", "@aikidosec/mcp@1.0.9"],
 			});
+			// `npx` has to resolve (and on a cold cache download) the package
+			// before the server can answer initialize; the explicit timeout
+			// lifts the connect budget so the install works without a manual
+			// settings edit.
+			expect(settings.mcpServers.aikido?.timeout).toBe(
+				PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS,
+			);
 		} finally {
 			if (previousSettingsPath === undefined) {
 				delete process.env.CLINE_MCP_SETTINGS_PATH;

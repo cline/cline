@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import {
+	type CoreSettingsItem,
 	getMcpServerOAuthStatus,
 	parseMcpServerRegistration,
 	updateMcpSettingsFileSync,
@@ -27,6 +28,33 @@ export function readMcpServersResponse(): JsonRecord {
 	}
 	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
 	return buildMcpServersResponse(settingsPath, parsed);
+}
+
+/**
+ * Sessions connect MCP servers inside the hub, so the settings file alone
+ * cannot say whether a server actually works. Copy the hub's last connect
+ * outcome (from its `settings.list` snapshot) onto the matching rows.
+ */
+export function attachMcpConnectionStatus(
+	response: JsonRecord,
+	hubMcpItems: readonly CoreSettingsItem[],
+): JsonRecord {
+	const connectionByName = new Map(
+		hubMcpItems
+			.filter((item) => item.connection !== undefined)
+			.map((item) => [item.name, item.connection] as const),
+	);
+	if (connectionByName.size === 0 || !Array.isArray(response.servers)) {
+		return response;
+	}
+	return {
+		...response,
+		servers: response.servers.map((server) => {
+			const record = server as JsonRecord;
+			const connection = connectionByName.get(String(record.name));
+			return connection ? { ...record, connection } : record;
+		}),
+	};
 }
 
 export function buildMcpServersResponse(
@@ -133,6 +161,9 @@ export function buildMcpServersResponse(
 						? record.headers
 						: undefined,
 			metadata: registration?.metadata ?? record.metadata,
+			timeout:
+				registration?.timeoutSeconds ??
+				(typeof record.timeout === "number" ? record.timeout : undefined),
 			...(configurationError ? { configurationError } : {}),
 			oauthStatus: oauthStatus
 				? {
@@ -146,6 +177,22 @@ export function buildMcpServersResponse(
 		};
 	});
 	return { settingsPath, hasSettingsFile: true, servers: entries };
+}
+
+/**
+ * `timeout` (seconds) from the editor dialog. Absent or blank means "use the
+ * defaults" and is left out of the settings entry; anything else must be a
+ * positive number.
+ */
+export function readMcpTimeoutInput(value: unknown): number | undefined {
+	if (value === undefined || value === null || value === "") {
+		return undefined;
+	}
+	const timeout = typeof value === "number" ? value : Number(value);
+	if (!Number.isFinite(timeout) || timeout <= 0) {
+		throw new Error("Timeout must be a positive number of seconds.");
+	}
+	return timeout;
 }
 
 export function writeMcpServersMap(servers: JsonRecord): void {
@@ -190,6 +237,7 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 	const transportType = String(
 		input.transportType ?? input.transport_type ?? "",
 	).trim();
+	const timeout = readMcpTimeoutInput(input.timeout);
 	const next: JsonRecord =
 		transportType === "stdio"
 			? {
@@ -201,6 +249,7 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 						env: input.env,
 					},
 					disabled: input.disabled === true,
+					timeout,
 				}
 			: {
 					transport: {
@@ -209,6 +258,7 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 						headers: input.headers,
 					},
 					disabled: input.disabled === true,
+					timeout,
 				};
 	// Hold the cross-process lock across read-modify-write so a concurrent writer
 	// cannot clobber this upsert.

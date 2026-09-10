@@ -349,6 +349,14 @@ function shouldLogVerboseCoreLogs(): boolean {
 	return verboseCoreLogs;
 }
 
+function isMcpNoticeMetadata(metadata: unknown): boolean {
+	return (
+		typeof metadata === "object" &&
+		metadata !== null &&
+		(metadata as { source?: unknown }).source === "mcp"
+	);
+}
+
 function dispatchCoreLog(chunk: string): void {
 	let parsed: CoreLogChunk | undefined;
 	try {
@@ -1580,6 +1588,17 @@ export function useChatSession() {
 								? summaryActivity.label
 								: null,
 						);
+					}
+					// An enabled MCP server that failed to connect at session start
+					// would otherwise vanish silently; show it as a system row.
+					if (isMcpNoticeMetadata(parsed.metadata) && parsed.message?.trim()) {
+						addMessage({
+							id: makeId("mcp-notice"),
+							sessionId: listeningSessionId,
+							role: "system",
+							content: parsed.message.trim(),
+							createdAt: chunkCreatedAt(),
+						});
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
