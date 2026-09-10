@@ -68,8 +68,7 @@ export class FeatureFlagsService {
 	}
 
 	setContext(context: FeatureFlagsContext): void {
-		const identityChanged =
-			(this.context.userId ?? null) !== (context.userId ?? null);
+		const identityChanged = this.cacheInfo.userId !== (context.userId ?? null);
 		this.context = { ...context };
 		if (identityChanged) {
 			this.cache.clear();

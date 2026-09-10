@@ -120,6 +120,25 @@ describe("FeatureFlagsService", () => {
 		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
 	});
 
+	it("preserves the hydrated cache when the same account resolves and polling fails", async () => {
+		const service = new FeatureFlagsService({
+			provider: createProvider({
+				getAllFlagsAndPayloads: vi.fn().mockRejectedValue(new Error("offline")),
+			}),
+			cacheTtlMs: 0,
+		});
+		service.hydrateCache({
+			userId: "user-1",
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { [TEST_BOOLEAN_FLAG]: true } },
+		});
+
+		service.setContext({ userId: "user-1" });
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+		await expect(service.poll()).rejects.toThrow("offline");
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+	});
+
 	it("hydrates from a persistent cache file before polling", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
