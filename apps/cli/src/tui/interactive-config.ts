@@ -11,7 +11,6 @@ import {
 	type BuiltinToolAvailabilityContext,
 	type CoreSettingsItem,
 	type CoreSettingsSnapshot,
-	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	discoverPluginModulePaths,
 	getPluginDisplayName,
 	hasMcpSettingsFile,
@@ -22,6 +21,7 @@ import {
 	type RuleConfig,
 	readGlobalSettings,
 	resolveAgentConfigSearchPaths,
+	resolveDefaultMcpConnectTimeoutMs,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
@@ -198,7 +198,7 @@ export function getMcpDescription(registration: McpServerRegistration): string {
 	const timeoutDescription =
 		registration.transport.type === "stdio" &&
 		!isMcpTimeoutConfigured(registration.timeoutSeconds)
-			? `request timeout ${timeoutSeconds}s, initialize timeout ${DEFAULT_MCP_CONNECT_TIMEOUT_MS / 1000}s`
+			? `request timeout ${timeoutSeconds}s, initialize timeout ${resolveDefaultMcpConnectTimeoutMs(registration.transport) / 1000}s`
 			: `timeout ${timeoutSeconds}s`;
 	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}, ${timeoutDescription}`;
 }

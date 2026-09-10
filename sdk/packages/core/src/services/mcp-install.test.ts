@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildMcpInstallTransport,
 	installMcpServer,
+	PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./mcp-install";
@@ -156,6 +157,50 @@ describe("MCP install service", () => {
 			type: "stdio",
 			command: "node",
 			args: ["server.js", "--transport", "ipc"],
+		});
+	});
+
+	it("writes an explicit timeout for package-runner installs", () => {
+		// Marketplace entries launch through `npx -y pkg@latest` / `uvx pkg`,
+		// which must resolve and (cold) download the package before the server
+		// can answer initialize; the explicit timeout lifts the connect budget
+		// so the first session after installing works without a manual edit.
+		const settingsPath = join(root, "cline_mcp_settings.json");
+		const result = installMcpServer({
+			name: "desktop-commander",
+			targetArgs: ["npx", "-y", "@wonderwhy-er/desktop-commander@latest"],
+			settingsPath,
+		});
+
+		expect(result.timeout).toBe(PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS);
+		expect(
+			readSettings(settingsPath).mcpServers?.["desktop-commander"],
+		).toEqual({
+			transport: {
+				type: "stdio",
+				command: "npx",
+				args: ["-y", "@wonderwhy-er/desktop-commander@latest"],
+			},
+			timeout: PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS,
+		});
+
+		installMcpServer({
+			name: "uv-server",
+			targetArgs: ["uvx", "mcp-server-fetch"],
+			settingsPath,
+		});
+		expect(readSettings(settingsPath).mcpServers?.["uv-server"]).toMatchObject({
+			timeout: PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS,
+		});
+
+		const plain = installMcpServer({
+			name: "plain",
+			targetArgs: ["node", "server.js"],
+			settingsPath,
+		});
+		expect(plain.timeout).toBeUndefined();
+		expect(readSettings(settingsPath).mcpServers?.plain).toEqual({
+			transport: { type: "stdio", command: "node", args: ["server.js"] },
 		});
 	});
 

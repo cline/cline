@@ -21,6 +21,7 @@ import {
 } from "../extensions/config";
 import { toggleSkillFrontmatter } from "../extensions/config/skill-frontmatter-toggle";
 import {
+	getMcpServerConnectionStatus,
 	hasMcpSettingsFile,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
@@ -641,6 +642,7 @@ export class CoreSettingsService {
 							source: detectSource(mcpSettingsPath, workspaceRoot),
 							description: registration.transport.type,
 							toggleable: true,
+							connection: getMcpServerConnectionStatus(registration.name),
 						});
 					}
 				} catch {

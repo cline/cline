@@ -1,5 +1,7 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -20,6 +22,7 @@ import type {
 	McpServerClient,
 	McpServerClientFactory,
 	McpServerRegistration,
+	McpStdioTransportConfig,
 	McpToolCallResult,
 	McpToolDescriptor,
 } from "./types";
@@ -47,15 +50,25 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // Initialize budget when no timeout is configured. This wait sits on the
 // session-create critical path, which the hub caps at 30s
 // (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
-// then Content-Length framing), so the doubled total MUST stay well under
-// that cap or a hung server takes the whole session down with it. 3s covers
-// typical stdio startup while keeping the worst case (~6s per server, probed
-// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
-// ones like Oracle SQLcl, uvx downloading a package on first run) need an
-// explicit `timeout`, which overrides this in either direction. Dead commands
-// still fail fast through the spawn error/exit path; only an alive-but-silent
-// server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// then Content-Length framing), so the total across both attempts MUST stay
+// well under that cap or a hung server takes the whole session down with it.
+// 5s covers typical stdio startup (interpreters, docker) while keeping the
+// worst case (~10s per server, probed in parallel) far from the hub deadline.
+// Dead commands still fail fast through the spawn error/exit path; only an
+// alive-but-silent server waits out this budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 5_000;
+// First-attempt budget for servers launched through a package runner
+// (`npx -y pkg`, `uvx pkg`, ...). The runner resolves the package against the
+// registry and, on a cold cache, downloads it before the server process even
+// exists, so the plain default is routinely exceeded even by healthy servers.
+// The framed retry keeps the plain default, so the worst case is 15s.
+export const PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS = 10_000;
+// Ceiling on a single initialize attempt when a `timeout` is configured. The
+// configured value is primarily the tool-call request timeout (60s by
+// default) and would otherwise let a hung server hold session.create past the
+// hub cap. With the framed retry capped at the plain default, an explicit
+// timeout can stretch initialize to at most 20s in total.
+export const MAX_MCP_CONNECT_TIMEOUT_MS = 15_000;
 // Connect budget for remote (SSE/streamable HTTP) servers when no timeout is
 // configured. Like the stdio initialize budget above, connect runs on the
 // session-create critical path capped by the hub at 30s
@@ -71,6 +84,66 @@ const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 const STDIO_MCP_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 250;
 const STDIO_MCP_FORCED_SHUTDOWN_TIMEOUT_MS = 2_000;
+const PACKAGE_RUNNER_COMMANDS = new Set(["npx", "bunx", "pnpx", "uvx", "pipx"]);
+
+/** Whether a stdio command launches its server through a package runner. */
+export function isPackageRunnerMcpCommand(command: string): boolean {
+	const executable = (
+		command.trim().replace(/^"|"$/g, "").split(/[\\/]/).pop() ?? ""
+	)
+		.toLowerCase()
+		.replace(/\.(cmd|exe|bat)$/, "");
+	return PACKAGE_RUNNER_COMMANDS.has(executable);
+}
+
+/**
+ * Default initialize budget for a stdio transport without a configured
+ * `timeout`: package runners get a larger budget than plain commands.
+ */
+export function resolveDefaultMcpConnectTimeoutMs(
+	transport: McpStdioTransportConfig,
+): number {
+	return isPackageRunnerMcpCommand(transport.command)
+		? PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS
+		: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
+}
+
+/**
+ * Initialize budgets for a stdio registration. An explicit `timeout`
+ * overrides the default in either direction, up to MAX_MCP_CONNECT_TIMEOUT_MS.
+ * The Content-Length framed retry never gets more than the plain default: a
+ * newline server that timed out is far more common than a framed server that
+ * never saw a frame, so the retry must not double a large first budget.
+ */
+export function resolveStdioMcpConnectBudget(
+	registration: Pick<McpServerRegistration, "transport" | "timeoutSeconds">,
+): { initializeMs: number; framedRetryMs: number } {
+	const initializeMs = isMcpTimeoutConfigured(registration.timeoutSeconds)
+		? Math.min(
+				resolveMcpRequestTimeoutMs(registration.timeoutSeconds),
+				MAX_MCP_CONNECT_TIMEOUT_MS,
+			)
+		: registration.transport.type === "stdio"
+			? resolveDefaultMcpConnectTimeoutMs(registration.transport)
+			: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
+	return {
+		initializeMs,
+		framedRetryMs: Math.min(initializeMs, DEFAULT_MCP_CONNECT_TIMEOUT_MS),
+	};
+}
+
+/**
+ * Stdio servers without a configured `cwd` used to inherit the host
+ * process's cwd, which for the hub daemon is whatever workspace first started
+ * it. Package runners walk that directory's project tree before launching
+ * (`npx` in a large monorepo root takes tens of seconds, or never returns),
+ * so spawn from the user's home directory instead: stable across hosts and
+ * small.
+ */
+function resolveDefaultStdioCwd(): string | undefined {
+	const home = homedir();
+	return home && existsSync(home) ? home : undefined;
+}
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
@@ -99,11 +172,19 @@ async function settlesWithin(
 	});
 }
 
+class McpRequestTimeoutError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "McpRequestTimeoutError";
+	}
+}
+
 /**
  * Both stdio framings were tried during connect and both failed. When the two
- * attempts failed the same way (typically both timed out), the shared message
- * is the whole story and the newline error is rethrown unchanged; otherwise
- * each framing's error is named so neither diagnostic is lost.
+ * attempts failed the same way (typically both timed out; the framed retry
+ * may have had a shorter budget), the newline error is the whole story and is
+ * rethrown unchanged; otherwise each framing's error is named so neither
+ * diagnostic is lost.
  */
 function combineInitializeErrors(
 	serverName: string,
@@ -112,7 +193,11 @@ function combineInitializeErrors(
 ): Error {
 	const newlineMessage = toErrorMessage(newlineError);
 	const framedMessage = toErrorMessage(framedError);
-	if (newlineMessage === framedMessage) {
+	if (
+		newlineMessage === framedMessage ||
+		(newlineError instanceof McpRequestTimeoutError &&
+			framedError instanceof McpRequestTimeoutError)
+	) {
 		return newlineError instanceof Error
 			? newlineError
 			: new Error(newlineMessage);
@@ -218,20 +303,18 @@ class StdioMcpClient implements McpServerClient {
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
+	private readonly framedRetryTimeoutMs: number;
 
 	constructor(registration: McpServerRegistration) {
 		this.registration = registration;
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
-		// Initialize gets its own default budget so slow-starting servers
-		// connect out of the box; an explicit `timeout` overrides it in
-		// either direction.
-		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
-			registration.timeoutSeconds,
-		)
-			? this.requestTimeoutMs
-			: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
+		// Initialize gets its own budget so slow-starting servers connect out
+		// of the box while a hung one cannot stall session.create.
+		const budget = resolveStdioMcpConnectBudget(registration);
+		this.connectAttemptTimeoutMs = budget.initializeMs;
+		this.framedRetryTimeoutMs = budget.framedRetryMs;
 	}
 
 	async connect(): Promise<void> {
@@ -264,7 +347,7 @@ class StdioMcpClient implements McpServerClient {
 				await this.request(
 					"initialize",
 					initializeParams,
-					this.connectAttemptTimeoutMs,
+					this.framedRetryTimeoutMs,
 				);
 			} catch (framedError) {
 				await this.disconnect().catch(() => {});
@@ -414,7 +497,7 @@ class StdioMcpClient implements McpServerClient {
 					}
 				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
-			cwd: transport.cwd,
+			cwd: transport.cwd ?? resolveDefaultStdioCwd(),
 			env: {
 				...process.env,
 				...(transport.env ?? {}),
@@ -586,7 +669,7 @@ class StdioMcpClient implements McpServerClient {
 	}
 
 	private createTimeoutError(method: string, timeoutMs: number): Error {
-		return new Error(
+		return new McpRequestTimeoutError(
 			formatMcpTimeoutErrorMessage(this.registration.name, timeoutMs, method),
 		);
 	}

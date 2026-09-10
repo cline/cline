@@ -352,6 +352,7 @@ export {
 	probeMcpServerConnection,
 	type RegisterMcpServersFromSettingsOptions,
 	registerMcpServersFromSettingsFile,
+	resolveDefaultMcpConnectTimeoutMs,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
@@ -633,6 +634,7 @@ export type {
 export {
 	buildMcpInstallTransport,
 	installMcpServer,
+	PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS,
 	parseMcpInstallArgs,
 	uninstallMcpServer,
 } from "./services/mcp-install";

@@ -1,4 +1,5 @@
 import type { UserInstructionConfigService } from "../extensions/config";
+import type { McpServerConnectionStatus } from "../extensions/mcp";
 import type { BuiltinToolAvailabilityContext } from "../extensions/tools";
 
 export type CoreSettingsType =
@@ -40,6 +41,8 @@ export interface CoreSettingsItem {
 	/** Loader diagnostics associated with this item, if any. */
 	loadError?: string;
 	contributions?: CorePluginContributions;
+	/** MCP items only: outcome of the last connect attempt by a session in this process. */
+	connection?: McpServerConnectionStatus;
 }
 
 export interface CorePluginContributions {

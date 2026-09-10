@@ -2,10 +2,11 @@ import {
 	existsSync,
 	mkdtempSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { HUB_DEFAULT_COMMAND_TIMEOUT_MS } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -13,7 +14,12 @@ import {
 	createDefaultMcpServerClientFactory,
 	DEFAULT_HTTP_MCP_CONNECT_TIMEOUT_MS,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+	isPackageRunnerMcpCommand,
+	MAX_MCP_CONNECT_TIMEOUT_MS,
+	PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS,
 	probeMcpServerConnection,
+	resolveDefaultMcpConnectTimeoutMs,
+	resolveStdioMcpConnectBudget,
 } from "./client";
 import { resolveMcpServerRegistrations } from "./config-loader";
 import type { McpServerRegistration } from "./types";
@@ -28,6 +34,9 @@ import type { McpServerRegistration } from "./types";
 const FAKE_SERVER_SCRIPT = `
 if (process.env.FAKE_MCP_PID_FILE) {
 	require("node:fs").writeFileSync(process.env.FAKE_MCP_PID_FILE, String(process.pid));
+}
+if (process.env.FAKE_MCP_CWD_FILE) {
+	require("node:fs").writeFileSync(process.env.FAKE_MCP_CWD_FILE, process.cwd());
 }
 let buffer = "";
 const responseTimers = new Set();
@@ -159,6 +168,7 @@ function fakeServerRegistration(options: {
 	delayMs: number;
 	initDelayMs?: number;
 	pidFile?: string;
+	cwdFile?: string;
 }): McpServerRegistration {
 	return {
 		name: "fake-server",
@@ -179,6 +189,9 @@ function fakeServerRegistration(options: {
 				...(options.pidFile === undefined
 					? {}
 					: { FAKE_MCP_PID_FILE: options.pidFile }),
+				...(options.cwdFile === undefined
+					? {}
+					: { FAKE_MCP_CWD_FILE: options.cwdFile }),
 			},
 		},
 		...(options.timeoutSeconds === undefined
@@ -454,6 +467,45 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
+	it("spawns settings-file stdio servers from the home directory when no cwd is configured", async () => {
+		// The hub daemon's cwd is whatever workspace first started it; package
+		// runners walk that project tree before launching, which made `npx`
+		// servers miss the initialize budget from large repos.
+		const cwdFile = join(tempRoot, `cwd-${Date.now()}.txt`);
+		const client = await createDefaultMcpServerClientFactory()(
+			fakeServerRegistration({ delayMs: 0, cwdFile }),
+		);
+		try {
+			await client.connect();
+			await waitFor(() => existsSync(cwdFile));
+			expect(realpathSync(readFileSync(cwdFile, "utf8"))).toBe(
+				realpathSync(homedir()),
+			);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
+	it("honors a configured cwd for stdio servers", async () => {
+		const serverCwd = mkdtempSync(join(tempRoot, "configured-cwd-"));
+		const cwdFile = join(tempRoot, `cwd-configured-${Date.now()}.txt`);
+		const registration = fakeServerRegistration({ delayMs: 0, cwdFile });
+		if (registration.transport.type !== "stdio") {
+			throw new Error("Expected stdio registration.");
+		}
+		registration.transport.cwd = serverCwd;
+		const client = await createDefaultMcpServerClientFactory()(registration);
+		try {
+			await client.connect();
+			await waitFor(() => existsSync(cwdFile));
+			expect(realpathSync(readFileSync(cwdFile, "utf8"))).toBe(
+				realpathSync(serverCwd),
+			);
+		} finally {
+			await client.disconnect();
+		}
+	}, 30_000);
+
 	it("aborts a long stdio tool call without waiting for its timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
 		const client = await factory(
@@ -568,16 +620,88 @@ describe("remote MCP OAuth connection", () => {
 });
 
 describe("default connect budget", () => {
-	it("keeps the doubled initialize budget well under the hub command timeout", () => {
+	it("keeps the two-attempt initialize budget well under the hub command timeout", () => {
 		// MCP initialize runs on the session.create critical path, and connect()
-		// can spend the budget twice (newline then Content-Length framing). If
-		// the doubled total approaches HUB_DEFAULT_COMMAND_TIMEOUT_MS, a server
-		// that never initializes stalls session.create past the hub deadline and
-		// the whole session is torn down (a hung server used to kill the CLI
-		// this way). Keep headroom for the rest of session creation.
+		// can spend a budget twice (newline then Content-Length framing). If
+		// the total approaches HUB_DEFAULT_COMMAND_TIMEOUT_MS, a server that
+		// never initializes stalls session.create past the hub deadline and the
+		// whole session is torn down (a hung server used to kill the CLI this
+		// way). Keep headroom for the rest of session creation, including for
+		// the larger package-runner budget.
 		expect(DEFAULT_MCP_CONNECT_TIMEOUT_MS * 2).toBeLessThanOrEqual(
 			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
 		);
+		expect(
+			PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS + DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+		).toBeLessThanOrEqual(HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2);
+	});
+
+	it("caps an explicit timeout so a hung server cannot stall session creation", () => {
+		// A configured `timeout` is primarily the tool-call request timeout (60s
+		// by default). Marketplace installs write one for package runners, so
+		// without a ceiling a hung `npx` server would hold initialize for 60s
+		// twice and take every session down with it.
+		expect(
+			MAX_MCP_CONNECT_TIMEOUT_MS + DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+		).toBeLessThanOrEqual(HUB_DEFAULT_COMMAND_TIMEOUT_MS - 10_000);
+		expect(
+			resolveStdioMcpConnectBudget({
+				transport: { type: "stdio", command: "npx", args: ["-y", "pkg"] },
+				timeoutSeconds: 60,
+			}),
+		).toEqual({
+			initializeMs: MAX_MCP_CONNECT_TIMEOUT_MS,
+			framedRetryMs: DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+		});
+	});
+
+	it("gives package runners a larger default initialize budget than plain commands", () => {
+		for (const command of [
+			"npx",
+			"uvx",
+			"bunx",
+			"pipx",
+			"npx.cmd",
+			"C:\\Program Files\\nodejs\\npx.cmd",
+			'"/usr/local/bin/npx"',
+			"/opt/homebrew/bin/uvx",
+		]) {
+			expect(isPackageRunnerMcpCommand(command), command).toBe(true);
+			expect(
+				resolveDefaultMcpConnectTimeoutMs({ type: "stdio", command }),
+			).toBe(PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS);
+		}
+		for (const command of ["node", "python3", "docker", "/usr/bin/java"]) {
+			expect(isPackageRunnerMcpCommand(command), command).toBe(false);
+			expect(
+				resolveDefaultMcpConnectTimeoutMs({ type: "stdio", command }),
+			).toBe(DEFAULT_MCP_CONNECT_TIMEOUT_MS);
+		}
+	});
+
+	it("lets a small explicit timeout shrink both initialize attempts", () => {
+		expect(
+			resolveStdioMcpConnectBudget({
+				transport: { type: "stdio", command: "npx" },
+				timeoutSeconds: 2,
+			}),
+		).toEqual({ initializeMs: 2_000, framedRetryMs: 2_000 });
+		expect(
+			resolveStdioMcpConnectBudget({
+				transport: { type: "stdio", command: "node" },
+			}),
+		).toEqual({
+			initializeMs: DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+			framedRetryMs: DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+		});
+		expect(
+			resolveStdioMcpConnectBudget({
+				transport: { type: "stdio", command: "uvx" },
+			}),
+		).toEqual({
+			initializeMs: PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS,
+			framedRetryMs: DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+		});
 	});
 
 	it("keeps the remote connect budget well under the hub command timeout", () => {

@@ -1,9 +1,22 @@
+import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@cline/shared";
 import type { McpServerTransportConfig } from "../extensions/mcp";
 import {
+	isPackageRunnerMcpCommand,
 	resolveDefaultMcpSettingsPath,
 	updateMcpSettingsFileSync,
 } from "../extensions/mcp";
 import { resolveNativeMcpTransport } from "../extensions/mcp/remote-proxy";
+
+/**
+ * Marketplace installs launched through a package runner (`npx -y pkg`,
+ * `uvx pkg`) get an explicit `timeout` so the first cold-cache download fits
+ * the initialize budget without a manual settings edit. The value equals the
+ * request-timeout default, so tool calls behave exactly as for an
+ * unconfigured server; only the initialize budget grows (see
+ * MAX_MCP_CONNECT_TIMEOUT_MS).
+ */
+export const PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS =
+	DEFAULT_MCP_TIMEOUT_SECONDS;
 
 export interface McpInstallOptions {
 	name: string;
@@ -17,6 +30,8 @@ export interface McpInstallResult {
 	name: string;
 	status: "installed";
 	transport: McpServerTransportConfig;
+	/** Request/initialize timeout (seconds) written alongside the transport, if any. */
+	timeout?: number;
 	warnings: string[];
 }
 
@@ -222,7 +237,7 @@ export function parseMcpInstallArgs(args: string[]): McpInstallOptions {
 
 function addMcpServer(
 	name: string,
-	transport: McpServerTransportConfig,
+	entry: { transport: McpServerTransportConfig; timeout?: number },
 	settingsPath: string,
 ): void {
 	updateMcpSettingsFileSync(settingsPath, (settings) => {
@@ -233,22 +248,27 @@ function addMcpServer(
 			!Array.isArray(serversValue)
 				? { ...(serversValue as Record<string, unknown>) }
 				: {};
-		servers[name] = { transport };
+		servers[name] = entry;
 		settings.mcpServers = servers;
 	});
 }
 
 export function installMcpServer(options: McpInstallOptions): McpInstallResult {
 	const { name, transport, warnings } = buildMcpInstallTransport(options);
+	const timeout =
+		transport.type === "stdio" && isPackageRunnerMcpCommand(transport.command)
+			? PACKAGE_RUNNER_MCP_INSTALL_TIMEOUT_SECONDS
+			: undefined;
 	addMcpServer(
 		name,
-		transport,
+		timeout === undefined ? { transport } : { transport, timeout },
 		options.settingsPath ?? resolveDefaultMcpSettingsPath(),
 	);
 	return {
 		name,
 		status: "installed",
 		transport,
+		...(timeout === undefined ? {} : { timeout }),
 		warnings,
 	};
 }

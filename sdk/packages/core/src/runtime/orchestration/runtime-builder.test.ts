@@ -17,6 +17,10 @@ import {
 import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
+import {
+	clearMcpServerConnectionStatuses,
+	getMcpServerConnectionStatus,
+} from "../../extensions/mcp";
 import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "../../extensions/tools/command-guard-extension";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
@@ -573,14 +577,21 @@ process.stdin.on("data", (chunk) => {
 		);
 
 		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		clearMcpServerConnectionStatuses();
 		try {
 			const runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
 			});
 			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
+			expect(runtime.mcpLoadFailures).toEqual([]);
+			expect(getMcpServerConnectionStatus("mock")).toMatchObject({
+				connected: true,
+				toolCount: 1,
+			});
 			await runtime.shutdown("test");
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			clearMcpServerConnectionStatuses();
 		}
 	});
 
@@ -829,6 +840,7 @@ process.stdin.on("data", (chunk) => {
 		);
 
 		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		clearMcpServerConnectionStatuses();
 		try {
 			const runtime = await new DefaultRuntimeBuilder().build({
 				config: makeBaseConfig(),
@@ -837,9 +849,19 @@ process.stdin.on("data", (chunk) => {
 				t.name.startsWith("broken__"),
 			);
 			expect(mcpTools).toEqual([]);
+			// The failure is recorded for hosts to surface instead of being a
+			// logger line only.
+			expect(runtime.mcpLoadFailures).toEqual([
+				{ serverName: "broken", error: expect.stringMatching(/broken/) },
+			]);
+			expect(getMcpServerConnectionStatus("broken")).toMatchObject({
+				connected: false,
+				error: runtime.mcpLoadFailures?.[0]?.error,
+			});
 			await runtime.shutdown("test");
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			clearMcpServerConnectionStatuses();
 		}
 	});
 

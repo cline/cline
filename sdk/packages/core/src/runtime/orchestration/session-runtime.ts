@@ -43,6 +43,12 @@ type LeadAgentHandle = {
 	addTools(tools: AgentTool[]): unknown;
 };
 
+/** An enabled MCP server that failed to connect while the runtime was built. */
+export interface McpServerLoadFailure {
+	serverName: string;
+	error: string;
+}
+
 export interface BuiltRuntime {
 	tools: AgentTool[];
 	modelTools?: ModelTool[];
@@ -54,6 +60,8 @@ export interface BuiltRuntime {
 	delegatedAgentConfigProvider?: DelegatedAgentConfigProvider;
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
+	/** Enabled MCP servers whose tools were skipped; hosts surface these to the user. */
+	mcpLoadFailures?: McpServerLoadFailure[];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
 	shutdown: (reason: string) => Promise<void> | void;
 }

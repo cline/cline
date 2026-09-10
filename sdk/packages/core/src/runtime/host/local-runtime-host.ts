@@ -992,6 +992,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 			}
 		}
 		this.emitStatus(sessionId, active.status);
+		// Servers that failed to connect were skipped silently apart from a
+		// logger line; a transcript notice tells the user why their MCP tools
+		// are missing from this session.
+		for (const failure of runtime.mcpLoadFailures ?? []) {
+			this.eventBridge.dispatchAgentEvent(sessionId, configWithProvider, {
+				type: "notice",
+				noticeType: "status",
+				displayRole: "system",
+				message: `MCP server "${failure.serverName}" failed to connect; its tools are unavailable in this session. ${failure.error}`,
+				metadata: { source: "mcp", serverName: failure.serverName },
+			});
+		}
 
 		let result: AgentResult | undefined;
 		try {

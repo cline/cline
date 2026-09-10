@@ -15,6 +15,10 @@ import {
 	createUserInstructionConfigService,
 	type UserInstructionConfigService,
 } from "../extensions/config";
+import {
+	clearMcpServerConnectionStatuses,
+	recordMcpServerConnectionStatus,
+} from "../extensions/mcp";
 import { listPluginToolsWithDiagnostics } from "../services/plugin-tools";
 import { CoreSettingsService } from "./settings-service";
 
@@ -634,6 +638,45 @@ Use the browser.`,
 			"alpha",
 			"beta",
 		]);
+	});
+
+	it("attaches the last recorded connect outcome to MCP items", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-settings-"));
+		tempRoots.push(tempRoot);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		await writeFile(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					docs: { transport: { type: "stdio", command: "node" } },
+					broken: { transport: { type: "stdio", command: "nope" } },
+					untried: { transport: { type: "stdio", command: "node" } },
+				},
+			}),
+		);
+		clearMcpServerConnectionStatuses();
+		recordMcpServerConnectionStatus("docs", { connected: true, toolCount: 3 });
+		recordMcpServerConnectionStatus("broken", {
+			connected: false,
+			error: "spawn nope ENOENT",
+		});
+		try {
+			const snapshot = await new CoreSettingsService().list({ cwd: tempRoot });
+			const byName = new Map(snapshot.mcp.map((item) => [item.name, item]));
+			expect(byName.get("docs")?.connection).toMatchObject({
+				connected: true,
+				toolCount: 3,
+				updatedAt: expect.any(Number),
+			});
+			expect(byName.get("broken")?.connection).toMatchObject({
+				connected: false,
+				error: "spawn nope ENOENT",
+			});
+			expect(byName.get("untried")?.connection).toBeUndefined();
+		} finally {
+			clearMcpServerConnectionStatuses();
+		}
 	});
 
 	it("lists and toggles MCP server disabled state", async () => {

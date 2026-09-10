@@ -23,6 +23,7 @@ import {
 	createMcpTools,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
+	recordMcpServerConnectionStatus,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 } from "../../extensions/mcp";
@@ -55,6 +56,7 @@ import {
 import { createLocalTeamStore } from "../../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../../types/config";
 import type {
+	McpServerLoadFailure,
 	RuntimeBuilder,
 	RuntimeBuilderInput,
 	BuiltRuntime as RuntimeEnvironment,
@@ -209,13 +211,14 @@ async function loadConfiguredMcpTools(options: {
 	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
 }): Promise<{
 	tools: AgentTool[];
+	failures: McpServerLoadFailure[];
 	shutdown?: () => Promise<void>;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
 	const hasSettings =
 		options.includeSettings && hasMcpSettingsFile({ filePath: settingsPath });
 	if (!hasSettings && !options.agentPluginServers?.length) {
-		return { tools: [] };
+		return { tools: [], failures: [] };
 	}
 
 	const settingsClientFactory = createDefaultMcpServerClientFactory({
@@ -272,7 +275,7 @@ async function loadConfiguredMcpTools(options: {
 
 	if (registrations.length === 0) {
 		await manager.dispose().catch(() => {});
-		return { tools: [] };
+		return { tools: [], failures: [] };
 	}
 
 	const enabled = registrations.filter((r) => r.disabled !== true);
@@ -288,22 +291,34 @@ async function loadConfiguredMcpTools(options: {
 		),
 	);
 	const tools: AgentTool[] = [];
+	const failures: McpServerLoadFailure[] = [];
 	for (const [i, result] of results.entries()) {
+		const serverName = enabled[i].name;
 		if (result.status === "fulfilled") {
 			tools.push(...result.value);
+			recordMcpServerConnectionStatus(serverName, {
+				connected: true,
+				toolCount: result.value.length,
+			});
 		} else {
 			const message =
 				result.reason instanceof Error
 					? result.reason.message
 					: String(result.reason);
+			recordMcpServerConnectionStatus(serverName, {
+				connected: false,
+				error: message,
+			});
+			failures.push({ serverName, error: message });
 			options.logger?.log(
-				`[mcp] Failed to load tools from MCP server "${enabled[i].name}", skipping: ${message}`,
+				`[mcp] Failed to load tools from MCP server "${serverName}", skipping: ${message}`,
 			);
 		}
 	}
 
 	return {
 		tools,
+		failures,
 		shutdown: async () => {
 			await manager.dispose();
 		},
@@ -462,6 +477,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
+		let mcpLoadFailures: McpServerLoadFailure[] = [];
 
 		for (const error of configuredAgents.errors) {
 			(logger ?? config.logger)?.log?.(
@@ -593,6 +609,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				});
 				tools.push(...mcpRuntime.tools);
 				mcpShutdown = mcpRuntime.shutdown;
+				mcpLoadFailures = mcpRuntime.failures;
 			}
 		}
 
@@ -863,6 +880,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			extensions: runtimeExtensions,
 			completionPolicy,
+			mcpLoadFailures,
 			registerLeadAgent: (agent) => {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {

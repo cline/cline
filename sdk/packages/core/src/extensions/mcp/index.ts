@@ -6,7 +6,12 @@ export type {
 export {
 	createDefaultMcpServerClientFactory,
 	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+	isPackageRunnerMcpCommand,
+	MAX_MCP_CONNECT_TIMEOUT_MS,
+	PACKAGE_RUNNER_MCP_CONNECT_TIMEOUT_MS,
 	probeMcpServerConnection,
+	resolveDefaultMcpConnectTimeoutMs,
+	resolveStdioMcpConnectBudget,
 } from "./client";
 export type {
 	LoadMcpSettingsOptions,
@@ -38,6 +43,12 @@ export {
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
 } from "./config-loader";
+export type { McpServerConnectionStatus } from "./connection-status";
+export {
+	clearMcpServerConnectionStatuses,
+	getMcpServerConnectionStatus,
+	recordMcpServerConnectionStatus,
+} from "./connection-status";
 export { InMemoryMcpManager } from "./manager";
 export type {
 	AuthorizeMcpServerOAuthOptions,
