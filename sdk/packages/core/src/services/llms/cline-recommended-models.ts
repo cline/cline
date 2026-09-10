@@ -1,4 +1,8 @@
-import { VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES } from "@cline/llms";
+import {
+	GENERATED_CLINE_RECOMMENDED_MODELS,
+	getGeneratedProviderModels,
+	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+} from "@cline/llms";
 import {
 	getClineEnvironmentConfig,
 	type ProviderModel,
@@ -41,49 +45,15 @@ export interface FetchClineRecommendedModelsOptions {
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 
-export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
-	recommended: [
-		{
-			id: "anthropic/claude-opus-4.6",
-			name: "Claude Opus 4.6",
-			description: "Most intelligent model for agents and coding",
-			tags: ["BEST"],
+export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData =
+	resolveCatalogDisplayNames(
+		normalizeResponse(GENERATED_CLINE_RECOMMENDED_MODELS) ?? {
+			recommended: [],
+			free: [],
+			clinePass: [],
 		},
-		{
-			id: "anthropic/claude-sonnet-4.6",
-			name: "Claude Sonnet 4.6",
-			description: "Strong coding and agent performance",
-			tags: ["NEW"],
-		},
-		{
-			id: "google/gemini-3.1-pro-preview",
-			name: "Gemini 3.1 Pro Preview",
-			description: "1M context window, strong coding performance",
-			tags: ["NEW"],
-		},
-		{
-			id: "openai/gpt-5.3-codex",
-			name: "GPT-5.3 Codex",
-			description: "OpenAI's latest with strong coding abilities",
-			tags: ["NEW"],
-		},
-	],
-	free: [
-		{
-			id: "kwaipilot/kat-coder-pro",
-			name: "KwaiKAT Kat Coder Pro",
-			description: "Advanced agentic coding model",
-			tags: ["FREE"],
-		},
-		{
-			id: "arcee-ai/trinity-large-preview:free",
-			name: "Arcee AI Trinity Large Preview",
-			description: "Advanced large preview model",
-			tags: ["FREE"],
-		},
-	],
-	clinePass: [],
-};
+		getGeneratedProviderModels(),
+	);
 
 function cloneRecommendedModels(
 	data: ClineRecommendedModelsData,
@@ -256,6 +226,13 @@ async function resolveDisplayNames(
 	timeoutMs: number,
 ): Promise<ClineRecommendedModelsData> {
 	const catalog = await loadCatalogWithTimeout(catalogLoader, timeoutMs);
+	return resolveCatalogDisplayNames(data, catalog);
+}
+
+function resolveCatalogDisplayNames(
+	data: ClineRecommendedModelsData,
+	catalog: ModelsCatalog | undefined,
+): ClineRecommendedModelsData {
 	const withNames = (
 		models: ClineRecommendedModel[],
 		catalogs: Array<Record<string, ModelInfo> | undefined>,
