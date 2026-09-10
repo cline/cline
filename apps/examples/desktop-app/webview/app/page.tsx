@@ -357,6 +357,12 @@ export default function Home() {
 	const handleInitialPromptDraftConsumed = useCallback((threadId: string) => {
 		dispatchApp({ type: "consume-initial-prompt-draft", threadId });
 	}, []);
+	const handleSavePromptDraft = useCallback(
+		(threadId: string, draft: string) => {
+			dispatchApp({ type: "save-prompt-draft", threadId, draft });
+		},
+		[],
+	);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
 		onDeleteSession: handleDeleteSession,
@@ -497,6 +503,7 @@ export default function Home() {
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
 											}
+											onSavePromptDraft={handleSavePromptDraft}
 											onUpdateSessionMetadata={handleUpdateSessionMetadata}
 											threadId={activeThread.id}
 											onDeleteSession={handleDeleteSession}
@@ -566,6 +573,7 @@ function ChatThreadPane({
 	initialPromptDraft,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
+	onSavePromptDraft,
 	onUpdateSessionMetadata,
 	onDeleteSession,
 	onNewThread,
@@ -582,6 +590,7 @@ function ChatThreadPane({
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
+	onSavePromptDraft?: (threadId: string, draft: string) => void;
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
@@ -643,6 +652,15 @@ function ChatThreadPane({
 	const handlePromptInputChange = useCallback((value: string) => {
 		promptInputRef.current = value;
 	}, []);
+	// The pane is keyed by thread and unmounts on every thread switch. Hand
+	// the composer text back to the thread so returning restores it; for a
+	// fork of the first prompt that edited text is the session's only content.
+	useEffect(
+		() => () => {
+			onSavePromptDraft?.(threadId, promptInputRef.current);
+		},
+		[onSavePromptDraft, threadId],
+	);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
@@ -1056,11 +1074,22 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
-		setPromptInput("");
+		setPromptInput(initialPromptDraft ?? "");
+		if (initialPromptDraft !== undefined) {
+			onInitialPromptDraftConsumed?.(threadId);
+		}
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
+	}, [
+		historySession,
+		initialPromptDraft,
+		manualTitle,
+		onInitialPromptDraftConsumed,
+		reset,
+		threadId,
+		setPromptInput,
+	]);
 
 	useEffect(() => {
 		if (!historySession) {

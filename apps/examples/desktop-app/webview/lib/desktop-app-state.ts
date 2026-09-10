@@ -36,6 +36,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			initialPromptDraft?: string;
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
+	| { type: "save-prompt-draft"; threadId: string; draft: string }
 	| {
 			type: "delete-session";
 			deletedSessionId: string;
@@ -121,7 +122,10 @@ export function desktopAppReducer<SettingsSection extends string>(
 										...thread,
 										hasStarted: true,
 										historySession: action.session,
-										initialPromptDraft: action.initialPromptDraft,
+										// Reopening a thread from the sidebar carries no draft;
+										// keep whatever the composer held when it was left.
+										initialPromptDraft:
+											action.initialPromptDraft ?? thread.initialPromptDraft,
 									}
 								: thread,
 						)
@@ -156,6 +160,21 @@ export function desktopAppReducer<SettingsSection extends string>(
 						: thread,
 				),
 			};
+		case "save-prompt-draft": {
+			const draft = action.draft.trim() ? action.draft : undefined;
+			const thread = state.threads.find((item) => item.id === action.threadId);
+			if (!thread || thread.initialPromptDraft === draft) {
+				return state;
+			}
+			return {
+				...state,
+				threads: state.threads.map((item) =>
+					item.id === action.threadId
+						? { ...item, initialPromptDraft: draft }
+						: item,
+				),
+			};
+		}
 		case "delete-session": {
 			const historyThreadId = `session_${action.deletedSessionId}`;
 			const deletedThreadIds = new Set(

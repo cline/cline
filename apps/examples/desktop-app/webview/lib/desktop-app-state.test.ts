@@ -41,6 +41,52 @@ describe("desktopAppReducer", () => {
 		).toBeUndefined();
 	});
 
+	it("restores the composer draft when a thread is reopened without one", () => {
+		const threadId = "session_forked-session";
+		let state = createDesktopAppState("welcome", settingsSection);
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("forked-session"),
+			initialPromptDraft: "Revise this prompt",
+		});
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId,
+		});
+		state = desktopAppReducer(state, {
+			type: "save-prompt-draft",
+			threadId,
+			draft: "Revise this prompt again",
+		});
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("forked-session"),
+		});
+
+		expect(
+			state.threads.find((thread) => thread.id === threadId)
+				?.initialPromptDraft,
+		).toBe("Revise this prompt again");
+
+		state = desktopAppReducer(state, {
+			type: "save-prompt-draft",
+			threadId,
+			draft: "   ",
+		});
+
+		expect(
+			state.threads.find((thread) => thread.id === threadId)
+				?.initialPromptDraft,
+		).toBeUndefined();
+		expect(
+			desktopAppReducer(state, {
+				type: "save-prompt-draft",
+				threadId: "missing-thread",
+				draft: "orphaned",
+			}),
+		).toBe(state);
+	});
+
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
 		let state = createDesktopAppState("welcome", settingsSection);
 		state = desktopAppReducer(state, {
