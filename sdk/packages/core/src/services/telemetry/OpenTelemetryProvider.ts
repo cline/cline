@@ -1,3 +1,9 @@
+import {
+	activateLangfuseTelemetry,
+	createLangfuseTelemetryIntegration,
+	disableLangfuseTelemetry,
+	type LangfuseTelemetryConfig,
+} from "@cline/llms";
 import type {
 	BasicLogger,
 	ITelemetryService,
@@ -133,6 +139,13 @@ export interface OpenTelemetryProviderOptions
 	logMaxQueueSize?: number;
 	logBatchSize?: number;
 	logBatchTimeoutMs?: number;
+	/**
+	 * Host-owned span processors installed when the tracer provider is created.
+	 * OpenTelemetry SDK 2.x providers are immutable after construction, so
+	 * integrations such as Langfuse must be composed here rather than attached
+	 * lazily by the request path.
+	 */
+	additionalSpanProcessors?: readonly SpanProcessor[];
 }
 
 export interface CreateOpenTelemetryTelemetryServiceOptions
@@ -280,9 +293,6 @@ export class OpenTelemetryProvider {
 		resource: ReturnType<typeof resourceFromAttributes>,
 	): NodeTracerProvider | null {
 		const exporters = normalizeExporters(this.options.tracesExporter);
-		if (exporters.length === 0) {
-			return null;
-		}
 
 		const traceEndpoint =
 			this.options.otlpTracesEndpoint ?? this.options.otlpEndpoint;
@@ -301,6 +311,7 @@ export class OpenTelemetryProvider {
 				processors.push(processor);
 			}
 		}
+		processors.push(...(this.options.additionalSpanProcessors ?? []));
 		if (processors.length === 0) {
 			return null;
 		}
@@ -439,6 +450,16 @@ export interface ConfiguredTelemetryHandle {
 	emitProviderCreated?: () => void;
 }
 
+export interface CreateConfiguredTelemetryHandleOptions
+	extends CreateOpenTelemetryTelemetryServiceOptions {
+	/**
+	 * Langfuse transport. Omit for the Cline default (`collector`), select
+	 * `direct` to construct a local processor, or use `false` to disable AI SDK
+	 * Langfuse instrumentation explicitly.
+	 */
+	langfuse?: LangfuseTelemetryConfig | false;
+}
+
 /**
  * Builds a {@link ConfiguredTelemetryHandle} so hosts (CLI, VS Code, hub
  * daemon) share one canonical flush/dispose implementation. Without a
@@ -446,10 +467,39 @@ export interface ConfiguredTelemetryHandle {
  * to drift; this factory keeps the lifecycle uniform across hosts.
  */
 export function createConfiguredTelemetryHandle(
-	options: CreateOpenTelemetryTelemetryServiceOptions,
+	options: CreateConfiguredTelemetryHandleOptions,
 ): ConfiguredTelemetryHandle {
+	// This is the Cline composition root for process-wide telemetry. Resolve
+	// Langfuse credentials here so its processor is present when the immutable
+	// OTel SDK 2.x provider is constructed. The same bundled @cline/llms module
+	// later instruments AI SDK calls, avoiding cross-bundle singleton drift.
+	const { langfuse: langfuseConfig, ...telemetryOptions } = options;
+	const langfuseEnabled =
+		telemetryOptions.enabled === true &&
+		!isTelemetryOptedOutGlobally() &&
+		langfuseConfig !== false;
+	if (!langfuseEnabled) {
+		disableLangfuseTelemetry();
+	}
+	const collectorMode =
+		langfuseEnabled &&
+		(langfuseConfig === undefined || langfuseConfig.mode === "collector");
+	const langfuse =
+		langfuseEnabled && langfuseConfig && langfuseConfig.mode === "direct"
+			? createLangfuseTelemetryIntegration(langfuseConfig)
+			: undefined;
+	const configuredOptions: CreateOpenTelemetryTelemetryServiceOptions = {
+		...telemetryOptions,
+		additionalSpanProcessors: [
+			...(telemetryOptions.additionalSpanProcessors ?? []),
+			...(langfuse ? [langfuse.spanProcessor] : []),
+		],
+	};
 	const { telemetry, provider, emitProviderCreated } =
-		createConfiguredTelemetryService(options);
+		createConfiguredTelemetryService(configuredOptions);
+	if (provider?.tracerProvider && (langfuse || collectorMode)) {
+		activateLangfuseTelemetry();
+	}
 
 	const flush = async (): Promise<void> => {
 		const candidate = provider as
@@ -473,7 +523,7 @@ export function createConfiguredTelemetryHandle(
 		provider,
 		flush,
 		dispose,
-		...(options.deferProviderCreatedEvent && emitProviderCreated
+		...(telemetryOptions.deferProviderCreatedEvent && emitProviderCreated
 			? { emitProviderCreated }
 			: {}),
 	};
