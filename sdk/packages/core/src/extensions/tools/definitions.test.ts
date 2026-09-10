@@ -479,6 +479,21 @@ describe("default apply_patch tool", () => {
 });
 
 describe("run_commands tool description", () => {
+	it("states the string-only input contract once for every shell family", () => {
+		const contract =
+			'Pass commands as JSON strings, never as objects. Valid: {"commands":["pwd","git status --short"]}. Invalid: {"commands":[{"command":"pwd"}]}. ';
+
+		for (const [shellKind, isWindows] of [
+			["posix", false],
+			["wsl", true],
+			["powershell", true],
+			["cmd", true],
+		] as const) {
+			const description = buildRunCommandsDescription(shellKind, isWindows);
+			expect(description.split(contract)).toHaveLength(2);
+		}
+	});
+
 	it("names PowerShell with ';' sequencing for PowerShell shells", () => {
 		const description = buildRunCommandsDescription("powershell", true);
 		expect(description).toContain("Commands run through PowerShell");

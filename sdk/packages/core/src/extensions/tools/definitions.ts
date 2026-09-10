@@ -417,7 +417,8 @@ export function createSearchTool(
 
 const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 	"Use for listing files, checking git status, running builds, executing tests, etc. " +
-	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. ";
+	"Commands must be non-interactive. Commands that require follow-up input like pagers should be skipped or used with supported flags/env (e.g. git --no-pager, --non-interactive) to bypass the interaction steps. " +
+	'Pass commands as JSON strings, never as objects. Valid: {"commands":["pwd","git status --short"]}. Invalid: {"commands":[{"command":"pwd"}]}. ';
 
 /**
  * Build the run_commands tool description for the shell that will actually
