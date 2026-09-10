@@ -1082,6 +1082,23 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	const handleAttachFiles = useCallback((files: File[]) => {
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of files) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
@@ -1101,10 +1118,17 @@ function ChatThreadPane({
 			// without retyping. Leave anything they typed meanwhile alone.
 			if (!promptTaken && promptInputRef.current.trim() === "") {
 				setPromptInput(trimmed);
-				setPendingAttachments((prev) => (prev.length > 0 ? prev : toSend));
+				handleAttachFiles(toSend);
 			}
 		},
-		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
+		[
+			handleAttachFiles,
+			onThreadStarted,
+			pendingAttachments,
+			sendPrompt,
+			setPromptInput,
+			threadId,
+		],
 	);
 
 	const handleReasoningChange = useCallback(
@@ -1278,23 +1302,6 @@ function ChatThreadPane({
 		threadId,
 		setPromptInput,
 	]);
-
-	const handleAttachFiles = useCallback((files: File[]) => {
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-			);
-			const next = [...prev];
-			for (const file of files) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
-			}
-			return next;
-		});
-	}, []);
 
 	const attachmentList = useMemo(
 		() =>
