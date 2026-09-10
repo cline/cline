@@ -784,6 +784,21 @@ claim/requeue/report flow as file-backed one-off, recurring, and
 event-driven specs. The hub schedule command surface remains a thin adapter;
 there is no separate schedules table, schedule store, or schedule runner.
 
+Runner claims enforce global and per-spec capacity inside the SQLite claim
+transaction, skipping saturated specs before choosing the next due run. This
+keeps multiple database connections from exceeding a schedule's parallelism
+and prevents a backlog of blocked siblings from starving other schedules.
+Each execution has a cancellation controller and a deadline covering request
+preparation, session startup, and the turn. Shutdown cancels and drains tracked
+executions with bounded session cleanup; interrupted runs are recorded as
+cancelled, not automatically replayed after possibly performing external work.
+Late startup responses are cleaned up without sending a turn or touching the
+closed store. Losing a lease cancels the old execution, and attaching its
+session requires the current claim token. Terminal status is persisted before
+writing the optional report, so a report filesystem failure cannot replay a
+completed turn. Report and cleanup failures are logged separately.
+
+
 ## Navigating the Codebase
 
 ### Starting Points by Task

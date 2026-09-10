@@ -894,7 +894,7 @@ export function captureScheduleRun(
 		| { phase: "started" }
 		| {
 				phase: "finished";
-				outcome: "success" | "failed" | "timeout" | "superseded";
+				outcome: "success" | "failed" | "timeout" | "superseded" | "cancelled";
 				durationMs: number;
 		  }
 	),

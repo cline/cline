@@ -565,6 +565,8 @@ export interface ListRunsOptions {
 }
 
 export interface ClaimRunOptions {
+	/** Database-wide concurrency limit; defaults to 10. Per-spec limits always apply. */
+	maxConcurrency?: number;
 	nowIso: string;
 	leaseMs: number;
 	limit?: number;
@@ -1601,24 +1603,35 @@ export class SqliteCronStore {
 		const claimed: ClaimedCronRun[] = [];
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
-			const rows = this.db
-				.prepare(
-					`SELECT * FROM cron_runs
-						WHERE (
-								status = 'queued'
-								OR (
-									status = 'running'
-									AND claim_until_at IS NOT NULL
-									AND claim_until_at <= ?
-									AND completed_at IS NULL
-								)
-							)
-							AND (scheduled_for IS NULL OR scheduled_for <= ?)
-						ORDER BY COALESCE(scheduled_for, created_at) ASC
-						LIMIT ?`,
+			// Re-evaluate capacity after every claim in the same write transaction.
+			// Filtering before LIMIT lets unrelated specs pass a saturated backlog.
+			const nextDueRun = this.db.prepare(`
+				SELECT * FROM cron_runs
+				WHERE (
+					status = 'queued'
+					OR (status = 'running' AND claim_until_at <= :now AND completed_at IS NULL)
 				)
-				.all(referenceIso, referenceIso, limit);
-			for (const row of rows) {
+				AND (scheduled_for IS NULL OR scheduled_for <= :now)
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.status = 'running' AND active.claim_until_at > :now
+				) < :capacity
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.spec_id = cron_runs.spec_id
+					AND active.status = 'running' AND active.claim_until_at > :now
+				) < COALESCE((
+					SELECT MAX(1, max_parallel) FROM cron_specs WHERE spec_id = cron_runs.spec_id
+				), 1)
+				ORDER BY COALESCE(scheduled_for, created_at) ASC, rowid ASC
+				LIMIT 1
+			`);
+			while (claimed.length < limit) {
+				const row = nextDueRun.get({
+					now: referenceIso,
+					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+				});
+				if (!row) break;
 				const runId = asString(row.run_id);
 				if (!runId) continue;
 				const claimToken = `cclaim_${randomUUID()}`;
@@ -1766,12 +1779,18 @@ export class SqliteCronStore {
 		return changes > 0;
 	}
 
-	public attachSessionIdToRun(runId: string, sessionId: string): void {
-		this.db
-			.prepare(
-				`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ?`,
-			)
-			.run(sessionId, nowIso(), runId);
+	public attachSessionIdToRun(
+		runId: string,
+		sessionId: string,
+		claimToken: string,
+	): boolean {
+		return (
+			(this.db
+				.prepare(
+					`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ? AND claim_token = ? AND status = 'running'`,
+				)
+				.run(sessionId, nowIso(), runId, claimToken).changes ?? 0) === 1
+		);
 	}
 
 	public attachReportPathToRun(runId: string, reportPath: string): void {
