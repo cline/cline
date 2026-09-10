@@ -14,6 +14,7 @@ import {
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
+	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import type {
 	AgentChunkEvent,
@@ -420,6 +421,7 @@ export function useChatSession() {
 	const rekeyedOptimisticIdByMessageIdRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
+	const providerIdRef = useRef(config.provider);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -478,6 +480,9 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		providerIdRef.current = config.provider;
+	}, [config.provider]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -588,7 +593,7 @@ export function useChatSession() {
 			// credential problems and must not point users at Settings → Models.
 			const looksCredentialRelated =
 				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
+				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
 					description,
 				);
 			const content = [
@@ -596,7 +601,7 @@ export function useChatSession() {
 					? `The run failed: ${description}`
 					: "The run failed before a response was produced.",
 				looksCredentialRelated
-					? "Check your model connection in Settings → Models (or sign in with Cline), then try again."
+					? resolveCredentialFailureHint(providerIdRef.current)
 					: "",
 			]
 				.filter(Boolean)
