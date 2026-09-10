@@ -2106,15 +2106,20 @@ export function useChatSession() {
 			const pendingSessionStart = sessionStartPromiseRef.current;
 			let activeSessionId = sessionId ?? activeSessionIdRef.current;
 
-			let sessionConfig = config;
+			const validation = validateConfig(config);
+			if (!validation.parsed) {
+				setErrorState(validation.error, activeSessionId);
+				return;
+			}
+			let parsed = validation.parsed;
 			if (options?.inNewWorktree) {
 				try {
 					const worktree = await desktopClient.invoke<{ path: string }>(
 						"create_git_worktree",
-						{ cwd: config.cwd || config.workspaceRoot },
+						{ cwd: parsed.cwd || parsed.workspaceRoot },
 					);
-					sessionConfig = {
-						...config,
+					parsed = {
+						...parsed,
 						cwd: worktree.path,
 						workspaceRoot: worktree.path,
 					};
@@ -2126,12 +2131,6 @@ export function useChatSession() {
 					return;
 				}
 			}
-			const validation = validateConfig(sessionConfig);
-			if (!validation.parsed) {
-				setErrorState(validation.error, activeSessionId);
-				return;
-			}
-			const parsed = validation.parsed;
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
 			activePromptSubmissionsRef.current += 1;
 			let promptSubmissionFinished = false;

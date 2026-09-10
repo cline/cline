@@ -715,8 +715,12 @@ async function createGitWorktree(
 	return { path: worktreePath, branch };
 }
 
-function taskWorktreesHome(): string {
-	return join(resolveClineDir(), "worktrees");
+/** True for paths of the exact `~/.cline/worktrees/<id>/<repo>` shape. */
+function isTaskWorktreePath(path: string): boolean {
+	return (
+		path.length > 0 &&
+		dirname(dirname(path)) === join(resolveClineDir(), "worktrees")
+	);
 }
 
 /**
@@ -1905,11 +1909,16 @@ export async function handleCommand(
 			deleted,
 		});
 		// A task worktree goes with its task, unless another session still
-		// lives in it (e.g. a second thread started while it was the workspace).
+		// lives in (or under) it, e.g. a second thread started while it was
+		// the workspace. Only the exact `<home>/<id>/<repo>` shape qualifies,
+		// since removal also deletes the `<id>` parent directory.
 		const removedWorktree =
 			deleted &&
-			sessionCwd.startsWith(taskWorktreesHome() + sep) &&
-			!store.list(10_000).some((other) => other.cwd?.trim() === sessionCwd)
+			isTaskWorktreePath(sessionCwd) &&
+			!store.list(10_000).some((other) => {
+				const cwd = other.cwd?.trim() ?? "";
+				return cwd === sessionCwd || cwd.startsWith(sessionCwd + sep);
+			})
 				? await removeTaskWorktree(ctx, sessionCwd)
 				: undefined;
 		if (deleted) {
