@@ -21,7 +21,7 @@ import {
 	type HubTransportContext,
 	okReply,
 } from "./context";
-import { handleSessionInput } from "./run-handlers";
+import { handleSessionInput, parseSessionInputPayload } from "./run-handlers";
 
 export const HUB_DRAINING_ERROR_CODE = "hub_draining";
 
@@ -156,17 +156,11 @@ export function handleRunEnqueue(
 		envelope.payload && typeof envelope.payload === "object"
 			? envelope.payload
 			: {};
-	const prompt =
-		typeof payload.prompt === "string"
-			? payload.prompt
-			: typeof payload.input === "string"
-				? payload.input
-				: "";
-	if (!prompt.trim()) {
+	if (!parseSessionInputPayload(payload).hasContent) {
 		return errorReply(
 			envelope,
 			"invalid_session_input",
-			"run.enqueue requires a prompt string",
+			"run.enqueue requires a prompt string or attachments",
 		);
 	}
 	let accepted: ReturnType<HubRunQueue["admit"]>;
