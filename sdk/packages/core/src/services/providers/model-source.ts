@@ -56,7 +56,10 @@ export async function fetchModelIdsFromSource(
 	url: string,
 	providerId: string,
 ): Promise<string[]> {
-	const response = await fetch(url, { method: "GET" });
+	const response = await fetch(url, {
+		method: "GET",
+		signal: AbortSignal.timeout(5_000),
+	});
 	if (!response.ok) {
 		throw new Error(
 			`failed to fetch models from ${url}: HTTP ${response.status}`,

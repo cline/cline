@@ -14,6 +14,19 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("bundles zero prices for every Cline Pass model without a live refresh", () => {
+		const models = Object.values(getGeneratedModelsForProvider("cline-pass"));
+		expect(models.length).toBeGreaterThan(0);
+		for (const model of models) {
+			expect(model.pricing, model.id).toEqual({
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			});
+		}
+	});
+
 	it("normalizes current built-ins and providers using supported AI SDK packages", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
@@ -465,7 +478,7 @@ describe("models-dev-catalog", () => {
 				reasoningOptions: [
 					{ type: "effort", values: ["low", "medium", "high"] },
 				],
-				pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				releaseDate: "2026-01-01",
 				family: "base-family",
 			},
@@ -510,7 +523,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 
@@ -1068,7 +1081,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 
