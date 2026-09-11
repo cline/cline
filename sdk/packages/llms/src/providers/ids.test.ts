@@ -150,6 +150,41 @@ describe("provider-ids", () => {
 		});
 	});
 
+	it("registers MindsHub as an OpenAI-compatible built-in provider", async () => {
+		expect(BUILT_IN_PROVIDER_IDS).toContain("mindshub");
+
+		await expect(getProvider("mindshub")).resolves.toMatchObject({
+			id: "mindshub",
+			name: "MindsHub",
+			baseUrl: "https://api.mindshub.ai/v1",
+			defaultModelId: "sonnet",
+			client: "openai-compatible",
+		});
+
+		const models = await getModelsForProvider("mindshub");
+		expect(Object.hasOwn(models, "sonnet")).toBe(true);
+		expect(models.sonnet).toMatchObject({
+			id: "sonnet",
+			name: "Claude Sonnet 5",
+			capabilities: expect.arrayContaining(["tools", "images", "reasoning"]),
+			reasoningOptions: [
+				{ type: "effort", values: ["low", "medium", "high", "max"] },
+			],
+		});
+		// mindshub_air and kimi reason internally with reasoning_efforts: null
+		// (not user-adjustable), so neither carries the reasoning capability.
+		expect(models.mindshub_air.capabilities).not.toContain("reasoning");
+		expect(models.kimi.capabilities).not.toContain("reasoning");
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "mindshub",
+		);
+		expect(registration).toBeDefined();
+		await expect(registration?.loadProvider()).resolves.toMatchObject({
+			createProvider: createOpenAICompatibleProvider,
+		});
+	});
+
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
 		const provider = await getProvider("kilo");
 		expect(provider).toMatchObject({

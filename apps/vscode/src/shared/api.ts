@@ -45,6 +45,7 @@ export type ApiProvider =
 	| "zai-coding-plan"
 	| "oca"
 	| "aihubmix"
+	| "mindshub"
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
