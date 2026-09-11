@@ -266,6 +266,16 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+Session history listing filters child rows at the persistence layer. Subagent
+and team-task sessions are stored in the same table as the roots that spawned
+them and always sort newer, so `listSessionHistory` asks the runtime host for
+`rootOnly` rows. `LocalRuntimeHost` passes the option to the session backend,
+which applies it in the query before the limit; `HubRuntimeHost` sends it as
+`session.list { limit, rootOnly }` and the hub handler forwards it to its
+session host. Omitting the flag returns every row, which is what callers that
+render subagent trees rely on. History keeps a client-side root filter with a
+widening scan only as a fallback for older hubs that ignore the flag.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat
@@ -293,6 +303,14 @@ the `Sec-WebSocket-Protocol` header and shutdown requests use an
 `Authorization: Bearer` header. Unauthenticated local processes can still probe
 public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
+
+Remote proxies that authenticate the client-facing WebSocket upgrade with HTTP
+headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for every
+new socket, including reconnects, so hosts can refresh short-lived credentials.
+Header authentication is mutually exclusive with the local hub-token subprotocol;
+the proxy is responsible for authenticating the client and adding any private
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -403,6 +421,15 @@ Design implication:
   model switching are also service-style capabilities exposed through
   `ClineCore` when the concrete transport implements them. These service APIs
   are intentionally outside the minimal `RuntimeHost` primitive vocabulary.
+- `session.abort` remains the cancellation boundary for a root session in both
+  local and hub-backed execution. The owning `LocalRuntimeHost` aborts the lead
+  agent and asks only that session's team runtime to cancel active synchronous
+  teammate work plus running or queued async runs. Teammate definitions and
+	conversation state remain available for later turns; idle and unrelated team
+	runtimes are not stopped. One-off `spawn_agent` delegations observe the parent
+	turn's abort signal through their `SessionRuntime`. The team runtime marks
+	intentional abort task-end events as cancelled so persistence does not record
+	them as failures.
 - The usage service's `getAccumulatedUsage(sessionId)` method returns a summary
   with two explicit buckets: `usage` for the root/lead agent and
   `aggregateUsage` for root plus teammates/subagents. Local execution tracks
@@ -490,6 +517,7 @@ Design implications:
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
+- a session imported from another coding agent (`metadata.importedFrom`) that is resumed without compaction state summarizes its whole foreign transcript on the first turn, regardless of the auto-compaction setting; the summary persists as normal compaction state, so the model never replays the source agent's tool calls while the canonical transcript stays intact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 
@@ -709,7 +737,9 @@ orchestrator used by core and hub layers.
    queued `cron_runs`. One-off: at most one run record per `(spec_id,
    revision)`, including failed runs so specs do not retry accidentally.
    Schedule: "one overdue catch-up on startup then advance" using
-   timezone-aware `getNextCronTime`.
+   timezone-aware `getNextCronTime`. New hub schedules persist the local IANA
+   timezone when none is provided. The desktop form sends its own local timezone;
+   explicit timezone choices and existing schedule timezones are preserved.
 6. **Event ingress** (`cron/events/cron-event-ingress.ts`): accepts already-normalized
    `AutomationEventEnvelope` values, persists them into `cron_event_log`,
    matches enabled event specs by `event_type` plus declarative filters,
@@ -718,11 +748,25 @@ orchestrator used by core and hub layers.
    declare `automationEvents` and submit normalized events through
    `ctx.automation.ingestEvent(...)`; sandboxed plugins forward those events
    through the core plugin event bridge.
+   Acceptance is one synchronous SQLite write transaction: the event log,
+   matching runs, debounce changes, materialization pointers, and final
+   processing status commit together. A failure rolls all of them back and
+   propagates to the caller, which must redeliver the event to retry. Other
+   connections cannot observe or claim partial fan-out. Committed events remain
+   deduplicated by event ID, including a retry after a lost response. Failures
+   are logged outside the transaction, not persisted as deduplication tombstones.
+
 7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),
+   dispatches new work independently of unfinished agent turns, and renews
+   locally active claims before polling expired work after system sleep. Startup
+   installs polling without waiting for the initial batch to finish. It also
    renews the run claim while execution is active, writes a markdown report
-   per run, and transactionally updates status. File specs can constrain
+   per run, and transactionally updates status. Optional scheduler telemetry records
+   run start/finish, trigger kind, attempt count, start delay, duration, and outcome
+   through the normal telemetry service. It excludes prompts, paths, and raw errors;
+   capture failures do not interrupt execution. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
    `plugins`), trigger source, and a notes directory that is injected into
    the system prompt. The automation runtime adapters explicitly persist
@@ -747,6 +791,21 @@ Programmatic hub schedules are stored as `cron_specs` with source
 claim/requeue/report flow as file-backed one-off, recurring, and
 event-driven specs. The hub schedule command surface remains a thin adapter;
 there is no separate schedules table, schedule store, or schedule runner.
+
+Runner claims enforce global and per-spec capacity inside the SQLite claim
+transaction, skipping saturated specs before choosing the next due run. This
+keeps multiple database connections from exceeding a schedule's parallelism
+and prevents a backlog of blocked siblings from starving other schedules.
+Each execution has a cancellation controller and a deadline covering request
+preparation, session startup, and the turn. Shutdown cancels and drains tracked
+executions with bounded session cleanup; interrupted runs are recorded as
+cancelled, not automatically replayed after possibly performing external work.
+Late startup responses are cleaned up without sending a turn or touching the
+closed store. Losing a lease cancels the old execution, and attaching its
+session requires the current claim token. Terminal status is persisted before
+writing the optional report, so a report filesystem failure cannot replay a
+completed turn. Report and cleanup failures are logged separately.
+
 
 ## Navigating the Codebase
 

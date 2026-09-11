@@ -22,6 +22,32 @@ type ConfiguredSkill = SkillsExecutorMetadataItem & {
 	skill: SkillConfig;
 };
 
+function escapeXmlText(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+export function formatSkillInvocation(
+	skill: Pick<SkillConfig, "name" | "description" | "instructions" | "source">,
+	args?: string,
+): string {
+	const trimmedArgs = args?.trim();
+	const argsTag = trimmedArgs
+		? `\n<command-args>${trimmedArgs}</command-args>`
+		: "";
+	const skillRoot =
+		skill.source?.type === "agent-plugin"
+			? `\n<skill-root>${escapeXmlText(skill.source.skillRoot)}</skill-root>`
+			: "";
+	const description = skill.description?.trim()
+		? `Description: ${skill.description.trim()}\n\n`
+		: "";
+
+	return `<command-name>${skill.name}</command-name>${argsTag}${skillRoot}\n<command-instructions>\n${description}${skill.instructions}\n</command-instructions>`;
+}
+
 export interface CreateUserInstructionPluginOptions {
 	watcher: UserInstructionConfigWatcher;
 	watcherReady?: Promise<void>;
@@ -191,15 +217,7 @@ export function createUserInstructionSkillsExecutor(
 
 		runningSkills.add(id);
 		try {
-			const trimmedArgs = args?.trim();
-			const argsTag = trimmedArgs
-				? `\n<command-args>${trimmedArgs}</command-args>`
-				: "";
-			const description = skill.description?.trim()
-				? `Description: ${skill.description.trim()}\n\n`
-				: "";
-
-			return `<command-name>${skill.name}</command-name>${argsTag}\n<command-instructions>\n${description}${skill.instructions}\n</command-instructions>`;
+			return formatSkillInvocation(skill, args);
 		} finally {
 			runningSkills.delete(id);
 		}

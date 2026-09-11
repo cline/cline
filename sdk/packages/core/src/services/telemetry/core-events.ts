@@ -40,6 +40,10 @@ export interface TelemetryAgentIdentityProperties {
 }
 
 export const CORE_TELEMETRY_EVENTS = {
+	SCHEDULE: {
+		RUN_STARTED: "schedule.run_started",
+		RUN_FINISHED: "schedule.run_finished",
+	},
 	CLIENT: {
 		EXTENSION_ACTIVATED: "user.extension_activated",
 	},
@@ -391,12 +395,35 @@ export function identifyAccount(
 	});
 }
 
+/**
+ * Restore anonymous process identity after an account signs out.
+ *
+ * Account properties are explicitly set to undefined so they replace values
+ * previously merged into a long-lived telemetry service. Implementations
+ * remove undefined attributes before export.
+ */
+export function clearAccountTelemetryIdentity(
+	telemetry: ITelemetryService | undefined,
+	anonymousDistinctId?: string,
+): void {
+	telemetry?.setDistinctId(anonymousDistinctId?.trim() || undefined);
+	telemetry?.updateCommonProperties({
+		user_id: undefined,
+		account_id: undefined,
+		account_email: undefined,
+		provider: undefined,
+		organization_id: undefined,
+		organization_name: undefined,
+		member_id: undefined,
+	});
+}
+
 export function captureTaskCreated(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CREATED, properties);
@@ -406,8 +433,8 @@ export function captureTaskRestarted(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
-		apiProvider?: string;
-		openAiCompatibleDomain?: string;
+		provider?: string;
+		model?: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
@@ -431,7 +458,7 @@ export function captureTaskCompleted(
 	properties: {
 		ulid: string;
 		provider?: string;
-		modelId?: string;
+		model?: string;
 		mode?: string;
 		durationMs?: number;
 		source?: TaskCompletedSource;
@@ -854,4 +881,40 @@ export function captureCompactionBudgetEmergency(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/** Bounded scheduler diagnostics; never include prompts, paths, or raw errors. */
+export function captureScheduleRun(
+	telemetry: ITelemetryService | undefined,
+	input: {
+		triggerKind: "one_off" | "schedule" | "event" | "manual" | "retry";
+		attemptCount: number;
+		startDelayMs: number;
+	} & (
+		| { phase: "started" }
+		| {
+				phase: "finished";
+				outcome: "success" | "failed" | "timeout" | "superseded" | "cancelled";
+				durationMs: number;
+		  }
+	),
+): void {
+	try {
+		emit(
+			telemetry,
+			input.phase === "started"
+				? CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_STARTED
+				: CORE_TELEMETRY_EVENTS.SCHEDULE.RUN_FINISHED,
+			{
+				triggerKind: input.triggerKind,
+				attemptCount: input.attemptCount,
+				startDelayMs: input.startDelayMs,
+				...(input.phase === "finished"
+					? { outcome: input.outcome, durationMs: input.durationMs }
+					: {}),
+			},
+		);
+	} catch {
+		// Observability must never prevent scheduled work from running or completing.
+	}
 }

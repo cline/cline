@@ -14,6 +14,19 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("bundles zero prices for every Cline Pass model without a live refresh", () => {
+		const models = Object.values(getGeneratedModelsForProvider("cline-pass"));
+		expect(models.length).toBeGreaterThan(0);
+		for (const model of models) {
+			expect(model.pricing, model.id).toEqual({
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			});
+		}
+	});
+
 	it("normalizes current built-ins and providers using supported AI SDK packages", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
@@ -465,7 +478,7 @@ describe("models-dev-catalog", () => {
 				reasoningOptions: [
 					{ type: "effort", values: ["low", "medium", "high"] },
 				],
-				pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				releaseDate: "2026-01-01",
 				family: "base-family",
 			},
@@ -510,7 +523,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 
@@ -564,7 +577,10 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
-	it("labels a Cline free model when its name matches a ClinePass model", () => {
+	it.each([
+		"cline-free/deepseek-v4-flash",
+		"deepseek/deepseek-v4-flash",
+	])("labels a free model with ID %s when its name matches a ClinePass model", (freeId) => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
 				clinePass: [
@@ -575,7 +591,7 @@ describe("models-dev-catalog", () => {
 				],
 				free: [
 					{
-						id: "cline-free/deepseek-v4-flash",
+						id: freeId,
 						name: "DeepSeek V4 Flash",
 					},
 				],
@@ -586,12 +602,10 @@ describe("models-dev-catalog", () => {
 		expect(result["cline-pass"]?.["cline-pass/deepseek-v4-flash"]?.name).toBe(
 			"DeepSeek V4 Flash",
 		);
-		expect(result["cline-pass"]?.["cline-free/deepseek-v4-flash"]?.name).toBe(
+		expect(result["cline-pass"]?.[freeId]?.name).toBe(
 			"DeepSeek V4 Flash (free)",
 		);
-		expect(result.cline?.["cline-free/deepseek-v4-flash"]?.name).toBe(
-			"DeepSeek V4 Flash (free)",
-		);
+		expect(result.cline?.[freeId]?.name).toBe("DeepSeek V4 Flash (free)");
 	});
 
 	it("resolves free-model capabilities by slug and preserves free-only Cline catalog payloads", () => {
@@ -699,14 +713,16 @@ describe("models-dev-catalog", () => {
 
 		expect(result.cline?.["deepseek/deepseek-v4-flash"]).toMatchObject({
 			id: "deepseek/deepseek-v4-flash",
-			name: "DeepSeek V4 Flash",
+			name: "DeepSeek V4 Flash (free)",
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 		expect(result.cline?.["poolside/laguna-s-2.1:free"]?.name).toBe(
 			"Laguna S 2.1 (free)",
 		);
 		// Without a catalog match, fall back to the endpoint-provided name.
-		expect(result.cline?.["unknown/mystery-model"]?.name).toBe("mystery-model");
+		expect(result.cline?.["unknown/mystery-model"]?.name).toBe(
+			"mystery-model (free)",
+		);
 	});
 
 	it("uses input limits as the model request context window", () => {
@@ -1065,7 +1081,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 

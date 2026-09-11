@@ -288,6 +288,79 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(list).toHaveBeenCalledOnce();
 	});
 
+	it("falls back to session metadata when the hub search call rejects", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const command = vi.fn(async () => {
+			throw new Error("hub connection lost");
+		});
+		const list = vi.fn(async () => [
+			{
+				sessionId: "session-1",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+				prompt: "generate an image of a puppy",
+				metadata: { title: "generate an image of a puppy" },
+			},
+		]);
+		ctx.hubClient = { command } as never;
+		ctx.sessionManager = { list } as never;
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "generate",
+		})) as Array<{ sessionId: string; documentId: string }>;
+
+		expect(results).toEqual([
+			expect.objectContaining({
+				sessionId: "session-1",
+				documentId: "session-1:metadata",
+			}),
+		]);
+		expect(command).toHaveBeenCalledOnce();
+		expect(list).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to session metadata when the hub search call exceeds the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+			// Never resolves: exercises the withSearchDeadline race timing out
+			// rather than the hub call rejecting.
+			const command = vi.fn(() => new Promise(() => {}));
+			const list = vi.fn(async () => [
+				{
+					sessionId: "session-1",
+					startedAt: "2026-08-27T12:00:00.000Z",
+					workspaceRoot: "/workspace/project",
+					prompt: "generate an image of a puppy",
+					metadata: { title: "generate an image of a puppy" },
+				},
+			]);
+			ctx.hubClient = { command } as never;
+			ctx.sessionManager = { list } as never;
+
+			const pending = handleCommand(ctx, "search_sessions", {
+				query: "generate",
+			}) as Promise<Array<{ sessionId: string; documentId: string }>>;
+			await vi.advanceTimersByTimeAsync(750);
+			const results = await pending;
+
+			expect(results).toEqual([
+				expect.objectContaining({
+					sessionId: "session-1",
+					documentId: "session-1:metadata",
+				}),
+			]);
+			expect(command).toHaveBeenCalledOnce();
+			expect(list).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("forwards raw hub tool updates to attached desktop sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
@@ -456,6 +529,65 @@ describe("Code sidecar runtime capabilities", () => {
 						"chat_queued_prompt_start",
 			),
 		).toHaveLength(2);
+	});
+
+	it("does not announce a queued prompt start when the head is deleted from the queue", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		let onEvent: ((event: unknown) => void) | undefined;
+		createCoreMock.mockResolvedValue({
+			runtimeAddress: "ws://127.0.0.1:25463/hub",
+			subscribe: vi.fn((handler: (event: unknown) => void) => {
+				onEvent = handler;
+				return () => {};
+			}),
+			dispose: vi.fn(),
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [
+				{ id: "prompt-1", prompt: "first", steer: false, attachmentCount: 0 },
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+
+		// Removing the head only produces a shrunken snapshot — no
+		// pending_prompt_submitted — so nothing must reach the transcript.
+		onEvent?.({
+			type: "pending_prompts",
+			payload: {
+				sessionId: "session-1",
+				prompts: [{ id: "prompt-2", prompt: "second", delivery: "queue" }],
+			},
+		});
+
+		const events = readEvents(ctx);
+		expect(
+			events.filter(
+				(message) =>
+					message.event.name === "chat_event" &&
+					(message.event.payload as { stream?: string }).stream ===
+						"chat_queued_prompt_start",
+			),
+		).toHaveLength(0);
+		expect(
+			events.find((message) => message.event.name === "prompts_in_queue_state")
+				?.event.payload,
+		).toEqual({
+			sessionId: "session-1",
+			items: [
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+		});
 	});
 
 	it("relays generated media for attach-only Hub sessions", async () => {
@@ -1120,6 +1252,33 @@ describe("Code sidecar runtime capabilities", () => {
 			},
 		]);
 	});
+
+	it("forwards Hub settings changes so open desktop views can refresh", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+
+		handleHubLiveEvent(ctx, {
+			event: "settings.changed",
+			payload: {
+				types: ["plugins", "skills", "mcp"],
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "settings.changed",
+					payload: {
+						types: ["plugins", "skills", "mcp"],
+					},
+				},
+			},
+		]);
+	});
 });
 
 describe("disposeSidecarContext attachment cleanup", () => {
@@ -1169,5 +1328,217 @@ describe("disposeSidecarContext attachment cleanup", () => {
 
 		expect(existsSync(queuedFile)).toBe(false);
 		expect(ctx.liveSessions.size).toBe(0);
+	});
+});
+
+describe("Chat chunk pipe selection", () => {
+	async function createStreamingContext(
+		sessionId: string,
+		coreSubscriptions: Set<string> = new Set(),
+	) {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set(sessionId, {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+		ctx.sessionManager = {
+			hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
+		} as never;
+		return ctx;
+	}
+
+	function coreTextEvent(sessionId: string, text: string) {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId,
+				event: { type: "content_start", contentType: "text", text },
+			},
+		} as never;
+	}
+
+	function eventsFor(ctx: SidecarContext, name: string) {
+		return readEvents(ctx)
+			.filter((message) => message.event.name === name)
+			.map((message) => message.event.payload);
+	}
+
+	function chunksFor(ctx: SidecarContext, stream: string): string[] {
+		return eventsFor(ctx, "chat_event")
+			.filter((payload) => (payload as { stream?: string }).stream === stream)
+			.map((payload) => String((payload as { chunk?: string }).chunk));
+	}
+
+	it("emits one copy when both pipes carry the same delta", async () => {
+		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		// Opening a session arms both pipes: ClineCore subscribes to the session
+		// and `attach` enables the observer projection, so the hub publishes each
+		// delta to both sockets.
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "Pack " },
+		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "Pack "));
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "my box" },
+		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "my box"));
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["Pack ", "my box"]);
+	});
+
+	it("still streams sessions only the observer delivers", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext("session-1");
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "remote " },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "run" },
+		});
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
+	});
+
+	it("mutes the whole observer projection, not just text", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+
+		handleHubLiveEvent(ctx, {
+			event: "tool.started",
+			sessionId: "session-1",
+			payload: { toolCallId: "call-1", toolName: "run_commands" },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "run.completed",
+			sessionId: "session-1",
+			payload: {},
+		});
+
+		expect(chunksFor(ctx, "chat_tool_call_start")).toEqual([]);
+		expect(eventsFor(ctx, "chat_session_ended")).toEqual([]);
+		expect(ctx.liveSessions.get("session-1")?.busy).toBe(true);
+	});
+
+	it("follows the subscription as it comes and goes", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const coreSubscriptions = new Set<string>();
+		const ctx = await createStreamingContext("session-1", coreSubscriptions);
+		const delta = (text: string) =>
+			handleHubLiveEvent(ctx, {
+				event: "assistant.delta",
+				sessionId: "session-1",
+				payload: { text },
+			});
+
+		delta("observer first");
+		// A send (or pending-prompt list) subscribes ClineCore.
+		coreSubscriptions.add("session-1");
+		delta("muted");
+		// `stop` drops the subscription; a run another client starts on the
+		// same session is the observer's to render again.
+		coreSubscriptions.delete("session-1");
+		delta("observer again");
+
+		expect(chunksFor(ctx, "chat_text")).toEqual([
+			"observer first",
+			"observer again",
+		]);
+	});
+
+	it("decides per session", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+		ctx.liveSessions.set("session-2", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "one" },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-2",
+			payload: { text: "two" },
+		});
+
+		expect(chunksFor(ctx, "chat_text")).toEqual(["two"]);
+	});
+
+	it("never drops chunks the sidecar produces itself", async () => {
+		const { broadcastChunk } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+
+		broadcastChunk(ctx, "session-1", "chat_queued_prompt_start", "{}");
+
+		expect(chunksFor(ctx, "chat_queued_prompt_start")).toEqual(["{}"]);
+	});
+
+	it("stamps chunks with a stable per-process boot id", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const first = await createStreamingContext("session-1");
+		handleHubLiveEvent(first, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "a" },
+		});
+		handleHubLiveEvent(first, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "b" },
+		});
+
+		const boots = readEvents(first)
+			.filter((message) => message.event.name === "chat_event")
+			.map((message) => (message.event.payload as { boot?: string }).boot);
+		expect(boots).toHaveLength(2);
+		expect(boots[0]).toBeTruthy();
+		expect(boots[1]).toBe(boots[0]);
+
+		// A replacement sidecar restarts `index` at 1, so it must be
+		// distinguishable by boot id.
+		const second = createSidecarContext("/workspace/project");
+		expect(second.bootId).not.toBe(first.bootId);
 	});
 });

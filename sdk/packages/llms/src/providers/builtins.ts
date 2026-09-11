@@ -1,6 +1,5 @@
 import {
 	CLINE_DEFAULT_MODEL_ID,
-	type GatewayModelCapability,
 	type GatewayModelDefinition,
 	type GatewayModelOperationCapability,
 	type GatewayModelToolCapability,
@@ -40,12 +39,14 @@ import {
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
-import { normalizeProviderId } from "./ids";
+import { BUILT_IN_PROVIDER, normalizeProviderId } from "./ids";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,
 	BUILTIN_TRANSCRIPTION_TRANSPORTS,
 } from "./model-operations";
 import { filterOpenAICodexModels } from "./openai-codex-models";
+import { resolveProviderModelCatalogKeys } from "./provider-keys";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
 	ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
@@ -61,7 +62,7 @@ export const DEFAULT_INTERNAL_OCA_BASE_URL =
 export const DEFAULT_EXTERNAL_OCA_BASE_URL =
 	"https://code.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
-const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
+const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.6-terra";
 const NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
 	[{ name: "web_search" }];
 const OPENAI_NATIVE_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
@@ -450,6 +451,26 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
+/**
+ * Generated catalog models a runtime provider reads from, with that provider's
+ * catalog rules applied. Most runtime providers read their mapped catalog(s)
+ * as-is; the ChatGPT subscription provider shares the OpenAI catalog but only
+ * serves a filtered subset of it.
+ */
+export function getGeneratedModelsForRuntimeProvider(
+	providerId: string,
+): Record<string, ModelInfo> {
+	const models: Record<string, ModelInfo> = Object.assign(
+		{},
+		...resolveProviderModelCatalogKeys(providerId).map((catalogKey) =>
+			getGeneratedModelsForProvider(catalogKey),
+		),
+	);
+	return providerId === BUILT_IN_PROVIDER.OPENAI_CODEX
+		? filterOpenAICodexModels(models)
+		: models;
+}
+
 // Vercel-only model ids surfaced for the Cline provider while the OpenRouter
 // catalog lacks them (Cline's backend routes these to Vercel AI Gateway).
 // Remove an id once the OpenRouter catalog lists it.
@@ -546,26 +567,6 @@ function modelInfoToGateway(
 	providerId: string,
 	info: ModelInfo,
 ): GatewayModelDefinition {
-	const capabilities = new Set<GatewayModelCapability>(["text"]);
-	for (const cap of info.capabilities ?? []) {
-		switch (cap) {
-			case "tools":
-				capabilities.add("tools");
-				break;
-			case "reasoning":
-				capabilities.add("reasoning");
-				break;
-			case "prompt-cache":
-				capabilities.add("prompt-cache");
-				break;
-			case "images":
-				capabilities.add("images");
-				break;
-			case "structured_output":
-				capabilities.add("structured-output");
-				break;
-		}
-	}
 	const metadata: Record<string, JsonValue | undefined> = {};
 	if (info.family) {
 		metadata.family = info.family;
@@ -593,7 +594,7 @@ function modelInfoToGateway(
 		operation: info.operation,
 		operationModes: info.operationModes,
 		modalities: info.modalities,
-		capabilities: [...capabilities],
+		capabilities: toGatewayModelCapabilities(info.capabilities),
 		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
@@ -1114,9 +1115,16 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "gpt-5.6-sol",
 		modelsProviderId: "openai",
+		docsUrl: "https://developers.openai.com/codex/cli",
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 		configFields: [],
-		metadata: { usageCostDisplay: "subscription" },
+		metadata: {
+			usageCostDisplay: "subscription",
+			// The `local-auth` credentials live wherever this executable keeps
+			// them, so hosts probe it (and point at `docsUrl`) before offering
+			// the provider. See `resolveProviderLocalCli`.
+			localCliCommand: "codex",
+		},
 	},
 	{
 		id: "elevenlabs",
@@ -1155,9 +1163,14 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		// gateway sends Cline's tool definitions (which the provider drops)
 		// while the CLI's own tools stay enabled with no approval plumbing —
 		// every write is refused and no prompt can appear (#13146).
-		capabilities: ["reasoning", "provider-tools"],
+		// local-auth: the spawned CLI authenticates from its own credential
+		// store (the Claude Pro/Max subscription login), so no API key is
+		// read from provider settings. Without this capability configure UIs
+		// ask for a key and readiness checks refuse a keyless entry.
+		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "sonnet",
 		modelsFactory: buildClaudeCodeModels,
+		docsUrl: "https://code.claude.com/docs/en/setup",
 		defaults: { baseUrl: "" },
 		configFields: [],
 		// Claude Code is typically authenticated with a Pro/Max subscription,
@@ -1165,7 +1178,13 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		// real charge. The CLI does report a cost when it runs on API-key
 		// billing, but the provider cannot tell the two apart from here, so
 		// prefer not showing a number over showing a misleading one.
-		metadata: { usageCostDisplay: "subscription" },
+		metadata: {
+			usageCostDisplay: "subscription",
+			// The `local-auth` credentials live wherever this executable keeps
+			// them, so hosts probe it (and point at `docsUrl`) before offering
+			// the provider. See `resolveProviderLocalCli`.
+			localCliCommand: "claude",
+		},
 	},
 	{
 		id: "gemini",
@@ -1236,11 +1255,19 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "OpenCode",
 		description: "OpenCode SDK multi-provider runtime",
 		family: "opencode",
-		capabilities: ["reasoning", "oauth"],
+		// local-auth: the spawned `opencode` server authenticates from the
+		// credentials `opencode auth login` stores on this machine. Cline has
+		// no OAuth flow or API key for it.
+		capabilities: ["reasoning", "local-auth"],
 		defaultModelId: "openai/gpt-5.6-sol",
 		modelsProviderId: "opencode",
+		docsUrl: "https://opencode.ai/docs",
 		defaults: { baseUrl: "" },
 		configFields: [],
+		metadata: {
+			// See `resolveProviderLocalCli`.
+			localCliCommand: "opencode",
+		},
 	},
 	{
 		id: "dify",
@@ -1339,6 +1366,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			protocol: spec.protocol ?? inferProtocol(spec),
 			baseUrl: spec.defaults?.baseUrl,
 			modelsSourceUrl: spec.modelsSourceUrl,
+			docsUrl: spec.docsUrl,
 			defaultModelId,
 			capabilities,
 			env: spec.apiKeyEnv ? [...spec.apiKeyEnv] : undefined,
@@ -1361,12 +1389,15 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		models.length > 0
 			? models
 			: [
-					{
+					// A placeholder for a provider whose collection is empty. Nothing
+					// is known about the model, so leave capabilities absent rather
+					// than claiming text-only: gateway gates read an absent list as
+					// "unspecified" and fail open, while `["text"]` would read as an
+					// authoritative denial of images and reasoning.
+					modelInfoToGateway(spec.id, {
 						id: collection.provider.defaultModelId || "default",
 						name: collection.provider.defaultModelId || "Default",
-						providerId: spec.id,
-						capabilities: ["text"] as GatewayModelCapability[],
-					},
+					}),
 				];
 
 	return {

@@ -86,15 +86,18 @@ function isManagedClineLangfuseBuildEnabled(): boolean {
  * client. It emits Langfuse-compatible spans through the process's existing
  * global OTLP tracer, whose collector owns the Langfuse credentials. Generic
  * `LANGFUSE_*` configuration retains the standalone direct-export path for SDK
- * consumers and is also the Cline-provider fallback when managed telemetry was
- * not requested.
+ * consumers using Cline providers when managed telemetry was not requested.
  */
 export async function ensureLangfuseTelemetry(
 	providerId: string,
 	managedTelemetry?: GatewayManagedTelemetryConfig,
 	managedTelemetryAllowed = true,
 ): Promise<Telemetry | undefined> {
-	if (isClineProvider(providerId) && managedTelemetry?.langfuse === true) {
+	if (!isClineProvider(providerId)) {
+		return undefined;
+	}
+
+	if (managedTelemetry?.langfuse === true) {
 		if (!managedTelemetryAllowed) {
 			debugLangfuse(
 				`managed telemetry disabled by host policy provider=${providerId}`,
@@ -259,16 +262,23 @@ function hasActiveTracerProvider(traceApi: {
 	getTracerProvider: () => unknown;
 }): boolean {
 	const provider = traceApi.getTracerProvider() as {
-		constructor?: { name?: string };
-		getDelegate?: () => { constructor?: { name?: string } };
+		getDelegate?: () => unknown;
 	};
 	const activeProvider = provider.getDelegate?.() ?? provider;
-	const providerName = activeProvider?.constructor?.name;
-
-	return Boolean(
-		providerName &&
-			providerName !== "ProxyTracerProvider" &&
-			providerName !== "NoopTracerProvider",
+	if (!activeProvider || typeof activeProvider !== "object") {
+		return false;
+	}
+	// Release minification renames constructors. Detect the SDK provider by
+	// lifecycle capabilities, which the no-op provider does not expose.
+	const candidate = activeProvider as {
+		addSpanProcessor?: unknown;
+		forceFlush?: unknown;
+		shutdown?: unknown;
+	};
+	return (
+		typeof candidate.addSpanProcessor === "function" ||
+		typeof candidate.forceFlush === "function" ||
+		typeof candidate.shutdown === "function"
 	);
 }
 

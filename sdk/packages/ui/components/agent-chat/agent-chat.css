@@ -327,11 +327,7 @@
 		/* Legible first, de-emphasized second: plain muted-foreground reads
 		 * too faint for multi-line prose, so lean most of the way back toward
 		 * the body text color. */
-		color: color-mix(
-			in oklab,
-			var(--foreground) 75%,
-			var(--muted-foreground)
-		);
+		color: color-mix(in oklab, var(--foreground) 75%, var(--muted-foreground));
 	}
 
 	/* The reveal rule below is `.cline-chat-message:hover`, so hovering anywhere

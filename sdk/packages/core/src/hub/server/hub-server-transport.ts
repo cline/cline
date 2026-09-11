@@ -161,7 +161,7 @@ function requireOptionalString(
 
 function requireOptionalBoolean(
 	payload: Record<string, unknown>,
-	key: "enabled",
+	key: "enabled" | "includePluginTools",
 ): boolean | undefined {
 	const value = payload[key];
 	if (value === undefined) {
@@ -169,6 +169,23 @@ function requireOptionalBoolean(
 	}
 	if (typeof value !== "boolean") {
 		throw new Error(`settings payload '${key}' must be a boolean.`);
+	}
+	return value;
+}
+
+function requireOptionalStringArray(
+	payload: Record<string, unknown>,
+	key: "agentPluginPaths",
+): string[] | undefined {
+	const value = payload[key];
+	if (value === undefined) {
+		return undefined;
+	}
+	if (
+		!Array.isArray(value) ||
+		!value.every((entry) => typeof entry === "string")
+	) {
+		throw new Error(`settings payload '${key}' must be an array of strings.`);
 	}
 	return value;
 }
@@ -183,6 +200,8 @@ function parseSettingsListInput(payload: unknown): CoreSettingsListInput {
 	return {
 		cwd: requireOptionalString(payload, "cwd"),
 		workspaceRoot: requireOptionalString(payload, "workspaceRoot"),
+		agentPluginPaths: requireOptionalStringArray(payload, "agentPluginPaths"),
+		includePluginTools: requireOptionalBoolean(payload, "includePluginTools"),
 		availabilityContext: isPayloadObject(payload.availabilityContext)
 			? (payload.availabilityContext as CoreSettingsListInput["availabilityContext"])
 			: undefined,
@@ -339,6 +358,7 @@ export class HubServerTransport implements NativeHubTransport {
 		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
+			telemetry: options.telemetry,
 			runtimeHandlers: options.runtimeHandlers,
 			eventPublisher: (eventType, payload) => {
 				const mapped =
@@ -425,6 +445,7 @@ export class HubServerTransport implements NativeHubTransport {
 			this.cronService = new CronService({
 				runtimeHandlers: options.runtimeHandlers,
 				...options.cronOptions,
+				telemetry: options.telemetry,
 			});
 		}
 		this.sessionHost.subscribe((event: CoreSessionEvent) => {

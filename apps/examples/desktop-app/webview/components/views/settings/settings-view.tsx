@@ -26,6 +26,7 @@ import {
 	APP_ICONS,
 	type AppIconId,
 	appIconAssetPath,
+	appIconSurface,
 	DEFAULT_APP_ICON,
 	readStoredAppIcon,
 	setStoredAppIcon,
@@ -59,12 +60,13 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
-import { MarketplaceView } from "../marketplace-view";
+import { MarketplaceExplorerView } from "../marketplace-explorer-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
@@ -616,14 +618,13 @@ export function SettingsView({
 				onOpenMarketplace={() => onNavigateSection("Marketplace")}
 			/>
 		) : activeNav === "Marketplace" ? (
-			<MarketplaceView
-				onOpenInstalled={() => onNavigateSection("Customize")}
-				variant="directory"
-			/>
+			<MarketplaceExplorerView />
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
+		) : activeNav === "Import" ? (
+			<ImportContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -680,6 +681,9 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
 	});
+	const [appIconLocation, setAppIconLocation] = useState<
+		"Dock" | "Taskbar" | "desktop"
+	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
@@ -702,6 +706,7 @@ function GeneralSettingsContent({
 	>(null);
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 
+	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
 
 	useEffect(() => {
@@ -885,9 +890,6 @@ function GeneralSettingsContent({
 			}
 			setAppIcon(previousIcon);
 			setAppIconError(error instanceof Error ? error.message : String(error));
-			// Storage was written before the native call failed; roll it back
-			// so the persisted choice matches what the dock actually shows.
-			await setStoredAppIcon(previousIcon).catch(() => {});
 		}
 	};
 
@@ -997,7 +999,7 @@ function GeneralSettingsContent({
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">App icon</p>
 						<p className="text-sm text-muted-foreground">
-							Pick the icon Cline shows in the Dock.
+							Pick the icon Cline shows in the {appIconLocation}.
 						</p>
 						{appIconError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">

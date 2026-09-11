@@ -1,6 +1,6 @@
 {
 	"name": "@cline/ui",
-	"version": "0.2.0-next.7",
+	"version": "0.2.0-next.8",
 	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
@@ -47,6 +47,7 @@
 	},
 	"files": [
 		"components.css",
+		"components/attachment-drop-zone.tsx",
 		"components/badge.tsx",
 		"components/button.tsx",
 		"components/generated-media.tsx",

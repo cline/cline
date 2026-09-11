@@ -1,6 +1,7 @@
 "use client";
 
-import { ImagePlus, Loader2 } from "lucide-react";
+import { AttachmentDropZone } from "@cline/ui";
+import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -65,6 +66,10 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
@@ -88,6 +93,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -216,8 +222,8 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		// The dock reverts to the bundled icon every launch; re-apply the
-		// user's choice once the shell is up.
+		// The native app icon reverts to the bundled icon every launch; re-apply
+		// the user's choice once the shell is up.
 		void syncAppIcon();
 	}, []);
 
@@ -600,6 +606,7 @@ function ChatThreadPane({
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -637,8 +644,6 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-	const dragDepthRef = useRef(0);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1081,6 +1086,33 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	const handleAttachFiles = useCallback((files: File[]) => {
+		const supportedFiles = files.filter(
+			(file) => !isUnsupportedImageAttachment(file),
+		);
+		if (supportedFiles.length !== files.length) {
+			toast({
+				title: "Unsupported image format",
+				description:
+					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+			});
+		}
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of supportedFiles) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
@@ -1094,9 +1126,23 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend);
+			// The prompt never reached the runtime (e.g. the provider connection
+			// failed): hand it back so the user can fix the provider and resend
+			// without retyping. Leave anything they typed meanwhile alone.
+			if (!promptTaken && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				handleAttachFiles(toSend);
+			}
 		},
-		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
+		[
+			handleAttachFiles,
+			onThreadStarted,
+			pendingAttachments,
+			sendPrompt,
+			setPromptInput,
+			threadId,
+		],
 	);
 
 	const handleReasoningChange = useCallback(
@@ -1271,75 +1317,12 @@ function ChatThreadPane({
 		setPromptInput,
 	]);
 
-	const handleAttachFiles = useCallback((files: File[]) => {
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-			);
-			const next = [...prev];
-			for (const file of files) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
-			}
-			return next;
-		});
-	}, []);
-
-	// Drag-and-drop file attachments. Requires `dragDropEnabled: false` on the
-	// Tauri window — otherwise the native shell swallows OS file drags and these
-	// HTML5 events never fire.
-	const handleDragEnter = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		dragDepthRef.current += 1;
-		setIsDraggingFiles(true);
-	}, []);
-
-	const handleDragOver = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "copy";
-	}, []);
-
-	const handleDragLeave = useCallback((event: React.DragEvent) => {
-		if (!event.dataTransfer.types.includes("Files")) {
-			return;
-		}
-		dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-		if (dragDepthRef.current === 0) {
-			setIsDraggingFiles(false);
-		}
-	}, []);
-
-	const handleDrop = useCallback(
-		(event: React.DragEvent) => {
-			if (!event.dataTransfer.types.includes("Files")) {
-				return;
-			}
-			event.preventDefault();
-			dragDepthRef.current = 0;
-			setIsDraggingFiles(false);
-			const files = Array.from(event.dataTransfer.files);
-			if (files.length > 0) {
-				handleAttachFiles(files);
-			}
-		},
-		[handleAttachFiles],
-	);
-
 	const attachmentList = useMemo(
 		() =>
 			pendingAttachments.map((file, index) => ({
 				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 				name: file.name,
-				isImage: file.type.startsWith("image/"),
+				isImage: imageAttachmentMediaType(file) !== undefined,
 			})),
 		[pendingAttachments],
 	);
@@ -1420,6 +1403,9 @@ function ChatThreadPane({
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 	const displayedMessages = hideDeletedSessionUi ? [] : messages;
 	const displayedError = hideDeletedSessionUi ? null : error;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -1557,6 +1543,7 @@ function ChatThreadPane({
 	const composer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -1566,6 +1553,7 @@ function ChatThreadPane({
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
 			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1589,31 +1577,15 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
-			<div
+			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
+			<AttachmentDropZone
 				className={
 					isWelcomeState
-						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
+						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
+				onAttachFiles={handleAttachFiles}
 			>
-				{isDraggingFiles ? (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
-							<ImagePlus className="h-8 w-8 text-primary" />
-							<p className="text-sm font-medium text-foreground">
-								Drop to attach
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Screenshots and files will be added to your next message
-							</p>
-						</div>
-					</div>
-				) : null}
 				{!isWelcomeState ? (
 					<WindowTitleBarContent>
 						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
@@ -1656,7 +1628,9 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
+								activityLabel={activityLabel}
 								error={displayedError}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
@@ -1688,7 +1662,7 @@ function ChatThreadPane({
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 				/>
-			</div>
+			</AttachmentDropZone>
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {

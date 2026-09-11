@@ -63,7 +63,11 @@ describe("resolveSystemPrompt workspace metadata", () => {
 		writeFileSync(join(cwd, "README.md"), "test\n");
 		execFileSync("git", ["add", "README.md"], { cwd });
 		execFileSync("git", ["commit", "-m", "initial"], { cwd });
-		execFileSync("git", ["remote", "add", "origin", "https://example.com/cline/repo.git"], { cwd });
+		execFileSync(
+			"git",
+			["remote", "add", "origin", "https://example.com/cline/repo.git"],
+			{ cwd },
+		);
 		const commit = execFileSync("git", ["rev-parse", "HEAD"], {
 			cwd,
 			encoding: "utf8",

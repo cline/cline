@@ -467,7 +467,10 @@ describe("BrowserWebSocketHubAdapter", () => {
 		);
 
 		const deadline = Date.now() + 2_000;
-		while (transport.replayEventsAfter.mock.calls.length < 2 && Date.now() < deadline) {
+		while (
+			transport.replayEventsAfter.mock.calls.length < 2 &&
+			Date.now() < deadline
+		) {
 			await new Promise((r) => setTimeout(r, 5));
 		}
 		// Let the buffered-flush finally-block run past the last replay page.
@@ -617,8 +620,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 			.map((entry) => JSON.parse(entry))
 			.filter(
 				(frame) =>
-					frame.kind === "event" &&
-					frame.envelope.eventId === "hevt_reissued",
+					frame.kind === "event" && frame.envelope.eventId === "hevt_reissued",
 			);
 		expect(delivered).toHaveLength(2);
 	});

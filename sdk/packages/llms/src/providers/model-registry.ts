@@ -90,6 +90,21 @@ export async function getModelsForProvider(
 	);
 }
 
+/**
+ * Returns only models explicitly registered at runtime, excluding the bundled
+ * provider collection. These overrides must remain highest-precedence when a
+ * caller merges the registry with a freshly fetched catalog.
+ */
+export async function getModelOverridesForProvider(
+	providerId: string,
+): Promise<Record<string, ModelInfo>> {
+	const providerModels = CUSTOM_PROVIDERS.get(providerId)?.models ?? {};
+	const customModels = CUSTOM_MODELS.get(providerId);
+	return customModels
+		? { ...providerModels, ...Object.fromEntries(customModels) }
+		: { ...providerModels };
+}
+
 export async function getAllProviders(): Promise<ProviderInfo[]> {
 	return getProviderIds()
 		.map((id) => getProviderFromCache(id)?.provider)

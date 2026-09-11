@@ -133,7 +133,8 @@ describe("langfuse telemetry", () => {
 		globalGetTracerSpy.mockClear();
 		getDelegateSpy.mockReset();
 		getDelegateSpy.mockReturnValue({
-			constructor: { name: "NodeTracerProvider" },
+			constructor: { name: "Zt" },
+			forceFlush: vi.fn(),
 		});
 		setGlobalContextManagerSpy.mockClear();
 		tracerProviderInstances.length = 0;
@@ -204,16 +205,16 @@ describe("langfuse telemetry", () => {
 		expect(integrationOptionsSpy).not.toHaveBeenCalled();
 	});
 
-	it("ignores managed routing for third-party providers", async () => {
+	it("disables third-party providers even with managed routing and direct credentials", async () => {
 		enableManagedBuild();
 		setGenericEnvironment();
 
 		await expect(
 			ensureLangfuseTelemetry("openrouter", { langfuse: true }),
-		).resolves.toBeDefined();
+		).resolves.toBeUndefined();
 
-		expect(spanProcessorConfigSpy).toHaveBeenCalledWith(genericConfig);
-		expect(tracerProviderInstances).toHaveLength(1);
+		expect(spanProcessorConfigSpy).not.toHaveBeenCalled();
+		expect(tracerProviderInstances).toHaveLength(0);
 		expect(globalGetTracerSpy).not.toHaveBeenCalled();
 	});
 
@@ -244,7 +245,7 @@ describe("langfuse telemetry", () => {
 	it("reuses one isolated exporter for direct providers with the same configuration", async () => {
 		setGenericEnvironment();
 
-		const first = await ensureLangfuseTelemetry("openrouter");
+		const first = await ensureLangfuseTelemetry("cline-pass");
 		const second = await ensureLangfuseTelemetry("cline");
 
 		expect(first).toBe(second);
@@ -252,11 +253,33 @@ describe("langfuse telemetry", () => {
 		expect(registerDisposableSpy).toHaveBeenCalledOnce();
 	});
 
+	it("keeps third-party providers disabled before and after direct initialization", async () => {
+		setGenericEnvironment();
+		await expect(
+			ensureLangfuseTelemetry("openrouter"),
+		).resolves.toBeUndefined();
+		expect(integrationOptionsSpy).not.toHaveBeenCalled();
+		await expect(ensureLangfuseTelemetry("cline")).resolves.toBeDefined();
+		await expect(
+			ensureLangfuseTelemetry("openrouter"),
+		).resolves.toBeUndefined();
+		expect(integrationOptionsSpy).toHaveBeenCalledOnce();
+	});
+
+	it("rejects a minified no-op tracer provider", async () => {
+		enableManagedBuild();
+		getDelegateSpy.mockReturnValue({ constructor: { name: "Qn" } });
+		await expect(
+			ensureLangfuseTelemetry("cline", { langfuse: true }),
+		).resolves.toBeUndefined();
+		expect(integrationOptionsSpy).not.toHaveBeenCalled();
+	});
+
 	it("flushes and shuts down only the isolated direct exporters", async () => {
 		enableManagedBuild();
 		setGenericEnvironment();
 		await ensureLangfuseTelemetry("cline", { langfuse: true });
-		await ensureLangfuseTelemetry("openrouter");
+		await ensureLangfuseTelemetry("cline-pass");
 
 		await disposeLangfuseTelemetry();
 
@@ -272,7 +295,7 @@ describe("langfuse telemetry", () => {
 
 	it("connects an AI SDK 7 call to the selected per-call integration", async () => {
 		setGenericEnvironment();
-		const integration = await ensureLangfuseTelemetry("openrouter");
+		const integration = await ensureLangfuseTelemetry("cline-pass");
 		expect(integration).toBeDefined();
 
 		await generateText({
@@ -307,7 +330,7 @@ describe("langfuse telemetry", () => {
 		process.env.LANGFUSE_PUBLIC_KEY = genericConfig.publicKey;
 
 		await expect(
-			ensureLangfuseTelemetry("openrouter"),
+			ensureLangfuseTelemetry("cline-pass"),
 		).resolves.toBeUndefined();
 
 		expect(spanProcessorConfigSpy).not.toHaveBeenCalled();
