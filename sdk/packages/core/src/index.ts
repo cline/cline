@@ -53,7 +53,6 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
-	FeatureFlag,
 	FeatureFlagPayload,
 	FeatureFlagsAndPayloads,
 	FeatureFlagsContext,
@@ -109,12 +108,9 @@ export {
 	createTool,
 	emptyWorkspaceManifest,
 	FEATURE_FLAGS,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
-	INTERNAL_USER_EMAIL_DOMAINS,
-	InternalFeature,
-	isInternalFeatureEnabled,
-	isInternalUserEmail,
 	noopBasicLogger,
 	normalizeSdkError,
 	normalizeUserInput,
@@ -988,6 +984,7 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
 	applyClineFeaturedModels,
 	type ClineRecommendedModel,

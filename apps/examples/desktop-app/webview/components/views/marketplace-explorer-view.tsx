@@ -777,9 +777,8 @@ export function MarketplaceExplorerView() {
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-	// Connectors (Composio) ride along in the explorer when this install has
-	// a managed key and the account passes the internal gate — the sidecar
-	// reports both through `configured`. Unconfigured installs never see the
+	// Connectors appear when the account has Composio beta access and proxy
+	// entitlement, reported by the sidecar through `configured`. Other accounts never see the
 	// section, the filter chip, or a network fetch for the catalog.
 	const connections = useComposioConnections();
 	const [connectorEntries, setConnectorEntries] = useState<

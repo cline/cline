@@ -64,7 +64,7 @@ export function CustomizeView({
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
 	// Connectors are an org-provisioned feature: the tab only exists when the
-	// sidecar has a managed Composio API key.
+	// account has Composio beta access.
 	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
 
 	const refreshCounts = useCallback(async () => {

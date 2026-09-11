@@ -54,13 +54,11 @@ vi.mock("@cline/core/services/feature-flags/posthog", () => ({
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { InternalFeature } from "@cline/shared";
 import {
 	buildFeatureFlagsSnapshot,
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsContext,
 	getDesktopFeatureFlagsService,
-	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 	resetDesktopFeatureFlagsForTesting,
 	setDesktopFeatureFlagsAccountContext,
@@ -264,55 +262,6 @@ describe("account context persistence", () => {
 		const context = getDesktopFeatureFlagsContext();
 		expect(context.userId).toBe("acct-new");
 		expect(context.email).toBe("new@example.com");
-	});
-});
-
-describe("isDesktopInternalFeatureEnabled", () => {
-	it("grants access to @cline.bot accounts", () => {
-		setDesktopFeatureFlagsAccountContext({
-			id: "acct-1",
-			email: "beatrix@cline.bot",
-		});
-		expect(
-			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
-		).toBe(true);
-	});
-
-	it("fails closed for external and signed-out accounts", () => {
-		expect(
-			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
-		).toBe(false);
-		setDesktopFeatureFlagsAccountContext({
-			id: "acct-1",
-			email: "user@example.com",
-		});
-		expect(
-			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
-		).toBe(false);
-	});
-
-	it("grants access to external accounts via the feature flag", () => {
-		setDesktopFeatureFlagsAccountContext({
-			id: "acct-1",
-			email: "user@example.com",
-		});
-		mocks.getBooleanFlagEnabled.mockImplementation(
-			(flag: unknown) => flag === InternalFeature.COMPOSIO_CONNECTORS,
-		);
-		expect(
-			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
-		).toBe(true);
-	});
-
-	it("survives a restart via the persisted account identity", () => {
-		setDesktopFeatureFlagsAccountContext({
-			id: "acct-1",
-			email: "beatrix@cline.bot",
-		});
-		resetDesktopFeatureFlagsForTesting();
-		expect(
-			isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS),
-		).toBe(true);
 	});
 });
 

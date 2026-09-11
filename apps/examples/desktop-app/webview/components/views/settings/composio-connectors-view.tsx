@@ -15,9 +15,8 @@ import {
 /**
  * Installed > Connectors: the connected accounts. Gmail, Google Calendar,
  * and GitHub are pinned as recommended; the full catalog is browsed from the
- * Marketplace's Connectors tab. The Composio API key comes from the
- * sidecar's COMPOSIO_API_KEY environment variable — there is nothing
- * key-related to manage here, and the whole tab is hidden without one.
+ * Marketplace's Connectors tab. The Cline API proxy holds the Composio key;
+ * the whole tab is hidden unless the account has Composio beta access.
  */
 
 export function ComposioConnectorsView({
@@ -90,8 +89,7 @@ export function ComposioConnectorsView({
 	}
 
 	if (!configured) {
-		// Normally unreachable — the Connectors tab is hidden without a managed
-		// key — but reachable transiently while status loads.
+		// Also shown while status loads or after beta access is removed.
 		return (
 			<p className="text-sm text-muted-foreground">
 				Connectors aren&apos;t available.

@@ -883,3 +883,16 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+### Composio beta access
+
+Composio management in the desktop sidecar and tool registration/execution in
+local runtimes (including the detached hub) require the account-scoped PostHog
+flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
+evaluator reads the current Cline account ID from provider settings, caches the
+evaluation in memory for one minute, and discards grants on account changes.
+Missing identity, provider configuration, or flag values deny access; internal
+email domains do not bypass this gate. Saved connector schemas alone cannot
+enable tools. Existing sessions recheck access before each tool execution.
+Disconnect/cancel cleanup remains available after access is removed. The Cline
+API proxy must enforce the same flag server-side for authenticated requests.
