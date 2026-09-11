@@ -238,77 +238,61 @@ describe("CloudSessionApi", () => {
 	});
 
 	it("returns a recovered real id without waiting for provisioning", async () => {
-		vi.useFakeTimers();
-		let statusCalls = 0;
+		const requests: string[] = [];
 		let recoveryTitle = "";
-		try {
-			const now = new Date().toISOString();
-			const api = new CloudSessionApi({
-				apiBaseUrl: "https://api.example",
-				appBaseUrl: "https://app.example",
-				getAuthToken: async () => "workos:fresh",
-				fetch: async (input, init) => {
-					const path = new URL(String(input)).pathname;
-					if (init?.method === "POST") {
-						recoveryTitle = String(JSON.parse(String(init.body)).title);
-						return jsonResponse({ success: false, error: "gateway" }, 500);
-					}
-					if (path.endsWith("/status")) {
-						statusCalls += 1;
-						return jsonResponse({
-							success: true,
-							data: {
-								sessionId: "ses-recovered",
-								status: statusCalls === 1 ? "provisioning" : "ready",
-							},
-						});
-					}
-					return jsonResponse({
-						success: true,
-						data: [
-							{
-								id: "ses-recovered",
-								title: recoveryTitle,
-								status: "provisioning",
-								sandboxUrl: "",
-								repoContext: { repoUrl: "https://github.com/cline/test" },
-								metadata: { modelId: "anthropic/claude-sonnet-5" },
-								createdAt: now,
-								updatedAt: now,
-							},
-						],
-					});
-				},
-			});
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (input, init) => {
+				requests.push(
+					`${init?.method ?? "GET"} ${new URL(String(input)).pathname}`,
+				);
+				if (init?.method === "POST") {
+					recoveryTitle = String(JSON.parse(String(init.body)).title);
+					return jsonResponse({ success: false, error: "gateway" }, 500);
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							...REMOTE_SESSION,
+							id: "ses-recovered",
+							title: recoveryTitle,
+							status: "provisioning",
+							sandboxUrl: "",
+						},
+					],
+				});
+			},
+		});
 
-			const creating = api.create({
+		await expect(
+			api.create({
 				modelId: "anthropic/claude-sonnet-5",
 				repoUrl: "https://github.com/cline/test",
-			});
-
-			await expect(creating).resolves.toMatchObject({
-				sessionId: "ses-recovered",
-				status: "provisioning",
-			});
-			expect(statusCalls).toBe(0);
-		} finally {
-			vi.useRealTimers();
-		}
+			}),
+		).resolves.toMatchObject({
+			sessionId: "ses-recovered",
+			status: "provisioning",
+		});
+		expect(requests).toEqual(["POST /api/v1/session", "GET /api/v1/session"]);
 	});
 
 	it("recovers the real id after the create request times out", async () => {
 		vi.useFakeTimers();
-		let statusCalls = 0;
+		const requests: string[] = [];
 		let recoveryTitle = "";
 		try {
-			const now = new Date().toISOString();
 			const api = new CloudSessionApi({
 				apiBaseUrl: "https://api.example",
 				appBaseUrl: "https://app.example",
 				createTimeoutMs: 100,
 				getAuthToken: async () => "workos:fresh",
 				fetch: async (input, init) => {
-					const path = new URL(String(input)).pathname;
+					requests.push(
+						`${init?.method ?? "GET"} ${new URL(String(input)).pathname}`,
+					);
 					if (init?.method === "POST") {
 						recoveryTitle = String(JSON.parse(String(init.body)).title);
 						return await new Promise<Response>((_resolve, reject) => {
@@ -319,25 +303,15 @@ describe("CloudSessionApi", () => {
 							);
 						});
 					}
-					if (path.endsWith("/status")) {
-						statusCalls += 1;
-						return jsonResponse({
-							success: true,
-							data: { sessionId: "ses-recovered", status: "ready" },
-						});
-					}
 					return jsonResponse({
 						success: true,
 						data: [
 							{
+								...REMOTE_SESSION,
 								id: "ses-recovered",
 								title: recoveryTitle,
 								status: "provisioning",
 								sandboxUrl: "",
-								repoContext: { repoUrl: "https://github.com/cline/test" },
-								metadata: { modelId: "anthropic/claude-sonnet-5" },
-								createdAt: now,
-								updatedAt: now,
 							},
 						],
 					});
@@ -353,7 +327,7 @@ describe("CloudSessionApi", () => {
 			await expect(creating).resolves.toMatchObject({
 				sessionId: "ses-recovered",
 			});
-			expect(statusCalls).toBe(0);
+			expect(requests).toEqual(["POST /api/v1/session", "GET /api/v1/session"]);
 		} finally {
 			vi.useRealTimers();
 		}
@@ -361,28 +335,18 @@ describe("CloudSessionApi", () => {
 
 	it("returns a failed recovered session without hiding its real id", async () => {
 		let recoveryTitle = "";
-		let deleted = false;
-		const now = new Date().toISOString();
+		const requests: string[] = [];
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
 			getAuthToken: async () => "workos:fresh",
 			fetch: async (input, init) => {
-				const path = new URL(String(input)).pathname;
+				requests.push(
+					`${init?.method ?? "GET"} ${new URL(String(input)).pathname}`,
+				);
 				if (init?.method === "POST") {
 					recoveryTitle = String(JSON.parse(String(init.body)).title);
 					return jsonResponse({ success: false, error: "gateway" }, 500);
-				}
-				if (init?.method === "DELETE") {
-					expect(path).toBe("/api/v1/session/ses-outer");
-					deleted = true;
-					return jsonResponse({ success: true, data: {} });
-				}
-				if (path.endsWith("/status")) {
-					return jsonResponse({
-						success: true,
-						data: { status: "failed", statusReason: "clone failed" },
-					});
 				}
 				return jsonResponse({
 					success: true,
@@ -391,8 +355,6 @@ describe("CloudSessionApi", () => {
 							...REMOTE_SESSION,
 							title: recoveryTitle,
 							status: "failed",
-							createdAt: now,
-							updatedAt: now,
 						},
 					],
 				});
@@ -405,7 +367,7 @@ describe("CloudSessionApi", () => {
 				repoUrl: REMOTE_SESSION.repoContext.repoUrl ?? "",
 			}),
 		).resolves.toMatchObject({ sessionId: "ses-outer", status: "failed" });
-		expect(deleted).toBe(false);
+		expect(requests).toEqual(["POST /api/v1/session", "GET /api/v1/session"]);
 	});
 
 	it("recovers a create accepted before a raw network failure", async () => {
