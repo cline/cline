@@ -1,17 +1,55 @@
-import { EmptyRequest, StringArrayRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest, type TaskItem } from "@shared/proto/cline/task"
+import { EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
+import { GetTaskHistoryRequest, SearchTaskHistoryRequest, TaskFavoriteRequest, type TaskItem, type TaskSearchHit } from "@shared/proto/cline/task"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
-import { FunnelIcon } from "lucide-react"
+import { FunnelIcon, SparklesIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { GroupedVirtuoso } from "react-virtuoso"
+import { GroupedVirtuoso, Virtuoso } from "react-virtuoso"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { cn } from "@/lib/utils"
 import { formatSize } from "@/utils/format"
 import ViewHeader from "../common/ViewHeader"
 import HistoryViewItem from "./HistoryViewItem"
+
+const ADVANCED_SEARCH_DEBOUNCE_MS = 300
+const ADVANCED_SEARCH_RESULT_LIMIT = 50
+
+/** Renders a backend snippet's `[...]`-bracketed match spans as highlighted text. */
+const AdvancedSearchSnippet = ({ snippet }: { snippet: string }) => {
+	const parts = snippet.split(/(\[[^\]]*\])/g)
+	return (
+		<>
+			{parts.map((part, i) => {
+				const isMatch = part.startsWith("[") && part.endsWith("]")
+				const key = `${i}-${part.slice(0, 8)}`
+				return isMatch ? (
+					<mark className="bg-button-background/30 text-foreground rounded-sm px-0.5" key={key}>
+						{part.slice(1, -1)}
+					</mark>
+				) : (
+					<span key={key}>{part}</span>
+				)
+			})}
+		</>
+	)
+}
+
+const AdvancedSearchResultItem = ({ hit, onSelect }: { hit: TaskSearchHit; onSelect: (id: string) => void }) => (
+	<button
+		className="w-full text-left px-4 py-3 border-b border-accent/10 hover:bg-list-hover cursor-pointer"
+		onClick={() => onSelect(hit.id)}
+		type="button">
+		<div className="text-sm font-medium truncate">{hit.title}</div>
+		{hit.snippet && (
+			<div className="text-xs text-description mt-1 line-clamp-2">
+				<AdvancedSearchSnippet snippet={hit.snippet} />
+			</div>
+		)}
+	</button>
+)
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -41,6 +79,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
 	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
+	const [advancedSearch, setAdvancedSearch] = useState(false)
+	const [advancedResults, setAdvancedResults] = useState<TaskSearchHit[]>([])
+	const [isAdvancedSearching, setIsAdvancedSearching] = useState(false)
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
@@ -268,6 +309,54 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			.finally(() => setDeleteAllDisabled(false))
 	}, [fetchTotalTasksSize, loadTaskHistory])
 
+	const handleShowAdvancedSearchResult = useCallback((id: string) => {
+		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
+			console.error("Error showing task:", error),
+		)
+	}, [])
+
+	// Advanced search: debounced full-text search across message content, backed by the
+	// searchTaskHistory RPC. Independent of the basic Fuse.js title search below — toggling
+	// Advanced off (or clearing the query) leaves the existing search path untouched.
+	useEffect(() => {
+		if (!advancedSearch || !searchQuery.trim()) {
+			setAdvancedResults([])
+			setIsAdvancedSearching(false)
+			return
+		}
+
+		let cancelled = false
+		setIsAdvancedSearching(true)
+		const timer = window.setTimeout(() => {
+			TaskServiceClient.searchTaskHistory(
+				SearchTaskHistoryRequest.create({ query: searchQuery, limit: ADVANCED_SEARCH_RESULT_LIMIT }),
+			)
+				.then((response) => {
+					if (cancelled) {
+						return
+					}
+					setAdvancedResults(response.hits || [])
+				})
+				.catch((error) => {
+					if (cancelled) {
+						return
+					}
+					console.error("Error searching task history:", error)
+					setAdvancedResults([])
+				})
+				.finally(() => {
+					if (!cancelled) {
+						setIsAdvancedSearching(false)
+					}
+				})
+		}, ADVANCED_SEARCH_DEBOUNCE_MS)
+
+		return () => {
+			cancelled = true
+			window.clearTimeout(timer)
+		}
+	}, [advancedSearch, searchQuery])
+
 	const fuse = useMemo(() => {
 		return new Fuse(tasks, {
 			keys: ["task"],
@@ -398,7 +487,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								setSortOption("mostRelevant")
 							}
 						}}
-						placeholder="Fuzzy search history..."
+						placeholder={advancedSearch ? "Search task content..." : "Fuzzy search history..."}
 						value={searchQuery}>
 						<div className="codicon codicon-search opacity-80 mt-0.5 !text-sm" slot="start" />
 						{searchQuery && (
@@ -410,6 +499,18 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							/>
 						)}
 					</VSCodeTextField>
+					<button
+						aria-label="Toggle advanced search"
+						aria-pressed={advancedSearch}
+						className={cn(
+							"border-0 cursor-pointer p-1 rounded shrink-0",
+							advancedSearch ? "bg-button-background/30 text-button-background" : "text-foreground opacity-80",
+						)}
+						onClick={() => setAdvancedSearch((prev) => !prev)}
+						title="Advanced search: search full task content, not just titles"
+						type="button">
+						<SparklesIcon className="!size-3.5" />
+					</button>
 					<Select
 						onValueChange={(value) => {
 							// Handle sort options
@@ -481,38 +582,54 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 			{/* HISTORY ITEMS */}
 			<div className="flex-grow overflow-y-auto m-0 w-full py-2">
-				<GroupedVirtuoso
-					className="flex-grow overflow-y-scroll"
-					components={{
-						Footer: () =>
-							hasMoreTasks ? (
-								<div className="px-4 py-3 text-center text-xs text-description">
-									{isLoadingHistory ? "Loading..." : ""}
-								</div>
-							) : null,
-					}}
-					endReached={loadMoreTaskHistory}
-					groupContent={(index) => (
-						<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
-							{groupLabels[index]}
-						</div>
-					)}
-					groupCounts={groupCounts}
-					itemContent={(index) => {
-						const item = groupedTasks[index]
-						return (
-							<HistoryViewItem
-								handleDeleteHistoryItem={handleDeleteHistoryItem}
-								handleHistorySelect={handleHistorySelect}
-								index={index}
-								item={item}
-								pendingFavoriteToggles={pendingFavoriteToggles}
-								selectedItems={selectedItems}
-								toggleFavorite={toggleFavorite}
-							/>
-						)
-					}}
-				/>
+				{advancedSearch && searchQuery.trim() ? (
+					isAdvancedSearching && advancedResults.length === 0 ? (
+						<div className="px-4 py-3 text-center text-xs text-description">Searching task content...</div>
+					) : advancedResults.length === 0 ? (
+						<div className="px-4 py-3 text-center text-xs text-description">No matches in task content.</div>
+					) : (
+						<Virtuoso
+							className="flex-grow overflow-y-scroll"
+							data={advancedResults}
+							itemContent={(_index, hit) => (
+								<AdvancedSearchResultItem hit={hit} key={hit.id} onSelect={handleShowAdvancedSearchResult} />
+							)}
+						/>
+					)
+				) : (
+					<GroupedVirtuoso
+						className="flex-grow overflow-y-scroll"
+						components={{
+							Footer: () =>
+								hasMoreTasks ? (
+									<div className="px-4 py-3 text-center text-xs text-description">
+										{isLoadingHistory ? "Loading..." : ""}
+									</div>
+								) : null,
+						}}
+						endReached={loadMoreTaskHistory}
+						groupContent={(index) => (
+							<div className="px-4 py-2 text-xs font-bold uppercase tracking-wide sticky top-0 z-10 text-description bg-sidebar-background border-b-border-panel">
+								{groupLabels[index]}
+							</div>
+						)}
+						groupCounts={groupCounts}
+						itemContent={(index) => {
+							const item = groupedTasks[index]
+							return (
+								<HistoryViewItem
+									handleDeleteHistoryItem={handleDeleteHistoryItem}
+									handleHistorySelect={handleHistorySelect}
+									index={index}
+									item={item}
+									pendingFavoriteToggles={pendingFavoriteToggles}
+									selectedItems={selectedItems}
+									toggleFavorite={toggleFavorite}
+								/>
+							)
+						}}
+					/>
+				)}
 			</div>
 
 			{/* FOOTER */}
