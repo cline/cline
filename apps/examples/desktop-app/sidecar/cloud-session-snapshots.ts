@@ -37,13 +37,16 @@ export function isRootSessionRow(record: JsonRecord): boolean {
 	).trim();
 }
 
-function messageText(message: unknown): string {
+function messageText(
+	message: unknown,
+	kind: "text" | "thinking" = "text",
+): string {
 	if (!message || typeof message !== "object" || Array.isArray(message)) {
 		return "";
 	}
 	const content = (message as JsonRecord).content;
 	if (typeof content === "string") {
-		return content.trim();
+		return kind === "text" ? content.trim() : "";
 	}
 	if (!Array.isArray(content)) {
 		return "";
@@ -51,7 +54,10 @@ function messageText(message: unknown): string {
 	return content
 		.map((part) =>
 			part && typeof part === "object" && !Array.isArray(part)
-				? String((part as JsonRecord).text ?? "")
+				? kind === "thinking" &&
+					(part as JsonRecord).type === "redacted_thinking"
+					? "[redacted]"
+					: String((part as JsonRecord)[kind] ?? "")
 				: "",
 		)
 		.join("")
@@ -128,7 +134,10 @@ const SUPERSEDABLE_CONTENT_EVENTS = new Set([
 	"reasoning.finished",
 ]);
 
-function assistantTexts(messages: unknown[]): string[] {
+function assistantTexts(
+	messages: unknown[],
+	kind: "text" | "thinking",
+): string[] {
 	return messages
 		.filter(
 			(message): message is JsonRecord =>
@@ -138,19 +147,20 @@ function assistantTexts(messages: unknown[]): string[] {
 				String((message as JsonRecord).role ?? "").toLowerCase() ===
 					"assistant",
 		)
-		.map(messageText)
+		.map((message) => messageText(message, kind))
 		.filter(Boolean);
 }
 
 function newlyPersistedAssistantTexts(
 	snapshotMessages: unknown[],
 	baselineMessages: unknown[],
+	kind: "text" | "thinking" = "text",
 ): string[] {
 	const baselineCounts = new Map<string, number>();
-	for (const text of assistantTexts(baselineMessages)) {
+	for (const text of assistantTexts(baselineMessages, kind)) {
 		baselineCounts.set(text, (baselineCounts.get(text) ?? 0) + 1);
 	}
-	return assistantTexts(snapshotMessages).filter((text) => {
+	return assistantTexts(snapshotMessages, kind).filter((text) => {
 		const count = baselineCounts.get(text) ?? 0;
 		if (count === 0) return true;
 		if (count === 1) baselineCounts.delete(text);
@@ -161,41 +171,47 @@ function newlyPersistedAssistantTexts(
 
 function collectToolCallIds(
 	value: unknown,
+	phase: "tool_use" | "tool_result",
 	result = new Set<string>(),
 ): Set<string> {
 	if (!value || typeof value !== "object") return result;
 	if (Array.isArray(value)) {
-		for (const item of value) collectToolCallIds(item, result);
+		for (const item of value) collectToolCallIds(item, phase, result);
 		return result;
 	}
 	const record = value as JsonRecord;
-	if (record.type === "tool_use" && typeof record.id === "string") {
-		result.add(record.id);
+	const id = phase === "tool_use" ? record.id : record.tool_use_id;
+	if (record.type === phase && typeof id === "string") {
+		result.add(id);
 	}
-	for (const key of ["toolCallId", "tool_call_id", "toolUseId"]) {
-		if (typeof record[key] === "string" && record[key]) {
-			result.add(record[key] as string);
-		}
-	}
-	for (const child of Object.values(record)) collectToolCallIds(child, result);
+	for (const child of Object.values(record))
+		collectToolCallIds(child, phase, result);
 	return result;
 }
 
-function streamedAssistantText(events: HubEventEnvelope[]): string {
+function streamedAssistantText(
+	events: HubEventEnvelope[],
+	kind: "assistant" | "reasoning" = "assistant",
+): string {
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const event = events[index];
+		const text = event.payload?.[kind === "assistant" ? "text" : "reasoning"];
 		if (
-			event.event === "assistant.finished" &&
-			typeof event.payload?.text === "string" &&
-			event.payload.text
+			event.event === `${kind}.finished` &&
+			typeof text === "string" &&
+			text
 		) {
-			return event.payload.text.trim();
+			return text.trim();
 		}
 	}
 	return events
-		.filter((event) => event.event === "assistant.delta")
+		.filter((event) => event.event === `${kind}.delta`)
 		.map((event) =>
-			typeof event.payload?.text === "string" ? event.payload.text : "",
+			kind === "reasoning" && event.payload?.redacted && !event.payload?.text
+				? "[redacted]"
+				: typeof event.payload?.text === "string"
+					? event.payload.text
+					: "",
 		)
 		.join("")
 		.trim();
@@ -224,7 +240,19 @@ export function reconcileBufferedCloudEvents(
 		snapshotMessages,
 		options.baselineMessages ?? [],
 	);
-	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
+	const unclaimedThinking = newlyPersistedAssistantTexts(
+		snapshotMessages,
+		options.baselineMessages ?? [],
+		"thinking",
+	);
+	const snapshotToolCallIds = collectToolCallIds(snapshotMessages, "tool_use");
+	const snapshotToolResultIds = collectToolCallIds(
+		snapshotMessages,
+		"tool_result",
+	);
+	const beforeTranscript = new Set(
+		events.slice(0, options.messagesSnapshotEventCutoff ?? events.length),
+	);
 	const reflectedSubmissions = new Set<HubEventEnvelope>();
 	const unclaimedUserCounts = new Map<string, number>();
 	for (const event of events.slice(
@@ -256,12 +284,22 @@ export function reconcileBufferedCloudEvents(
 
 	const flush = (terminal: boolean) => {
 		if (segment.length === 0) return;
-		const streamed = terminal ? streamedAssistantText(segment) : "";
+		const snapshotSegment = segment.filter((event) =>
+			beforeTranscript.has(event),
+		);
+		const streamed = terminal ? streamedAssistantText(snapshotSegment) : "";
 		const persistedIndex = streamed
 			? unclaimedAssistantTexts.findIndex((text) => text.endsWith(streamed))
 			: -1;
 		const contentPersisted = persistedIndex >= 0;
 		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
+		const thinking = terminal
+			? streamedAssistantText(snapshotSegment, "reasoning")
+			: "";
+		const thinkingIndex = thinking
+			? unclaimedThinking.findIndex((text) => text.endsWith(thinking))
+			: -1;
+		if (thinkingIndex >= 0) unclaimedThinking.splice(thinkingIndex, 1);
 		for (const event of segment) {
 			// Preserve the turn-start lifecycle; the UI must only skip its user bubble.
 			if (reflectedSubmissions.has(event)) {
@@ -271,7 +309,13 @@ export function reconcileBufferedCloudEvents(
 				});
 				continue;
 			}
-			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
+			if (
+				beforeTranscript.has(event) &&
+				SUPERSEDABLE_CONTENT_EVENTS.has(event.event) &&
+				(event.event.startsWith("reasoning.")
+					? thinkingIndex >= 0
+					: contentPersisted)
+			) {
 				continue;
 			}
 			if (
@@ -281,9 +325,14 @@ export function reconcileBufferedCloudEvents(
 				continue;
 			}
 			// Keep terminal events: run.failed may carry the only error detail.
-			if (event.event.startsWith("tool.")) {
+			if (beforeTranscript.has(event) && event.event.startsWith("tool.")) {
 				const toolCallId = String(event.payload?.toolCallId ?? "").trim();
-				if (toolCallId && snapshotToolCallIds.has(toolCallId)) continue;
+				if (
+					snapshotToolResultIds.has(toolCallId) ||
+					(event.event === "tool.started" &&
+						snapshotToolCallIds.has(toolCallId))
+				)
+					continue;
 			}
 			reconciled.push(event);
 		}
