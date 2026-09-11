@@ -1008,9 +1008,13 @@ function formatStructuredCommand(command: unknown): string {
 	if (typeof command === "string") return command
 	if (command && typeof command === "object" && !Array.isArray(command)) {
 		const record = command as Record<string, unknown>
-		if (typeof record.command === "string") {
+		// Accept both `command` and its `cmd` alias — models emit either, and the
+		// run_commands schema normalizes `cmd` to `command`, so the preview must too
+		// (otherwise an aliased entry renders as `[object Object]`).
+		const name = typeof record.command === "string" ? record.command : typeof record.cmd === "string" ? record.cmd : undefined
+		if (name !== undefined) {
 			const args = Array.isArray(record.args) ? record.args.map(String) : []
-			return args.length > 0 ? `${record.command} ${args.join(" ")}` : record.command
+			return args.length > 0 ? `${name} ${args.join(" ")}` : name
 		}
 	}
 	return String(command)
