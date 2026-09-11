@@ -554,6 +554,7 @@ export function useChatSession() {
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
+	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
 	const [config, setConfig] = useState<ChatSessionConfig>(getInitialChatConfig);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
@@ -2429,6 +2430,7 @@ export function useChatSession() {
 				throw new Error("Missing resolved workspace from server");
 			}
 			setSessionId(id);
+			setIsCloudSessionExpired(false);
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
 			// actually dispatched.
@@ -2501,6 +2503,7 @@ export function useChatSession() {
 	// the turn began) so the caller can hand the text back to the composer.
 	const sendPrompt = useCallback(
 		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
+			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
 
@@ -3265,6 +3268,7 @@ export function useChatSession() {
 			config,
 			finalizeSettledTurn,
 			hydratedHistorySessionId,
+			isCloudSessionExpired,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
 			sessionId,
@@ -3450,6 +3454,7 @@ export function useChatSession() {
 		setSessionId(null);
 		setStatus("idle");
 		setIsHydratingSession(false);
+		setIsCloudSessionExpired(false);
 		abortedRef.current = false;
 		clearAbortFallbackTimeout();
 		discardPendingStream();
@@ -3509,6 +3514,9 @@ export function useChatSession() {
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
+			setIsCloudSessionExpired(
+				session.origin === "cloud" && session.status === "expired",
+			);
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
@@ -3652,6 +3660,17 @@ export function useChatSession() {
 						session.cwd ||
 						prev.cwd,
 				}));
+				if (
+					session.origin === "cloud" &&
+					(attached?.status || session.status) === "expired"
+				) {
+					setIsCloudSessionExpired(true);
+					setError(
+						historyMessages.length > 0
+							? "This cloud session has expired. Start a new cloud session to continue."
+							: "This cloud session has expired and no archived history is available. Start a new cloud session to continue.",
+					);
+				}
 
 				if (historyMessages.length > 0) {
 					setStatus(
@@ -3836,6 +3855,7 @@ export function useChatSession() {
 	return {
 		sessionId,
 		status,
+		isCloudSessionExpired,
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
