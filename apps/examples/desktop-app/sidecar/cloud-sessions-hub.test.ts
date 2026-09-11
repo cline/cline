@@ -1,3 +1,4 @@
+import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -375,7 +376,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		);
 	});
 
-	it("uses unique Hub client ids and subscribes only to the inner session", async () => {
+	it("uses unique Hub client ids and keeps subscriptions session-scoped", async () => {
 		const clientIds: string[] = [];
 		const hubs = [new FakeHubClient(), new FakeHubClient()];
 		for (const hub of hubs) {
@@ -395,9 +396,144 @@ describe("CloudSessionManager Hub runtime", () => {
 			expect.stringMatching(/^code-cloud-ses-outer-/),
 		]);
 		expect(hubs.map((hub) => hub.subscriptionSessionIds)).toEqual([
-			["inner-1"],
-			["inner-1"],
+			["ses-outer", "inner-1"],
+			["ses-outer", "inner-1"],
 		]);
+	});
+
+	it("resolves the Hub session by the server task id", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "session.get") {
+				hub.commands.push({ command, payload, sessionId, options });
+				return { ok: true, payload: { session: { sessionId: "task-1" } } };
+			}
+			return await originalCommand(command, payload, sessionId, options);
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: { ...REMOTE_SESSION.metadata, taskId: "task-1" },
+					},
+				],
+			} as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		expect(hub.commands[0]).toMatchObject({
+			command: "session.get",
+			payload: { sessionId: "task-1" },
+			sessionId: "task-1",
+		});
+		expect(hub.commands.some(({ command }) => command === "session.list")).toBe(
+			false,
+		);
+	});
+
+	it("keeps a scoped client alive after the initial WebSocket fails", async () => {
+		const { ctx } = createContext();
+		const hub = new (class extends FakeHubClient {
+			override async connect(): Promise<void> {
+				throw new HubTransportError("hub_connect_failed", "pod starting");
+			}
+		})();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		await expect(manager.attach("ses-outer")).resolves.toMatchObject({
+			sessionId: "ses-outer",
+		});
+		expect(hub.disposed).toBe(false);
+		expect(hub.subscriptionSessionIds.at(-1)).toBe("ses-outer");
+		await manager.dispose();
+	});
+
+	it("waits for the initial root lookup when attach and send overlap", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command === "session.list") await blocked;
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		const attach = manager.attach("ses-outer");
+		await vi.waitFor(() =>
+			expect(
+				hub.commands.some((entry) => entry.command === "session.list"),
+			).toBe(true),
+		);
+		const send = manager.send("ses-outer", "hello");
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const created = hub.commands.some(
+			(entry) => entry.command === "session.create",
+		);
+		release();
+		await Promise.all([attach, send]);
+		await manager.dispose();
+		expect(created).toBe(false);
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-1",
+			}),
+		);
+	});
+
+	it("preserves initial send transport errors and resolves the root on retry", async () => {
+		const { ctx } = createContext();
+		let offline = true;
+		const hub = new (class extends FakeHubClient {
+			override async connect() {
+				if (offline)
+					throw new HubTransportError("hub_connect_failed", "pod starting");
+			}
+		})();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
+			"pod starting",
+		);
+		expect(hub.disposed).toBe(false);
+		offline = false;
+		await manager.send("ses-outer", "retry");
+		expect(
+			hub.commands.some((entry) => entry.command === "session.create"),
+		).toBe(false);
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-1",
+			}),
+		);
+		await manager.dispose();
 	});
 
 	it("drops replayed Hub events by eventId", async () => {
@@ -436,14 +572,37 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(await hub.resolveHeaders?.()).toEqual({
 			Authorization: "Bearer workos:first",
 		});
+		hub.listedSessions = [{ sessionId: "inner-replacement", updatedAt: 30 }];
+		const commandIndex = hub.commands.length;
 		expect(await hub.resolveHeaders?.()).toEqual({
 			Authorization: "Bearer workos:refreshed",
 		});
+		await manager.send("ses-outer", "after reconnect");
 		await vi.waitFor(() => {
 			expect(
-				hub.commands.some((entry) => entry.command === "session.get"),
+				hub.commands.some(
+					(entry) =>
+						entry.command === "session.attach" &&
+						entry.sessionId === "inner-replacement",
+				),
 			).toBe(true);
 		});
+		const commandsAfterReconnect = hub.commands
+			.slice(commandIndex)
+			.filter(
+				(entry) =>
+					entry.command === "session.attach" ||
+					entry.command === "session.send_input",
+			);
+		expect(commandsAfterReconnect).not.toContainEqual(
+			expect.objectContaining({ sessionId: "inner-1" }),
+		);
+		expect(commandsAfterReconnect).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-replacement",
+			}),
+		);
 		expect(
 			events.some(
 				(event) =>
@@ -451,6 +610,49 @@ describe("CloudSessionManager Hub runtime", () => {
 					event.payload.sessionId === "ses-outer",
 			),
 		).toBe(true);
+	});
+
+	it("waits for reconnect lookup before creating an inner session for a send", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let resolveHeaders: (() => unknown) | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		await resolveHeaders?.();
+		let releaseLookup!: () => void;
+		const lookupPending = new Promise<void>((resolve) => {
+			releaseLookup = resolve;
+		});
+		hub.commandHook = async (command) => {
+			if (command === "session.list") await lookupPending;
+		};
+		hub.listedSessions = [{ sessionId: "inner-replacement", updatedAt: 30 }];
+		await resolveHeaders?.();
+		const send = manager.send("ses-outer", "during reconnect");
+		// Let the send reach the connection while its root lookup is blocked.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const createdDuringLookup = hub.commands.some(
+			(entry) => entry.command === "session.create",
+		);
+		releaseLookup();
+		await send;
+		await manager.dispose();
+		expect(createdDuringLookup).toBe(false);
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.send_input",
+				sessionId: "inner-replacement",
+			}),
+		);
 	});
 
 	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
@@ -486,6 +688,54 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(
 			events.some((event) => event.name === "cloud_session_sync_failed"),
 		).toBe(true);
+	});
+
+	it("stops reconnecting when the sandbox is reconciled to failed", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let reconciled = false;
+		let resolveHeaders:
+			| (() =>
+					| Readonly<Record<string, string>>
+					| Promise<Readonly<Record<string, string>>>)
+			| undefined;
+		hub.commandHook = (command) => {
+			if (reconciled && command === "session.get") {
+				throw new Error("rehydration failed");
+			}
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						status: reconciled ? "failed" : "ready",
+					},
+				],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		const live = ctx.liveSessions.get("ses-outer");
+		expect(live).toBeDefined();
+		if (!live) throw new Error("missing live cloud session");
+		live.busy = true;
+		live.status = "running";
+		await resolveHeaders?.();
+		reconciled = true;
+		await resolveHeaders?.();
+
+		await vi.waitFor(() => expect(hub.disposed).toBe(true));
+		expect(live.busy).toBe(false);
+		expect(live.status).toBe("failed");
+		expect(live.endedAt).toBeDefined();
 	});
 
 	it("maps cloud approvals into the existing UI and responds on the inner id", async () => {
@@ -638,7 +888,12 @@ describe("CloudSessionManager Hub runtime", () => {
 		const { manager, hub } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
-				list: async () => [],
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: { ...REMOTE_SESSION.metadata, taskId: "task-created" },
+					},
+				],
 				create: async () => ({
 					sessionId: "ses-outer",
 					status: "provisioning",
@@ -667,6 +922,7 @@ describe("CloudSessionManager Hub runtime", () => {
 				payload: expect.objectContaining({
 					workspaceRoot: "/workspace",
 					sessionConfig: expect.objectContaining({
+						sessionId: "task-created",
 						thinking: true,
 						reasoningEffort: "high",
 					}),
