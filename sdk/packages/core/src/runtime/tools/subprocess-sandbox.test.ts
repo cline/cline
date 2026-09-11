@@ -1,10 +1,30 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	buildSubprocessSandboxCommand,
 	CLINE_JS_RUNTIME_PATH_ENV,
 	resolveSubprocessRuntimeExecutable,
 	SubprocessSandbox,
 } from "./subprocess-sandbox";
+
+const lifecycleBootstrapScript = [
+	"const generation = process.pid + ':' + Date.now() + ':' + Math.random();",
+	"let held;",
+	"process.on('message', (m) => {",
+	"  if (!m || m.type !== 'call') return;",
+	"  if (m.method === 'hold') { held = m; return; }",
+	"  const respond = (request) => process.send({ type: 'response', id: request.id, ok: true, result: { pid: process.pid, generation } });",
+	"  if (m.method === 'release') {",
+	"    if (held) { respond(held); held = undefined; }",
+	"    respond(m);",
+	"    return;",
+	"  }",
+	"  respond(m);",
+	"});",
+].join("\n");
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe("SubprocessSandbox runtime resolution", () => {
 	it("uses process execPath when it is a JavaScript runtime", () => {
@@ -111,6 +131,90 @@ describe("SubprocessSandbox call", () => {
 
 			await expect(slowCall).resolves.toEqual({ ok: true });
 		} finally {
+			await sandbox.shutdown();
+		}
+	}, 20_000);
+});
+
+describe("SubprocessSandbox idle lifecycle", () => {
+	it("reclaims every child across multiple idle sandboxes", async () => {
+		vi.useFakeTimers();
+		const sandboxes = Array.from(
+			{ length: 4 },
+			(_, index) =>
+				new SubprocessSandbox({
+					name: `sandbox-idle-population-${index}`,
+					bootstrapScript: lifecycleBootstrapScript,
+					idleTimeoutMs: 1000,
+				}),
+		);
+
+		try {
+			const firstGeneration = await Promise.all(
+				sandboxes.map((sandbox) =>
+					sandbox.call<{ generation: string }>("pid", {}),
+				),
+			);
+
+			await vi.advanceTimersByTimeAsync(1001);
+
+			const secondGeneration = await Promise.all(
+				sandboxes.map((sandbox) =>
+					sandbox.call<{ generation: string }>("pid", {}),
+				),
+			);
+			for (const [index, current] of secondGeneration.entries()) {
+				expect(current.generation).not.toBe(firstGeneration[index]?.generation);
+			}
+		} finally {
+			vi.useRealTimers();
+			await Promise.all(sandboxes.map((sandbox) => sandbox.shutdown()));
+		}
+	}, 20_000);
+
+	it("shuts down an idle child and transparently starts a new generation", async () => {
+		vi.useFakeTimers();
+		const sandbox = new SubprocessSandbox({
+			name: "sandbox-idle-test",
+			bootstrapScript: lifecycleBootstrapScript,
+			idleTimeoutMs: 1000,
+		});
+
+		try {
+			const first = await sandbox.call<{
+				pid: number;
+				generation: string;
+			}>("pid", {});
+
+			await vi.advanceTimersByTimeAsync(1001);
+
+			const second = await sandbox.call<{ generation: string }>("pid", {});
+			expect(second.generation).not.toBe(first.generation);
+		} finally {
+			vi.useRealTimers();
+			await sandbox.shutdown();
+		}
+	}, 20_000);
+
+	it("does not shut down while calls are pending", async () => {
+		vi.useFakeTimers();
+		const sandbox = new SubprocessSandbox({
+			name: "sandbox-pending-idle-test",
+			bootstrapScript: lifecycleBootstrapScript,
+			idleTimeoutMs: 1000,
+		});
+
+		try {
+			const initial = await sandbox.call<{ pid: number }>("pid", {});
+			const heldCall = sandbox.call<{ pid: number }>("hold", {});
+
+			await vi.advanceTimersByTimeAsync(5000);
+
+			const release = await sandbox.call<{ pid: number }>("release", {});
+			await expect(heldCall).resolves.toMatchObject({ pid: initial.pid });
+			expect(release.pid).toBe(initial.pid);
+		} finally {
+			vi.useRealTimers();
 			await sandbox.shutdown();
 		}
 	}, 20_000);

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeDesktopDebugLog } from "./desktop-client";
 
 type SentDesktopRequest = {
 	id: string;
 	command: string;
+	args?: Record<string, unknown>;
 };
 
 class FakeWebSocket {
@@ -97,6 +99,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	vi.clearAllTimers();
 	vi.useRealTimers();
 	globalThis.WebSocket = originalWebSocket;
@@ -105,6 +108,50 @@ afterEach(() => {
 });
 
 describe("DesktopClient command deadlines", () => {
+	it("sends the displayed revision for Agenda approval, cancellation, and run", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const approval = desktopClient.approveAgendaTask({
+			taskId: "task-7",
+			expectedRevision: 7,
+		});
+		const socket = await connectLatestSocket();
+		expect(socket.lastRequest()).toMatchObject({
+			command: "task.approve",
+			args: { taskId: "task-7", expectedRevision: 7 },
+		});
+		socket.respond({ task: {} });
+		await approval;
+
+		const cancellation = desktopClient.cancelAgendaTask({
+			taskId: "task-7",
+			expectedRevision: 7,
+			reason: "Superseded",
+		});
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(2));
+		expect(socket.lastRequest()).toMatchObject({
+			command: "task.cancel",
+			args: {
+				taskId: "task-7",
+				expectedRevision: 7,
+				reason: "Superseded",
+			},
+		});
+		socket.respond({ task: {} });
+		await cancellation;
+
+		const run = desktopClient.runAgendaTask({
+			taskId: "task-7",
+			expectedRevision: 7,
+		});
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(3));
+		expect(socket.lastRequest()).toMatchObject({
+			command: "task.run",
+			args: { taskId: "task-7", expectedRevision: 7 },
+		});
+		socket.respond({ task: {} });
+		await run;
+	});
+
 	it("reports the same error object only once across local and global handlers", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const error = new Error("native command failed");
@@ -314,5 +361,49 @@ describe("DesktopClient command deadlines", () => {
 				}
 			).pending.size,
 		).toBe(0);
+	});
+});
+
+describe("writeDesktopDebugLog", () => {
+	it.each([
+		"debug",
+		"info",
+		"error",
+	] as const)("prints valid %s sidecar diagnostics with a static format string", (level) => {
+		const consoleSpy = vi.spyOn(console, level).mockImplementation(() => {});
+
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level,
+			message: "Starting audio transcription",
+			timestamp: "2026-07-28T00:00:00.000Z",
+			metadata: {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+				endpoint: "https://ai-gateway.vercel.sh/v1/ai/transcription-model",
+			},
+		});
+
+		expect(consoleSpy).toHaveBeenCalledWith(
+			"%s %o",
+			"[desktop:voice-input] Starting audio transcription",
+			expect.objectContaining({
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+				endpoint: "https://ai-gateway.vercel.sh/v1/ai/transcription-model",
+			}),
+		);
+	});
+
+	it("ignores malformed debug events", () => {
+		const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "verbose",
+			message: "invalid",
+		});
+
+		expect(debugSpy).not.toHaveBeenCalled();
 	});
 });

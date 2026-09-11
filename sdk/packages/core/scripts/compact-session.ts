@@ -5,7 +5,10 @@ import { extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { MessageWithMetadata } from "@cline/shared";
 import { createContextCompactionPrepareTurn } from "../src/extensions/context/compaction";
-import { getCompactionSummaryMetadata } from "../src/extensions/context/compaction-shared";
+import {
+	DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+	getCompactionSummaryMetadata,
+} from "../src/extensions/context/compaction-shared";
 import { normalizeStoredMessagesForPersistence } from "../src/services/session-data";
 import type { ProviderConfig } from "../src/types/provider-settings";
 
@@ -33,7 +36,7 @@ Options:
 	                              (agentic compaction only)
   --base-url <url>            Custom provider base URL
   --max-input-tokens <count>  Summarizer input limit (default: 128000)
-  --max-output-tokens <count> Summarizer output limit (default: 1024)
+  --max-output-tokens <count> Summarizer output limit (default: 4096)
   --preserve-recent-tokens <count>
                               Verbatim tail to retain (default: 0)
 	  --output <path>             Write canonical compacted messages JSON. With
@@ -192,7 +195,7 @@ const maxInputTokens = positiveInteger(
 const maxOutputTokens = positiveInteger(
 	values["max-output-tokens"],
 	"--max-output-tokens",
-	1_024,
+	DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
 );
 const preserveRecentTokens = nonNegativeInteger(
 	values["preserve-recent-tokens"],

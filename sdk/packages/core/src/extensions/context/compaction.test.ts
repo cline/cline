@@ -1182,7 +1182,172 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
 		expect(codexConfig.thinking).toBe(false);
-		expect(anthropicConfig.maxOutputTokens).toBe(1_024);
+		expect(anthropicConfig.maxOutputTokens).toBe(4_096);
+	});
+
+	it("resolves the summarizer output budget from explicit config, else the default clamped by model metadata", () => {
+		// An explicit value is user/product intent and wins as-is (the gateway
+		// still clamps against model limits and remaining context per request).
+		const explicitWins = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				maxOutputTokens: 16_000,
+				modelInfo: { id: "local-model", maxTokens: 8_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(explicitWins.maxOutputTokens).toBe(16_000);
+
+		// Model metadata is reported capability, not a request default: it only
+		// ever lowers the default, never raises it.
+		const clampedByModelInfo = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				modelInfo: { id: "local-model", maxTokens: 2_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(clampedByModelInfo.maxOutputTokens).toBe(2_000);
+
+		const notRaisedByModelInfo = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				modelInfo: { id: "local-model", maxTokens: 64_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(notRaisedByModelInfo.maxOutputTokens).toBe(4_096);
+
+		const clampedByKnownModels = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				knownModels: {
+					"local-model": { id: "local-model", maxTokens: 3_000 },
+				},
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(clampedByKnownModels.maxOutputTokens).toBe(3_000);
+
+		const fromDefault = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(fromDefault.maxOutputTokens).toBe(4_096);
+	});
+
+	it("clamps an explicit summarizer's default budget by its own model info but lets its explicit value win", () => {
+		const clamped = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxTokens: 2_000 },
+			},
+		});
+		expect(clamped.maxOutputTokens).toBe(2_000);
+
+		const explicitWins = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxTokens: 2_000 },
+				maxOutputTokens: 6_000,
+			},
+		});
+		expect(explicitWins.maxOutputTokens).toBe(6_000);
+	});
+
+	it("skips with a diagnostic warning when the summarizer only produced reasoning output", async () => {
+		// Repro for CLINE-2911: a reasoning model can spend the entire output
+		// budget thinking. Reasoning chunks are discarded, so no summary text
+		// arrives and compaction is skipped — that skip must be diagnosable.
+		const logger = { debug: vi.fn(), log: vi.fn() };
+		const emitStatusNotice = vi.fn();
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "reasoning",
+						id: "summary-think",
+						reasoning: "thinking about the summary...",
+					},
+					{
+						type: "done",
+						id: "summary-think",
+						success: true,
+						incompleteReason: "max_output_tokens",
+					},
+				]),
+			),
+		});
+
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "openai",
+			modelId: "local-reasoner",
+			providerConfig: {
+				providerId: "openai",
+				modelId: "local-reasoner",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "local-reasoner",
+				provider: "openai",
+				info: { id: "local-reasoner", maxInputTokens: 10 },
+			},
+			emitStatusNotice,
+		});
+
+		expect(result).toBeUndefined();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"auto-compaction-skipped",
+			expect.objectContaining({ phase: "skipped" }),
+		);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Skipped agentic compaction: summarizer returned no summary text",
+			expect.objectContaining({
+				severity: "warn",
+				reasoningChars: "thinking about the summary...".length,
+				incompleteReason: "max_output_tokens",
+				likelyCause: "output_budget_consumed_by_reasoning",
+			}),
+		);
 	});
 
 	it("preserves summarizer modelInfo without a nested providerConfig", () => {

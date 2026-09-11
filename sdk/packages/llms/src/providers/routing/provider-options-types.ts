@@ -5,6 +5,7 @@ import type {
 import type { ProviderOptionsPatch } from "./utils";
 
 export type AiSdkProviderOptionsTarget =
+	| "cline"
 	| "openai"
 	| "openai-compatible"
 	| "anthropic"
@@ -60,6 +61,9 @@ export function inferProviderOptionsTarget(
 	providerId: string,
 ): AiSdkProviderOptionsTarget {
 	switch (providerId) {
+		case "cline":
+		case "cline-pass":
+			return "cline";
 		case "openai-native":
 			return "openai";
 		case "anthropic":

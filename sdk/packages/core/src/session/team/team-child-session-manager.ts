@@ -50,9 +50,9 @@ export class TeamChildSessionManager {
 		private readonly adapter: SessionPersistenceAdapter,
 		private readonly manifestStore: SessionManifestStore,
 		private readonly toPersistedMessages: (
-			messages: LlmsProviders.Message[] | undefined,
+			messages: LlmsProviders.MessageWithMetadata[] | undefined,
 			result?: AgentResult,
-			previousMessages?: LlmsProviders.Message[],
+			previousMessages?: LlmsProviders.MessageWithMetadata[],
 		) => StoredMessageWithMetadata[] | undefined,
 		private readonly heartbeatLogIntervalMs: number,
 	) {}
@@ -89,7 +89,7 @@ export class TeamChildSessionManager {
 		return {
 			sessionId: opts.sessionId,
 			source: root.source,
-			pid: process.ppid,
+			pid: root.pid,
 			startedAt: opts.startedAt,
 			endedAt: null,
 			exitCode: null,
@@ -310,7 +310,7 @@ export class TeamChildSessionManager {
 		status: SessionStatus,
 		_summary?: string,
 		result?: AgentResult,
-		messages?: LlmsProviders.Message[],
+		messages?: LlmsProviders.MessageWithMetadata[],
 	): Promise<void> {
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key);

@@ -16,6 +16,7 @@ sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
+├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
@@ -49,7 +50,7 @@ const sessionManager = await ClineCore.create({
     workspaceRoot,
     cwd: workspaceRoot,
     clientType: "code-sidecar",
-    displayName: "Code App sidecar",
+    displayName: "Cline Desktop sidecar",
   },
   capabilities: {
     requestToolApproval: async (request) => {
@@ -80,6 +81,15 @@ sessionManager.subscribe((event) => {
 The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
 the desktop start the same detached Hub when no CLI process has started it yet.
 Startup discovery and locking ensure concurrent clients converge on one Hub.
+
+Every create, restart, fork, and restore also attaches the serializable Desktop
+`ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
+that context across the Hub transport and scopes the daemon-owned telemetry
+service to the originating surface. This keeps lifecycle events centralized in
+Core while reporting Desktop dimensions (`cline_type: "desktop"`, `platform:
+"Cline Desktop"`, and the Desktop app version) and the current account and
+organization. The shared Hub telemetry singleton is never mutated per session,
+so concurrent CLI and Desktop tasks retain their own attribution.
 
 ### 2. Tool Approval — Client-Owned Promise Resolution
 
@@ -134,6 +144,17 @@ The frontend `desktop-client.ts` connects directly to the sidecar WebSocket:
 
 ## Command Map
 
+The model picker first uses `list_provider_catalog`, which reads the bundled and
+registered models without network access. It then calls `list_provider_models`
+for the active provider, both on mount and when the provider changes. All built-in
+providers backed by the shared catalog refresh from the live feed (including
+OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
+Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
+discovery endpoints instead. Catalog and public endpoint requests time out after
+five seconds, and the initial picker remains usable while a refresh is pending.
+The sidecar omits bundled `knownModels` from the discovery config so they cannot
+override live metadata; explicitly registered model overrides retain precedence.
+
 Supported commands:
 
 | Command | Implementation |
@@ -141,6 +162,9 @@ Supported commands:
 | `chat_session_command` | shared Hub through `ClineCore` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `save_voice_input_settings` | validates and persists the selected transcription provider/model |
+| `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
+| `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
@@ -162,6 +186,8 @@ Supported commands:
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
+| `poll_ask_questions` | In-memory pending map |
+| `respond_ask_question` | In-memory promise resolution |
 | `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
@@ -170,7 +196,8 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
+bun run dev:headless  # Start sidecar and Next.js with a fresh shared approval credential
+bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
+bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```

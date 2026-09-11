@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	getLiveModelsCatalog,
+	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
 
@@ -10,6 +12,66 @@ afterEach(() => {
 	clearPrivateModelsCatalogCache();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
+});
+
+describe("isPrivateModelCatalogProvider", () => {
+	it.each([
+		"baseten",
+		"hicap",
+		"litellm",
+		"poolside",
+	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
+	});
+
+	it.each([
+		"openrouter",
+		"requesty",
+		"anthropic",
+	])("does not classify %s as endpoint-specific", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
+});
+
+describe("live catalog request bounds", () => {
+	it("aborts stalled sources and returns a fallback catalog", async () => {
+		const controllers: AbortController[] = [];
+		const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+			const controller = new AbortController();
+			controllers.push(controller);
+			return controller.signal;
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				(_input, init: RequestInit) =>
+					new Promise((_resolve, reject) => {
+						init.signal?.addEventListener(
+							"abort",
+							() => reject(init.signal?.reason),
+							{ once: true },
+						);
+					}),
+			),
+		);
+		const pending = getLiveModelsCatalog();
+		expect(controllers.length).toBeGreaterThan(0);
+		expect(timeout).toHaveBeenCalledWith(5_000);
+		for (const controller of controllers) controller.abort();
+		await expect(pending).resolves.toEqual({});
+	});
+
+	it("refreshes the shared feed after its cache expires", async () => {
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const fetchMock = vi.fn(async () => Response.json({}));
+		vi.stubGlobal("fetch", fetchMock);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		now.mockReturnValue(1_101);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+	});
 });
 
 describe("resolveProviderConfig", () => {
@@ -56,6 +118,77 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["vendor/live-only-model"]?.name).toBe(
 			"Live Only Model",
 		);
+	});
+
+	it("filters image-output models from the merged Cline catalog", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-chat-model": {
+									name: "Live Chat Model",
+									tool_call: true,
+								},
+								"vendor/live-image-model": {
+									name: "Live Image Model",
+									tool_call: true,
+									modalities: {
+										input: ["text", "image"],
+										output: ["text", "image"],
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}),
+		);
+
+		const resolved = await resolveProviderConfig(
+			"cline",
+			{
+				loadLatestOnInit: true,
+				failOnError: false,
+				cacheTtlMs: 0,
+			},
+			{
+				providerId: "cline",
+				modelId: "vendor/live-chat-model",
+				knownModels: {
+					"vendor/custom-image-model": {
+						id: "vendor/custom-image-model",
+						name: "Custom Image Model",
+						modalities: {
+							input: ["text"],
+							output: ["image"],
+						},
+					},
+					"vendor/custom-image-operation-model": {
+						id: "vendor/custom-image-operation-model",
+						name: "Custom Image Operation Model",
+						operation: "image-generation",
+					},
+				},
+			},
+		);
+
+		expect(resolved?.knownModels?.["vendor/live-chat-model"]?.name).toBe(
+			"Live Chat Model",
+		);
+		expect(resolved?.knownModels?.["vendor/live-image-model"]).toBeUndefined();
+		expect(
+			resolved?.knownModels?.["vendor/custom-image-model"],
+		).toBeUndefined();
+		expect(
+			resolved?.knownModels?.["vendor/custom-image-operation-model"],
+		).toBeUndefined();
 	});
 
 	it("uses only live Cline recommended models for ClinePass when live models are found", async () => {
@@ -431,7 +564,7 @@ describe("resolveProviderConfig", () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			"http://tailscale-host:11434/api/tags",
-			{ method: "GET" },
+			{ method: "GET", signal: expect.any(AbortSignal) },
 		);
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
@@ -513,6 +646,8 @@ describe("resolveProviderConfig", () => {
 								model_name: "private-proxy-model",
 								litellm_params: { model: "openai/gpt-4o-mini" },
 								model_info: {
+									max_output_tokens: 64_000,
+									max_input_tokens: 500_000,
 									supports_vision: true,
 									supports_reasoning: true,
 								},
@@ -543,12 +678,16 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
 		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
@@ -627,13 +766,17 @@ describe("resolveProviderConfig", () => {
 		const openAiResolved = await resolveProviderConfig("openai-native");
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
 
-		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.5", "gpt-5.4"]));
+		expect(modelIds).toEqual(
+			expect.arrayContaining(["gpt-5.5", "gpt-5.6-terra", "gpt-6-astra"]),
+		);
 		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.4");
+		expect(modelIds).not.toContain("gpt-5.4-mini");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(modelIds).not.toContain("gpt-5.6");
 		expect(modelIds).not.toContain("o3");
-		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 		expect(resolved?.knownModels?.["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiResolved?.knownModels?.["gpt-5.5"],
@@ -651,23 +794,24 @@ describe("resolveProviderConfig", () => {
 			{ cacheTtlMs: 1 },
 			{
 				providerId: "openai-codex",
-				modelId: "gpt-5.4",
+				modelId: "gpt-5.6-terra",
 				apiKey: "oauth-token",
 				accountId: "acct_123",
 			},
 		);
 
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
-			expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini", "gpt-5.5"]),
+			expect.arrayContaining(["gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"]),
 		);
-		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
+		expect(resolved?.knownModels?.["gpt-5.6-luna"]).toEqual(
 			expect.objectContaining({
-				name: "GPT-5.4 mini",
-				// catalog input cap scaled to the 95% effective Codex budget
+				name: "GPT-5.6 Luna",
+				// Codex backend caps, scaled to the 95% effective budget
 				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
 			}),
 		);
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
 });

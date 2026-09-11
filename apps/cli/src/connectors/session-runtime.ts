@@ -235,9 +235,7 @@ export async function getOrCreateSessionId<
 				transport: input.transport,
 				threadId: input.thread.id,
 				sessionId: existing,
-				...(existingSession?.status
-					? { status: existingSession.status }
-					: {}),
+				...(existingSession?.status ? { status: existingSession.status } : {}),
 			},
 		);
 	}

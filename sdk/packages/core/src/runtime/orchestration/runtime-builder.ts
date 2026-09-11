@@ -1,7 +1,9 @@
+import { supportsModelTool } from "@cline/llms";
 import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
@@ -10,7 +12,12 @@ import {
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
-import { createUserInstructionConfigService } from "../../extensions/config";
+import type { AgentPluginPackageMcpServer } from "../../extensions/agent-plugin";
+import {
+	combineUserInstructionConfigServices,
+	createUserInstructionConfigService,
+	type UserInstructionConfigService,
+} from "../../extensions/config";
 import {
 	createDefaultMcpServerClientFactory,
 	createMcpTools,
@@ -22,6 +29,7 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	type RunCommandExecutionController,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -41,6 +49,7 @@ import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configur
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
+	isModelToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -138,6 +147,7 @@ function createBuiltinToolsList(
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
+	runCommandExecutionController?: RunCommandExecutionController,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -151,6 +161,9 @@ function createBuiltinToolsList(
 		createBuiltinTools({
 			cwd,
 			telemetry,
+			executorOptions: {
+				bash: { executionController: runCommandExecutionController },
+			},
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
@@ -190,34 +203,75 @@ function isSkillsToolEnabledForSession(input: {
 
 const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 
-async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
+async function loadConfiguredMcpTools(options: {
+	logger?: BasicLogger;
+	includeSettings: boolean;
+	agentPluginServers?: ReadonlyArray<AgentPluginPackageMcpServer>;
+}): Promise<{
 	tools: AgentTool[];
 	shutdown?: () => Promise<void>;
 }> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
-	if (!hasMcpSettingsFile({ filePath: settingsPath })) {
+	const hasSettings =
+		options.includeSettings && hasMcpSettingsFile({ filePath: settingsPath });
+	if (!hasSettings && !options.agentPluginServers?.length) {
 		return { tools: [] };
 	}
 
+	const settingsClientFactory = createDefaultMcpServerClientFactory({
+		settingsPath,
+	});
+	const agentPluginClientFactory = createDefaultMcpServerClientFactory({
+		restrictConfiguredHeadersToOrigin: true,
+	});
 	const manager = new InMemoryMcpManager({
-		clientFactory: createDefaultMcpServerClientFactory({
-			settingsPath,
-		}),
+		clientFactory: (registration) =>
+			registration.metadata?.source === "agent-plugin"
+				? agentPluginClientFactory(registration)
+				: settingsClientFactory(registration),
 	});
 
 	let registrations: Awaited<
 		ReturnType<typeof registerMcpServersFromSettingsFile>
-	>;
-	try {
-		registrations = await registerMcpServersFromSettingsFile(manager, {
-			filePath: settingsPath,
-		});
-	} catch (error) {
+	> = [];
+	if (hasSettings) {
+		try {
+			registrations = await registerMcpServersFromSettingsFile(manager, {
+				filePath: settingsPath,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			options.logger?.log(
+				`[mcp] Failed to load MCP settings, skipping settings-backed MCP tools: ${message}`,
+			);
+		}
+	}
+
+	const registeredNames = new Set(registrations.map((entry) => entry.name));
+	for (const agentPluginServer of options.agentPluginServers ?? []) {
+		const registration = agentPluginServer.registration;
+		if (registeredNames.has(registration.name)) {
+			options.logger?.log(
+				`[agent-plugins] MCP server '${registration.name}' conflicts with an existing server and was skipped.`,
+				{ severity: "error" },
+			);
+			continue;
+		}
+		try {
+			await manager.registerServer(registration);
+			registrations.push(registration);
+			registeredNames.add(registration.name);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			options.logger?.log(
+				`[agent-plugins] Failed to register MCP server '${registration.name}', skipping: ${message}`,
+				{ severity: "error" },
+			);
+		}
+	}
+
+	if (registrations.length === 0) {
 		await manager.dispose().catch(() => {});
-		const message = error instanceof Error ? error.message : String(error);
-		logger?.log(
-			`[mcp] Failed to load MCP settings, skipping MCP tools: ${message}`,
-		);
 		return { tools: [] };
 	}
 
@@ -242,7 +296,7 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 				result.reason instanceof Error
 					? result.reason.message
 					: String(result.reason);
-			logger?.log(
+			options.logger?.log(
 				`[mcp] Failed to load tools from MCP server "${enabled[i].name}", skipping: ${message}`,
 			);
 		}
@@ -361,6 +415,27 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		const modelTools: ModelTool[] = [];
+		if (
+			normalized.enableTools &&
+			normalized.mode !== "yolo" &&
+			isModelToolEnabledGlobally("web_search") &&
+			supportsModelTool(
+				{ providerId: config.providerId, modelId: config.modelId },
+				"web_search",
+			)
+		) {
+			modelTools.push({ name: "web_search" });
+		}
+		if (
+			normalized.enableTools &&
+			supportsModelTool(
+				{ providerId: config.providerId, modelId: config.modelId },
+				"image_generation",
+			)
+		) {
+			modelTools.push({ name: "image_generation", outputFormat: "png" });
+		}
 		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
 		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
@@ -384,9 +459,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const userInstructionsEnabled =
 			rulesEnabled || rootSkillsEnabled || workflowsEnabled;
 		let teamToolsRegistered = false;
-		const userInstructionServiceProvided = Boolean(
-			sharedUserInstructionService,
-		);
+		const ownedUserInstructionServices: UserInstructionConfigService[] = [];
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
 
@@ -410,11 +483,34 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								: undefined,
 							pluginPaths: config.pluginPaths,
 							cwd: config.cwd,
+							agentPluginSkills: pluginsEnabled
+								? input.agentPluginSkills
+								: undefined,
 						}
 					: { workspacePath: workspaceConfigRoot },
 				rules: { workspacePath: config.cwd },
 				workflows: { workspacePath: config.cwd },
 			});
+			ownedUserInstructionServices.push(userInstructionService);
+		} else if (
+			userInstructionService &&
+			pluginsEnabled &&
+			input.agentPluginSkills?.length &&
+			(userInstructionsEnabled || configuredAgentsNeedSkills)
+		) {
+			const agentPluginInstructionService = createUserInstructionConfigService({
+				skills: {
+					directories: [],
+					agentPluginSkills: input.agentPluginSkills,
+				},
+				rules: { directories: [] },
+				workflows: { directories: [] },
+			});
+			ownedUserInstructionServices.push(agentPluginInstructionService);
+			userInstructionService = combineUserInstructionConfigServices([
+				userInstructionService,
+				agentPluginInstructionService,
+			]);
 		}
 
 		if (userInstructionService) {
@@ -480,10 +576,21 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					undefined,
 					toolExecutors,
 					telemetry ?? config.telemetry,
+					input.runCommandExecutionController,
 				),
 			);
-			if (!normalized.disableMcpSettingsTools) {
-				const mcpRuntime = await loadConfiguredMcpTools(config.logger);
+			const agentPluginMcpServers = pluginsEnabled
+				? input.agentPluginMcpServers
+				: undefined;
+			if (
+				!normalized.disableMcpSettingsTools ||
+				agentPluginMcpServers?.length
+			) {
+				const mcpRuntime = await loadConfiguredMcpTools({
+					logger: config.logger,
+					includeSettings: !normalized.disableMcpSettingsTools,
+					agentPluginServers: agentPluginMcpServers,
+				});
 				tools.push(...mcpRuntime.tools);
 				mcpShutdown = mcpRuntime.shutdown;
 			}
@@ -510,6 +617,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,
 			modelId: config.modelId,
+			distinctId: input.distinctId,
+			sessionId: config.sessionId,
 			cwd: config.cwd,
 			apiKey: config.apiKey ?? "",
 			baseUrl: config.baseUrl,
@@ -553,6 +662,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 													: undefined,
 												toolExecutors,
 												telemetry ?? config.telemetry,
+												input.runCommandExecutionController,
 											),
 											agent,
 										)
@@ -658,6 +768,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									undefined,
 									toolExecutors,
 									telemetry ?? config.telemetry,
+									input.runCommandExecutionController,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
@@ -742,6 +853,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		return {
 			tools: finalTools,
+			modelTools,
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
@@ -765,8 +877,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
-				if (!userInstructionServiceProvided) {
-					userInstructionService?.stop();
+				for (const service of ownedUserInstructionServices) {
+					service.stop();
 				}
 			},
 		};

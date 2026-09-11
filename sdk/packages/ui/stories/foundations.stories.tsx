@@ -214,12 +214,12 @@ export const Overview = () => (
 			<div className="space-y-4 rounded-xl border bg-card p-6">
 				<h2 className="text-xl font-semibold">Typography</h2>
 				<div className="space-y-3">
-					<p className="text-3xl font-semibold">Schibsted Grotesk</p>
+					<p className="text-3xl font-semibold">Inter</p>
 					<p className="text-base text-muted-foreground">
 						Readable product copy with a warm, technical character.
 					</p>
 					<code className="block rounded-md bg-muted p-3 font-mono text-sm">
-						Azeret Mono · bun run build
+						Geist Mono · bun run build
 					</code>
 				</div>
 			</div>

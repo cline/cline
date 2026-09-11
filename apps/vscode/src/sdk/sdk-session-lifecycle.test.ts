@@ -137,6 +137,17 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()).toBeUndefined()
 	})
 
+	it("passes the policy readiness gate to the shared session host", async () => {
+		const beforeStartSession = vi.fn().mockResolvedValue(undefined)
+		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ beforeStartSession })
+
+		await lifecycle.startNewSession({} as StartInput)
+
+		expect(mockCreateSessionHost).toHaveBeenCalledWith(expect.objectContaining({ beforeStartSession }))
+	})
+
 	it("passes shared telemetry to the VSCode session host", async () => {
 		const telemetry = { capture: vi.fn() }
 		const sdkHost = makeSdkHost({ startResult: { sessionId: "session-123" } })

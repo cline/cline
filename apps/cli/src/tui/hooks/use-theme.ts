@@ -1,6 +1,12 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { TerminalTheme } from "../palette";
-import { AUTO_THEME_ID, type ResolvedTheme, resolveTheme } from "../themes";
+import {
+	AUTO_THEME_ID,
+	type DialogPalette,
+	getDialogPalette,
+	type ResolvedTheme,
+	resolveTheme,
+} from "../themes";
 
 export interface TerminalColors {
 	background: string | null;
@@ -39,6 +45,17 @@ export function useTheme(): ResolvedTheme {
 	// Fall back to auto resolution so components render sensibly when mounted
 	// without a ThemeProvider (e.g. in isolated tests).
 	return controller?.theme ?? resolveTheme(AUTO_THEME_ID, detected);
+}
+
+/**
+ * Theme-following colors for dialog content. Unlike the static `palette`
+ * constant, this re-resolves whenever the active theme changes, so open
+ * dialogs repaint live during theme previews (e.g. scrolling the theme
+ * picker).
+ */
+export function useDialogPalette(): DialogPalette {
+	const theme = useTheme();
+	return useMemo(() => getDialogPalette(theme), [theme]);
 }
 
 /**

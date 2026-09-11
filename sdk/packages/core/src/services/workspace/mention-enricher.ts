@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { type FastFileIndexOptions, getFileIndex } from "./file-indexer";
 
-const TRAILING_PUNCTUATION = /[),.:;!?`'"]+$/;
+const TRAILING_PUNCTUATION_CHARS = new Set("),.:;!?`'\"");
 const LEADING_WRAPPERS = /^[(`'"]+/;
 
 export interface MentionEnricherOptions extends FastFileIndexOptions {
@@ -18,6 +18,14 @@ export interface MentionEnrichmentResult {
 	ignoredMentions: string[];
 }
 
+function stripTrailingPunctuation(input: string): string {
+	let end = input.length;
+	while (end > 0 && TRAILING_PUNCTUATION_CHARS.has(input.charAt(end - 1))) {
+		end -= 1;
+	}
+	return input.slice(0, end);
+}
+
 function extractMentionTokens(input: string): string[] {
 	const matches = input.matchAll(/(^|[\s])@([^\s]+)/g);
 	const mentions: string[] = [];
@@ -26,9 +34,9 @@ function extractMentionTokens(input: string): string[] {
 		if (token.length === 0) {
 			continue;
 		}
-		const normalized = token
-			.replace(LEADING_WRAPPERS, "")
-			.replace(TRAILING_PUNCTUATION, "");
+		const normalized = stripTrailingPunctuation(
+			token.replace(LEADING_WRAPPERS, ""),
+		);
 		if (normalized.length === 0 || normalized.includes("@")) {
 			continue;
 		}

@@ -26,9 +26,11 @@ import type {
 	PluginSetupContext,
 } from "../extensions/contribution-registry";
 import type { HookControl } from "../hooks/contracts";
+import type { GeneratedMedia } from "../llms/media";
 import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
+import type { ModelTool } from "../llms/model-tools";
 import {
 	type ReasoningEffort,
 	ReasoningEffortSchema,
@@ -71,7 +73,7 @@ export type AgentEvent =
 	| AgentDoneEvent
 	| AgentErrorEvent;
 
-export type AgentContentType = "text" | "reasoning" | "tool";
+export type AgentContentType = "text" | "reasoning" | "media" | "tool";
 
 export interface AgentEventMetadata {
 	/** Current ID */
@@ -99,6 +101,8 @@ export interface AgentContentStartEvent extends AgentEventMetadata {
 	toolCallId?: string;
 	/** Input being passed to the tool */
 	input?: unknown;
+	/** Where a model tool is executed; absent for ordinary local tools. */
+	execution?: "client" | "provider";
 }
 
 export interface AgentContentUpdateEvent extends AgentEventMetadata {
@@ -119,6 +123,8 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	text?: string;
 	/** Final reasoning/thinking text generated for this turn */
 	reasoning?: string;
+	/** Generated media returned by the model. */
+	media?: GeneratedMedia;
 	/** Name of the tool that completed */
 	toolName?: string;
 	/** Unique identifier for this tool call */
@@ -129,6 +135,8 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	error?: string;
 	/** Time taken in milliseconds for tool content */
 	durationMs?: number;
+	/** Where a model tool is executed; absent for ordinary local tools. */
+	execution?: "client" | "provider";
 }
 
 export interface AgentIterationStartEvent extends AgentEventMetadata {
@@ -676,6 +684,8 @@ export const AgentResultSchema = z.object({
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
+	/** Stable end-user identity used for provider and observability metadata. */
+	distinctId?: string;
 	/**
 	 * Core/hub runtime session identifier.
 	 *
@@ -725,6 +735,8 @@ export interface AgentConfig {
 	systemPrompt: string;
 	/** Tools available to the agent */
 	tools: AgentTool[];
+	/** Provider-executed tools enabled for the selected model. */
+	modelTools?: ModelTool[];
 	/**
 	 * Maximum number of loop iterations
 	 * If undefined, no iteration cap is enforced.
@@ -901,6 +913,7 @@ export interface AgentConfig {
 }
 
 export const AgentConfigSchema = z.object({
+	distinctId: z.string().optional(),
 	sessionId: z.string().optional(),
 	// Provider Settings
 	providerId: z.string(),
@@ -915,6 +928,7 @@ export const AgentConfigSchema = z.object({
 	// Agent Behavior
 	systemPrompt: z.string(),
 	tools: z.array(z.custom<AgentTool>()),
+	modelTools: z.array(z.custom<ModelTool>()).optional(),
 	maxIterations: z.number().positive().optional(),
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),

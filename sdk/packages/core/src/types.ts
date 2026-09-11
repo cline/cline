@@ -23,13 +23,27 @@ export type {
 	RemoteOptions,
 } from "./cline-core/types";
 export type {
+	AgentPluginPackageDiagnostic,
+	AgentPluginPackageDiagnosticScope,
+	AgentPluginPackageLoadReport,
+	AgentPluginPackageManifest,
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+	AgentSkillMetadata,
 	LoadAgentPluginFromPathOptions,
+	LoadAgentPluginPackagesOptions,
+	LoadedAgentPluginPackage,
+	ParsedAgentSkill,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
+	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
+	AGENT_PLUGINS_V1_MCP_SCHEMA,
 	discoverPluginModulePaths,
 	loadAgentPluginFromPath,
+	loadAgentPluginPackages,
 	loadAgentPluginsFromPaths,
+	parseAgentSkillMarkdown,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
@@ -57,6 +71,7 @@ export type {
 	WorkflowConfig,
 } from "./extensions/config";
 export {
+	combineUserInstructionConfigServices,
 	createRulesConfigDefinition,
 	createSkillsConfigDefinition,
 	createUserInstructionConfigService,
@@ -75,6 +90,7 @@ export {
 export type {
 	BuiltinToolAvailabilityContext,
 	ToolCatalogEntry,
+	ToolClientType,
 } from "./extensions/tools";
 export {
 	getCoreAcpToolNames,
@@ -118,13 +134,20 @@ export {
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
-export type { GlobalSettings } from "./services/global-settings";
+export type {
+	GlobalCompactionMode,
+	GlobalCompactionStrategy,
+	GlobalPlanActMode,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAgentPluginDisabledGlobally,
 	isAutoUpdateEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
@@ -133,23 +156,22 @@ export {
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
+	resolveDisabledAgentPluginNames,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
+	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
-} from "./services/global-settings";
-export type {
-	GlobalCompactionMode,
-	GlobalCompactionStrategy,
-	GlobalPlanActMode,
 } from "./services/global-settings";
 export type {
 	ListPluginToolsResult,

@@ -4,6 +4,7 @@ import {
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	toGatewayModelCapabilities,
 } from "@cline/llms";
 import type {
 	AgentConfig,
@@ -74,6 +75,17 @@ function buildGatewayProviderOptions(
 		});
 	}
 
+	if (config.providerId === "claude-code") {
+		// The Claude Code CLI executes its own tools, so its session must be
+		// anchored on the workspace. Without an explicit cwd the spawned CLI
+		// inherits the host process cwd — `/` in GUI extension hosts — and
+		// then refuses writes outside its allowed working directories.
+		const workspace = config.extensionContext?.workspace;
+		Object.assign(options, {
+			cwd: workspace?.cwd ?? workspace?.rootPath,
+		});
+	}
+
 	if (config.providerId === "sapaicore") {
 		Object.assign(options, config.sap);
 	}
@@ -128,36 +140,6 @@ export function resolveKnownModelsFromConfig(
 	};
 }
 
-function toGatewayCapabilities(
-	capabilities: ModelInfo["capabilities"],
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-				mapped.add(capability);
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayConfiguredModel(
 	id: string,
 	model: ModelInfo,
@@ -169,7 +151,10 @@ function toGatewayConfiguredModel(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
+		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
 			family: model.family,

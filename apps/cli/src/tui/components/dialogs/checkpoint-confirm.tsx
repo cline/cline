@@ -2,7 +2,7 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useRef, useState } from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export type CheckpointRestoreMode = "chat-only" | "chat-and-workspace";
 
@@ -29,6 +29,7 @@ export function CheckpointConfirmContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, messagePreview } = props;
+	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(0);
 	const selectedRef = useRef(0);
 	const selectedMode = OPTIONS[selected]?.value;

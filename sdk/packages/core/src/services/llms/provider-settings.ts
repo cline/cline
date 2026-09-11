@@ -212,12 +212,8 @@ export function toProviderConfig(
 		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
 
 	const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[normalizedProviderId];
-	const generatedKnownModels = Object.assign(
-		{},
-		...Llms.resolveProviderModelCatalogKeys(normalizedProviderId).map(
-			(catalogKey) => Llms.getGeneratedModelsForProvider(catalogKey),
-		),
-	);
+	const generatedKnownModels =
+		Llms.getGeneratedModelsForRuntimeProvider(normalizedProviderId);
 	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
 	const apiKey = getPersistedProviderApiKey(normalizedProviderId, settings);
@@ -225,7 +221,10 @@ export function toProviderConfig(
 	// Qwen/Moonshot/Z.AI "china" vs "international") > provider default.
 	const resolvedBaseUrl =
 		settings.baseUrl ??
-		Llms.resolveProviderApiLineBaseUrl(normalizedProviderId, settings.apiLine) ??
+		Llms.resolveProviderApiLineBaseUrl(
+			normalizedProviderId,
+			settings.apiLine,
+		) ??
 		(normalizedProviderId === "oca"
 			? settings.oca?.mode === "internal"
 				? DEFAULT_INTERNAL_OCA_BASE_URL

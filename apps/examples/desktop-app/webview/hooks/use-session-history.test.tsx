@@ -83,6 +83,232 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+describe("useSessionHistory session mapping", () => {
+	it("maps nested Core schedule provenance onto sidebar threads", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("scheduled-session"),
+					source: "core",
+					metadata: {
+						sessionHistoryOrigin: {
+							mode: "automation",
+							trigger: "hub-schedule",
+						},
+					},
+				},
+				{
+					...sessionRow("regular-session"),
+					source: "core",
+					metadata: { sessionHistoryOrigin: { mode: "user" } },
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		expect(
+			current.threads.find((thread) => thread.id === "scheduled-session"),
+		).toMatchObject({ source: "core", isScheduled: true });
+		expect(
+			current.threads.find((thread) => thread.id === "regular-session"),
+		).toMatchObject({ source: "core", isScheduled: false });
+	});
+
+	it("marks sessions scheduled when a schedule execution names them", async () => {
+		// Scheduled runs executed by the local hub don't reliably stamp the
+		// hub-schedule trigger into session metadata, so the executions list
+		// is the fallback signal.
+		invokeMock.mockImplementation(
+			async (command: string, args?: { limit?: number }) => {
+				if (command === "list_discovered_sessions") {
+					return await new Promise<unknown[]>((resolve, reject) => {
+						pendingLists.push({ limit: args?.limit ?? 0, resolve, reject });
+					});
+				}
+				if (command === "list_routine_schedules") {
+					return {
+						schedules: [{ scheduleId: "sched_daily", name: "Daily report" }],
+						activeExecutions: [{ sessionId: "cron-active" }],
+						lastExecutions: [
+							{ sessionId: "cron-session", scheduleId: "sched_daily" },
+							{},
+						],
+					};
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("cron-session"),
+					source: "core",
+					metadata: { sessionHistoryOrigin: { mode: "user" } },
+				},
+				{
+					...sessionRow("regular-session"),
+					source: "core",
+					metadata: { sessionHistoryOrigin: { mode: "user" } },
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		// The executions list also supplies the schedule identity the session
+		// record itself lacks, so the sidebar can group it with its siblings.
+		expect(
+			current.threads.find((thread) => thread.id === "cron-session"),
+		).toMatchObject({
+			isScheduled: true,
+			scheduleId: "sched_daily",
+			scheduleName: "Daily report",
+		});
+		expect(
+			current.threads.find((thread) => thread.id === "regular-session"),
+		).toMatchObject({ isScheduled: false });
+	});
+
+	it("maps the runner's schedule provenance onto sidebar threads", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("run-session"),
+					source: "core",
+					metadata: {
+						sessionHistoryOrigin: {
+							mode: "automation",
+							trigger: "hub-schedule",
+						},
+						scheduleId: "sched_daily",
+						scheduleName: "Daily report",
+						scheduleExecutionId: "crun_1",
+						scheduleRunNumber: 4,
+					},
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		expect(
+			current.threads.find((thread) => thread.id === "run-session"),
+		).toMatchObject({
+			isScheduled: true,
+			startedAt: "2026-07-20T10:00:00.000Z",
+			scheduleId: "sched_daily",
+			scheduleName: "Daily report",
+			scheduleRunNumber: 4,
+		});
+	});
+});
+
+describe("useSessionHistory initial load", () => {
+	it("reports history as loaded only after the backend has answered", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+		expect(current.hasLoadedHistory).toBe(false);
+
+		await act(async () => {
+			pendingLists[0].resolve([]);
+			await Promise.resolve();
+		});
+
+		// A zero-session answer is a definitive result, not a loading state.
+		expect(current.hasLoadedHistory).toBe(true);
+		expect(current.threads).toHaveLength(0);
+	});
+
+	it("retries a failed initial fetch quickly instead of waiting for the poll", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+
+		await act(async () => {
+			pendingLists[0].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+
+		// The rejected request must not read as an empty history.
+		expect(current.hasLoadedHistory).toBe(false);
+
+		// The retry fires on the short event cadence (2s), well before the
+		// 12s periodic poll.
+		await flush(2_000);
+		expect(pendingLists).toHaveLength(2);
+
+		await act(async () => {
+			pendingLists[1].resolve([sessionRow("recovered-session")]);
+			await Promise.resolve();
+		});
+		expect(current.hasLoadedHistory).toBe(true);
+		expect(current.threads).toHaveLength(1);
+	});
+
+	it("stops fast retries when the hook unmounts mid-request", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+
+		// Unmount while the initial request is still in flight, then fail it:
+		// the retry continuation must not re-arm the cleared refresh timer.
+		await act(async () => root.unmount());
+		await act(async () => {
+			pendingLists[0].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+
+		await flush(3_000);
+		expect(pendingLists).toHaveLength(1);
+
+		// Fresh root so the shared afterEach unmount stays valid.
+		root = createRoot(container);
+	});
+
+	it("does not schedule fast retries once history has loaded", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([sessionRow("session-1")]);
+			await Promise.resolve();
+		});
+		expect(current.hasLoadedHistory).toBe(true);
+
+		// Advance to the periodic poll and fail it: no 2s retry may follow.
+		await flush(12_000);
+		expect(pendingLists).toHaveLength(2);
+		await act(async () => {
+			pendingLists[1].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+		await flush(3_000);
+		expect(pendingLists).toHaveLength(2);
+	});
+});
+
 describe("useSessionHistory refresh coalescing", () => {
 	it("reuses an in-flight refresh that already covers the requested limit", async () => {
 		await act(async () => {
@@ -321,5 +547,373 @@ describe("useSessionHistory complete history loading", () => {
 
 		expect(current.sessions).toHaveLength(120);
 		expect(current.mayHaveMoreSessions).toBe(false);
+	});
+});
+
+describe("useSessionHistory usage hydration", () => {
+	// Distinct timestamps so the sorted list is session-0, session-1, ... and
+	// index-based assertions read naturally.
+	function usageRow(index: number) {
+		const startedAt = new Date(
+			Date.UTC(2026, 6, 20, 10, 0, 0) - index * 60_000,
+		);
+		return {
+			...sessionRow(`session-${index}`),
+			startedAt: startedAt.toISOString(),
+			endedAt: new Date(startedAt.getTime() + 30_000).toISOString(),
+		};
+	}
+
+	function usageMessages(inputTokens: number) {
+		return [
+			{
+				id: "m1",
+				role: "assistant",
+				content: "done",
+				meta: { inputTokens, outputTokens: 5, totalCost: 0.01 },
+			},
+		];
+	}
+
+	type ReadArgs = { limit?: number; sessionId?: string; maxMessages?: number };
+
+	/**
+	 * Routes the usage reads (1200 messages) to the test. The 80-message
+	 * title/status reads get a real assistant turn back so they do not flip
+	 * statuses to "idle" and retrigger usage reads for those rows.
+	 */
+	function mockUsageReads(
+		onUsageRead: (sessionId: string) => unknown[] | Promise<unknown[]>,
+	) {
+		invokeMock.mockImplementation(async (command: string, args?: ReadArgs) => {
+			if (command === "list_discovered_sessions") {
+				return await new Promise<unknown[]>((resolve, reject) => {
+					pendingLists.push({ limit: args?.limit ?? 0, resolve, reject });
+				});
+			}
+			if (command === "read_session_messages") {
+				if (args?.maxMessages === 1200) {
+					return await onUsageRead(args?.sessionId ?? "");
+				}
+				return usageMessages(0);
+			}
+			return [];
+		});
+	}
+
+	/** Lets the invoke → summarize → setThreads → finally → pump chain settle. */
+	async function settle() {
+		for (let i = 0; i < 8; i += 1) {
+			await flush();
+		}
+	}
+
+	async function renderWithRows(count: number) {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				Array.from({ length: count }, (_, index) => usageRow(index)),
+			);
+			await Promise.resolve();
+		});
+	}
+
+	it("hydrates usage for the first ten inactive sessions, not just four", async () => {
+		const usageReads: string[] = [];
+		mockUsageReads((sessionId) => {
+			usageReads.push(sessionId);
+			return usageMessages(100);
+		});
+
+		await renderWithRows(12);
+		expect(current.threads.map((thread) => thread.id)).toEqual(
+			Array.from({ length: 12 }, (_, index) => `session-${index}`),
+		);
+
+		await flush(800);
+		await settle();
+
+		expect(usageReads).toHaveLength(10);
+		expect(usageReads).not.toContain("session-10");
+		expect(usageReads).not.toContain("session-11");
+		expect(current.threads[0]).toMatchObject({
+			inputTokens: 100,
+			outputTokens: 5,
+			totalCostUsd: 0.01,
+		});
+		expect(current.threads[9]).toMatchObject({ inputTokens: 100 });
+		expect(current.threads[10].inputTokens).toBeUndefined();
+		expect(current.threads[11].inputTokens).toBeUndefined();
+	});
+
+	it("hydrates usage on demand for sessions a view asks for", async () => {
+		const usageReads: string[] = [];
+		mockUsageReads((sessionId) => {
+			usageReads.push(sessionId);
+			return usageMessages(7);
+		});
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(usageReads).toHaveLength(10);
+
+		// The second page comes into view: only the rows it asks for are read.
+		await act(async () => {
+			current.requestUsage(["session-11", "  ", "not-a-session"]);
+		});
+		await flush(800);
+		await settle();
+
+		expect(usageReads).toHaveLength(11);
+		expect(usageReads).toContain("session-11");
+		expect(usageReads).not.toContain("session-10");
+		expect(current.threads[11]).toMatchObject({ inputTokens: 7 });
+		expect(current.threads[10].inputTokens).toBeUndefined();
+
+		// Asking again for rows that already have usage is a no-op.
+		await act(async () => {
+			current.requestUsage(["session-0", "session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(usageReads).toHaveLength(11);
+	});
+
+	it("reads at most four transcripts at a time", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		mockUsageReads(
+			() =>
+				new Promise<unknown[]>((resolve) => {
+					pendingReads.push(resolve);
+				}),
+		);
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// Finishing one read lets exactly one more start.
+		await act(async () => {
+			pendingReads[0](usageMessages(1));
+		});
+		await settle();
+		expect(pendingReads).toHaveLength(5);
+
+		// Draining the rest works through the whole window and no further.
+		let resolved = 1;
+		for (
+			let round = 0;
+			round < 6 && resolved < pendingReads.length;
+			round += 1
+		) {
+			const batch = pendingReads.slice(resolved);
+			resolved = pendingReads.length;
+			await act(async () => {
+				for (const resolve of batch) {
+					resolve(usageMessages(1));
+				}
+			});
+			await settle();
+		}
+		expect(pendingReads).toHaveLength(10);
+		expect(
+			current.threads.filter((thread) => thread.inputTokens === 1),
+		).toHaveLength(10);
+	});
+
+	it("keeps the four-read cap when the effect restarts mid-flight", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return new Promise<unknown[]>((resolve) => {
+				pendingReads.push(resolve);
+			});
+		});
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// A page request restarts the effect while four reads are pending. The
+		// restarted run must not add four reads of its own on top of them.
+		await act(async () => {
+			current.requestUsage(["session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// The restarted run still drains as the earlier reads finish.
+		await act(async () => {
+			pendingReads[0](usageMessages(1));
+		});
+		await settle();
+		expect(pendingReads).toHaveLength(5);
+
+		let resolved = 1;
+		for (
+			let round = 0;
+			round < 8 && resolved < pendingReads.length;
+			round += 1
+		) {
+			const batch = pendingReads.slice(resolved);
+			resolved = pendingReads.length;
+			await act(async () => {
+				for (const resolve of batch) {
+					resolve(usageMessages(1));
+				}
+			});
+			await settle();
+		}
+		// Ten default rows plus the requested one, each read exactly once; the
+		// rows the restarted run found in flight were not read again once they
+		// finished, and session-10 was never asked for.
+		expect(pendingReads).toHaveLength(11);
+		expect(new Set(readIds).size).toBe(readIds.length);
+		expect(readIds).not.toContain("session-10");
+		expect(current.threads[10].inputTokens).toBeUndefined();
+		expect(current.threads[11]).toMatchObject({ inputTokens: 1 });
+	});
+
+	it("reads a row again when its status changed while its read was pending", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return new Promise<unknown[]>((resolve) => {
+				pendingReads.push(resolve);
+			});
+		});
+		const rows = Array.from({ length: 12 }, (_, index) => usageRow(index));
+		const running = { ...rows[3], status: "running", prompt: "long task" };
+
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				rows.map((row, index) => (index === 3 ? running : row)),
+			);
+			await Promise.resolve();
+		});
+		expect(current.threads[3].status).toBe("running");
+		await flush(800);
+		await settle();
+		expect(readIds).toEqual([
+			"session-0",
+			"session-1",
+			"session-2",
+			"session-3",
+		]);
+
+		// The periodic poll reports session-3 finished while its read (started
+		// under "running") is still pending.
+		await flush(12_000);
+		await flush();
+		expect(pendingLists).toHaveLength(2);
+		await act(async () => {
+			pendingLists[1].resolve(
+				rows.map((row, index) =>
+					index === 3 ? { ...running, status: "completed" } : row,
+				),
+			);
+			await Promise.resolve();
+		});
+		expect(current.threads[3].status).toBe("completed");
+		await flush(800);
+		await settle();
+		// Still four in flight: the restarted run neither stacks a second read
+		// of session-3 on the pending one nor forgets the row.
+		expect(pendingReads).toHaveLength(4);
+
+		// The stale read finishes: session-3 is read again, once, before the
+		// rows that have not been read at all.
+		await act(async () => {
+			pendingReads[3](usageMessages(1));
+		});
+		await settle();
+		expect(readIds.slice(4)).toEqual(["session-3"]);
+		expect(pendingReads).toHaveLength(5);
+
+		await act(async () => {
+			pendingReads[4](usageMessages(2));
+		});
+		await settle();
+		expect(current.threads[3]).toMatchObject({ inputTokens: 2 });
+	});
+
+	it("stops re-reading a running row once the view no longer asks for it", async () => {
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return usageMessages(3);
+		});
+		const rows = Array.from({ length: 12 }, (_, index) => usageRow(index));
+		const running = { ...rows[11], status: "running", prompt: "still going" };
+		// Each refresh changes session-0's prompt so the list is not equivalent
+		// to the previous one and the hydration effect restarts.
+		const listRows = (marker: string) =>
+			rows.map((row, index) => {
+				if (index === 11) return running;
+				if (index === 0) return { ...row, prompt: marker };
+				return row;
+			});
+		const readsOfRunning = () =>
+			readIds.filter((sessionId) => sessionId === "session-11").length;
+
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(listRows("first"));
+			await Promise.resolve();
+		});
+		await flush(800);
+		await settle();
+		expect(readIds).toHaveLength(10);
+		expect(readsOfRunning()).toBe(0);
+
+		await act(async () => {
+			current.requestUsage(["session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(readsOfRunning()).toBe(1);
+
+		// While a view shows the running row, a refresh re-reads it.
+		await flush(12_000);
+		await flush();
+		await act(async () => {
+			pendingLists[1].resolve(listRows("second"));
+			await Promise.resolve();
+		});
+		await flush(800);
+		await settle();
+		expect(readsOfRunning()).toBe(2);
+
+		// The view pages away or unmounts: the next refresh leaves it alone,
+		// and the completed rows it already hydrated are not read again either.
+		await act(async () => {
+			current.requestUsage([]);
+		});
+		await flush(12_000);
+		await flush();
+		await act(async () => {
+			pendingLists[2].resolve(listRows("third"));
+			await Promise.resolve();
+		});
+		await flush(800);
+		await settle();
+		expect(readsOfRunning()).toBe(2);
+		expect(readIds).toHaveLength(12);
 	});
 });

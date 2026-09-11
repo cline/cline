@@ -46,14 +46,15 @@
 		"build": "bun run build:webview && bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify",
 		"watch": "bun build ./src/extension.ts ./src/hub-daemon.ts --outdir ./dist --target=node --format=cjs --external=vscode --minify --watch",
 		"typecheck": "tsc --noEmit",
+		"test": "vitest run --config vitest.config.ts",
 		"dev": "bun run watch"
 	},
 	"dependencies": {
-		"@ai-sdk/react": "^4",
+		"@ai-sdk/react": "^4.0.61",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
-		"ai": "^7"
+		"ai": "^7.0.58"
 	},
 	"devDependencies": {
 		"@types/node": "^25.3.5",

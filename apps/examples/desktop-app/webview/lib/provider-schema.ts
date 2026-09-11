@@ -1,11 +1,37 @@
+import type {
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "@cline/shared/browser";
+
+/** Which tier of the Cline recommended-models feed featured a model. */
+export type ProviderModelFeaturedTier = "recommended" | "free" | "subscribed";
+
+export interface ProviderModelFeatured {
+	tier: ProviderModelFeaturedTier;
+	/** Position within the tier, preserving the feed's intentional order. */
+	rank: number;
+	/** Feed marketing tags, e.g. "NEW" or "BEST". */
+	tags: string[];
+}
+
 export interface ProviderModel {
 	id: string;
 	name: string;
+	description?: string;
+	/** Set by the SDK for cline/cline-pass models featured by the feed. */
+	featured?: ProviderModelFeatured;
+	operation?: ModelOperation;
+	operationModes?: ModelOperationMode[];
 	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
+
+export type { ModelModality, ModelOperation, ModelOperationMode };
 
 export type ProviderConfigFieldType =
 	| "text"
@@ -41,6 +67,12 @@ export interface Provider {
 	color: string;
 	letter: string;
 	enabled: boolean;
+	/**
+	 * Sidecar-computed readiness: true when the persisted settings hold real
+	 * credentials or a usable keyless endpoint, unlike `enabled` which is set
+	 * by any persisted entry (including ones seeded by legacy migration).
+	 */
+	configured?: boolean;
 	apiKey?: string;
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;
@@ -64,6 +96,12 @@ export interface ProviderSettingsUpdate {
 export interface ProviderCatalogResponse {
 	providers: Provider[];
 	settingsPath: string;
+	voiceInput?: VoiceInputSelection;
+}
+
+export interface VoiceInputSelection {
+	providerId: string;
+	modelId: string;
 }
 
 export interface ProviderModelsResponse {

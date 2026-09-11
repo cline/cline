@@ -1,3 +1,4 @@
+import { GeneratedMediaSchema } from "@cline/shared/browser";
 import { z } from "zod";
 
 export const ChatSessionConfigSchema = z.object({
@@ -45,12 +46,15 @@ export const ChatMessageImageSchema = z.object({
 	data: z.string().min(1),
 });
 
+export const ChatMessageMediaSchema = GeneratedMediaSchema;
+
 export const ChatMessageSchema = z.object({
 	id: z.string().min(1),
 	sessionId: z.string().nullable(),
 	role: ChatMessageRoleSchema,
 	content: z.string(),
 	images: z.array(ChatMessageImageSchema).optional(),
+	media: z.array(ChatMessageMediaSchema).optional(),
 	reasoning: z.string().optional(),
 	reasoningRedacted: z.boolean().optional(),
 	createdAt: z.number().int().nonnegative(),
@@ -58,6 +62,10 @@ export const ChatMessageSchema = z.object({
 		.object({
 			stream: z.enum(["stdout", "stderr"]).optional(),
 			toolName: z.string().optional(),
+			toolCallId: z.string().optional(),
+			toolOutput: z.string().optional(),
+			toolOutputTruncated: z.boolean().optional(),
+			toolDetachable: z.boolean().optional(),
 			iteration: z.number().int().nonnegative().optional(),
 			agentId: z.string().optional(),
 			conversationId: z.string().optional(),
@@ -104,6 +112,7 @@ export const ChatViewStateSchema = z.object({
 export type ChatSessionConfig = z.infer<typeof ChatSessionConfigSchema>;
 export type ChatSessionStatus = z.infer<typeof ChatSessionStatusSchema>;
 export type ChatMessageImage = z.infer<typeof ChatMessageImageSchema>;
+export type ChatMessageMedia = z.infer<typeof ChatMessageMediaSchema>;
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatSummary = z.infer<typeof ChatSummarySchema>;
 export type ChatViewState = z.infer<typeof ChatViewStateSchema>;

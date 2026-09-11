@@ -198,7 +198,7 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		module.model("anthropic.claude-sonnet-4-6");
+		module.operations.language("anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"us.anthropic.claude-sonnet-4-6",
@@ -212,7 +212,7 @@ describe("createBedrockProviderModule", () => {
 			config({ apiKey: "bedrock-api-key" }),
 		);
 
-		module.model("anthropic.claude-sonnet-4-6");
+		module.operations.language("anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"eu.anthropic.claude-sonnet-4-6",
@@ -233,7 +233,7 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		module.model("anthropic.claude-sonnet-4-6");
+		module.operations.language("anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"us.anthropic.claude-sonnet-4-6",
@@ -248,7 +248,7 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		module.model("global.anthropic.claude-sonnet-4-6");
+		module.operations.language("global.anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"global.anthropic.claude-sonnet-4-6",
@@ -305,11 +305,9 @@ describe("resolveBedrockModelId", () => {
 	});
 
 	it("preserves the raw id when no catalog variant confirms the geo profile", () => {
-		// Pattern-matched profile-only models without a catalog-confirmed
-		// geographic variant are never prefixed on assumption: AWS documents
-		// profile availability per model and geography, so an unconfirmed id
-		// (e.g. eu.amazon.nova-lite-v1:0 or us-gov.anthropic.claude-sonnet-5)
-		// may not exist.
+		// Keep catalog absence explicit: generated catalogs can gain variants
+		// without changing the resolver's fallback contract.
+		const hasCatalogModel = () => false;
 		const cases: Array<[string, string | undefined]> = [
 			["amazon.nova-lite-v1:0", "eu-central-1"],
 			["amazon.nova-pro-v1:0", "us-east-1"],
@@ -319,11 +317,14 @@ describe("resolveBedrockModelId", () => {
 			["anthropic.claude-newtier-6", "us-east-1"],
 		];
 		for (const [modelId, region] of cases) {
-			expect(resolveBedrockModelId(modelId, { region })).toBe(modelId);
+			expect(resolveBedrockModelId(modelId, { region, hasCatalogModel })).toBe(
+				modelId,
+			);
 			expect(
 				resolveBedrockModelId(modelId, {
 					region,
 					useCrossRegionInference: true,
+					hasCatalogModel,
 				}),
 			).toBe(modelId);
 		}
@@ -501,6 +502,7 @@ describe("resolveBedrockModelId", () => {
 		expect(
 			resolveBedrockModelId("anthropic.claude-sonnet-4-6", {
 				region: "ap-southeast-1",
+				hasCatalogModel,
 			}),
 		).toBe("anthropic.claude-sonnet-4-6");
 	});

@@ -149,10 +149,12 @@ export async function createOllamaProviderModule(
 	// the downstream converter stringifies multimodal tool-result content,
 	// losing image bytes.
 	return {
-		model: (modelId) =>
-			wrapLanguageModel({
-				model: provider.chat(modelId),
-				middleware: splitToolImagesMiddleware,
-			}),
+		operations: {
+			language: (modelId) =>
+				wrapLanguageModel({
+					model: provider.chat(modelId),
+					middleware: splitToolImagesMiddleware,
+				}),
+		},
 	};
 }

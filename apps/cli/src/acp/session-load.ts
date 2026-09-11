@@ -2,10 +2,11 @@ import type {
 	AgentSideConnection,
 	SessionUpdate,
 } from "@agentclientprotocol/sdk";
+import { projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
-	type Message,
+	type MessageWithMetadata,
 	type ToolResultContent,
 } from "@cline/shared";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
@@ -29,7 +30,7 @@ function isSyntheticUserText(text: string): boolean {
 export async function replaySessionHistory(
 	conn: AgentSideConnection,
 	sessionId: string,
-	messages: Message[],
+	messages: MessageWithMetadata[],
 ): Promise<void> {
 	for (const message of messages) {
 		for (const update of translateHistoricalMessage(message)) {
@@ -38,7 +39,17 @@ export async function replaySessionHistory(
 	}
 }
 
-export function translateHistoricalMessage(message: Message): SessionUpdate[] {
+export function translateHistoricalMessage(
+	message: MessageWithMetadata,
+): SessionUpdate[] {
+	return projectSessionMessagesForDisplay([message]).flatMap(({ message }) =>
+		translateProjectedHistoricalMessage(message),
+	);
+}
+
+function translateProjectedHistoricalMessage(
+	message: MessageWithMetadata,
+): SessionUpdate[] {
 	const blocks: ContentBlock[] =
 		typeof message.content === "string"
 			? [{ type: "text", text: message.content }]
@@ -92,6 +103,31 @@ export function translateHistoricalMessage(message: Message): SessionUpdate[] {
 				);
 				break;
 			}
+			case "media": {
+				const media = block.media;
+				if (media.modality === "image" && media.source.type === "base64") {
+					updates.push({
+						sessionUpdate:
+							message.role === "user"
+								? "user_message_chunk"
+								: "agent_message_chunk",
+						content: {
+							type: "image",
+							data: media.source.data,
+							mimeType: media.mediaType,
+						},
+					});
+				} else {
+					updates.push({
+						sessionUpdate: "agent_message_chunk",
+						content: {
+							type: "text",
+							text: `[Generated ${media.modality}: ${media.mediaType}]`,
+						},
+					});
+				}
+				break;
+			}
 			case "tool_use": {
 				updates.push({
 					sessionUpdate: "tool_call",
@@ -133,8 +169,14 @@ function flattenToolResultContent(
 					return part.text;
 				case "file":
 					return part.content;
-				default:
+				case "image":
 					return "[image]";
+				default:
+					try {
+						return JSON.stringify(part);
+					} catch {
+						return String(part);
+					}
 			}
 		})
 		.join("\n");

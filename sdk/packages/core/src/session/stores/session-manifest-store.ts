@@ -197,7 +197,7 @@ export class SessionManifestStore {
 
 	async persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.Message[],
+		messages: LlmsProviders.MessageWithMetadata[],
 		systemPrompt?: string,
 	): Promise<void> {
 		const row = await this.resolveSessionRow(sessionId);

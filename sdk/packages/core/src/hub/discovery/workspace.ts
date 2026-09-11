@@ -3,6 +3,7 @@ import { normalizeWorkspacePath } from "../../services/workspace/workspace-manif
 import {
 	type HubOwnerContext,
 	resolveClineDataDir,
+	resolveHubBuildId,
 	resolveHubOwnerContext,
 } from ".";
 
@@ -19,10 +20,19 @@ export function resolveWorkspaceHubOwnerContext(
 	);
 }
 
+/**
+ * Development builds change on every compile, so a single shared owner record
+ * puts every checkout and every rebuild in contention for one daemon - and the
+ * loser of that contention gets shut down mid-session. Scoping the owner by
+ * build id lets differing dev builds run their own Hub side by side instead of
+ * arbitrating over one. Production keeps a single owner (see
+ * {@link resolveProductionHubOwnerContext}), where the singleton matters and
+ * builds are ordered.
+ */
 export function resolveSharedHubOwnerContext(
 	label = DEFAULT_SHARED_HUB_OWNER_LABEL,
 ): HubOwnerContext {
-	return resolveHubOwnerContext(label);
+	return resolveHubOwnerContext(`${label}@${resolveHubBuildId()}`);
 }
 
 export function resolveProductionHubOwnerContext(): HubOwnerContext {

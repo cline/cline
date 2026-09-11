@@ -223,7 +223,20 @@ export async function handleSessionInput(
 			"session input requires a prompt string",
 		);
 	}
-	ctx.publish(ctx.buildEvent("run.started", undefined, sessionId));
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (!session) {
+		return sessionNotFoundReply(envelope, sessionId);
+	}
+	ctx.publish(
+		ctx.buildEvent(
+			"run.started",
+			{
+				...(envelope.requestId ? { requestId: envelope.requestId } : {}),
+				...(envelope.clientId ? { clientId: envelope.clientId } : {}),
+			},
+			sessionId,
+		),
+	);
 	const attachments =
 		payload.attachments &&
 		typeof payload.attachments === "object" &&
@@ -348,6 +361,37 @@ export async function handleRunAbort(
 		);
 	}
 	return okReply(envelope, { applied: true });
+}
+
+export async function handleRunProceedWhileRunning(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"run.proceed_while_running requires a sessionId",
+		);
+	}
+	if (typeof ctx.sessionHost.proceedWhileRunning !== "function") {
+		return errorReply(
+			envelope,
+			"unsupported_command",
+			"This runtime does not support proceeding while commands are running.",
+		);
+	}
+	const toolCallId =
+		typeof envelope.payload?.toolCallId === "string" &&
+		envelope.payload.toolCallId.trim().length > 0
+			? envelope.payload.toolCallId.trim()
+			: undefined;
+	const detachedCount = await ctx.sessionHost.proceedWhileRunning(
+		sessionId,
+		toolCallId,
+	);
+	return okReply(envelope, { detachedCount });
 }
 
 export async function handleSessionHook(

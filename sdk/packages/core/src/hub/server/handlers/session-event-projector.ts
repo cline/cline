@@ -213,6 +213,23 @@ async function projectAgentEvent(
 			return;
 		}
 	}
+	if (
+		agentEvent.type === "content_update" &&
+		agentEvent.contentType === "tool"
+	) {
+		ctx.publish(
+			ctx.buildEvent(
+				"tool.updated",
+				{
+					toolCallId: agentEvent.toolCallId,
+					toolName: agentEvent.toolName,
+					update: agentEvent.update,
+				},
+				sessionId,
+			),
+		);
+		return;
+	}
 	if (agentEvent.type === "content_end") {
 		switch (agentEvent.contentType) {
 			case "text":
@@ -223,6 +240,17 @@ async function projectAgentEvent(
 						sessionId,
 					),
 				);
+				break;
+			case "media":
+				if (agentEvent.media) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.media",
+							{ media: agentEvent.media },
+							sessionId,
+						),
+					);
+				}
 				break;
 			case "reasoning":
 				ctx.publish(

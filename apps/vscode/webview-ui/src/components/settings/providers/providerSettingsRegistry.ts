@@ -40,13 +40,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://app.baseten.co/settings/api_keys",
 	},
 	deepseek: {
-		signupUrl: "https://www.deepseek.com/",
+		signupUrl: "https://platform.deepseek.com/api_keys",
 	},
 	doubao: {
 		signupUrl: "https://console.volcengine.com/home",
 	},
 	fireworks: {
-		signupUrl: "https://fireworks.ai/",
+		signupUrl: "https://app.fireworks.ai/settings/users/api-keys",
 	},
 	groq: {
 		signupUrl: "https://console.groq.com/keys",
@@ -57,6 +57,10 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	},
 	gemini: {
 		signupUrl: "https://aistudio.google.com/apikey",
+		baseUrlField: {
+			label: "Use custom base URL",
+			placeholder: "Default: https://generativelanguage.googleapis.com",
+		},
 	},
 	huggingface: {
 		signupUrl: "https://huggingface.co/settings/tokens",
@@ -72,7 +76,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		},
 	},
 	mistral: {
-		signupUrl: "https://console.mistral.ai/codestral",
+		signupUrl: "https://console.mistral.ai/api-keys",
 	},
 	nebius: {
 		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",

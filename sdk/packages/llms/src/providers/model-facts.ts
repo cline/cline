@@ -3,6 +3,7 @@ import type {
 	GatewayProviderContext,
 	GatewayReasoningFormat,
 	GatewayStreamRequest,
+	ModelOperation,
 	ModelReasoningOption,
 	ReasoningEffort,
 } from "@cline/shared";
@@ -334,6 +335,8 @@ export function modelRouteMatches(
 		modelId?: string;
 		family?: string;
 		capabilities?: readonly string[];
+		operation?: ModelOperation;
+		modalities?: import("@cline/shared").ModelModalities;
 	},
 ): boolean {
 	if (
@@ -347,6 +350,12 @@ export function modelRouteMatches(
 	switch (route.matcher) {
 		case "anthropic-compatible":
 			return isAnthropicCompatibleModel(options);
+		case "model-operation":
+			// Language is the canonical default; only specialized transports need
+			// to declare an operation explicitly.
+			return (options.operation ?? "language") === route.operation;
+		case "model-output-modality":
+			return options.modalities?.output.includes(route.modality) ?? false;
 		case "model-family":
 			return modelFamilyMatches(options.family, route.family);
 		case "model-id":

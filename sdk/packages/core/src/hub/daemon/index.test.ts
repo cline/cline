@@ -7,15 +7,22 @@ const {
 	openSync,
 	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
+	queryHubSessionActivity,
+	requestHubDrain,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
 	clearHubDiscovery,
+	compareHubBuilds,
+	getManagedHubCompatibility,
+	isManagedHubReusable,
 	probeHubServer,
 	requestHubShutdown,
 	readHubDiscovery,
 	resolveClineDataDir,
 	resolveHubBuildId,
+	resolveHubBuildIdentity,
+	withHubStartupLock,
 	writeHubDiscovery,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
@@ -25,6 +32,12 @@ const {
 	openSync: vi.fn(() => 17),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
+	// Idle by default, so existing replacement cases are unaffected.
+	queryHubSessionActivity: vi.fn(async () => ({
+		activeSessionCount: 0,
+		participantClientCount: 0,
+	})),
+	requestHubDrain: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -36,11 +49,47 @@ const {
 			`ws://${host}:${port}${pathname}`,
 	),
 	clearHubDiscovery: vi.fn(async () => undefined),
+	// Mirrors the real total order closely enough for these cases: order by
+	// build epoch, treating a missing epoch as oldest.
+	compareHubBuilds: vi.fn(
+		(
+			self: { buildEpochMs?: number },
+			record: { buildId?: string; buildEpochMs?: number },
+		) =>
+			record.buildId === "current-build"
+				? 0
+				: (self.buildEpochMs ?? 0) - (record.buildEpochMs ?? 0),
+	),
+	getManagedHubCompatibility: vi.fn(
+		(record: { protocolVersion?: string; buildId?: string }) => ({
+			compatible:
+				record.protocolVersion === "v1" && record.buildId === "current-build",
+		}),
+	),
+	// Mirrors the real semantics: same build, or a strictly newer build epoch.
+	isManagedHubReusable: vi.fn(
+		(record: {
+			protocolVersion?: string;
+			buildId?: string;
+			buildEpochMs?: number;
+		}) =>
+			record.protocolVersion === "v1" &&
+			(record.buildId === "current-build" ||
+				(record.buildEpochMs ?? 0) > 1_000_000),
+	),
 	probeHubServer: vi.fn(),
 	requestHubShutdown: vi.fn(async () => true),
 	readHubDiscovery: vi.fn(),
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
+	resolveHubBuildIdentity: vi.fn(() => ({
+		buildId: "current-build",
+		buildEpochMs: 1_000_000,
+	})),
+	withHubStartupLock: vi.fn(
+		async (_discoveryPath: string, callback: () => Promise<unknown>) =>
+			await callback(),
+	),
 	writeHubDiscovery: vi.fn(),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
@@ -72,7 +121,9 @@ vi.mock("@cline/shared", () => ({
 }));
 
 vi.mock("../client", () => ({
+	queryHubSessionActivity,
 	rememberRecoverableLocalHubUrl,
+	requestHubDrain,
 	requestHubShutdown,
 	verifyHubConnection,
 }));
@@ -84,18 +135,27 @@ vi.mock("../discovery/workspace", () => ({
 
 vi.mock("../discovery", () => ({
 	clearHubDiscovery,
+	compareHubBuilds,
 	createHubServerUrl,
+	getManagedHubCompatibility,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
 	resolveHubBuildId,
+	resolveHubBuildIdentity,
+	withHubStartupLock,
 	writeHubDiscovery,
 }));
 
 describe("ensureDetachedHubServer", () => {
 	const fetchMock = vi.fn(async () => ({ ok: true }));
 
-	beforeEach(() => {
+	beforeEach(async () => {
+		// The retire circuit breaker is module state keyed by Hub URL, and these
+		// cases all retire the same URL.
+		const { __test__ } = await import(".");
+		__test__.resetRetireAttempts();
 		delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
 		spawn.mockReset();
 		spawn.mockImplementation(() => ({ unref: vi.fn() }));
@@ -106,11 +166,18 @@ describe("ensureDetachedHubServer", () => {
 		rememberRecoverableLocalHubUrl.mockReset();
 		rememberRecoverableLocalHubUrl.mockImplementation((url: string) => url);
 		verifyHubConnection.mockReset();
+		queryHubSessionActivity.mockReset();
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+		});
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
 		probeHubServer.mockReset();
 		requestHubShutdown.mockReset();
 		requestHubShutdown.mockResolvedValue(true);
+		requestHubDrain.mockReset();
+		requestHubDrain.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
 		vi.stubGlobal("fetch", fetchMock);
 	});
@@ -162,6 +229,10 @@ describe("ensureDetachedHubServer", () => {
 			url: "ws://127.0.0.1:25463/hub",
 			authToken: "new-token",
 		});
+		expect(withHubStartupLock).toHaveBeenCalledWith(
+			"/tmp/hub-discovery.json",
+			expect.any(Function),
+		);
 		expect(spawn).toHaveBeenCalledOnce();
 		expect(spawnArgs).toContain("--port");
 		expect(spawnArgs).toContain("25463");
@@ -248,6 +319,10 @@ describe("ensureDetachedHubServer", () => {
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 		});
 
+		expect(withHubStartupLock).toHaveBeenCalledWith(
+			"/tmp/hub-discovery.json",
+			expect.any(Function),
+		);
 		expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
 			probeHubServer.mock.invocationCallOrder[0],
 		);
@@ -317,7 +392,7 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("reuses a protocol-compatible healthy hub from a different build", async () => {
+	it("retires a healthy hub from a different build and starts a replacement", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
 			readHubDiscovery
@@ -325,11 +400,121 @@ describe("ensureDetachedHubServer", () => {
 					url: "ws://127.0.0.1:25463/hub",
 					authToken: "old-token",
 				})
-				.mockResolvedValueOnce(undefined);
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "new-token",
+				});
+			probeHubServer
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					pid: 12345,
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const result = await ensureDetachedHubServer("/workspace");
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+			expect(requestHubShutdown).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"old-token",
+			);
+			// Retirement is drain-first: the hub refuses new work before it is
+			// asked to shut down.
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"old-token",
+				"retired by newer install",
+			);
+			expect(requestHubDrain.mock.invocationCallOrder[0]).toBeLessThan(
+				requestHubShutdown.mock.invocationCallOrder[0] ?? 0,
+			);
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+			expect(spawn).toHaveBeenCalledOnce();
+			expect(verifyHubConnection).toHaveBeenCalledOnce();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("attaches to an older hub that is still serving sessions instead of retiring it", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			queryHubSessionActivity.mockResolvedValue({
+				activeSessionCount: 1,
+				participantClientCount: 1,
+			});
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
 			probeHubServer.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:25463/hub",
 				protocolVersion: "v1",
 				buildId: "old-build",
+				pid: 12345,
+			});
+			// Reuse is rejected by build id before any connection check, so the
+			// only verify call is the one guarding the deferred attach.
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+
+			await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			expect(requestHubShutdown).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalled();
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
+			expect(spawn).not.toHaveBeenCalled();
+			// The admission barrier is requested BEFORE the busy reading, so an
+			// idle result could not be invalidated by a session admitted right
+			// after it - and deferring hands the drained hub back to its work.
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"busy-token",
+				"retired by newer install",
+			);
+			expect(requestHubDrain.mock.invocationCallOrder[0]).toBeLessThan(
+				queryHubSessionActivity.mock.invocationCallOrder[0] ?? 0,
+			);
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"busy-token",
+				"hub retirement deferred",
+				{ off: true },
+			);
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("reuses a healthy hub from a newer build without retiring it", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "newer-hub-token",
+			});
+			probeHubServer.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "newer-build",
+				buildEpochMs: 2_000_000,
 				pid: 12345,
 			});
 			verifyHubConnection.mockResolvedValueOnce(true);
@@ -339,13 +524,12 @@ describe("ensureDetachedHubServer", () => {
 
 			expect(result).toEqual({
 				url: "ws://127.0.0.1:25463/hub",
-				authToken: "old-token",
+				authToken: "newer-hub-token",
 			});
 			expect(requestHubShutdown).not.toHaveBeenCalled();
-			expect(clearHubDiscovery).not.toHaveBeenCalled();
 			expect(kill).not.toHaveBeenCalled();
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
 			expect(spawn).not.toHaveBeenCalled();
-			expect(verifyHubConnection).toHaveBeenCalledOnce();
 		} finally {
 			kill.mockRestore();
 		}
@@ -385,7 +569,7 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				"",
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(spawn).toHaveBeenCalledOnce();
 		} finally {
@@ -413,6 +597,10 @@ describe("ensureDetachedHubServer", () => {
 
 			await pending;
 			expect(spawn).not.toHaveBeenCalled();
+			// The hub survived the retirement attempt, so its discovery record
+			// must not be cleared — clearing it would leave the live daemon
+			// undiscoverable.
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
@@ -456,7 +644,7 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:39121/hub",
 				"legacy-token",
 			);
-			expect(kill).toHaveBeenCalledWith(222, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(222, "SIGTERM");
 			expect(clearHubDiscovery).toHaveBeenCalledWith(
 				"/tmp/legacy-hub-discovery.json",
 			);
@@ -555,13 +743,14 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				"old-token",
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 		} finally {
 			kill.mockRestore();
 		}
 	});
 
 	it("does not reuse a healthy hub without protocol metadata", async () => {
+		vi.useFakeTimers();
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
 			readHubDiscovery
@@ -599,7 +788,9 @@ describe("ensureDetachedHubServer", () => {
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
-			const result = await ensureDetachedHubServer("/workspace");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+			const result = await pending;
 
 			expect(result).toEqual({
 				url: "ws://127.0.0.1:25463/hub",
@@ -613,11 +804,383 @@ describe("ensureDetachedHubServer", () => {
 			expect(clearHubDiscovery.mock.invocationCallOrder[0]).toBeGreaterThan(
 				probeHubServer.mock.invocationCallOrder[2],
 			);
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(spawn).toHaveBeenCalledOnce();
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
 		} finally {
 			kill.mockRestore();
+			vi.useRealTimers();
 		}
+	});
+});
+
+describe("upgradeManagedHub", () => {
+	const fetchMock = vi.fn(async () => ({ ok: true }));
+
+	beforeEach(async () => {
+		const { __test__ } = await import(".");
+		__test__.resetRetireAttempts();
+		delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
+		spawn.mockReset();
+		spawn.mockImplementation(() => ({ unref: vi.fn() }));
+		rememberRecoverableLocalHubUrl.mockReset();
+		rememberRecoverableLocalHubUrl.mockImplementation((url: string) => url);
+		verifyHubConnection.mockReset();
+		queryHubSessionActivity.mockReset();
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 0,
+			participantClientCount: 0,
+		});
+		clearHubDiscovery.mockReset();
+		clearHubDiscovery.mockResolvedValue(undefined);
+		probeHubServer.mockReset();
+		requestHubShutdown.mockReset();
+		requestHubShutdown.mockResolvedValue(true);
+		requestHubDrain.mockReset();
+		requestHubDrain.mockResolvedValue(true);
+		readHubDiscovery.mockReset();
+		vi.stubGlobal("fetch", fetchMock);
+	});
+
+	afterEach(() => {
+		vi.clearAllMocks();
+		vi.unstubAllGlobals();
+		if (originalRunAsHubDaemon === undefined) {
+			delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
+		} else {
+			process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = originalRunAsHubDaemon;
+		}
+	});
+
+	it("drains and replaces an older busy hub when forced", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 2,
+			participantClientCount: 1,
+		});
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			// The live probe of the recorded hub: an older build.
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+				pid: 12345,
+			})
+			// The retire wait: the hub is gone.
+			.mockResolvedValueOnce(undefined)
+			// The ensure probe of the replacement.
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			workspaceRoot: "/workspace",
+			force: true,
+			waitForIdleMs: 0,
+			reason: "test upgrade",
+		});
+
+		expect(result).toEqual({
+			outcome: "replaced",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+			activeSessionCount: 2,
+		});
+		// Drained with the caller's reason before the retire ladder ran.
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"test upgrade",
+		);
+		expect(requestHubShutdown).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+		);
+		expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
+	});
+
+	it("leaves a busy hub running and un-drains it when not forced", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 3,
+			participantClientCount: 2,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 0 });
+
+		expect(result).toEqual({
+			outcome: "still_busy",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+			activeSessionCount: 3,
+		});
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub upgrade aborted",
+			{ off: true },
+		);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("refuses to replace a hub running a newer build", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "newer-hub-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "newer-build",
+			buildEpochMs: 2_000_000,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ force: true });
+
+		expect(result).toEqual({
+			outcome: "hub_not_older",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "newer-hub-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("reports a hub already on this build without touching it", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "current-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub();
+
+		expect(result).toEqual({
+			outcome: "already_current",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "current-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("starts a hub when none is running", async () => {
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ workspaceRoot: "/workspace" });
+
+		expect(result).toEqual({
+			outcome: "started",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+	});
+
+	it("fails fast when the hub does not accept the drain, even when idle and forced", async () => {
+		requestHubDrain.mockResolvedValue(false);
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		await expect(upgradeManagedHub({ force: true })).rejects.toThrow(
+			/did not accept a drain request/,
+		);
+		// No admission barrier means no upgrade at all: the failure comes
+		// before the wait window (no activity readings), nothing is un-drained
+		// (only the initial drain attempt), and nothing is retired or spawned.
+		// Even an idle snapshot would not help - a session admitted right
+		// after it would die in a retire the consent prompt never covered.
+		expect(queryHubSessionActivity).not.toHaveBeenCalled();
+		expect(requestHubDrain).toHaveBeenCalledTimes(1);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("treats a failed activity reading as unknown and keeps polling instead of concluding idle", async () => {
+		queryHubSessionActivity
+			.mockRejectedValueOnce(new Error("session.list timed out"))
+			.mockResolvedValue({ activeSessionCount: 2, participantClientCount: 1 });
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 600 });
+
+		// The transient failure neither ended the wait window nor read as
+		// idle: the loop polled again, saw the real busy reading, and handed
+		// the hub back un-drained.
+		expect(result).toMatchObject({
+			outcome: "still_busy",
+			activeSessionCount: 2,
+		});
+		expect(queryHubSessionActivity.mock.calls.length).toBeGreaterThan(1);
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub upgrade aborted",
+			{ off: true },
+		);
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+	});
+
+	it("never retires a hub whose activity could not be confirmed unless forced", async () => {
+		queryHubSessionActivity.mockRejectedValue(
+			new Error("session.list unavailable"),
+		);
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({ waitForIdleMs: 0 });
+
+		expect(result.outcome).toBe("still_busy");
+		// Unknown, not zero: no count is reported for a hub that never answered.
+		expect(result.activeSessionCount).toBeUndefined();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
+	});
+
+	it("replaces an unanswerable hub only under force with an accepted drain", async () => {
+		queryHubSessionActivity.mockRejectedValue(
+			new Error("session.list unavailable"),
+		);
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+				pid: 12345,
+			})
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			workspaceRoot: "/workspace",
+			force: true,
+			waitForIdleMs: 0,
+		});
+
+		expect(result).toEqual({
+			outcome: "replaced",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "new-token",
+			activeSessionCount: 0,
+		});
+	});
+
+	it("un-drains and reports failure when the old hub survives the retire ladder", async () => {
+		queryHubSessionActivity.mockResolvedValue({
+			activeSessionCount: 1,
+			participantClientCount: 1,
+		});
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "old-token",
+		});
+		// The hub stays alive through the drain, shutdown, and retire waits.
+		probeHubServer.mockResolvedValue({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		await expect(
+			upgradeManagedHub({ force: true, waitForIdleMs: 0 }),
+		).rejects.toThrow(/could not be stopped/);
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub upgrade aborted",
+			{ off: true },
+		);
+		expect(clearHubDiscovery).not.toHaveBeenCalled();
+		expect(spawn).not.toHaveBeenCalled();
 	});
 });

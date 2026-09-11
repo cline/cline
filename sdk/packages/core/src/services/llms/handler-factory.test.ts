@@ -13,12 +13,18 @@ const gatewayMock = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@cline/llms", () => ({
+vi.mock("@cline/llms", async (importOriginal) => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
+	// Capability translation is the behaviour under test in the gateway model
+	// assertions below, so use the real translator rather than a stub that
+	// would re-implement (and could disagree with) it.
+	toGatewayModelCapabilities: (
+		await importOriginal<typeof import("@cline/llms")>()
+	).toGatewayModelCapabilities,
 }));
 
 describe("createAgentModelFromConfig", () => {
@@ -142,6 +148,10 @@ describe("createAgentModelFromConfig", () => {
 						contextWindow: 1_000_000,
 						maxInputTokens: 1_000_000,
 						maxTokens: 65_536,
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
 						capabilities: [
 							"tools",
 							"reasoning",
@@ -180,6 +190,10 @@ describe("createAgentModelFromConfig", () => {
 			contextWindow: 1_000_000,
 			maxInputTokens: 1_000_000,
 			maxOutputTokens: 65_536,
+			modalities: {
+				input: ["text", "image"],
+				output: ["text", "image"],
+			},
 			capabilities: expect.arrayContaining([
 				"text",
 				"tools",
@@ -257,6 +271,79 @@ describe("createAgentModelFromConfig", () => {
 							region: "us-west-2",
 							authentication: "profile",
 							profile: "dev-profile",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("forwards the workspace cwd as a Claude Code gateway provider option", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+						cwd: "/home/user/project/packages/app",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project/packages/app",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("falls back to the workspace root when no cwd is set for Claude Code", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project",
 						}),
 					}),
 				],
@@ -509,7 +596,9 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+		const model = provider.operations.language(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;

@@ -1,4 +1,4 @@
-import type { Message } from "@cline/llms";
+import type { MessageWithMetadata } from "@cline/llms";
 import type {
 	AgentConfig,
 	AutomationEventEnvelope,
@@ -163,7 +163,7 @@ export interface RestoreInput {
 export interface RestoreResult {
 	sessionId?: string;
 	startResult?: StartSessionResult;
-	messages?: Message[];
+	messages?: MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 }
 

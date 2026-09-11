@@ -1,12 +1,10 @@
 import type { ChildProcess } from "node:child_process";
-import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { mockEnsureCliHubServer, mockSpawn } = vi.hoisted(() => ({
-	mockEnsureCliHubServer: vi.fn(),
+const { mockSpawn } = vi.hoisted(() => ({
 	mockSpawn: vi.fn(),
 }));
 
@@ -18,14 +16,10 @@ vi.mock("node:child_process", async (importOriginal) => {
 	};
 });
 
-vi.mock("../utils/hub-runtime", () => ({
-	ensureCliHubServer: mockEnsureCliHubServer,
-}));
-
 import {
+	applyDeferredUpdate,
 	autoUpdateOnStartup,
 	checkForUpdates,
-	ensureCliHubServerAfterUpdate,
 	getInstallationInfo,
 	PackageManager,
 	resolveCliHubOwnerContext,
@@ -41,14 +35,6 @@ const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const originalIsDev = process.env.IS_DEV;
 const originalNoAutoUpdate = process.env.CLINE_NO_AUTO_UPDATE;
 const tempDirs: string[] = [];
-
-function createChildProcessThatCloses(exitCode: number): ChildProcess {
-	const child = new EventEmitter();
-	queueMicrotask(() => {
-		child.emit("close", exitCode);
-	});
-	return child as ChildProcess;
-}
 
 function createFile(path: string): string {
 	mkdirSync(dirname(path), { recursive: true });
@@ -265,68 +251,100 @@ describe("hub restart owner selection", () => {
 	});
 });
 
-describe("post-update hub launch", () => {
+describe("deferred auto update", () => {
 	afterEach(() => {
-		mockEnsureCliHubServer.mockReset();
 		mockSpawn.mockReset();
+		if (originalBuildEnv === undefined) {
+			delete process.env.CLINE_BUILD_ENV;
+		} else {
+			process.env.CLINE_BUILD_ENV = originalBuildEnv;
+		}
+		if (originalHubDiscoveryPath === undefined) {
+			delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		} else {
+			process.env.CLINE_HUB_DISCOVERY_PATH = originalHubDiscoveryPath;
+		}
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
-	it("uses the freshly installed wrapper instead of the current executable", async () => {
-		mockSpawn.mockReturnValue(createChildProcessThatCloses(0));
-		const env = {
-			CLINE_WRAPPER_PATH: "/opt/cline/lib/node_modules/cline/bin/cline",
-			CLINE_NO_AUTO_UPDATE: "0",
-		};
-
-		await ensureCliHubServerAfterUpdate("/workspace/project", env, "linux");
-
-		expect(mockSpawn).toHaveBeenCalledWith(
-			"/opt/cline/lib/node_modules/cline/bin/cline",
-			["hub", "ensure"],
-			{
-				cwd: "/workspace/project",
-				env: {
-					...env,
-					CLINE_NO_AUTO_UPDATE: "1",
-				},
-				stdio: "ignore",
-				windowsHide: true,
-			},
-		);
-		expect(mockEnsureCliHubServer).not.toHaveBeenCalled();
-	});
-
-	it("uses the in-process ensure path when no executable cache can be deleted", async () => {
-		mockEnsureCliHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:25463/hub",
-			authToken: "token",
-		});
-
-		await ensureCliHubServerAfterUpdate(
-			"C:\\workspace\\project",
-			{ CLINE_WRAPPER_PATH: "C:\\npm\\node_modules\\cline\\bin\\cline" },
-			"win32",
-		);
-
-		expect(mockEnsureCliHubServer).toHaveBeenCalledWith(
-			"C:\\workspace\\project",
-		);
+	it("does nothing when no update was recorded", async () => {
+		expect(await applyDeferredUpdate(undefined)).toBe("none");
 		expect(mockSpawn).not.toHaveBeenCalled();
 	});
 
-	it("surfaces a failure from the freshly installed CLI", async () => {
-		mockSpawn.mockReturnValue(createChildProcessThatCloses(1));
+	it("starts the detached install when no hub is discoverable", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-update-test-"));
+		tempDirs.push(root);
+		process.env.CLINE_BUILD_ENV = "production";
+		process.env.CLINE_HUB_DISCOVERY_PATH = join(root, "production.json");
+		const unref = vi.fn();
+		mockSpawn.mockReturnValue({ unref } as unknown as ChildProcess);
 
-		await expect(
-			ensureCliHubServerAfterUpdate(
-				"/workspace/project",
-				{ CLINE_WRAPPER_PATH: "/opt/cline/bin/cline" },
-				"linux",
-			),
-		).rejects.toThrow(
-			"freshly installed Cline failed to start the hub (exit code 1)",
+		const outcome = await applyDeferredUpdate({
+			command: "npm update -g cline --tag latest --min-release-age=0",
+		});
+
+		expect(outcome).toBe("started");
+		expect(mockSpawn).toHaveBeenCalledWith(
+			"npm update -g cline --tag latest --min-release-age=0",
+			expect.objectContaining({
+				detached: true,
+				shell: true,
+				stdio: "ignore",
+			}),
 		);
+		expect(unref).toHaveBeenCalled();
 	});
+
+	it("defers while another cli client is attached to the hub", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-update-test-"));
+		tempDirs.push(root);
+		const discoveryPath = join(root, "production.json");
+		process.env.CLINE_BUILD_ENV = "production";
+		process.env.CLINE_HUB_DISCOVERY_PATH = discoveryPath;
+		const {
+			createLocalHubScheduleRuntimeHandlers,
+			NodeHubClient,
+			startHubWebSocketServer,
+		} = await import("@cline/core");
+		const server = await startHubWebSocketServer({
+			host: "127.0.0.1",
+			port: 0,
+			owner: { ownerId: "update-test", discoveryPath },
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		const cliClient = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientType: "cli",
+			displayName: "fake attached cli",
+		});
+		try {
+			await cliClient.command("client.list", {});
+
+			expect(await applyDeferredUpdate({ command: "echo update" })).toBe(
+				"deferred",
+			);
+			expect(mockSpawn).not.toHaveBeenCalled();
+
+			await cliClient.dispose();
+			const unref = vi.fn();
+			mockSpawn.mockReturnValue({ unref } as unknown as ChildProcess);
+			// The hub unregisters the client when its socket closes; poll
+			// briefly rather than assuming the close is processed instantly.
+			let outcome = "deferred";
+			const deadline = Date.now() + 3_000;
+			while (outcome === "deferred" && Date.now() < deadline) {
+				outcome = await applyDeferredUpdate({ command: "echo update" });
+			}
+			expect(outcome).toBe("started");
+		} finally {
+			await cliClient.dispose().catch(() => undefined);
+			await server.close();
+		}
+	}, 15_000);
 });
 
 describe("withMinimumReleaseAgeBypass", () => {

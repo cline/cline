@@ -1,5 +1,10 @@
 /// <reference types="@types/bun" />
-export {};
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+	resolveRepoRootFromCorePackage,
+	resolveSdkRuntimeBuildId,
+} from "./scripts/runtime-build-id";
 
 type PackageManifest = {
 	dependencies?: Record<string, string>;
@@ -9,6 +14,10 @@ type PackageManifest = {
 const packageJson = (await Bun.file(
 	new URL("./package.json", import.meta.url),
 ).json()) as PackageManifest;
+const corePackageRoot = dirname(fileURLToPath(import.meta.url));
+const runtimeBuildId = resolveSdkRuntimeBuildId(
+	resolveRepoRootFromCorePackage(corePackageRoot),
+);
 
 // Keep declared runtime packages external so they are not duplicated inside each
 // bundled entrypoint and installed again from package.json.
@@ -28,6 +37,13 @@ const buildConfig = {
 	packages: "bundle",
 	sourcemap,
 	external,
+	define: {
+		__CLINE_CORE_RUNTIME_BUILD_ID__: JSON.stringify(runtimeBuildId),
+		// Unlike the deterministic fingerprint above, the epoch orders builds in
+		// time so managed-Hub compatibility can tell a newer daemon from a stale
+		// one. Consulted only when fingerprints already differ.
+		__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: JSON.stringify(Date.now()),
+	},
 } as const;
 
 const builds: Parameters<typeof Bun.build>[0][] = [

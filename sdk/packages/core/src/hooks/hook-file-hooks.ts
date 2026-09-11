@@ -16,7 +16,11 @@ import { augmentNodeCommandForDebug } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
 import { createAgentHooksExtension } from "./hook-extension";
 import { listHookConfigFiles } from "./hook-file-config";
-import type { HookEventName, HookEventPayload } from "./subprocess";
+import {
+	type HookEventName,
+	type HookEventPayload,
+	truncateHookContext,
+} from "./subprocess";
 import {
 	type RunSubprocessEventResult,
 	runSubprocessEvent,
@@ -31,6 +35,12 @@ type HookContextBase = {
 type HookCommandControl = Omit<HookControl, "appendMessages"> & {
 	systemPrompt?: string;
 	appendMessages?: unknown[];
+	/**
+	 * Error message accompanying `cancel: true`. Kept separate from `context`
+	 * so injectable context from one hook never leaks into another hook's
+	 * cancellation reason when controls are merged.
+	 */
+	cancelReason?: string;
 };
 
 type HookCommandRunStartContext = HookContextBase & {
@@ -124,6 +134,11 @@ function mergeHookControls(
 			(value): value is string => typeof value === "string" && value.length > 0,
 		)
 		.join("\n");
+	const cancelReasons = [current.cancelReason, next.cancelReason]
+		.filter(
+			(value): value is string => typeof value === "string" && value.length > 0,
+		)
+		.join("\n");
 	const appendMessages = [
 		...(current.appendMessages ?? []),
 		...(next.appendMessages ?? []),
@@ -132,6 +147,7 @@ function mergeHookControls(
 		cancel: current.cancel === true || next.cancel === true ? true : undefined,
 		review: current.review === true || next.review === true ? true : undefined,
 		context: contexts || undefined,
+		cancelReason: cancelReasons || undefined,
 		overrideInput:
 			next.overrideInput !== undefined
 				? next.overrideInput
@@ -149,18 +165,29 @@ function parseHookControl(value: unknown): HookCommandControl | undefined {
 		return undefined;
 	}
 	const record = value as Record<string, unknown>;
-	const context =
+	const injectableContext =
 		typeof record.context === "string"
 			? record.context
 			: typeof record.contextModification === "string"
 				? record.contextModification
-				: typeof record.errorMessage === "string"
-					? record.errorMessage
-					: undefined;
+				: undefined;
+	const errorMessage =
+		typeof record.errorMessage === "string" &&
+		record.errorMessage.trim().length > 0
+			? record.errorMessage
+			: undefined;
+	const cancel = typeof record.cancel === "boolean" ? record.cancel : undefined;
 	return {
-		cancel: typeof record.cancel === "boolean" ? record.cancel : undefined,
+		cancel,
 		review: typeof record.review === "boolean" ? record.review : undefined,
-		context,
+		// A cancelling hook's message is its error/reason, not injectable
+		// conversation context; errorMessage takes precedence there.
+		context:
+			cancel === true
+				? undefined
+				: truncateHookContext(injectableContext ?? errorMessage),
+		cancelReason:
+			cancel === true ? (errorMessage ?? injectableContext) : undefined,
 		overrideInput: Object.hasOwn(record, "overrideInput")
 			? record.overrideInput
 			: undefined,
@@ -508,16 +535,50 @@ function textFromMessageContent(
 
 function beforeToolResultFromControl(
 	control: HookCommandControl | undefined,
-): { stop?: boolean; reason?: string; input?: unknown } | undefined {
+):
+	| { stop?: boolean; reason?: string; input?: unknown; appendContext?: string }
+	| undefined {
 	if (!control) {
 		return undefined;
 	}
-	const result: { stop?: boolean; reason?: string; input?: unknown } = {};
+	const result: {
+		stop?: boolean;
+		reason?: string;
+		input?: unknown;
+		appendContext?: string;
+	} = {};
 	if (control.cancel === true) {
 		result.stop = true;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
+		}
+	} else if (control.context?.trim()) {
+		// Context is injected only when the hook lets the run continue; a
+		// cancelling hook's message travels as cancelReason instead (legacy
+		// surfaced it as an error, never as conversation context).
+		result.appendContext = control.context;
 	}
 	if (control.overrideInput !== undefined) {
 		result.input = control.overrideInput;
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function afterToolResultFromControl(
+	control: HookCommandControl | undefined,
+): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
+	if (!control) {
+		return undefined;
+	}
+	const result: { stop?: boolean; reason?: string; appendContext?: string } =
+		{};
+	if (control.cancel === true) {
+		result.stop = true;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
+		}
+	} else if (control.context?.trim()) {
+		result.appendContext = control.context;
 	}
 	return Object.keys(result).length > 0 ? result : undefined;
 }
@@ -742,16 +803,16 @@ export function createHookConfigFileHooks(
 
 	const runToolCallEnd = async (
 		ctx: HookCommandToolCallEndContext,
-	): Promise<void> => {
+	): Promise<HookCommandControl | undefined> => {
 		const commandPaths = commandMap.tool_result ?? [];
 		if (commandPaths.length === 0) {
-			return;
+			return undefined;
 		}
-		await runAsyncHookCommands({
+		return runBlockingHookCommands({
 			commands: commandPaths,
 			cwd: options.cwd,
 			logger: options.logger,
-			detached: options.detachAsyncHooks ?? true,
+			timeoutMs: options.toolCallTimeoutMs ?? 120000,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "tool_result",
@@ -894,8 +955,8 @@ export function createHookConfigFileHooks(
 	}
 	if ((commandMap.tool_result?.length ?? 0) > 0) {
 		hooks.afterTool = async (ctx: AgentAfterToolContext) => {
-			await runToolCallEnd(toolCallEndContext(ctx));
-			return undefined;
+			const control = await runToolCallEnd(toolCallEndContext(ctx));
+			return afterToolResultFromControl(control);
 		};
 	}
 	if ((commandMap.agent_end?.length ?? 0) > 0) {
@@ -968,11 +1029,18 @@ function mergeHookFunction<K extends keyof AgentHooks>(
 				continue;
 			}
 			const record = next as Record<string, unknown>;
+			const appendContexts = [merged?.appendContext, record.appendContext]
+				.filter(
+					(value): value is string =>
+						typeof value === "string" && value.length > 0,
+				)
+				.join("\n\n");
 			merged = {
 				...(merged ?? {}),
 				...record,
 				stop:
 					merged?.stop === true || record.stop === true ? true : record.stop,
+				appendContext: appendContexts || undefined,
 				options:
 					merged?.options || record.options
 						? {

@@ -9,6 +9,8 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"@cline/shared": "workspace:*",
+		"@cline/ui": "workspace:*",
 		"@base-ui/react": "^1.3.0",
 		"@fontsource-variable/geist": "^5.2.8",
 		"@radix-ui/react-use-controllable-state": "^1.2.2",
@@ -19,7 +21,7 @@
 		"@streamdown/mermaid": "^1.0.2",
 		"@tailwindcss/vite": "^4.2.1",
 		"@xyflow/react": "^12.10.1",
-		"ai": "^7",
+		"ai": "^7.0.58",
 		"ansi-to-react": "^6.2.6",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",

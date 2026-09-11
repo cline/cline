@@ -5,7 +5,12 @@ import {
 	type GatewayProviderContext,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BUILTIN_SPECS, resolveProviderApiLineBaseUrl } from "./builtins";
+import {
+	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
+	BUILTIN_SPECS,
+	getGeneratedModelsForRuntimeProvider,
+	resolveProviderApiLineBaseUrl,
+} from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
@@ -86,6 +91,24 @@ describe("cline builtin models", () => {
 			pricing: expect.objectContaining({ input: 0.1, output: 0.2 }),
 		});
 	});
+
+	it("excludes image-output models without changing upstream catalogs", async () => {
+		const modelId = "google/gemini-3-pro-image";
+		const [clineModels, openRouterModels, vercelModels] = await Promise.all([
+			getModelsForProvider("cline"),
+			getModelsForProvider("openrouter"),
+			getModelsForProvider("vercel-ai-gateway"),
+		]);
+
+		expect(clineModels[modelId]).toBeUndefined();
+		expect(
+			Object.values(clineModels).some(
+				(model) => model.modalities?.output.includes("image") === true,
+			),
+		).toBe(false);
+		expect(openRouterModels[modelId]?.modalities?.output).toContain("image");
+		expect(vercelModels[modelId]?.modalities?.output).toContain("image");
+	});
 });
 
 describe("baked anthropic catalog reasoning options", () => {
@@ -154,6 +177,50 @@ describe("baked anthropic catalog reasoning options", () => {
 	});
 });
 
+describe("vertex builtin models", () => {
+	it("adds Claude Fable 5 without changing existing Vertex models", async () => {
+		const models = await getModelsForProvider("vertex");
+		expect(models["claude-fable-5"]).toMatchObject({
+			id: "claude-fable-5",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+			maxTokens: 128_000,
+		});
+
+		expect(models["claude-sonnet-5@default"]).toBeDefined();
+		// The default comes from the generated (models.dev-derived) provider
+		// spec and rotates as the upstream catalog changes — assert it resolves
+		// to a model in the list rather than pinning a specific id.
+		const provider = await getProvider("vertex");
+		expect(provider.defaultModelId).toBeTruthy();
+		expect(models[provider.defaultModelId ?? ""]).toBeDefined();
+		expect(
+			(await getModelsForProvider("gemini"))["claude-fable-5"],
+		).toBeUndefined();
+	});
+
+	it("drops Anthropic's universal pricing from the Vertex Fable 5 record", async () => {
+		// Vertex bills region-dependently and its US/EU multi-region rates
+		// exceed Anthropic's list price; the overlay must not present a
+		// misleading universal price. No pricing beats wrong pricing.
+		const anthropicFable = (await getModelsForProvider("anthropic"))[
+			"claude-fable-5"
+		];
+		expect(anthropicFable?.pricing).toBeDefined();
+
+		const vertexFable = (await getModelsForProvider("vertex"))[
+			"claude-fable-5"
+		];
+		expect(vertexFable).toBeDefined();
+		expect(vertexFable.pricing).toBeUndefined();
+		// Non-pricing metadata still carries over.
+		expect(vertexFable.capabilities).toEqual(anthropicFable.capabilities);
+		expect(vertexFable.reasoningOptions).toEqual(
+			anthropicFable.reasoningOptions,
+		);
+	});
+});
+
 describe("cline-pass builtin spec", () => {
 	it("registers a distinct Cline-compatible provider with a custom model list", async () => {
 		const models = await getModelsForProvider("cline-pass");
@@ -184,6 +251,65 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("declares OpenRouter image transport for Cline-compatible gateways", async () => {
+		await expect(getProvider("cline")).resolves.toMatchObject({
+			metadata: {
+				imageTransport: "openrouter",
+				responseEnvelope: "success-data",
+			},
+		});
+		await expect(getProvider("cline-pass")).resolves.toMatchObject({
+			metadata: {
+				imageTransport: "openrouter",
+				responseEnvelope: "success-data",
+			},
+		});
+		await expect(getProvider("openrouter")).resolves.toMatchObject({
+			metadata: { imageTransport: "openrouter" },
+		});
+	});
+
+	it("registers ElevenLabs Scribe v2 as a dedicated transcription provider", async () => {
+		await expect(getProvider("elevenlabs")).resolves.toMatchObject({
+			id: "elevenlabs",
+			name: "ElevenLabs",
+			baseUrl: "https://api.elevenlabs.io/v1",
+			defaultModelId: "scribe_v2",
+			client: "fetch",
+		});
+		await expect(getModelsForProvider("elevenlabs")).resolves.toEqual({
+			scribe_v2: expect.objectContaining({
+				id: "scribe_v2",
+				operation: "transcription",
+				operationModes: ["batch"],
+				modalities: {
+					input: ["audio"],
+					output: ["text"],
+				},
+			}),
+		});
+		expect(BUILTIN_PROVIDER_MANIFESTS_BY_ID.elevenlabs).toMatchObject({
+			modelOperationCapabilities: [
+				{
+					operation: "transcription",
+					modes: ["batch"],
+				},
+			],
+			metadata: { transcriptionTransport: "elevenlabs" },
+		});
+		expect(BUILTIN_PROVIDER_MANIFESTS_BY_ID["vercel-ai-gateway"]).toMatchObject(
+			{
+				modelOperationCapabilities: expect.arrayContaining([
+					expect.objectContaining({
+						operation: "transcription",
+						modes: ["batch", "streaming"],
+					}),
+				]),
+				metadata: { transcriptionTransport: "vercel-ai-gateway" },
+			},
+		);
+	});
+
 	it("merges generated provider specs with handwritten built-in overrides", async () => {
 		const generatedIds = new Set(
 			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
@@ -266,15 +392,26 @@ describe("built-in provider metadata", () => {
 		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]),
+			expect.arrayContaining([
+				"gpt-5.5",
+				"gpt-5.3-codex-spark",
+				"gpt-5.6-terra",
+				"gpt-5.6-luna",
+				"gpt-5.6-sol",
+				"gpt-6-astra",
+			]),
 		);
 		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
 		expect(modelIds).not.toContain("gpt-5.3-codex");
-		expect(modelIds).not.toContain("gpt-5.3-codex-spark");
+		// Retired for ChatGPT accounts on 2026-08-31
+		expect(modelIds).not.toContain("gpt-5.4");
+		expect(modelIds).not.toContain("gpt-5.4-mini");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
+		// Bare alias of gpt-5.6-sol
+		expect(modelIds).not.toContain("gpt-5.6");
 		expect(modelIds).not.toContain("o3");
 		expect(chatGptModels["gpt-5.5"]).toEqual(
 			expect.objectContaining({
@@ -285,13 +422,30 @@ describe("built-in provider metadata", () => {
 				maxTokens: 128_000,
 			}),
 		);
-		expect(chatGptModels["gpt-5.4"]).toEqual(
+		expect(chatGptModels["gpt-5.6-terra"]).toEqual(
 			expect.objectContaining({
-				name: "GPT-5.4",
-				maxInputTokens: expect.any(Number),
-				contextWindow: expect.any(Number),
+				name: "GPT-5.6 Terra",
+				maxInputTokens: 272_000 * 0.95,
+				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
+	});
+
+	it("applies the ChatGPT subscription filter to the shared OpenAI catalog", () => {
+		const openAiModelIds = Object.keys(
+			getGeneratedModelsForRuntimeProvider("openai-native"),
+		);
+		const chatGptModelIds = Object.keys(
+			getGeneratedModelsForRuntimeProvider("openai-codex"),
+		);
+
+		expect(openAiModelIds).toEqual(
+			expect.arrayContaining(["gpt-4o", "gpt-5.5", "o3"]),
+		);
+		expect(chatGptModelIds).toContain("gpt-5.5");
+		expect(chatGptModelIds).not.toContain("gpt-4o");
+		expect(chatGptModelIds).not.toContain("o3");
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {
@@ -386,9 +540,7 @@ describe("regional API line base URLs", () => {
 	it("returns undefined for unknown lines and non-regional providers", () => {
 		expect(resolveProviderApiLineBaseUrl("zai", undefined)).toBeUndefined();
 		expect(resolveProviderApiLineBaseUrl("zai", "mars")).toBeUndefined();
-		expect(
-			resolveProviderApiLineBaseUrl("anthropic", "china"),
-		).toBeUndefined();
+		expect(resolveProviderApiLineBaseUrl("anthropic", "china")).toBeUndefined();
 	});
 
 	it("keeps the international line consistent with the spec default base URL for zai and moonshot", () => {

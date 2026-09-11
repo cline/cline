@@ -14,9 +14,12 @@ name: ext-vscode-publish-nightly
 # pre-release publishes.
 
 on:
-  schedule:
-    # Every day at 4:00 AM PST (12:00 UTC)
-    - cron: "0 12 * * *"
+  # Manual dispatch only. The nightly cron was removed deliberately: the
+  # PublishNightly environment gained required reviewers, and an unattended
+  # cron run would just sit `waiting` on that approval, hold this workflow's
+  # concurrency group, and silently cancel every later scheduled run behind it
+  # (that is exactly what happened between 2026-07-31 and 2026-08-21, killing
+  # 20 consecutive nightlies). Cut a nightly by dispatching this workflow.
   workflow_dispatch:
     inputs:
       legacy-ref:
@@ -74,8 +77,9 @@ jobs:
       - name: Checkout legacy source
         uses: actions/checkout@v4
         with:
-          # NOTE: inputs are empty strings on `schedule` events, so the ||
-          # fallback (not the input's declared default) is what the cron uses.
+          # NOTE: the || fallback is retained so this stays correct if a
+          # non-dispatch trigger is ever added back (inputs are empty strings
+          # on e.g. `schedule` events, where the declared default does not apply).
           ref: ${{ inputs.legacy-ref || 'legacy-extension' }}
           path: legacy-src
           lfs: true

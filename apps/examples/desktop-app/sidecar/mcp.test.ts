@@ -14,6 +14,7 @@ function createContext(workspaceRoot: string): SidecarContext {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		bootId: "test-boot",
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -21,6 +22,7 @@ function createContext(workspaceRoot: string): SidecarContext {
 		hubClient: null,
 		workspaceRoot,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 

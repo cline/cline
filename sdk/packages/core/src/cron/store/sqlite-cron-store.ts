@@ -364,8 +364,28 @@ function filenameStemFromPath(sourcePath: string): string {
 		.replace(/\.md$/, "");
 }
 
+const HUB_SCHEDULE_SOURCE_PATH_PREFIX = "hub/schedules/";
+
 function hubScheduleSourcePath(scheduleId: string): string {
-	return `hub/schedules/${scheduleId}.cron.md`;
+	return `${HUB_SCHEDULE_SOURCE_PATH_PREFIX}${scheduleId}.cron.md`;
+}
+
+/**
+ * DB-native hub schedules (created via the schedule tools/UI) live only in
+ * cron.db under a virtual sourcePath that never exists on disk. File-backed
+ * specs can spoof `source: hub-schedule` in frontmatter — even inside a
+ * physical `hub/schedules/` directory — but reconciliation always records
+ * their source file's mtime, which DB-native rows never have. All three
+ * markers are required to identify a DB-native hub schedule.
+ */
+export function isHubManagedSpec(
+	spec: Pick<CronSpecRecord, "source" | "sourcePath" | "sourceMtimeMs">,
+): boolean {
+	return (
+		spec.source === "hub-schedule" &&
+		spec.sourcePath.startsWith(HUB_SCHEDULE_SOURCE_PATH_PREFIX) &&
+		spec.sourceMtimeMs === undefined
+	);
 }
 
 function hubScheduleMetadata(
@@ -422,6 +442,7 @@ function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
 				...common,
 				triggerKind: "schedule",
 				schedule: input.cronPattern.trim(),
+				timezone: input.timezone?.trim() || undefined,
 			};
 }
 
@@ -474,6 +495,12 @@ function cronSpecRecordToHubScheduleInput(
 	return {
 		name: updates.name ?? current.title,
 		cronPattern,
+		timezone:
+			updates.timezone === null
+				? undefined
+				: updates.timezone !== undefined
+					? updates.timezone
+					: current.timezone,
 		prompt: updates.prompt ?? current.prompt ?? "",
 		workspaceRoot: updates.workspaceRoot ?? current.workspaceRoot ?? "",
 		cwd,
@@ -538,6 +565,8 @@ export interface ListRunsOptions {
 }
 
 export interface ClaimRunOptions {
+	/** Database-wide concurrency limit; defaults to 10. Per-spec limits always apply. */
+	maxConcurrency?: number;
 	nowIso: string;
 	leaseMs: number;
 	limit?: number;
@@ -673,7 +702,12 @@ export class SqliteCronStore {
 	}
 
 	public listHubSchedules(
-		options: { enabled?: boolean; limit?: number; tags?: string[] } = {},
+		options: {
+			enabled?: boolean;
+			limit?: number;
+			tags?: string[];
+			workspaceRoot?: string;
+		} = {},
 	): CronSpecRecord[] {
 		const where = [
 			"source = 'hub-schedule'",
@@ -684,6 +718,10 @@ export class SqliteCronStore {
 		if (typeof options.enabled === "boolean") {
 			where.push("enabled = ?");
 			params.push(options.enabled ? 1 : 0);
+		}
+		if (options.workspaceRoot?.trim()) {
+			where.push("workspace_root = ?");
+			params.push(options.workspaceRoot.trim());
 		}
 		if (options.tags && options.tags.length > 0) {
 			for (const tag of options.tags) {
@@ -732,6 +770,7 @@ export class SqliteCronStore {
 			}
 			if (
 				updates.cronPattern !== undefined ||
+				updates.timezone !== undefined ||
 				updates.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY] !==
 					undefined ||
 				updates.enabled !== undefined
@@ -1233,6 +1272,43 @@ export class SqliteCronStore {
 		return row ? runToRecord(row) : undefined;
 	}
 
+	/**
+	 * 1-based position of a run among every run ever created for its spec,
+	 * in creation order. Counts runs of every status (including cancelled and
+	 * failed ones) so the number is stable: a later cancellation never shifts
+	 * the numbers already stamped onto earlier sessions. Returns undefined
+	 * for an unknown run.
+	 */
+	public getRunOrdinal(runId: string): number | undefined {
+		const row = this.db
+			.prepare(
+				`SELECT COUNT(*) AS count
+					FROM cron_runs r
+					INNER JOIN cron_runs target ON target.run_id = ?
+					WHERE r.spec_id = target.spec_id
+						AND (
+							r.created_at < target.created_at
+							OR (r.created_at = target.created_at AND r.rowid <= target.rowid)
+						)`,
+			)
+			.get(runId) as { count?: unknown } | undefined;
+		const count = Number(row?.count ?? 0);
+		return count > 0 ? count : undefined;
+	}
+
+	/** Execute synchronous event acceptance and materialization as one atomic write. */
+	public eventTransaction<T>(work: () => T): T {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const result = work();
+			this.db.exec("COMMIT;");
+			return result;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
 	public insertEventLog(
 		event: AutomationEventEnvelope,
 		options: { receivedAtIso?: string } = {},
@@ -1540,24 +1616,35 @@ export class SqliteCronStore {
 		const claimed: ClaimedCronRun[] = [];
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
-			const rows = this.db
-				.prepare(
-					`SELECT * FROM cron_runs
-						WHERE (
-								status = 'queued'
-								OR (
-									status = 'running'
-									AND claim_until_at IS NOT NULL
-									AND claim_until_at <= ?
-									AND completed_at IS NULL
-								)
-							)
-							AND (scheduled_for IS NULL OR scheduled_for <= ?)
-						ORDER BY COALESCE(scheduled_for, created_at) ASC
-						LIMIT ?`,
+			// Re-evaluate capacity after every claim in the same write transaction.
+			// Filtering before LIMIT lets unrelated specs pass a saturated backlog.
+			const nextDueRun = this.db.prepare(`
+				SELECT * FROM cron_runs
+				WHERE (
+					status = 'queued'
+					OR (status = 'running' AND claim_until_at <= :now AND completed_at IS NULL)
 				)
-				.all(referenceIso, referenceIso, limit);
-			for (const row of rows) {
+				AND (scheduled_for IS NULL OR scheduled_for <= :now)
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.status = 'running' AND active.claim_until_at > :now
+				) < :capacity
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.spec_id = cron_runs.spec_id
+					AND active.status = 'running' AND active.claim_until_at > :now
+				) < COALESCE((
+					SELECT MAX(1, max_parallel) FROM cron_specs WHERE spec_id = cron_runs.spec_id
+				), 1)
+				ORDER BY COALESCE(scheduled_for, created_at) ASC, rowid ASC
+				LIMIT 1
+			`);
+			while (claimed.length < limit) {
+				const row = nextDueRun.get({
+					now: referenceIso,
+					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+				});
+				if (!row) break;
 				const runId = asString(row.run_id);
 				if (!runId) continue;
 				const claimToken = `cclaim_${randomUUID()}`;
@@ -1671,6 +1758,8 @@ export class SqliteCronStore {
 		update: ClaimBoundUpdate & {
 			error?: string;
 			scheduledFor?: string;
+			/** Undo the claim's attempt increment when execution never started. */
+			releaseAttempt?: boolean;
 		},
 	): boolean {
 		const updatedAt = nowIso();
@@ -1679,6 +1768,7 @@ export class SqliteCronStore {
 				.prepare(
 					`UPDATE cron_runs SET
 						status = 'queued',
+						attempt_count = MAX(0, attempt_count - ?),
 						claim_started_at = NULL,
 						claim_token = NULL,
 						claim_until_at = NULL,
@@ -1692,6 +1782,7 @@ export class SqliteCronStore {
 					WHERE run_id = ? AND claim_token = ?`,
 				)
 				.run(
+					update.releaseAttempt ? 1 : 0,
 					update.error ?? null,
 					update.scheduledFor ?? null,
 					updatedAt,
@@ -1701,12 +1792,18 @@ export class SqliteCronStore {
 		return changes > 0;
 	}
 
-	public attachSessionIdToRun(runId: string, sessionId: string): void {
-		this.db
-			.prepare(
-				`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ?`,
-			)
-			.run(sessionId, nowIso(), runId);
+	public attachSessionIdToRun(
+		runId: string,
+		sessionId: string,
+		claimToken: string,
+	): boolean {
+		return (
+			(this.db
+				.prepare(
+					`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ? AND claim_token = ? AND status = 'running'`,
+				)
+				.run(sessionId, nowIso(), runId, claimToken).changes ?? 0) === 1
+		);
 	}
 
 	public attachReportPathToRun(runId: string, reportPath: string): void {

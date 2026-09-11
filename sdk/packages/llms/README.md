@@ -73,6 +73,46 @@ selection UIs, defaults, or validation.
 For generated catalog field semantics and token-limit behavior, see
 [`src/catalog/README.md`](./src/catalog/README.md).
 
+Audio-capable catalog entries preserve their models.dev `modalities.input` and
+`modalities.output` values. Node clients can transcribe recorded audio with the
+same provider configuration used by the gateway. OpenAI-compatible providers
+use `/audio/transcriptions`; the built-in ElevenLabs provider uses its native
+`/speech-to-text` endpoint. Vercel AI Gateway uses its AI SDK-native
+`/v4/ai/transcription-model` transport rather than its OpenAI-compatible
+surface:
+
+```ts
+import { transcribeAudio } from "@cline/llms";
+
+const result = await transcribeAudio({
+  providerConfig,
+  modelId: "whisper-large-v3",
+  audio: recordedBytes,
+});
+```
+
+Transcription is fail-closed at the provider boundary. Built-in providers
+declare their concrete transport in their manifest; a custom provider must set
+`routingProviderId` to a provider whose transcription transport it explicitly
+reuses. A generic OpenAI-compatible chat configuration does not imply that
+`/audio/transcriptions` exists.
+
+Transcription models whose `operationModes` include `streaming` use a live
+WebSocket instead of the recorded-audio call. The SDK can mint a short-lived,
+transcription-bound browser credential without exposing the provider API key:
+
+```ts
+import { createStreamingAudioTranscriptionSession } from "@cline/llms";
+
+const session = await createStreamingAudioTranscriptionSession({
+  providerConfig,
+  modelId: "openai/gpt-realtime-whisper",
+});
+```
+
+Vercel AI Gateway is the first built-in streaming transcription transport.
+Batch models continue to use `transcribeAudio`.
+
 ## Entry Points
 
 - `@cline/llms`: runtime-focused convenience entrypoint

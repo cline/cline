@@ -165,7 +165,6 @@ describe("buildConnectorStartRequest", () => {
 	});
 });
 
-
 describe("isReusableConnectorSession", () => {
 	it("rejects missing and terminal sessions", () => {
 		expect(isReusableConnectorSession(undefined)).toBe(false);

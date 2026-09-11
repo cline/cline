@@ -6,6 +6,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 function Slider({
+	"aria-describedby": ariaDescribedBy,
+	"aria-label": ariaLabel,
+	"aria-labelledby": ariaLabelledBy,
+	"aria-valuetext": ariaValueText,
 	className,
 	defaultValue,
 	value,
@@ -22,10 +26,18 @@ function Slider({
 					: [min, max],
 		[value, defaultValue, min, max],
 	);
-	const thumbKeyCounts = new Map<string, number>();
+	const thumbKeyPrefix = React.useId();
+	const thumbKeys = Array.from(
+		{ length: _values.length },
+		(_, index) => `${thumbKeyPrefix}-${index}`,
+	);
 
 	return (
 		<SliderPrimitive.Root
+			aria-describedby={ariaDescribedBy}
+			aria-label={ariaLabel}
+			aria-labelledby={ariaLabelledBy}
+			aria-valuetext={ariaValueText}
 			data-interactive=""
 			data-slot="slider"
 			defaultValue={defaultValue}
@@ -51,18 +63,17 @@ function Slider({
 					}
 				/>
 			</SliderPrimitive.Track>
-			{_values.map((thumbValue) => {
-				const valueKey = String(thumbValue);
-				const occurrence = (thumbKeyCounts.get(valueKey) ?? 0) + 1;
-				thumbKeyCounts.set(valueKey, occurrence);
-				return (
-					<SliderPrimitive.Thumb
-						data-slot="slider-thumb"
-						key={`${valueKey}-${occurrence}`}
-						className="border-primary ring-ring/50 block size-4 shrink-0 rounded-full border bg-white shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
-					/>
-				);
-			})}
+			{thumbKeys.map((thumbKey) => (
+				<SliderPrimitive.Thumb
+					aria-describedby={ariaDescribedBy}
+					aria-label={ariaLabel}
+					aria-labelledby={ariaLabelledBy}
+					aria-valuetext={ariaValueText}
+					data-slot="slider-thumb"
+					key={thumbKey}
+					className="border-primary ring-ring/50 block size-4 shrink-0 rounded-full border bg-white shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+				/>
+			))}
 		</SliderPrimitive.Root>
 	);
 }
