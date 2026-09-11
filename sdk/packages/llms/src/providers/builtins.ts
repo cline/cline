@@ -890,6 +890,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
 	},
 	{
+		id: "melious",
+		name: "Melious",
+		description: "European inference on GDPR-compliant EU infrastructure",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		defaultModelId: "glm-5.3",
+		apiKeyEnv: ["MELIOUS_API_KEY"],
+		docsUrl: "https://melious.ai/docs/integrations/cline",
+		defaults: { baseUrl: "https://api.melious.ai/v1" },
+	},
+	{
 		id: "nousResearch",
 		name: "Nous Research",
 		description: "Open-source AI research lab",

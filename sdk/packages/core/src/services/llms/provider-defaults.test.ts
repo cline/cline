@@ -19,6 +19,7 @@ describe("isPrivateModelCatalogProvider", () => {
 		"baseten",
 		"hicap",
 		"litellm",
+		"melious",
 		"poolside",
 	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
@@ -631,6 +632,102 @@ describe("resolveProviderConfig", () => {
 				status: "active",
 			}),
 		);
+	});
+
+	it("loads Melious chat models from the authenticated models endpoint", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					data: [
+						{
+							id: "glm-5.3",
+							_meta: {
+								type: "chat",
+								input_modalities: ["text"],
+								context_length: 1_000_000,
+								max_output_tokens: null,
+								reasoning_type: "hybrid",
+								capabilities: { function_calling: true },
+								pricing: {
+									input_cost_per_million_eur: 1,
+									output_cost_per_million_eur: 3,
+								},
+							},
+						},
+						{
+							id: "kimi-k2.7-code",
+							_meta: {
+								type: "chat",
+								input_modalities: ["text", "image"],
+								context_length: 262_144,
+								max_output_tokens: 8192,
+								reasoning_type: "reasoning",
+								capabilities: { function_calling: true },
+								pricing: {
+									input_cost_per_million_eur: 0.7,
+									output_cost_per_million_eur: 3,
+								},
+							},
+						},
+						{
+							id: "bge-m3",
+							_meta: { type: "embedding", context_length: 8192 },
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig(
+			"melious",
+			{ failOnError: true, cacheTtlMs: 0 },
+			{
+				providerId: "melious",
+				modelId: "glm-5.3",
+				apiKey: "melious-key",
+				baseUrl: "https://api.melious.ai/v1",
+			},
+		);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.melious.ai/v1/models?include_meta=true",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer melious-key",
+				}),
+			}),
+		);
+		expect(resolved?.knownModels?.["glm-5.3"]).toEqual(
+			expect.objectContaining({
+				name: "glm-5.3",
+				contextWindow: 1_000_000,
+				maxInputTokens: 1_000_000,
+				maxTokens: undefined,
+				capabilities: expect.arrayContaining([
+					"streaming",
+					"tools",
+					"reasoning",
+					"prompt-cache",
+				]),
+				pricing: { input: 1, output: 3 },
+				status: "active",
+			}),
+		);
+		expect(resolved?.knownModels?.["glm-5.3"]?.capabilities).not.toContain(
+			"images",
+		);
+		expect(resolved?.knownModels?.["kimi-k2.7-code"]?.capabilities).toContain(
+			"images",
+		);
+		expect(resolved?.knownModels?.["kimi-k2.7-code"]?.maxTokens).toBe(8192);
+		// Embedding, image and transcription models are filtered out of the picker.
+		expect(resolved?.knownModels?.["bge-m3"]).toBeUndefined();
 	});
 
 	it("falls back to /model/info for LiteLLM private models", async () => {
