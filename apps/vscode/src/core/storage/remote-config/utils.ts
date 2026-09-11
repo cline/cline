@@ -400,7 +400,7 @@ const isProviderValid = (provider?: ApiProvider, remoteConfig?: Partial<RemoteCo
 }
 
 /**
- * Receives a config and returns the subset of fields that can be overriden in the cache
+ * Receives a config and returns the subset of fields that can be overridden in the cache
  */
 export function filterAllowedRemoteConfigFields(config: Partial<GlobalStateAndSettings>): Partial<GlobalStateAndSettings> {
 	const updatedFields: Partial<GlobalStateAndSettings> = {}
