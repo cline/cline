@@ -21,7 +21,6 @@ const {
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
-	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
 	loadProviderModelCatalogMock: vi.fn(),
@@ -30,9 +29,6 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
-	subscribeToProviderCatalogInvalidationMock: vi.fn<
-		(listener: () => void) => () => void
-	>(() => vi.fn()),
 	subscribeToProviderModelsMock: vi.fn<
 		(
 			listener: (providerId: string, models: ProviderModel[]) => void,
@@ -82,8 +78,6 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
-	subscribeToProviderCatalogInvalidation:
-		subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
@@ -99,7 +93,6 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
-		configuredProviderIds: [],
 		enabledProviderIds: ["cline"],
 		providerModels: { cline: ["test-model"] },
 		providerReasoningModels: { cline: [] },
@@ -113,9 +106,6 @@ beforeEach(() => {
 		cancel: vi.fn(),
 	});
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
-	subscribeToProviderCatalogInvalidationMock
-		.mockReset()
-		.mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 	HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -152,7 +142,6 @@ function providerCatalog(
 ) {
 	return {
 		providers: [],
-		configuredProviderIds: [],
 		enabledProviderIds: ["cline"],
 		providerModels: { cline: ["test-model"] },
 		providerReasoningModels: { cline: [] },
@@ -1024,7 +1013,6 @@ describe("ChatInputBar", () => {
 	it("selects High from the supported model thinking menu", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
-			configuredProviderIds: [],
 			enabledProviderIds: ["cline"],
 			providerModels: { cline: ["test-model"] },
 			providerReasoningModels: { cline: ["test-model"] },
@@ -1353,7 +1341,6 @@ describe("ChatInputBar", () => {
 		);
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
-			configuredProviderIds: [],
 			enabledProviderIds: ["openrouter"],
 			providerModels: {
 				openrouter: ["old-session-model", "user-picked-model"],
@@ -1453,7 +1440,6 @@ describe("ChatInputBar", () => {
 	it("renders the cline model picker with recommended and free sections", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
-			configuredProviderIds: [],
 			enabledProviderIds: ["cline"],
 			providerModels: {
 				cline: [
@@ -1552,91 +1538,6 @@ describe("ChatInputBar", () => {
 		expect(optionLabels[2]).toContain("Other Model");
 	});
 
-	it("marks configured providers in the picker and refreshes on catalog invalidation", async () => {
-		const catalog = {
-			providers: [],
-			configuredProviderIds: ["anthropic"],
-			enabledProviderIds: ["cline", "anthropic"],
-			providerModels: { cline: ["test-model"], anthropic: ["claude"] },
-			providerNames: { cline: "Cline", anthropic: "Anthropic" },
-			providerReasoningModels: {},
-		};
-		loadProviderModelCatalogMock.mockResolvedValue(catalog);
-		let invalidate!: () => void;
-		subscribeToProviderCatalogInvalidationMock.mockImplementation(
-			(listener) => {
-				invalidate = listener;
-				return vi.fn();
-			},
-		);
-
-		await act(async () => {
-			root.render(
-				<WorkspaceProvider value={workspaceValue}>
-					<ChatInputBar
-						attachments={[]}
-						gitBranch="main"
-						mode="act"
-						model="test-model"
-						onAbort={vi.fn()}
-						onAttachFiles={vi.fn()}
-						onEditPromptInQueue={vi.fn()}
-						onListGitBranches={vi.fn(async () => ({
-							current: "main",
-							branches: ["main"],
-						}))}
-						onModeToggle={vi.fn()}
-						onModelChange={vi.fn()}
-						onPromptInputChange={vi.fn()}
-						onProviderChange={vi.fn()}
-						onReasoningChange={vi.fn()}
-						onRemoveAttachment={vi.fn()}
-						onRemovePromptInQueue={vi.fn()}
-						onSend={vi.fn()}
-						onSteerPromptInQueue={vi.fn()}
-						onSwitchGitBranch={vi.fn(async () => true)}
-						promptDraft={{ version: 0, value: "" }}
-						promptsInQueue={[]}
-						provider="cline"
-						reasoningEffort="low"
-						status="idle"
-						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
-						thinking={false}
-					/>
-				</WorkspaceProvider>,
-			);
-			await Promise.resolve();
-		});
-		const providerTrigger = container.querySelector<HTMLButtonElement>(
-			'[aria-label^="Provider:"]',
-		);
-		await vi.waitFor(() => {
-			expect(providerTrigger?.textContent).toContain("Cline");
-		});
-		// The trigger never carries the status; only list rows do.
-		expect(providerTrigger?.querySelector('[aria-label="Configured"]')).toBe(
-			null,
-		);
-		const configuredRows = () =>
-			[...document.querySelectorAll('[role="option"]')]
-				.filter((option) => option.querySelector('[aria-label="Configured"]'))
-				.map((option) => option.textContent);
-
-		await act(async () => providerTrigger?.click());
-		expect(configuredRows()).toEqual(["Anthropic"]);
-
-		// Credentials saved in settings invalidate the shared catalog; the open
-		// picker must reflect the new readiness without a remount.
-		loadProviderModelCatalogMock.mockResolvedValue({
-			...catalog,
-			configuredProviderIds: ["cline", "anthropic"],
-		});
-		await act(async () => invalidate());
-		await vi.waitFor(() => {
-			expect(configuredRows()).toEqual(["Cline", "Anthropic"]);
-		});
-	});
-
 	describe("cline-pass picker offer", () => {
 		const renderComposer = async (props: {
 			model: string;
@@ -1693,7 +1594,6 @@ describe("ChatInputBar", () => {
 			// picker hides while the subscribed tier is non-empty.
 			loadProviderModelCatalogMock.mockResolvedValue({
 				providers: [],
-				configuredProviderIds: [],
 				enabledProviderIds: ["cline", "cline-pass"],
 				providerModels: {
 					cline: ["test-model"],
@@ -1741,7 +1641,6 @@ describe("ChatInputBar", () => {
 		function mockBundledCatalog() {
 			loadProviderModelCatalogMock.mockResolvedValue({
 				providers: [],
-				configuredProviderIds: [],
 				enabledProviderIds: ["cline", "cline-pass"],
 				providerModels: {
 					cline: ["test-model"],

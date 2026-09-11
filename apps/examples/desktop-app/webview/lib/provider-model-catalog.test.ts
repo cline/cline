@@ -285,35 +285,4 @@ describe("transcription model selection", () => {
 			}),
 		).toMatchObject({ supportsStreaming: true });
 	});
-
-	it("separates enabled providers from ones with usable credentials", () => {
-		const chatModel = {
-			id: "model",
-			name: "Model",
-			inputModalities: ["text"],
-			outputModalities: ["text"],
-		};
-		const base = { models: 1, color: "#000000", letter: "P" };
-		const catalog = buildProviderModelCatalog([
-			{
-				...base,
-				id: "anthropic",
-				name: "Anthropic",
-				enabled: true,
-				apiKey: "sk-123",
-				modelList: [chatModel],
-			},
-			{
-				...base,
-				id: "openai",
-				name: "OpenAI",
-				enabled: true,
-				configured: false,
-				modelList: [chatModel],
-			},
-		]);
-
-		expect(catalog.enabledProviderIds).toEqual(["anthropic", "openai"]);
-		expect(catalog.configuredProviderIds).toEqual(["anthropic"]);
-	});
 });
