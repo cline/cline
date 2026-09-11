@@ -282,8 +282,7 @@ export function McpServersContent() {
 			return acc;
 		}, {});
 		const metadataText = form.metadataText.trim();
-		const metadata =
-			metadataText.length > 0 ? JSON.parse(metadataText) : undefined;
+		const metadata = metadataText.length > 0 ? JSON.parse(metadataText) : null;
 		if (form.transportType === "stdio") {
 			const command = form.command.trim();
 			if (!command) {

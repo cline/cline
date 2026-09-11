@@ -3,6 +3,50 @@ import { updateMcpSettingsFileSync } from "@cline/core";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import type { JsonRecord } from "./types";
 
+const LEGACY_TRANSPORT_FIELDS = [
+	"command",
+	"args",
+	"cwd",
+	"env",
+	"url",
+	"headers",
+	"type",
+	"transportType",
+] as const;
+
+function resolveEndpointIdentity(record: JsonRecord): string {
+	const transport =
+		record.transport && typeof record.transport === "object"
+			? (record.transport as JsonRecord)
+			: undefined;
+	const type = String(
+		transport?.type ?? record.transportType ?? record.type ?? "stdio",
+	).trim();
+	const canonicalType = type === "http" ? "streamableHttp" : type;
+	const target =
+		typeof transport?.url === "string"
+			? transport.url
+			: typeof record.url === "string"
+				? record.url
+				: "";
+	return `${canonicalType} ${canonicalizeUrl(target)}`;
+}
+
+function canonicalizeUrl(value: string): string {
+	if (!value) {
+		return value;
+	}
+	try {
+		return new URL(value).href;
+	} catch {
+		return value;
+	}
+}
+
+function isMetadataRecord(value: unknown): boolean {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function readMcpServersResponse(): JsonRecord {
 	const settingsPath = resolveMcpSettingsPath();
 	if (!existsSync(settingsPath)) {
@@ -126,15 +170,40 @@ export function upsertMcpServer(input: JsonRecord): JsonRecord {
 					},
 					disabled: input.disabled === true,
 				};
+	const clearsMetadata = input.metadata === null;
+	if (input.metadata !== undefined && !clearsMetadata) {
+		if (!isMetadataRecord(input.metadata)) {
+			throw new Error("server metadata must be a JSON object");
+		}
+		next.metadata = input.metadata;
+	}
 	// Hold the cross-process lock across read-modify-write so a concurrent writer
 	// cannot clobber this upsert.
 	updateMcpSettingsFileSync(resolveMcpSettingsPath(), (settings) => {
 		const servers = ((settings.mcpServers as JsonRecord | undefined) ??
 			{}) as JsonRecord;
+		const previous = servers[previousName || name];
 		if (previousName && previousName !== name) {
 			delete servers[previousName];
 		}
-		servers[name] = next;
+		if (previous && typeof previous === "object") {
+			const merged: JsonRecord = { ...(previous as JsonRecord), ...next };
+			for (const field of LEGACY_TRANSPORT_FIELDS) {
+				delete merged[field];
+			}
+			if (
+				resolveEndpointIdentity(previous as JsonRecord) !==
+				resolveEndpointIdentity(next)
+			) {
+				delete merged.oauth;
+			}
+			if (clearsMetadata) {
+				delete merged.metadata;
+			}
+			servers[name] = merged;
+		} else {
+			servers[name] = next;
+		}
 		settings.mcpServers = servers;
 	});
 	return readMcpServersResponse();
