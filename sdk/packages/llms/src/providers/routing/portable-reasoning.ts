@@ -6,6 +6,7 @@ export type AiSdkReasoning = NonNullable<CallSettings["reasoning"]>;
 const PORTABLE_REASONING_PROVIDERS = new Set([
 	"anthropic",
 	"bedrock",
+	"cerebras",
 	"deepseek",
 	"fireworks",
 	"gemini",
