@@ -434,6 +434,50 @@ describe("reconcileBufferedCloudEvents", () => {
 		payload,
 	});
 
+	it("preserves submitted lifecycle while marking only newly reflected prompts", () => {
+		const submitted = (id: string) =>
+			event("session.pending_prompt_submitted", id, {
+				prompt: { id, prompt: "Continue", delivery: "queue" },
+			});
+		const first = submitted("q-1");
+		const later = submitted("q-2");
+		const baseline = [{ role: "user", content: "Continue" }];
+		// An older identical user message must not consume a new submission.
+		expect(
+			reconcileBufferedCloudEvents([first], baseline, {
+				baselineMessages: baseline,
+			}),
+		).toEqual([first]);
+		const snapshot = [
+			...baseline,
+			{ role: "user", content: "<user_input>Continue</user_input>" },
+		];
+		const completed = event("run.completed", "done");
+		const running = event("run.started", "next");
+		// Keep the next turn's start between lifecycle events; only its bubble is reflected.
+		expect(
+			reconcileBufferedCloudEvents(
+				[completed, first, running, later],
+				snapshot,
+				{
+					baselineMessages: baseline,
+				},
+			),
+		).toEqual([
+			completed,
+			{ ...first, payload: { ...first.payload, transcriptReflected: true } },
+			running,
+			later,
+		]);
+		// A submission received after the transcript reply cannot be in it.
+		expect(
+			reconcileBufferedCloudEvents([later], snapshot, {
+				baselineMessages: baseline,
+				messagesSnapshotEventCutoff: 0,
+			}),
+		).toEqual([later]);
+	});
+
 	it("replays content the snapshot does NOT contain", () => {
 		const buffered = [
 			event("assistant.delta", "a-1", { text: "unpersisted reply" }),

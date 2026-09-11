@@ -61,6 +61,8 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Last Hub lifecycle sequence applied to this session. */
+	lastHubStatusSequence?: number;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
@@ -83,8 +85,9 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
-	owner: SidecarWebSocketClient;
-	resolve: (result: ToolApprovalResult) => void;
+	/** Cloud approvals have no local WebSocket owner and may resolve remotely. */
+	owner?: SidecarWebSocketClient;
+	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
 export type AskQuestionRequestItem = {
@@ -146,6 +149,10 @@ export type SidecarContext = {
 	/** Analytics identity and explicit account state forwarded with each session. */
 	telemetryUser?: UserContext;
 	unsubscribeSessionEvents: (() => void) | null;
+	cloudSessionManager: {
+		dispose(): Promise<void>;
+		isCloudSession(sessionId: string): boolean;
+	} | null;
 	/**
 	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and
 	 * replayed to webviews that connect after the event fired.

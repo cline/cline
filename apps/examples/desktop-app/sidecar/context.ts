@@ -277,12 +277,14 @@ export function serializeQueuedPromptStart(input: {
 	prompt: string;
 	attachmentCount?: number;
 	userImages?: string[];
+	transcriptReflected?: boolean;
 }): string {
 	return JSON.stringify({
 		promptId: input.promptId,
 		prompt: input.prompt,
 		attachmentCount: input.attachmentCount ?? 0,
 		userImages: input.userImages,
+		...(input.transcriptReflected ? { transcriptReflected: true } : {}),
 	});
 }
 
@@ -468,6 +470,7 @@ function emitQueuedPromptStart(
 		prompt: string;
 		attachmentCount: number;
 		userImages?: string[];
+		transcriptReflected?: boolean;
 	},
 ): void {
 	if (session) {
@@ -657,6 +660,7 @@ export function createSidecarContext(
 		telemetry: observability.telemetry,
 		telemetryUser: observability.telemetryUser,
 		unsubscribeSessionEvents: null,
+		cloudSessionManager: null,
 		hubBuildMismatch: null,
 	};
 }
@@ -862,6 +866,7 @@ export function handleHubLiveEvent(
 	event: {
 		event: string;
 		sessionId?: string;
+		sequence?: number;
 		payload?: Record<string, unknown>;
 	},
 ): void {
@@ -895,6 +900,22 @@ export function handleHubLiveEvent(
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
 		return;
+	}
+	const projectsStatus =
+		event.event === "run.started" ||
+		event.event === "session.attached" ||
+		event.event === "session.updated" ||
+		event.event === "run.completed" ||
+		event.event === "run.failed" ||
+		event.event === "run.aborted";
+	if (projectsStatus && typeof event.sequence === "number") {
+		if (
+			session.lastHubStatusSequence !== undefined &&
+			event.sequence < session.lastHubStatusSequence
+		) {
+			return;
+		}
+		session.lastHubStatusSequence = event.sequence;
 	}
 
 	switch (event.event) {
@@ -1014,6 +1035,15 @@ export function handleHubLiveEvent(
 					: event.event === "run.started"
 						? "running"
 						: session.status;
+			if (
+				event.event === "session.updated" &&
+				event.sequence === undefined &&
+				status === "running" &&
+				session.endedAt !== undefined &&
+				!session.busy
+			) {
+				return;
+			}
 			session.status = status;
 			session.busy = status === "running";
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
