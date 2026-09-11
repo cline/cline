@@ -14,6 +14,9 @@ import { describe, expect, it } from "vitest";
 const sourceWrapperPath = fileURLToPath(
 	new URL("../../bin/cline", import.meta.url),
 );
+const sourceResolverHelpersPath = fileURLToPath(
+	new URL("../../bin/resolver-helpers.cjs", import.meta.url),
+);
 
 function createWrapperCopy(): string {
 	const dir = mkdtempSync(join(tmpdir(), "cline-bin-package-"));
@@ -21,6 +24,7 @@ function createWrapperCopy(): string {
 	mkdirSync(binDir, { recursive: true });
 	const wrapperPath = join(binDir, "cline");
 	copyFileSync(sourceWrapperPath, wrapperPath);
+	copyFileSync(sourceResolverHelpersPath, join(binDir, "resolver-helpers.cjs"));
 	chmodSync(wrapperPath, 0o755);
 	return wrapperPath;
 }
