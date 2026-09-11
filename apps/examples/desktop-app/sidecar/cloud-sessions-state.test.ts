@@ -1,3 +1,4 @@
+import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CloudSessionApi,

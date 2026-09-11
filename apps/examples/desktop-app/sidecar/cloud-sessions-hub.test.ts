@@ -55,6 +55,7 @@ function createContext(): {
 		workspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
+		hubBuildMismatch: null,
 	} as SidecarContext;
 	return { ctx, events };
 }
