@@ -6,9 +6,10 @@
  * same ClineMessages as the v1 translator (`message-translator.ts`):
  * streaming text/reasoning rows, tool rows (generic, completion, command,
  * MCP, read_files/apply_patch multi-file splits, ask_question
- * suppression), usage, iteration markers, notices including compaction
- * dividers, and turn terminals (completion retag, terminal error rows
- * with ErrorRow reshaping). Parity with v1 is differential-test locked
+ * suppression, spawn_agent aggregation into the SubagentStatusRow rows),
+ * usage, iteration markers, notices including compaction dividers, and
+ * turn terminals (completion retag, terminal error rows with ErrorRow
+ * reshaping). Parity with v1 is differential-test locked
  * (frame-message-bridge.differential.test.ts): both paths mint message
  * ids at identical points, so the produced rows must be equal.
  *
@@ -17,19 +18,26 @@
  * turn, and a force-close (interrupted) is silent — matching v1, where a
  * dangling block simply never got its content_end (W3).
  *
- * Not yet ported (the switchover checklist in the design doc, each gated
- * by its pinned v1 translator tests): spawn_agent aggregation (renders
- * generically until its dedicated port) and approval-coordinator
- * interactions (approved-row upserts, denial suppression — annotation
- * wiring at the flip). Until the switchover PR, v1 remains the production
- * ClineMessage source and this bridge runs shadow-only — its output is
- * drained and discarded by SdkFrameStream.
+ * Not yet ported (the switchover checklist in the design doc, gated by
+ * the pinned v1 translator tests): approval-coordinator interactions
+ * (approved-row upserts, denial suppression — annotation wiring at the
+ * flip). Until the switchover PR, v1 remains the production ClineMessage
+ * source and this bridge runs shadow-only — its output is drained and
+ * discarded by SdkFrameStream.
  */
 
-import type { SessionConsumer, StreamDiagnostic, TurnConsumer } from "@cline/core/frames"
-import type { CloseFinal, NoticeBody, Outcome, UsageBody } from "@cline/shared"
+import type { SessionConsumer, StreamDiagnostic, ToolSink, TurnConsumer } from "@cline/core/frames"
+import type { CloseFinal, NoticeBody, Outcome, ToolStart, UsageBody } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
-import type { ClineApiReqInfo, ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
+import type {
+	ClineApiReqInfo,
+	ClineAskUseSubagents,
+	ClineMessage,
+	ClineSaySubagentStatus,
+	ClineSayTool,
+	ClineSubagentUsageInfo,
+	SubagentStatusItem,
+} from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import {
 	buildCompactionMessage,
@@ -39,6 +47,7 @@ import {
 	extractToolOutputText,
 	getApplyPatchString,
 	getCompletionResultText,
+	getSpawnAgentTaskPrompt,
 	isCompletionTool,
 	normalizeUsageEvent,
 	parseCompactionNoticeMetadata,
@@ -135,13 +144,165 @@ export class FrameMessageBridge implements SessionConsumer {
 	}
 }
 
-/** Per-turn state: the completion-retag candidate and the open compaction
- * divider — both turn-scoped by v1's emission rules (the divider is
- * finalized at this turn's terminal, never carried across turns). */
+/**
+ * Aggregates the spawn_agent tool blocks of one iteration into the
+ * SubagentStatusRow UI: one say:"use_subagents" prompts row and one
+ * say:"subagent" status row, each replaced in place as spawns open,
+ * progress, and close, plus a say:"subagent_usage" row once every spawn
+ * has closed. The group is the sole owner of the item list — the status
+ * and usage payloads are derived from it — and of the two row identities,
+ * minted lazily in v1's order (prompts at the first open, status at the
+ * first progress or close).
+ *
+ * Iteration-scoped, as in v1: the turn consumer replaces its group at
+ * each iteration_started, so a spawn block that closes after the boundary
+ * finds no entry and only re-emits the (then empty) group's status.
+ */
+class SpawnAgentGroup {
+	private readonly entries = new Map<string, SubagentStatusItem>()
+	private promptsTs: number | undefined
+	private statusTs: number | undefined
+
+	constructor(private readonly bridge: FrameMessageBridge) {}
+
+	register(blockId: string, prompt: string): void {
+		this.entries.set(blockId, {
+			index: this.entries.size + 1,
+			prompt,
+			status: "running",
+			toolCalls: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			totalCost: 0,
+			contextTokens: 0,
+			contextWindow: 0,
+			contextUsagePercentage: 0,
+		})
+		const payload: ClineAskUseSubagents = { prompts: this.items().map((entry) => entry.prompt) }
+		if (this.promptsTs === undefined) {
+			this.promptsTs = this.bridge.deps.nextTs()
+		}
+		this.bridge.push({
+			ts: this.promptsTs,
+			type: "say",
+			say: "use_subagents",
+			text: JSON.stringify(payload),
+			partial: true,
+		})
+	}
+
+	progress(blockId: string, update: unknown): void {
+		if (this.entries.size === 0) {
+			// v1 renders progress only while the group has members; a
+			// stray update after the iteration reset emits nothing.
+			return
+		}
+		const entry = this.entries.get(blockId)
+		const data = isRecord(update) ? update : undefined
+		if (entry && data) {
+			if (typeof data.toolCalls === "number") entry.toolCalls = data.toolCalls
+			if (typeof data.inputTokens === "number") entry.inputTokens = data.inputTokens
+			if (typeof data.outputTokens === "number") entry.outputTokens = data.outputTokens
+			if (typeof data.totalCost === "number") entry.totalCost = data.totalCost
+			if (typeof data.contextTokens === "number") entry.contextTokens = data.contextTokens
+			if (typeof data.contextWindow === "number") entry.contextWindow = data.contextWindow
+			if (typeof data.contextUsagePercentage === "number") entry.contextUsagePercentage = data.contextUsagePercentage
+			if (typeof data.latestToolCall === "string") entry.latestToolCall = data.latestToolCall
+		}
+		this.pushStatus("running", true)
+	}
+
+	close(blockId: string, outcome: Outcome, final: CloseFinal): void {
+		const entry = this.entries.get(blockId)
+		if (entry) {
+			// SpawnAgentOutput: { text, usage: { inputTokens, outputTokens } }.
+			const output = final.type === "tool" && isRecord(final.output) ? final.output : undefined
+			if (output) {
+				entry.result = typeof output.text === "string" ? output.text : undefined
+				const usage = isRecord(output.usage) ? output.usage : undefined
+				if (usage) {
+					if (typeof usage.inputTokens === "number") entry.inputTokens = usage.inputTokens
+					if (typeof usage.outputTokens === "number") entry.outputTokens = usage.outputTokens
+				}
+			}
+			if (outcome.kind === "error") {
+				entry.status = "failed"
+				entry.error = outcome.error.message
+			} else {
+				entry.status = "completed"
+			}
+		}
+
+		const items = this.items()
+		const allDone = items.every((item) => item.status === "completed" || item.status === "failed")
+		const hasFailed = items.some((item) => item.status === "failed")
+		this.pushStatus(allDone ? (hasFailed ? "failed" : "completed") : "running", !allDone)
+
+		if (allDone) {
+			const usage: ClineSubagentUsageInfo = {
+				source: "subagents",
+				tokensIn: items.reduce((acc, item) => acc + (item.inputTokens || 0), 0),
+				tokensOut: items.reduce((acc, item) => acc + (item.outputTokens || 0), 0),
+				cacheWrites: 0,
+				cacheReads: 0,
+				cost: items.reduce((acc, item) => acc + (item.totalCost || 0), 0),
+			}
+			this.bridge.push({
+				ts: this.bridge.deps.nextTs(),
+				type: "say",
+				say: "subagent_usage",
+				text: JSON.stringify(usage),
+				partial: false,
+			})
+		}
+	}
+
+	private items(): SubagentStatusItem[] {
+		return Array.from(this.entries.values()).sort((a, b) => a.index - b.index)
+	}
+
+	private pushStatus(status: ClineSaySubagentStatus["status"], partial: boolean): void {
+		const items = this.items()
+		const payload: ClineSaySubagentStatus = {
+			status,
+			total: items.length,
+			completed: items.filter((item) => item.status === "completed" || item.status === "failed").length,
+			successes: items.filter((item) => item.status === "completed").length,
+			failures: items.filter((item) => item.status === "failed").length,
+			toolCalls: items.reduce((acc, item) => acc + (item.toolCalls || 0), 0),
+			inputTokens: items.reduce((acc, item) => acc + (item.inputTokens || 0), 0),
+			outputTokens: items.reduce((acc, item) => acc + (item.outputTokens || 0), 0),
+			contextWindow: items.reduce((acc, item) => Math.max(acc, item.contextWindow || 0), 0),
+			maxContextTokens: items.reduce((acc, item) => Math.max(acc, item.contextTokens || 0), 0),
+			maxContextUsagePercentage: items.reduce((acc, item) => Math.max(acc, item.contextUsagePercentage || 0), 0),
+			items,
+		}
+		if (this.statusTs === undefined) {
+			this.statusTs = this.bridge.deps.nextTs()
+		}
+		this.bridge.push({
+			ts: this.statusTs,
+			type: "say",
+			say: "subagent",
+			text: JSON.stringify(payload),
+			partial,
+		})
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+/** Per-turn state: the completion-retag candidate, the open compaction
+ * divider, and the current iteration's spawn_agent group — all turn-scoped
+ * by v1's emission rules (the divider is finalized at this turn's terminal,
+ * never carried across turns; the group is replaced per iteration). */
 class BridgeTurnConsumer implements TurnConsumer {
 	private turnFinalText: { ts: number; text: string } | undefined
 	private attemptCompletionSeen = false
 	private openCompactionTs: number | undefined
+	private spawnAgents: SpawnAgentGroup | undefined
 
 	constructor(private readonly bridge: FrameMessageBridge) {}
 
@@ -196,7 +357,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 		}
 	}
 
-	onTool(start: { toolName: string; input?: unknown }): ReturnType<TurnConsumer["onTool"]> {
+	onTool(start: ToolStart): ToolSink {
 		// Tool activity after a text block means that text wasn't the
 		// turn-final response — drop the retag candidate (v1 rule).
 		this.turnFinalText = undefined
@@ -210,6 +371,28 @@ class BridgeTurnConsumer implements TurnConsumer {
 		// No mint, no row — at open or close.
 		if (toolName === "ask_question" || toolName === "ask_followup_question") {
 			return { onProgress() {}, onAnnotation() {}, onClose() {} }
+		}
+
+		// spawn_agent blocks aggregate into the iteration's group rather than
+		// rendering a row each. The sink resolves the group at each call, not
+		// at open: a block that outlives the iteration reports to the group
+		// current at that moment, as v1's per-callId lookup does.
+		if (toolName === "spawn_agent") {
+			const blockId = start.blockId
+			const turn = this
+			turn.spawnAgentGroup().register(blockId, getSpawnAgentTaskPrompt(start.input))
+			return {
+				onProgress(update: unknown): void {
+					turn.spawnAgentGroup().progress(blockId, update)
+				},
+				onAnnotation(): void {},
+				onClose(outcome: Outcome, final: CloseFinal): void {
+					if (outcome.kind === "interrupted") {
+						return
+					}
+					turn.spawnAgentGroup().close(blockId, outcome, final)
+				},
+			}
 		}
 
 		if (isCompletionTool(toolName)) {
@@ -417,8 +600,10 @@ class BridgeTurnConsumer implements TurnConsumer {
 	onNotice(notice: NoticeBody): void {
 		switch (notice.noticeType) {
 			case "iteration_started": {
-				// v1's iteration_start: an api_req_started row per API
-				// request (spinner + cost display placeholder).
+				// v1's iteration_start: the spawn_agent aggregation resets
+				// (its reset() clears the group) and an api_req_started row
+				// per API request (spinner + cost display placeholder).
+				this.spawnAgents = undefined
 				this.bridge.push({
 					ts: this.bridge.deps.nextTs(),
 					type: "say",
@@ -567,5 +752,13 @@ class BridgeTurnConsumer implements TurnConsumer {
 
 	private recordTurnFinalText(ts: number, text: string): void {
 		this.turnFinalText = { ts, text }
+	}
+
+	/** The current iteration's spawn_agent group, created on first use. */
+	private spawnAgentGroup(): SpawnAgentGroup {
+		if (this.spawnAgents === undefined) {
+			this.spawnAgents = new SpawnAgentGroup(this.bridge)
+		}
+		return this.spawnAgents
 	}
 }
