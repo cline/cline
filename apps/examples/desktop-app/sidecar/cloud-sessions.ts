@@ -2126,5 +2126,14 @@ export class CloudSessionManager {
 		return null;
 	}
 
-	private async disposeConnection(_outerSessionId: string): Promise<void> {}
+	private async disposeConnection(outerSessionId: string): Promise<void> {
+		const connection = this.connections.get(outerSessionId);
+		this.connections.delete(outerSessionId);
+		if (!connection) {
+			return;
+		}
+		connection.disposed = true;
+		connection.unsubscribe();
+		await connection.client.dispose();
+	}
 }
