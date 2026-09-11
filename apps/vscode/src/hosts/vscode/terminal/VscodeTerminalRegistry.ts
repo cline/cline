@@ -7,12 +7,8 @@ export interface TerminalInfo {
 	lastCommand: string
 	id: number
 	shellPath?: string
+	trackedCwd: string
 	lastActive: number
-	pendingCwdChange?: string
-	cwdResolved?: {
-		resolve: () => void
-		reject: (error: Error) => void
-	}
 }
 
 // Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
@@ -42,13 +38,14 @@ export class TerminalRegistry {
 		}
 
 		const terminal = vscode.window.createTerminal(terminalOptions)
-		TerminalRegistry.nextTerminalId++
+		const id = TerminalRegistry.nextTerminalId++
 		const newInfo: TerminalInfo = {
 			terminal,
 			busy: false,
 			lastCommand: "",
-			id: TerminalRegistry.nextTerminalId,
+			id,
 			shellPath,
+			trackedCwd: typeof cwd === "string" ? cwd : (cwd?.fsPath ?? ""),
 			lastActive: Date.now(),
 		}
 		TerminalRegistry.terminals.push(newInfo)
@@ -101,6 +98,19 @@ export class TerminalRegistry {
 			} catch (error) {
 				TerminalRegistry.terminalsPendingCleanup.set(id, terminalInfo)
 				Logger.warn(`[TerminalRegistry] Failed to dispose fallback terminal ${id}; cleanup will be retried`, error)
+			}
+		}
+	}
+
+	static disposeIdleTerminals(): void {
+		const idle = TerminalRegistry.terminals.filter((terminalInfo) => !terminalInfo.busy)
+		TerminalRegistry.terminals = TerminalRegistry.terminals.filter((terminalInfo) => terminalInfo.busy)
+		for (const terminalInfo of idle) {
+			try {
+				terminalInfo.terminal.dispose()
+			} catch (error) {
+				TerminalRegistry.terminals.push(terminalInfo)
+				Logger.warn(`[TerminalRegistry] Failed to dispose idle terminal ${terminalInfo.id}`, error)
 			}
 		}
 	}

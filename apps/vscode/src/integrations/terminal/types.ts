@@ -25,11 +25,11 @@ export interface UnobservedTerminalCommand {
 
 export type UnobservedTerminalCommandDisposition = "disposeBeforeNextTerminalAcquisition" | "preserve"
 
-/** Derive cleanup and reporting policy from the same unobserved-command snapshot. */
+/** Unobserved commands may still be running, so never dispose their terminals automatically. */
 export function getUnobservedTerminalCommandDisposition(
-	command: UnobservedTerminalCommand,
+	_command: UnobservedTerminalCommand,
 ): UnobservedTerminalCommandDisposition {
-	return command.source === "sendText" && command.ownership === "managed" ? "disposeBeforeNextTerminalAcquisition" : "preserve"
+	return "preserve"
 }
 
 export interface TerminalCompletionDetails {
@@ -126,12 +126,10 @@ export interface TerminalInfo {
 	lastCommand: string
 	/** The shell path used by this terminal (e.g., /bin/bash, /bin/zsh) */
 	shellPath?: string
+	/** The last working directory requested for this terminal */
+	trackedCwd: string
 	/** Timestamp of last activity */
 	lastActive: number
-	/** Pending CWD change path (used for tracking directory changes) */
-	pendingCwdChange?: string
-	/** Promise resolver for CWD change completion */
-	cwdResolved?: { resolve: () => void; reject: (err: Error) => void }
 }
 
 /**
