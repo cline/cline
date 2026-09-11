@@ -34,11 +34,11 @@ import {
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
+import { createDesktopExtensionContext } from "./client-context";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
 } from "./cloud-sessions";
-import { createDesktopExtensionContext } from "./client-context";
 import {
 	cancelSidecarMistakeQuestions,
 	emitChunk,
