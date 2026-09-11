@@ -5,6 +5,7 @@ import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import { Controller } from "../index"
+import { sendContextMenuPrompt } from "./sendContextMenuPrompt"
 
 export async function improveWithCline(
 	controller: Controller,
@@ -33,12 +34,7 @@ export async function improveWithCline(
 		prompt += `\n${notebookContext}`
 	}
 
-	// Send: notebooks go to existing task if available, non-notebooks always create new task
-	if (notebookContext && controller.task) {
-		await controller.task.handleWebviewAskResponse("messageResponse", prompt)
-	} else {
-		await controller.initTask(prompt)
-	}
+	await sendContextMenuPrompt(controller, prompt)
 
 	telemetryService.captureButtonClick("codeAction_improveCode", controller.task?.ulid)
 
