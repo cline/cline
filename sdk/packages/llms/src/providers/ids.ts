@@ -27,6 +27,7 @@ export enum BUILT_IN_PROVIDER {
 	GEMINI = "gemini",
 	// Local/self-hosted
 	OLLAMA = "ollama",
+	LLMMAN = "llmman",
 	LMSTUDIO = "lmstudio",
 	// OpenAI-compatible
 	DEEPSEEK = "deepseek",
