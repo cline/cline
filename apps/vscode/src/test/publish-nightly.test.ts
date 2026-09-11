@@ -21,6 +21,8 @@ function runPublisher(bundle: string | undefined, contentFlag = "true", dryRun =
 		writeFileSync(path.join(root, "README.md"), "original")
 		writeFileSync(path.join(root, "README.marketplace.md"), "marketplace")
 		const preload = path.join(root, "mock-commands.mjs")
+		// Interpolation inserts a JS token, not a quoted string: absent means undefined.
+		const bundleLiteral = bundle === undefined ? "undefined" : JSON.stringify(bundle)
 		// Replace the Node builtins before importing the real publish script.
 		// No command, credential, network request, or actual package build escapes.
 		writeFileSync(
@@ -34,7 +36,7 @@ childProcess.execSync = () => Buffer.from("mock dependency available");
 childProcess.execFileSync = (command, args, { cwd }) => {
   if (command === "vsce" && args[0] === "package") {
     appendFileSync(path.join(cwd, "calls"), "package\\n");
-    const bundle = ${JSON.stringify(bundle) ?? "undefined"};
+    const bundle = ${bundleLiteral};
     if (bundle !== undefined) writeFileSync(path.join(cwd, "dist/extension.js"), bundle);
     return Buffer.alloc(0);
   }
@@ -76,6 +78,7 @@ syncBuiltinESMExports();
 		return {
 			status: result.status,
 			output: result.stdout + result.stderr,
+			bundleExists: existsSync(path.join(root, "dist/extension.js")),
 			calls: readFileSync(path.join(root, "calls"), "utf8").trim().split("\n"),
 		}
 	} finally {
@@ -93,6 +96,7 @@ describe("nightly content-inlining publication gate", () => {
 
 	it("fails closed when packaging did not produce the bundle", () => {
 		const result = runPublisher(undefined)
+		expect(result.bundleExists).toBe(false)
 		expect(result.status).toBe(1)
 		expect(result.output).toContain("ENOENT")
 		expect(result.calls).toEqual(["package"])
