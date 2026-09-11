@@ -243,6 +243,84 @@ For native controls that should follow the selected theme:
 }
 ```
 
+## Switch
+
+Import `Switch` from `@cline/ui` after setting up the theme and
+`@cline/ui/components.css`. It has one compact size: a 33 × 18px track and an
+11.2 × 11.2px thumb at Cline's default 15px root font size, inside a 33 × 24px
+interactive wrapper. Track dimensions, padding, and corner radii use `rem` so
+the switch follows the desktop's font-size setting. Borders stay at 1px;
+the focus outline and its offset stay at 2px, and the hit area is at least
+24px on each axis. Thumb travel is calculated from the
+track width, thumb width, padding, and borders to stay aligned in LTR and RTL
+at every scale. It uses Cline's light/dark colors and a shape adapted from the
+[Blocks switch design](https://www.figma.com/design/c5icpEJo6NxcgFQRTAQWSP/Blocks-Design-System?node-id=874-112258).
+
+Checked tracks blend `--primary` with `--accent-8` and use `--primary-emphasis`
+on hover, so they follow the host's selected accent color. Enabled thumbs stay
+white rather than using the potentially tinted `--primary-foreground` token. Disabled and
+forced-color states retain their neutral and system-color treatments.
+
+```tsx
+import { Switch } from "@cline/ui";
+
+<div className="flex items-center gap-2">
+  <Switch id="notifications" name="notifications" defaultChecked />
+  <label htmlFor="notifications">Enable notifications</label>
+</div>;
+
+// For application-owned state:
+<Switch
+  aria-label="Enable notifications"
+  checked={notificationsEnabled}
+  onCheckedChange={setNotificationsEnabled}
+/>;
+```
+
+Native input props, including `disabled`, `required`, `form`, `name`, `value`,
+`onChange`, and accessible naming attributes, apply to the checkbox. The ref
+also points to that `HTMLInputElement`. `className` and `style` apply to the
+outer wrapper. `dir` applies to both the input and wrapper so explicit RTL
+direction also controls the thumb's placement. Keep the accessible name stable
+when toggling; the native checked state communicates whether the switch is on.
+Use `defaultChecked` for browser-owned state or `checked` with
+`onCheckedChange` for controlled state. If both change callbacks are supplied,
+`onChange` runs first, then `onCheckedChange` receives the new boolean value.
+An uncontrolled switch follows native form reset behavior; a controlled switch
+must be reset by its owner. Disabled switches are excluded from form submission.
+
+### Why a native checkbox
+
+The switch uses `<input type="checkbox" role="switch">` with decorative track
+and thumb elements. The real input stays focusable and covers the track, so
+the browser handles Space activation, label clicks, checked state, disabled
+fieldsets, form submission, validation, and uncontrolled form resets. CSS
+reads the input's `:checked` and `:disabled` states directly, keeping the visual
+state synchronized without a second React state store. This follows the
+[W3C checkbox-based switch pattern](https://www.w3.org/WAI/ARIA/apg/patterns/switch/examples/switch-checkbox/).
+
+We chose this over adding `@radix-ui/react-switch` because the shared switch is
+self-contained and does not need compound components or `asChild` composition.
+Native behavior meets those requirements without adding the Radix switch's
+transitive dependencies and React DOM peer requirement. Radix remains suitable
+for components that need its richer interaction or composition behavior; this
+is a component-specific choice.
+
+The desktop app imports this shared switch directly from `@cline/ui`, replacing
+its local Radix wrapper. When migrating other consumers, change button refs to
+`HTMLInputElement` and read the native `checked` property in tests rather than
+the Radix `aria-checked` attribute. Existing `checked`, `onCheckedChange`,
+disabled states, labels, and tooltip-trigger composition are preserved.
+
+The switch has hover, pressed, disabled, and keyboard focus treatments,
+respects reduced motion, and supplies system-color styling for forced colors.
+At a 15px root, the visible track is 33 × 18px inside a 33 × 24px interactive
+wrapper. The wrapper reserves at least 24px on each axis at smaller root sizes.
+Its opaque focus outline leaves the track's inset shadow intact, and disabled
+thumbs remain visible in forced-colors mode.
+Hover colors update immediately; the thumb uses a 120ms single-recoil spring
+curve when it moves between off and on.
+
 ## Add the agent-chat components
 
 With the complete Tailwind theme, import the component styles afterward:

@@ -72,6 +72,12 @@ import { Button, IconButton } from "@cline/ui";
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
+`Switch` is a medium-size native checkbox styled as a switch. It supports
+`checked`, `defaultChecked`, `onCheckedChange`, and native input/form props.
+Provide an accessible name with a label or `aria-label`. Its ref targets the
+input; `className` and `style` customize the wrapper. See [switch usage and
+implementation rationale](./ADOPTION.md#switch) for examples and design decisions.
+
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.
 
