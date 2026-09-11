@@ -41,7 +41,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { fetch } from "@/shared/net"
+import { fetch, withUnlimitedBodyTimeout } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -1004,7 +1004,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// straight from providerConfig — notably the compaction summarizer, which
 		// otherwise falls back to a small default output cap (CLINE-2911).
 		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
-		fetch,
+		// LM Studio's local server can go silent mid-stream for far longer than
+		// undici's default 5-minute idle-body timeout allows (cline/cline#13464).
+		fetch: sdkProviderId === "lmstudio" ? withUnlimitedBodyTimeout(fetch) : fetch,
 	}
 
 	const config: CoreSessionConfig = {
