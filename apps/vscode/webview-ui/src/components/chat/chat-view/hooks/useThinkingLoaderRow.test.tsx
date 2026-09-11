@@ -2,6 +2,7 @@ import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { act, renderHook } from "@testing-library/react"
 import { renderToString } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { ActiveRecoveryDecoration } from "../utils/messageUtils"
 import {
 	computeIsWaitingForResponse,
 	THINKING_LOADER_GRACE_MS,
@@ -31,6 +32,18 @@ function inputsFor(messages: ClineMessage[], turnState: TurnState | undefined): 
 describe("computeIsWaitingForResponse (turnState path)", () => {
 	it("waits while streaming with no visible rows yet", () => {
 		expect(computeIsWaitingForResponse(inputsFor([], streaming()))).toBe(true)
+	})
+
+	it("never waits on a failed request tail (error block owns the footer)", () => {
+		const failedAsk: ClineMessage = { ts: 1, type: "ask", ask: "api_req_failed", text: "boom" }
+		expect(computeIsWaitingForResponse(inputsFor([failedAsk], streaming()))).toBe(false)
+		const failedRow: ClineMessage = {
+			ts: 2,
+			type: "say",
+			say: "api_req_started",
+			text: JSON.stringify({ streamingFailedMessage: "boom" }),
+		}
+		expect(computeIsWaitingForResponse(inputsFor([failedRow], streaming()))).toBe(false)
 	})
 
 	it("does not wait while a content row is actively streaming", () => {
@@ -67,6 +80,84 @@ describe("computeIsWaitingForResponse (legacy path)", () => {
 
 	it("waits when the last visible row is not actively partial", () => {
 		expect(computeIsWaitingForResponse(inputsFor([say(1, "text", false)], undefined))).toBe(true)
+	})
+})
+
+describe("useThinkingLoaderRow recovery hold", () => {
+	it("never shows the loader while a recovery countdown holds the turn (retrying phase)", () => {
+		const reasoning = say(1, "reasoning", true, "thinking hard")
+		// Even with the reasoning-handoff guard pending and an optimistic turn
+		// start, a recovery countdown holds the turn: the countdown block is the
+		// last thing shown — no "Thinking..." loader may leak below it.
+		const inputs: ThinkingLoaderInputs = {
+			turnState: { phase: "retrying", seq: 2 },
+			lastRawMessage: reasoning,
+			groupedMessages: [],
+			lastVisibleRow: undefined,
+			lastVisibleMessage: undefined,
+			modifiedMessages: [reasoning],
+			forceShow: true,
+		}
+		const { result } = renderHook(() => useThinkingLoaderRow(inputs))
+		expect(result.current).toBe(false)
+	})
+
+	it("never shows the loader while the retry attempt is in flight (marker retrying, phase streaming)", () => {
+		// The exact leak this guards: the retry fired, the phase flipped back to
+		// "streaming", and no visible row of the retried attempt exists yet —
+		// the waiting heuristic would normally show "Thinking..." below the
+		// frozen error block, duplicating its spinner glyph.
+		const error = { ts: 1, type: "say", say: "error", text: "API Error" } as ClineMessage
+		const decoration: ActiveRecoveryDecoration = {
+			markerTs: 2,
+			targetTs: 1,
+			payload: { kind: "api", status: "retrying", delaySeconds: 8, retryAt: 456 },
+		}
+		const inputs: ThinkingLoaderInputs = {
+			turnState: streaming(3),
+			lastRawMessage: error,
+			groupedMessages: [error],
+			lastVisibleRow: error,
+			lastVisibleMessage: error,
+			modifiedMessages: [error],
+			activeRecovery: decoration,
+		}
+		const { result } = renderHook(() => useThinkingLoaderRow(inputs))
+		expect(result.current).toBe(false)
+	})
+
+	it("holds the loader when a countdown marker races the phase flip (phase still streaming)", () => {
+		const decoration: ActiveRecoveryDecoration = {
+			markerTs: 2,
+			targetTs: 1,
+			payload: { kind: "mistake", status: "countdown", delaySeconds: 13, retryAt: 456 },
+		}
+		const inputs: ThinkingLoaderInputs = {
+			turnState: streaming(2),
+			lastRawMessage: undefined,
+			groupedMessages: [],
+			lastVisibleRow: undefined,
+			lastVisibleMessage: undefined,
+			modifiedMessages: [],
+			activeRecovery: decoration,
+		}
+		const { result } = renderHook(() => useThinkingLoaderRow(inputs))
+		expect(result.current).toBe(false)
+	})
+
+	it("shows the loader again once the streak settles (no active decoration)", () => {
+		// Settled markers stop decorating, so the hold lifts and the normal
+		// waiting heuristic applies for subsequent turns.
+		const inputs: ThinkingLoaderInputs = {
+			turnState: streaming(4),
+			lastRawMessage: undefined,
+			groupedMessages: [],
+			lastVisibleRow: undefined,
+			lastVisibleMessage: undefined,
+			modifiedMessages: [],
+		}
+		const { result } = renderHook(() => useThinkingLoaderRow(inputs))
+		expect(result.current).toBe(true)
 	})
 })
 

@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayAutoRecovery } from "@shared/ExtensionMessage"
 import type React from "react"
 import { useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
@@ -6,7 +6,7 @@ import ChatRow from "@/components/chat/ChatRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import type { MessageHandlers } from "../../types/chatTypes"
-import { findReasoningForApiReq, isToolGroup } from "../../utils/messageUtils"
+import { type ActiveRecoveryDecoration, findReasoningForApiReq, isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
 interface MessageRendererProps {
@@ -22,6 +22,8 @@ interface MessageRendererProps {
 	inputValue: string
 	messageHandlers: MessageHandlers
 	footerActive: boolean
+	/** Active auto-recovery decoration, if a streak is counting down / retrying. */
+	activeRecovery?: ActiveRecoveryDecoration
 }
 
 /**
@@ -41,6 +43,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 	inputValue,
 	messageHandlers,
 	footerActive,
+	activeRecovery,
 }) => {
 	const { mode } = useExtensionState()
 
@@ -90,6 +93,12 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 		)
 	}
 
+	// Auto-recovery decoration: when this row is the error block the active
+	// marker attaches to, its exclamation glyph swaps for the countdown ring /
+	// spinner while the error text stays frozen.
+	const recovery: ClineSayAutoRecovery | undefined =
+		activeRecovery?.targetTs === messageOrGroup.ts ? activeRecovery.payload : undefined
+
 	// Regular message
 	return (
 		<div
@@ -111,6 +120,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				onSetQuote={onSetQuote}
 				onToggleExpand={onToggleExpand}
 				reasoningContent={reasoningData.reasoning}
+				recovery={recovery}
 				responseStarted={reasoningData.responseStarted}
 				sendMessageFromChatRow={messageHandlers.handleSendMessage}
 			/>
@@ -133,9 +143,11 @@ export const createMessageRenderer = (
 	inputValue: string,
 	messageHandlers: MessageHandlers,
 	footerActive: boolean,
+	activeRecovery?: ActiveRecoveryDecoration,
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
 		<MessageRenderer
+			activeRecovery={activeRecovery}
 			expandedRows={expandedRows}
 			footerActive={footerActive}
 			groupedMessages={groupedMessages}

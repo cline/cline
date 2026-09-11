@@ -45,6 +45,7 @@ import {
 import { nanoid } from "nanoid";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import { createContentValidationRemediationMiddleware } from "./middleware/remediate-content-validation";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
@@ -2034,6 +2035,23 @@ export function withEmptyResponseRetry(
 	});
 }
 
+/**
+ * Wrap a model with the request-validation remediation middleware — the
+ * outermost wrap, so its single sanitized retry (it strips non-text content
+ * after a deterministic "content type is invalid" rejection) re-runs the full
+ * inner pipeline, including `withEmptyResponseRetry` and any vendor-level
+ * middleware. See `middleware/remediate-content-validation.ts`.
+ */
+export function withContentValidationRemediation(
+	model: unknown,
+	logger: GatewayProviderContext["logger"],
+): unknown {
+	return wrapLanguageModel({
+		model: model as LanguageModelV4,
+		middleware: createContentValidationRemediationMiddleware({ logger }),
+	});
+}
+
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
@@ -2226,9 +2244,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					request,
 					() =>
 						streamText({
-							model: withEmptyResponseRetry(
-								provider.operations.language(context.model.id),
-								provider.retryEmptyResponses,
+							model: withContentValidationRemediation(
+								withEmptyResponseRetry(
+									provider.operations.language(context.model.id),
+									provider.retryEmptyResponses,
+									context.logger,
+								),
 								context.logger,
 							) as never,
 							messages: messages as never,

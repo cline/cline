@@ -34,6 +34,40 @@ const RATE_LIMIT_PATTERNS = [/rate[\s_-]?limit/i, /per[\s_-]?minute\b/i];
 
 /** Overflow rejections arrive as invalid-request-family statuses. */
 const CONTEXT_WINDOW_STATUSES = new Set([400, 413, 422]);
+
+/**
+ * Flattened-message signatures for rejections about the request's own
+ * structure — an unsupported content-block type, an invalid field, Anthropic's
+ * `invalid_request_error` family. Kept in sync with the VS Code retry
+ * classifier's `REQUEST_VALIDATION_PATTERNS`
+ * (apps/vscode/src/sdk/sdk-retry-classification.ts) so both layers reach the
+ * same verdict on the same wire text.
+ */
+const REQUEST_VALIDATION_PATTERNS = [
+	/\binvalid_request_error\b/i,
+	/\bis invalid,? allowed values?:/i,
+	/\bmessages\.[^\s:]{0,40}(?:type|role)\b[^\n]{0,80}\binvalid\b/i,
+	/\b(?:unsupported|not[ _-]?allowed)[^\n]{0,40}\bcontent[ _-]?type\b/i,
+];
+
+/**
+ * Whether an error definitively describes the *request itself* as invalid —
+ * a deterministic verdict that no identical resend can survive. Anthropic-
+ * compatible gateways (z.ai et al.) flatten these rejections into plain text
+ * and may forward them under wrapper statuses (5xx/429), so this matches
+ * message text only and leaves status policy to the caller.
+ */
+export function isRequestValidationRejection(error: unknown): boolean {
+	try {
+		const signals = collectSignalsFrom([error]);
+		return signals.messages.some((message) =>
+			REQUEST_VALIDATION_PATTERNS.some((pattern) => pattern.test(message)),
+		);
+	} catch {
+		return false;
+	}
+}
+
 const RATE_LIMIT_STATUS = 429;
 /**
  * Credential rejections. Status-only on purpose: matching message text

@@ -162,16 +162,16 @@ describe("SdkSessionLifecycle", () => {
 	})
 
 	it("marks the active session idle after a non-queued send completes", async () => {
-		const onSendComplete = vi.fn()
+		const onTurnSettled = vi.fn()
 		const sdkHost = makeSdkHost({ send: vi.fn().mockResolvedValue(undefined) })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		const lifecycle = makeLifecycle({ onSendComplete })
+		const lifecycle = makeLifecycle({ onTurnSettled })
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
-		await vi.waitFor(() => expect(onSendComplete).toHaveBeenCalledWith("session-123"))
+		await vi.waitFor(() => expect(onTurnSettled).toHaveBeenCalledWith("session-123", { status: "completed" }))
 
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
@@ -207,11 +207,11 @@ describe("SdkSessionLifecycle", () => {
 	})
 
 	it("leaves the active session running when a message is queued", async () => {
-		const onSendComplete = vi.fn()
+		const onTurnSettled = vi.fn()
 		const send = vi.fn().mockResolvedValue(undefined)
 		const sdkHost = makeSdkHost({ send })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		const lifecycle = makeLifecycle({ onSendComplete })
+		const lifecycle = makeLifecycle({ onTurnSettled })
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 
@@ -219,28 +219,123 @@ describe("SdkSessionLifecycle", () => {
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello", undefined, undefined, "queue")
 		await vi.waitFor(() => expect(send).toHaveBeenCalled())
 
-		expect(onSendComplete).not.toHaveBeenCalled()
+		expect(onTurnSettled).not.toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
-	it("marks the active session idle and reports non-abort send errors", async () => {
-		const onSendError = vi.fn()
+	it("marks the active session idle and reports non-abort send rejections as failures", async () => {
+		const onTurnSettled = vi.fn()
 		const error = new Error("boom")
 		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(error) })
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		const lifecycle = makeLifecycle({ onSendError })
+		const lifecycle = makeLifecycle({ onTurnSettled })
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		await lifecycle.startNewSession({} as any)
 
 		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
 		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
-		await vi.waitFor(() => expect(onSendError).toHaveBeenCalledWith(error, "session-123"))
+		await vi.waitFor(() =>
+			expect(onTurnSettled).toHaveBeenCalledWith(
+				"session-123",
+				expect.objectContaining({ status: "failed", error, source: "send_rejection" }),
+			),
+		)
 
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("unifies a terminal error event with the resolved send into one failed outcome", async () => {
+		const onTurnSettled = vi.fn()
+		let resolveSend: () => void = () => {}
+		const send = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveSend = resolve
+				}),
+		)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onTurnSettled })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+
+		// The runtime emits run-failed (terminal error event) before the send
+		// promise settles; the lifecycle must record it and report ONE failed
+		// outcome when the send resolves — not a completion.
+		const streamError = Object.assign(new Error("ConnectTimeoutError"), { name: "ConnectTimeoutError" })
+		sdkHost.emit(makeTerminalErrorEvent("session-123", streamError))
+		resolveSend()
+
+		await vi.waitFor(() =>
+			expect(onTurnSettled).toHaveBeenCalledWith(
+				"session-123",
+				expect.objectContaining({ status: "failed", error: streamError, source: "agent_event" }),
+			),
+		)
+		expect(onTurnSettled).toHaveBeenCalledTimes(1)
+		// The session idles BEFORE the outcome is delivered, so the handler
+		// can re-drive the session without polling for settlement.
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
+	it("propagates the SDK's typed errorClass from the terminal error event", async () => {
+		const onTurnSettled = vi.fn()
+		let resolveSend: () => void = () => {}
+		const send = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveSend = resolve
+				}),
+		)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onTurnSettled })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		sdkHost.emit(makeTerminalErrorEvent("session-123", new Error("too long"), { errorClass: "context_window_exceeded" }))
+		resolveSend()
+
+		await vi.waitFor(() =>
+			expect(onTurnSettled).toHaveBeenCalledWith(
+				"session-123",
+				expect.objectContaining({ status: "failed", errorClass: "context_window_exceeded", source: "agent_event" }),
+			),
+		)
+	})
+
+	it("ignores recoverable error events and terminal events from other sessions", async () => {
+		const onTurnSettled = vi.fn()
+		let resolveSend: () => void = () => {}
+		const send = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveSend = resolve
+				}),
+		)
+		const sdkHost = makeSdkHost({ send })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onTurnSettled })
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({} as any)
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		sdkHost.emit(makeTerminalErrorEvent("session-123", new Error("recoverable mistake notice"), { recoverable: true }))
+		sdkHost.emit(makeTerminalErrorEvent("other-session", new Error("other session failed")))
+		resolveSend()
+
+		await vi.waitFor(() => expect(onTurnSettled).toHaveBeenCalledWith("session-123", { status: "completed" }))
+		expect(onTurnSettled).toHaveBeenCalledTimes(1)
+	})
+
 	it("skips completion bookkeeping when the session was replaced before the send settled", async () => {
-		const onSendComplete = vi.fn()
+		const onTurnSettled = vi.fn()
 		let resolveSend: () => void = () => {}
 		const send = vi.fn(
 			() =>
@@ -256,7 +351,7 @@ describe("SdkSessionLifecycle", () => {
 			send,
 		})
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		const lifecycle = makeLifecycle({ onSendComplete })
+		const lifecycle = makeLifecycle({ onTurnSettled })
 		await lifecycle.startNewSession({} as StartInput)
 		const expectedSession = lifecycle.getActiveSession()!
 
@@ -276,12 +371,12 @@ describe("SdkSessionLifecycle", () => {
 		resolveSend()
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
-		expect(onSendComplete).not.toHaveBeenCalled()
+		expect(onTurnSettled).not.toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
 	it("skips error bookkeeping when the session was replaced before the send failed", async () => {
-		const onSendError = vi.fn()
+		const onTurnSettled = vi.fn()
 		let rejectSend: (error: Error) => void = () => {}
 		const send = vi.fn(
 			() =>
@@ -297,7 +392,7 @@ describe("SdkSessionLifecycle", () => {
 			send,
 		})
 		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
-		const lifecycle = makeLifecycle({ onSendError })
+		const lifecycle = makeLifecycle({ onTurnSettled })
 		await lifecycle.startNewSession({} as StartInput)
 		const expectedSession = lifecycle.getActiveSession()!
 
@@ -314,7 +409,7 @@ describe("SdkSessionLifecycle", () => {
 		rejectSend(new Error("boom"))
 		await new Promise((resolve) => setTimeout(resolve, 0))
 
-		expect(onSendError).not.toHaveBeenCalled()
+		expect(onTurnSettled).not.toHaveBeenCalled()
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(true)
 	})
 
@@ -631,17 +726,30 @@ function makeLifecycle(overrides: Partial<ConstructorParameters<typeof SdkSessio
 		requestToolApproval: vi.fn(),
 		askQuestion: vi.fn(),
 		onSessionEvent: vi.fn(),
-		onSendComplete: vi.fn(),
-		onSendError: vi.fn(),
+		onTurnSettled: vi.fn(),
 		...overrides,
 	})
 }
 
 function makeSdkHost(overrides: Record<string, unknown> = {}) {
 	const startResult = overrides.startResult ?? { sessionId: "session-123" }
+	const listeners = new Set<(event: unknown) => void>()
 	return {
 		start: vi.fn().mockResolvedValue(startResult),
-		subscribe: vi.fn().mockReturnValue(overrides.unsubscribe ?? vi.fn()),
+		subscribe: vi.fn((listener: (event: unknown) => void) => {
+			listeners.add(listener)
+			const customUnsubscribe = overrides.unsubscribe as (() => void) | undefined
+			return () => {
+				listeners.delete(listener)
+				customUnsubscribe?.()
+			}
+		}),
+		/** Test helper: dispatch a session event to all subscribers synchronously. */
+		emit(event: unknown): void {
+			for (const listener of listeners) {
+				listener(event)
+			}
+		},
 		send: vi.fn().mockResolvedValue(undefined),
 		restore: vi.fn().mockResolvedValue({
 			sessionId: "session-123",
@@ -651,5 +759,26 @@ function makeSdkHost(overrides: Record<string, unknown> = {}) {
 		stop: vi.fn().mockResolvedValue(undefined),
 		dispose: vi.fn().mockResolvedValue(undefined),
 		...overrides,
+	}
+}
+
+/** A terminal agent error event as the runtime emits it (run-failed). */
+function makeTerminalErrorEvent(
+	sessionId: string,
+	error: unknown,
+	extra: { recoverable?: boolean; errorClass?: "context_window_exceeded" } = {},
+) {
+	return {
+		type: "agent_event",
+		payload: {
+			sessionId,
+			event: {
+				type: "error",
+				error,
+				recoverable: extra.recoverable ?? false,
+				...(extra.errorClass ? { errorClass: extra.errorClass } : {}),
+				iteration: 1,
+			},
+		},
 	}
 }

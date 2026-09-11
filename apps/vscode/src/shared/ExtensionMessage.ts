@@ -157,6 +157,7 @@ export type TurnPhase =
 	| "awaiting_followup" // ask_question / plan_mode_respond / done-without-completion
 	| "completed" // attempt_completion done; Start New Task
 	| "error" // api_req_failed / fatal; Retry / recovery
+	| "retrying" // transient failure auto-retrying; Cancel only, nothing renders below the error
 	| "resumable" // task cancelled / interrupted; Resume Task
 
 export interface TurnState {
@@ -264,6 +265,7 @@ export type ClineSay =
 	| "subagent_usage"
 	| "conditional_rules_applied"
 	| "compaction" // context compaction progress/result divider
+	| "auto_recovery" // consecutive-mistake / API auto-retry countdown block (updated in place, same ts)
 
 export interface ClineSayTool {
 	tool:
@@ -389,6 +391,25 @@ export interface ClineCompactionInfo {
 	tokensAfter?: number
 	messagesBefore?: number
 	messagesAfter?: number
+}
+
+/**
+ * JSON payload of a say:"auto_recovery" marker message. The marker never
+ * renders as its own row — the webview attaches it to the nearest preceding
+ * error block and swaps that block's exclamation glyph for a live countdown
+ * ring (countdown) / spinner (retrying), ticking client-side off `retryAt`
+ * with no per-second message traffic. One marker per recovery streak, updated
+ * in place (same ts) as each retry attempt is scheduled.
+ */
+export interface ClineSayAutoRecovery {
+	/** Which recovery loop owns the marker: the SDK mistake limit or the API auto-retry. */
+	kind: "mistake" | "api"
+	/** "countdown" (ring) / "retrying" (spinner) while a recovery is live; "settled" once over. */
+	status: "countdown" | "retrying" | "settled"
+	/** Backoff delay scheduled for this attempt, in seconds (drain duration of the ring). */
+	delaySeconds: number
+	/** Epoch-ms timestamp when the countdown ends and the retry proceeds. */
+	retryAt?: number
 }
 
 export interface ClineSubagentUsageInfo {

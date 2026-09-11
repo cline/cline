@@ -8,6 +8,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { useThinkingLoaderRow } from "../../hooks/useThinkingLoaderRow"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import type { ActiveRecoveryDecoration } from "../../utils/messageUtils"
 import { isPendingResponseUnconfirmed } from "../../utils/pendingResponse"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
@@ -28,6 +29,8 @@ interface MessagesAreaProps {
 	task: ClineMessage
 	groupedMessages: (ClineMessage | ClineMessage[])[]
 	modifiedMessages: ClineMessage[]
+	/** Active auto-recovery decoration, if a streak is counting down / retrying. */
+	activeRecovery?: ActiveRecoveryDecoration
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
@@ -41,6 +44,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	task,
 	groupedMessages,
 	modifiedMessages,
+	activeRecovery,
 	scrollBehavior,
 	chatState,
 	messageHandlers,
@@ -102,6 +106,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		lastVisibleRow,
 		lastVisibleMessage,
 		modifiedMessages,
+		activeRecovery,
 		forceShow: forcePendingResponseLoader,
 	})
 
@@ -177,6 +182,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				inputValue,
 				messageHandlers,
 				false,
+				activeRecovery,
 			),
 		[
 			displayedGroupedMessages,
@@ -188,6 +194,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			activeRecovery,
 		],
 	)
 

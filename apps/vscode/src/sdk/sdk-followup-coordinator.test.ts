@@ -109,6 +109,36 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("sends a bare resume with the synthetic resumption prompt, never the queue", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.askResponse()
+
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		// No user bubble for the synthetic resumption prompt.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
+		// The resumption prompt goes through mention resolution (like a bare
+		// resume) and is sent WITHOUT queue delivery so it starts a real turn.
+		expect(options.resolveContextMentions).toHaveBeenCalledWith("[TASK RESUMPTION] Please continue where you left off.")
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: [TASK RESUMPTION] Please continue where you left off.",
+			undefined,
+			undefined,
+		)
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			"queue",
+		)
+	})
+
 	it("queues a chat-field message submitted while a tool approval is pending", async () => {
 		const activeSession = makeActiveSession({ isRunning: false })
 		const task = makeTask("session-123")
@@ -579,6 +609,35 @@ describe("SdkFollowupCoordinator", () => {
 			{ type: "status", payload: { sessionId: "task-1", status: "error" } },
 		)
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("abandons instead of sending when the cancellation guard is already flipped", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.askResponse("hello", undefined, undefined, undefined, undefined, () => true)
+
+		expect(options.runExclusive).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+	})
+
+	it("abandons when cancellation lands while waiting for the exclusive send boundary", async () => {
+		const activeSession = makeActiveSession()
+		let cancelled = false
+		const { coordinator, options } = makeCoordinator({
+			activeSession,
+			// The lock is contended; cancellation lands before the guarded body runs.
+			runExclusive: async (operation) => {
+				cancelled = true
+				await operation()
+			},
+		})
+
+		await coordinator.askResponse("hello", undefined, undefined, undefined, undefined, () => cancelled)
+
+		expect(options.sessions.setRunning).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
 	})
 })
 

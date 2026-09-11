@@ -205,6 +205,15 @@ describe("buttonsForPhase (TurnState-driven)", () => {
 		expect(buttonsForPhase(ts("error"), undefined)).toEqual(BUTTON_CONFIGS.api_req_failed)
 		expect(buttonsForPhase(ts("awaiting_followup"), undefined)).toEqual(BUTTON_CONFIGS.followup)
 		expect(buttonsForPhase(ts("awaiting_approval"), undefined)).toEqual(BUTTON_CONFIGS.tool_approve)
+		expect(buttonsForPhase(ts("retrying"), undefined)).toEqual(BUTTON_CONFIGS.auto_retrying)
+	})
+
+	it("auto-retry countdown shows Cancel only — no Retry/Start New Task", () => {
+		const config = buttonsForPhase(ts("retrying"), undefined)
+		expect(config.sendingDisabled).toBe(true)
+		expect(config.primaryText).toBeUndefined()
+		expect(config.secondaryText).toBe("Cancel")
+		expect(config.secondaryAction).toBe("cancel")
 	})
 
 	it("uses the anchored message to pick approval labels (Save vs Approve, command, mcp)", () => {
@@ -266,5 +275,53 @@ describe("getButtonConfigFromState (dispatch + legacy fallback)", () => {
 			BUTTON_CONFIGS.completion_result,
 		)
 		expect(getButtonConfigFromState(messages, { phase: "idle", seq: 6 }, "act", true)).toEqual(BUTTON_CONFIGS.default)
+	})
+})
+
+describe("auto-recovery streak keeps the footer Cancel rock solid", () => {
+	// One error block + the in-place auto_recovery marker the coordinator
+	// keeps live (same ts) for the whole streak.
+	const errorBlock: ClineMessage = { ts: 1, type: "say", say: "error", text: "boom" }
+	const marker = (status: "countdown" | "retrying" | "settled"): ClineMessage => ({
+		ts: 2,
+		type: "say",
+		say: "auto_recovery",
+		text: JSON.stringify({ kind: "api", status, delaySeconds: 3, attempt: 1 }),
+	})
+
+	it("a live marker keeps the footer Cancel-only while the phase blinks to error between attempts", () => {
+		const messages: ClineMessage[] = [errorBlock, marker("countdown")]
+		const turnState: TurnState = { phase: "error", seq: 2 }
+		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.auto_retrying)
+	})
+
+	it("a live retrying marker also gates the error phase", () => {
+		const messages: ClineMessage[] = [errorBlock, marker("retrying")]
+		const turnState: TurnState = { phase: "error", seq: 3 }
+		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.auto_retrying)
+	})
+
+	it("streaming during a live streak stays the plain Cancel (partial) config", () => {
+		const messages: ClineMessage[] = [errorBlock, marker("retrying")]
+		const turnState: TurnState = { phase: "streaming", seq: 4 }
+		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.partial)
+	})
+
+	it("a settled marker lets the error phase surface Retry once the streak gives up", () => {
+		const messages: ClineMessage[] = [errorBlock, marker("settled")]
+		const turnState: TurnState = { phase: "error", seq: 5 }
+		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.api_req_failed)
+	})
+
+	it("no marker at all keeps the error phase untouched", () => {
+		const messages: ClineMessage[] = [errorBlock]
+		const turnState: TurnState = { phase: "error", seq: 6 }
+		expect(getButtonConfigFromState(messages, turnState, "act")).toEqual(BUTTON_CONFIGS.api_req_failed)
+	})
+
+	it("buttonsForPhase exposes the gate directly (live streak → Cancel-only, no streak → Retry)", () => {
+		const ts = (phase: TurnState["phase"]): TurnState => ({ phase, seq: 1 })
+		expect(buttonsForPhase(ts("error"), undefined, false, true)).toEqual(BUTTON_CONFIGS.auto_retrying)
+		expect(buttonsForPhase(ts("error"), undefined, false, false)).toEqual(BUTTON_CONFIGS.api_req_failed)
 	})
 })

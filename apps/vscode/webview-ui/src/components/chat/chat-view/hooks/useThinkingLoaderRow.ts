@@ -1,6 +1,6 @@
 import type { ClineMessage, TurnState } from "@shared/ExtensionMessage"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { isToolGroup } from "../utils/messageUtils"
+import { type ActiveRecoveryDecoration, isToolGroup } from "../utils/messageUtils"
 
 /**
  * Grace period before showing the "Thinking..." loader row when its trigger is the tail
@@ -23,6 +23,16 @@ export interface ThinkingLoaderInputs {
 	/** Tail message of lastVisibleRow (last element when it is a group). */
 	lastVisibleMessage: ClineMessage | undefined
 	modifiedMessages: ClineMessage[]
+	/**
+	 * Active auto-recovery decoration (marker status "countdown" or "retrying").
+	 * While a streak is live the decorated error block's glyph — countdown ring
+	 * during the hold, spinner once the retried attempt streams — is the sole
+	 * progress indicator, so the synthetic "Thinking..." loader stays hidden.
+	 * Most importantly this covers the gap after the phase flips back to
+	 * "streaming" for the retry: no visible row exists yet, so the waiting
+	 * heuristic alone would leak a loader below the frozen error block.
+	 */
+	activeRecovery?: ActiveRecoveryDecoration
 	/**
 	 * Optimistic override: a turn-starting response RPC (new task or a follow-up sent outside a
 	 * streaming phase) was submitted before the backend published its next TurnState, so the
@@ -73,6 +83,24 @@ export function computeIsWaitingForResponse({
 			(lastRawMessage.say === "completion_result" || lastRawMessage.say === "plan_completion_result")
 		) {
 			return false
+		}
+		// A failed request is not a thinking state: the api_req_failed ask tail or
+		// an api_req_started carrying streamingFailedMessage/cancelReason renders
+		// the error block, and error recovery (manual Retry or an auto-retry
+		// countdown) owns the footer next. Without this the loader shows below the
+		// error block while the error phase commit is still in flight.
+		if (lastRawMessage?.type === "ask" && lastRawMessage.ask === "api_req_failed") {
+			return false
+		}
+		if (lastRawMessage?.type === "say" && lastRawMessage.say === "api_req_started") {
+			try {
+				const info = JSON.parse(lastRawMessage.text || "{}")
+				if (info.streamingFailedMessage || info.cancelReason) {
+					return false
+				}
+			} catch {
+				// ignore parse errors
+			}
 		}
 		// phase === streaming: show Thinking until a visible content row is streaming.
 		if (groupedMessages.length === 0 || !lastVisibleMessage) {
@@ -220,7 +248,25 @@ export function useDebouncedLoaderVisibility(
  * anti-flash debounce for tail-finalization triggers.
  */
 export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
-	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages, forceShow } = inputs
+	const {
+		turnState,
+		lastRawMessage,
+		groupedMessages,
+		lastVisibleRow,
+		lastVisibleMessage,
+		modifiedMessages,
+		activeRecovery,
+		forceShow,
+	} = inputs
+
+	// An auto-recovery streak owns the visual tail: while the countdown holds
+	// the turn (phase "retrying") the countdown block is the last thing shown,
+	// and once the retry is in flight (marker status "retrying", phase back to
+	// "streaming") the error block's spinner is the only progress indicator.
+	// The waiting heuristic cannot tell that the pre-content gap belongs to the
+	// retried attempt, so hold the loader for the whole live streak; the hold
+	// lifts as soon as the marker settles.
+	const heldForRecovery = turnState?.phase === "retrying" || activeRecovery !== undefined
 
 	const isWaitingForResponse = useMemo(
 		() =>
@@ -248,7 +294,7 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 	const optimisticShow = forceShow === true && lastVisibleMessage?.partial !== true
 
 	return useDebouncedLoaderVisibility(
-		optimisticShow || isWaitingForResponse || handoffToReasoningPending,
+		!heldForRecovery && (optimisticShow || isWaitingForResponse || handoffToReasoningPending),
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
 		// A reasoning tail finishing never ends the turn (the model always emits content after

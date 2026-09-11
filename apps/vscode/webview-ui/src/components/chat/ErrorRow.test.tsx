@@ -439,4 +439,62 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Test error message")).toBeInTheDocument()
 		})
 	})
+
+	describe("auto-recovery glyph", () => {
+		it("swaps the exclamation glyph for the countdown ring while counting down, keeping the error text frozen", () => {
+			render(
+				<ErrorRow
+					errorType="error"
+					message={mockMessage}
+					recovery={{ kind: "api", status: "countdown", delaySeconds: 3, retryAt: Date.now() + 3000 }}
+				/>,
+			)
+
+			expect(screen.getByText("Test error message")).toBeInTheDocument()
+			expect(screen.getByLabelText(/Retrying in \d+ seconds/)).toBeInTheDocument()
+		})
+
+		it("shows the spinner once the retry is streaming", () => {
+			render(
+				<ErrorRow
+					errorType="error"
+					message={mockMessage}
+					recovery={{ kind: "mistake", status: "retrying", delaySeconds: 3 }}
+				/>,
+			)
+
+			expect(screen.getByText("Test error message")).toBeInTheDocument()
+			expect(screen.getByLabelText("Retrying")).toBeInTheDocument()
+			expect(screen.queryByLabelText(/Retrying in \d+ seconds/)).not.toBeInTheDocument()
+		})
+
+		it("keeps the default exclamation glyph when the marker is settled or absent", () => {
+			const { rerender } = render(
+				<ErrorRow
+					errorType="error"
+					message={mockMessage}
+					recovery={{ kind: "api", status: "settled", delaySeconds: 3 }}
+				/>,
+			)
+			expect(screen.queryByLabelText("Retrying")).not.toBeInTheDocument()
+			expect(screen.queryByLabelText(/Retrying in \d+ seconds/)).not.toBeInTheDocument()
+
+			rerender(<ErrorRow errorType="error" message={mockMessage} />)
+			expect(screen.queryByLabelText("Retrying")).not.toBeInTheDocument()
+			expect(screen.queryByLabelText(/Retrying in \d+ seconds/)).not.toBeInTheDocument()
+			expect(screen.getByText("Test error message")).toBeInTheDocument()
+		})
+
+		it("falls back to the spinner once the countdown passes zero", () => {
+			render(
+				<ErrorRow
+					errorType="error"
+					message={mockMessage}
+					recovery={{ kind: "api", status: "countdown", delaySeconds: 3, retryAt: Date.now() - 1000 }}
+				/>,
+			)
+
+			expect(screen.getByLabelText("Retrying")).toBeInTheDocument()
+		})
+	})
 })
