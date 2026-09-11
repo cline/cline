@@ -3045,10 +3045,7 @@ export function useChatSession() {
 						"read_session_messages",
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
-					if (
-						historyMessages.length > 0 &&
-						!newerTurnOwnsTranscript()
-					) {
+					if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 						if (config.executionTarget === "cloud") {
 							applyCloudSnapshotMessages({
 								sessionId: activeSessionId,

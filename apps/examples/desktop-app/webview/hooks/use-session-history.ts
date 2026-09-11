@@ -961,7 +961,8 @@ export function useSessionHistory({
 		// The active session is skipped: its transcript is still being written
 		// and the chat tracks its usage live.
 		const inactiveSessions = sessions.filter(
-			(session) => session.sessionId !== activeSessionId && session.origin !== "cloud",
+			(session) =>
+				session.sessionId !== activeSessionId && session.origin !== "cloud",
 		);
 		const targets = inactiveSessions.slice(0, USAGE_HYDRATION_WINDOW);
 		if (requestedUsageIds.size > 0) {

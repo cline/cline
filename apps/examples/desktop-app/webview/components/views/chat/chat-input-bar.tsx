@@ -1513,15 +1513,15 @@ function ChatInputBarImpl({
 			{/* Composer settings */}
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
-				<button
-					aria-label={
-						executionTarget === "cloud" ? "Attach images" : "Attach files"
-					}
-					title={
-						imagesUnsupported
-							? "Attach files (this model doesn’t support images)"
-							: "Attach files"
-					}
+					<button
+						aria-label={
+							executionTarget === "cloud" ? "Attach images" : "Attach files"
+						}
+						title={
+							imagesUnsupported
+								? "Attach files (this model doesn’t support images)"
+								: "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
