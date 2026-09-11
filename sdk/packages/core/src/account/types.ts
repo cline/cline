@@ -14,6 +14,14 @@ export interface ClineAccountUser {
 	createdAt: string;
 	updatedAt: string;
 	organizations: ClineAccountOrganization[];
+	/**
+	 * Dashboard path (not a URL) of the web privacy settings, for example
+	 * "/dashboard/account?tab=privacy". Advertised by GET /users/me only while the
+	 * server-side feature flag is on for this user; absent means there is no
+	 * destination and clients offer nothing. Join it with the app base URL via
+	 * `new URL(path, base)` because it carries a query string.
+	 */
+	dataPrivacyPath?: string;
 }
 
 export interface UserRemoteConfigOrganization {

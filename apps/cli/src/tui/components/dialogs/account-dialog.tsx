@@ -14,7 +14,8 @@ export type AccountDialogAction =
 	| "change-model"
 	| "change-provider"
 	| "learn-more"
-	| "login";
+	| "login"
+	| { kind: "open-url"; url: string };
 
 type AccountView = "overview" | "organizations";
 
@@ -38,7 +39,8 @@ interface AccountAction {
 		| "change-account"
 		| "change-provider"
 		| "learn-more"
-		| "login";
+		| "login"
+		| "privacy-settings";
 	label: string;
 	description: string;
 	enabled: boolean;
@@ -203,7 +205,7 @@ function OrganizationRow(props: {
 }
 
 function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
-	return LOADED_ACTIONS.map((action) => {
+	const actions = LOADED_ACTIONS.map((action) => {
 		if (action.id !== "change-account") {
 			return action;
 		}
@@ -214,6 +216,16 @@ function accountActions(snapshot: ClineAccountSnapshot): AccountAction[] {
 				Boolean(snapshot.activeOrganization),
 		};
 	});
+	if (snapshot.privacySettingsUrl) {
+		actions.push({
+			id: "privacy-settings",
+			label: "Privacy settings",
+			description:
+				"Manage data sharing in your Cline account (opens the web app)",
+			enabled: true,
+		});
+	}
+	return actions;
 }
 
 function organizationDescription(org: ClineAccountOrganization): string {
@@ -365,11 +377,17 @@ export function AccountDialogContent(
 				resolve("change-provider");
 				return;
 			}
+			if (action.id === "privacy-settings") {
+				if (snapshot?.privacySettingsUrl) {
+					resolve({ kind: "open-url", url: snapshot.privacySettingsUrl });
+				}
+				return;
+			}
 			if (action.id === "change-account") {
 				openOrganizationView();
 			}
 		},
-		[openOrganizationView, resolve],
+		[openOrganizationView, resolve, snapshot],
 	);
 
 	const runSelectedAction = useCallback(() => {
