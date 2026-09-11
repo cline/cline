@@ -70,7 +70,8 @@ console.log(createClineTelemetryServiceConfig(),process.env.CLINE_TRACE_RECORD_C
 			})
 			expect(app.success).toBe(true)
 			assertTraceArtifact(await app.outputs[0].text())
-			const binary = path.join(dir, "cline-smoke")
+			// Bun compile appends .exe on Windows when the outfile lacks it.
+			const binary = path.join(dir, process.platform === "win32" ? "cline-smoke.exe" : "cline-smoke")
 			const compiled = await Bun.build({
 				entrypoints: [source],
 				target: "bun",
