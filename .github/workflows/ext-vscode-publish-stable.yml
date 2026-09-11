@@ -265,12 +265,9 @@ jobs:
                   # would walk them and pull the whole monorepo into the .vsix.
                   vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
-                  # vscode:prepublish (esbuild) must have inlined the content-capture
-                  # env; a surviving literal means tracing would ship dark.
-                  if grep -Fq 'process.env.CLINE_TRACE_RECORD_CONTENT' dist/extension.js; then
-                    echo "Content-capture env was not inlined into dist/extension.js"
-                    exit 1
-                  fi
+                  # Inspect the bundle inside the VSIX, not just the build directory.
+                  set -euo pipefail
+                  unzip -p "cline-${{ steps.get_version.outputs.version }}.vsix" extension/dist/extension.js | node scripts/check-trace-artifact.mjs -
 
                   # These scripts run under `node scripts/publish-marketplace.mjs`;
                   # bun run just launches them. Node + npm (for `npx ovsx`) come from

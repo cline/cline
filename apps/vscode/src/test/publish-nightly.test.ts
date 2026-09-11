@@ -1,16 +1,15 @@
 import { describe, expect, it } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 function runPublisher(bundle: string | undefined, contentFlag = "true", dryRun = false) {
-	const root = mkdtempSync(path.join(tmpdir(), "nightly-gate-"))
+	const root = mkdtempSync(path.resolve(import.meta.dir, ".nightly-gate-"))
 	try {
 		mkdirSync(path.join(root, "scripts"))
 		mkdirSync(path.join(root, "node_modules"))
-		for (const script of ["publish-nightly.mjs", "marketplace-readme.mjs"]) {
+		for (const script of ["publish-nightly.mjs", "marketplace-readme.mjs", "check-trace-artifact.mjs"]) {
 			copyFileSync(path.resolve(import.meta.dir, "../../scripts", script), path.join(root, "scripts", script))
 		}
 		const original = JSON.stringify({
@@ -88,7 +87,7 @@ describe("nightly content-inlining publication gate", () => {
 	it("blocks both marketplaces when the content flag survives packaging", () => {
 		const result = runPublisher("console.log(process.env.CLINE_TRACE_RECORD_CONTENT)")
 		expect(result.status).toBe(1)
-		expect(result.output).toContain("Content-capture env was not inlined")
+		expect(result.output).toContain("Unresolved activation env name")
 		expect(result.calls).toEqual(["package"])
 	})
 
@@ -100,7 +99,7 @@ describe("nightly content-inlining publication gate", () => {
 	})
 
 	it("publishes to both marketplaces when the check passes", () => {
-		const result = runPublisher('console.log("true")')
+		const result = runPublisher('console.log({tracesExporter:"otlp"}, "cline-provider-langfuse")')
 		expect(result.status).toBe(0)
 		expect(result.calls).toEqual(["package", "vscode", "openvsx"])
 	})
@@ -109,6 +108,13 @@ describe("nightly content-inlining publication gate", () => {
 		const result = runPublisher("console.log(process.env.CLINE_TRACE_RECORD_CONTENT)", "")
 		expect(result.status).toBe(0)
 		expect(result.calls).toEqual(["package", "vscode", "openvsx"])
+	})
+
+	it("blocks a bundle that has no surviving env reads but also no trace implementation", () => {
+		const result = runPublisher('console.log({logsExporter:"otlp"})')
+		expect(result.status).toBe(1)
+		expect(result.output).toContain("Missing trace-specific build config")
+		expect(result.calls).toEqual(["package"])
 	})
 
 	it("runs the gate during dry runs too", () => {

@@ -138,8 +138,6 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
-          OTEL_TRACES_EXPORTER: otlp
-          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -191,6 +189,7 @@ jobs:
               echo "Expected $package_name@$VERSION, got $actual_version"
               exit 1
             fi
+            node apps/vscode/scripts/check-trace-artifact.mjs "$dir"/bin/cline*
             ls -lh "$dir/bin/"
           done
 
@@ -341,8 +340,6 @@ jobs:
           OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
           OTEL_LOGS_EXPORTER: otlp
           OTEL_METRICS_EXPORTER: otlp
-          OTEL_TRACES_EXPORTER: otlp
-          CLINE_TRACE_RECORD_CONTENT: "true"
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
@@ -424,6 +421,7 @@ jobs:
               echo "Expected $package_name@$VERSION, got $actual_version"
               exit 1
             fi
+            node apps/vscode/scripts/check-trace-artifact.mjs "$dir"/bin/cline*
             ls -lh "$dir/bin/"
           done
 
