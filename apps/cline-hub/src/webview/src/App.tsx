@@ -53,6 +53,11 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
 	WebviewActiveConnector,
 	WebviewConnectedClient,
@@ -884,54 +889,62 @@ function SessionsView({
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
-						<DropdownMenu>
-							<DropdownMenuTrigger
-								render={
-									<Button
-										title="Filter sessions"
-										aria-label="Filter sessions"
-										size="icon-sm"
-										type="button"
-										variant={
-											sessionFilters.length > 0 ? "default" : "secondary"
-										}
-										className="size-8 rounded-md"
-									/>
-								}
-							>
-								<FunnelIcon className="size-4" />
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="max-h-72 w-72">
-								<DropdownMenuGroup>
-									<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
-									{sessionFilters.length > 0 ? (
-										<>
-											<DropdownMenuItem onClick={() => setSessionFilters([])}>
-												Clear filters
+						<Tooltip>
+							<DropdownMenu>
+								<TooltipTrigger
+									render={
+										<DropdownMenuTrigger
+											render={
+												<Button
+													aria-label="Filter sessions"
+													size="icon-sm"
+													type="button"
+													variant={
+														sessionFilters.length > 0 ? "default" : "secondary"
+													}
+													className="size-8 rounded-md"
+												/>
+											}
+										>
+											<FunnelIcon className="size-4" />
+										</DropdownMenuTrigger>
+									}
+								/>
+								<DropdownMenuContent align="end" className="max-h-72 w-72">
+									<DropdownMenuGroup>
+										<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
+										{sessionFilters.length > 0 ? (
+											<>
+												<DropdownMenuItem onClick={() => setSessionFilters([])}>
+													Clear filters
+												</DropdownMenuItem>
+												<DropdownMenuSeparator />
+											</>
+										) : null}
+										{runDetailFilterOptions.length === 0 ? (
+											<DropdownMenuItem disabled>
+												No run details
 											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-										</>
-									) : null}
-									{runDetailFilterOptions.length === 0 ? (
-										<DropdownMenuItem disabled>No run details</DropdownMenuItem>
-									) : (
-										runDetailFilterOptions.map((detail) => (
-											<DropdownMenuCheckboxItem
-												checked={sessionFilters.includes(detail)}
-												key={detail}
-												onCheckedChange={(checked: boolean) =>
-													toggleSessionFilter(detail, checked)
-												}
-											>
-												<span className="truncate" title={detail}>
-													{detail}
-												</span>
-											</DropdownMenuCheckboxItem>
-										))
-									)}
-								</DropdownMenuGroup>
-							</DropdownMenuContent>
-						</DropdownMenu>
+										) : (
+											runDetailFilterOptions.map((detail) => (
+												<DropdownMenuCheckboxItem
+													checked={sessionFilters.includes(detail)}
+													key={detail}
+													onCheckedChange={(checked: boolean) =>
+														toggleSessionFilter(detail, checked)
+													}
+												>
+													<span className="truncate" title={detail}>
+														{detail}
+													</span>
+												</DropdownMenuCheckboxItem>
+											))
+										)}
+									</DropdownMenuGroup>
+								</DropdownMenuContent>
+							</DropdownMenu>
+							<TooltipContent>Filter</TooltipContent>
+						</Tooltip>
 					</>
 				}
 			/>
