@@ -3,6 +3,7 @@ import type {
 	ClineCoreStartInput,
 	CompareCheckpointInput,
 	CompareCheckpointResult,
+	ConnectionUpdate,
 	CoreSessionEvent,
 	HookEventPayload,
 	PendingPromptMutationResult,
@@ -60,6 +61,8 @@ export interface SdkSessionHost {
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>
+	/** Applies provider/reasoning connection updates to subsequent turns of an active session. */
+	updateSessionConnection?(sessionId: string, updates: ConnectionUpdate): Promise<void>
 }
 
 export type SdkInitialMessages = NonNullable<StartSessionInput["initialMessages"]>
