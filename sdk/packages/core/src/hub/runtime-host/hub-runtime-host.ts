@@ -1520,6 +1520,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		return this.events.subscribe(listener, options);
 	}
 
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.sessionSubscriptions.has(sessionId.trim());
+	}
+
 	private ensureSessionSubscription(sessionId: string): void {
 		const target = sessionId.trim();
 		if (!target || this.sessionSubscriptions.has(target)) {
