@@ -218,4 +218,94 @@ describe("reconcileBufferedCloudEvents", () => {
 			]).map((item) => item.event),
 		).toEqual(["run.failed"]);
 	});
+
+	it("only suppresses tool phases present in the transcript before its cutoff", () => {
+		const started = event("tool.started", "start", { toolCallId: "call-1" });
+		const finished = event("tool.finished", "finish", {
+			toolCallId: "call-1",
+			output: "done",
+		});
+		const snapshot = [
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "call-1", name: "read_file" }],
+			},
+		];
+		expect(reconcileBufferedCloudEvents([started, finished], snapshot)).toEqual(
+			[finished],
+		);
+		const completedSnapshot = [
+			...snapshot,
+			{
+				role: "user",
+				content: [
+					{ type: "tool_result", tool_use_id: "call-1", content: "done" },
+				],
+			},
+		];
+		expect(
+			reconcileBufferedCloudEvents([started, finished], completedSnapshot),
+		).toEqual([]);
+		expect(
+			reconcileBufferedCloudEvents([started, finished], completedSnapshot, {
+				messagesSnapshotEventCutoff: 1,
+			}),
+		).toEqual([finished]);
+	});
+
+	it.each([
+		["run.failed", false],
+		["run.aborted", false],
+		["run.aborted", true],
+	] as const)("does not replay persisted thinking for %s (redacted: %s)", (terminal, redacted) => {
+		const buffered = [
+			event("reasoning.delta", "thinking", {
+				text: redacted ? "" : "Checking",
+				redacted,
+			}),
+			event("reasoning.finished", "thought", {
+				reasoning: redacted ? undefined : "Checking",
+			}),
+			event(terminal, "end"),
+		];
+		const snapshot = [
+			{
+				role: "assistant",
+				content: [
+					redacted
+						? { type: "redacted_thinking", data: "opaque" }
+						: { type: "thinking", thinking: "Checking" },
+				],
+			},
+		];
+		expect(reconcileBufferedCloudEvents(buffered, snapshot)).toEqual([
+			buffered[2],
+		]);
+		expect(reconcileBufferedCloudEvents(buffered, [])).toEqual(buffered);
+		expect(
+			reconcileBufferedCloudEvents(buffered, snapshot, {
+				baselineMessages: snapshot,
+			}),
+		).toEqual(buffered);
+		expect(
+			reconcileBufferedCloudEvents(buffered, snapshot, {
+				messagesSnapshotEventCutoff: 0,
+			}),
+		).toEqual(buffered);
+	});
+
+	it("does not treat persisted assistant text as proof that thinking was saved", () => {
+		const thinking = event("reasoning.delta", "thinking", { text: "Checking" });
+		const done = event("run.completed", "done");
+		expect(
+			reconcileBufferedCloudEvents(
+				[
+					thinking,
+					event("assistant.finished", "answer", { text: "Done" }),
+					done,
+				],
+				[{ role: "assistant", content: "Done" }],
+			),
+		).toEqual([thinking, done]);
+	});
 });
