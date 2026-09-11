@@ -765,6 +765,15 @@ export async function listLocalProviders(
 					featuredData,
 				);
 				const directSettings = state.providers[id]?.settings;
+				// Providers that store their credentials under another provider
+				// (ClinePass signs in as "cline") are enabled whenever that
+				// provider is: one Cline sign-in configures both, so both must
+				// show wherever `enabled` gates a picker.
+				const storageProviderId = getProviderAuthHandler(id)?.storageProviderId;
+				const sharedSettings =
+					storageProviderId && storageProviderId !== id
+						? state.providers[storageProviderId]?.settings
+						: undefined;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
@@ -781,7 +790,7 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(directSettings),
+						enabled: Boolean(directSettings ?? sharedSettings),
 						// Distinct from `enabled` (any persisted entry, which
 						// migrations and empty saves can create): true only when
 						// the saved settings hold real credentials or a usable

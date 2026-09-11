@@ -29,12 +29,7 @@ export type ShellKind = "powershell" | "cmd" | "wsl" | "posix";
 export function getShellKind(shell: string): ShellKind {
 	const shellName = normalizeShellName(shell);
 
-	if (
-		shellName === "powershell" ||
-		shellName === "powershell.exe" ||
-		shellName === "pwsh" ||
-		shellName === "pwsh.exe"
-	) {
+	if (getPowerShellEdition(shell) !== undefined) {
 		return "powershell";
 	}
 
@@ -186,12 +181,14 @@ function splitCompleteQuotedString(
 }
 
 /**
- * Classify a PowerShell executable path or name by edition, matching the
- * registry names: `powershell(.exe)` is Windows PowerShell 5.1 and
- * `pwsh(.exe)` is PowerShell 7+. Anything else is not a PowerShell
- * executable and returns undefined.
+ * Classify a PowerShell executable path or name by edition:
+ * `powershell(.exe)` is Windows PowerShell and `pwsh(.exe)` is Microsoft
+ * PowerShell. This identifies the edition, not the installed version.
+ * Anything else returns undefined.
  */
-function getPowerShellEdition(shell: string): "windows" | "core" | undefined {
+export function getPowerShellEdition(
+	shell: string,
+): "windows" | "core" | undefined {
 	const name = normalizeShellName(shell);
 	if (name === "powershell" || name === "powershell.exe") return "windows";
 	if (name === "pwsh" || name === "pwsh.exe") return "core";
