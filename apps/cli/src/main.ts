@@ -15,7 +15,10 @@ import {
 	autoUpdateOnStartup,
 	getPreferredKanbanInstaller,
 } from "./commands/update";
-import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
+import {
+	CLI_DEFAULT_CHECKPOINT_CONFIG,
+	CLI_DEFAULT_MAX_ITERATIONS,
+} from "./runtime/defaults";
 import type { TuiStartupTarget } from "./tui/types";
 import { filterChatModels } from "./utils/chat-models";
 import { getCliBuildInfo } from "./utils/common";
@@ -793,6 +796,11 @@ export async function runCli(): Promise<void> {
 			`${c.dim}[warn] ignoring invalid --retries value "${args.invalidRetries}" (expected integer >= 1)${c.reset}`,
 		);
 	}
+	if (args.invalidMaxIterations) {
+		writeln(
+			`${c.dim}[warn] ignoring invalid --max-iterations value "${args.invalidMaxIterations}" (expected integer >= 1)${c.reset}`,
+		);
+	}
 	if (args.hooksDir?.trim()) {
 		process.env.CLINE_HOOKS_DIR = args.hooksDir.trim();
 	}
@@ -1069,6 +1077,7 @@ export async function runCli(): Promise<void> {
 			execution: {
 				maxConsecutiveMistakes: args.retries ?? 3,
 			},
+			maxIterations: args.maxIterations ?? CLI_DEFAULT_MAX_ITERATIONS,
 			checkpoint: CLI_DEFAULT_CHECKPOINT_CONFIG,
 			compaction: buildCliCompactionConfig(effectiveCompactionMode),
 			timeoutSeconds: args.timeoutSeconds,
