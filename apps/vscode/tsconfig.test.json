@@ -49,6 +49,9 @@
 			],
 			"@cline/shared/*": [
 				"./node_modules/@cline/shared/dist/*"
+			],
+			"@cline/core/frames": [
+				"./node_modules/@cline/core/dist/frames"
 			]
 		},
 		"types": [
