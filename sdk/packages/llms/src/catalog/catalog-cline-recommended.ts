@@ -109,9 +109,10 @@ export function normalizeClineRecommendedProviderModels(
 			capabilities.name?.trim() || entry.name?.trim() || entry.id;
 		// The feed bucket determines free access, regardless of the ID namespace.
 		// Keep this visible even when a client has no featured-tier metadata.
-		const name = /\(free\)$/i.test(entryName)
-			? entryName
-			: `${entryName} (free)`;
+		const name =
+			!includeInClinePass || /\(free\)$/i.test(entryName)
+				? entryName
+				: `${entryName} (free)`;
 
 		const modelInfo = {
 			...capabilities,
