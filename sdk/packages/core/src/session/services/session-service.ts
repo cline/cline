@@ -314,7 +314,7 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 				null,
 				0,
 				input.prompt ?? null,
-				input.metadata ? JSON.stringify(input.metadata) : null,
+				stringifyMetadata(input.metadata),
 				"",
 				"",
 				input.messagesPath,

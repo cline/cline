@@ -75,6 +75,7 @@ import type {
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
+import { cloneJsonRecord } from "../../utils/json-record";
 import {
 	type HubClientOptions,
 	isHubCommandTimeoutError,
@@ -88,10 +89,7 @@ function toJsonRecord(
 	if (!value) {
 		return undefined;
 	}
-	return JSON.parse(JSON.stringify(value)) as Record<
-		string,
-		JsonValue | undefined
-	>;
+	return cloneJsonRecord(value) as Record<string, JsonValue | undefined>;
 }
 
 const HUB_HOOK_NAMES = [
@@ -611,7 +609,7 @@ function mapStatus(
 function toSessionRecord(session: HubSessionRecord): SessionRecord {
 	const metadata =
 		session.metadata && typeof session.metadata === "object"
-			? JSON.parse(JSON.stringify(session.metadata))
+			? cloneJsonRecord(session.metadata as Record<string, unknown>)
 			: undefined;
 	return {
 		sessionId: session.sessionId,
