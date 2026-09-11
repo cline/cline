@@ -79,6 +79,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		runtimeProviderId: "poolside",
 	},
 	{
+		modelsDevKey: "pioneer",
+		generatedProviderId: "pioneer",
+		runtimeProviderId: "pioneer",
+	},
+	{
 		modelsDevKey: "cerebras",
 		generatedProviderId: "cerebras",
 		runtimeProviderId: "cerebras",
