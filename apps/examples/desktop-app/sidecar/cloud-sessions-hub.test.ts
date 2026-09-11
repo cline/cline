@@ -601,6 +601,65 @@ describe("CloudSessionManager Hub runtime", () => {
 		);
 	});
 
+	it("clears expired-session approvals while preserving other sessions", async () => {
+		const hub = new FakeHubClient();
+		let expired = false;
+		const { manager, ctx, events } = createFixture({
+			hub,
+			api: {
+				list: async () =>
+					expired
+						? [
+								{
+									...REMOTE_SESSION,
+									expiredAt: new Date(Date.now() - 60_000).toISOString(),
+								},
+							]
+						: [REMOTE_SESSION],
+			} as unknown as CloudSessionApi,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "approval.requested",
+			eventId: "evt-expiring-approval",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: {
+				approvalId: "approval-expiring",
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				inputJson: "{}",
+			},
+		});
+		ctx.pendingApprovals.set("ses-other:approval-other", {
+			item: {
+				requestId: "ses-other:approval-other",
+				sessionId: "ses-other",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-other",
+				toolName: "run_commands",
+			},
+			resolve: vi.fn(async () => {}),
+		});
+		const expiredApproval = ctx.pendingApprovals.get(
+			"ses-outer:approval-expiring",
+		);
+		expired = true;
+		await manager.listForDiscovery();
+		expect(expiredApproval).toBeDefined();
+		const lastState = events
+			.filter((event) => event.name === "tool_approval_state")
+			.at(-1);
+		expect(ctx.pendingApprovals.has("ses-other:approval-other")).toBe(true);
+		expect(ctx.pendingApprovals.has("ses-outer:approval-expiring")).toBe(false);
+		expect(lastState?.payload.items).toEqual([]);
+		await expect(
+			Promise.resolve(expiredApproval!.resolve({ approved: true })),
+		).rejects.toThrow(/closed/i);
+	});
+
 	it("drops authenticated cloud connections when account context changes", async () => {
 		const { manager, ctx, hub } = createFixture();
 		ctx.cloudSessionManager = manager;
@@ -751,5 +810,135 @@ describe("CloudSessionManager Hub runtime", () => {
 		await expect(manager.attach("ses-org")).rejects.toThrow("pod offline");
 
 		expect(listCalls).toEqual(["org-cline-bot", "org-cline-bot"]);
+	});
+
+	it("clears approvals when setup fails after replay", async () => {
+		const hub = new FakeHubClient();
+		hub.pendingApprovals = [
+			{
+				approvalId: "setup-approval",
+				toolCallId: "tool",
+				toolName: "run_commands",
+			},
+		];
+		const { manager, ctx, events } = createFixture({ hub });
+		hub.commandHook = async (command) => {
+			if (command === "session.attach") throw new Error("attach failed");
+		};
+		vi.spyOn(hub, "dispose").mockRejectedValue(new Error("dispose failed"));
+		await manager.list();
+		await expect(manager.attach("ses-outer")).rejects.toThrow("attach failed");
+		await Promise.resolve();
+		expect(ctx.pendingApprovals.has("ses-outer:setup-approval")).toBe(false);
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toEqual([]);
+	});
+
+	it("does not respond after disposal races an approval resolver", async () => {
+		const hub = new FakeHubClient();
+		const { manager, ctx } = createFixture({ hub });
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "approval.requested",
+			eventId: "race",
+			timestamp: 1,
+			sessionId: "inner-1",
+			payload: {
+				approvalId: "race",
+				toolCallId: "tool",
+				toolName: "run_commands",
+				inputJson: "{}",
+			},
+		});
+		const pending = ctx.pendingApprovals.get("ses-outer:race");
+		expect(pending).toBeDefined();
+		const reached = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		hub.commandHook = async (command) => {
+			if (command === "session.attach") {
+				reached.resolve();
+				await release.promise;
+			}
+		};
+		const resolving = pending!.resolve({ approved: true });
+		await reached.promise;
+		await manager.dispose();
+		release.resolve();
+		await expect(resolving).rejects.toThrow(/closed|disposed/i);
+		expect(
+			hub.commands.some((item) => item.command === "approval.respond"),
+		).toBe(false);
+	});
+
+	it("preserves replacement approvals when initial setup finishes after disposal", async () => {
+		const hub = new FakeHubClient();
+		const { manager, ctx } = createFixture({ hub });
+		const reached = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		hub.commandHook = async (command) => {
+			if (command === "session.list") {
+				reached.resolve();
+				await release.promise;
+			}
+		};
+		const attaching = manager.attach("ses-outer");
+		await reached.promise;
+		await manager.dispose();
+		ctx.pendingApprovals.set("ses-outer:replacement", {
+			item: {
+				requestId: "ses-outer:replacement",
+				sessionId: "ses-outer",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool",
+				toolName: "run_commands",
+			},
+			resolve: vi.fn(async () => {}),
+		});
+		release.resolve();
+		await expect(attaching).rejects.toThrow(/disposed/i);
+		expect(ctx.pendingApprovals.has("ses-outer:replacement")).toBe(true);
+		expect(hub.events).toBeUndefined();
+	});
+
+	it("does not resurrect approvals from a buffered snapshot after disposal", async () => {
+		const hub = new FakeHubClient();
+		const { manager, ctx, events } = createFixture({ hub });
+		await manager.list();
+		await manager.attach("ses-outer");
+		const reached = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		hub.commandHook = async (command) => {
+			if (command === "session.messages") {
+				hub.events?.({
+					version: "v1",
+					event: "approval.requested",
+					eventId: "buffered",
+					timestamp: 1,
+					sessionId: "inner-1",
+					payload: {
+						approvalId: "buffered",
+						toolCallId: "tool",
+						toolName: "run_commands",
+						inputJson: "{}",
+					},
+				});
+				reached.resolve();
+				await release.promise;
+			}
+		};
+		const reading = manager.readMessages("ses-outer");
+		await reached.promise;
+		await manager.dispose();
+		release.resolve();
+		await reading.catch(() => undefined);
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toEqual([]);
 	});
 });
