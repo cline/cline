@@ -1,0 +1,202 @@
+.cline-ui-switch {
+	/* Keep the white thumb and the off track distinct in light mode. */
+	--cline-ui-switch-off-background: var(--neutral-9);
+	--cline-ui-switch-off-hover-background: var(--neutral-10);
+	--cline-ui-switch-off-active-background: var(--neutral-8);
+	--cline-ui-switch-off-border: var(--neutral-a3);
+	--cline-ui-switch-disabled-thumb-background: var(--surface-1);
+	/* Preserve the geometry at Cline's default 15px root while allowing UI scaling. */
+	--cline-ui-switch-width: calc(33rem / 15);
+	--cline-ui-switch-height: calc(18rem / 15);
+	--cline-ui-switch-padding: 0.16rem;
+	/* Fit inside the padding and both 1px track borders on each axis. */
+	--cline-ui-switch-thumb-size: calc(
+		var(--cline-ui-switch-height) -
+		var(--cline-ui-switch-padding) *
+		2 -
+		2px
+	);
+	/* Subtract both fixed 1px track borders to keep either end aligned. */
+	--cline-ui-switch-travel: calc(
+		var(--cline-ui-switch-width) -
+		var(--cline-ui-switch-thumb-size) -
+		2 *
+		var(--cline-ui-switch-padding) -
+		2px
+	);
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	/* Reserve the hit area in layout so neighboring controls cannot overlap it. */
+	min-width: 24px;
+	min-height: 24px;
+	width: var(--cline-ui-switch-width);
+	height: var(--cline-ui-switch-height);
+	vertical-align: middle;
+}
+
+.dark .cline-ui-switch,
+.cline-ui-switch.dark {
+	/* Lift the off track slightly without changing the shared neutral palette. */
+	--cline-ui-switch-off-background: var(--neutral-7);
+	--cline-ui-switch-off-hover-background: var(--neutral-6);
+	--cline-ui-switch-off-active-background: var(--neutral-7);
+	--cline-ui-switch-off-border: var(--neutral-a3);
+	--cline-ui-switch-disabled-thumb-background: var(--neutral-9);
+}
+
+/* Keep the actual form control focusable and clickable over the entire track. */
+.cline-ui-switch__input {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	box-sizing: border-box;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.cline-ui-switch__track {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: var(--cline-ui-switch-width);
+	height: var(--cline-ui-switch-height);
+	padding: var(--cline-ui-switch-padding);
+	border: 1px solid var(--cline-ui-switch-off-border);
+	border-radius: calc(4rem / 15);
+	background: var(--cline-ui-switch-off-background);
+	pointer-events: none;
+	box-shadow:
+		0 0 0.1rem 0 var(--neutral-a2) inset,
+		0 0.03rem 0.1rem 0 var(--neutral-a2) inset;
+}
+
+.cline-ui-switch__thumb {
+	display: block;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: var(--cline-ui-switch-thumb-size);
+	height: var(--cline-ui-switch-thumb-size);
+	border-radius: calc(2.2rem / 15);
+	/* Host accent palettes may tint --primary-foreground; the thumb stays neutral. */
+	background: #fff;
+	box-shadow:
+		0 0 0 1px var(--neutral-a2),
+		0 0.03rem 0.3rem 0 var(--neutral-a2),
+		0 0.05rem 0.5rem 0 var(--neutral-a4);
+	transition: transform 120ms cubic-bezier(0.34, 1.4, 0.62, 1);
+}
+
+.cline-ui-switch__input:checked
+	+ .cline-ui-switch__track
+	.cline-ui-switch__thumb {
+	transform: translateX(var(--cline-ui-switch-travel));
+}
+
+.cline-ui-switch:dir(rtl)
+	.cline-ui-switch__input:checked
+	+ .cline-ui-switch__track
+	.cline-ui-switch__thumb {
+	transform: translateX(calc(-1 * var(--cline-ui-switch-travel)));
+}
+
+.cline-ui-switch__input:disabled {
+	cursor: not-allowed;
+}
+
+@media (forced-colors: none) {
+	.cline-ui-switch__input:checked + .cline-ui-switch__track {
+		border-color: var(--neutral-a5);
+		background: color-mix(in srgb, var(--primary) 85%, var(--accent-8) 15%);
+	}
+
+	.cline-ui-switch__input:enabled:hover + .cline-ui-switch__track {
+		background: var(--cline-ui-switch-off-hover-background);
+	}
+
+	.cline-ui-switch__input:enabled:checked:hover + .cline-ui-switch__track {
+		background: var(--primary-emphasis);
+	}
+
+	.cline-ui-switch__input:enabled:active + .cline-ui-switch__track {
+		background: var(--cline-ui-switch-off-active-background);
+	}
+
+	.cline-ui-switch__input:enabled:checked:active + .cline-ui-switch__track {
+		background: var(--primary);
+		opacity: 0.92;
+	}
+
+	.cline-ui-switch__input:focus-visible + .cline-ui-switch__track {
+		outline: 2px solid var(--accent-9);
+		outline-offset: 2px;
+	}
+
+	.cline-ui-switch__input:disabled + .cline-ui-switch__track {
+		border-color: transparent;
+		background: var(--surface-hover-darker);
+		box-shadow: none;
+	}
+
+	.cline-ui-switch__input:disabled
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		background: var(--cline-ui-switch-disabled-thumb-background);
+		box-shadow: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-ui-switch__track,
+	.cline-ui-switch__thumb {
+		transition: none;
+	}
+}
+
+@media (forced-colors: active) {
+	.cline-ui-switch__track {
+		forced-color-adjust: none;
+		border-color: ButtonText;
+		background: Canvas;
+		box-shadow: none;
+	}
+
+	.cline-ui-switch__input + .cline-ui-switch__track .cline-ui-switch__thumb {
+		background: ButtonText;
+		box-shadow: none;
+	}
+
+	.cline-ui-switch__input:checked + .cline-ui-switch__track {
+		background: Highlight;
+	}
+
+	.cline-ui-switch__input:checked
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		background: HighlightText;
+	}
+
+	.cline-ui-switch__input:focus-visible + .cline-ui-switch__track {
+		outline: 2px solid Highlight;
+		outline-offset: 2px;
+	}
+
+	.cline-ui-switch__input:disabled + .cline-ui-switch__track {
+		border-color: GrayText;
+		background: Canvas;
+	}
+
+	.cline-ui-switch__input:disabled
+		+ .cline-ui-switch__track
+		.cline-ui-switch__thumb {
+		background: GrayText;
+	}
+}

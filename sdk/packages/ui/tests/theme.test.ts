@@ -397,6 +397,34 @@ describe("@cline/ui theme contract", () => {
 		expect(componentCss).not.toContain("var(--chart-2)");
 	});
 
+	it("applies host accents to checked switch tracks, not thumbs", () => {
+		const css = readComponent("switch.css");
+		const states = block(css, "@media (forced-colors: none)");
+		const track = ".cline-ui-switch__track";
+		const input = ".cline-ui-switch__input";
+		const trackStyles = block(css, track);
+
+		expect(trackStyles).toContain("padding: var(--cline-ui-switch-padding);");
+		// Hover is intentionally immediate; only the thumb carries one recoil.
+		expect(trackStyles).not.toContain("transition:");
+		expect(block(css, ".cline-ui-switch__thumb")).toMatch(
+			/transition: transform \d+ms cubic-bezier\(/,
+		);
+		expect(block(states, `${input}:checked + ${track}`)).toContain(
+			"background: color-mix(in srgb, var(--primary) 85%, var(--accent-8) 15%);",
+		);
+		expect(
+			block(states, `${input}:enabled:checked:hover + ${track}`),
+		).toContain("background: var(--primary-emphasis);");
+		expect(
+			block(states, `${input}:enabled:checked:active + ${track}`),
+		).toContain("background: var(--primary);");
+		expect(block(css, ".cline-ui-switch__thumb")).toContain(
+			"background: #fff;",
+		);
+		expect(css).not.toContain("var(--primary-foreground)");
+	});
+
 	it("exports every documented CSS entry point", () => {
 		const manifest = JSON.parse(
 			readFileSync(join(packageRoot, "package.json"), "utf8"),
