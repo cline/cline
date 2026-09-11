@@ -13,6 +13,7 @@ type PackageInfo = {
 type PackedManifest = {
 	name?: string;
 	version?: string;
+	license?: string;
 	dependencies?: Record<string, string>;
 	exports?: unknown;
 };
@@ -109,6 +110,55 @@ async function readPackedPackageJson(tarball: string): Promise<PackedManifest> {
 	return JSON.parse(raw) as PackedManifest;
 }
 
+async function listPackedEntries(tarball: string): Promise<string[]> {
+	const raw = await runCommandOrThrow(["tar", "-tf", tarball], {
+		cwd: root,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+
+	return raw
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+}
+
+async function verifyPackedLicenses(
+	tarballs: { name: string; tarball: string }[],
+	packedManifests: Map<string, PackedManifest>,
+): Promise<boolean> {
+	console.log("\n--- Verifying packed license files ---");
+
+	let failed = false;
+	for (const entry of tarballs) {
+		const manifest = packedManifests.get(entry.name);
+		if (manifest?.license !== "Apache-2.0") {
+			console.error(
+				`  FAIL ${entry.name}: package.json license is "${manifest?.license ?? "(missing)"}", expected "Apache-2.0"`,
+			);
+			failed = true;
+		}
+
+		const entries = await listPackedEntries(entry.tarball);
+		if (!entries.includes("package/LICENSE")) {
+			console.error(`  FAIL ${entry.name}: tarball does not contain LICENSE`);
+			failed = true;
+		}
+	}
+
+	if (failed) {
+		console.info(
+			"\nEvery published package must declare Apache-2.0 and ship a LICENSE file",
+		);
+		return false;
+	}
+
+	console.log(
+		"  OK - every packed package declares and ships a Apache-2.0 license\n",
+	);
+	return true;
+}
+
 function containsDevelopmentExportCondition(value: unknown): boolean {
 	if (value === null || typeof value !== "object") {
 		return false;
@@ -198,6 +248,10 @@ async function main(): Promise<number> {
 		console.log(
 			"  OK - packed export maps do not include development conditions\n",
 		);
+
+		if (!(await verifyPackedLicenses(tarballs, packedManifests))) {
+			return 1;
+		}
 
 		console.log("\n--- Installing packages in isolated directory ---");
 		const tarballDependencies = Object.fromEntries(

@@ -21,6 +21,7 @@
 	},
 	"description": "Browser-safe agent runtime for the next-generation Cline SDK",
 	"files": [
+		"LICENSE",
 		"dist"
 	],
 	"keywords": [
@@ -31,6 +32,7 @@
 	],
 	"license": "Apache-2.0",
 	"scripts": {
+		"prepack": "cp ../../../LICENSE LICENSE",
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"dev": "bun build ./src/index.ts --outdir ./dist --target node --format esm --watch",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",

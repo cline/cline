@@ -82,6 +82,7 @@
 		"theme",
 		"ADOPTION.md",
 		"README.md",
+		"LICENSE",
 		"RADIX-COLORS-LICENSE"
 	],
 	"sideEffects": [
@@ -102,7 +103,7 @@
 		"build": "bun run check:theme-generated && bun scripts/validate-theme.ts && bun tsc -p tsconfig.build.json",
 		"check:theme-generated": "bun scripts/generate-theme.ts --check",
 		"generate:theme": "bun scripts/generate-theme.ts",
-		"prepack": "bun run build",
+		"prepack": "bun run build && cp ../../../LICENSE LICENSE",
 		"storybook": "storybook dev",
 		"build-storybook": "storybook build --output-dir tmp/storybook-static",
 		"test:package": "bun run build && bun scripts/smoke-package.ts",
