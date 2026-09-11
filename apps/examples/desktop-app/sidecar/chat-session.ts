@@ -34,7 +34,10 @@ import {
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
-import { getCloudSessionManager } from "./cloud-sessions";
+import {
+	getCloudSessionManager,
+	isCloudOuterSessionId,
+} from "./cloud-sessions";
 import { createDesktopExtensionContext } from "./client-context";
 import {
 	cancelSidecarMistakeQuestions,
@@ -1820,7 +1823,8 @@ export async function handleChatSessionCommand(
 	const sessionId = request.sessionId?.trim();
 	const existingCloudSession =
 		sessionId &&
-		ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud";
+		(isCloudOuterSessionId(sessionId) ||
+			ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud");
 	if (executionTarget === "cloud" || existingCloudSession) {
 		const cloud = getCloudSessionManager(ctx);
 		// The approval preference lives only client-side; keep the live session
