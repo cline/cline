@@ -52,6 +52,7 @@ import { execFileSync, execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { assertTraceArtifact } from "./check-trace-artifact.mjs"
 import { restore as restoreMarketplaceReadme, swapIn as swapInMarketplaceReadme } from "./marketplace-readme.mjs"
 
 // Get __dirname equivalent in ES modules
@@ -504,6 +505,13 @@ class NightlyPublisher {
 
 			// Step 4: Package extension
 			this.packageExtension(isPreRelease)
+
+			// Static smoke for explicitly activated builds before either marketplace.
+			// Local unconfigured builds may keep runtime reads.
+			if (process.env.OTEL_TRACES_EXPORTER === "otlp" || process.env.CLINE_TRACE_RECORD_CONTENT === "true") {
+				const bundle = fs.readFileSync(path.join(config.distDir, "extension.js"), "utf8")
+				assertTraceArtifact(bundle)
+			}
 
 			// Step 5: Publish to marketplaces (skip if dry run)
 			let vsCodePublished = false
