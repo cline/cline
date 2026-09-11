@@ -59,6 +59,9 @@ export class AgentEventFramer {
 	private currentTextBlock: string | undefined;
 	private currentReasoningBlock: string | undefined;
 	private readonly openTools = new Map<string, OpenTool>();
+	/** Open tool blocks minted for toolCallId-less (v1-illegal) opens;
+	 * closes without ids pair with the most recent one. */
+	private readonly unnamedToolStack: string[] = [];
 
 	constructor(options: AgentEventFramerOptions = {}) {
 		this.agentPath = options.agentPath ?? ["root"];
@@ -154,17 +157,31 @@ export class AgentEventFramer {
 								},
 							},
 						);
+					} else if (event.redacted) {
+						// v1 marks redacted-with-no-text with a [redacted]
+						// token at this exact stream position; the empty
+						// delta preserves that moment for consumers.
+						this.emit(
+							out,
+							this.blockScope(turnId, this.currentReasoningBlock),
+							{
+								kind: "delta",
+								payload: { type: "reasoning", reasoning: "" },
+							},
+						);
 					}
 					break;
 				}
 				if (event.contentType === "tool") {
-					const blockId =
-						event.toolCallId === undefined
-							? this.nextBlockId()
-							: event.toolCallId;
-					// A missing toolCallId is v1-illegal (the v1 validator
-					// flags it); we still frame it deterministically, and
-					// the v2 tables flag the result.
+					let blockId: string;
+					if (event.toolCallId === undefined) {
+						// v1-illegal but type-legal input; pair id-less
+						// closes with the most recent id-less open.
+						blockId = this.nextBlockId();
+						this.unnamedToolStack.push(blockId);
+					} else {
+						blockId = event.toolCallId;
+					}
 					this.openTools.set(blockId, { input: event.input });
 					this.emit(out, this.blockScope(turnId, blockId), {
 						kind: "open",
@@ -197,7 +214,7 @@ export class AgentEventFramer {
 				if (event.contentType === "tool") {
 					const blockId =
 						event.toolCallId === undefined
-							? this.nextBlockId()
+							? (this.unnamedToolStack.pop() ?? this.nextBlockId())
 							: event.toolCallId;
 					const tool = this.openTools.get(blockId);
 					this.openTools.delete(blockId);
@@ -314,6 +331,9 @@ export class AgentEventFramer {
 						? { displayRole: event.displayRole }
 						: {}),
 					...(event.reason !== undefined ? { reason: event.reason } : {}),
+					...(event.metadata !== undefined
+						? { metadata: event.metadata }
+						: {}),
 				});
 				break;
 			}
@@ -362,7 +382,11 @@ export class AgentEventFramer {
 				break;
 			}
 			case "done": {
-				this.closeTurn(out, finishReasonToOutcome(event));
+				this.closeTurn(
+					out,
+					finishReasonToOutcome(event),
+					event.iterations,
+				);
 				break;
 			}
 			default: {
@@ -485,12 +509,17 @@ export class AgentEventFramer {
 	}
 
 	/** One spelling of turn end (W4/P6): children first, then the close. */
-	private closeTurn(out: StreamFrame[], outcome: Outcome): void {
+	private closeTurn(
+		out: StreamFrame[],
+		outcome: Outcome,
+		iterations?: number,
+	): void {
 		const turnId = this.ensureTurn(out);
 		this.forceCloseChildren(out);
 		this.emit(out, this.turnScope(turnId), {
 			kind: "close",
 			outcome,
+			...(iterations !== undefined ? { iterations } : {}),
 		});
 		this.currentTurnId = undefined;
 	}
