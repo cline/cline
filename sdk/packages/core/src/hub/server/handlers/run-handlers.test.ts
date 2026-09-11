@@ -72,52 +72,6 @@ describe("run handlers", () => {
 		);
 	});
 
-	it("accepts image-only input without a prompt", async () => {
-		const runTurn = vi.fn().mockResolvedValue(undefined);
-		const ctx = createContext({ runTurn });
-
-		await expect(
-			handleSessionInput(ctx, {
-				version: "v1",
-				command: "run.start",
-				requestId: "req-image",
-				sessionId: "session-1",
-				payload: {
-					sessionId: "session-1",
-					input: "",
-					attachments: { userImages: ["data:image/png;base64,AAAA"] },
-				},
-			}),
-		).resolves.toMatchObject({ ok: true });
-
-		expect(runTurn).toHaveBeenCalledWith(
-			expect.objectContaining({
-				prompt: "",
-				userImages: ["data:image/png;base64,AAAA"],
-			}),
-		);
-	});
-
-	it("rejects input with neither a prompt nor attachments", async () => {
-		const runTurn = vi.fn();
-		const ctx = createContext({ runTurn });
-
-		await expect(
-			handleSessionInput(ctx, {
-				version: "v1",
-				command: "run.start",
-				requestId: "req-empty",
-				sessionId: "session-1",
-				payload: { sessionId: "session-1", input: "   ", attachments: {} },
-			}),
-		).resolves.toMatchObject({
-			ok: false,
-			error: { code: "invalid_session_input" },
-		});
-
-		expect(runTurn).not.toHaveBeenCalled();
-	});
-
 	it("does not publish run start for an unknown session", async () => {
 		const runTurn = vi.fn();
 		const ctx = createContext({

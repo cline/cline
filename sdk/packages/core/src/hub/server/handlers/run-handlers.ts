@@ -201,49 +201,6 @@ async function runTurnWithRuntimeHealth(
 	}
 }
 
-/**
- * Extract the prompt and attachments from a `run.start` / `run.enqueue`
- * payload. Image- or file-only turns (no prompt text) are valid input, so
- * `hasContent` is what callers should gate on rather than the prompt alone.
- */
-export function parseSessionInputPayload(payload: Record<string, unknown>): {
-	prompt: string;
-	userImages?: string[];
-	userFiles?: string[];
-	hasContent: boolean;
-} {
-	const prompt =
-		typeof payload.prompt === "string"
-			? payload.prompt
-			: typeof payload.input === "string"
-				? payload.input
-				: "";
-	const attachments =
-		payload.attachments &&
-		typeof payload.attachments === "object" &&
-		!Array.isArray(payload.attachments)
-			? (payload.attachments as Record<string, unknown>)
-			: undefined;
-	const userImages = Array.isArray(attachments?.userImages)
-		? attachments.userImages.filter(
-				(image): image is string => typeof image === "string",
-			)
-		: undefined;
-	const userFiles = Array.isArray(attachments?.userFiles)
-		? attachments.userFiles.filter(
-				(filePath): filePath is string => typeof filePath === "string",
-			)
-		: undefined;
-	return {
-		prompt,
-		userImages,
-		userFiles,
-		hasContent: Boolean(
-			prompt.trim() || userImages?.length || userFiles?.length,
-		),
-	};
-}
-
 export async function handleSessionInput(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -253,13 +210,17 @@ export async function handleSessionInput(
 		envelope.payload && typeof envelope.payload === "object"
 			? envelope.payload
 			: {};
-	const { prompt, userImages, userFiles, hasContent } =
-		parseSessionInputPayload(payload);
-	if (!hasContent) {
+	const prompt =
+		typeof payload.prompt === "string"
+			? payload.prompt
+			: typeof payload.input === "string"
+				? payload.input
+				: "";
+	if (!prompt.trim()) {
 		return errorReply(
 			envelope,
 			"invalid_session_input",
-			"session input requires a prompt string or attachments",
+			"session input requires a prompt string",
 		);
 	}
 	const session = await ctx.sessionHost.getSession(sessionId);
@@ -276,6 +237,15 @@ export async function handleSessionInput(
 			sessionId,
 		),
 	);
+	const attachments =
+		payload.attachments &&
+		typeof payload.attachments === "object" &&
+		!Array.isArray(payload.attachments)
+			? (payload.attachments as Record<string, unknown>)
+			: undefined;
+	const userFiles = Array.isArray(attachments?.userFiles)
+		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
+		: undefined;
 	const timeoutMs = parseRunTimeoutMs(payload);
 	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
 	const releaseActiveRpcTurn = trackActiveRpcTurn(ctx, sessionId);
@@ -293,7 +263,9 @@ export async function handleSessionInput(
 						payload.delivery === "queue" || payload.delivery === "steer"
 							? payload.delivery
 							: undefined,
-					userImages,
+					userImages: Array.isArray(attachments?.userImages)
+						? (attachments.userImages as string[])
+						: undefined,
 					userFiles,
 					timeoutMs,
 				},
