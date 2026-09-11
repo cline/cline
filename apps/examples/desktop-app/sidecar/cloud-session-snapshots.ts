@@ -234,7 +234,6 @@ export function reconcileBufferedCloudEvents(
 		const submitted = submittedPromptsFromEvents([event])[0];
 		if (!submitted) continue;
 		const prompt = normalizeUserPrompt(submitted.prompt);
-		if (!prompt) continue;
 		const count =
 			unclaimedUserCounts.get(prompt) ??
 			Math.max(
