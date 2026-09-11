@@ -55,3 +55,13 @@ export {
 	createAgent,
 	createAgentRuntime,
 } from "./agent-runtime";
+export {
+	countLetMe,
+	inspectAssistantTextLoop,
+	TEXT_LOOP_ABORT_MESSAGE,
+	TEXT_LOOP_RECOVERY_GUIDANCE,
+} from "./text-loop-detection";
+export type {
+	TextLoopConfig,
+	TextLoopVerdict,
+} from "./text-loop-detection";
