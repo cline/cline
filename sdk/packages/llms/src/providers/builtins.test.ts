@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
 	BUILTIN_SPECS,
+	getGeneratedModelsForRuntimeProvider,
 	resolveProviderApiLineBaseUrl,
 } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
@@ -391,15 +392,26 @@ describe("built-in provider metadata", () => {
 		const modelIds = Object.keys(chatGptModels);
 
 		expect(modelIds).toEqual(
-			expect.arrayContaining(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]),
+			expect.arrayContaining([
+				"gpt-5.5",
+				"gpt-5.3-codex-spark",
+				"gpt-5.6-terra",
+				"gpt-5.6-luna",
+				"gpt-5.6-sol",
+				"gpt-6-astra",
+			]),
 		);
 		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
 		expect(modelIds).not.toContain("gpt-5.3-codex");
-		expect(modelIds).not.toContain("gpt-5.3-codex-spark");
+		// Retired for ChatGPT accounts on 2026-08-31
+		expect(modelIds).not.toContain("gpt-5.4");
+		expect(modelIds).not.toContain("gpt-5.4-mini");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
+		// Bare alias of gpt-5.6-sol
+		expect(modelIds).not.toContain("gpt-5.6");
 		expect(modelIds).not.toContain("o3");
 		expect(chatGptModels["gpt-5.5"]).toEqual(
 			expect.objectContaining({
@@ -410,13 +422,30 @@ describe("built-in provider metadata", () => {
 				maxTokens: 128_000,
 			}),
 		);
-		expect(chatGptModels["gpt-5.4"]).toEqual(
+		expect(chatGptModels["gpt-5.6-terra"]).toEqual(
 			expect.objectContaining({
-				name: "GPT-5.4",
-				maxInputTokens: expect.any(Number),
-				contextWindow: expect.any(Number),
+				name: "GPT-5.6 Terra",
+				maxInputTokens: 272_000 * 0.95,
+				contextWindow: 400_000,
+				maxTokens: 128_000,
 			}),
 		);
+	});
+
+	it("applies the ChatGPT subscription filter to the shared OpenAI catalog", () => {
+		const openAiModelIds = Object.keys(
+			getGeneratedModelsForRuntimeProvider("openai-native"),
+		);
+		const chatGptModelIds = Object.keys(
+			getGeneratedModelsForRuntimeProvider("openai-codex"),
+		);
+
+		expect(openAiModelIds).toEqual(
+			expect.arrayContaining(["gpt-4o", "gpt-5.5", "o3"]),
+		);
+		expect(chatGptModelIds).toContain("gpt-5.5");
+		expect(chatGptModelIds).not.toContain("gpt-4o");
+		expect(chatGptModelIds).not.toContain("o3");
 	});
 
 	it("routes native Z.AI providers through GLM thinking metadata", async () => {

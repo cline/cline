@@ -549,6 +549,65 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
+	it("does not announce a queued prompt start when the head is deleted from the queue", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		let onEvent: ((event: unknown) => void) | undefined;
+		createCoreMock.mockResolvedValue({
+			runtimeAddress: "ws://127.0.0.1:25463/hub",
+			subscribe: vi.fn((handler: (event: unknown) => void) => {
+				onEvent = handler;
+				return () => {};
+			}),
+			dispose: vi.fn(),
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [
+				{ id: "prompt-1", prompt: "first", steer: false, attachmentCount: 0 },
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+
+		// Removing the head only produces a shrunken snapshot — no
+		// pending_prompt_submitted — so nothing must reach the transcript.
+		onEvent?.({
+			type: "pending_prompts",
+			payload: {
+				sessionId: "session-1",
+				prompts: [{ id: "prompt-2", prompt: "second", delivery: "queue" }],
+			},
+		});
+
+		const events = readEvents(ctx);
+		expect(
+			events.filter(
+				(message) =>
+					message.event.name === "chat_event" &&
+					(message.event.payload as { stream?: string }).stream ===
+						"chat_queued_prompt_start",
+			),
+		).toHaveLength(0);
+		expect(
+			events.find((message) => message.event.name === "prompts_in_queue_state")
+				?.event.payload,
+		).toEqual({
+			sessionId: "session-1",
+			items: [
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+		});
+	});
+
 	it("relays generated media for attach-only Hub sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
@@ -1367,7 +1426,10 @@ describe("disposeSidecarContext attachment cleanup", () => {
 });
 
 describe("Chat chunk pipe selection", () => {
-	async function createStreamingContext(sessionId: string) {
+	async function createStreamingContext(
+		sessionId: string,
+		coreSubscriptions: Set<string> = new Set(),
+	) {
 		const { createSidecarContext } = await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
 		ctx.wsClients.add({ send: vi.fn() });
@@ -1380,6 +1442,9 @@ describe("Chat chunk pipe selection", () => {
 			status: "running",
 			attachedViaHub: true,
 		});
+		ctx.sessionManager = {
+			hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
+		} as never;
 		return ctx;
 	}
 
@@ -1393,38 +1458,42 @@ describe("Chat chunk pipe selection", () => {
 		} as never;
 	}
 
-	function chunksFor(ctx: SidecarContext, stream: string): string[] {
+	function eventsFor(ctx: SidecarContext, name: string) {
 		return readEvents(ctx)
-			.filter(
-				(message) =>
-					message.event.name === "chat_event" &&
-					(message.event.payload as { stream?: string }).stream === stream,
-			)
-			.map((message) =>
-				String((message.event.payload as { chunk?: string }).chunk),
-			);
+			.filter((message) => message.event.name === name)
+			.map((message) => message.event.payload);
+	}
+
+	function chunksFor(ctx: SidecarContext, stream: string): string[] {
+		return eventsFor(ctx, "chat_event")
+			.filter((payload) => (payload as { stream?: string }).stream === stream)
+			.map((payload) => String((payload as { chunk?: string }).chunk));
 	}
 
 	it("emits one copy when both pipes carry the same delta", async () => {
 		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
 			"./context"
 		);
-		const ctx = await createStreamingContext("session-1");
+		// Opening a session arms both pipes: ClineCore subscribes to the session
+		// and `attach` enables the observer projection, so the hub publishes each
+		// delta to both sockets.
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
 
-		// Opening a session arms both pipes, so the hub publishes each delta to
-		// the ClineCore session subscription and to the observer client.
-		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "Pack "));
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
 			payload: { text: "Pack " },
 		});
-		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "my box"));
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "Pack "));
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
 			payload: { text: "my box" },
 		});
+		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "my box"));
 
 		expect(chunksFor(ctx, "chat_text")).toEqual(["Pack ", "my box"]);
 	});
@@ -1447,72 +1516,71 @@ describe("Chat chunk pipe selection", () => {
 		expect(chunksFor(ctx, "chat_text")).toEqual(["remote ", "run"]);
 	});
 
-	it("stands down for every stream the core pipe serves, not just text", async () => {
-		const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
-			"./context"
+	it("mutes the whole observer projection, not just text", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
 		);
-		const ctx = await createStreamingContext("session-1");
 
-		// One text delta on the core pipe is enough to prove it is subscribed,
-		// so the observer's tool rows are duplicates too.
-		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "working"));
 		handleHubLiveEvent(ctx, {
 			event: "tool.started",
 			sessionId: "session-1",
 			payload: { toolCallId: "call-1", toolName: "run_commands" },
 		});
+		handleHubLiveEvent(ctx, {
+			event: "run.completed",
+			sessionId: "session-1",
+			payload: {},
+		});
 
 		expect(chunksFor(ctx, "chat_tool_call_start")).toEqual([]);
+		expect(eventsFor(ctx, "chat_session_ended")).toEqual([]);
+		expect(ctx.liveSessions.get("session-1")?.busy).toBe(true);
 	});
 
-	it("takes over once the core pipe goes silent", async () => {
-		vi.useFakeTimers();
-		try {
-			const { handleCoreSessionEvent, handleHubLiveEvent } = await import(
-				"./context"
-			);
-			const ctx = await createStreamingContext("session-1");
-
-			handleCoreSessionEvent(ctx, coreTextEvent("session-1", "local"));
+	it("follows the subscription as it comes and goes", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const coreSubscriptions = new Set<string>();
+		const ctx = await createStreamingContext("session-1", coreSubscriptions);
+		const delta = (text: string) =>
 			handleHubLiveEvent(ctx, {
 				event: "assistant.delta",
 				sessionId: "session-1",
-				payload: { text: "muted" },
-			});
-			expect(chunksFor(ctx, "chat_text")).toEqual(["local"]);
-
-			vi.advanceTimersByTime(6_000);
-			handleHubLiveEvent(ctx, {
-				event: "assistant.delta",
-				sessionId: "session-1",
-				payload: { text: "takeover" },
+				payload: { text },
 			});
 
-			expect(chunksFor(ctx, "chat_text")).toEqual(["local", "takeover"]);
-		} finally {
-			vi.useRealTimers();
-		}
+		delta("observer first");
+		// A send (or pending-prompt list) subscribes ClineCore.
+		coreSubscriptions.add("session-1");
+		delta("muted");
+		// `stop` drops the subscription; a run another client starts on the
+		// same session is the observer's to render again.
+		coreSubscriptions.delete("session-1");
+		delta("observer again");
+
+		expect(chunksFor(ctx, "chat_text")).toEqual([
+			"observer first",
+			"observer again",
+		]);
 	});
 
-	it("tracks the core pipe per session", async () => {
-		const { createSidecarContext, handleCoreSessionEvent, handleHubLiveEvent } =
-			await import("./context");
-		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
-		for (const sessionId of ["session-1", "session-2"]) {
-			ctx.liveSessions.set(sessionId, {
-				config: {},
-				messages: [],
-				promptsInQueue: [],
-				busy: true,
-				startedAt: Date.now(),
-				status: "running",
-				attachedViaHub: true,
-			});
-		}
+	it("decides per session", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
+		ctx.liveSessions.set("session-2", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
 
-		// ClineCore serves session-1; session-2 is still observer-only.
-		handleCoreSessionEvent(ctx, coreTextEvent("session-1", "one"));
 		handleHubLiveEvent(ctx, {
 			event: "assistant.delta",
 			sessionId: "session-1",
@@ -1524,20 +1592,16 @@ describe("Chat chunk pipe selection", () => {
 			payload: { text: "two" },
 		});
 
-		expect(chunksFor(ctx, "chat_text")).toEqual(["one", "two"]);
+		expect(chunksFor(ctx, "chat_text")).toEqual(["two"]);
 	});
 
 	it("never drops chunks the sidecar produces itself", async () => {
-		const { broadcastChunk, handleHubLiveEvent } = await import("./context");
-		const ctx = await createStreamingContext("session-1");
+		const { broadcastChunk } = await import("./context");
+		const ctx = await createStreamingContext(
+			"session-1",
+			new Set(["session-1"]),
+		);
 
-		// The observer is serving this session; a locally synthesized chunk is
-		// not part of either relay and must always reach the webview.
-		handleHubLiveEvent(ctx, {
-			event: "assistant.delta",
-			sessionId: "session-1",
-			payload: { text: "remote" },
-		});
 		broadcastChunk(ctx, "session-1", "chat_queued_prompt_start", "{}");
 
 		expect(chunksFor(ctx, "chat_queued_prompt_start")).toEqual(["{}"]);
