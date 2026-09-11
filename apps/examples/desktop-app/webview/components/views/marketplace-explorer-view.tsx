@@ -1,12 +1,15 @@
 import {
 	ArrowUpRight,
 	BadgeCheck,
+	Cable,
 	Globe,
+	Loader2,
 	Puzzle,
 	Search,
 	Server,
 	Trash2,
 	User,
+	Wrench,
 	X,
 	Zap,
 } from "lucide-react";
@@ -16,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchComposioToolkitCatalog } from "@/lib/composio";
+import type { ComposioCatalogToolkit } from "@/lib/composio-types";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
@@ -23,7 +28,13 @@ import {
 	type MarketplaceEntry,
 	type MarketplacePrimitiveType,
 } from "@/lib/marketplace";
+import { useComposioConnections } from "@/lib/use-composio-connections";
 import { cn } from "@/lib/utils";
+import {
+	ConnectorActionButton,
+	ConnectorLogo,
+	connectorMatchesQuery,
+} from "./settings/composio-connector-browser";
 
 /**
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
@@ -70,8 +81,18 @@ const INSTALL_TIMEOUT_MS = 300_000;
 /** Tag pills shown while the category row is collapsed. */
 const COLLAPSED_TAG_COUNT = 4;
 
+/** Connector rows shown in the mixed ("All") view; the Connectors filter
+ * lists the full catalog. */
+const CONNECTOR_PREVIEW_COUNT = 24;
+
 function entryKey(entry: Pick<MarketplaceEntry, "id" | "type">): string {
 	return `${entry.type}:${entry.id}`;
+}
+
+const CONNECTOR_KEY_PREFIX = "connector:";
+
+function connectorKey(slug: string): string {
+	return `${CONNECTOR_KEY_PREFIX}${slug}`;
 }
 
 function entrySearchText(
@@ -560,15 +581,258 @@ function DetailPane({
 	);
 }
 
+function ConnectorListRow({
+	connector,
+	connected,
+	onSelect,
+	selected,
+}: {
+	connector: ComposioCatalogToolkit;
+	connected: boolean;
+	onSelect: () => void;
+	selected: boolean;
+}) {
+	return (
+		<button
+			className={cn(
+				"flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+				selected ? "bg-primary/10" : "hover:bg-surface-hover-lighter",
+			)}
+			onClick={onSelect}
+			type="button"
+		>
+			<span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary">
+				<ConnectorLogo
+					className="size-4"
+					logo={connector.logo}
+					name={connector.name}
+					slug={connector.slug}
+				/>
+			</span>
+			<span className="min-w-0 flex-1">
+				<span className="block truncate text-sm font-medium text-foreground">
+					{connector.name}
+				</span>
+				<span className="block truncate text-xs text-muted-foreground">
+					{connector.description ?? "Connect your account via Composio."}
+				</span>
+			</span>
+			{connected ? (
+				<span
+					className="size-1.5 shrink-0 rounded-full bg-emerald-500"
+					title="Connected"
+				/>
+			) : null}
+		</button>
+	);
+}
+
+function ConnectorDetailPane({
+	connector,
+	connections,
+	onClose,
+}: {
+	connector: ComposioCatalogToolkit;
+	connections: ReturnType<typeof useComposioConnections>;
+	onClose: () => void;
+}) {
+	const summary = connections.statusBySlug.get(connector.slug);
+	const status = summary?.status ?? "not_connected";
+	const busy = connections.busyToolkit === connector.slug;
+	const toolNames = summary?.toolNames ?? [];
+	// Action errors are scoped to the toolkit they came from — connector B's
+	// pane must never render connector A's failure.
+	const scopedActionError =
+		connections.actionError?.toolkit === connector.slug
+			? connections.actionError.message
+			: undefined;
+	const error = scopedActionError ?? summary?.error;
+
+	return (
+		<ScrollArea className="h-full min-w-0 flex-1">
+			<div className="grid max-w-3xl gap-6 px-8 py-8 max-[900px]:px-5">
+				<div className="flex items-start gap-5">
+					<span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-secondary">
+						<ConnectorLogo
+							className="size-7"
+							logo={connector.logo}
+							name={connector.name}
+							slug={connector.slug}
+						/>
+					</span>
+					<div className="min-w-0 flex-1">
+						<div className="flex min-w-0 flex-wrap items-center gap-2">
+							<h1 className="min-w-0 truncate text-2xl font-semibold text-foreground">
+								{connector.name}
+							</h1>
+							<Badge variant="outline" className="text-muted-foreground">
+								Connector
+							</Badge>
+							{status === "connected" ? (
+								<Badge className="border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+									Connected
+								</Badge>
+							) : null}
+						</div>
+						{connector.description ? (
+							<p className="mt-1 text-sm text-muted-foreground">
+								{connector.description}
+							</p>
+						) : null}
+						<div className="mt-4 flex flex-wrap items-center gap-2">
+							<ConnectorActionButton
+								busy={busy}
+								configured
+								onCancel={() => void connections.cancelConnect(connector.slug)}
+								onConnect={() => void connections.connect(connector.slug)}
+								onDisconnect={() => void connections.disconnect(connector.slug)}
+								showUninstall
+								status={status}
+								variant="default"
+							/>
+						</div>
+						{status === "pending" ? (
+							<p className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
+								<Loader2 className="size-4 animate-spin" />
+								Finish authorizing {connector.name} in your browser…
+							</p>
+						) : null}
+						{error ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								{error}
+							</p>
+						) : null}
+					</div>
+					<Button
+						aria-label="Close details"
+						className="shrink-0 text-muted-foreground"
+						onClick={onClose}
+						size="icon"
+						type="button"
+						variant="ghost"
+					>
+						<X className="size-4" />
+					</Button>
+				</div>
+
+				<div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border p-4 sm:grid-cols-3">
+					<MetaCell
+						icon={Wrench}
+						label="Tools"
+						value={
+							status === "connected" && toolNames.length > 0
+								? `${toolNames.length} available`
+								: connector.toolsCount !== undefined
+									? `${connector.toolsCount} in toolkit`
+									: "—"
+						}
+					/>
+					<MetaCell
+						icon={Cable}
+						label="Provider"
+						value="Composio (OAuth in your browser)"
+					/>
+				</div>
+
+				{connector.categories && connector.categories.length > 0 ? (
+					<div className="flex flex-wrap gap-1.5">
+						{connector.categories.map((category) => (
+							<Badge
+								className="font-normal text-muted-foreground"
+								key={category}
+								variant="outline"
+							>
+								{category}
+							</Badge>
+						))}
+					</div>
+				) : null}
+
+				{status === "connected" && toolNames.length > 0 ? (
+					<div className="grid gap-2">
+						<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+							Tools available in new sessions
+						</p>
+						<div className="flex flex-wrap gap-1.5">
+							{toolNames.map((name) => (
+								<Badge className="font-normal" key={name} variant="outline">
+									{name}
+								</Badge>
+							))}
+						</div>
+					</div>
+				) : null}
+			</div>
+		</ScrollArea>
+	);
+}
+
 export function MarketplaceExplorerView() {
 	const directory = useMarketplaceDirectory();
 	const [query, setQuery] = useState("");
-	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
-		null,
-	);
+	const [typeFilter, setTypeFilter] = useState<
+		MarketplacePrimitiveType | "connectors" | null
+	>(null);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+	// Connectors (Composio) ride along in the explorer when this install has
+	// a managed key and the account passes the internal gate — the sidecar
+	// reports both through `configured`. Unconfigured installs never see the
+	// section, the filter chip, or a network fetch for the catalog.
+	const connections = useComposioConnections();
+	const [connectorEntries, setConnectorEntries] = useState<
+		ComposioCatalogToolkit[] | null
+	>(null);
+	useEffect(() => {
+		if (!connections.configured) {
+			setConnectorEntries(null);
+			return;
+		}
+		let cancelled = false;
+		void fetchComposioToolkitCatalog()
+			.then((response) => {
+				if (!cancelled && response.configured) {
+					setConnectorEntries(response.toolkits);
+				}
+			})
+			.catch(() => {
+				// The section appears once the catalog loads; a failed fetch
+				// leaves the marketplace usable without it.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [connections.configured]);
+	const connectorsAvailable =
+		connections.configured && (connectorEntries?.length ?? 0) > 0;
+
+	// Marketplace tags don't apply to connectors (they carry their own
+	// category labels), so an active tag narrows the list to tagged
+	// marketplace entries only.
+	const matchedConnectors = useMemo(() => {
+		if (
+			!connectorsAvailable ||
+			selectedTag !== null ||
+			(typeFilter !== null && typeFilter !== "connectors")
+		) {
+			return [];
+		}
+		const entries = connectorEntries ?? [];
+		const normalized = query.trim().toLowerCase();
+		return normalized.length === 0
+			? entries
+			: entries.filter((entry) => connectorMatchesQuery(entry, normalized));
+	}, [connectorsAvailable, connectorEntries, query, selectedTag, typeFilter]);
+
+	const visibleConnectors = useMemo(
+		() =>
+			typeFilter === "connectors"
+				? matchedConnectors
+				: matchedConnectors.slice(0, CONNECTOR_PREVIEW_COUNT),
+		[matchedConnectors, typeFilter],
+	);
 
 	// Type + query filtering happens before tag filtering so the tag pill
 	// counts reflect what each tag would narrow the current list down to.
@@ -643,14 +907,30 @@ export function MarketplaceExplorerView() {
 		[filteredEntries],
 	);
 
+	// A connector is selected when the key carries the connector prefix.
+	// Resolved against the full connector catalog (not just the visible
+	// slice) so an open panel stays open while the list is filtered, matching
+	// the marketplace-entry behavior below.
+	const selectedConnector = useMemo(() => {
+		if (!selectedKey?.startsWith(CONNECTOR_KEY_PREFIX)) {
+			return null;
+		}
+		const slug = selectedKey.slice(CONNECTOR_KEY_PREFIX.length);
+		return connectorEntries?.find((entry) => entry.slug === slug) ?? null;
+	}, [selectedKey, connectorEntries]);
+
 	// Resolved against the full catalog so an open panel stays open while the
 	// list is filtered, rather than closing and reopening as filters change.
+	// A connector selection never matches a marketplace entry (its key is
+	// prefixed), so the two panes are mutually exclusive.
 	const selectedEntry = useMemo(
 		() =>
-			directory.catalog?.entries.find(
-				(entry) => entryKey(entry) === selectedKey,
-			) ?? null,
-		[directory.catalog?.entries, selectedKey],
+			selectedConnector
+				? null
+				: (directory.catalog?.entries.find(
+						(entry) => entryKey(entry) === selectedKey,
+					) ?? null),
+		[directory.catalog?.entries, selectedConnector, selectedKey],
 	);
 
 	const typeCounts = useMemo(() => {
@@ -685,7 +965,7 @@ export function MarketplaceExplorerView() {
 			<aside
 				className={cn(
 					"flex flex-col",
-					selectedEntry
+					selectedEntry || selectedConnector
 						? "w-85 shrink-0 border-r max-[900px]:w-72"
 						: "min-w-0 flex-1",
 				)}
@@ -728,6 +1008,24 @@ export function MarketplaceExplorerView() {
 								</span>
 							</Button>
 						))}
+						{connectorsAvailable ? (
+							<Button
+								aria-pressed={typeFilter === "connectors"}
+								onClick={() =>
+									setTypeFilter((current) =>
+										current === "connectors" ? null : "connectors",
+									)
+								}
+								size="xs"
+								type="button"
+								variant={typeFilter === "connectors" ? "default" : "outline"}
+							>
+								Connectors
+								<span className="text-[10px] opacity-70">
+									{connectorEntries?.length ?? 0}
+								</span>
+							</Button>
+						) : null}
 					</div>
 					{visibleTags.length > 0 ? (
 						<div className="flex flex-wrap gap-1">
@@ -807,7 +1105,43 @@ export function MarketplaceExplorerView() {
 								</div>
 							);
 						})}
-						{groups.length === 0 ? (
+						{visibleConnectors.length > 0 ? (
+							<div className="grid gap-1">
+								<div className="flex items-center gap-1.5 px-2.5 pt-1">
+									<Cable className="size-3.5 text-primary" />
+									<span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+										Connectors
+									</span>
+									<span className="text-xs text-muted-foreground/70">
+										{matchedConnectors.length}
+									</span>
+								</div>
+								{visibleConnectors.map((connector) => (
+									<ConnectorListRow
+										connected={
+											connections.statusBySlug.get(connector.slug)?.status ===
+											"connected"
+										}
+										connector={connector}
+										key={connector.slug}
+										onSelect={() =>
+											setSelectedKey(connectorKey(connector.slug))
+										}
+										selected={selectedConnector?.slug === connector.slug}
+									/>
+								))}
+								{matchedConnectors.length > visibleConnectors.length ? (
+									<button
+										className="mx-2.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-surface-hover-lighter hover:text-foreground"
+										onClick={() => setTypeFilter("connectors")}
+										type="button"
+									>
+										Show all {matchedConnectors.length} connectors
+									</button>
+								) : null}
+							</div>
+						) : null}
+						{groups.length === 0 && visibleConnectors.length === 0 ? (
 							<p className="px-3 py-6 text-center text-sm text-muted-foreground">
 								No entries match the current filters.
 							</p>
@@ -815,7 +1149,13 @@ export function MarketplaceExplorerView() {
 					</div>
 				</ScrollArea>
 			</aside>
-			{selectedEntry ? (
+			{selectedConnector ? (
+				<ConnectorDetailPane
+					connections={connections}
+					connector={selectedConnector}
+					onClose={() => setSelectedKey(null)}
+				/>
+			) : selectedEntry ? (
 				<DetailPane
 					directory={directory}
 					entry={selectedEntry}
