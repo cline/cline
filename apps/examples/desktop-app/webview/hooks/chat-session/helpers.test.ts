@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
-import { inferHydratedChatStatus, resolveCredentialError } from "./helpers";
+import {
+	inferHydratedChatStatus,
+	resolveCredentialError,
+	resolveCredentialFailureHint,
+} from "./helpers";
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 	return {
@@ -47,10 +51,45 @@ describe("resolveCredentialError", () => {
 		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
 	});
 
+	it.each([
+		"claude-code",
+		"openai-codex-cli",
+	])("allows local-auth provider %s without an API key", (provider) => {
+		// Local CLI providers authenticate from the CLI's own credential
+		// store; the catalog marks them `local-auth` and the key is inert.
+		expect(resolveCredentialError(makeConfig({ provider }))).toBeNull();
+	});
+
+	it("allows a catalog-declared OAuth provider outside the fallback id set", () => {
+		expect(
+			resolveCredentialError(makeConfig({ provider: "opencode" })),
+		).toBeNull();
+	});
+
 	it("treats provider ids case-insensitively", () => {
 		expect(
 			resolveCredentialError(makeConfig({ provider: "Cline-Pass" })),
 		).toBeNull();
+	});
+});
+
+describe("resolveCredentialFailureHint", () => {
+	it("points local-auth providers at their own CLI", () => {
+		expect(resolveCredentialFailureHint("claude-code")).toBe(
+			"Sign in again with the `claude` CLI in a terminal, then try again.",
+		);
+		expect(resolveCredentialFailureHint("openai-codex-cli")).toMatch(
+			/`codex` CLI/,
+		);
+		expect(resolveCredentialFailureHint("opencode")).toMatch(/`opencode` CLI/);
+	});
+
+	it("points everything else at Settings → Models", () => {
+		for (const providerId of ["anthropic", "cline", "openai-codex", ""]) {
+			expect(resolveCredentialFailureHint(providerId)).toMatch(
+				/Settings → Models/,
+			);
+		}
 	});
 });
 
