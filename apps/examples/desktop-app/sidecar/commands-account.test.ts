@@ -38,6 +38,8 @@ function createContext() {
 	const ctx = {
 		telemetry: { capture, setDistinctId, updateCommonProperties },
 		logger: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+		wsClients: new Set(),
+		liveSessions: new Map(),
 	} as unknown as SidecarContext;
 	return { ctx, capture, setDistinctId, updateCommonProperties };
 }
@@ -59,6 +61,76 @@ beforeEach(() => {
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
+});
+
+describe("provider settings cloud session lifecycle", () => {
+	it.each([
+		{ enabled: true },
+		{ base_url: "https://api.example.test" },
+	])("preserves the cloud manager for ordinary settings %j", async (update) => {
+		const { ctx } = createContext();
+		const dispose = vi.fn();
+		const cloudManager = { dispose } as unknown as NonNullable<
+			SidecarContext["cloudSessionManager"]
+		>;
+		ctx.cloudSessionManager = cloudManager;
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "token", accountId: "acct-1" },
+		});
+		saveProviderSettingsMock.mockImplementation(() => {
+			// Saving creates a fresh settings object even when auth is unchanged.
+			getProviderSettingsMock.mockReturnValue({
+				...update,
+				auth: { accessToken: "token", accountId: "acct-1" },
+			});
+			return { providerId: "cline", enabled: true };
+		});
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			...update,
+		});
+		expect(ctx.cloudSessionManager).toBe(cloudManager);
+		expect(dispose).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ api_key: "", settings: { auth: { accessToken: "", accountId: "" } } },
+		{ api_key: "replacement-key" },
+		{ settings: { auth: { accessToken: "new-token", accountId: "acct-2" } } },
+		{ enabled: false },
+	])("resets the cloud manager when credentials change: %j", async (update) => {
+		const { ctx } = createContext();
+		const dispose = vi.fn().mockResolvedValue(undefined);
+		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
+			SidecarContext["cloudSessionManager"]
+		>;
+		getProviderSettingsMock.mockReturnValue({
+			apiKey: "old-key",
+			auth: { accessToken: "token", accountId: "acct-1" },
+		});
+		saveProviderSettingsMock.mockImplementation(() => {
+			getProviderSettingsMock.mockReturnValue(
+				update.enabled === false
+					? undefined
+					: {
+							apiKey: update.api_key ?? "old-key",
+							auth: update.settings?.auth ?? {
+								accessToken: "token",
+								accountId: "acct-1",
+							},
+						},
+			);
+			return { providerId: "cline", enabled: update.enabled !== false };
+		});
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline",
+			...update,
+		});
+		expect(ctx.cloudSessionManager).toBeNull();
+		expect(dispose).toHaveBeenCalledOnce();
+	});
 });
 
 describe("cline_account command auth states", () => {
@@ -127,6 +199,8 @@ describe("cline_account command auth states", () => {
 		const serviceOptions = clineAccountServiceCtorMock.mock.calls[0][0] as {
 			getAuthToken: () => Promise<string | undefined>;
 		};
+		// Persisted OAuth tokens gain the `workos:` prefix required by
+		// core-platform (see cline-auth.ts).
 		await expect(serviceOptions.getAuthToken()).resolves.toBe(
 			"workos:persisted-token",
 		);

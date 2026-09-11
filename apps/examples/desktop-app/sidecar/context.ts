@@ -605,6 +605,7 @@ export async function disposeSidecarContext(
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
 	const cleanup: Array<Promise<unknown>> = [];
+	const approvalCleanup: Array<Promise<unknown>> = [];
 
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
@@ -623,7 +624,18 @@ export async function disposeSidecarContext(
 	}
 	ctx.wsClients.clear();
 	for (const pending of ctx.pendingApprovals.values()) {
-		pending.resolve({ approved: false, reason });
+		// Drop remote approvals locally without denying them: the pod outlives
+		// this app, and another client can still answer.
+		if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
+			continue;
+		}
+		try {
+			approvalCleanup.push(
+				Promise.resolve(pending.resolve({ approved: false, reason })),
+			);
+		} catch (error) {
+			approvalCleanup.push(Promise.reject(error));
+		}
 	}
 	ctx.pendingApprovals.clear();
 	for (const pending of ctx.pendingQuestions.values()) {
@@ -631,6 +643,14 @@ export async function disposeSidecarContext(
 		pending.reject(new Error(reason));
 	}
 	ctx.pendingQuestions.clear();
+	// Approval callbacks may need the Hub/cloud clients that are disposed below.
+	const approvalResults = await Promise.allSettled(approvalCleanup);
+
+	const cloudSessionManager = ctx.cloudSessionManager;
+	ctx.cloudSessionManager = null;
+	if (cloudSessionManager) {
+		cleanup.push(cloudSessionManager.dispose());
+	}
 
 	const hubClient = ctx.hubClient;
 	ctx.hubClient = null;
@@ -648,7 +668,7 @@ export async function disposeSidecarContext(
 	// any pending $feature_flag_called events.
 	cleanup.push(disposeDesktopFeatureFlagsService());
 
-	const results = await Promise.allSettled(cleanup);
+	const results = [...approvalResults, ...(await Promise.allSettled(cleanup))];
 	const firstFailure = results.find(
 		(result): result is PromiseRejectedResult => result.status === "rejected",
 	);
@@ -915,6 +935,84 @@ export function handleHubLiveEvent(
 			);
 			return;
 		}
+		case "usage.updated": {
+			const delta =
+				event.payload?.delta &&
+				typeof event.payload.delta === "object" &&
+				!Array.isArray(event.payload.delta)
+					? (event.payload.delta as Record<string, unknown>)
+					: {};
+			const totals =
+				event.payload?.totals &&
+				typeof event.payload.totals === "object" &&
+				!Array.isArray(event.payload.totals)
+					? (event.payload.totals as Record<string, unknown>)
+					: {};
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_usage",
+				JSON.stringify({
+					inputTokens: delta.inputTokens,
+					outputTokens: delta.outputTokens,
+					cacheReadTokens: delta.cacheReadTokens,
+					cacheWriteTokens: delta.cacheWriteTokens,
+					cost: delta.totalCost,
+					totalInputTokens: totals.inputTokens,
+					totalOutputTokens: totals.outputTokens,
+					totalCost: totals.totalCost,
+				}),
+			);
+			return;
+		}
+		case "session.pending_prompts": {
+			const items = Array.isArray(event.payload?.prompts)
+				? (event.payload.prompts as Array<Record<string, unknown>>)
+				: [];
+			const mapped: PromptInQueue[] = items
+				.map((item) => ({
+					id: typeof item.id === "string" ? item.id : "",
+					prompt: typeof item.prompt === "string" ? item.prompt : "",
+					steer: item.delivery === "steer",
+					attachmentCount:
+						typeof item.attachmentCount === "number" ? item.attachmentCount : 0,
+					userImages: Array.isArray(item.userImages)
+						? (item.userImages as string[])
+						: undefined,
+				}))
+				.filter((item) => item.id && (item.prompt || item.attachmentCount > 0));
+			reconcileQueuedAttachments(
+				session,
+				mapped.map((item) => item.id),
+			);
+			// Queue shrinkage may mean deletion, not submission; only
+			// session.pending_prompt_submitted starts a turn.
+			session.promptsInQueue = mapped;
+			sendPromptsInQueueSnapshot(ctx, sessionId);
+			return;
+		}
+		case "session.pending_prompt_submitted": {
+			const item =
+				event.payload?.prompt && typeof event.payload.prompt === "object"
+					? (event.payload.prompt as Record<string, unknown>)
+					: undefined;
+			const promptId = typeof item?.id === "string" ? item.id : "";
+			if (!promptId) {
+				return;
+			}
+			markQueuedAttachmentsSubmitted(session, promptId);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId,
+				transcriptReflected: event.payload?.transcriptReflected === true,
+				prompt: typeof item?.prompt === "string" ? item.prompt : "",
+				attachmentCount:
+					typeof item?.attachmentCount === "number" ? item.attachmentCount : 0,
+				userImages: Array.isArray(item?.userImages)
+					? (item.userImages as string[])
+					: undefined,
+			});
+			return;
+		}
 		case "tool.started": {
 			emitChunk(
 				ctx,
@@ -985,12 +1083,14 @@ export function handleHubLiveEvent(
 				!Array.isArray(event.payload.session)
 					? (event.payload.session as Record<string, unknown>)
 					: undefined;
-			const status =
+			const runtimeStatus =
 				typeof payloadSession?.status === "string"
 					? payloadSession.status
 					: event.event === "run.started"
 						? "running"
 						: session.status;
+			// Hub "pending" is still active; map it to running so follow-ups stay queued.
+			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
 			if (
 				event.event === "session.updated" &&
 				event.sequence === undefined &&
@@ -1000,14 +1100,33 @@ export function handleHubLiveEvent(
 			) {
 				return;
 			}
+			// Pods emit periodic session.updated snapshots; re-broadcasting an
+			// unchanged status marks the session unread in the sidebar every time.
+			const statusChanged = session.status !== status;
 			session.status = status;
 			session.busy = status === "running";
-			sendEvent(ctx, "chat_session_status", { sessionId, status });
+			if (statusChanged) {
+				sendEvent(ctx, "chat_session_status", { sessionId, status });
+			}
 			return;
 		}
 		case "run.completed":
 		case "run.failed":
 		case "run.aborted": {
+			// A failed run carries its reason in payload.error — surface it, or
+			// the user sees a silent no-op (e.g. "Insufficient balance").
+			const errorMessage =
+				event.event === "run.failed" && typeof event.payload?.error === "string"
+					? event.payload.error.trim()
+					: "";
+			if (errorMessage) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_core_log",
+					JSON.stringify({ level: "error", message: errorMessage }),
+				);
+			}
 			const reason =
 				typeof event.payload?.reason === "string"
 					? event.payload.reason
