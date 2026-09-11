@@ -773,6 +773,19 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	cline,
 	clinePass,
 	{
+		id: "coralbricks",
+		name: "CoralBricks",
+		description:
+			"CoralBricks open-model inference — GLM and Kimi with up to 1M context",
+		family: "openai-compatible",
+		capabilities: ["prompt-cache", "tools", "reasoning"],
+		defaultModelId: "glm-5.3-fp4",
+		apiKeyEnv: ["CORAL_API_KEY"],
+		modelsProviderId: "coralbricks",
+		docsUrl: "https://www.coralbricks.ai/docs/cline",
+		defaults: { baseUrl: "https://inference.coralbricks.ai/v1" },
+	},
+	{
 		id: "deepseek",
 		name: "DeepSeek",
 		description: "Advanced AI models with reasoning capabilities",

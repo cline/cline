@@ -56,6 +56,7 @@ describe("parseProviderId", () => {
 		parseProviderId("v0")
 		parseProviderId("xiaomi")
 		parseProviderId("tencent-tokenhub")
+		parseProviderId("coralbricks")
 		parseProviderId("chutes")
 
 		expect(warnSpy).not.toHaveBeenCalled()
@@ -73,6 +74,7 @@ describe("isKnownProviderId", () => {
 		expect(isKnownProviderId(parseProviderId("v0"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("xiaomi"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("tencent-tokenhub"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("coralbricks"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("chutes"))).toBe(true)
 	})
 
