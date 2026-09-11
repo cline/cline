@@ -44,22 +44,18 @@ function createContext(): { ctx: SidecarContext } {
 }
 
 describe("CloudSessionManager lifecycle", () => {
-	it("does not retry an arbitrary 502 that could have provisioned", async () => {
+	it.each([
+		"upstream request failed",
+		"couldn't authenticate with GitHub; try reconnecting the integration",
+	])("surfaces create failure without retrying: %s", async (message) => {
 		const { ctx } = createContext();
 		const create = vi.fn(async () => {
-			throw new CloudSessionError(
-				"request_failed",
-				"upstream request failed",
-				undefined,
-				502,
-			);
+			throw new CloudSessionError("request_failed", message, undefined, 502);
 		});
-		const sleep = vi.fn(async () => undefined);
 		const manager = new CloudSessionManager(ctx, {
 			api: { create } as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
-			sleep,
 		});
 
 		await expect(
@@ -67,9 +63,8 @@ describe("CloudSessionManager lifecycle", () => {
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 			}),
-		).rejects.toThrow("upstream request failed");
+		).rejects.toThrow(message);
 		expect(create).toHaveBeenCalledOnce();
-		expect(sleep).not.toHaveBeenCalled();
 	});
 
 	it("projects the outer remote-session id as the desktop session id", () => {

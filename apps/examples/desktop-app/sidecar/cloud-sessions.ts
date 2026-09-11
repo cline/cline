@@ -99,16 +99,6 @@ export class CloudSessionError extends Error {
 	}
 }
 
-function isTransientGitHubTokenVendFailure(error: unknown): boolean {
-	if (!(error instanceof CloudSessionError) || error.status !== 502)
-		return false;
-	const detail = error.detail.toLowerCase();
-	return (
-		detail.includes("couldn't authenticate with github") &&
-		detail.includes("reconnecting the integration")
-	);
-}
-
 type ApiResponse<T> = {
 	success?: boolean;
 	data?: T;
@@ -779,7 +769,6 @@ type CloudSessionManagerOptions = {
 	getActiveOrganizationId?: (options?: {
 		fresh?: boolean;
 	}) => Promise<string | undefined>;
-	sleep?: (ms: number) => Promise<void>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
@@ -1107,25 +1096,7 @@ export class CloudSessionManager {
 		const organizationId =
 			input.organizationId ??
 			(await this.resolveActiveOrganizationId({ fresh: true }));
-		let created: Awaited<ReturnType<CloudSessionApi["create"]>> | undefined;
-		for (let attempt = 0; attempt < 3; attempt += 1) {
-			try {
-				created = await this.options.api.create({ ...input, organizationId });
-				break;
-			} catch (error) {
-				// The secrets proxy occasionally 502s while vending the GitHub
-				// token; that specific failure is safe to retry (nothing was
-				// provisioned). Any other 502 could have provisioned.
-				if (!isTransientGitHubTokenVendFailure(error) || attempt === 2) {
-					throw error;
-				}
-				await (
-					this.options.sleep ??
-					((ms: number) =>
-						new Promise<void>((resolve) => setTimeout(resolve, ms)))
-				)(500 * (attempt + 1));
-			}
-		}
+		const created = await this.options.api.create({ ...input, organizationId });
 		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
