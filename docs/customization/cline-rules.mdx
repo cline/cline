@@ -37,7 +37,7 @@ Rules can be stored in two locations: your project workspace or globally on your
 
 **Workspace rules** go in `.clinerules/` at your project root. Use these for team standards, project-specific constraints, and anything you want to share with collaborators via version control.
 
-**Global rules** go in your system's Cline Rules directory. Use these for personal preferences that apply across all projects. Cline also reads cross-tool global AGENTS instructions from `~/.agents/AGENTS.md`.
+**Global rules** can be stored in either `~/.cline/rules/` or your system's global Rules directory: `~/Documents/Cline/Rules` on macOS/Linux and `Documents\Cline\Rules` on Windows. Use these for personal preferences that apply across all projects. Cline also reads cross-tool global AGENTS instructions from `~/.agents/AGENTS.md`.
 
 ```text
 your-project/
@@ -51,15 +51,15 @@ your-project/
 
 Cline processes all `.md` and `.txt` files inside `.clinerules/`, combining them into a unified set of rules. Numeric prefixes (like `01-coding.md`) help organize files but are optional.
 
-When both workspace and global rules exist, Cline combines them. Workspace rules take precedence when they conflict with global rules. See [Storage Locations](/getting-started/config#storage-locations) for more guidance.
+When both workspace and global rules exist, Cline combines them. Workspace rules take precedence when they conflict with global rules. See [Storage Locations](/getting-started/config#configuration-directory-layout) for a broader overview of config paths.
 
 ### Global Rules Directory
 
 | Operating System | Default Location |
 |------------------|------------------|
-| Windows | `Documents\Cline\Rules` |
-| macOS | `~/Documents/Cline/Rules` |
-| Linux/WSL | `~/Documents/Cline/Rules` |
+| Windows | `~/.cline/rules/` or `Documents\Cline\Rules` |
+| macOS | `~/.cline/rules/` or `~/Documents/Cline/Rules` |
+| Linux/WSL | `~/.cline/rules/` or `~/Documents/Cline/Rules` |
 
 <Note>
 Linux/WSL users: If you don't find global rules in `~/Documents/Cline/Rules`, check `~/Cline/Rules`.
