@@ -155,6 +155,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		}
 		if (awsBedrockSettings.awsBedrockUsePromptCache !== undefined) {
 			transformed.awsBedrockUsePromptCache = awsBedrockSettings.awsBedrockUsePromptCache
+			transformed.planModeAwsBedrockUsePromptCache = awsBedrockSettings.awsBedrockUsePromptCache
+			transformed.actModeAwsBedrockUsePromptCache = awsBedrockSettings.awsBedrockUsePromptCache
 		}
 		if (awsBedrockSettings.awsBedrockEndpoint !== undefined) {
 			transformed.awsBedrockEndpoint = awsBedrockSettings.awsBedrockEndpoint

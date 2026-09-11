@@ -24,6 +24,7 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { getSavedApiKeyMask, sanitizeMaskedApiKeyInput } from "../utils/apiKeyMasking"
+import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 const AWS_REGIONS = BedrockData.regions
@@ -38,7 +39,8 @@ interface BedrockProviderProps {
 }
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
-	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings, planActSeparateModelsSetting } = useExtensionState()
+	const { handlePartialFieldsChange } = useApiConfigurationHandlers()
 	const { models: bedrockModels, defaultModelId: bedrockDefaultModelId } = useProviderModels("bedrock")
 	const { config, write, commitSelection } = useProviderConfig("bedrock")
 	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection("bedrock", currentMode, {
@@ -135,6 +137,31 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 	}
 	const writeAws = (aws: NonNullable<Parameters<typeof write>[0]["aws"]>, label: string) => {
 		writeProviderConfig({ aws }, label)
+	}
+	const modePromptCache =
+		(currentMode === "plan"
+			? apiConfiguration?.planModeAwsBedrockUsePromptCache
+			: apiConfiguration?.actModeAwsBedrockUsePromptCache) ??
+		apiConfiguration?.awsBedrockUsePromptCache ??
+		config?.aws?.usePromptCache ??
+		false
+	const handlePromptCacheChange = async (isChecked: boolean) => {
+		try {
+			if (planActSeparateModelsSetting) {
+				await handlePartialFieldsChange({
+					[currentMode === "plan" ? "planModeAwsBedrockUsePromptCache" : "actModeAwsBedrockUsePromptCache"]: isChecked,
+				})
+			} else {
+				await handlePartialFieldsChange({
+					awsBedrockUsePromptCache: isChecked,
+					planModeAwsBedrockUsePromptCache: isChecked,
+					actModeAwsBedrockUsePromptCache: isChecked,
+				})
+				writeAws({ usePromptCache: isChecked }, "prompt caching")
+			}
+		} catch (err) {
+			console.error("Failed to update Bedrock prompt caching:", err)
+		}
 	}
 
 	const fuse = useMemo(() => {
@@ -489,13 +516,15 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						<TooltipTrigger>
 							<div className="flex items-center gap-2">
 								<VSCodeCheckbox
-									checked={config?.aws?.usePromptCache || false}
+									checked={modePromptCache}
 									disabled={remoteConfigSettings?.awsBedrockUsePromptCache !== undefined}
 									onChange={(e: any) => {
 										const isChecked = e.target.checked === true
-										writeAws({ usePromptCache: isChecked }, "prompt caching")
+										void handlePromptCacheChange(isChecked)
 									}}>
-									Use prompt caching
+									{planActSeparateModelsSetting
+										? `Use prompt caching for ${currentMode === "plan" ? "Plan" : "Act"} mode`
+										: "Use prompt caching"}
 								</VSCodeCheckbox>
 								{remoteConfigSettings?.awsBedrockUsePromptCache !== undefined && (
 									<i className="codicon codicon-lock text-description text-sm" />
