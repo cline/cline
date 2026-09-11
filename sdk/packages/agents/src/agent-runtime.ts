@@ -167,12 +167,29 @@ function resolveRuntimeConfig(
 	return { ...rest, model, messageModelInfo };
 }
 
+/**
+ * Tools that run shell commands under a different name. A monitor command is
+ * an ordinary shell command that happens to keep running, so it answers to
+ * whatever policy governs `run_commands` unless a host sets one for it
+ * explicitly.
+ */
+const TOOL_POLICY_FALLBACKS: Record<string, string> = {
+	monitor: "run_commands",
+};
+
 function resolveToolPolicy(
 	toolName: string,
 	policies: BaseAgentRuntimeConfig["toolPolicies"],
 ): ToolPolicy {
+	const fallbackName = TOOL_POLICY_FALLBACKS[toolName];
+	// Merged field-wise rather than all-or-nothing. A host that sets only
+	// `monitor: { enabled: true }` must still inherit run_commands'
+	// `autoApprove`; treating any explicit monitor key as a full override
+	// would silently drop an approval requirement the host never waived.
+	const fallback = fallbackName ? (policies?.[fallbackName] ?? {}) : {};
 	return {
 		...(policies?.["*"] ?? {}),
+		...fallback,
 		...(policies?.[toolName] ?? {}),
 	};
 }
