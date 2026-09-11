@@ -310,7 +310,57 @@ function toConfigPrimitive(
 	return undefined;
 }
 
+/**
+ * Mirror the base URL precedence `toProviderConfig` applies at request time:
+ * explicit base URL > regional API line endpoint > provider default. Listing
+ * has to resolve it the same way, otherwise the settings UI shows (and lets
+ * the user re-save) a different endpoint than the one requests actually use.
+ */
+function resolveEffectiveBaseUrl(
+	providerId: string,
+	settings: ProviderSettings | undefined,
+	info: { baseUrl?: string } | undefined,
+): string | undefined {
+	return (
+		settings?.baseUrl ??
+		LlmsModels.resolveProviderApiLineBaseUrl(providerId, settings?.apiLine) ??
+		info?.baseUrl
+	);
+}
+
+const PROVIDER_API_LINES = ["china", "international"] as const;
+
+function normalizeBaseUrlForCompare(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim().replace(/\/+$/, "");
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * True when the provider exposes regional API line endpoints and the base URL
+ * is one Cline itself derives for it (a regional endpoint or its default), as
+ * opposed to a custom endpoint the user actually typed. Scoped to regional
+ * providers so custom and OpenAI-compatible entries, whose base URL is the
+ * only way to reach them, keep storing it.
+ */
+function isDerivedRegionalBaseUrl(
+	providerId: string,
+	baseUrl: unknown,
+): boolean {
+	const normalized = normalizeBaseUrlForCompare(baseUrl);
+	if (!normalized) return false;
+	const regional = PROVIDER_API_LINES.map((apiLine) =>
+		LlmsModels.resolveProviderApiLineBaseUrl(providerId, apiLine),
+	).filter((url): url is string => Boolean(url));
+	if (regional.length === 0) return false;
+	return [
+		...regional,
+		LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider?.baseUrl,
+	].some((candidate) => normalizeBaseUrlForCompare(candidate) === normalized);
+}
+
 function resolveConfigValues(
+	providerId: string,
 	fields: readonly ProviderConfigField[] | undefined,
 	settings: ProviderSettings | undefined,
 	info: { baseUrl?: string } | undefined,
@@ -320,8 +370,8 @@ function resolveConfigValues(
 	const values: Record<string, ProviderConfigFieldPrimitive> = {};
 	for (const field of fields) {
 		const persistedValue = toConfigPrimitive(
-			field.path === "baseUrl" && settings?.baseUrl === undefined
-				? info?.baseUrl
+			field.path === "baseUrl"
+				? resolveEffectiveBaseUrl(providerId, settings, info)
 				: getPathValue(settings, field.path),
 		);
 		const value = persistedValue ?? field.defaultValue;
@@ -810,7 +860,7 @@ export async function listLocalProviders(
 						oauthAccessTokenPresent: persistedSettings
 							? hasOAuthAccessToken(persistedSettings)
 							: undefined,
-						baseUrl: persistedSettings?.baseUrl ?? info?.baseUrl,
+						baseUrl: resolveEffectiveBaseUrl(id, persistedSettings, info),
 						defaultModelId: info?.defaultModelId,
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
@@ -820,6 +870,7 @@ export async function listLocalProviders(
 							"The base endpoint to use for provider requests.",
 						configFields,
 						configValues: resolveConfigValues(
+							id,
 							configFields,
 							persistedSettings,
 							info,
@@ -1085,6 +1136,17 @@ export function saveLocalProviderSettings(
 		"capabilities",
 	] as const) {
 		if (Object.hasOwn(request, key)) next[key] = request[key];
+	}
+
+	// A regional API line only reaches the request when no explicit base URL
+	// shadows it (see `toProviderConfig`). Settings UIs seed the base URL input
+	// with whichever endpoint they currently display, so persisting that value
+	// would pin the old region and silently outrank every later line switch.
+	// Regional providers reach all of their endpoints through the line
+	// selector, so such a base URL carries no information worth storing —
+	// keep only one the user genuinely customized.
+	if (isDerivedRegionalBaseUrl(providerId, next.baseUrl)) {
+		delete next.baseUrl;
 	}
 
 	// Merged object fields

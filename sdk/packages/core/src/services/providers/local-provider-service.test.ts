@@ -13,6 +13,7 @@ import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
 } from "../llms/provider-defaults";
+import { toProviderConfig } from "../llms/provider-settings";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -1595,6 +1596,130 @@ describe("saveLocalProviderSettings", () => {
 		});
 
 		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+	});
+});
+
+// ===========================================================================
+// regional API line routing
+// ===========================================================================
+
+const QWEN_CHINA_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const QWEN_INTERNATIONAL_BASE_URL =
+	"https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+
+describe("regional API line routing", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+	});
+
+	afterEach(() => cleanup());
+
+	async function listQwen() {
+		const { providers } = await listLocalProviders(manager);
+		const qwen = providers.find((provider) => provider.id === "qwen");
+		if (!qwen) throw new Error("qwen provider missing from catalog");
+		return qwen;
+	}
+
+	it("lists the api line endpoint instead of the provider default", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			apiLine: "international",
+		});
+
+		const qwen = await listQwen();
+		expect(qwen.baseUrl).toBe(QWEN_INTERNATIONAL_BASE_URL);
+		expect(qwen.configValues?.baseUrl).toBe(QWEN_INTERNATIONAL_BASE_URL);
+	});
+
+	it("falls back to the provider default when no api line is set", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+		});
+
+		const qwen = await listQwen();
+		expect(qwen.baseUrl).toBe(QWEN_CHINA_BASE_URL);
+	});
+
+	it("does not pin a regional endpoint as an explicit base url", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			baseUrl: QWEN_CHINA_BASE_URL,
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiLine: "international",
+		});
+
+		const settings = manager.getProviderSettings("qwen");
+		expect(settings).not.toHaveProperty("baseUrl");
+		expect(toProviderConfig(settings!).baseUrl).toBe(
+			QWEN_INTERNATIONAL_BASE_URL,
+		);
+	});
+
+	// The settings UI commits the base URL input on blur, which can land
+	// after the api line save that triggered it.
+	it("api line survives a base url save arriving afterwards", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiLine: "international",
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			baseUrl: QWEN_CHINA_BASE_URL,
+		});
+
+		const settings = manager.getProviderSettings("qwen");
+		expect(settings?.apiLine).toBe("international");
+		expect(toProviderConfig(settings!).baseUrl).toBe(
+			QWEN_INTERNATIONAL_BASE_URL,
+		);
+	});
+
+	it("keeps a genuinely custom base url", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			baseUrl: "https://proxy.example.invalid/v1",
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiLine: "international",
+		});
+
+		const settings = manager.getProviderSettings("qwen");
+		expect(settings?.baseUrl).toBe("https://proxy.example.invalid/v1");
+		expect(toProviderConfig(settings!).baseUrl).toBe(
+			"https://proxy.example.invalid/v1",
+		);
+	});
+
+	it("still stores the base url for providers without regional endpoints", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			enabled: true,
+			baseUrl: "https://ollama.com",
+		});
+
+		expect(manager.getProviderSettings("ollama")?.baseUrl).toBe(
+			"https://ollama.com",
+		);
 	});
 });
 
