@@ -65,4 +65,46 @@ describe("createSearchExecutor", () => {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("excludes matches from directories ignored by .gitignore / .clineignore", async () => {
+		const dir = await fs.mkdtemp(
+			path.join(os.tmpdir(), "agents-search-ignore-"),
+		);
+		// Use directory names that are NOT in the hard-coded exclude list so the
+		// assertion isolates ignore-file handling from the built-in dir skips.
+		await fs.writeFile(path.join(dir, ".gitignore"), "generated/\n", "utf-8");
+		await fs.writeFile(path.join(dir, ".clineignore"), "secret/\n", "utf-8");
+
+		await fs.mkdir(path.join(dir, "src"), { recursive: true });
+		await fs.mkdir(path.join(dir, "generated"), { recursive: true });
+		await fs.mkdir(path.join(dir, "secret"), { recursive: true });
+
+		const marker = "ZZ_IGNORE_MARKER_ZZ";
+		await fs.writeFile(
+			path.join(dir, "src", "keep.ts"),
+			`const a = "${marker}";\n`,
+			"utf-8",
+		);
+		await fs.writeFile(
+			path.join(dir, "generated", "gen.ts"),
+			`const b = "${marker}";\n`,
+			"utf-8",
+		);
+		await fs.writeFile(
+			path.join(dir, "secret", "leak.ts"),
+			`const c = "${marker}";\n`,
+			"utf-8",
+		);
+
+		try {
+			const search = createSearchExecutor({ contextLines: 0 });
+			const result = await search(marker, dir, ctx);
+
+			expect(result).toContain("src/keep.ts");
+			expect(result).not.toContain("generated/gen.ts");
+			expect(result).not.toContain("secret/leak.ts");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
 });
