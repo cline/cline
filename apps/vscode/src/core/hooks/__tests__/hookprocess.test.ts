@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, it } from "bun:test"
+import type { EventEmitter } from "events"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
@@ -237,4 +238,63 @@ describe("HookProcess spawn failures", () => {
 			}
 		},
 	)
+})
+
+describe("HookProcess stdin failures", () => {
+	let tempDir: string
+
+	beforeEach(async () => {
+		tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hookprocess-stdin-test-"))
+	})
+
+	afterEach(async () => {
+		await fs.rm(tempDir, { recursive: true, force: true })
+	})
+
+	it("fails open when the hook exits without reading a large input", async () => {
+		const hookBasePath = path.join(tempDir, "UserPromptSubmit")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nprocess.exit(3)\n`)
+		const scriptPath = process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+
+		// An input larger than the pipe buffer leaves part of the write pending
+		// when the hook exits. That failure lands on the stdin stream, not the
+		// child; unguarded it escapes as an uncaught exception and kills the
+		// whole host process instead of failing this one hook.
+		const uncaught: unknown[] = []
+		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
+			uncaught.push(error)
+		}
+		process.on("uncaughtException", onUncaught)
+		try {
+			const hookProcess = new HookProcess(scriptPath, 15000)
+			const input = JSON.stringify({ userPromptSubmit: { prompt: "x".repeat(1_000_000) } })
+			try {
+				await hookProcess.run(input)
+				throw new Error("Expected hook run to fail")
+			} catch (error: any) {
+				error.message.should.match(/Hook exited with code 3/)
+				// stdin's failure is emitted before the child's "close", so the exit
+				// error can say the input never arrived.
+				error.message.should.match(/stopped reading its input before it was fully delivered/)
+			}
+			// Give a late pipe error a chance to surface before asserting.
+			await new Promise((resolve) => setTimeout(resolve, 200))
+			uncaught.should.be.empty()
+		} finally {
+			// Through the plain EventEmitter type: bun-types merges extra
+			// overloads into `process` that break resolution of this call.
+			;(process as unknown as EventEmitter).removeListener("uncaughtException", onUncaught)
+		}
+	}, 15000)
+
+	it("still succeeds when a hook ignores a large input and exits 0", async () => {
+		const hookBasePath = path.join(tempDir, "TaskStart")
+		await writeHookScriptForPlatform(hookBasePath, `#!/usr/bin/env node\nconsole.log("{}")\n`)
+		const scriptPath = process.platform === "win32" ? `${hookBasePath}.ps1` : hookBasePath
+
+		// Ignoring stdin is legitimate hook behavior; a failed input delivery
+		// must not turn a successful hook into a failed one.
+		const hookProcess = new HookProcess(scriptPath, 15000)
+		await hookProcess.run(JSON.stringify({ taskStart: { blob: "x".repeat(1_000_000) } }))
+	}, 15000)
 })

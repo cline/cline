@@ -133,11 +133,50 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
+// Answers initialize normally, then exits the moment a tools/call request
+// starts arriving -- without draining stdin. A request body larger than the
+// pipe buffer is then still partly queued on the client side when the reader
+// disappears, which is how a stdin write fails asynchronously with EPIPE.
+const EXIT_ON_CALL_SERVER_SCRIPT = `
+let buffer = "";
+process.stdin.on("data", (chunk) => {
+	const text = chunk.toString("utf8");
+	if (text.includes('"tools/call"')) {
+		process.exit(0);
+	}
+	buffer += text;
+	let idx;
+	while ((idx = buffer.indexOf("\\n")) >= 0) {
+		const line = buffer.slice(0, idx).trim();
+		buffer = buffer.slice(idx + 1);
+		if (!line) continue;
+		let msg;
+		try {
+			msg = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (msg.id === undefined || msg.method !== "initialize") continue;
+		const result = {
+			protocolVersion: "2024-11-05",
+			capabilities: {},
+			serverInfo: { name: "fake", version: "0.0.0" },
+		};
+		process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
+	}
+});
+`;
+
 let tempRoot: string;
 
 beforeAll(() => {
 	tempRoot = mkdtempSync(join(tmpdir(), "mcp-client-test-"));
 	writeFileSync(join(tempRoot, "fake-server.js"), FAKE_SERVER_SCRIPT, "utf8");
+	writeFileSync(
+		join(tempRoot, "exit-on-call-server.js"),
+		EXIT_ON_CALL_SERVER_SCRIPT,
+		"utf8",
+	);
 	writeFileSync(
 		join(tempRoot, "framed-server.js"),
 		FRAMED_SERVER_SCRIPT,
@@ -159,6 +198,7 @@ function fakeServerRegistration(options: {
 	delayMs: number;
 	initDelayMs?: number;
 	pidFile?: string;
+	script?: string;
 }): McpServerRegistration {
 	return {
 		name: "fake-server",
@@ -170,7 +210,7 @@ function fakeServerRegistration(options: {
 				process.platform === "win32"
 					? `"${process.execPath}"`
 					: process.execPath,
-			args: [join(tempRoot, "fake-server.js")],
+			args: [join(tempRoot, options.script ?? "fake-server.js")],
 			env: {
 				FAKE_MCP_DELAY_MS: String(options.delayMs),
 				...(options.initDelayMs === undefined
@@ -589,4 +629,33 @@ describe("default connect budget", () => {
 			HUB_DEFAULT_COMMAND_TIMEOUT_MS / 2,
 		);
 	});
+});
+
+describe("mcp client stdin failures", () => {
+	it("fails the request instead of crashing when the server exits mid-write", async () => {
+		const uncaught: unknown[] = [];
+		const onUncaught: NodeJS.UncaughtExceptionListener = (error) => {
+			uncaught.push(error);
+		};
+		process.on("uncaughtException", onUncaught);
+		const factory = createDefaultMcpServerClientFactory();
+		const client = await factory(
+			fakeServerRegistration({ delayMs: 0, script: "exit-on-call-server.js" }),
+		);
+		try {
+			await client.connect();
+			await expect(
+				client.callTool({
+					name: "anything",
+					arguments: { blob: "x".repeat(1_000_000) },
+				}),
+			).rejects.toThrow(/MCP process/);
+			// Give a late pipe error a chance to surface before asserting.
+			await new Promise((resolve) => setTimeout(resolve, 200));
+			expect(uncaught).toEqual([]);
+		} finally {
+			process.removeListener("uncaughtException", onUncaught);
+			await client.disconnect();
+		}
+	}, 30_000);
 });
