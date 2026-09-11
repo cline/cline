@@ -455,6 +455,21 @@ export function isOllamaQwen3ModelIdFallback(
 	);
 }
 
+const OPENAI_NONE_EFFORT_MODEL_ID = /^gpt-5[.-]6(?:[-.]|$)/;
+
+export function isOpenAiDirectNoneEffortModel(options: {
+	request: Pick<GatewayStreamRequest, "modelId">;
+	context: GatewayProviderContext;
+}): boolean {
+	// models.dev advertises "none" as an effort value for the GPT-5.6 family
+	// only, so this mirrors that catalog fact for models typed into an
+	// OpenAI-compatible provider, which carry no catalog entry to read it from.
+	return (
+		isProviderBaseOrigin(options.context, "https://api.openai.com") &&
+		OPENAI_NONE_EFFORT_MODEL_ID.test(normalizedModelId(options.request))
+	);
+}
+
 export function isCerebrasProvider(
 	request: Pick<GatewayStreamRequest, "providerId">,
 	context: GatewayProviderContext,
