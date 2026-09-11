@@ -538,6 +538,7 @@ describe("Cloud sessions sidecar wiring", () => {
 					sandboxUrl: "",
 				}),
 				list: async () => [REMOTE_SESSION, session],
+				status: async () => ({ status: session.status }),
 				waitUntilReady,
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
