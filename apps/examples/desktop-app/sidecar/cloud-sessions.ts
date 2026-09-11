@@ -701,7 +701,12 @@ export class CloudSessionApi {
 		if (!response.ok) {
 			throw cloudErrorForResponse(response.status, payload, this.appBaseUrl);
 		}
-		const messages = (payload as { messages?: unknown } | undefined)?.messages;
-		return Array.isArray(messages) ? messages : [];
+		if (payload?.version !== 1 || !Array.isArray(payload.messages)) {
+			throw new CloudSessionError(
+				"request_failed",
+				"Invalid archived session history",
+			);
+		}
+		return payload.messages;
 	}
 }

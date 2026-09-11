@@ -109,6 +109,32 @@ describe("CloudSessionApi", () => {
 		expect(await api.history("ses-1")).toBeNull();
 	});
 
+	it("accepts v1 history and rejects malformed snapshots instead of returning empty history", async () => {
+		const messages = [{ role: "user", content: "Hello" }];
+		let snapshot: unknown = { version: 1, messages };
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async () => jsonResponse(snapshot),
+		});
+
+		expect(await api.history("ses-1")).toEqual(messages);
+		snapshot = { version: 1, messages: [] };
+		expect(await api.history("ses-1")).toEqual([]);
+		for (const invalid of [
+			null,
+			{ version: 1 },
+			{ version: 2, messages: [] },
+		]) {
+			snapshot = invalid;
+			await expect(api.history("ses-1")).rejects.toMatchObject({
+				code: "request_failed",
+				detail: "Invalid archived session history",
+			});
+		}
+	});
+
 	it("returns the real id before polling readiness and reports provisioning phases", async () => {
 		vi.useFakeTimers();
 		const tokens = ["workos:create", "workos:create", "workos:new-account"];
