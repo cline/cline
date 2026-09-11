@@ -539,11 +539,31 @@ now route structurally, deleting the v1 timing heuristic's premise (P5):
 into the producer envelope (the CLI's SessionFramer already carries
 it); port `SdkSessionRebuildScheduler` to `onIdle`.
 
-**Phase 3c — VSCode translator.** Port message-translator onto the
-assembler. MessageTranslatorState's parser fields delete; ClineMessage
-mapping remains as sink implementations; sub-agent suppression (P5's
-heuristic) becomes `onSubAgent → null` plus a SubagentStatusRow
-consumer.
+**Phase 3b status: implemented (ACP port; fence and scheduler moved to
+3c).** The ACP forwarder (`apps/cli/src/acp/frame-forwarder.ts`) is
+the second frame consumer: `AcpStreamForwarder` implements the
+assembler's consumer API, and `acpAgent.ts`'s subscription now frames
+via `SessionFramer` instead of calling the v1 `forwardAgentEvent` —
+which stays in `session-updates.ts` as the differential reference
+(its own test suite unchanged). The differential harness proves
+byte-identical `SessionUpdate` sequences across 100 generated traces
+plus handcrafted edges (media, tool error, redacted marker).
+Fidelity notes: empty text/reasoning deltas skipped; interrupted tool
+closes silent (v1 never observed dangling closes); errors, iterations,
+usage, and turn closes emit nothing, exactly as v1; diagnostics go to
+the process console, never the protocol stream. **Scope correction**:
+"epoch fence into the producer" and "rebuild scheduler on `onIdle`"
+moved to 3c — both are VSCode host wiring that would be dead code
+until the translator consumes frames.
+
+**Phase 3c — VSCode wiring and translator.** Port message-translator
+onto the assembler. MessageTranslatorState's parser fields delete;
+ClineMessage mapping remains as sink implementations; sub-agent
+suppression (P5's heuristic) becomes `onSubAgent → null` plus a
+SubagentStatusRow consumer. Also the host wiring moved from 3b: the
+epoch fence from SdkController into the producer envelope
+(`RuntimeFrameAdapter.bumpEpoch` at cancel/reinit boundaries), and
+`SdkSessionRebuildScheduler` onto the assembler's `onIdle`.
 
 **Phase 3d — history replay and reconnect.** Snapshot reconciliation
 in the assembler (diff against the live set), live-after-history dedup
@@ -618,8 +638,8 @@ revertable without reverting its ancestors' behavior changes:
 | 2 | `dpc/event-stream-phase1` | v2 frame schema, structured StreamError, dual-emit in RuntimeEventAdapter, trace generator + property tests. | 1 |
 | 3 | `dpc/event-stream-phase2` | Assembler (`@cline/core`), CLI terminal port, differential replay harness. (ACP port moved to PR 5, Phase 3b.) | 2 |
 | 4 | `dpc/event-stream-demux` | Phase 3a: multiplexed framing (SessionFramer, shared sequencer), address-keyed validator, tree-aware assembler with `onSubAgent` pruning, session-event projector. | 3 |
-| 5 | `dpc/event-stream-phase3b` | Phase 3b: epoch fence into the producer, ACP port, rebuild scheduler on `onIdle`. | 4 |
-| 6 | `dpc/event-stream-phase3c` | Phase 3c: VSCode translator sinks; P5 heuristic becomes `onSubAgent → null`. | 5 |
+| 5 | `dpc/event-stream-phase3b` | Phase 3b: ACP port (second frame consumer, differential-tested). | 4 |
+| 6 | `dpc/event-stream-phase3c` | Phase 3c: VSCode translator sinks, epoch fence into producer, rebuild scheduler on `onIdle`; P5 heuristic becomes `onSubAgent → null`. | 5 |
 | 7 | `dpc/event-stream-phase3d` | Phase 3d: history replay/reconnect, snapshot reconciliation. | 6 |
 | 8 | `dpc/event-stream-phase4a` | Desktop sidecar forwards frames verbatim (v1 re-encoding deletes). | 7 |
 | 9 | `dpc/event-stream-phase4b` | Desktop webview sinks (`use-chat-session`). | 8 |
