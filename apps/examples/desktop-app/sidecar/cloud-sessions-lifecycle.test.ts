@@ -144,6 +144,39 @@ describe("CloudSessionManager lifecycle", () => {
 		});
 	});
 
+	it("expires a live session without a Hub connection when its TTL elapses", async () => {
+		const { ctx } = createContext();
+		const remote = { ...REMOTE_SESSION };
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({
+					sessionId: remote.id,
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list: async () => [remote],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		expect((await manager.listForDiscovery())[0].status).toBe("ready");
+
+		remote.expiredAt = new Date(Date.now() - 1_000).toISOString();
+		expect((await manager.listForDiscovery())[0]).toMatchObject({
+			status: "expired",
+			endedAt: remote.expiredAt,
+		});
+		expect(ctx.liveSessions.get(remote.id)).toMatchObject({
+			status: "expired",
+			busy: false,
+			endedAt: Date.parse(remote.expiredAt),
+		});
+	});
+
 	it("single-flights repeated starts for the same client request", async () => {
 		const { ctx } = createContext();
 		let createCalls = 0;

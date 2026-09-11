@@ -963,15 +963,16 @@ export class CloudSessionManager {
 			}
 			const connection = this.connections.get(session.id);
 			if (connection) {
-				// Expired sandboxes must stop reconnecting.
 				connection.remote = session;
-				if (isExpiredRecord(session)) {
-					const live = this.ctx.liveSessions.get(session.id);
-					if (live) {
-						live.busy = false;
-						live.status = "expired";
-						live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
-					}
+			}
+			if (isExpiredRecord(session)) {
+				if (live) {
+					live.busy = false;
+					live.status = "expired";
+					live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
+				}
+				if (connection) {
+					// Expired sandboxes must stop reconnecting.
 					void this.disposeConnection(session.id).catch(() => undefined);
 				}
 			}
