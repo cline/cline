@@ -885,7 +885,7 @@ export class CloudSessionManager {
 		sessionId: string,
 	): Promise<JsonRecord | undefined> {
 		const cached = this.getCachedDiscoveryRecord(sessionId);
-		if (!cached || typeof this.options.api.status !== "function") {
+		if (!cached) {
 			return undefined;
 		}
 		try {
@@ -917,10 +917,7 @@ export class CloudSessionManager {
 		}
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
-				if (
-					session.status !== "provisioning" ||
-					typeof this.options.api.status !== "function"
-				) {
+				if (session.status !== "provisioning") {
 					return session;
 				}
 				const result = await this.options.api
