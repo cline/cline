@@ -1,4 +1,3 @@
-import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -103,9 +102,6 @@ async function createFixture() {
 		updateTitle,
 	};
 }
-
-const transportError = () =>
-	new HubTransportError("hub_connection_closed", "socket closed");
 
 describe("CloudSessionManager interactions", () => {
 	it("refreshes the completion time for a later turn completed while disconnected", async () => {
