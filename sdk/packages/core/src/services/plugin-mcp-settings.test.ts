@@ -73,6 +73,32 @@ export default {
 		});
 	});
 
+	it("writes plugin MCP server timeouts into mcp settings", async () => {
+		const { pluginPath, settingsPath } = await createPlugin(`
+export default {
+  name: "slow-server",
+  manifest: { capabilities: ["mcp"] },
+  setup(api) {
+    api.registerMcpServer({
+      name: "slow-server",
+      transport: { type: "stdio", command: "node", args: ["./server.js"] },
+      timeoutSeconds: 60,
+    })
+  },
+}
+`);
+
+		await syncPluginMcpServersToSettings({
+			pluginPaths: [pluginPath],
+			settingsPath,
+		});
+
+		const written = JSON.parse(await readFile(settingsPath, "utf8")) as {
+			mcpServers?: Record<string, { timeout?: number }>;
+		};
+		expect(written.mcpServers?.["slow-server"]?.timeout).toBe(60);
+	});
+
 	it("defaults plugin stdio MCP cwd to the plugin directory", async () => {
 		const { pluginPath, settingsPath } = await createPlugin(`
 export default {

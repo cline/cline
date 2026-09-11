@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { normalizePluginMcpServerRegistration } from "./plugin-server-registration";
 
 describe("plugin MCP server registration", () => {
+	it("normalizes plugin MCP server timeouts", () => {
+		const result = normalizePluginMcpServerRegistration({
+			name: "local",
+			transport: {
+				type: "stdio",
+				command: "node",
+			},
+			timeoutSeconds: 60,
+		});
+
+		expect(result.loadError).toBeUndefined();
+		expect(result.registration?.timeoutSeconds).toBe(60);
+	});
+
 	it("normalizes streamable HTTP plugin MCP servers", () => {
 		const result = normalizePluginMcpServerRegistration({
 			name: "remote",

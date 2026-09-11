@@ -98,6 +98,8 @@ export interface AgentExtensionMcpServer {
 	transport: AgentExtensionMcpTransport;
 	// Top-level env values are merged into stdio process env only.
 	env?: AgentExtensionMcpEnv;
+	/** Per-server request timeout in seconds. */
+	timeoutSeconds?: number;
 	metadata?: Record<string, unknown>;
 }
 
