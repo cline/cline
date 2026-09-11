@@ -47,6 +47,32 @@ describe("resolvePortableReasoning", () => {
 		).toBe("none");
 	});
 
+	it("never sends an explicit disable for models whose thinking is mandatory", () => {
+		expect(
+			resolvePortableReasoning({
+				...request({ enabled: false }),
+				modelId: "claude-fable-5",
+			}),
+		).toBeUndefined();
+	});
+
+	it("leaves a mandatory-thinking disable for the model-aware normalizer", () => {
+		const normalized = withoutPortableReasoning({
+			...request({ enabled: false }),
+			modelId: "claude-fable-5",
+		});
+		expect(normalized.reasoning).toEqual({ enabled: false });
+	});
+
+	it("omits stream reasoning for a mandatory-thinking disable", () => {
+		expect(
+			buildAiSdkStreamConfig(
+				{ ...request({ enabled: false }), modelId: "claude-fable-5" },
+				undefined as never,
+			),
+		).not.toHaveProperty("reasoning");
+	});
+
 	it("removes conflicting controls from native disable requests", () => {
 		const normalized = withoutPortableReasoning({
 			...request({ enabled: false, effort: "high", budgetTokens: 12_000 }),
