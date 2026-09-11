@@ -1201,6 +1201,37 @@ describe("ChatInputBar", () => {
 			);
 		});
 
+		onSteerPromptInQueue.mockResolvedValueOnce(undefined);
+		const input = container.querySelector("textarea");
+		for (const modifiers of [
+			{ shiftKey: true },
+			{ isComposing: true },
+			{ repeat: true },
+		]) {
+			await act(async () => {
+				input?.dispatchEvent(
+					new KeyboardEvent("keydown", {
+						key: "Enter",
+						bubbles: true,
+						cancelable: true,
+						...modifiers,
+					}),
+				);
+			});
+		}
+		expect(onSteerPromptInQueue).not.toHaveBeenCalled();
+		await act(async () => {
+			input?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		});
+		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith();
+		onSteerPromptInQueue.mockClear();
+
 		const queueToggle = [
 			...container.querySelectorAll<HTMLButtonElement>(
 				"button[aria-controls][aria-expanded]",

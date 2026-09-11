@@ -83,6 +83,232 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("steers the first server entry after enqueue acknowledgement without waiting for the active response", async () => {
+		const sessionId = "session-quick-steer";
+		const activeResponse = deferred<unknown>();
+		const queuedResponse = deferred<unknown>();
+		let acknowledged = false;
+		const queued = { id: "pending-real", prompt: "queued", steer: false };
+		const requests: Array<{
+			action?: string;
+			prompt?: string;
+			promptId?: string;
+		}> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as (typeof requests)[number];
+				requests.push(request);
+				if (request.action === "start") return { sessionId };
+				if (request.action === "send")
+					return request.prompt === "active"
+						? activeResponse.promise
+						: queuedResponse.promise;
+				if (request.action === "pending_prompts")
+					return { promptsInQueue: acknowledged ? [queued] : [] };
+				if (request.action === "steer_prompt")
+					return {
+						updated: true,
+						promptsInQueue: [{ ...queued, steer: true }],
+					};
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		let activeTask!: Promise<void>;
+		await act(async () => {
+			activeTask = current.sendPrompt("active");
+		});
+		let queuedTask!: Promise<void>;
+		await act(async () => {
+			queuedTask = current.sendPrompt("queued");
+		});
+		expect(current.promptsInQueue[0]?.id).not.toBe(queued.id);
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue();
+		});
+		expect(requests.some((request) => request.action === "steer_prompt")).toBe(
+			false,
+		);
+		await act(async () => {
+			acknowledged = true;
+			queuedResponse.resolve({
+				ok: true,
+				queued: true,
+				promptsInQueue: [queued],
+			});
+			await queuedTask;
+			await steerTask;
+		});
+		expect(
+			requests.filter((request) => request.action === "steer_prompt"),
+		).toEqual([{ action: "steer_prompt", sessionId, promptId: queued.id }]);
+		expect(current.status).toBe("running");
+		await act(async () => {
+			activeResponse.resolve({ ok: true });
+			await activeTask;
+		});
+	});
+
+	it("steers an acknowledged prompt when another submission never acknowledges", async () => {
+		vi.useFakeTimers();
+		try {
+			const sessionId = "session-quick-steer";
+			const activeResponse = deferred<unknown>();
+			const queuedResponse = deferred<unknown>();
+			const acknowledged = true;
+			const queued = { id: "pending-real", prompt: "queued", steer: false };
+			const requests: Array<{
+				action?: string;
+				prompt?: string;
+				promptId?: string;
+			}> = [];
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command !== "chat_session_command") return [];
+					const request = args?.request as (typeof requests)[number];
+					requests.push(request);
+					if (request.action === "start") return { sessionId };
+					if (request.action === "send")
+						return request.prompt === "active"
+							? activeResponse.promise
+							: queuedResponse.promise;
+					if (request.action === "pending_prompts")
+						return { promptsInQueue: acknowledged ? [queued] : [] };
+					if (request.action === "steer_prompt")
+						return {
+							updated: true,
+							promptsInQueue: [{ ...queued, steer: true }],
+						};
+					return {};
+				},
+			);
+			await act(async () => current.start(current.config));
+			let activeTask!: Promise<void>;
+			await act(async () => {
+				activeTask = current.sendPrompt("active");
+			});
+
+			await act(async () => {
+				void current.sendPrompt("queued");
+			});
+			expect(current.promptsInQueue[0]?.id).toBe(queued.id);
+			let steerTask!: Promise<void>;
+			await act(async () => {
+				steerTask = current.steerPromptInQueue();
+			});
+			expect(
+				requests.some((request) => request.action === "steer_prompt"),
+			).toBe(false);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1_000);
+				await steerTask;
+			});
+			expect(
+				requests.filter((request) => request.action === "steer_prompt"),
+			).toEqual([{ action: "steer_prompt", sessionId, promptId: queued.id }]);
+			await act(async () => {
+				activeResponse.resolve({ ok: true });
+				await activeTask;
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+	it("does not resurrect a consumed queued prompt when its steering reply arrives late", async () => {
+		const sessionId = "session-steer-snapshot";
+		const reply = deferred<unknown>();
+		const first = { id: "pending-first", prompt: "first", steer: false };
+		const second = { id: "pending-second", prompt: "second", steer: false };
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string };
+				if (request.action === "start") return { sessionId };
+				if (request.action === "steer_prompt") return reply.promise;
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({
+				sessionId,
+				items: [first, second],
+			});
+		});
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue(first.id);
+		});
+		await act(async () => {
+			handlerFor("chat_event")({
+				sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({ promptId: first.id, prompt: first.prompt }),
+				ts: Date.now(),
+				index: 1,
+			});
+			handlerFor("prompts_in_queue_state")({ sessionId, items: [second] });
+		});
+		await act(async () => {
+			reply.resolve({
+				updated: true,
+				promptsInQueue: [{ ...first, steer: true }, second],
+			});
+			await steerTask;
+		});
+		expect(current.promptsInQueue).toEqual([second]);
+	});
+
+	it.each([
+		"remove",
+		"edit",
+		"enqueue",
+	] as const)("preserves a concurrent queue %s when a steering reply arrives late", async (mutation) => {
+		const sessionId = "session-steer-snapshot";
+		const reply = deferred<unknown>();
+		const first = { id: "pending-first", prompt: "first", steer: false };
+		const second = { id: "pending-second", prompt: "second", steer: false };
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string };
+				if (request.action === "start") return { sessionId };
+				if (request.action === "steer_prompt") return reply.promise;
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({
+				sessionId,
+				items: [first, second],
+			});
+		});
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue(first.id);
+		});
+		const newerQueue =
+			mutation === "remove"
+				? [second]
+				: mutation === "edit"
+					? [first, { ...second, prompt: "edited" }]
+					: [first, second, { id: "third", prompt: "third", steer: false }];
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({ sessionId, items: newerQueue });
+		});
+		await act(async () => {
+			reply.resolve({
+				updated: true,
+				promptsInQueue: [{ ...first, steer: true }, second],
+			});
+			await steerTask;
+		});
+		expect(current.promptsInQueue).toEqual(newerQueue);
+	});
+
 	it("restores an idle parent when aborting its child fails", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

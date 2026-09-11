@@ -314,7 +314,7 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
+	onSteerPromptInQueue: (promptId?: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
 		prompt: string,
@@ -497,6 +497,23 @@ function ChatInputBarImpl({
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
 	const canSend = hasDraft && !speechInputActive;
+	const steeringPromptRef = useRef(false);
+	const steerFirstQueuedPrompt = async () => {
+		const firstPrompt = promptsInQueue[0];
+		if (!firstPrompt || firstPrompt.steer || steeringPromptRef.current) return;
+		steeringPromptRef.current = true;
+		try {
+			await onSteerPromptInQueue();
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not steer queued message",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			steeringPromptRef.current = false;
+		}
+	};
 	const handleSend = useCallback(() => {
 		if (speechInputActive) return;
 		if (unsupportedDraftImageCount > 0) {
@@ -1263,6 +1280,7 @@ function ChatInputBarImpl({
 								}
 							}}
 							onKeyDown={(e) => {
+								if (e.nativeEvent.isComposing) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -1331,6 +1349,15 @@ function ChatInputBarImpl({
 									e.preventDefault();
 									if (canSend) {
 										handleSend();
+									} else if (
+										!hasDraft &&
+										!speechInputActive &&
+										!e.ctrlKey &&
+										!e.metaKey &&
+										!e.altKey &&
+										!e.repeat
+									) {
+										void steerFirstQueuedPrompt();
 									}
 								}
 							}}

@@ -108,6 +108,91 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it.each([
+		"text",
+		"partial-tool",
+		"empty",
+		"finish-event",
+	])("interrupts a blocked %s response to consume steering in the same run", async (content) => {
+		const started = Promise.withResolvers<void>();
+		let pending: string | undefined;
+		const tool = createEchoTool();
+		const execute = vi.spyOn(tool, "execute");
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			async function* (request) {
+				if (content !== "empty") {
+					yield { type: "text-delta", text: "Old response" };
+				}
+				if (content === "partial-tool") {
+					yield { type: "reasoning-delta", text: "unfinished reasoning" };
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "partial",
+						toolName: "echo",
+						inputText: '{"text":',
+					};
+				}
+				await new Promise<void>((resolve) => {
+					request.signal?.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+					started.resolve();
+				});
+				if (content === "finish-event") {
+					yield { type: "finish", reason: "aborted" };
+					return;
+				}
+				throw new DOMException("Cancelled", "AbortError");
+			},
+			(request) => {
+				expect(request.signal?.aborted).toBe(false);
+				expect(request.messages.at(-1)).toMatchObject({
+					role: "user",
+					content: [{ type: "text", text: "Change direction" }],
+				});
+				expect(
+					request.messages
+						.flatMap((message) => message.content)
+						.some(
+							(part) => part.type === "tool-call" || part.type === "reasoning",
+						),
+				).toBe(false);
+				return [
+					{ type: "text-delta", text: "Steered response" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [tool],
+			telemetry,
+			consumePendingUserMessage: () => {
+				const message = pending;
+				pending = undefined;
+				return message;
+			},
+		});
+		const resultPromise = runtime.run("Start");
+		await started.promise;
+		pending = "Change direction";
+		runtime.notifyPendingUserMessage();
+		const result = await resultPromise;
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Steered response");
+		expect(model.requests).toHaveLength(2);
+		expect(model.requests[0]?.signal?.aborted).toBe(true);
+		expect(execute).not.toHaveBeenCalled();
+		expect(
+			capture.mock.calls.some(
+				([event]) =>
+					event === TASK_PROVIDER_STREAM_FAILED_EVENT ||
+					event === TASK_CANCELLED_EVENT,
+			),
+		).toBe(false);
+	});
+
 	it("persists generated images in assistant message content", async () => {
 		const model = new ScriptedModel([
 			() => [
