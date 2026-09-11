@@ -83,6 +83,12 @@ function buildGatewayProviderOptions(
 		const workspace = config.extensionContext?.workspace;
 		Object.assign(options, {
 			cwd: workspace?.cwd ?? workspace?.rootPath,
+			// Host-mapped Claude Code options (the user's configured executable
+			// path) live on config.claudeCode; mirror @cline/llms's
+			// buildGatewayConfig spread or the session/gateway path drops them.
+			// Spread after cwd so an explicit config wins over the workspace
+			// default.
+			...config.claudeCode,
 		});
 	}
 
