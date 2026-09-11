@@ -13,6 +13,29 @@ const ctx: AgentToolContext = {
 };
 
 describe("createSearchExecutor", () => {
+	it("returns multiple ripgrep matches from the same file", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		await fs.writeFile(
+			path.join(dir, "matches.ts"),
+			[
+				"const needleOne = 1;",
+				"const needleTwo = 2;",
+				"const needleThree = 3;",
+			].join("\n"),
+			"utf-8",
+		);
+
+		try {
+			const search = createSearchExecutor({ contextLines: 0 });
+			const result = await search("needle", dir, ctx);
+
+			expect(result).toContain("Found 3 results for pattern: needle");
+			expect(result.match(/matches\.ts:/g)).toHaveLength(3);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("middle-truncates oversized search output with recovery guidance", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
 		const filePath = path.join(dir, "large.ts");
