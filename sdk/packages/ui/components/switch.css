@@ -100,10 +100,10 @@
 		0 0 0 1px var(--neutral-a2),
 		0 0.03rem 0.3rem 0 var(--neutral-a2),
 		0 0.05rem 0.5rem 0 var(--neutral-a4);
-	/* Let the leading edge arrive slightly sooner for a small stretch in motion. */
+	/* The leading edge pulls ahead to widen the thumb before the trailing edge catches up. */
 	transition:
-		inset-inline-start 160ms cubic-bezier(0.2, 0.8, 0.3, 1),
-		inset-inline-end 160ms cubic-bezier(0.25, 0.7, 0.35, 1);
+		inset-inline-start 200ms cubic-bezier(0.2, 0.8, 0.3, 1),
+		inset-inline-end 200ms cubic-bezier(0.35, 0.5, 0.45, 1);
 }
 
 .cline-ui-switch__input:checked
@@ -115,7 +115,7 @@
 	);
 	inset-inline-end: var(--cline-ui-switch-padding);
 	transition-timing-function:
-		cubic-bezier(0.25, 0.7, 0.35, 1), cubic-bezier(0.2, 0.8, 0.3, 1);
+		cubic-bezier(0.35, 0.5, 0.45, 1), cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
 .cline-ui-switch__input:disabled {
