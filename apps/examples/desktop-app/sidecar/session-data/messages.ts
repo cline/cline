@@ -184,7 +184,10 @@ export function persistUsageInMessages(
 		if (!item || typeof item !== "object") {
 			continue;
 		}
-		if ((item as JsonRecord).role === "assistant") {
+		if (
+			(item as JsonRecord).role === "assistant" &&
+			readMessageMetadata(item as JsonRecord)?.displayOnly !== true
+		) {
 			assistantIndex = i;
 			break;
 		}

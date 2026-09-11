@@ -308,3 +308,14 @@ describe("mapHistoryToWebviewMessages", () => {
 		expect(completed.at(-1)?.id).toBe("history-0");
 	});
 });
+
+it("projects display-only failures as errors", () => {
+	const rendered = mapHistoryToWebviewMessages([
+		{
+			role: "assistant",
+			content: "API key expired.",
+			metadata: { displayOnly: true, displayRole: "error" },
+		},
+	]);
+	expect(rendered).toEqual([expect.objectContaining({ role: "error" })]);
+});

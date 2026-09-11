@@ -2226,3 +2226,31 @@ describe("ChatMessages tool approvals", () => {
 		expect(container.querySelector("output")).toBeNull();
 	});
 });
+
+describe("persisted run errors", () => {
+	it.each([
+		"openrouter",
+		"claude-code",
+	])("renders one complete %s failure before and after reopening", async (providerId) => {
+		const messages: ChatMessage[] = [
+			{
+				id: "expired-key",
+				sessionId: "session-1",
+				role: "error",
+				content: "API key expired.",
+				createdAt: 1,
+				meta: { providerId },
+			},
+		];
+		const fullError =
+			providerId === "claude-code"
+				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
+				: "The run failed: API key expired. Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+		await renderMessages(messages, { error: fullError, status: "failed" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+		await renderMessages(messages, { error: null, status: "idle" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+	});
+});

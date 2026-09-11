@@ -59,6 +59,7 @@ import {
 import {
 	captureAuthRunRetry,
 	captureMistakeLimitReached,
+	captureSessionErrorRecorded,
 } from "../../services/telemetry/core-events";
 import {
 	getMessageBuilderOptionsFromEnv,
@@ -313,6 +314,9 @@ export class SessionRuntime {
 	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
+	private pendingTerminalError:
+		| Extract<AgentEvent, { type: "error" }>
+		| undefined;
 	private readonly mistakeTracker: MistakeTracker;
 	private readonly loopTracker: LoopDetectionTracker;
 	/**
@@ -491,7 +495,7 @@ export class SessionRuntime {
 
 	/** True when no run is currently active and the session is not shut down. */
 	canStartRun(): boolean {
-		return !this.running && !this.shutdownCalled;
+		return !this.running && !this.activeRunPromise && !this.shutdownCalled;
 	}
 
 	/**
@@ -677,6 +681,8 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		const rejection = this.getRunAdmissionError();
+		if (rejection) return Promise.reject(rejection);
 		this.conversation.resetForRun();
 		this.resetConversationBoundaryTrackers();
 		return this.executeRun({
@@ -692,6 +698,8 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		const rejection = this.getRunAdmissionError();
+		if (rejection) return Promise.reject(rejection);
 		return this.executeRun({
 			userMessage,
 			userImages,
@@ -723,6 +731,18 @@ export class SessionRuntime {
 		return mergeSystemPromptRules(this.config.systemPrompt, rules);
 	}
 
+	private getRunAdmissionError(): Error | undefined {
+		if (this.shutdownCalled)
+			return new Error(
+				`SessionRuntime.run called after shutdown (agentId=${this.agentId})`,
+			);
+		if (this.running || this.activeRunPromise)
+			return new Error(
+				`SessionRuntime state is "running"; call canStartRun() first (agentId=${this.agentId})`,
+			);
+		return undefined;
+	}
+
 	private executeRun(input: {
 		userMessage?: string;
 		userImages?: string[];
@@ -730,13 +750,69 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunWithAuthRetry(input).finally(() => {
-			if (this.activeRunPromise === activePromise) {
-				this.activeRunPromise = null;
-			}
-		});
+		activePromise = this.executeRunWithAuthRetry(input)
+			.then(
+				(result) => {
+					if (result.finishReason === "error") {
+						this.recordTerminalError(result.text, "result");
+						return { ...result, messages: this.conversation.getMessages() };
+					}
+					this.pendingTerminalError = undefined;
+					return result;
+				},
+				(error: unknown) => {
+					this.recordTerminalError(
+						error instanceof Error ? error.message : String(error),
+						"thrown",
+					);
+					throw error;
+				},
+			)
+			.finally(() => {
+				if (this.activeRunPromise === activePromise) {
+					this.activeRunPromise = null;
+				}
+			});
 		this.activeRunPromise = activePromise;
 		return activePromise;
+	}
+
+	private recordTerminalError(
+		message: string,
+		source: "result" | "thrown",
+	): void {
+		this.conversation.appendMessage({
+			id: `error_${crypto.randomUUID()}`,
+			role: "assistant",
+			content: [{ type: "text", text: message }],
+			ts: Date.now(),
+			metadata: { displayOnly: true, displayRole: "error" },
+			modelInfo: { id: this.config.modelId, provider: this.config.providerId },
+		});
+		const event = this.pendingTerminalError;
+		this.pendingTerminalError = undefined;
+		this.emitLegacyEvent(
+			event?.error.message === message
+				? event
+				: {
+						type: "error",
+						error: new Error(message),
+						recoverable: false,
+						iteration: 0,
+					},
+		);
+		// Count terminal visible failures without collecting provider error text,
+		// prompts, credentials, or transcript content.
+		try {
+			captureSessionErrorRecorded(this.telemetry, {
+				sessionId: this.config.sessionId,
+				provider: this.config.providerId,
+				model: this.config.modelId,
+				source,
+			});
+		} catch {
+			// Telemetry must not prevent the transcript from being returned/saved.
+		}
 	}
 
 	/**
@@ -823,7 +899,11 @@ export class SessionRuntime {
 				input.userFiles,
 				this.config.userFileContentLoader,
 			);
-			this.conversation.appendMessage({ role: "user", content });
+			this.conversation.appendMessage({
+				id: crypto.randomUUID(),
+				role: "user",
+				content,
+			});
 		}
 
 		// Build the AgentRuntime for this turn.
@@ -1257,6 +1337,11 @@ export class SessionRuntime {
 				break;
 		}
 		for (const legacy of this.eventAdapter.translate(event)) {
+			if (legacy.type === "error" && !legacy.recoverable) {
+				// Auth retry is an internal attempt, not a terminal public failure.
+				this.pendingTerminalError = legacy;
+				continue;
+			}
 			this.emitLegacyEvent(legacy);
 		}
 	}
@@ -1410,9 +1495,7 @@ export class SessionRuntime {
 					totalCost: runResult.usage.totalCost,
 				}
 			: this.currentRunUsage;
-		const messages = runResult
-			? agentMessagesToMessagesWithMetadata(runResult.messages)
-			: this.conversation.getMessages();
+		const messages = this.conversation.getMessages();
 		const modelInfo = tryGetModelInfo(this.config);
 		if (thrownError) {
 			throw thrownError;

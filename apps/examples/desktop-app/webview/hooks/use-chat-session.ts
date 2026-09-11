@@ -14,8 +14,8 @@ import {
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
-	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
+import { canReplaceFailedTurn } from "@/hooks/chat-session/history-reconciliation";
 import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
@@ -44,6 +44,7 @@ import {
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import { formatRunError } from "@/lib/run-error";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -588,24 +589,7 @@ export function useChatSession() {
 		(sid: string, detail: string) => {
 			const description =
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
-			// Deliberately avoids matching a bare "token": provider failures like
-			// "maximum context tokens exceeded" or rate-limit messages are not
-			// credential problems and must not point users at Settings → Models.
-			const looksCredentialRelated =
-				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
-					description,
-				);
-			const content = [
-				description
-					? `The run failed: ${description}`
-					: "The run failed before a response was produced.",
-				looksCredentialRelated
-					? resolveCredentialFailureHint(providerIdRef.current)
-					: "",
-			]
-				.filter(Boolean)
-				.join(" ");
+			const content = formatRunError(description, providerIdRef.current);
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
@@ -614,39 +598,32 @@ export function useChatSession() {
 				if (last?.role === "error") {
 					return prev;
 				}
-				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
+				return sliceMessages([
+					...prev,
+					{
+						...makeErrorChatMessage(sid, content),
+						meta: { providerId: providerIdRef.current },
+					},
+				]);
 			});
 			setError(content);
 		},
 		[],
 	);
 
-	// Persisted history never contains UI-only error bubbles, so replacing the
-	// transcript with canonical messages wholesale would silently erase a
-	// failure explanation appended from chat_done moments earlier. Re-append
-	// the session's error messages after the canonical history — but only the
-	// ones still at the tail of the transcript (explaining the most recent
-	// turn). Re-pinning every historical error would resurface failures from
-	// long-completed turns at the bottom, out of chronological order, on
-	// every hydration.
+	// Keep a live failure while persistence catches up. Once canonical history
+	// contains the failed turn's error, it replaces the temporary UI bubble.
 	const applyCanonicalHistory = useCallback(
 		(sid: string, historyMessages: ChatMessage[]) => {
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
 				);
-				let tailErrorStart = sessionMessages.length;
-				while (
-					tailErrorStart > 0 &&
-					sessionMessages[tailErrorStart - 1]?.role === "error"
-				) {
-					tailErrorStart -= 1;
-				}
-				const preservedErrors = sessionMessages.slice(tailErrorStart);
-				if (preservedErrors.length === 0) {
-					return historyMessages;
-				}
-				return sliceMessages([...historyMessages, ...preservedErrors]);
+				// Keep the entire live turn, including partial assistant/tool output,
+				// until canonical history contains this run's terminal error.
+				if (!canReplaceFailedTurn(sessionMessages, historyMessages))
+					return prev;
+				return historyMessages;
 			});
 		},
 		[],
@@ -697,7 +674,10 @@ export function useChatSession() {
 						}
 						if (
 							historyMessages.length === 0 ||
-							!historyMessages.some((message) => message.role === "assistant")
+							!historyMessages.some(
+								(message) =>
+									message.role === "assistant" || message.role === "error",
+							)
 						) {
 							// Persistence has not caught up: keep the live state
 							// rather than wiping it with an incomplete transcript.

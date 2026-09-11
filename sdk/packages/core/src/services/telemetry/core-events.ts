@@ -50,6 +50,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	SESSION: {
 		STARTED: "session.started",
 		ENDED: "session.ended",
+		ERROR_RECORDED: "session.error_recorded",
 	},
 	AGENT: {
 		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
@@ -881,6 +882,19 @@ export function captureCompactionBudgetEmergency(
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
+}
+
+/** A terminal failure was recorded as a display-only transcript entry. */
+export function captureSessionErrorRecorded(
+	telemetry: ITelemetryService | undefined,
+	details: {
+		sessionId?: string;
+		provider: string;
+		model: string;
+		source: "result" | "thrown";
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.SESSION.ERROR_RECORDED, details);
 }
 
 /** Bounded scheduler diagnostics; never include prompts, paths, or raw errors. */
