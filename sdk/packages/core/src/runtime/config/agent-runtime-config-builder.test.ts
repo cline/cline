@@ -135,6 +135,13 @@ describe("createAgentRuntimeConfig", () => {
 			providerId: "openai",
 			modelId: "gpt-4o",
 			providerConfig: { family: "gpt-4" },
+			knownModels: {
+				"gpt-4o": {
+					id: "gpt-4o",
+					contextWindow: 128000,
+					maxInputTokens: 128000,
+				},
+			},
 			thinking: true,
 			reasoningEffort: "high",
 			maxIterations: 7,
@@ -171,6 +178,8 @@ describe("createAgentRuntimeConfig", () => {
 			id: "gpt-4o",
 			provider: "openai",
 			family: "gpt-4",
+			contextWindow: 128000,
+			maxInputTokens: 128000,
 		});
 		expect(runtimeConfig.modelOptions).toEqual({
 			thinking: true,

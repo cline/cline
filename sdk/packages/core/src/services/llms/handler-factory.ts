@@ -112,8 +112,9 @@ export function resolveKnownModelsFromConfig(
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
 	// model's context window):
-	//  - `maxInputTokens` is where `ProviderSettings.contextWindow` lands via
-	//    `toProviderConfig` (the providers.json path used by CLI/Core hosts).
+	//  - `providerConfig.maxInputTokens` is where `ProviderSettings.contextWindow`
+	//    lands via `toProviderConfig`. Overlay that onto ModelInfo.contextWindow
+	//    only; do not stamp it onto ModelInfo.maxInputTokens (catalog prompt budget).
 	//  - `modelInfo` is an explicit per-model override (the VS Code path);
 	//    it wins over the generic limit.
 	const configuredContextWindow = readPositiveInteger(pc?.maxInputTokens);
@@ -129,10 +130,7 @@ export function resolveKnownModelsFromConfig(
 		[config.modelId]: {
 			...knownModels?.[config.modelId],
 			...(configuredContextWindow !== undefined
-				? {
-						contextWindow: configuredContextWindow,
-						maxInputTokens: configuredContextWindow,
-					}
+				? { contextWindow: configuredContextWindow }
 				: {}),
 			...modelInfo,
 			id: config.modelId,
