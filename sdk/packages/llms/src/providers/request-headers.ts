@@ -21,6 +21,8 @@ export interface OpenAICodexRequestHeaderContext {
 	userAgentVersion?: string;
 }
 
+const LITELLM_TRACE_ID_HEADER = "x-litellm-trace-id";
+
 export interface ResolveProviderRequestHeadersInput {
 	providerId: string;
 	sessionId: string;
@@ -133,12 +135,37 @@ function buildOpenAICodexRequestHeaders(
 	};
 }
 
+function buildOpenAICompatibleRequestHeaders(
+	input: ResolveProviderRequestHeadersInput,
+): Record<string, string> | undefined {
+	if (input.providerId !== "openai-compatible") {
+		return undefined;
+	}
+	return { [LITELLM_TRACE_ID_HEADER]: input.sessionId };
+}
+
 function resolveRequiredProviderHeaders(
 	input: ResolveProviderRequestHeadersInput,
 ): Record<string, string> | undefined {
 	return (
-		buildClineRequestHeaders(input) ?? buildOpenAICodexRequestHeaders(input)
+		buildClineRequestHeaders(input) ??
+		buildOpenAICodexRequestHeaders(input) ??
+		buildOpenAICompatibleRequestHeaders(input)
 	);
+}
+
+function removeLiteLLMTraceIdOverrides(
+	providerId: string,
+	headers: Record<string, string>,
+): void {
+	if (providerId !== "openai-compatible") {
+		return;
+	}
+	for (const key of Object.keys(headers)) {
+		if (key.toLowerCase() === LITELLM_TRACE_ID_HEADER) {
+			delete headers[key];
+		}
+	}
 }
 
 function resolveDefaultProviderHeaders(
@@ -152,10 +179,14 @@ export function resolveProviderRequestHeaders(
 ): Record<string, string> | undefined {
 	const requiredHeaders = resolveRequiredProviderHeaders(input);
 	if (requiredHeaders) {
-		return {
+		const inheritedHeaders = {
 			...(input.headers?.stored ?? {}),
 			...(input.headers?.config ?? {}),
 			...(input.headers?.session ?? {}),
+		};
+		removeLiteLLMTraceIdOverrides(input.providerId, inheritedHeaders);
+		return {
+			...inheritedHeaders,
 			...requiredHeaders,
 		};
 	}
