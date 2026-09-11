@@ -271,13 +271,8 @@ export default function Home() {
 		useState<OnboardingStep>("welcome");
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
-	const navigationRef = useRef(navigation.current);
-	navigationRef.current = navigation.current;
-	const threadsRef = useRef(threads);
-	threadsRef.current = threads;
 
 	const navigate = useCallback((destination: AppLocation) => {
-		navigationRef.current = destination;
 		dispatchApp({ type: "navigate", destination });
 	}, []);
 	const navigateWith = useCallback(
@@ -287,15 +282,11 @@ export default function Home() {
 		[navigate, navigation.current],
 	);
 	const handleNavigateBack = useCallback(() => {
-		const destination = navigation.back.at(-1);
-		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "back" });
-	}, [navigation.back]);
+	}, []);
 	const handleNavigateForward = useCallback(() => {
-		const destination = navigation.forward[0];
-		if (destination) navigationRef.current = destination;
 		dispatchApp({ type: "forward" });
-	}, [navigation.forward]);
+	}, []);
 
 	useAppUpdate();
 
@@ -328,13 +319,7 @@ export default function Home() {
 	useEffect(() => watchDesktopNotifications(), []);
 
 	const handleNewThread = useCallback(() => {
-		const threadId = makeThreadId();
-		navigationRef.current = {
-			...navigationRef.current,
-			activeThreadId: threadId,
-			view: "chat",
-		};
-		dispatchApp({ type: "new-thread", threadId });
+		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
 		requestPromptInputFocus();
 	}, []);
 
@@ -354,11 +339,6 @@ export default function Home() {
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
-			navigationRef.current = {
-				...navigationRef.current,
-				activeThreadId: `session_${session.sessionId}`,
-				view: "chat",
-			};
 			dispatchApp({ type: "open-session", session, initialPromptDraft });
 		},
 		[],
@@ -366,22 +346,11 @@ export default function Home() {
 
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
-			const fallbackThreadId = makeThreadId();
-			if (
-				navigationRef.current.activeThreadId === deletedThreadId ||
-				navigationRef.current.activeThreadId === `session_${deletedSessionId}`
-			) {
-				navigationRef.current = {
-					...navigationRef.current,
-					activeThreadId: fallbackThreadId,
-					view: "chat",
-				};
-			}
 			dispatchApp({
 				type: "delete-session",
 				deletedSessionId,
 				deletedThreadId,
-				fallbackThreadId,
+				fallbackThreadId: makeThreadId(),
 			});
 		},
 		[],
@@ -483,22 +452,13 @@ export default function Home() {
 		sessionHistoryRef.current = sessionHistory.sessions;
 	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
-		async (
-			sessionId: string,
-			options: { silent?: boolean; expectedActiveThreadId?: string } = {},
-		): Promise<boolean> => {
-			const stillExpectedThread = () =>
-				!options.expectedActiveThreadId ||
-				(navigationRef.current.view === "chat" &&
-					navigationRef.current.activeThreadId ===
-						options.expectedActiveThreadId);
+		async (sessionId: string): Promise<void> => {
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
-				if (!stillExpectedThread()) return false;
 				handleOpenSession(cachedSession);
-				return true;
+				return;
 			}
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
@@ -508,20 +468,15 @@ export default function Home() {
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
-				if (!stillExpectedThread()) return false;
 				handleOpenSession(session);
-				return true;
 			} catch (error) {
-				if (!options.silent) {
-					toast({
-						title: "Unable to open run",
-						description: humanizeCloudSessionError(
-							error instanceof Error ? error.message : String(error),
-						),
-						variant: "destructive",
-					});
-				}
-				return false;
+				toast({
+					title: "Unable to open run",
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
+					variant: "destructive",
+				});
 			}
 		},
 		[handleOpenSession],
@@ -655,9 +610,7 @@ export default function Home() {
 									<div className="absolute inset-0 z-30 bg-background text-foreground">
 										<SettingsView
 											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={async (sessionId) => {
-												await handleOpenSessionById(sessionId);
-											}}
+											onOpenSession={handleOpenSessionById}
 											section={settingsSection}
 										/>
 									</div>
@@ -731,10 +684,7 @@ function ChatThreadPane({
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
 	) => void;
-	onOpenSessionById?: (
-		sessionId: string,
-		options?: { silent?: boolean; expectedActiveThreadId?: string },
-	) => boolean | Promise<boolean>;
+	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
@@ -1959,13 +1909,7 @@ function ChatThreadPane({
 								agentsLoading={agentsLoading}
 								onAgentsOpenChange={setAgentPanelOpen}
 								onOpenAgentSession={onOpenAgentSession}
-								onOpenParentSession={
-									onOpenSessionById
-										? async (parentSessionId) => {
-												await onOpenSessionById(parentSessionId);
-											}
-										: undefined
-								}
+								onOpenParentSession={onOpenSessionById}
 								parentSession={hideDeletedSessionUi ? undefined : parentSession}
 								canEditTitle={Boolean(activeSessionForTitle)}
 								canDeleteSession={Boolean(activeSessionToDelete)}
@@ -2054,13 +1998,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={
-						onOpenSessionById
-							? async (sessionId) => {
-									await onOpenSessionById(sessionId);
-								}
-							: undefined
-					}
+					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}

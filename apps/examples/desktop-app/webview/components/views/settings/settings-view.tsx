@@ -704,8 +704,8 @@ function GeneralSettingsContent({
 	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
 		boolean | null
 	>(null);
-	// Default visible until the rollout flag loads to avoid flicker.
-	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(true);
+	// Keep the preview hidden until the rollout service explicitly enables it.
+	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(false);
 	const cloudSessionsSettingVisible = cloudSessionsAvailable;
 
 	const refreshCloudSessionsEffective = useCallback(async () => {
@@ -715,9 +715,10 @@ function GeneralSettingsContent({
 				cloudAgentsAvailable?: boolean;
 			}>("get_feature_flags");
 			setCloudSessionsEffective(Boolean(flags.cloudAgents));
-			setCloudSessionsAvailable(flags.cloudAgentsAvailable !== false);
+			setCloudSessionsAvailable(flags.cloudAgentsAvailable === true);
 		} catch {
 			setCloudSessionsEffective(null);
+			setCloudSessionsAvailable(false);
 		}
 	}, []);
 	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
