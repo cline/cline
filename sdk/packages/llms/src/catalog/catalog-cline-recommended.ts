@@ -5,9 +5,11 @@ export interface ClineRecommendedModelEntry {
 	id: string;
 	name?: string;
 	description?: string;
+	tags?: string[];
 }
 
 export interface ClineRecommendedModelsPayload {
+	recommended?: ClineRecommendedModelEntry[];
 	clinePass?: ClineRecommendedModelEntry[];
 	free?: ClineRecommendedModelEntry[];
 	clineCloud?: ClineRecommendedModelEntry[];
@@ -85,6 +87,7 @@ export function normalizeClineRecommendedProviderModels(
 			// We should use the OR name, unless there is not one (like when using defaults)
 			name: entry.name,
 			...capabilities,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			id: entry.id,
 			description: entry.description,
 		};
@@ -104,9 +107,11 @@ export function normalizeClineRecommendedProviderModels(
 		// pickers end up rendering raw model ids for the Free section.
 		const entryName =
 			capabilities.name?.trim() || entry.name?.trim() || entry.id;
-		const name = entry.id.startsWith("cline-free/")
-			? `${entryName} (free)`
-			: entryName;
+		// The feed bucket determines free access, regardless of the ID namespace.
+		// Keep this visible even when a client has no featured-tier metadata.
+		const name = /\(free\)$/i.test(entryName)
+			? entryName
+			: `${entryName} (free)`;
 
 		const modelInfo = {
 			...capabilities,

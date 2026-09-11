@@ -3,12 +3,14 @@ import type {
 	BasicLogger,
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
+	ITelemetryService,
 } from "@cline/shared";
 import { buildClineSystemPrompt } from "@cline/shared";
 import { nowIso } from "@cline/shared/db";
 import type { ResolveCronSpecsDirOptions } from "@cline/shared/storage";
 import { DefaultToolNames } from "../../extensions/tools/constants";
 import { mergeRulesForSystemPrompt } from "../../runtime/safety/rules";
+import { captureScheduleRun } from "../../services/telemetry/core-events";
 import { buildWorkspaceMetadata } from "../../services/workspace/workspace-manifest";
 import { writeCronRunReport } from "../reports/cron-report-writer";
 import type { HubScheduleRuntimeHandlers } from "../service/schedule-service";
@@ -20,7 +22,6 @@ import type {
 	SqliteCronStore,
 } from "../store/sqlite-cron-store";
 import type { CronMaterializer } from "./cron-materializer";
-import { ResourceLimiter } from "./resource-limiter";
 
 /**
  * Trigger-agnostic runner for queued cron runs.
@@ -30,6 +31,27 @@ import { ResourceLimiter } from "./resource-limiter";
  * command adapter), persists status transitions transactionally,
  * and writes a markdown report per completion/failure.
  */
+
+const CLEANUP_TIMEOUT_MS = 5_000;
+
+class RunCancelledError extends Error {}
+
+async function withCancellation<T>(
+	promise: Promise<T>,
+	signal: AbortSignal,
+): Promise<T> {
+	let onAbort: () => void = () => {};
+	const cancelled = new Promise<never>((_, reject) => {
+		onAbort = () => reject(signal.reason);
+		if (signal.aborted) onAbort();
+		else signal.addEventListener("abort", onAbort, { once: true });
+	});
+	try {
+		return await Promise.race([promise, cancelled]);
+	} finally {
+		signal.removeEventListener("abort", onAbort);
+	}
+}
 
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 const DEFAULT_CLAIM_LEASE_SECONDS = 90;
@@ -162,6 +184,7 @@ export interface CronRunnerOptions {
 	/** Cron spec source/report location. Defaults to global `~/.cline/cron`. */
 	specs?: ResolveCronSpecsDirOptions;
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 	pollIntervalMs?: number;
 	claimLeaseSeconds?: number;
 	globalMaxConcurrency?: number;
@@ -171,7 +194,6 @@ export class CronRunner {
 	private readonly store: SqliteCronStore;
 	private readonly materializer: CronMaterializer;
 	private readonly options: CronRunnerOptions;
-	private readonly limiter: ResourceLimiter;
 	private readonly claimLeaseMs: number;
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private started = false;
@@ -180,14 +202,15 @@ export class CronRunner {
 	private stopping = false;
 	private readonly activeRuns = new Map<
 		string,
-		{ claimToken: string; sessionId?: string }
+		{ claimToken: string; sessionId?: string; controller: AbortController }
 	>();
+
+	private readonly executions = new Set<Promise<void>>();
 
 	constructor(options: CronRunnerOptions) {
 		this.store = options.store;
 		this.materializer = options.materializer;
 		this.options = options;
-		this.limiter = new ResourceLimiter(options.globalMaxConcurrency ?? 10);
 		this.claimLeaseMs = Math.max(
 			5_000,
 			(options.claimLeaseSeconds ?? DEFAULT_CLAIM_LEASE_SECONDS) * 1000,
@@ -203,40 +226,23 @@ export class CronRunner {
 			2_000,
 			this.options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
 		);
-		await this.tick();
 		this.timer = setInterval(() => void this.tick(), interval);
+		void this.tick();
 	}
 
 	public async stop(): Promise<void> {
-		const wasStarted = this.started;
 		this.started = false;
 		this.stopping = true;
 		if (this.timer) {
 			clearInterval(this.timer);
 			this.timer = undefined;
 		}
-		if (!wasStarted) return;
-		const active = [...this.activeRuns.entries()];
-		await Promise.all(
-			active.map(async ([runId, run]) => {
-				if (run.sessionId) {
-					try {
-						await this.options.runtimeHandlers.abortSession(run.sessionId);
-					} catch {
-						// best effort
-					}
-				}
-				try {
-					this.store.requeueRun({
-						runId,
-						claimToken: run.claimToken,
-						error: "runner stopped before completion",
-					});
-				} catch {
-					// best effort
-				}
-			}),
-		);
+		for (const active of this.activeRuns.values()) {
+			active.controller.abort(
+				new RunCancelledError("runner stopped before completion"),
+			);
+		}
+		await Promise.allSettled([...this.executions]);
 	}
 
 	public async dispose(): Promise<void> {
@@ -246,15 +252,37 @@ export class CronRunner {
 	}
 
 	public async tick(): Promise<void> {
-		if (this.ticking) return;
+		if (this.ticking || this.stopping || this.disposed) return;
 		this.ticking = true;
+		let executions: Promise<void>[] = [];
 		try {
+			// After system sleep, polling may resume before lease heartbeats.
+			// Renew locally active claims before looking for expired work so a
+			// live session is not reclaimed and started a second time.
+			const leaseUntilAt = new Date(
+				Date.now() + this.claimLeaseMs,
+			).toISOString();
+			for (const [runId, active] of this.activeRuns) {
+				if (!this.store.renewClaim(runId, active.claimToken, leaseUntilAt)) {
+					active.controller.abort(new RunCancelledError("run lease lost"));
+				}
+			}
 			this.materializer.materializeAll();
 			const claims = this.store.claimDueRuns({
 				nowIso: nowIso(),
 				leaseMs: this.claimLeaseMs,
+				maxConcurrency: this.options.globalMaxConcurrency ?? 10,
 			});
-			await Promise.allSettled(claims.map((claim) => this.executeClaim(claim)));
+			executions = claims.map((claim) => {
+				const execution = this.executeClaim(claim).catch((error) => {
+					this.options.logger?.error?.("cron.runner.execution.failed", {
+						error,
+					});
+				});
+				this.executions.add(execution);
+				void execution.then(() => this.executions.delete(execution));
+				return execution;
+			});
 		} catch (err) {
 			const log = this.options.logger;
 			if (log) {
@@ -264,6 +292,9 @@ export class CronRunner {
 		} finally {
 			this.ticking = false;
 		}
+		// Only serialize queue dispatch. Agent turns can outlive many polls;
+		// waiting for one batch must not prevent unrelated schedules dispatching.
+		await Promise.allSettled(executions);
 	}
 
 	public getActiveRuns(): Array<
@@ -271,7 +302,15 @@ export class CronRunner {
 	> {
 		return [...this.activeRuns.entries()].flatMap(([runId, active]) => {
 			const run = this.store.getRun(runId);
-			return run ? [{ ...run, ...active }] : [];
+			return run
+				? [
+						{
+							...run,
+							claimToken: active.claimToken,
+							sessionId: active.sessionId,
+						},
+					]
+				: [];
 		});
 	}
 
@@ -295,61 +334,96 @@ export class CronRunner {
 			return;
 		}
 
-		const maxParallel =
-			spec.maxParallel && spec.maxParallel > 0 ? spec.maxParallel : 1;
-		const acquired = this.limiter.acquire(spec.specId, run.runId, maxParallel);
-		if (!acquired) {
-			this.store.requeueRun({
-				runId: run.runId,
-				claimToken: claim.claimToken,
-				error: "concurrency limit reached",
-			});
-			return;
-		}
 		if (this.stopping) {
-			this.limiter.release(spec.specId, run.runId);
 			this.store.requeueRun({
 				runId: run.runId,
 				claimToken: claim.claimToken,
-				error: "runner stopped before execution",
+				releaseAttempt: true,
 			});
 			return;
 		}
 
-		this.activeRuns.set(run.runId, { claimToken: claim.claimToken });
+		const controller = new AbortController();
+		const { signal } = controller;
+		this.activeRuns.set(run.runId, {
+			claimToken: claim.claimToken,
+			controller,
+		});
 		const triggerEvent = run.triggerEventId
 			? this.store.getEventLog(run.triggerEventId)
 			: undefined;
 		let sessionId: string | undefined;
+		let sessionCleaned = false;
 		let releaseLeaseHeartbeat: (() => void) | undefined;
 		const startMs = Date.now();
-		let executionDeadlineMs: number | undefined;
+		const runMetrics = {
+			triggerKind: run.triggerKind,
+			attemptCount: run.attemptCount,
+			startDelayMs: Math.max(
+				0,
+				startMs - new Date(run.scheduledFor ?? run.createdAt).getTime(),
+			),
+		};
+		captureScheduleRun(this.options.telemetry, {
+			...runMetrics,
+			phase: "started",
+		});
+		const deadlineAt =
+			spec.timeoutSeconds && spec.timeoutSeconds > 0
+				? startMs + spec.timeoutSeconds * 1000
+				: undefined;
+		const checkActive = () => {
+			// After sleep, a promise may resume before an overdue timeout callback.
+			if (deadlineAt !== undefined && Date.now() >= deadlineAt) {
+				controller.abort(new TimeoutError("cron run timed out"));
+			}
+			signal.throwIfAborted();
+		};
+		let deadline: ReturnType<typeof setTimeout> | undefined;
 		if (spec.timeoutSeconds && spec.timeoutSeconds > 0) {
-			executionDeadlineMs = startMs + spec.timeoutSeconds * 1000;
+			deadline = setTimeout(
+				() => controller.abort(new TimeoutError("cron run timed out")),
+				spec.timeoutSeconds * 1000,
+			);
 		}
 
 		let phase = "preparing the session request";
 		try {
 			releaseLeaseHeartbeat = this.startClaimLeaseHeartbeat(claim);
-			const startRequest = await this.buildStartRequest(spec);
+			const startRequest = await withCancellation(
+				this.buildStartRequest(spec),
+				signal,
+			);
+			checkActive();
 			phase = "starting the agent session";
-			const startResp = await this.options.runtimeHandlers.startSession(
-				startRequest,
-				{
+			const startup = this.options.runtimeHandlers
+				.startSession(startRequest, {
 					sessionMetadata: buildRunSessionMetadata(
 						spec,
 						run,
 						this.store.getRunOrdinal(run.runId),
 					),
-				},
-			);
-			sessionId = startResp.sessionId.trim();
+				})
+				.then(async (response) => {
+					// Late responses must not touch the store or dispatch a turn after cancellation.
+					if (signal.aborted)
+						await this.cleanupSession(response.sessionId, true);
+					else sessionId = response.sessionId.trim();
+				});
+			await withCancellation(startup, signal);
+			checkActive();
 			if (!sessionId) throw new Error("runtime returned empty sessionId");
 			this.activeRuns.set(run.runId, {
 				claimToken: claim.claimToken,
+				controller,
 				sessionId,
 			});
-			this.store.attachSessionIdToRun(run.runId, sessionId);
+			if (
+				!this.store.attachSessionIdToRun(run.runId, sessionId, claim.claimToken)
+			) {
+				controller.abort(new RunCancelledError("run lease lost"));
+				checkActive();
+			}
 
 			phase = "running the agent turn";
 			const turnRequest: ChatRunTurnRequest = {
@@ -360,14 +434,28 @@ export class CronRunner {
 				sessionId,
 				turnRequest,
 			);
-			const timeoutMs = executionDeadlineMs
-				? Math.max(1, executionDeadlineMs - Date.now())
-				: 0;
-			const sendResult = await withTimeout(sendPromise, timeoutMs);
+			const sendResult = await withCancellation(sendPromise, signal);
+			checkActive();
 			const result = sendResult.result as HubTurnResult;
 
 			const endMs = Date.now();
-			const reportPath = writeCronRunReport({
+			const completed = this.store.completeRun(run.runId, {
+				status: "done",
+				sessionId,
+				claimToken: claim.claimToken,
+			});
+			if (!completed) {
+				captureScheduleRun(this.options.telemetry, {
+					...runMetrics,
+					phase: "finished",
+					outcome: "superseded",
+					durationMs: Math.max(0, endMs - startMs),
+				});
+				return;
+			}
+			if (run.triggerKind === "one_off")
+				this.store.updateSpecNextRunAt(spec.specId, undefined);
+			const reportPath = this.writeReport({
 				specs: this.options.specs,
 				workspaceRoot: this.options.workspaceRoot,
 				run: { ...run, sessionId, status: "done" },
@@ -380,11 +468,12 @@ export class CronRunner {
 					triggerEvent,
 				},
 			});
-			this.store.completeRun(run.runId, {
-				status: "done",
-				sessionId,
-				reportPath,
-				claimToken: claim.claimToken,
+			if (reportPath) this.store.attachReportPathToRun(run.runId, reportPath);
+			captureScheduleRun(this.options.telemetry, {
+				...runMetrics,
+				phase: "finished",
+				outcome: "success",
+				durationMs: Math.max(0, endMs - startMs),
 			});
 			this.publishScheduleExecutionEvent(
 				"schedule.execution.completed",
@@ -394,22 +483,39 @@ export class CronRunner {
 			this.store.updateSpecLastRunAt(spec.specId, nowIso());
 		} catch (err) {
 			const isTimeout = err instanceof TimeoutError;
-			if (sessionId && isTimeout) {
-				try {
-					await this.options.runtimeHandlers.abortSession(sessionId);
-				} catch {
-					// best effort
-				}
+			if (sessionId && signal.aborted) {
+				await this.cleanupSession(sessionId, true);
+				sessionCleaned = true;
 			}
 			const message = err instanceof Error ? err.message : String(err);
 			const endMs = Date.now();
 			const errorContext = isTimeout
-				? `The run exceeded its ${spec.timeoutSeconds}s timeout while ${phase} and was aborted:`
-				: `The run failed while ${phase}:`;
-			const reportPath = writeCronRunReport({
+				? `The run exceeded its ${spec.timeoutSeconds}s timeout while ${phase} and was cancelled:`
+				: err instanceof RunCancelledError
+					? `The run was cancelled while ${phase}:`
+					: `The run failed while ${phase}:`;
+			const status = err instanceof RunCancelledError ? "cancelled" : "failed";
+			const completed = this.store.completeRun(run.runId, {
+				status,
+				sessionId,
+				error: message,
+				claimToken: claim.claimToken,
+			});
+			if (!completed) {
+				captureScheduleRun(this.options.telemetry, {
+					...runMetrics,
+					phase: "finished",
+					outcome: "superseded",
+					durationMs: Math.max(0, endMs - startMs),
+				});
+				return;
+			}
+			if (run.triggerKind === "one_off")
+				this.store.updateSpecNextRunAt(spec.specId, undefined);
+			const reportPath = this.writeReport({
 				specs: this.options.specs,
 				workspaceRoot: this.options.workspaceRoot,
-				run: { ...run, sessionId, status: "failed" },
+				run: { ...run, sessionId, status },
 				spec,
 				data: {
 					error: message,
@@ -418,12 +524,17 @@ export class CronRunner {
 					triggerEvent,
 				},
 			});
-			this.store.completeRun(run.runId, {
-				status: "failed",
-				sessionId,
-				reportPath,
-				error: message,
-				claimToken: claim.claimToken,
+			if (reportPath) this.store.attachReportPathToRun(run.runId, reportPath);
+			captureScheduleRun(this.options.telemetry, {
+				...runMetrics,
+				phase: "finished",
+				outcome:
+					status === "cancelled"
+						? "cancelled"
+						: isTimeout
+							? "timeout"
+							: "failed",
+				durationMs: Math.max(0, endMs - startMs),
 			});
 			this.publishScheduleExecutionEvent(
 				"schedule.execution.failed",
@@ -431,19 +542,48 @@ export class CronRunner {
 				run.runId,
 			);
 		} finally {
-			if (run.triggerKind === "one_off") {
-				this.store.updateSpecNextRunAt(spec.specId, undefined);
-			}
+			if (deadline) clearTimeout(deadline);
 			releaseLeaseHeartbeat?.();
-			if (sessionId) {
-				try {
-					await this.options.runtimeHandlers.stopSession(sessionId);
-				} catch {
-					// best effort
-				}
-			}
+			if (sessionId && !sessionCleaned)
+				await this.cleanupSession(sessionId, signal.aborted);
+
 			this.activeRuns.delete(run.runId);
-			this.limiter.release(spec.specId, run.runId);
+		}
+	}
+
+	private writeReport(
+		input: Parameters<typeof writeCronRunReport>[0],
+	): string | undefined {
+		try {
+			return writeCronRunReport(input);
+		} catch (error) {
+			this.options.logger?.error?.("cron.runner.report.failed", {
+				runId: input.run.runId,
+				error,
+			});
+			return undefined;
+		}
+	}
+
+	private async cleanupSession(
+		sessionId: string,
+		abort: boolean,
+	): Promise<void> {
+		for (const action of abort
+			? (["abortSession", "stopSession"] as const)
+			: (["stopSession"] as const)) {
+			try {
+				await withTimeout(
+					this.options.runtimeHandlers[action](sessionId),
+					CLEANUP_TIMEOUT_MS,
+				);
+			} catch (error) {
+				this.options.logger?.error?.("cron.runner.cleanup.failed", {
+					sessionId,
+					action,
+					error,
+				});
+			}
 		}
 	}
 
@@ -516,6 +656,9 @@ export class CronRunner {
 			);
 			if (!renewed) {
 				clearInterval(interval);
+				this.activeRuns
+					.get(claim.run.runId)
+					?.controller.abort(new RunCancelledError("run lease lost"));
 			}
 		}, heartbeatMs);
 		return () => clearInterval(interval);
