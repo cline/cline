@@ -549,3 +549,371 @@ describe("useSessionHistory complete history loading", () => {
 		expect(current.mayHaveMoreSessions).toBe(false);
 	});
 });
+
+describe("useSessionHistory usage hydration", () => {
+	// Distinct timestamps so the sorted list is session-0, session-1, ... and
+	// index-based assertions read naturally.
+	function usageRow(index: number) {
+		const startedAt = new Date(
+			Date.UTC(2026, 6, 20, 10, 0, 0) - index * 60_000,
+		);
+		return {
+			...sessionRow(`session-${index}`),
+			startedAt: startedAt.toISOString(),
+			endedAt: new Date(startedAt.getTime() + 30_000).toISOString(),
+		};
+	}
+
+	function usageMessages(inputTokens: number) {
+		return [
+			{
+				id: "m1",
+				role: "assistant",
+				content: "done",
+				meta: { inputTokens, outputTokens: 5, totalCost: 0.01 },
+			},
+		];
+	}
+
+	type ReadArgs = { limit?: number; sessionId?: string; maxMessages?: number };
+
+	/**
+	 * Routes the usage reads (1200 messages) to the test. The 80-message
+	 * title/status reads get a real assistant turn back so they do not flip
+	 * statuses to "idle" and retrigger usage reads for those rows.
+	 */
+	function mockUsageReads(
+		onUsageRead: (sessionId: string) => unknown[] | Promise<unknown[]>,
+	) {
+		invokeMock.mockImplementation(async (command: string, args?: ReadArgs) => {
+			if (command === "list_discovered_sessions") {
+				return await new Promise<unknown[]>((resolve, reject) => {
+					pendingLists.push({ limit: args?.limit ?? 0, resolve, reject });
+				});
+			}
+			if (command === "read_session_messages") {
+				if (args?.maxMessages === 1200) {
+					return await onUsageRead(args?.sessionId ?? "");
+				}
+				return usageMessages(0);
+			}
+			return [];
+		});
+	}
+
+	/** Lets the invoke → summarize → setThreads → finally → pump chain settle. */
+	async function settle() {
+		for (let i = 0; i < 8; i += 1) {
+			await flush();
+		}
+	}
+
+	async function renderWithRows(count: number) {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				Array.from({ length: count }, (_, index) => usageRow(index)),
+			);
+			await Promise.resolve();
+		});
+	}
+
+	it("hydrates usage for the first ten inactive sessions, not just four", async () => {
+		const usageReads: string[] = [];
+		mockUsageReads((sessionId) => {
+			usageReads.push(sessionId);
+			return usageMessages(100);
+		});
+
+		await renderWithRows(12);
+		expect(current.threads.map((thread) => thread.id)).toEqual(
+			Array.from({ length: 12 }, (_, index) => `session-${index}`),
+		);
+
+		await flush(800);
+		await settle();
+
+		expect(usageReads).toHaveLength(10);
+		expect(usageReads).not.toContain("session-10");
+		expect(usageReads).not.toContain("session-11");
+		expect(current.threads[0]).toMatchObject({
+			inputTokens: 100,
+			outputTokens: 5,
+			totalCostUsd: 0.01,
+		});
+		expect(current.threads[9]).toMatchObject({ inputTokens: 100 });
+		expect(current.threads[10].inputTokens).toBeUndefined();
+		expect(current.threads[11].inputTokens).toBeUndefined();
+	});
+
+	it("hydrates usage on demand for sessions a view asks for", async () => {
+		const usageReads: string[] = [];
+		mockUsageReads((sessionId) => {
+			usageReads.push(sessionId);
+			return usageMessages(7);
+		});
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(usageReads).toHaveLength(10);
+
+		// The second page comes into view: only the rows it asks for are read.
+		await act(async () => {
+			current.requestUsage(["session-11", "  ", "not-a-session"]);
+		});
+		await flush(800);
+		await settle();
+
+		expect(usageReads).toHaveLength(11);
+		expect(usageReads).toContain("session-11");
+		expect(usageReads).not.toContain("session-10");
+		expect(current.threads[11]).toMatchObject({ inputTokens: 7 });
+		expect(current.threads[10].inputTokens).toBeUndefined();
+
+		// Asking again for rows that already have usage is a no-op.
+		await act(async () => {
+			current.requestUsage(["session-0", "session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(usageReads).toHaveLength(11);
+	});
+
+	it("reads at most four transcripts at a time", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		mockUsageReads(
+			() =>
+				new Promise<unknown[]>((resolve) => {
+					pendingReads.push(resolve);
+				}),
+		);
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// Finishing one read lets exactly one more start.
+		await act(async () => {
+			pendingReads[0](usageMessages(1));
+		});
+		await settle();
+		expect(pendingReads).toHaveLength(5);
+
+		// Draining the rest works through the whole window and no further.
+		let resolved = 1;
+		for (
+			let round = 0;
+			round < 6 && resolved < pendingReads.length;
+			round += 1
+		) {
+			const batch = pendingReads.slice(resolved);
+			resolved = pendingReads.length;
+			await act(async () => {
+				for (const resolve of batch) {
+					resolve(usageMessages(1));
+				}
+			});
+			await settle();
+		}
+		expect(pendingReads).toHaveLength(10);
+		expect(
+			current.threads.filter((thread) => thread.inputTokens === 1),
+		).toHaveLength(10);
+	});
+
+	it("keeps the four-read cap when the effect restarts mid-flight", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return new Promise<unknown[]>((resolve) => {
+				pendingReads.push(resolve);
+			});
+		});
+
+		await renderWithRows(12);
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// A page request restarts the effect while four reads are pending. The
+		// restarted run must not add four reads of its own on top of them.
+		await act(async () => {
+			current.requestUsage(["session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(pendingReads).toHaveLength(4);
+
+		// The restarted run still drains as the earlier reads finish.
+		await act(async () => {
+			pendingReads[0](usageMessages(1));
+		});
+		await settle();
+		expect(pendingReads).toHaveLength(5);
+
+		let resolved = 1;
+		for (
+			let round = 0;
+			round < 8 && resolved < pendingReads.length;
+			round += 1
+		) {
+			const batch = pendingReads.slice(resolved);
+			resolved = pendingReads.length;
+			await act(async () => {
+				for (const resolve of batch) {
+					resolve(usageMessages(1));
+				}
+			});
+			await settle();
+		}
+		// Ten default rows plus the requested one, each read exactly once; the
+		// rows the restarted run found in flight were not read again once they
+		// finished, and session-10 was never asked for.
+		expect(pendingReads).toHaveLength(11);
+		expect(new Set(readIds).size).toBe(readIds.length);
+		expect(readIds).not.toContain("session-10");
+		expect(current.threads[10].inputTokens).toBeUndefined();
+		expect(current.threads[11]).toMatchObject({ inputTokens: 1 });
+	});
+
+	it("reads a row again when its status changed while its read was pending", async () => {
+		const pendingReads: Array<(rows: unknown[]) => void> = [];
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return new Promise<unknown[]>((resolve) => {
+				pendingReads.push(resolve);
+			});
+		});
+		const rows = Array.from({ length: 12 }, (_, index) => usageRow(index));
+		const running = { ...rows[3], status: "running", prompt: "long task" };
+
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				rows.map((row, index) => (index === 3 ? running : row)),
+			);
+			await Promise.resolve();
+		});
+		expect(current.threads[3].status).toBe("running");
+		await flush(800);
+		await settle();
+		expect(readIds).toEqual([
+			"session-0",
+			"session-1",
+			"session-2",
+			"session-3",
+		]);
+
+		// The periodic poll reports session-3 finished while its read (started
+		// under "running") is still pending.
+		await flush(12_000);
+		await flush();
+		expect(pendingLists).toHaveLength(2);
+		await act(async () => {
+			pendingLists[1].resolve(
+				rows.map((row, index) =>
+					index === 3 ? { ...running, status: "completed" } : row,
+				),
+			);
+			await Promise.resolve();
+		});
+		expect(current.threads[3].status).toBe("completed");
+		await flush(800);
+		await settle();
+		// Still four in flight: the restarted run neither stacks a second read
+		// of session-3 on the pending one nor forgets the row.
+		expect(pendingReads).toHaveLength(4);
+
+		// The stale read finishes: session-3 is read again, once, before the
+		// rows that have not been read at all.
+		await act(async () => {
+			pendingReads[3](usageMessages(1));
+		});
+		await settle();
+		expect(readIds.slice(4)).toEqual(["session-3"]);
+		expect(pendingReads).toHaveLength(5);
+
+		await act(async () => {
+			pendingReads[4](usageMessages(2));
+		});
+		await settle();
+		expect(current.threads[3]).toMatchObject({ inputTokens: 2 });
+	});
+
+	it("stops re-reading a running row once the view no longer asks for it", async () => {
+		const readIds: string[] = [];
+		mockUsageReads((sessionId) => {
+			readIds.push(sessionId);
+			return usageMessages(3);
+		});
+		const rows = Array.from({ length: 12 }, (_, index) => usageRow(index));
+		const running = { ...rows[11], status: "running", prompt: "still going" };
+		// Each refresh changes session-0's prompt so the list is not equivalent
+		// to the previous one and the hydration effect restarts.
+		const listRows = (marker: string) =>
+			rows.map((row, index) => {
+				if (index === 11) return running;
+				if (index === 0) return { ...row, prompt: marker };
+				return row;
+			});
+		const readsOfRunning = () =>
+			readIds.filter((sessionId) => sessionId === "session-11").length;
+
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(listRows("first"));
+			await Promise.resolve();
+		});
+		await flush(800);
+		await settle();
+		expect(readIds).toHaveLength(10);
+		expect(readsOfRunning()).toBe(0);
+
+		await act(async () => {
+			current.requestUsage(["session-11"]);
+		});
+		await flush(800);
+		await settle();
+		expect(readsOfRunning()).toBe(1);
+
+		// While a view shows the running row, a refresh re-reads it.
+		await flush(12_000);
+		await flush();
+		await act(async () => {
+			pendingLists[1].resolve(listRows("second"));
+			await Promise.resolve();
+		});
+		await flush(800);
+		await settle();
+		expect(readsOfRunning()).toBe(2);
+
+		// The view pages away or unmounts: the next refresh leaves it alone,
+		// and the completed rows it already hydrated are not read again either.
+		await act(async () => {
+			current.requestUsage([]);
+		});
+		await flush(12_000);
+		await flush();
+		await act(async () => {
+			pendingLists[2].resolve(listRows("third"));
+			await Promise.resolve();
+		});
+		await flush(800);
+		await settle();
+		expect(readsOfRunning()).toBe(2);
+		expect(readIds).toHaveLength(12);
+	});
+});
