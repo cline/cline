@@ -48,6 +48,7 @@ function createContext(): {
 		pendingQuestions: new Map(),
 		sessionManager: null,
 		hubClient: null,
+		hubBuildMismatch: null,
 		workspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
