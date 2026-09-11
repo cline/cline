@@ -76,9 +76,11 @@ describe("SdkFrameStream", () => {
 				agentId: "agent-a",
 			}),
 		)
-		// Child frames routed structurally (P5): the child's own turn is open.
-		expect(stream.openScopes().turnPaths).toContain("root/agent-a")
-		expect(stream.openScopes().turnPaths).toContain("root")
+		// The bridge is a renderer (P5): sub-agent streams are pruned
+		// silently and deliberately, so the child's scopes never open.
+		// Routing itself is verified by the ABSENCE of orphan diagnostics —
+		// an unrouted child frame would diagnose as an orphan block.
+		expect(stream.openScopes().turnPaths).toEqual(["root"])
 		expect(stream.streamDiagnostics).toEqual([])
 	})
 

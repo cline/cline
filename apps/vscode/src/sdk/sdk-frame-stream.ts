@@ -12,77 +12,24 @@
  * `minter.bumpEpoch()` (cancel / reinit / task-switch boundaries)
  * makes any later straggler frame stale for every frame consumer.
  *
- * The assembler's consumer here is a stream-health monitor (design,
- * verification gate 4): legal streams are silent; repairs are logged
- * and retained for debugging. The translator port (Phase 3c part 2)
- * replaces this consumer with the real ClineMessage sinks — the frame
- * source and fence wiring stay as built here.
+ * The assembler's consumer here is the FrameMessageBridge — the
+ * ClineMessage sinks that will replace the v1 translator at switchover.
+ * Until then it runs shadow-only: its rows are drained and discarded
+ * (parity with the v1 translator is differential-test locked), while its
+ * diagnostics are logged and retained exactly as the health monitor's
+ * were (legal streams stay silent; repairs surface as warnings).
  */
 
 import type { CoreSessionEvent } from "@cline/core"
-import { projectSessionEvent, type SessionConsumer, StreamAssembler, type TurnConsumer } from "@cline/core/frames"
+import { projectSessionEvent, StreamAssembler } from "@cline/core/frames"
 import { type FrameSequencer, SessionFramer, type StreamFrame } from "@cline/shared"
-import { Logger } from "@/shared/services/Logger"
+import { FrameMessageBridge } from "./frame-message-bridge"
 import { MessageIdMinter } from "./message-id-minter"
-
-/** Retained diagnostics, newest last, bounded for a long session. */
-const MAX_RETAINED_DIAGNOSTICS = 100
-
-class StreamHealthMonitor implements SessionConsumer {
-	diagnostics: Array<{ code: string; detail?: string; seq?: number }> = []
-	turnCount = 0
-
-	onTurn(): TurnConsumer {
-		this.turnCount += 1
-		return this.makeConsumer()
-	}
-
-	/** Observe sub-agent streams, not prune them: a health monitor
-	 * wants their scopes tracked (and cascade-closed) like the lead's. */
-	private makeConsumer(): TurnConsumer {
-		return {
-			onText: () => ({ onDelta: () => {}, onAnnotation: () => {}, onClose: () => {} }),
-			onReasoning: () => ({
-				onDelta: () => {},
-				onAnnotation: () => {},
-				onClose: () => {},
-			}),
-			onTool: () => ({
-				onProgress: () => {},
-				onAnnotation: () => {},
-				onClose: () => {},
-			}),
-			onMedia: () => {},
-			onSubAgent: () => this.makeConsumer(),
-			onNotice: () => {},
-			onUsage: () => {},
-			onClose: () => {},
-		}
-	}
-
-	onSessionNotice(): void {}
-
-	onIdle(): void {}
-
-	onDiagnostic(diagnostic: { code: string; seq?: number; detail?: string }): void {
-		this.diagnostics.push({
-			code: diagnostic.code,
-			seq: diagnostic.seq,
-			detail: diagnostic.detail,
-		})
-		if (this.diagnostics.length > MAX_RETAINED_DIAGNOSTICS) {
-			this.diagnostics.shift()
-		}
-		Logger.warn(
-			`[SdkFrameStream] ${diagnostic.code}${diagnostic.detail ? ` ${diagnostic.detail}` : ""} (seq ${diagnostic.seq ?? "?"})`,
-		)
-	}
-}
 
 export class SdkFrameStream {
 	private readonly framer: SessionFramer
 	private readonly assembler: StreamAssembler
-	private readonly monitor = new StreamHealthMonitor()
+	private readonly bridge: FrameMessageBridge
 
 	constructor(minter: MessageIdMinter) {
 		// Frames sample the minter's id counter — the same authority that
@@ -100,7 +47,12 @@ export class SdkFrameStream {
 			},
 		}
 		this.framer = new SessionFramer({ sequencer })
-		this.assembler = new StreamAssembler(this.monitor)
+		this.bridge = new FrameMessageBridge({
+			// Same id authority as the v1 translator state; the retag/cwd
+			// getters are wired at switchover (shadow rows are discarded).
+			nextTs: () => minter.nextId(),
+		})
+		this.assembler = new StreamAssembler(this.bridge)
 	}
 
 	/** Feed one CoreSessionEvent: project to agent paths, frame, push. */
@@ -133,10 +85,13 @@ export class SdkFrameStream {
 		detail?: string
 		seq?: number
 	}> {
-		return this.monitor.diagnostics
+		return this.bridge.diagnostics
 	}
 
 	private pushFrames(frames: readonly StreamFrame[]): void {
 		this.assembler.pushAll(frames)
+		// Shadow run: the v1 translator remains the production ClineMessage
+		// source, so the bridge's rows are drained and discarded here.
+		this.bridge.takeMessages()
 	}
 }
