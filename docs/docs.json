@@ -112,6 +112,7 @@
 								"pages": [
 									"usage/cli-overview",
 									"cli/cli-reference",
+									"cli/acp-editor-integrations",
 									{
 										"group": "Examples",
 										"pages": [
