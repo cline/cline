@@ -8,13 +8,14 @@
  */
 
 import * as assert from "assert"
-import { after, before, describe, it } from "mocha"
+import { after, afterEach, before, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { ClineEndpoint } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import * as otelConfigModule from "@/shared/services/config/otel-config"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
+import { resetSharedOtelClientsForTests } from "./otel-clients"
 import { NoOpTelemetryProvider, TelemetryProviderFactory } from "./TelemetryProviderFactory"
 import { TelemetryMetadata, TelemetryService } from "./TelemetryService"
 
@@ -369,6 +370,15 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	})
 
 	describe("Factory Configuration", () => {
+		// The shared OTel client registry caches per process; each test stubs a
+		// different config source, so reset the cache around every test.
+		beforeEach(() => {
+			resetSharedOtelClientsForTests()
+		})
+		afterEach(() => {
+			resetSharedOtelClientsForTests()
+		})
+
 		it("should return default configurations", () => {
 			// Mock PostHog config validation to return true for this test
 			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
@@ -492,10 +502,10 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const hasOtel = configs.some((c) => c.type === "opentelemetry")
 			assert.strictEqual(hasOtel, true, "Should include runtime env OTEL configuration even in selfHosted mode")
 
-			// Verify it has bypassUserSettings: true
+			// Verify the shared client carries bypassUserSettings: true
 			const otelConfig = configs.find((c) => c.type === "opentelemetry")
 			assert.strictEqual(
-				(otelConfig as any).bypassUserSettings,
+				otelConfig?.type === "opentelemetry" ? otelConfig.client.bypassUserSettings : undefined,
 				true,
 				"Runtime env OTEL should have bypassUserSettings: true",
 			)

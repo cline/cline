@@ -2,13 +2,15 @@ import { Meter } from "@opentelemetry/api"
 import type { Logger as OTELLogger } from "@opentelemetry/api-logs"
 import { LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
-import { StateManager } from "@/core/storage/StateManager"
-import { HostProvider } from "@/hosts/host-provider"
-import { getErrorLevelFromString } from "@/services/error"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
-import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
 import type { ClineAccountUserInfo } from "../../../auth/AuthService"
+import {
+	ensureTelemetryPolicyInitialized,
+	getHostTelemetryLevel,
+	isHostTelemetryEnabled,
+	isTelemetryExportAllowed,
+} from "../../telemetry-policy"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 
 /**
@@ -18,7 +20,6 @@ import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from 
 export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private meter: Meter | null = null
 	private logger: OTELLogger | null = null
-	private telemetrySettings: TelemetrySettings
 	private userAttributes: Record<string, string> = {}
 	// Lazy instrument caches for metrics
 	private counters = new Map<string, ReturnType<Meter["createCounter"]>>()
@@ -39,12 +40,6 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	) {
 		this.name = name || "OpenTelemetryProvider"
 		this.bypassUserSettings = bypassUserSettings
-
-		// Initialize telemetry settings
-		this.telemetrySettings = {
-			hostEnabled: true,
-			level: "all",
-		}
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
@@ -69,24 +64,9 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			return this
 		}
 
-		// Listen for host telemetry changes
-		HostProvider.env.subscribeToTelemetrySettings(
-			{},
-			{
-				onResponse: (event: { isEnabled: Setting }) => {
-					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
-					this.telemetrySettings.hostEnabled = hostEnabled
-				},
-			},
-		)
-
-		// Check host-specific telemetry setting (e.g. VS Code setting)
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			this.telemetrySettings.hostEnabled = false
-		}
-
-		this.telemetrySettings.level = await this.getTelemetryLevel()
+		// Host telemetry state (and the settings subscription) live in the shared
+		// policy module, which is the single opt-out checkpoint for the process.
+		await ensureTelemetryPolicyInitialized()
 		return this
 	}
 
@@ -95,12 +75,13 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public log(event: string, properties?: TelemetryProperties): void {
-		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
+		const level = this.getEffectiveLevel()
+		if (!this.isEnabled() || level === "off") {
 			return
 		}
 
 		// Filter events based on telemetry level
-		if (this.telemetrySettings.level === "error") {
+		if (level === "error") {
 			if (!event.includes("error")) {
 				return
 			}
@@ -189,14 +170,14 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public isEnabled(): boolean {
-		return (
-			this.bypassUserSettings ||
-			(StateManager.get().getGlobalSettingsKey("telemetrySetting") !== "disabled" && this.telemetrySettings.hostEnabled)
-		)
+		return isTelemetryExportAllowed(this.bypassUserSettings)
 	}
 
 	public getSettings(): TelemetrySettings {
-		return { ...this.telemetrySettings }
+		return {
+			hostEnabled: isHostTelemetryEnabled(),
+			level: this.getEffectiveLevel(),
+		}
 	}
 
 	/**
@@ -329,18 +310,11 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	/**
-	 * Get the current telemetry level from VS Code settings
+	 * The telemetry level this destination applies: collectors that bypass user
+	 * settings ignore the host level; the rest use the shared policy state.
 	 */
-	private async getTelemetryLevel(): Promise<TelemetrySettings["level"]> {
-		if (this.bypassUserSettings) {
-			return "all"
-		}
-
-		const hostSettings = await HostProvider.env.getTelemetrySettings({})
-		if (hostSettings.isEnabled === Setting.DISABLED) {
-			return "off"
-		}
-		return getErrorLevelFromString(hostSettings.errorLevel)
+	private getEffectiveLevel(): TelemetrySettings["level"] {
+		return this.bypassUserSettings ? "all" : getHostTelemetryLevel()
 	}
 
 	/**

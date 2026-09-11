@@ -16,7 +16,9 @@ import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId } from "./services/logging/distinctId"
 import { telemetryService } from "./services/telemetry"
+import { disposeSharedOtelClients } from "./services/telemetry/otel-clients"
 import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
+import { disposeTelemetryPolicy } from "./services/telemetry/telemetry-policy"
 import { ClineTempManager } from "./services/temp"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { syncWorker } from "./shared/services/worker/sync"
@@ -182,6 +184,15 @@ export async function tearDown(): Promise<void> {
 		HookDiscoveryCache.getInstance().dispose()
 		// Stop periodic temp file cleanup
 		ClineTempManager.stopPeriodicCleanup()
+
+		// Shut the shared OpenTelemetry clients down LAST: both telemetry
+		// pipelines export through them, so the exporters have to outlive every
+		// capture site. In particular the SDK pipeline is torn down inside
+		// WebviewProvider.disposeAllInstances() above and still emits while doing
+		// so (session end, the deferred telemetry.provider_created), so shutting
+		// the clients down any earlier silently drops those records.
+		await disposeSharedOtelClients()
+		disposeTelemetryPolicy()
 	} finally {
 		try {
 			await StateManager.get().flushPendingState()
