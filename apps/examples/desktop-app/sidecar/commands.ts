@@ -93,6 +93,10 @@ import {
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
+	clearLegacyCodexCredentials,
+	OPENAI_CODEX_PROVIDER_ID,
+} from "./legacy-codex-credentials";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -121,6 +125,8 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { getPullRequestStatus } from "./pull-request";
+import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -962,7 +968,7 @@ async function listHubSettings(
 async function toggleHubSetting(
 	ctx: SidecarContext,
 	input: {
-		type: "plugins" | "tools";
+		type: "plugins" | "tools" | "skills";
 		path?: string;
 		name?: string;
 		enabled?: boolean;
@@ -1001,13 +1007,18 @@ async function listUserInstructionConfigs(
 		const items: unknown[] = [];
 		for (const record of userInstructionService.listRecords(type)) {
 			const item = record.item as unknown as JsonRecord;
-			if (item.disabled === true) continue;
+			const disabled = item.disabled === true;
+			// Rules and workflows have no toggle UI, so keep hiding disabled
+			// ones; skills need to stay visible (disabled) so they can be
+			// re-enabled from the Skills tab.
+			if (disabled && type !== "skill") continue;
 			items.push({
 				id: record.id,
 				name: item.name ?? record.id,
 				description: item.description,
 				instructions: item.instructions,
 				path: record.filePath,
+				...(type === "skill" ? { enabled: !disabled } : {}),
 			});
 		}
 		return items;
@@ -2095,6 +2106,13 @@ export async function handleCommand(
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
 			syncAccountContextFromSettings(ctx, manager);
 		}
+		// Signing out of ChatGPT removes its providers.json entry; the legacy
+		// import would restore it from the extension's secrets.json on the next
+		// command unless those credentials go too. A failed write throws so
+		// the webview reports the sign-out as failed and resyncs.
+		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
+			clearLegacyCodexCredentials();
+		}
 		return saved;
 	}
 	if (command === "add_provider") {
@@ -2431,6 +2449,17 @@ export async function handleCommand(
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
+	if (command === "capture_pull_request_event") {
+		capturePullRequestEvent(ctx.telemetry, args);
+		return null;
+	}
+	if (command === "get_pull_request_status") {
+		return await getPullRequestStatus(
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot,
+		);
+	}
 	if (command === "get_git_branch") {
 		const cwd =
 			typeof args?.cwd === "string" && args.cwd.trim()
@@ -2546,6 +2575,18 @@ export async function handleCommand(
 		const snapshot = await toggleHubSetting(ctx, {
 			type: "plugins",
 			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
+	}
+	if (command === "set_skill_disabled") {
+		const skillPath = String(args?.path ?? "").trim();
+		if (!skillPath) {
+			throw new Error("skill path is required");
+		}
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "skills",
+			path: skillPath,
 			enabled: args?.disabled !== true,
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);
