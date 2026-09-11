@@ -1648,14 +1648,13 @@ describe("regional API line routing", () => {
 		expect(qwen.baseUrl).toBe(QWEN_CHINA_BASE_URL);
 	});
 
-	it("switching api line drops a previously pinned regional base url", () => {
+	it("does not pin a regional endpoint as an explicit base url", () => {
 		saveLocalProviderSettings(manager, {
 			providerId: "qwen",
 			enabled: true,
 			apiKey: "key",
 			baseUrl: QWEN_CHINA_BASE_URL,
 		});
-
 		saveLocalProviderSettings(manager, {
 			providerId: "qwen",
 			apiLine: "international",
@@ -1668,39 +1667,58 @@ describe("regional API line routing", () => {
 		);
 	});
 
-	it("keeps a custom base url when the api line changes", () => {
+	// The settings UI commits the base URL input on blur, which can land
+	// after the api line save that triggered it.
+	it("api line survives a base url save arriving afterwards", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiLine: "international",
+		});
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			baseUrl: QWEN_CHINA_BASE_URL,
+		});
+
+		const settings = manager.getProviderSettings("qwen");
+		expect(settings?.apiLine).toBe("international");
+		expect(toProviderConfig(settings!).baseUrl).toBe(
+			QWEN_INTERNATIONAL_BASE_URL,
+		);
+	});
+
+	it("keeps a genuinely custom base url", () => {
 		saveLocalProviderSettings(manager, {
 			providerId: "qwen",
 			enabled: true,
 			apiKey: "key",
 			baseUrl: "https://proxy.example.invalid/v1",
 		});
-
 		saveLocalProviderSettings(manager, {
 			providerId: "qwen",
 			apiLine: "international",
 		});
 
-		expect(manager.getProviderSettings("qwen")?.baseUrl).toBe(
+		const settings = manager.getProviderSettings("qwen");
+		expect(settings?.baseUrl).toBe("https://proxy.example.invalid/v1");
+		expect(toProviderConfig(settings!).baseUrl).toBe(
 			"https://proxy.example.invalid/v1",
 		);
 	});
 
-	it("leaves the base url alone for saves that do not touch the api line", () => {
+	it("still stores the base url for providers without regional endpoints", () => {
 		saveLocalProviderSettings(manager, {
-			providerId: "qwen",
+			providerId: "ollama",
 			enabled: true,
-			apiKey: "key",
-			baseUrl: QWEN_CHINA_BASE_URL,
+			baseUrl: "https://ollama.com",
 		});
 
-		saveLocalProviderSettings(manager, {
-			providerId: "qwen",
-			apiKey: "rotated",
-		});
-
-		expect(manager.getProviderSettings("qwen")?.baseUrl).toBe(
-			QWEN_CHINA_BASE_URL,
+		expect(manager.getProviderSettings("ollama")?.baseUrl).toBe(
+			"https://ollama.com",
 		);
 	});
 });

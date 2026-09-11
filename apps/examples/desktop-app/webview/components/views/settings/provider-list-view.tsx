@@ -545,6 +545,19 @@ export function ProviderDetailContent({
 	const [localConfigValues, setLocalConfigValues] = useState<
 		Record<string, ProviderConfigFieldPrimitive>
 	>(() => getInitialConfigValues(provider));
+	// The effective base URL is resolved by the sidecar, so selecting a
+	// regional API line changes it without the field itself being edited.
+	// Adopt the new endpoint instead of leaving the previous region's URL in
+	// the draft, which would otherwise be committed back on the next blur.
+	const catalogBaseUrlRef = useRef(provider.baseUrl);
+	useEffect(() => {
+		if (provider.baseUrl === catalogBaseUrlRef.current) return;
+		catalogBaseUrlRef.current = provider.baseUrl;
+		setLocalConfigValues((current) => ({
+			...current,
+			baseUrl: provider.baseUrl ?? "",
+		}));
+	}, [provider.baseUrl]);
 	const [manualKeyExpanded, setManualKeyExpanded] = useState(false);
 	const [modelSearchState, setModelSearchState] = useState<{
 		providerId: string;

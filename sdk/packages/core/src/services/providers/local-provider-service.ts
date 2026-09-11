@@ -337,25 +337,26 @@ function normalizeBaseUrlForCompare(value: unknown): string | undefined {
 }
 
 /**
- * True when the base URL is one Cline itself derives for the provider (its
- * default endpoint or one of its regional API line endpoints), as opposed to
- * a custom endpoint the user actually typed.
+ * True when the provider exposes regional API line endpoints and the base URL
+ * is one Cline itself derives for it (a regional endpoint or its default), as
+ * opposed to a custom endpoint the user actually typed. Scoped to regional
+ * providers so custom and OpenAI-compatible entries, whose base URL is the
+ * only way to reach them, keep storing it.
  */
-function isDerivedProviderBaseUrl(
+function isDerivedRegionalBaseUrl(
 	providerId: string,
 	baseUrl: unknown,
 ): boolean {
 	const normalized = normalizeBaseUrlForCompare(baseUrl);
 	if (!normalized) return false;
-	const derived = [
+	const regional = PROVIDER_API_LINES.map((apiLine) =>
+		LlmsModels.resolveProviderApiLineBaseUrl(providerId, apiLine),
+	).filter((url): url is string => Boolean(url));
+	if (regional.length === 0) return false;
+	return [
+		...regional,
 		LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider?.baseUrl,
-		...PROVIDER_API_LINES.map((apiLine) =>
-			LlmsModels.resolveProviderApiLineBaseUrl(providerId, apiLine),
-		),
-	];
-	return derived.some(
-		(candidate) => normalizeBaseUrlForCompare(candidate) === normalized,
-	);
+	].some((candidate) => normalizeBaseUrlForCompare(candidate) === normalized);
 }
 
 function resolveConfigValues(
@@ -1129,16 +1130,13 @@ export function saveLocalProviderSettings(
 	}
 
 	// A regional API line only reaches the request when no explicit base URL
-	// shadows it. Settings UIs seed the base URL field with the endpoint they
-	// display, so saving any field pins that endpoint and the next line switch
-	// would silently keep routing to the old region. Drop a base URL that is
-	// merely one of the provider's own derived endpoints; a genuinely custom
-	// one still wins.
-	if (
-		Object.hasOwn(request, "apiLine") &&
-		LlmsModels.isProviderApiLine(next.apiLine) &&
-		isDerivedProviderBaseUrl(providerId, next.baseUrl)
-	) {
+	// shadows it (see `toProviderConfig`). Settings UIs seed the base URL input
+	// with whichever endpoint they currently display, so persisting that value
+	// would pin the old region and silently outrank every later line switch.
+	// Regional providers reach all of their endpoints through the line
+	// selector, so such a base URL carries no information worth storing —
+	// keep only one the user genuinely customized.
+	if (isDerivedRegionalBaseUrl(providerId, next.baseUrl)) {
 		delete next.baseUrl;
 	}
 
