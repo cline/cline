@@ -505,6 +505,14 @@ function ChatInputBarImpl({
 			return;
 		}
 		const prompt = promptInput.trim();
+		if (!prompt) {
+			toast({
+				title: "Add a message to go with your attachments",
+				description:
+					"Describe what you want Cline to do with the attached files before sending.",
+			});
+			return;
+		}
 		setPromptInput("");
 		onSend(prompt);
 	}, [

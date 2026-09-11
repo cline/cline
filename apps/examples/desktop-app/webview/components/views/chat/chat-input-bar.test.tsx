@@ -270,6 +270,32 @@ describe("ChatInputBar", () => {
 		expect(onSend).toHaveBeenCalledWith("Describe it");
 	});
 
+	it("does not send attachments without a text prompt", async () => {
+		const onSend = vi.fn();
+		const attachments = [{ id: "image", name: "photo.png", isImage: true }];
+		await renderVoiceComposer({ onSend, attachments });
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await renderVoiceComposer({
+			onSend,
+			attachments,
+			prompt: "What is this?",
+			promptVersion: 1,
+		});
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("What is this?");
+	});
+
 	it("allows a parent session with a running child agent to be stopped", async () => {
 		const onAbort = vi.fn();
 		await renderVoiceComposer({
