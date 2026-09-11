@@ -61,15 +61,20 @@ function ToolLabel({
 
 const ToolCallRow = memo(function ToolCallRow({
 	message,
+	isRunActive,
 	onExpandImage,
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
+	isRunActive: boolean;
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
+	// A missing result can outlive its run. Only gate the running display;
+	// keep the message intact so a later result can still replace it.
+	const isRunning = inProgress && isRunActive;
 	const isCommand = summary.kind === "command";
 	// submit_and_exit carries the run's final answer (scheduled tasks end with
 	// it), so surface it expanded and rendered as markdown rather than leaving
@@ -103,7 +108,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	const toolSessionId = message.sessionId;
 	const toolCallId = message.meta?.toolCallId;
 	const canProceed = Boolean(
-		inProgress &&
+		isRunning &&
 			isCommand &&
 			message.meta?.toolDetachable === true &&
 			toolSessionId &&
@@ -216,9 +221,9 @@ const ToolCallRow = memo(function ToolCallRow({
 						<Icon className="size-4" />
 					)
 				}
-				label={<ToolLabel isRunning={inProgress} parts={labelParts} />}
+				label={<ToolLabel isRunning={isRunning} parts={labelParts} />}
 				showDisclosureIcon={false}
-				status={hasError ? "error" : inProgress ? "running" : "success"}
+				status={hasError ? "error" : isRunning ? "running" : "success"}
 			/>
 			<ToolActivityContent presentation="rail">
 				{details.length > 0 ? (
@@ -253,10 +258,7 @@ const ToolCallRow = memo(function ToolCallRow({
 					),
 				)}
 				{commandOutput ? (
-					<CommandOutputTerminal
-						isRunning={inProgress}
-						output={commandOutput}
-					/>
+					<CommandOutputTerminal isRunning={isRunning} output={commandOutput} />
 				) : submitText ? (
 					// The summary is the run's final answer: full foreground color,
 					// not the panel's muted tool-detail gray.
@@ -391,10 +393,12 @@ function CommandOutputTerminal({
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
 		messages,
+		isRunActive,
 		onExpandImage,
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
+		isRunActive: boolean;
 		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
 	}) {
@@ -403,6 +407,7 @@ export const ToolMessageBlock = memo(
 			<div className="flex flex-col gap-1">
 				{messages.map((message) => (
 					<ToolCallRow
+						isRunActive={isRunActive}
 						key={message.id}
 						message={message}
 						onExpandImage={onExpandImage}
@@ -413,6 +418,7 @@ export const ToolMessageBlock = memo(
 		);
 	},
 	(prev, next) =>
+		prev.isRunActive === next.isRunActive &&
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
 		prev.onExpandImage === next.onExpandImage &&
