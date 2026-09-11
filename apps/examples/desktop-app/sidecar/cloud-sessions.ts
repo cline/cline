@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
 	ClineAccountService,
+	isHubCommandTimeoutError,
+	isHubReconnectableTransportError,
 	NodeHubClient,
 	ProviderSettingsManager,
 } from "@cline/core";
@@ -17,6 +19,7 @@ import type {
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	countPromptOccurrences,
 	isRootSessionRow,
 	readSessionRows,
 	reconcileBufferedCloudEvents,
@@ -43,10 +46,17 @@ const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 const REQUEST_TIMEOUT_MS = 15_000;
+const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
 const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
+const GITHUB_AUTH_SYSTEM_PROMPT =
+	"IMPORTANT: GitHub API authentication is handled automatically by the infrastructure. " +
+	"A secrets-proxy sidecar injects the necessary authentication credentials into all GitHub API requests. " +
+	"You do NOT need to set up, configure, or manage any authentication tokens, API keys, or credentials for GitHub API calls. " +
+	"Simply make your GitHub API calls normally — authentication will be injected transparently.";
+
 type FetchLike = (
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -920,6 +930,17 @@ function parseApprovalInput(value: unknown): unknown {
 		return value;
 	}
 }
+function mergePromptEvidence(
+	prompts: PromptInQueue[] | undefined,
+	submittedPrompts: PromptInQueue[],
+): PromptInQueue[] {
+	const merged = [...(prompts ?? [])];
+	const knownIds = new Set(merged.map((prompt) => prompt.id));
+	for (const prompt of submittedPrompts) {
+		if (!knownIds.has(prompt.id)) merged.push(prompt);
+	}
+	return merged;
+}
 export class CloudSessionManager {
 	private disposed = false;
 	private readonly connections = new Map<string, CloudConnection>();
@@ -932,6 +953,8 @@ export class CloudSessionManager {
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	private readonly provisioningControllers = new Map<string, AbortController>();
+	private readonly sendAbortTokens = new Map<string, symbol>();
+	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
 	>;
@@ -1286,6 +1309,186 @@ export class CloudSessionManager {
 		);
 	}
 
+	async send(
+		outerSessionId: string,
+		prompt: string,
+		requestedDelivery?: "queue" | "steer",
+		modelId?: string,
+		userImages?: string[],
+	): Promise<{
+		sessionId: string;
+		ok: true;
+		queued?: boolean;
+		recoveredAfterDisconnect?: boolean;
+		status?: string;
+		result?: unknown;
+	}> {
+		const abortToken = this.sendAbortTokens.get(outerSessionId);
+		const knownForSend = this.knownSessions.get(outerSessionId);
+		if (knownForSend && isExpiredRecord(knownForSend)) {
+			throw new CloudSessionError(
+				"session_expired",
+				"This cloud session has expired; its sandbox is gone. Start a new cloud session to continue.",
+			);
+		}
+		const connection = await this.ensureConnection(outerSessionId, {
+			createInner: true,
+		});
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await this.ensureAttached(connection);
+		if (!connection.transcriptKnown) {
+			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
+		}
+		// Rehydration attaches again and may reveal a model change made by a
+		// different client. Enforce this send's selected model only after the
+		// final authoritative snapshot.
+		await this.updateModel(connection, modelId);
+		// Stop also cancels sends still waiting for connection/attachment.
+		if (
+			this.disposed ||
+			connection.disposed ||
+			this.sendAbortTokens.get(outerSessionId) !== abortToken
+		) {
+			throw new Error("Cloud session prompt cancelled");
+		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
+		const promptOccurrencesBeforeSend = countPromptOccurrences(
+			live?.messages ?? [],
+			live?.promptsInQueue ?? [],
+			prompt,
+		);
+		const ownsBusyState = delivery !== "queue" && delivery !== "steer";
+		const pendingMessage: MessageWithMetadata | undefined =
+			live && delivery !== "queue"
+				? { role: "user", content: [{ type: "text", text: prompt }] }
+				: undefined;
+		if (live && pendingMessage) {
+			live.messages = [...live.messages, pendingMessage];
+		}
+		const removePendingMessage = () => {
+			if (live && pendingMessage) {
+				live.messages = live.messages.filter(
+					(message) => message !== pendingMessage,
+				);
+			}
+		};
+		if (live && ownsBusyState) {
+			live.busy = true;
+			live.status = "running";
+			live.prompt ||= prompt;
+		}
+		const record = this.knownSessions.get(outerSessionId);
+		if (record && !record.title?.trim()) {
+			const title = deriveCloudSessionTitle(prompt);
+			if (title) {
+				record.title = title;
+				if (live) {
+					live.title = title;
+				}
+				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
+					// Sidebar still shows the local title; REST retries on rename.
+				});
+			}
+		}
+		try {
+			const reply = await connection.client.command(
+				"session.send_input",
+				{
+					prompt,
+					delivery,
+					...(userImages?.length ? { attachments: { userImages } } : {}),
+				},
+				innerSessionId,
+				delivery === "queue"
+					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
+					: { timeoutMs: null },
+			);
+			return {
+				sessionId: outerSessionId,
+				ok: true,
+				...(delivery === "queue" ? { queued: true } : {}),
+				result: reply.payload?.result,
+			};
+		} catch (error) {
+			if (
+				isHubReconnectableTransportError(error) ||
+				isHubCommandTimeoutError(error, "session.send_input")
+			) {
+				let snapshot: CloudRehydrationSnapshot;
+				try {
+					snapshot = await this.rehydrateAfterTransportDrop(
+						outerSessionId,
+						connection,
+					);
+				} catch (recoveryError) {
+					removePendingMessage();
+					if (live && ownsBusyState) {
+						live.busy = false;
+						live.status = "error";
+					}
+					throw recoveryError;
+				}
+				// Without a queue snapshot the absence of the prompt proves
+				// nothing for a queue delivery — telling the user to resend
+				// would duplicate a durably queued prompt.
+				if (delivery === "queue" && snapshot.prompts === undefined) {
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+					);
+				}
+				const promptOccurrencesAfterRecovery = countPromptOccurrences(
+					snapshot.messages,
+					mergePromptEvidence(snapshot.prompts, snapshot.submittedPrompts),
+					prompt,
+				);
+				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted before this message could be confirmed. It was not found in the cloud session, so please send it again.",
+					);
+				}
+				return {
+					sessionId: outerSessionId,
+					ok: true,
+					...(delivery === "queue" ? { queued: true } : {}),
+					recoveredAfterDisconnect: true,
+					status: snapshot.status,
+				};
+			}
+			removePendingMessage();
+			if (live && ownsBusyState) {
+				live.busy = false;
+				live.status = "error";
+			}
+			throw error;
+		}
+	}
+
+	private async updateModel(
+		connection: CloudConnection,
+		requestedModelId?: string,
+	): Promise<void> {
+		const modelId = requestedModelId?.trim();
+		if (!modelId || connection.remote.metadata.modelId === modelId) {
+			return;
+		}
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await connection.client.command(
+			"session.update_connection",
+			{ sessionId: innerSessionId, updates: { modelId } },
+			innerSessionId,
+		);
+		this.applyModel(connection, modelId);
+	}
+
 	private applyModel(connection: CloudConnection, modelId: string): void {
 		connection.remote.metadata.modelId = modelId;
 		const live = this.ctx.liveSessions.get(connection.remote.id);
@@ -1461,6 +1664,105 @@ export class CloudSessionManager {
 		}
 	}
 
+	async abort(
+		outerSessionId: string,
+	): Promise<{ sessionId: string; ok: true }> {
+		this.sendAbortTokens.set(outerSessionId, Symbol());
+		const provisioning = this.provisioningControllers.get(outerSessionId);
+		if (provisioning) {
+			provisioning.abort(new Error("Cloud session prompt cancelled"));
+			return { sessionId: outerSessionId, ok: true };
+		}
+		const connection = await this.ensureConnection(outerSessionId);
+		if (connection.innerSessionId) {
+			await this.ensureAttached(connection);
+			await connection.client.command(
+				"run.abort",
+				{ sessionId: connection.innerSessionId },
+				connection.innerSessionId,
+			);
+		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.busy = false;
+			live.status = "aborted";
+		}
+		return { sessionId: outerSessionId, ok: true };
+	}
+
+	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
+		if (this.knownSessions.get(outerSessionId)?.status === "provisioning") {
+			return { sessionId: outerSessionId, promptsInQueue: [] };
+		}
+		const connection = await this.ensureConnection(outerSessionId);
+		if (!connection.innerSessionId) {
+			return { sessionId: outerSessionId, promptsInQueue: [] };
+		}
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.pending_prompts",
+			{},
+		);
+		return {
+			sessionId: outerSessionId,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
+	async updatePendingPrompt(
+		outerSessionId: string,
+		promptId: string,
+		changes: { prompt?: string; delivery?: "queue" | "steer" },
+	): Promise<JsonRecord> {
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.update_pending_prompt",
+			{ promptId, ...changes },
+		);
+		return {
+			sessionId: outerSessionId,
+			updated: reply.payload?.updated === true,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
+	async removePendingPrompt(
+		outerSessionId: string,
+		promptId: string,
+	): Promise<JsonRecord> {
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.remove_pending_prompt",
+			{ promptId },
+		);
+		return {
+			sessionId: outerSessionId,
+			removed: reply.payload?.removed === true,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
+	private async queueCommand(
+		outerSessionId: string,
+		command:
+			| "session.pending_prompts"
+			| "session.update_pending_prompt"
+			| "session.remove_pending_prompt",
+		payload: Record<string, unknown>,
+	): Promise<{ ok: boolean; payload?: Record<string, unknown> }> {
+		const connection = await this.ensureConnection(outerSessionId);
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
+		await this.ensureAttached(connection);
+		return await connection.client.command(
+			command,
+			{ sessionId: innerSessionId, ...payload },
+			innerSessionId,
+		);
+	}
+
 	private applyQueueSnapshot(
 		outerSessionId: string,
 		reply: { payload?: Record<string, unknown> },
@@ -1525,8 +1827,55 @@ export class CloudSessionManager {
 		}
 	}
 
+	async updateTitle(outerSessionId: string, title: string): Promise<void> {
+		await this.options.api.updateTitle(outerSessionId, title);
+		const record = this.knownSessions.get(outerSessionId);
+		if (record) {
+			record.title = title;
+		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.title = title;
+		}
+	}
+
+	async delete(outerSessionId: string): Promise<void> {
+		// Tombstone the id so a concurrent attach/send/readMessages cannot dial
+		// a fresh connection for a session that is being torn down.
+		this.deletingSessions.add(outerSessionId);
+		this.provisioningControllers.get(outerSessionId)?.abort();
+		try {
+			const pendingConnect = this.connectionPromises.get(outerSessionId);
+			if (pendingConnect) {
+				await pendingConnect.catch(() => undefined);
+			}
+			await this.disposeConnection(outerSessionId);
+			try {
+				await this.options.api.delete(outerSessionId);
+			} catch (error) {
+				// A session already gone remotely must still be deletable
+				// locally, or its row becomes permanently stuck in the UI.
+				const code = error instanceof CloudSessionError ? error.code : "";
+				if (code !== "session_not_found" && code !== "session_expired") {
+					throw error;
+				}
+			}
+			this.knownSessions.delete(outerSessionId);
+			this.ctx.liveSessions.delete(outerSessionId);
+			this.sendAbortTokens.delete(outerSessionId);
+			for (const [requestId, pending] of this.ctx.pendingApprovals) {
+				if (pending.item.sessionId === outerSessionId) {
+					this.ctx.pendingApprovals.delete(requestId);
+				}
+			}
+		} finally {
+			this.deletingSessions.delete(outerSessionId);
+		}
+	}
+
 	async dispose(): Promise<void> {
 		this.disposed = true;
+		this.sendAbortTokens.clear();
 		for (const controller of this.provisioningControllers.values())
 			controller.abort();
 		const sessionIds = new Set([
@@ -1614,17 +1963,31 @@ export class CloudSessionManager {
 
 	private async ensureConnection(
 		outerSessionId: string,
+		options: { createInner?: boolean } = {},
 	): Promise<CloudConnection> {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
+		if (this.deletingSessions.has(outerSessionId)) {
+			throw new CloudSessionError(
+				"session_not_found",
+				"This cloud session is being deleted.",
+			);
+		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
+			if (options.createInner && !existing.innerSessionId) {
+				await this.createInnerSession(existing);
+			}
 			return existing;
 		}
 		const pending = this.connectionPromises.get(outerSessionId);
 		if (pending) {
-			return await pending;
+			const connection = await pending;
+			if (options.createInner && !connection.innerSessionId) {
+				await this.createInnerSession(connection);
+			}
+			return connection;
 		}
 
 		const connecting = (async () => {
@@ -1675,6 +2038,11 @@ export class CloudSessionManager {
 				}
 			}
 			if (this.disposed) throw new Error("Cloud session manager was disposed");
+			if (this.deletingSessions.has(outerSessionId))
+				throw new CloudSessionError(
+					"session_not_found",
+					"This cloud session is being deleted.",
+				);
 			if (remote.status === "failed") {
 				throw new CloudSessionError(
 					"session_failed",
@@ -1767,6 +2135,9 @@ export class CloudSessionManager {
 					throw new Error("Cloud session manager was disposed");
 				}
 				this.connections.set(outerSessionId, connection);
+				if (options.createInner && !connection.innerSessionId) {
+					await this.createInnerSession(connection);
+				}
 				return connection;
 			} catch (error) {
 				this.connections.delete(outerSessionId);
@@ -1788,6 +2159,75 @@ export class CloudSessionManager {
 		});
 		this.connectionPromises.set(outerSessionId, connecting);
 		return await connecting;
+	}
+
+	private async createInnerSession(connection: CloudConnection): Promise<void> {
+		if (connection.innerSessionId) {
+			return;
+		}
+		if (connection.innerSessionCreation) {
+			return await connection.innerSessionCreation;
+		}
+		const creation = this.createInnerSessionOnce(connection).finally(() => {
+			connection.innerSessionCreation = undefined;
+		});
+		connection.innerSessionCreation = creation;
+		return await creation;
+	}
+
+	private async createInnerSessionOnce(
+		connection: CloudConnection,
+	): Promise<void> {
+		const modelId = connection.remote.metadata.modelId?.trim();
+		if (!modelId) {
+			throw new Error("Cloud session is missing its model id");
+		}
+		const live = this.ctx.liveSessions.get(connection.remote.id);
+		const reply = await connection.client.command("session.create", {
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			cwd: CLOUD_WORKSPACE_ROOT,
+			sessionConfig: {
+				providerId: "cline",
+				modelId,
+				workspaceRoot: CLOUD_WORKSPACE_ROOT,
+				cwd: CLOUD_WORKSPACE_ROOT,
+				systemPrompt: GITHUB_AUTH_SYSTEM_PROMPT,
+				mode: "act",
+				enableTools: true,
+				...(typeof live?.config.thinking === "boolean"
+					? { thinking: live.config.thinking }
+					: {}),
+				...(typeof live?.config.reasoningEffort === "string"
+					? { reasoningEffort: live.config.reasoningEffort }
+					: {}),
+			},
+			metadata: {
+				source: "desktop",
+				provider: "cline",
+				model: modelId,
+				interactive: true,
+			},
+			runtimeOptions: { mode: "act" },
+			modelSelection: { provider: "cline", model: modelId },
+			toolPolicies: {
+				"*": { autoApprove: live?.config.autoApproveTools !== false },
+			},
+		});
+		const session =
+			reply.payload?.session && typeof reply.payload.session === "object"
+				? (reply.payload.session as JsonRecord)
+				: undefined;
+		const innerSessionId = String(
+			session?.sessionId ?? reply.payload?.sessionId ?? "",
+		).trim();
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub did not return an inner session id");
+		}
+		connection.innerSessionId = innerSessionId;
+		this.subscribeToInnerSession(connection.remote.id, connection);
+		this.applySessionModel(connection, session);
+		// A newly-created inner session has an authoritative empty transcript.
+		connection.transcriptKnown = true;
 	}
 
 	private handleEvent(
