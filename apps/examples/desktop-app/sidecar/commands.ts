@@ -16,7 +16,6 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	type ClineAccountUser,
-	captureAuthRefreshSoftFailure,
 	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
@@ -33,10 +32,8 @@ import {
 	parseMcpServerRegistration,
 	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
-	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveClineAccountTelemetryIdentity,
-	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -72,6 +69,7 @@ import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import { resolveDesktopTelemetryUser } from "./client-context";
+import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
@@ -315,13 +313,6 @@ function removePathIfExists(
 	return true;
 }
 
-// Cline access tokens expire between app launches, so account requests must
-// resolve through the refresh-aware OAuth manager instead of reading the
-// persisted token directly. A single shared instance keeps concurrent account
-// requests single-flight; the refresh token is single-use, so parallel
-// refreshes would invalidate each other.
-let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
-
 function syncAccountContextFromResult(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
@@ -383,43 +374,6 @@ function syncSignedOutAccountContext(ctx: SidecarContext): void {
 		{},
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
-}
-
-async function resolveFreshClineAuthToken(
-	ctx: SidecarContext,
-	manager: ProviderSettingsManager,
-): Promise<string | undefined> {
-	let refreshError: Error | undefined;
-	try {
-		clineOAuthTokenManager ??= new RuntimeOAuthTokenManager();
-		const resolution = await clineOAuthTokenManager.resolveProviderApiKey({
-			providerId: "cline",
-		});
-		if (resolution?.apiKey) {
-			return resolution.apiKey;
-		}
-	} catch (error) {
-		// Fall back to the persisted token; when one exists the account request
-		// surfaces the auth failure to the caller.
-		refreshError = error instanceof Error ? error : new Error(String(error));
-	}
-	const persisted = resolveLocalClineAuthToken(
-		manager.getProviderSettings("cline"),
-	);
-	// Never-signed-in resolves to undefined without a refresh attempt and is
-	// silent. A refresh failure with no persisted fallback means credentials
-	// existed but yielded nothing — that is the signal a real auth regression
-	// would show up as, so report exactly one event for it.
-	if (!persisted && refreshError) {
-		ctx.logger?.error?.("Cline auth token refresh failed with no fallback", {
-			error: refreshError,
-		});
-		captureAuthRefreshSoftFailure(ctx.telemetry, "cline", {
-			errorName: refreshError.name,
-			errorCode: "desktop_refresh_failed_no_fallback_token",
-		});
-	}
-	return persisted;
 }
 
 function mergePersistedSessionRecord(
@@ -1884,7 +1838,7 @@ export async function handleCommand(
 		// token up front and return a typed result the webview can act on
 		// instead of letting the account service throw a generic error that
 		// would be captured as error telemetry and shown raw to the user.
-		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
 			// Backstop for credentials that go away without a settings write —
 			// an expired or server-revoked token. Explicit sign-out is handled
@@ -1913,7 +1867,7 @@ export async function handleCommand(
 		if (!operation) throw new Error("operation is required");
 		const manager = new ProviderSettingsManager();
 
-		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
