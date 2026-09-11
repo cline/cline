@@ -108,6 +108,30 @@ const transportError = () =>
 	new HubTransportError("hub_connection_closed", "socket closed");
 
 describe("CloudSessionManager interactions", () => {
+	it("does not dispatch a pending send after abort and allows a later send", async () => {
+		const { manager, ensureAttached, command } = await createFixture();
+		let releaseAttach!: () => void;
+		ensureAttached.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseAttach = resolve;
+				}),
+		);
+		const sending = manager.send("ses-outer", "cancel this");
+		const result = sending.catch((error: unknown) => error);
+		await vi.waitFor(() => expect(releaseAttach).toBeDefined());
+		await manager.abort("ses-outer");
+		releaseAttach();
+		expect(await result).toBeInstanceOf(Error);
+		expect(
+			command.mock.calls.some(([name]) => name === "session.send_input"),
+		).toBe(false);
+		await manager.send("ses-outer", "send this instead");
+		expect(
+			command.mock.calls.filter(([name]) => name === "session.send_input"),
+		).toHaveLength(1);
+	});
+
 	it("refreshes the completion time for a later turn completed while disconnected", async () => {
 		const { manager, live, replies } = await createFixture();
 		live.status = "running";

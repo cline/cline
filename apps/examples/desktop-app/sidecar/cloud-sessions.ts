@@ -1144,6 +1144,7 @@ export class CloudSessionManager {
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	private readonly provisioningControllers = new Map<string, AbortController>();
+	private readonly sendAbortTokens = new Map<string, symbol>();
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1533,6 +1534,7 @@ export class CloudSessionManager {
 		status?: string;
 		result?: unknown;
 	}> {
+		const abortToken = this.sendAbortTokens.get(outerSessionId);
 		const knownForSend = this.knownSessions.get(outerSessionId);
 		if (knownForSend && isExpiredRecord(knownForSend)) {
 			throw new CloudSessionError(
@@ -1555,6 +1557,14 @@ export class CloudSessionManager {
 		// different client. Enforce this send's selected model only after the
 		// final authoritative snapshot.
 		await this.updateModel(connection, modelId);
+		// Stop also cancels sends still waiting for connection/attachment.
+		if (
+			this.disposed ||
+			connection.disposed ||
+			this.sendAbortTokens.get(outerSessionId) !== abortToken
+		) {
+			throw new Error("Cloud session prompt cancelled");
+		}
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
 		const promptOccurrencesBeforeSend = countPromptOccurrences(
@@ -1866,6 +1876,7 @@ export class CloudSessionManager {
 	async abort(
 		outerSessionId: string,
 	): Promise<{ sessionId: string; ok: true }> {
+		this.sendAbortTokens.set(outerSessionId, Symbol());
 		const provisioning = this.provisioningControllers.get(outerSessionId);
 		if (provisioning) {
 			provisioning.abort(new Error("Cloud session prompt cancelled"));
@@ -2060,6 +2071,7 @@ export class CloudSessionManager {
 			}
 			this.knownSessions.delete(outerSessionId);
 			this.ctx.liveSessions.delete(outerSessionId);
+			this.sendAbortTokens.delete(outerSessionId);
 			for (const [requestId, pending] of this.ctx.pendingApprovals) {
 				if (pending.item.sessionId === outerSessionId) {
 					this.ctx.pendingApprovals.delete(requestId);
