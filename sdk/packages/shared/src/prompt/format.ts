@@ -45,6 +45,45 @@ export function formatModeSwitchNotice(
 	return `<mode_notice>The user switched from ${from} mode to ${to} mode before sending this message.</mode_notice>`;
 }
 
+/**
+ * Marks that MCP tools available to the agent changed mid-session (for example
+ * after OAuth completes). Prepended to the next user message so the model
+ * stops trusting earlier "MCP is not configured" turns. Hidden from transcript
+ * display by stripModeNotices.
+ */
+export function formatMcpToolsUpdatedNotice(summary: string): string {
+	return `<mcp_tools_notice>${summary}</mcp_tools_notice>`;
+}
+
+/**
+ * Builds the human/model-facing summary used inside {@link formatMcpToolsUpdatedNotice}.
+ * Returns null when no connected server currently exposes tools.
+ */
+export function summarizeConnectedMcpTools(
+	servers: ReadonlyArray<{
+		name: string;
+		status?: string;
+		tools?: ReadonlyArray<{ name: string }> | null;
+	}>,
+): string | null {
+	const connected = servers.filter(
+		(server) =>
+			server.status === "connected" && (server.tools?.length ?? 0) > 0,
+	);
+	if (connected.length === 0) {
+		return null;
+	}
+	const lines = connected.map((server) => {
+		const toolNames = (server.tools ?? []).map((tool) => tool.name).join(", ");
+		return `- ${server.name}: ${toolNames}`;
+	});
+	return [
+		"MCP tools were updated and are available now. Connected servers:",
+		...lines,
+		"Call these tools directly. Do not diagnose MCP connectivity by reading settings JSON files.",
+	].join("\n");
+}
+
 export type ModeSwitchNotice = {
 	from: "act" | "plan";
 	to: "act" | "plan";
@@ -146,15 +185,19 @@ export function normalizeUserInput(input?: string): string {
 }
 
 /**
- * Removes runtime-generated <mode_notice> elements (content included): they
- * are not user-typed text and must not render as such. Deliberately NOT part
- * of normalizeUserInput -- that function also sanitizes outbound prompts
- * before the host wraps them (prepareTurnInput), and stripping there deletes
- * the notice before the model ever sees it.
+ * Removes runtime-generated notice elements (content included): they are not
+ * user-typed text and must not render as such. Covers <mode_notice> and
+ * <mcp_tools_notice>. Deliberately NOT part of normalizeUserInput -- that
+ * function also sanitizes outbound prompts before the host wraps them
+ * (prepareTurnInput), and stripping there deletes the notice before the model
+ * ever sees it.
  */
 export function stripModeNotices(input?: string): string {
 	if (!input?.trim()) return "";
-	return removeTagElements(input, "mode_notice").trim();
+	return removeTagElements(
+		removeTagElements(input, "mode_notice"),
+		"mcp_tools_notice",
+	).trim();
 }
 
 // indexOf-based rather than a regex: a lazy dot-all pattern re-scans to the

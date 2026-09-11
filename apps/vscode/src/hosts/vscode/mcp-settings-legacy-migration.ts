@@ -1,11 +1,11 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { getDocumentsPath } from "@/core/storage/documents-path"
 import type * as vscode from "vscode"
+import { getDocumentsPath } from "@/core/storage/documents-path"
 import { updateMcpSettingsFile } from "@/services/mcp/settingsLock"
-import type { StorageContext } from "@/shared/storage/storage-context"
 import { Logger } from "@/shared/services/Logger"
+import type { StorageContext } from "@/shared/storage/storage-context"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { arePathsEqual } from "@/utils/path"
 
@@ -264,6 +264,41 @@ export function getSharedMcpSettingsPath(storage: StorageContext): string {
 	return path.join(clineDir, "data", "settings", MCP_SETTINGS_FILE_NAME)
 }
 
+/**
+ * Replace a leftover legacy MCP settings file with a stub that points at the
+ * shared settings path. Agents that still `cat` the old VS Code globalStorage
+ * location otherwise conclude MCP is unconfigured when the real config lives
+ * under ~/.cline/data/settings/.
+ */
+export function buildLegacyMcpSettingsStub(sharedSettingsPath: string): string {
+	return `${JSON.stringify(
+		{
+			_deprecated: `This legacy VS Code MCP settings file is unused. Active settings: ${sharedSettingsPath}`,
+			mcpServers: {},
+		},
+		null,
+		2,
+	)}\n`
+}
+
+export function neutralizeLegacyMcpSettingsFile(legacyPath: string, sharedSettingsPath: string): boolean {
+	if (!existsSync(legacyPath) || arePathsEqual(legacyPath, sharedSettingsPath)) {
+		return false
+	}
+	const stub = buildLegacyMcpSettingsStub(sharedSettingsPath)
+	try {
+		const existing = readFileSync(legacyPath, "utf8")
+		if (existing === stub) {
+			return false
+		}
+	} catch {
+		// Fall through and overwrite unreadable leftovers.
+	}
+	writeFileSync(legacyPath, stub, "utf8")
+	Logger.log(`[Migration] Neutralized legacy MCP settings at ${legacyPath}`)
+	return true
+}
+
 function readMigrationState(storage: StorageContext): JsonRecord {
 	const value = storage.globalState.get(MCP_SETTINGS_MIGRATION_KEY)
 	return isRecord(value) ? value : {}
@@ -372,6 +407,13 @@ export async function migrateLegacyMcpSettings(
 
 	if (result.migrated) {
 		writeMigrationState(storage, { sources: migratedSources })
+	}
+
+	// Always neutralize leftover legacy files (including empty ones that never
+	// contributed servers). Migration copies into the shared path but used to
+	// leave the old file in place, which misleads agents that inspect it.
+	for (const source of await getLegacyMcpSettingsSources(vscodeContext)) {
+		neutralizeLegacyMcpSettingsFile(source.path, sharedSettingsPath)
 	}
 
 	return result

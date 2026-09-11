@@ -1,6 +1,8 @@
+import { summarizeConnectedMcpTools } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -14,6 +16,7 @@ type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
 export interface SdkMcpCoordinatorOptions {
+	mcpHub: McpHub
 	stateManager: StateManager
 	sessions: SdkSessionLifecycle
 	messages: SdkMessageCoordinator
@@ -26,7 +29,23 @@ export interface SdkMcpCoordinatorOptions {
 }
 
 export class SdkMcpCoordinator {
+	/**
+	 * Summary stamped onto the next outbound user prompt after MCP tools change
+	 * mid-session (mirrors mode_notice). Cleared on consume.
+	 */
+	private pendingMcpToolsNotice: string | null = null
+
 	constructor(private readonly options: SdkMcpCoordinatorOptions) {}
+
+	/**
+	 * Returns (and clears) a pending MCP tools-updated notice for the next send.
+	 * Session id is accepted for symmetry with mode notices; tools are global.
+	 */
+	consumeMcpToolsNotice(_sessionId: string): string | null {
+		const notice = this.pendingMcpToolsNotice
+		this.pendingMcpToolsNotice = null
+		return notice
+	}
 
 	handleToolListChanged(): void {
 		Logger.log("[SdkController] MCP tool list changed")
@@ -50,9 +69,9 @@ export class SdkMcpCoordinator {
 
 		Logger.log(`[SdkController] Restarting session ${oldSessionId} for MCP tool changes`)
 
-		// Reloading tools is a silent, behind-the-scenes operation — it should
-		// "just work" without spamming the chat. Emit only the status transition
-		// (no chat message), so toggling several servers doesn't pile up notices.
+		// Reloading tools is mostly silent in the chat UI — emit only the status
+		// transition so toggling several servers doesn't pile up notices. The
+		// model-facing <mcp_tools_notice> is stamped onto the next user send.
 		this.options.messages.emitSessionEvents([], {
 			type: "status",
 			payload: { sessionId: oldSessionId, status: "running" },
@@ -84,8 +103,12 @@ export class SdkMcpCoordinator {
 				)
 			}
 
-			// Silently return the session to idle — no "reloaded successfully"
-			// chat message or completion banner. The reload is transparent.
+			const summary = summarizeConnectedMcpTools(this.options.mcpHub.getServers())
+			if (summary) {
+				this.pendingMcpToolsNotice = summary
+				Logger.log(`[SdkController] Queued MCP tools notice for next send (${summary.split("\n").length} lines)`)
+			}
+
 			this.options.messages.emitSessionEvents([], {
 				type: "status",
 				payload: { sessionId: startResult.sessionId, status: "idle" },
