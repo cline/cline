@@ -247,7 +247,7 @@ For native controls that should follow the selected theme:
 
 Import `Switch` from `@cline/ui` after setting up the theme and
 `@cline/ui/components.css`. It has one compact size: a 33 × 18px track and an
-11.2 × 11.2px thumb at Cline's default 15px root font size, inside a 33 × 24px
+11.2 × 11.2px resting thumb at Cline's default 15px root font size, inside a 33 × 24px
 interactive wrapper. Track dimensions, padding, and corner radii use `rem` so
 the switch follows the desktop's font-size setting. Borders stay at 1px;
 the focus outline and its offset stay at 2px, and the hit area is at least
@@ -255,6 +255,10 @@ the focus outline and its offset stay at 2px, and the hit area is at least
 track width, thumb width, padding, and borders to stay aligned in LTR and RTL
 at every scale. It uses Cline's light/dark colors and a shape adapted from the
 [Blocks switch design](https://www.figma.com/design/c5icpEJo6NxcgFQRTAQWSP/Blocks-Design-System?node-id=874-112258).
+
+The thumb stretches slightly as it moves in either direction, then settles
+back to its resting size after 160ms. Reduced-motion preferences disable this
+transition.
 
 Checked tracks blend `--primary` with `--accent-8` and use `--primary-emphasis`
 on hover, so they follow the host's selected accent color. Enabled thumbs stay

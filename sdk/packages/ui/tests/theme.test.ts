@@ -405,10 +405,10 @@ describe("@cline/ui theme contract", () => {
 		const trackStyles = block(css, track);
 
 		expect(trackStyles).toContain("padding: var(--cline-ui-switch-padding);");
-		// Hover is intentionally immediate; only the thumb carries one recoil.
+		// Track colors are immediate; the thumb edges stretch slightly in motion.
 		expect(trackStyles).not.toContain("transition:");
 		expect(block(css, ".cline-ui-switch__thumb")).toMatch(
-			/transition: transform \d+ms cubic-bezier\(/,
+			/inset-inline-start \d+ms cubic-bezier\(/,
 		);
 		expect(block(states, `${input}:checked + ${track}`)).toContain(
 			"background: color-mix(in srgb, var(--primary) 85%, var(--accent-8) 15%);",
