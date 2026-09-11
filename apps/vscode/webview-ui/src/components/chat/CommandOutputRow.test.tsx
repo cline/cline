@@ -1,6 +1,6 @@
-import { act, render, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { CommandOutputContent } from "./CommandOutputRow"
+import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 
 vi.mock("../common/CodeBlock", () => ({
 	default: ({ source }: { source: string }) => <pre>{source}</pre>,
@@ -75,5 +75,25 @@ describe("CommandOutputContent", () => {
 
 		await act(async () => {})
 		expect(onOutputChange).not.toHaveBeenCalled()
+	})
+})
+
+describe("CommandOutputRow", () => {
+	it("collapses the command without hiding its output", () => {
+		const { container, getByLabelText } = render(
+			<CommandOutputRow
+				isCommandCompleted={true}
+				isOutputFullyExpanded={false}
+				message={{ text: "npm test\n\nOutput:\npassed", ts: 1, type: "ask", ask: "command" } as never}
+				setIsOutputFullyExpanded={vi.fn()}
+			/>,
+		)
+
+		expect(getByLabelText("Collapse command")).toBeInTheDocument()
+
+		act(() => fireEvent.click(getByLabelText("Collapse command")))
+
+		expect(getByLabelText("Expand command")).toBeInTheDocument()
+		expect(container).toHaveTextContent("Completed")
 	})
 })
