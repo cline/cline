@@ -81,6 +81,23 @@ describe("normalizeJsonLikeStringsForSchema", () => {
 		).toEqual({ commands: ["git status", "bun test"] });
 	});
 
+	it("repairs JSON-encoded arrays containing Windows path backslashes", () => {
+		expect(
+			normalizeJsonLikeStringsForSchema(
+				{ commands: String.raw`["dir C:\Dev"]` },
+				{
+					type: "object",
+					properties: {
+						commands: {
+							type: "array",
+							items: { type: "string" },
+						},
+					},
+				},
+			),
+		).toEqual({ commands: [String.raw`dir C:\Dev`] });
+	});
+
 	it("preserves JSON-looking strings when the schema expects strings", () => {
 		const text = JSON.stringify({ keep: "as text" });
 
