@@ -98,7 +98,14 @@ export class PendingPromptService {
 			delivery,
 		};
 		state.pendingPrompts.splice(index, 1);
-		insertUpdatedPrompt(state, next, index, existing.delivery);
+		if (input.position !== undefined) {
+			// Explicit drag-and-drop reorder: place at the requested index
+			// (clamped), overriding the delivery-based auto-reordering.
+			const target = Math.max(0, Math.min(input.position, state.pendingPrompts.length));
+			state.pendingPrompts.splice(target, 0, next);
+		} else {
+			insertUpdatedPrompt(state, next, index, existing.delivery);
+		}
 		return {
 			sessionId: input.sessionId,
 			prompts: snapshotPrompts(state),
