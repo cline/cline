@@ -696,6 +696,7 @@ function ChatThreadPane({
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
+		isCloudSessionExpired,
 		activeAssistantMessageId,
 		activityLabel,
 		config,
@@ -1846,6 +1847,7 @@ function ChatThreadPane({
 
 	const composer = (
 		<ChatInputBar
+			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}

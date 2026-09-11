@@ -292,6 +292,7 @@ export type PromptDraft = {
 
 type ChatInputBarProps = {
 	variant?: "conversation" | "welcome";
+	readOnly?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
 	provider: string;
@@ -340,6 +341,7 @@ type ChatInputBarProps = {
 
 function ChatInputBarImpl({
 	variant = "conversation",
+	readOnly = false,
 	status,
 	hasRunningAgents = false,
 	provider,
@@ -518,9 +520,10 @@ function ChatInputBarImpl({
 	const unsupportedDraftImageCount = imagesUnsupported
 		? attachments.filter((attachment) => attachment.isImage).length
 		: 0;
-	const canSend = hasDraft && !speechInputActive && !needsCloudRepository;
+	const canSend =
+		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
 	const handleSend = useCallback(() => {
-		if (speechInputActive) return;
+		if (speechInputActive || readOnly) return;
 		if (unsupportedDraftImageCount > 0) {
 			reportUnsupportedImages();
 			return;
@@ -539,6 +542,7 @@ function ChatInputBarImpl({
 		onSend(prompt);
 	}, [
 		needsCloudRepository,
+		readOnly,
 		onSend,
 		promptInput,
 		setPromptInput,
@@ -1392,7 +1396,7 @@ function ChatInputBarImpl({
 													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
 													: "Enter your question or type / for commands or @ for context"
 							}
-							readOnly={speechInputActive}
+							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
 							role="combobox"
 							rows={promptInputRows}
