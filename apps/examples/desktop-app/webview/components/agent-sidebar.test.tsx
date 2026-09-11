@@ -1113,7 +1113,7 @@ describe("AgentSidebar session organization", () => {
 			...(actionsNav?.querySelectorAll<HTMLButtonElement>("button") ?? []),
 		];
 		expect(rows.map((row) => row.textContent)).toEqual([
-			"New",
+			"Session",
 			"Schedule",
 			"Customize",
 		]);
@@ -1122,7 +1122,7 @@ describe("AgentSidebar session organization", () => {
 		}
 		expect(actionsNav?.contains(logo as Element)).toBe(false);
 
-		await click(buttonWithText("New", actionsNav as ParentNode));
+		await click(buttonWithText("Session", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
@@ -1204,7 +1204,7 @@ describe("AgentSidebar session organization", () => {
 				);
 			});
 			return buttonWithText(
-				"New",
+				"Session",
 				container.querySelector('[aria-label="Sidebar actions"]') as ParentNode,
 			);
 		};
