@@ -164,6 +164,99 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["partial", "aborted"]);
 	});
 
+	it.each([
+		["assistant", false],
+		["reasoning", false],
+		["reasoning", true],
+	] as const)("preserves unfinished %s after saved output (redacted: %s)", (kind, redacted) => {
+		const saved = [
+			event(`${kind}.delta`, "saved-delta", {
+				text: redacted ? "" : "saved",
+				redacted,
+			}),
+			event(`${kind}.finished`, "saved-finished", {
+				[kind === "assistant" ? "text" : "reasoning"]: redacted
+					? undefined
+					: "saved",
+			}),
+		];
+		const partial = event(`${kind}.delta`, "partial", { text: "unfinished" });
+		const snapshot = [
+			{
+				role: "assistant",
+				content: [
+					redacted
+						? { type: "redacted_thinking", data: "opaque" }
+						: kind === "assistant"
+							? { type: "text", text: "saved" }
+							: { type: "thinking", thinking: "saved" },
+				],
+			},
+		];
+		for (const terminal of ["run.aborted", "run.failed"] as const) {
+			const end = event(terminal, "end");
+			const buffered = [...saved, partial, end];
+			expect(reconcileBufferedCloudEvents(buffered, snapshot)).toEqual([
+				partial,
+				end,
+			]);
+			const earlier = [
+				{
+					role: "assistant",
+					content: [
+						kind === "assistant"
+							? { type: "text", text: "earlier" }
+							: { type: "thinking", thinking: "earlier" },
+					],
+				},
+			];
+			expect(
+				reconcileBufferedCloudEvents(
+					[
+						event(`${kind}.finished`, "earlier", {
+							[kind === "assistant" ? "text" : "reasoning"]: "earlier",
+						}),
+						...buffered,
+					],
+					[...earlier, ...snapshot],
+					{ baselineMessages: earlier },
+				),
+			).toEqual([partial, end]);
+			expect(reconcileBufferedCloudEvents(buffered, [])).toEqual(buffered);
+			expect(
+				reconcileBufferedCloudEvents(buffered, snapshot, {
+					baselineMessages: snapshot,
+				}),
+			).toEqual(buffered);
+			expect(
+				reconcileBufferedCloudEvents(buffered, snapshot, {
+					messagesSnapshotEventCutoff: 1,
+				}),
+			).toEqual(
+				terminal === "run.aborted" ? buffered : [saved[1], partial, end],
+			);
+		}
+	});
+
+	it.each([
+		"run.completed",
+		"run.aborted",
+		"run.failed",
+	] as const)("ignores empty finishes after saved content in %s", (terminal) => {
+		const end = event(terminal, "end");
+		expect(
+			reconcileBufferedCloudEvents(
+				[
+					event("assistant.finished", "saved", { text: "saved" }),
+					event("assistant.finished", "empty", { text: "" }),
+					event("assistant.finished", "missing"),
+					end,
+				],
+				[{ role: "assistant", content: "saved" }],
+			),
+		).toEqual([end]);
+	});
+
 	it("supersedes despite trailing whitespace in the streamed text", () => {
 		const buffered = [
 			event("assistant.finished", "f-1", { text: "the answer \n" }),

@@ -193,28 +193,24 @@ function streamedAssistantText(
 	events: HubEventEnvelope[],
 	kind: "assistant" | "reasoning" = "assistant",
 ): string {
-	for (let index = events.length - 1; index >= 0; index -= 1) {
-		const event = events[index];
-		const text = event.payload?.[kind === "assistant" ? "text" : "reasoning"];
-		if (
-			event.event === `${kind}.finished` &&
-			typeof text === "string" &&
-			text
-		) {
-			return text.trim();
+	let finishedText = "";
+	let deltas = "";
+	for (const event of events) {
+		if (event.event === `${kind}.delta`) {
+			deltas +=
+				kind === "reasoning" && event.payload?.redacted && !event.payload?.text
+					? "[redacted]"
+					: typeof event.payload?.text === "string"
+						? event.payload.text
+						: "";
+		} else if (event.event === `${kind}.finished`) {
+			const text = event.payload?.[kind === "assistant" ? "text" : "reasoning"];
+			const completed = typeof text === "string" && text ? text : deltas;
+			if (completed) finishedText = completed;
+			deltas = "";
 		}
 	}
-	return events
-		.filter((event) => event.event === `${kind}.delta`)
-		.map((event) =>
-			kind === "reasoning" && event.payload?.redacted && !event.payload?.text
-				? "[redacted]"
-				: typeof event.payload?.text === "string"
-					? event.payload.text
-					: "",
-		)
-		.join("")
-		.trim();
+	return (finishedText || deltas).trim();
 }
 
 /** Reconciles each completed run separately; tools dedupe by stable call id. */
@@ -287,27 +283,38 @@ export function reconcileBufferedCloudEvents(
 		const snapshotSegment = segment.filter((event) =>
 			beforeTranscript.has(event),
 		);
-		// Aborted generations do not persist unfinished text or reasoning.
-		const mayMatch = (kind: "assistant" | "reasoning") =>
-			terminal &&
-			(segment.at(-1)?.event !== "run.aborted" ||
-				snapshotSegment.some((event) => event.event === `${kind}.finished`));
-		const streamed = mayMatch("assistant")
-			? streamedAssistantText(snapshotSegment)
-			: "";
+		// An interrupted run can contain saved replies followed by unsaved output.
+		const contentEnd = (kind: "assistant" | "reasoning") => {
+			if (!terminal) return -1;
+			const finished =
+				segment.at(-1)?.event === "run.completed"
+					? -1
+					: snapshotSegment.findLastIndex(
+							(event) => event.event === `${kind}.finished`,
+						);
+			return finished >= 0 || segment.at(-1)?.event === "run.aborted"
+				? finished
+				: snapshotSegment.length - 1;
+		};
+		const assistantEnd = contentEnd("assistant");
+		const reasoningEnd = contentEnd("reasoning");
+		const streamed = streamedAssistantText(
+			snapshotSegment.slice(0, assistantEnd + 1),
+		);
 		const persistedIndex = streamed
 			? unclaimedAssistantTexts.findIndex((text) => text.endsWith(streamed))
 			: -1;
 		const contentPersisted = persistedIndex >= 0;
 		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
-		const thinking = mayMatch("reasoning")
-			? streamedAssistantText(snapshotSegment, "reasoning")
-			: "";
+		const thinking = streamedAssistantText(
+			snapshotSegment.slice(0, reasoningEnd + 1),
+			"reasoning",
+		);
 		const thinkingIndex = thinking
 			? unclaimedThinking.findIndex((text) => text.endsWith(thinking))
 			: -1;
 		if (thinkingIndex >= 0) unclaimedThinking.splice(thinkingIndex, 1);
-		for (const event of segment) {
+		for (const [index, event] of segment.entries()) {
 			// Preserve the turn-start lifecycle; the UI must only skip its user bubble.
 			if (reflectedSubmissions.has(event)) {
 				reconciled.push({
@@ -320,8 +327,8 @@ export function reconcileBufferedCloudEvents(
 				beforeTranscript.has(event) &&
 				SUPERSEDABLE_CONTENT_EVENTS.has(event.event) &&
 				(event.event.startsWith("reasoning.")
-					? thinkingIndex >= 0
-					: contentPersisted)
+					? thinkingIndex >= 0 && index <= reasoningEnd
+					: contentPersisted && index <= assistantEnd)
 			) {
 				continue;
 			}
