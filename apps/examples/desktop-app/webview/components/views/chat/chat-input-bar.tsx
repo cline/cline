@@ -5,7 +5,15 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cpu,
+	Paperclip,
+	Plus,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -313,6 +321,7 @@ type ChatInputBarProps = {
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
 	onOpenVoiceInputSettings?: () => void;
+	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -351,6 +360,7 @@ function ChatInputBarImpl({
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
 	onOpenVoiceInputSettings,
+	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -1523,6 +1533,7 @@ function ChatInputBarImpl({
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
+							onOpenModelSettings={onOpenModelSettings}
 							onProviderChange={onProviderChange}
 							provider={provider}
 						/>
@@ -1597,6 +1608,9 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
+/** Sentinel provider-picker row that opens Settings → Models instead of selecting. */
+const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
+
 const ModelSelector = memo(function ModelSelector({
 	provider,
 	model,
@@ -1605,6 +1619,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
+	onOpenModelSettings,
 }: {
 	provider: string;
 	model: string;
@@ -1613,6 +1628,8 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
+	/** Opens Settings → Models; adds a "set up another provider" row when set. */
+	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1968,6 +1985,11 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
+			if (value === ADD_PROVIDER_OPTION_VALUE) {
+				setMobileOpen(false);
+				onOpenModelSettings?.();
+				return;
+			}
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
@@ -1992,6 +2014,7 @@ const ModelSelector = memo(function ModelSelector({
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
+			onOpenModelSettings,
 			onProviderChange,
 			pickerDataForProvider,
 			rememberSelection,
@@ -2005,13 +2028,25 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	// The picker only lists providers with saved settings, so it is also the
+	// natural place to reach the rest of the catalog.
 	const providerOptions = useMemo(
-		() =>
-			providers.map((value) => ({
+		() => [
+			...providers.map((value) => ({
 				label: providerNames[value]?.trim() || value,
 				value,
 			})),
-		[providerNames, providers],
+			...(onOpenModelSettings
+				? [
+						{
+							icon: <Plus className="size-3 shrink-0 text-muted-foreground" />,
+							label: "Set up another provider",
+							value: ADD_PROVIDER_OPTION_VALUE,
+						},
+					]
+				: []),
+		],
+		[onOpenModelSettings, providerNames, providers],
 	);
 	const selectedModelLabel =
 		visibleModelPicker.options.find((option) => option.value === resolvedModel)

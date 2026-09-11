@@ -1538,6 +1538,85 @@ describe("ChatInputBar", () => {
 		expect(optionLabels[2]).toContain("Other Model");
 	});
 
+	it("opens model settings from the provider picker's set-up row", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline", "cline-pass"],
+			providerModels: {
+				cline: ["anthropic/claude-opus-5"],
+				"cline-pass": ["anthropic/claude-opus-5"],
+			},
+			providerModelDetails: {},
+			providerNames: { cline: "Cline", "cline-pass": "Cline Pass" },
+			providerReasoningModels: {},
+		});
+		const onOpenModelSettings = vi.fn();
+		const onProviderChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="anthropic/claude-opus-5"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onOpenModelSettings={onOpenModelSettings}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await vi.waitFor(() => {
+			expect(providerTrigger?.textContent).toContain("Cline");
+		});
+
+		await act(async () => providerTrigger?.click());
+		const panel = document.querySelector('[role="dialog"]');
+		const options = [...(panel?.querySelectorAll('[role="option"]') ?? [])];
+		// Both Cline entries list (one sign-in configures both); the set-up
+		// row trails the real providers.
+		expect(options.map((option) => option.textContent)).toEqual([
+			"Cline",
+			"Cline Pass",
+			"Set up another provider",
+		]);
+
+		await act(async () => (options[2] as HTMLButtonElement).click());
+		expect(onOpenModelSettings).toHaveBeenCalledTimes(1);
+		expect(onProviderChange).not.toHaveBeenCalled();
+		// The row is an action, not a selection: the trigger still shows Cline.
+		expect(providerTrigger?.textContent).toContain("Cline");
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+	});
+
 	describe("cline-pass picker offer", () => {
 		const renderComposer = async (props: {
 			model: string;
