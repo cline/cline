@@ -37,6 +37,7 @@ export enum BUILT_IN_PROVIDER {
 	POOLSIDE = "poolside",
 	CEREBRAS = "cerebras",
 	SAMBANOVA = "sambanova",
+	SCALATTICE = "scalattice",
 	NEBIUS = "nebius",
 	BASETEN = "baseten",
 	REQUESTY = "requesty",

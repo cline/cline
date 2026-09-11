@@ -85,6 +85,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	sambanova: {
 		signupUrl: "https://docs.sambanova.ai/cloud/docs/get-started/overview",
 	},
+	scalattice: {
+		signupUrl: "https://scalattice.cloud/docs/developers",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "https://api.scalattice.cloud/v1",
+		},
+	},
 	together: {
 		allowsCustomIds: true,
 		signupUrl: "https://api.together.ai/settings/api-keys",
