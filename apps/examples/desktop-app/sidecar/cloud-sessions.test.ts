@@ -48,6 +48,7 @@ function createContext(): {
 		pendingQuestions: new Map(),
 		sessionManager: null,
 		hubClient: null,
+		hubBuildMismatch: null,
 		workspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
@@ -665,7 +666,10 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 	});
 
-	it("attaches instead of creating when start carries an existing outer id and the registry is cold", async () => {
+	it.each([
+		"start",
+		"attach",
+	] as const)("%s attaches an existing outer id with a cold registry", async (action) => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(true);
 		let creates = 0;
@@ -684,15 +688,20 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 		ctx.cloudSessionManager = manager;
 
-		const attached = await handleChatSessionCommand(ctx, {
-			action: "start",
-			config: {
-				executionTarget: "cloud",
-				sessionId: outerId,
-				repoUrl: "https://github.com/cline/test",
-				model: "anthropic/claude-sonnet-5",
-			},
-		});
+		const attached = await handleChatSessionCommand(
+			ctx,
+			action === "attach"
+				? { action, sessionId: outerId }
+				: {
+						action,
+						config: {
+							executionTarget: "cloud",
+							sessionId: outerId,
+							repoUrl: "https://github.com/cline/test",
+							model: "anthropic/claude-sonnet-5",
+						},
+					},
+		);
 
 		expect(attached).toMatchObject({ sessionId: outerId, origin: "cloud" });
 		expect(creates).toBe(0);
