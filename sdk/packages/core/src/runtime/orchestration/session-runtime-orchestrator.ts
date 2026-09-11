@@ -183,11 +183,15 @@ function mergeRuntimeHooks(
 
 	return {
 		beforeRun: async (ctx) => {
+			const contexts: string[] = [];
 			for (const hook of hooks) {
 				const result = await hook.beforeRun?.(ctx);
 				if (result?.stop) return result;
+				if (result?.appendContext?.trim()) contexts.push(result.appendContext);
 			}
-			return undefined;
+			return contexts.length
+				? { appendContext: contexts.join("\n\n") }
+				: undefined;
 		},
 		afterRun: async (ctx) => {
 			for (const hook of hooks) {

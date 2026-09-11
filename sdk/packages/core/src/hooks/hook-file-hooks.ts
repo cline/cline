@@ -689,7 +689,11 @@ export function createHookAuditHooks(options: {
 			}
 		},
 		onEvent: async (event: AgentRuntimeEvent) => {
-			if (event.type !== "message-added" || event.message.role !== "user") {
+			if (
+				event.type !== "message-added" ||
+				event.message.role !== "user" ||
+				event.message.metadata?.displayRole === "system"
+			) {
 				return;
 			}
 			const commandCtx = runStartContext(
@@ -935,7 +939,11 @@ export function createHookConfigFileHooks(
 		}
 		if ((commandMap.prompt_submit?.length ?? 0) > 0) {
 			hooks.onEvent = async (event: AgentRuntimeEvent) => {
-				if (event.type !== "message-added" || event.message.role !== "user") {
+				if (
+					event.type !== "message-added" ||
+					event.message.role !== "user" ||
+					event.message.metadata?.displayRole === "system"
+				) {
 					return;
 				}
 				await runPromptSubmit(

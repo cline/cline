@@ -423,7 +423,11 @@ export function createSubprocessHooks(
 	};
 
 	const onEvent = async (event: AgentRuntimeEvent): Promise<void> => {
-		if (event.type !== "message-added" || event.message.role !== "user") {
+		if (
+			event.type !== "message-added" ||
+			event.message.role !== "user" ||
+			event.message.metadata?.displayRole === "system"
+		) {
 			return;
 		}
 		const base = {

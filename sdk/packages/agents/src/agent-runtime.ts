@@ -345,8 +345,8 @@ function sanitizeHookAttribute(value: string): string {
 }
 
 function formatHookContextBlock(
-	source: "PreToolUse" | "PostToolUse",
-	toolCall: AgentToolCallPart,
+	source: "PreToolUse" | "PostToolUse" | "RunStart",
+	toolCall: AgentToolCallPart | undefined,
 	text: string,
 ): string {
 	// Tool identity keeps each block attributable to its call: contexts are
@@ -356,10 +356,11 @@ function formatHookContextBlock(
 	// hook_context tags (opening and closing) neutralized so neither
 	// provider-supplied ids nor hook output can corrupt or spoof the block
 	// markup.
-	const toolName = sanitizeHookAttribute(toolCall.toolName);
-	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
+	const identity = toolCall
+		? ` tool_name="${sanitizeHookAttribute(toolCall.toolName)}" tool_call_id="${sanitizeHookAttribute(toolCall.toolCallId)}"`
+		: "";
 	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
-	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
+	return `<hook_context source="${source}"${identity}>\n${body}\n</hook_context>`;
 }
 
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
@@ -705,7 +706,7 @@ export class AgentRuntime {
 		this.overflowRecoveryAttempted = false;
 
 		try {
-			await this.callBeforeRunHooks();
+			const runHookContexts = await this.callBeforeRunHooks();
 			await this.emit({ type: "run-started", snapshot: this.snapshot() });
 
 			for (const message of input ? normalizeInput(input) : []) {
@@ -721,6 +722,8 @@ export class AgentRuntime {
 			if (completionToolReminder) {
 				await this.addUserReminderMessage(completionToolReminder);
 			}
+
+			await this.appendHookContexts(runHookContexts);
 
 			let finalAssistantMessage: AgentMessage | undefined;
 
@@ -823,24 +826,8 @@ export class AgentRuntime {
 						message: toolMessage,
 					});
 				}
-				if (this.pendingHookContexts.length > 0) {
-					const hookContextText = this.pendingHookContexts.join("\n\n");
-					this.pendingHookContexts = [];
-					// displayRole "system" keeps the injected block out of user-facing
-					// transcripts (live and replayed) while it still reaches the model,
-					// mirroring how compaction summaries are handled.
-					const hookContextMessage = createMessage(
-						"user",
-						[{ type: "text", text: hookContextText }],
-						{ userRunSpan: 0, displayRole: "system" },
-					);
-					this.state.messages.push(hookContextMessage);
-					await this.emit({
-						type: "message-added",
-						snapshot: this.snapshot(),
-						message: hookContextMessage,
-					});
-				}
+				await this.appendHookContexts(this.pendingHookContexts);
+				this.pendingHookContexts = [];
 				await this.emit({
 					type: "turn-finished",
 					snapshot: this.snapshot(),
@@ -937,13 +924,36 @@ export class AgentRuntime {
 		}
 	}
 
-	private async callBeforeRunHooks(): Promise<void> {
+	private async appendHookContexts(contexts: string[]): Promise<void> {
+		if (contexts.length === 0) return;
+		// Persist context for later requests while keeping it out of the transcript UI.
+		const message = createMessage(
+			"user",
+			[{ type: "text", text: contexts.join("\n\n") }],
+			{ userRunSpan: 0, displayRole: "system" },
+		);
+		this.state.messages.push(message);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message,
+		});
+	}
+
+	private async callBeforeRunHooks(): Promise<string[]> {
+		const contexts: string[] = [];
 		for (const hook of this.hooks.beforeRun) {
-			const control = (await hook({
+			const control = await hook({
 				snapshot: this.snapshot(),
-			})) as AgentStopControl | undefined;
+			});
 			this.applyStopControl(control);
+			if (control?.appendContext?.trim()) {
+				contexts.push(
+					formatHookContextBlock("RunStart", undefined, control.appendContext),
+				);
+			}
 		}
+		return contexts;
 	}
 
 	private async callAfterRunHooks(result: AgentRunResult): Promise<void> {

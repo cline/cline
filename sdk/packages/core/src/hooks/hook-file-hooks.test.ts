@@ -725,7 +725,7 @@ describe("createHookConfigFileHooks", () => {
 		});
 	});
 
-	it("dispatches agent_start and prompt_submit exactly once when both are configured", async () => {
+	it("dispatches agent_start and the real prompt once, ignoring synthetic context", async () => {
 		const outputPath = join(tmpdir(), `hooks-start-prompt-${Date.now()}.jsonl`);
 		const { workspace } = await createWorkspaceWithHook(
 			"TaskStart.js",
@@ -755,6 +755,17 @@ describe("createHookConfigFileHooks", () => {
 				},
 			});
 
+			await hooks?.onEvent?.({
+				type: "message-added",
+				snapshot,
+				message: {
+					id: "context",
+					role: "user",
+					createdAt: 0,
+					content: [{ type: "text", text: "hook context" }],
+					metadata: { displayRole: "system" },
+				},
+			});
 			const payloads = (await waitForJsonLines(outputPath, 2)).map(
 				(line) =>
 					JSON.parse(line) as {

@@ -1638,6 +1638,106 @@ describe("SessionRuntime.addTools / updateConnection / clearHistory / restore", 
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime real AgentRuntime smoke", () => {
+	it("delivers config and extension run context on each turn and persists it", async () => {
+		const requests: AgentMessage[][] = [];
+		const model: AgentModel = {
+			async *stream(request) {
+				requests.push([...request.messages]);
+				yield { type: "text-delta", text: "done" };
+				yield { type: "finish", reason: "stop" };
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: {
+					beforeRun: () => ({ appendContext: `config-${requests.length + 1}` }),
+				},
+				extensions: [
+					{
+						name: "run-context",
+						manifest: { capabilities: ["hooks"] },
+						hooks: {
+							beforeRun: () => ({
+								appendContext: `extension-${requests.length + 1}`,
+							}),
+						},
+					},
+				],
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model }),
+			},
+		);
+		expect((await session.run("first prompt")).finishReason).toBe("completed");
+		expect((await session.continue("second prompt")).finishReason).toBe(
+			"completed",
+		);
+		expect(requests).toHaveLength(2);
+		for (const [index, messages] of requests.entries()) {
+			const promptIndex = messages.findIndex((message) =>
+				JSON.stringify(message.content).includes(
+					index ? "second prompt" : "first prompt",
+				),
+			);
+			expect(promptIndex).toBeGreaterThanOrEqual(0);
+			expect(messages[promptIndex + 1]).toMatchObject({
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: `<hook_context source="RunStart">\nconfig-${index + 1}\n\nextension-${index + 1}\n</hook_context>`,
+					},
+				],
+			});
+		}
+		expect(JSON.stringify(requests[1])).toContain("config-1");
+		expect(JSON.stringify(session.getMessages())).toContain("extension-2");
+		expect(
+			session
+				.getMessages()
+				.filter((message) =>
+					JSON.stringify(message.content).includes("<hook_context"),
+				),
+		).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					metadata: expect.objectContaining({ displayRole: "system" }),
+				}),
+			]),
+		);
+	});
+
+	it("a stopping extension discards earlier run context and skips later hooks", async () => {
+		const laterHook = vi.fn();
+		const stream = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: { beforeRun: () => ({ appendContext: "discard me" }) },
+				extensions: [
+					{
+						name: "stop",
+						manifest: { capabilities: ["hooks"] },
+						hooks: { beforeRun: () => ({ stop: true }) },
+					},
+					{
+						name: "later",
+						manifest: { capabilities: ["hooks"] },
+						hooks: { beforeRun: laterHook },
+					},
+				],
+			}),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({ ...config, model: { stream } }),
+			},
+		);
+		await session.run("blocked");
+		expect(stream).not.toHaveBeenCalled();
+		expect(laterHook).not.toHaveBeenCalled();
+		expect(JSON.stringify(session.getMessages())).not.toContain("discard me");
+	});
+
 	it("does not replay ERROR: EMPTY CONTENT after an empty upstream failure", async () => {
 		const modelRequests: AgentMessage[][] = [];
 		const scriptedModel: AgentModel = {

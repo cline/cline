@@ -346,6 +346,14 @@ export interface AgentStopControl {
 	reason?: string;
 }
 
+export interface AgentBeforeRunResult extends AgentStopControl {
+	/** Context appended after run input and before the first model request.
+	 * Persisted as a user message with displayRole "system", like tool hook context.
+	 * Ignored when any beforeRun hook stops the run.
+	 */
+	appendContext?: string;
+}
+
 export interface AgentBeforeModelResult {
 	stop?: boolean;
 	reason?: string;
@@ -420,7 +428,10 @@ export interface AgentRunLifecycleContext {
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentBeforeRunResult
+		| undefined
+		| Promise<AgentBeforeRunResult | undefined>;
 	afterRun?: (
 		context: AgentRunLifecycleContext & { result: AgentRunResult },
 	) => void | Promise<void>;

@@ -328,7 +328,11 @@ export function createRuntimeHooks(options: {
 				);
 			},
 			onEvent: async (event) => {
-				if (event.type !== "message-added" || event.message.role !== "user") {
+				if (
+					event.type !== "message-added" ||
+					event.message.role !== "user" ||
+					event.message.metadata?.displayRole === "system"
+				) {
 					return;
 				}
 				await dispatchHookPayload(
