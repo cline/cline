@@ -865,7 +865,7 @@ export function isCompletionTool(toolName: string): boolean {
  * Extract the completion summary text from a completion-tool input. `attempt_completion` carries
  * it in `result`; `submit_and_exit` carries it in `summary`. Either renders the same completion UI.
  */
-function getCompletionResultText(input: unknown): string {
+export function getCompletionResultText(input: unknown): string {
 	const parsed = parseToolInput(input)
 	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
 }
@@ -878,7 +878,7 @@ interface FileReadRequest {
 }
 
 /** Extract file read requests (path + optional one-based inclusive line range) from a read_files/read_file input */
-function extractFileReads(input: Record<string, unknown> | undefined): FileReadRequest[] {
+export function extractFileReads(input: Record<string, unknown> | undefined): FileReadRequest[] {
 	if (!input) return []
 	const files = input.files
 	if (Array.isArray(files) && files.length > 0) {
@@ -912,7 +912,7 @@ function extractFileReads(input: Record<string, unknown> | undefined): FileReadR
  * explicit end_line means the read began at line 1; an omitted end_line stays undefined
  * (open-ended read — the UI renders it as "start+").
  */
-function readLineRangeFields(read: FileReadRequest | undefined): Pick<ClineSayTool, "readLineStart" | "readLineEnd"> {
+export function readLineRangeFields(read: FileReadRequest | undefined): Pick<ClineSayTool, "readLineStart" | "readLineEnd"> {
 	if (!read || (read.startLine == null && read.endLine == null)) {
 		return {}
 	}
@@ -935,7 +935,7 @@ function getNumberField(input: Record<string, unknown> | undefined, field: strin
 	return undefined
 }
 
-function getApplyPatchString(input: unknown): string | undefined {
+export function getApplyPatchString(input: unknown): string | undefined {
 	const parsed = parseToolInput(input)
 	const fromFields = getStringField(parsed, "patch") ?? getStringField(parsed, "diff") ?? getStringField(parsed, "input")
 	if (fromFields !== undefined) {
@@ -951,7 +951,7 @@ function getApplyPatchString(input: unknown): string | undefined {
  * Returns [] for single-file (or unparseable) patches so callers keep the existing
  * single-message behavior — only genuinely multi-file patches are split.
  */
-function splitApplyPatchByFile(patch: string): ClineSayTool[] {
+export function splitApplyPatchByFile(patch: string): ClineSayTool[] {
 	const lines = patch.split("\n")
 	const blocks: { tool: ClineSayTool["tool"]; path: string; lines: string[] }[] = []
 	let current: { tool: ClineSayTool["tool"]; path: string; lines: string[] } | undefined
@@ -1080,7 +1080,7 @@ export function extractToolOutputText(output: unknown): string {
  *
  * Returns undefined if the tool name doesn't match the MCP naming convention.
  */
-function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
+export function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
 	const separatorIndex = toolName.indexOf("__")
 	if (separatorIndex <= 0) return undefined
 	const serverName = toolName.substring(0, separatorIndex)
@@ -1094,7 +1094,7 @@ function parseMcpToolName(toolName: string): { serverName: string; toolName: str
  * This is what the webview's ChatRow expects when rendering MCP tool calls
  * (message.ask === "use_mcp_server" or message.say === "use_mcp_server").
  */
-function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, input?: unknown): string {
+export function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, input?: unknown): string {
 	const parsedInput = parseToolInput(input)
 	// Format arguments as a JSON string (matching classic ClineAskUseMcpServer.arguments)
 	let argumentsStr: string | undefined
@@ -1112,7 +1112,7 @@ function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, 
 	} satisfies ClineAskUseMcpServer)
 }
 
-function extractCommandText(input: unknown): string {
+export function extractCommandText(input: unknown): string {
 	if (Array.isArray(input)) {
 		return input.map(formatStructuredCommand).join(" && ")
 	}
