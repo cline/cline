@@ -513,3 +513,89 @@ describe("Composio beta access", () => {
 		expect(proxy.listConnections).not.toHaveBeenCalled();
 	});
 });
+
+describe("connector operation ordering", () => {
+	const storedGithub = {
+		toolkits: {
+			github: {
+				connectedAccountId: "ca_old",
+				tools: [{ slug: "GITHUB_LIST_ISSUES" }],
+			},
+		},
+	};
+
+	afterEach(() => vi.restoreAllMocks());
+
+	it.each([
+		0, -1_000,
+	])("keeps a newer reconnect while disconnect is pending (clock delta %i)", async (clockDelta) => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
+		const dir = useTempDataDir();
+		writeState(dir, storedGithub);
+		let releaseDelete!: () => void;
+		proxy.deleteConnection.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseDelete = resolve;
+				}),
+		);
+		proxy.initiateConnection.mockResolvedValue({
+			connectedAccountId: "ca_new",
+		});
+		proxy.listToolkitTools.mockResolvedValue([{ slug: "GITHUB_LIST_ISSUES" }]);
+		const disconnect = disconnectComposioToolkit("github");
+		await vi.waitFor(() =>
+			expect(proxy.deleteConnection).toHaveBeenCalledOnce(),
+		);
+		clock.mockReturnValue(10_000 + clockDelta);
+		try {
+			expect((await connectComposioToolkit("github")).alreadyConnected).toBe(
+				true,
+			);
+		} finally {
+			releaseDelete();
+			await disconnect;
+		}
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"ca_new",
+		);
+		expect(proxy.deleteConnection).not.toHaveBeenCalledWith(
+			"ca_new",
+			expect.anything(),
+		);
+	});
+
+	it.each([
+		0, -1_000,
+	])("honors a newer disconnect while connect is pending (clock delta %i)", async (clockDelta) => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
+		const dir = useTempDataDir();
+		writeState(dir, storedGithub);
+		proxy.initiateConnection.mockResolvedValue({
+			connectedAccountId: "ca_new",
+		});
+		let releaseTools!: () => void;
+		proxy.listToolkitTools.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					releaseTools = () => resolve([{ slug: "GITHUB_LIST_ISSUES" }]);
+				}),
+		);
+		const connect = connectComposioToolkit("github");
+		await vi.waitFor(() =>
+			expect(proxy.listToolkitTools).toHaveBeenCalledOnce(),
+		);
+		clock.mockReturnValue(10_000 + clockDelta);
+		try {
+			await disconnectComposioToolkit("github");
+		} finally {
+			releaseTools();
+		}
+		expect((await connect).alreadyConnected).toBeUndefined();
+		expect(readStateFile(dir).toolkits).toEqual({});
+		expect(proxy.deleteConnection).toHaveBeenCalledWith(
+			"ca_new",
+			expect.anything(),
+		);
+	});
+});

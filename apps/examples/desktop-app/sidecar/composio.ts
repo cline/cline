@@ -120,10 +120,9 @@ const pendingConnections = new Map<ComposioToolkitSlug, PendingConnection>();
  */
 const connectInitiationsInFlight = new Set<ComposioToolkitSlug>();
 const lastConnectionErrors = new Map<ComposioToolkitSlug, string>();
-/** When each toolkit was last disconnected, so state snapshots taken before
- * the disconnect cannot write it back. */
 // Order in-flight operations independently of wall-clock resolution or changes.
 let operationSequence = 0;
+/** Prevent older state snapshots from restoring a disconnected toolkit. */
 const lastDisconnectSequence = new Map<ComposioToolkitSlug, number>();
 
 /** Usage-ranked toolkit catalog, cached since it changes rarely. Keyed by
@@ -1066,8 +1065,8 @@ type FinalizeGuard = {
 	 * this id at write time (cancel/disconnect clear it). */
 	attemptId?: string;
 	/** Sequence at connection entry. A later disconnect is the newer user
-	 * intent: the finalize
-	 * result is dropped and its account revoked instead of written. This is
+	 * intent: the result is dropped and its account revoked instead of written.
+	 * This is
 	 * the only disconnect defense on the redirect-less path, which never has
 	 * a pending entry for the disconnect to clear. */
 	startedSequence: number;
