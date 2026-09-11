@@ -23,16 +23,16 @@ Cline stores shared configuration across a few well-known locations. The primary
     teams/                     # Team state
     sessions/                  # Session data
     db/                        # SQLite databases (for example cron.db)
-    workflows/                 # Global workflows
   rules/                       # Global rules
   hooks/                       # Global hooks
   skills/                      # Global skills
+  workflows/                   # Global workflows (deprecated, only supporting for backward compatibility)
   agents/                      # Global agent definitions
   plugins/                     # Global plugins (.js, .ts)
   cron/                        # Global cron specs
 ```
 
-Additional global search paths supported by the code:
+Additional global search paths supported by the code (deprecated, only supporting for backward compatibility):
 
 ```text
 ~/Documents/Cline/
@@ -49,17 +49,19 @@ Project-level configuration lives in `.cline/` at your repository root:
   rules/                       # Project rules
   skills/                      # Project skills
   hooks/                       # Lifecycle hooks
+  workflows/                   # Project workflows (deprecated, only supporting for backward compatibility)
   agents/                      # Project agent definitions
   plugins/                     # Project plugins
-  cron/                        # Workspace cron specs
 ```
 
 Notes:
 
 - Global provider settings, global settings, and MCP settings are stored under `~/.cline/data/settings/`.
-- Global workflows resolve from `~/.cline/data/workflows/`.
-- Global rules, hooks, skills, agents, plugins, and cron specs resolve directly under `~/.cline/`.
+- Global rules, hooks, skills, workflows, agents, plugins, and cron specs resolve directly under `~/.cline/` (for example, global workflows resolve from `~/.cline/workflows/`).
 - Rules, hooks, plugins, and workflows may also be discovered from `~/Documents/Cline/` for compatibility.
+- Project plugins are supported: `.cline/plugins/` is discovered and loaded whenever a workspace is open (plugins must also be enabled).
+- Cron specs are global-only, under `~/.cline/cron/`.
+- Skills and the cross-tool `AGENTS.md` instructions file additionally support the shared `.agents/` convention — see [Compatibility with the `.agents/` directory](#compatibility-with-the-agents-directory).
 
 ## What Goes Where?
 
@@ -67,6 +69,27 @@ Notes:
 - Use **project (`.cline/`)** for team-shared behavior that should travel with the repo.
 
 Commit `.cline/` files you want to share with your team. Keep secrets out of the repo.
+
+## Compatibility with the `.agents/` directory
+
+`.agents/` (together with the [agents.md](https://agents.md/) `AGENTS.md` file) is a shared, tool-agnostic convention for storing agent configuration, so the same skills and instructions can be reused across multiple coding tools without duplicating them into each tool's proprietary directory. Cline supports it for the two config types that have an established cross-tool format.
+
+Two things connect Cline to this ecosystem:
+
+- **Skills** — Cline's skill search includes `.agents/skills/` (project) and `~/.agents/skills/` (global). This is the recommended location for skills; `.cline/skills/` and `.clinerules/skills/` are still scanned for backward compatibility, and new skills created from the UI are scaffolded into `.agents/skills/`.
+- **`AGENTS.md`** — Cline honors the [agents.md](https://agents.md/) standard instructions file: `AGENTS.md` at your **repository root** (project scope) and `~/.agents/AGENTS.md` (global scope). Cline loads these as a rules source, but `AGENTS.md` is a separate, cross-tool format — it is **not** the same as [Cline Rules](/customization/cline-rules), which are Cline-native and live in `.clinerules/` or `.cline/rules/`. Note the project `AGENTS.md` sits at the workspace root, not inside a `.agents/` subdirectory.
+
+Everything else uses Cline-native locations only and does **not** read `.agents/`: **Cline Rules** (`.clinerules/`, `.cline/rules/`), **workflows**, **hooks**, **agent (subagent) definitions**, **plugins**, and **MCP servers**.
+
+| Config | `.agents/` / `AGENTS.md` support | Location |
+|--------|----------------------------------|----------|
+| Skills | Yes (recommended) | `.agents/skills/`, `~/.agents/skills/` |
+| `AGENTS.md` instructions | Yes | `AGENTS.md` (repo root), `~/.agents/AGENTS.md` |
+| Cline Rules | No | `.clinerules/`, `.cline/rules/`, `~/.cline/rules/` |
+| Hooks | No | `.cline/hooks/`, `~/.cline/hooks/` |
+| Agent definitions | No | `.cline/agents/`, `~/.cline/agents/` |
+| Plugins | No | `.cline/plugins/`, `~/.cline/plugins/` |
+| MCP servers | No | `~/.cline/data/settings/cline_mcp_settings.json` |
 
 ## Configure Through the CLI
 
