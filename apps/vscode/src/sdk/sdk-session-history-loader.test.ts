@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
+import { readSessionMessagesPreferringLive, SdkSessionHistoryLoader } from "./sdk-session-history-loader"
+import { findSdkUserMessageIndexByOrdinal } from "./sdk-user-message-mapping"
 import type { SdkSessionHost } from "./session-host"
 
-const getSavedApiConversationHistory = vi.fn().mockResolvedValue([])
+const { getSavedApiConversationHistory } = vi.hoisted(() => ({
+	getSavedApiConversationHistory: vi.fn().mockResolvedValue([]),
+}))
 
 vi.mock("@core/storage/disk", () => ({
 	getSavedApiConversationHistory,
@@ -93,5 +96,41 @@ describe("SdkSessionHistoryLoader", () => {
 		const result = await new SdkSessionHistoryLoader().loadInitialMessages(reader, "task-1")
 
 		expect(result).toBeUndefined()
+	})
+})
+
+describe("readSessionMessagesPreferringLive", () => {
+	const persistedDuringTurn = [
+		{ role: "user", content: "add a readme" },
+		{ role: "assistant", content: "added it" },
+	]
+	const followUp = { role: "user", content: "now add a licence too" }
+	const liveDuringTurn = [...persistedDuringTurn, followUp]
+
+	it("maps the follow-up ordinal that the persisted transcript cannot resolve yet", async () => {
+		const sessionHost = {
+			readLiveMessages: vi.fn().mockResolvedValue(liveDuringTurn),
+			readMessages: vi.fn().mockResolvedValue(persistedDuringTurn),
+		} as unknown as SdkSessionHost
+
+		expect(findSdkUserMessageIndexByOrdinal(persistedDuringTurn, 2)).toBe(-1)
+
+		const messages = await readSessionMessagesPreferringLive(sessionHost, "task-1")
+
+		expect(sessionHost.readLiveMessages).toHaveBeenCalledWith("task-1")
+		expect(sessionHost.readMessages).not.toHaveBeenCalled()
+		expect(messages).toEqual(liveDuringTurn)
+		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(2)
+	})
+
+	it("falls back to the persisted conversation when the host has no live read", async () => {
+		const sessionHost = {
+			readMessages: vi.fn().mockResolvedValue(persistedDuringTurn),
+		} as unknown as SdkSessionHost
+
+		const messages = await readSessionMessagesPreferringLive(sessionHost, "task-1")
+
+		expect(sessionHost.readMessages).toHaveBeenCalledWith("task-1")
+		expect(messages).toEqual(persistedDuringTurn)
 	})
 })
