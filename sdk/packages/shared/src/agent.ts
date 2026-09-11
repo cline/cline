@@ -336,6 +336,16 @@ export interface AgentModel {
 // Hook contexts
 // =============================================================================
 
+export interface AgentBeforeRunResult extends AgentStopControl {
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a lifecycle
+	 * hook's `contextModification`). Injected as a `<hook_context>` user
+	 * message before the run's input messages, so the model sees it on the
+	 * first request.
+	 */
+	appendContext?: string;
+}
+
 export interface AgentBeforeModelContext {
 	snapshot: AgentRuntimeStateSnapshot;
 	request: AgentModelRequest;
@@ -420,7 +430,10 @@ export interface AgentRunLifecycleContext {
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentBeforeRunResult
+		| undefined
+		| Promise<AgentBeforeRunResult | undefined>;
 	afterRun?: (
 		context: AgentRunLifecycleContext & { result: AgentRunResult },
 	) => void | Promise<void>;

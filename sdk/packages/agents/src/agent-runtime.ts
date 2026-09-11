@@ -12,6 +12,7 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentModelFinishReason,
+	AgentBeforeRunResult,
 	AgentModelRequest,
 	AgentModelToolActivity,
 	AgentRunResult,
@@ -360,6 +361,14 @@ function formatHookContextBlock(
 	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
 	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
 	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
+}
+
+function formatLifecycleHookContextBlock(source: string, text: string): string {
+	// Embedded hook_context tags (opening and closing) are neutralized so
+	// lifecycle hook output cannot corrupt or spoof the block markup,
+	// mirroring the tool hook context handling.
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
+	return `<hook_context source="${source}">\n${body}\n</hook_context>`;
 }
 
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
@@ -938,11 +947,34 @@ export class AgentRuntime {
 	}
 
 	private async callBeforeRunHooks(): Promise<void> {
+		const pendingContexts: string[] = [];
 		for (const hook of this.hooks.beforeRun) {
 			const control = (await hook({
 				snapshot: this.snapshot(),
-			})) as AgentStopControl | undefined;
+			})) as AgentBeforeRunResult | undefined;
+			if (control?.appendContext?.trim()) {
+				pendingContexts.push(
+					formatLifecycleHookContextBlock("beforeRun", control.appendContext),
+				);
+			}
 			this.applyStopControl(control);
+		}
+		if (pendingContexts.length > 0) {
+			const hookContextText = pendingContexts.join("\n\n");
+			// displayRole "system" keeps the injected block out of user-facing
+			// transcripts (live and replayed) while it still reaches the model,
+			// mirroring how tool hook context is handled.
+			const hookContextMessage = createMessage(
+				"user",
+				[{ type: "text", text: hookContextText }],
+				{ userRunSpan: 0, displayRole: "system" },
+			);
+			this.state.messages.push(hookContextMessage);
+			await this.emit({
+				type: "message-added",
+				snapshot: this.snapshot(),
+				message: hookContextMessage,
+			});
 		}
 	}
 
