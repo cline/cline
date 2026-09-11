@@ -257,19 +257,11 @@ function isSkillAllowed(
 	allowedSkills?: Set<string>,
 ): boolean {
 	if (!allowedSkills) return true;
-	const normalizedId = normalizeSkillToken(skillId);
-	const normalizedName = normalizeSkillToken(skillName);
-	const bareId = normalizedId.includes(":")
-		? (normalizedId.split(":").at(-1) ?? normalizedId)
-		: normalizedId;
-	const bareName = normalizedName.includes(":")
-		? (normalizedName.split(":").at(-1) ?? normalizedName)
-		: normalizedName;
+	// Match the fully-qualified id/name only — see the matching guard in
+	// extensions/config/user-instruction-plugin.ts for the rationale.
 	return (
-		allowedSkills.has(normalizedId) ||
-		allowedSkills.has(normalizedName) ||
-		allowedSkills.has(bareId) ||
-		allowedSkills.has(bareName)
+		allowedSkills.has(normalizeSkillToken(skillId)) ||
+		allowedSkills.has(normalizeSkillToken(skillName))
 	);
 }
 
