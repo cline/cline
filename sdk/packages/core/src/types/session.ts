@@ -8,11 +8,20 @@ import type { SessionRow } from "../session/models/session-row";
 import type { RootSessionArtifacts } from "../session/services/session-service";
 import type { SessionSource, SessionStatus } from "./common";
 import type { CoreAgentMode, CoreSessionConfig } from "./config";
+import type { SessionThinkingMetadata } from "./sessions";
 
 export type ActiveSession = {
 	sessionId: string;
 	config: CoreSessionConfig;
 	sessionMetadata?: Record<string, unknown>;
+	/**
+	 * Effective thinking level for the session: the config's choice when it made
+	 * one, otherwise whatever the provider settings resolved to at start. Held
+	 * here because `config` alone cannot answer it, and mirrored into
+	 * `metadata.thinking` when the session is created, after every turn, and on
+	 * a mid-session switch.
+	 */
+	thinking: SessionThinkingMetadata;
 	artifacts?: RootSessionArtifacts;
 	source: SessionSource;
 	startedAt: string;
