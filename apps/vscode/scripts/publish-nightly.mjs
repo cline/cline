@@ -505,6 +505,15 @@ class NightlyPublisher {
 			// Step 4: Package extension
 			this.packageExtension(isPreRelease)
 
+			// Gate both marketplaces after packaging, while the build env is still
+			// available. Local builds without a content flag may keep runtime reads.
+			if (process.env.CLINE_TRACE_RECORD_CONTENT) {
+				const bundle = fs.readFileSync(path.join(config.distDir, "extension.js"), "utf8")
+				if (bundle.includes("process.env.CLINE_TRACE_RECORD_CONTENT")) {
+					throw new Error("Content-capture env was not inlined into dist/extension.js")
+				}
+			}
+
 			// Step 5: Publish to marketplaces (skip if dry run)
 			let vsCodePublished = false
 			let openVSXPublished = false
