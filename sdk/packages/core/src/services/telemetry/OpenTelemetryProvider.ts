@@ -5,6 +5,7 @@ import type {
 	TelemetryMetadata,
 	TelemetryProperties,
 } from "@cline/shared";
+import { markOtlpTraceRelayProvider } from "@cline/shared";
 import { metrics, type Tracer, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter as OTLPLogExporterHttp } from "@opentelemetry/exporter-logs-otlp-http";
@@ -290,6 +291,7 @@ export class OpenTelemetryProvider {
 			this.options.otlpTracesHeaders ?? this.options.otlpHeaders;
 
 		const processors: SpanProcessor[] = [];
+		let hasOtlpProcessor = false;
 		for (const exporter of exporters) {
 			const processor = createSpanProcessor(exporter, {
 				endpoint: traceEndpoint,
@@ -299,13 +301,25 @@ export class OpenTelemetryProvider {
 			});
 			if (processor) {
 				processors.push(processor);
+				if (exporter !== "console") {
+					hasOtlpProcessor = true;
+				}
 			}
 		}
 		if (processors.length === 0) {
 			return null;
 		}
 
-		return new NodeTracerProvider({ resource, spanProcessors: processors });
+		const tracerProvider = new NodeTracerProvider({
+			resource,
+			spanProcessors: processors,
+		});
+		if (hasOtlpProcessor) {
+			// Console-only tracing must not read as the collector relay
+			// downstream, so only a provider with a real OTLP exporter is marked.
+			markOtlpTraceRelayProvider(tracerProvider);
+		}
+		return tracerProvider;
 	}
 
 	private createLoggerProvider(
