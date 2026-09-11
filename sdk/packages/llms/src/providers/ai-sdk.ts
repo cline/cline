@@ -2263,13 +2263,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							abortSignal: request.signal,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
-								isEnabled: aiSdkTelemetry.isEnabled,
-								...(aiSdkTelemetry.recordInputs !== undefined
-									? { recordInputs: aiSdkTelemetry.recordInputs }
-									: {}),
-								...(aiSdkTelemetry.recordOutputs !== undefined
-									? { recordOutputs: aiSdkTelemetry.recordOutputs }
-									: {}),
+								...aiSdkTelemetry,
 								functionId: "cline-agent-turn",
 								includeRuntimeContext: {
 									distinctId: true,

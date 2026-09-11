@@ -1,256 +1,223 @@
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { registerDisposableSpy, registerTelemetrySpy, telemetryStartSpy } =
-	vi.hoisted(() => ({
-		registerDisposableSpy: vi.fn(),
-		registerTelemetrySpy: vi.fn(),
-		telemetryStartSpy: vi.fn(),
-	}));
+const {
+	registerDisposableSpy,
+	spanProcessorConfigSpy,
+	integrationOptionsSpy,
+	telemetryStartSpy,
+	globalGetTracerSpy,
+	getDelegateSpy,
+	getTracerProviderSpy,
+	forceFlushSpy,
+	shutdownSpy,
+	setGlobalContextManagerSpy,
+	tracerProviderInstances,
+} = vi.hoisted(() => ({
+	registerDisposableSpy: vi.fn(),
+	spanProcessorConfigSpy: vi.fn(),
+	integrationOptionsSpy: vi.fn(),
+	telemetryStartSpy: vi.fn(),
+	globalGetTracerSpy: vi.fn(() => ({ name: "managed-global-tracer" })),
+	getDelegateSpy: vi.fn(),
+	getTracerProviderSpy: vi.fn(),
+	forceFlushSpy: vi.fn(),
+	shutdownSpy: vi.fn(),
+	setGlobalContextManagerSpy: vi.fn(() => true),
+	tracerProviderInstances: [] as Array<{
+		forceFlush: ReturnType<typeof vi.fn>;
+		shutdown: ReturnType<typeof vi.fn>;
+		getTracer: ReturnType<typeof vi.fn>;
+	}>,
+}));
 
-vi.mock("ai", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("ai")>();
-	return {
-		...actual,
-		registerTelemetry: (
-			...integrations: Parameters<typeof actual.registerTelemetry>
-		) => {
-			registerTelemetrySpy(...integrations);
-			actual.registerTelemetry(...integrations);
-		},
-	};
-});
+vi.mock("@cline/shared", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@cline/shared")>()),
+	registerDisposable: registerDisposableSpy,
+}));
+
+vi.mock("@langfuse/otel", () => ({
+	LangfuseSpanProcessor: class MockLangfuseSpanProcessor {
+		constructor(config: unknown) {
+			spanProcessorConfigSpy(config);
+		}
+	},
+}));
 
 vi.mock("@langfuse/vercel-ai-sdk", () => ({
 	LangfuseVercelAiSdkIntegration: class MockLangfuseVercelAiSdkIntegration {
 		onStart = telemetryStartSpy;
-	},
-}));
 
-const {
-	addSpanProcessorSpy,
-	forceFlushSpy,
-	shutdownSpy,
-	getDelegateSpy,
-	getTracerProviderSpy,
-	registeredGlobalProvider,
-} = vi.hoisted(() => ({
-	addSpanProcessorSpy: vi.fn(),
-	forceFlushSpy: vi.fn(async () => undefined),
-	shutdownSpy: vi.fn(async () => undefined),
-	getDelegateSpy: vi.fn(),
-	getTracerProviderSpy: vi.fn(),
-	registeredGlobalProvider: { current: undefined as unknown },
+		constructor(options: unknown) {
+			integrationOptionsSpy(options);
+		}
+	},
 }));
 
 class MockNodeTracerProvider {
-	// Mirrors OpenTelemetry's registerGlobal semantics: the first
-	// registration wins and later ones are silently ignored.
-	register = vi.fn(() => {
-		registeredGlobalProvider.current ??= this;
-	});
+	forceFlush = vi.fn(async () => undefined);
+	shutdown = vi.fn(async () => undefined);
+	getTracer = vi.fn(() => ({ name: "direct-langfuse-tracer" }));
+
+	constructor(_options: unknown) {
+		tracerProviderInstances.push(this);
+	}
 }
-
-vi.mock("@cline/shared", () => ({
-	registerDisposable: registerDisposableSpy,
-	isOtlpTraceRelayProvider: (provider: unknown) =>
-		!!provider &&
-		typeof provider === "object" &&
-		(provider as Record<string, unknown>)._clineOtlpTraceRelay === true,
-}));
-
-const { globalSettingsPathRef } = vi.hoisted(() => ({
-	globalSettingsPathRef: {
-		current: "/nonexistent/cline-global-settings.json",
-	},
-}));
-
-vi.mock("@cline/shared/storage", () => ({
-	resolveGlobalSettingsPath: () => globalSettingsPathRef.current,
-}));
-
-vi.mock("@langfuse/otel", () => ({
-	LangfuseSpanProcessor: class MockLangfuseSpanProcessor {},
-}));
-
-vi.mock("@opentelemetry/api", () => ({
-	trace: {
-		getTracerProvider: getTracerProviderSpy,
-	},
-}));
 
 vi.mock("@opentelemetry/sdk-trace-node", () => ({
 	NodeTracerProvider: MockNodeTracerProvider,
 }));
 
-import { generateText } from "ai";
-import { MockLanguageModelV4 } from "ai/test";
+vi.mock("@opentelemetry/api", () => ({
+	context: {
+		setGlobalContextManager: setGlobalContextManagerSpy,
+	},
+	trace: {
+		getTracer: globalGetTracerSpy,
+		getTracerProvider: getTracerProviderSpy,
+	},
+}));
+
+vi.mock("@opentelemetry/context-async-hooks", () => ({
+	AsyncLocalStorageContextManager: class MockContextManager {
+		enable() {
+			return this;
+		}
+		disable() {}
+	},
+}));
+
+const { globalSettingsPathRef } = vi.hoisted(() => ({
+	globalSettingsPathRef: { current: "/nonexistent/cline-global-settings.json" },
+}));
+vi.mock("@cline/shared/storage", () => ({
+	resolveGlobalSettingsPath: () => globalSettingsPathRef.current,
+}));
+
 import {
 	disposeLangfuseTelemetry,
-	ensureLangfuseTelemetry,
 	resetLangfuseTelemetryForTests,
 	resolveAiSdkTelemetry,
 } from "./langfuse-telemetry";
 
+const genericConfig = {
+	baseUrl: "https://langfuse.example",
+	publicKey: "public-key",
+	secretKey: "secret-key",
+};
+
 describe("langfuse telemetry", () => {
 	beforeEach(() => {
+		vi.clearAllMocks();
 		resetLangfuseTelemetryForTests();
-		registerDisposableSpy.mockReset();
-		registerTelemetrySpy.mockReset();
-		telemetryStartSpy.mockReset();
-		addSpanProcessorSpy.mockReset();
-		forceFlushSpy.mockReset();
-		forceFlushSpy.mockResolvedValue(undefined);
-		shutdownSpy.mockReset();
-		shutdownSpy.mockResolvedValue(undefined);
-		getDelegateSpy.mockReset();
-		registeredGlobalProvider.current = undefined;
-		// Default global tracer state: a proxy whose delegate is inert until
-		// something registers — the state where the direct Langfuse path may
-		// register its own provider (no host OTLP exporter present).
-		getDelegateSpy.mockImplementation(
-			() =>
-				registeredGlobalProvider.current ?? { constructor: { name: "Inert" } },
-		);
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: getDelegateSpy,
-		});
-		process.env.LANGFUSE_BASE_URL = "https://langfuse.example";
-		process.env.LANGFUSE_PUBLIC_KEY = "public-key";
-		process.env.LANGFUSE_SECRET_KEY = "secret-key";
+		tracerProviderInstances.length = 0;
+		getDelegateSpy.mockReturnValue(undefined);
+		getTracerProviderSpy.mockReturnValue({ getDelegate: getDelegateSpy });
+		vi.stubEnv("LANGFUSE_BASE_URL", genericConfig.baseUrl);
+		vi.stubEnv("LANGFUSE_PUBLIC_KEY", genericConfig.publicKey);
+		vi.stubEnv("LANGFUSE_SECRET_KEY", genericConfig.secretKey);
+		vi.stubEnv("CLINE_TRACE_SAMPLE_PERCENT", "");
+		vi.stubEnv("CLINE_TRACE_RECORD_CONTENT", "");
+		vi.stubEnv("OTEL_SERVICE_NAME", "");
 	});
 
 	afterEach(() => {
-		delete process.env.LANGFUSE_BASE_URL;
-		delete process.env.LANGFUSE_PUBLIC_KEY;
-		delete process.env.LANGFUSE_SECRET_KEY;
-		delete process.env.CLINE_TRACE_SAMPLE_PERCENT;
-		delete process.env.CLINE_TRACE_RECORD_CONTENT;
+		vi.unstubAllEnvs();
 		globalSettingsPathRef.current = "/nonexistent/cline-global-settings.json";
 		resetLangfuseTelemetryForTests();
 	});
 
-	it("does not initialize telemetry for non-cline providers", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
-
-		expect(registerDisposableSpy).not.toHaveBeenCalled();
-		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+	it("keeps third-party providers disabled before and after direct initialization", async () => {
+		await expect(resolveAiSdkTelemetry("openrouter")).resolves.toEqual({
+			isEnabled: false,
+		});
+		expect(spanProcessorConfigSpy).not.toHaveBeenCalled();
+		await expect(resolveAiSdkTelemetry("cline")).resolves.toEqual({
+			isEnabled: true,
+			integrations: expect.any(Object),
+		});
+		await expect(resolveAiSdkTelemetry("openrouter")).resolves.toEqual({
+			isEnabled: false,
+		});
+		expect(spanProcessorConfigSpy).toHaveBeenCalledOnce();
 	});
 
-	it("enables Cline backend providers and keeps other providers disabled", async () => {
-		await expect(ensureLangfuseTelemetry("cline-pass")).resolves.toBe(true);
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
-
-		expect(registerDisposableSpy).toHaveBeenCalledTimes(1);
-		expect(registeredGlobalProvider.current).toBeInstanceOf(
-			MockNodeTracerProvider,
-		);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledWith(expect.any(Object));
+	it("shares one isolated exporter between concurrent Cline backend requests", async () => {
+		const [first, second] = await Promise.all([
+			resolveAiSdkTelemetry("cline"),
+			resolveAiSdkTelemetry("cline-pass"),
+		]);
+		expect(first.integrations).toBeDefined();
+		expect(first.integrations).toBe(second.integrations);
+		expect(tracerProviderInstances).toHaveLength(1);
+		expect(spanProcessorConfigSpy).toHaveBeenCalledWith(genericConfig);
+		expect(registerDisposableSpy).toHaveBeenCalledOnce();
 	});
 
-	it("flushes before shutdown during disposal", async () => {
+	it("uses direct credentials even when a non-relay host owns an immutable tracer", async () => {
 		getDelegateSpy.mockReturnValue({
 			forceFlush: forceFlushSpy,
 			shutdown: shutdownSpy,
 		});
-
+		const decision = await resolveAiSdkTelemetry("cline");
+		expect(decision.isEnabled).toBe(true);
+		expect(integrationOptionsSpy).toHaveBeenCalledWith({
+			tracer: { name: "direct-langfuse-tracer" },
+		});
 		await disposeLangfuseTelemetry();
-
-		expect(forceFlushSpy).toHaveBeenCalledTimes(1);
-		expect(shutdownSpy).toHaveBeenCalledTimes(1);
-		expect(forceFlushSpy.mock.invocationCallOrder[0]).toBeLessThan(
-			shutdownSpy.mock.invocationCallOrder[0],
+		expect(forceFlushSpy).not.toHaveBeenCalled();
+		expect(shutdownSpy).not.toHaveBeenCalled();
+		expect(tracerProviderInstances[0]?.forceFlush).toHaveBeenCalledOnce();
+		expect(tracerProviderInstances[0]?.shutdown).toHaveBeenCalledOnce();
+		expect(
+			tracerProviderInstances[0]?.forceFlush.mock.invocationCallOrder[0],
+		).toBeLessThan(
+			tracerProviderInstances[0]?.shutdown.mock.invocationCallOrder[0] ?? 0,
 		);
 	});
 
-	it("declines direct export when the host's OTLP relay is registered directly (one export path)", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			addSpanProcessor: addSpanProcessorSpy,
+	it("never registers cleanup or touches the host when direct export is declined", async () => {
+		getDelegateSpy.mockReturnValue({
 			_clineOtlpTraceRelay: true,
+			forceFlush: forceFlushSpy,
+			shutdown: shutdownSpy,
 		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
-		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+		await resolveAiSdkTelemetry("cline");
+		await resolveAiSdkTelemetry("cline");
+		await disposeLangfuseTelemetry();
+		expect(registerDisposableSpy).not.toHaveBeenCalled();
+		expect(spanProcessorConfigSpy).not.toHaveBeenCalled();
+		expect(forceFlushSpy).not.toHaveBeenCalled();
+		expect(shutdownSpy).not.toHaveBeenCalled();
 	});
 
-	it("still attaches to a non-relay mutable tracer provider (base compatibility)", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			addSpanProcessor: addSpanProcessorSpy,
+	it("takes the relay path even after direct integration has been cached", async () => {
+		const direct = await resolveAiSdkTelemetry("cline");
+		getDelegateSpy.mockReturnValue({ _clineOtlpTraceRelay: true });
+		const relay = await resolveAiSdkTelemetry("cline");
+		expect(relay.integrations).not.toBe(direct.integrations);
+		expect(relay.recordInputs).toBe(false);
+		expect(integrationOptionsSpy).toHaveBeenLastCalledWith({
+			tracer: { name: "managed-global-tracer" },
 		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("registers its own provider when minification renames the proxy provider", async () => {
-		// Simulates the compiled release binary: the ProxyTracerProvider and
-		// its no-op delegate carry mangled constructor names, expose no
-		// addSpanProcessor, and only reflect a registration through
-		// getDelegate.
-		getTracerProviderSpy.mockReturnValue({
-			constructor: { name: "Zt" },
-			getDelegate: () =>
-				registeredGlobalProvider.current ?? { constructor: { name: "Qn" } },
+	it("does not initialize direct export with incomplete credentials", async () => {
+		vi.stubEnv("LANGFUSE_SECRET_KEY", "");
+		await expect(resolveAiSdkTelemetry("cline")).resolves.toEqual({
+			isEnabled: false,
 		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-		expect(registeredGlobalProvider.current).toBeInstanceOf(
-			MockNodeTracerProvider,
-		);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
+		expect(spanProcessorConfigSpy).not.toHaveBeenCalled();
 	});
 
-	it("declines direct export when the OTLP relay is registered through the proxy delegate", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({
-				addSpanProcessor: addSpanProcessorSpy,
-				_clineOtlpTraceRelay: true,
-			}),
-		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
-		expect(addSpanProcessorSpy).not.toHaveBeenCalled();
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
-	});
-
-	it("still attaches through the proxy delegate of a non-relay provider (base compatibility)", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({ addSpanProcessor: addSpanProcessorSpy }),
-		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-		expect(addSpanProcessorSpy).toHaveBeenCalledTimes(1);
-		expect(registerTelemetrySpy).toHaveBeenCalledTimes(1);
-	});
-
-	it("disables telemetry when a foreign provider owns the slot and accepts no processors", async () => {
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({
-				forceFlush: forceFlushSpy,
-				shutdown: shutdownSpy,
-			}),
-		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
-	});
-
-	it("disables telemetry when the global slot rejects the registration", async () => {
-		// The delegate never reflects the attempted registration, matching an
-		// API whose global slot is stuck with an inert owner.
-		getTracerProviderSpy.mockReturnValue({
-			getDelegate: () => ({ constructor: { name: "SomethingInert" } }),
-		});
-
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(false);
-		expect(registerTelemetrySpy).not.toHaveBeenCalled();
+	it("recreates a direct runtime after disposal", async () => {
+		const first = await resolveAiSdkTelemetry("cline");
+		await disposeLangfuseTelemetry();
+		const second = await resolveAiSdkTelemetry("cline");
+		expect(second.integrations).not.toBe(first.integrations);
+		expect(tracerProviderInstances).toHaveLength(2);
 	});
 
 	describe("resolveAiSdkTelemetry (collector relay path)", () => {
@@ -274,7 +241,10 @@ describe("langfuse telemetry", () => {
 		it("keeps the direct Langfuse path unchanged: enabled with content recording untouched", async () => {
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
-			expect(decision).toEqual({ isEnabled: true });
+			expect(decision).toEqual({
+				isEnabled: true,
+				integrations: expect.any(Object),
+			});
 		});
 
 		it("defaults to full sampling when the host registered a tracer and no rate is set", async () => {
@@ -285,6 +255,7 @@ describe("langfuse telemetry", () => {
 
 			expect(decision).toEqual({
 				isEnabled: true,
+				integrations: expect.any(Object),
 				recordInputs: false,
 				recordOutputs: false,
 			});
@@ -317,6 +288,7 @@ describe("langfuse telemetry", () => {
 
 			expect(decision).toEqual({
 				isEnabled: true,
+				integrations: expect.any(Object),
 				recordInputs: false,
 				recordOutputs: false,
 			});
@@ -332,6 +304,7 @@ describe("langfuse telemetry", () => {
 
 			expect(decision).toEqual({
 				isEnabled: true,
+				integrations: expect.any(Object),
 				recordInputs: true,
 				recordOutputs: true,
 			});
@@ -443,7 +416,10 @@ describe("langfuse telemetry", () => {
 
 			const decision = await resolveAiSdkTelemetry("cline", "task-a");
 
-			expect(decision).toEqual({ isEnabled: true });
+			expect(decision).toEqual({
+				isEnabled: true,
+				integrations: expect.any(Object),
+			});
 		});
 
 		it("does not treat a console-only tracer as the relay", async () => {
@@ -469,6 +445,7 @@ describe("langfuse telemetry", () => {
 			const withRelay = await resolveAiSdkTelemetry("cline", "task-a");
 			expect(withRelay).toEqual({
 				isEnabled: true,
+				integrations: expect.any(Object),
 				recordInputs: false,
 				recordOutputs: false,
 			});
@@ -479,10 +456,11 @@ describe("langfuse telemetry", () => {
 				getDelegate: getDelegateSpy,
 			});
 			const withoutRelay = await resolveAiSdkTelemetry("cline", "task-a");
-			expect(withoutRelay).toEqual({ isEnabled: true });
-			expect(registeredGlobalProvider.current).toBeInstanceOf(
-				MockNodeTracerProvider,
-			);
+			expect(withoutRelay).toEqual({
+				isEnabled: true,
+				integrations: expect.any(Object),
+			});
+			expect(tracerProviderInstances).toHaveLength(1);
 		});
 
 		it("stays disabled when no recording tracer provider is registered", async () => {
@@ -496,32 +474,5 @@ describe("langfuse telemetry", () => {
 
 			expect(decision.isEnabled).toBe(false);
 		});
-	});
-
-	it("connects an AI SDK 7 call to the registered telemetry integration", async () => {
-		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
-
-		await generateText({
-			model: new MockLanguageModelV4({
-				doGenerate: {
-					content: [{ type: "text", text: "hello" }],
-					finishReason: { unified: "stop", raw: "stop" },
-					usage: {
-						inputTokens: {
-							total: 1,
-							noCache: 1,
-							cacheRead: 0,
-							cacheWrite: 0,
-						},
-						outputTokens: { total: 1, text: 1, reasoning: 0 },
-					},
-					warnings: [],
-				},
-			}),
-			prompt: "say hello",
-			telemetry: { isEnabled: true },
-		});
-
-		expect(telemetryStartSpy).toHaveBeenCalled();
 	});
 });

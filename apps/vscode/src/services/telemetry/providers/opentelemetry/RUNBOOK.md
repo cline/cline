@@ -68,3 +68,26 @@ remote disable/replacement. Remote fetch/apply timing is not an instant guarante
 - Test with an existing build/runtime tracer: remote changes must leave it alone.
 - Keep collector-side mitigation available for older clients and build-enabled
   releases. Remote configuration is not a substitute for that control.
+## AI SDK v7 integration and collector contract
+
+Each enabled SDK stream supplies its selected Langfuse integration through
+`telemetry.integrations`. Setting `isEnabled` without an integration does not
+produce AI SDK v7 spans. Relay integrations acquire the current host tracer per
+call, so replacing the remote-config provider also redirects subsequent streams.
+
+The integration emits the v7 semantic attributes, including
+`gen_ai.provider.name` and `gen_ai.request.model`, under the instrumentation scope
+`cline-provider-langfuse`. It does not emit the old `ai.model.provider` attribute.
+Before activation, update and validate the collector filter in cline/infra#547
+against these actual spans. A filter requiring `ai.model.provider` drops them all.
+Preserve child step/tool spans too: they share the dedicated instrumentation
+scope but may not carry the model-provider attribute. Do not enable the publish
+rollout until a real streamed response reaches the intended collector destination.
+
+Direct `LANGFUSE_*` credentials remain supported for `cline` and `cline-pass`
+when no host relay is registered. That path uses an isolated tracer provider and
+per-call integration; it neither registers a global AI SDK integration nor alters
+or shuts down another owner's tracer. When a relay is registered it takes
+precedence, including after an earlier direct request. Relay opt-out, sampling
+and content controls still apply, with no fallback to direct export when those
+controls disable a request.
