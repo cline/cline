@@ -85,6 +85,12 @@ export interface Provider {
 	configFields?: ProviderConfigField[];
 	configValues?: Record<string, ProviderConfigFieldPrimitive>;
 	modelList?: ProviderModel[];
+	/** Set for `local-auth` providers; see ProviderLocalCliStatus in the SDK. */
+	localCli?: {
+		command: string;
+		installed: boolean;
+		docsUrl?: string;
+	};
 }
 
 export interface ProviderSettingsUpdate {
