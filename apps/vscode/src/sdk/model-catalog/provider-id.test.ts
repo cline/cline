@@ -57,6 +57,7 @@ describe("parseProviderId", () => {
 		parseProviderId("xiaomi")
 		parseProviderId("tencent-tokenhub")
 		parseProviderId("chutes")
+		parseProviderId("gmicloud")
 
 		expect(warnSpy).not.toHaveBeenCalled()
 	})
@@ -74,6 +75,7 @@ describe("isKnownProviderId", () => {
 		expect(isKnownProviderId(parseProviderId("xiaomi"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("tencent-tokenhub"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("chutes"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("gmicloud"))).toBe(true)
 	})
 
 	it("returns false for a custom provider id", () => {

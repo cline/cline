@@ -194,6 +194,26 @@
 				"requireUsage": true,
 				"requireToolCall": true
 			}
+		},
+		"gmicloud-tools": {
+			"settings": {
+				"provider": "gmicloud",
+				"model": "deepseek-ai/DeepSeek-V4-Flash-0731"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"gmicloud-anthropic-tools": {
+			"settings": {
+				"provider": "gmicloud",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
 		}
 	}
 }
