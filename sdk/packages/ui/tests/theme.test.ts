@@ -425,6 +425,58 @@ describe("@cline/ui theme contract", () => {
 		expect(css).not.toContain("var(--primary-foreground)");
 	});
 
+	it("keeps enabled switch thumbs and boundaries at 3:1 contrast", () => {
+		const css = readComponent("switch.css");
+		const base = block(css, ".cline-ui-switch");
+		const dark = block(css, ".cline-ui-switch.dark");
+		const palette = read("palette.css");
+		const luminance = (hex: string) => {
+			expect(hex).toMatch(/^#[0-9a-f]{6}$/i);
+			return [1, 3, 5].reduce((sum, offset, index) => {
+				const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+				const linear =
+					value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+				return sum + linear * [0.2126, 0.7152, 0.0722][index];
+			}, 0);
+		};
+		const contrast = (a: string, b: string) => {
+			const x = luminance(a),
+				y = luminance(b);
+			return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+		};
+		for (const isDark of [false, true]) {
+			const colors = block(palette, isDark ? ".dark" : ":root");
+			const hex = (token: string) =>
+				colors.match(new RegExp(`${token}: (#[0-9a-f]+);`))?.[1] ?? "";
+			const styles = isDark ? dark : base;
+			const color = (role: string) => {
+				const token =
+					styles.match(
+						new RegExp(`--cline-ui-switch-${role}: var\\((--[a-z0-9-]+)\\);`),
+					)?.[1] ?? "";
+				return hex(token);
+			};
+			for (const state of [
+				"off-background",
+				"off-hover-background",
+				"off-active-background",
+			]) {
+				const track = color(state);
+				expect(
+					contrast("#ffffff", track),
+					`${isDark ? "dark" : "light"} ${state} thumb`,
+				).toBeGreaterThanOrEqual(3);
+				const boundary = isDark ? color("off-border") : track;
+				for (const surface of ["--neutral-1", "--neutral-2"]) {
+					expect(
+						contrast(boundary, hex(surface)),
+						`${state} boundary on ${surface}`,
+					).toBeGreaterThanOrEqual(3);
+				}
+			}
+		}
+	});
+
 	it("exports every documented CSS entry point", () => {
 		const manifest = JSON.parse(
 			readFileSync(join(packageRoot, "package.json"), "utf8"),

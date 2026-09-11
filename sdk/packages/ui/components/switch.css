@@ -4,7 +4,7 @@
 	/* Keep the white thumb and the off track distinct in light mode. */
 	--cline-ui-switch-off-background: var(--neutral-9);
 	--cline-ui-switch-off-hover-background: var(--neutral-10);
-	--cline-ui-switch-off-active-background: var(--neutral-8);
+	--cline-ui-switch-off-active-background: var(--neutral-11);
 	--cline-ui-switch-off-border: var(--neutral-a3);
 	--cline-ui-switch-disabled-thumb-background: var(--surface-1);
 	/* Preserve the geometry at Cline's default 15px root while allowing UI scaling. */
@@ -45,7 +45,8 @@
 	--cline-ui-switch-off-background: var(--neutral-7);
 	--cline-ui-switch-off-hover-background: var(--neutral-6);
 	--cline-ui-switch-off-active-background: var(--neutral-7);
-	--cline-ui-switch-off-border: var(--neutral-a3);
+	/* Keep the off-state boundary distinct from dark page and card surfaces. */
+	--cline-ui-switch-off-border: var(--neutral-9);
 	--cline-ui-switch-disabled-thumb-background: var(--neutral-9);
 }
 
@@ -89,8 +90,7 @@
 		var(--cline-ui-switch-padding) +
 		var(--cline-ui-switch-travel)
 	);
-	top: 50%;
-	transform: translateY(-50%);
+	inset-block-start: var(--cline-ui-switch-padding);
 	display: block;
 	flex-shrink: 0;
 	box-sizing: border-box;
