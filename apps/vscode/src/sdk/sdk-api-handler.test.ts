@@ -104,6 +104,42 @@ describe("buildSdkProviderConfig", () => {
 		})
 	})
 
+	it.each([
+		"low",
+		"medium",
+		"high",
+		"xhigh",
+		"max",
+	] as const)("forwards reasoning effort %s to the provider config", (effort) => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "openai",
+				actModeOpenAiModelId: "gpt-5.6-luna",
+				actModeReasoningEffort: effort,
+			},
+			"act",
+		)
+
+		expect(providerConfig.reasoningEffort).toBe(effort)
+	})
+
+	it("omits reasoning effort when set to none", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "openai",
+				actModeOpenAiModelId: "gpt-5.6-luna",
+				actModeReasoningEffort: "none",
+			},
+			"act",
+		)
+
+		expect("reasoningEffort" in providerConfig).toBe(false)
+	})
+
 	it("omits timeoutMs for Ollama when no explicit timeout is configured", () => {
 		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
 
