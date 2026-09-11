@@ -2036,8 +2036,8 @@ export function withEmptyResponseRetry(
 
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
-		async *stream(request, context) {
-			const log = context.logger;
+		async *stream(request, initialContext) {
+			const log = initialContext.logger;
 			let stream: AiSdkStreamResult | undefined;
 			const capturedError: { current: CapturedStreamError | undefined } = {
 				current: undefined,
@@ -2050,11 +2050,21 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						fetch: wrapFetchForStickySession(
 							wrapFetchForProviderRequestCapture(config.fetch, request),
 							request,
-							context,
+							initialContext,
 						),
 					},
-					context,
+					initialContext,
 				);
+				const context = provider.resolveSelectedModel
+					? {
+							...initialContext,
+							model: await provider.resolveSelectedModel(
+								initialContext.model,
+								request,
+								request.signal ?? initialContext.signal,
+							),
+						}
+					: initialContext;
 				const composedProviderOptions = composeAiSdkProviderOptions(
 					request,
 					context,
@@ -2327,7 +2337,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						severity: "error",
 					});
 				}
-				const reported = captureSdkError(context.telemetry, {
+				const reported = captureSdkError(initialContext.telemetry, {
 					component: "llms",
 					operation: "provider.create_or_stream",
 					error,
