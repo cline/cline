@@ -28,6 +28,10 @@ import {
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
+import {
+	agentMarkdownControlsWithMermaid,
+	createLazyMermaidPlugin,
+} from "@cline/ui/components/markdown";
 
 for (const specifier of [
 	"@cline/ui/components.css",
@@ -62,6 +66,12 @@ if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") 
 }
 if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
+}
+if (
+	typeof createLazyMermaidPlugin !== "function" ||
+	agentMarkdownControlsWithMermaid.mermaid === false
+) {
+	throw new Error("markdown subpath did not export Mermaid opt-in controls");
 }
 if (
 	!AgentApprovalCard ||
