@@ -132,6 +132,40 @@ describe("SdkProviderChangeCoordinator", () => {
 		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledTimes(2))
 	})
 
+	it("syncs the session manifest connection after the restart", async () => {
+		const activeSession = makeActiveSession()
+		const { coordinator } = makeCoordinator({ activeSession })
+
+		await coordinator.restartActiveSessionForProviderChange()
+
+		expect(activeSession.sdkHost.updateSessionConnection).toHaveBeenCalledWith("new-session", {
+			providerId: "deepseek",
+			modelId: "deepseek-v4-flash",
+		})
+	})
+
+	it("tolerates a host without updateSessionConnection", async () => {
+		const activeSession = makeActiveSession()
+		activeSession.sdkHost.updateSessionConnection = undefined as never
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.restartActiveSessionForProviderChange()
+
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("keeps the restart successful when the manifest sync fails", async () => {
+		const activeSession = makeActiveSession()
+		activeSession.sdkHost.updateSessionConnection.mockRejectedValue(new Error("sync failed"))
+		const { coordinator, options } = makeCoordinator({ activeSession })
+
+		await coordinator.restartActiveSessionForProviderChange()
+
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
 	it("emits an error message when restart fails", async () => {
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession })
@@ -226,6 +260,7 @@ function makeActiveSession(input: { isRunning?: boolean } = {}) {
 			send: vi.fn(),
 			stop: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn().mockResolvedValue(undefined),
+			updateSessionConnection: vi.fn().mockResolvedValue(undefined),
 		},
 		unsubscribe: vi.fn(),
 		startResult: { sessionId: "old-session" },
