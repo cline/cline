@@ -1,0 +1,90 @@
+{
+	"agentsTooltip": "当工作区顶层存在 AGENTS.md 时，会递归搜索工作区中的所有 AGENTS.md 文件",
+	"allHooksCreated": "所有钩子均已创建",
+	"banners": {
+		"orgManagesRules": "你的组织托管了部分规则",
+		"orgManagesSkills": "你的组织托管了部分技能",
+		"orgManagesWorkflows": "你的组织托管了部分工作流",
+		"windowsHooks": "此基础 PR 尚不支持在 Windows 上切换钩子。钩子可以创建、编辑和删除，只要钩子文件存在就会执行。接下来将支持：基于 JSON 的跨平台钩子启用/禁用状态。",
+		"workflowsDeprecated": "工作流即将弃用，请改用技能。"
+	},
+	"createFile": "创建文件",
+	"createSkill": "创建技能",
+	"customize": "自定义",
+	"deleteFile": "删除{{type}}文件",
+	"deleteHookFile": "删除钩子文件",
+	"descriptions": {
+		"hooks": "钩子允许你在 Cline 执行生命周期的特定节点运行自定义脚本，实现自动化以及与外部工具的集成。",
+		"rules": "规则可以为 Cline 提供系统级指导。你可以把它们看作一种持久化方式，为项目或所有对话全局提供上下文和偏好设置。",
+		"skills": "技能是 Cline 可按需启用的可复用指令集。当任务与某个技能的描述匹配时，Cline 会使用 <tool>use_skill</tool> 工具加载完整指令。",
+		"workflows": "工作流允许你定义一系列步骤，引导 Cline 完成重复性任务，例如部署服务或提交 PR。要调用工作流，请在聊天中输入 <cmd>/workflow-name</cmd>。"
+	},
+	"docs": "文档",
+	"editFile": "编辑{{type}}文件",
+	"editHookFile": "编辑钩子文件",
+	"errors": {
+		"createSkillFailed": "创建技能失败",
+		"invalidExtension": "仅允许 .md、.txt 或无扩展名",
+		"invalidSkillName": "技能名称只能包含字母、数字、连字符和下划线",
+		"remoteConfigRefresh": "无法刷新托管配置：{{error}}",
+		"showingLastLoaded": "正在显示上次加载的配置。"
+	},
+	"hideCustomize": "隐藏“自定义”",
+	"hookSelectDescription": "选择要创建的钩子类型。钩子会在 Cline 生命周期的特定节点执行。可用：{{hooks}}",
+	"hookToggleWindowsTitle": "此基础 PR 尚不支持在 Windows 上切换钩子。只要钩子文件存在，钩子就会执行。",
+	"hookTypes": {
+		"postToolUse": "在任意工具使用后执行",
+		"preCompact": "在对话压缩前执行",
+		"preToolUse": "在任意工具使用前执行",
+		"taskCancel": "在任务被取消时执行",
+		"taskComplete": "在任务完成时执行",
+		"taskResume": "在任务恢复时执行",
+		"taskStart": "在新任务开始时执行",
+		"userPromptSubmit": "在用户提交提示时执行"
+	},
+	"hooksToggleNote": "切换以启用/禁用（chmod +x/-x）。",
+	"hooksWindowsNote": "在 Windows 上，只要钩子文件存在，钩子就会执行。",
+	"learnMore": "了解更多",
+	"loadingManagedConfig": "正在加载托管配置…",
+	"newFile": "新建文件",
+	"newHookPlaceholder": "新建钩子...",
+	"newRulePlaceholder": "新建规则文件...",
+	"newSkillPlaceholder": "新建技能...",
+	"newWorkflowPlaceholder": "新建工作流文件...",
+	"noRulesFound": "未找到规则",
+	"noWorkflowsFound": "未找到工作流",
+	"requiredRule": "此规则为必需项，无法禁用",
+	"ruleNameHint": "规则名称（.md、.txt 或无扩展名）",
+	"sections": {
+		"enterpriseRules": "企业规则",
+		"enterpriseSkills": "企业技能",
+		"enterpriseWorkflows": "企业工作流",
+		"globalHooks": "全局钩子",
+		"globalRules": "全局规则",
+		"globalSkills": "全局技能",
+		"globalWorkflows": "全局工作流",
+		"workspaceRules": "工作区规则",
+		"workspaceSkills": "工作区技能",
+		"workspaceWorkflows": "工作区工作流"
+	},
+	"selectHookType": "选择要创建的钩子类型",
+	"showCustomize": "显示“自定义”",
+	"skillNameHint": "技能名称（字母、数字、连字符、下划线）",
+	"tabs": {
+		"hooks": "钩子",
+		"rules": "规则",
+		"skills": "技能",
+		"workflows": "工作流"
+	},
+	"types": {
+		"agents": "AGENTS.md 规则",
+		"cline": "规则",
+		"cursor": "Cursor 规则",
+		"skill": "技能",
+		"windsurf": "Windsurf 规则",
+		"workflow": "工作流"
+	},
+	"viewFile": "查看{{type}}文件",
+	"viewFileReadonly": "查看{{type}}文件（只读）",
+	"workflowNameHint": "工作流名称（.md、.txt 或无扩展名）"
+}

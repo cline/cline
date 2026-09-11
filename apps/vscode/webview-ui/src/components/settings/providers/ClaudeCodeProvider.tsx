@@ -1,5 +1,6 @@
 import { openAiModelInfoSafeDefaults } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -24,6 +25,7 @@ interface ClaudeCodeProviderProps {
  * The Claude Code provider configuration component
  */
 export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: ClaudeCodeProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const providerId = "claude-code"
@@ -59,10 +61,10 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 			<DebouncedTextField
 				initialValue={apiConfiguration?.claudeCodePath || ""}
 				onChange={(value) => handleFieldChange("claudeCodePath", value)}
-				placeholder="Default: claude"
+				placeholder={t("providers:shared.defaultPlaceholder", { value: "claude" })}
 				style={{ width: "100%", marginTop: 3 }}
 				type="text">
-				<span style={{ fontWeight: 500 }}>Claude Code CLI Path</span>
+				<span style={{ fontWeight: 500 }}>{t("providers:claudeCode.cliPathLabel")}</span>
 			</DebouncedTextField>
 
 			<p
@@ -71,12 +73,17 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Path to the Claude Code CLI.
+				{t("providers:claudeCode.cliPathDescription")}
 			</p>
 
 			{showModelOptions && (
 				<>
-					<ModelSelector label="Model" models={models} onChange={handleModelSelect} selectedModelId={selectedModelId} />
+					<ModelSelector
+						label={t("providers:shared.modelLabel")}
+						models={models}
+						onChange={handleModelSelect}
+						selectedModelId={selectedModelId}
+					/>
 
 					{(selectedModelId === "sonnet" || selectedModelId === "opus") && (
 						<p
@@ -86,7 +93,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 								marginTop: 2,
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							Use the latest version of {selectedModelId} by default.
+							{t("providers:claudeCode.latestVersionNote", { model: selectedModelId })}
 						</p>
 					)}
 
@@ -94,7 +101,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="none"
-							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							description={t("providers:shared.extendedThinkingDescription")}
 							onEffortChange={(effort) => {
 								void write({
 									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },

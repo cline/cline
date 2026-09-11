@@ -16,6 +16,8 @@ import {
 	NetworkIcon,
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { uiLocale } from "@/utils/format"
 import MarkdownBlock from "../common/MarkdownBlock"
 
 interface SubagentStatusRowProps {
@@ -58,13 +60,13 @@ const formatCount = (value: number | undefined): string => {
 		return "0"
 	}
 
-	return Intl.NumberFormat("en-US").format(value || 0)
+	return Intl.NumberFormat(uiLocale()).format(value || 0)
 }
 
 const formatCost = (value: number | undefined): string => {
 	const normalized = Number.isFinite(value) ? Math.max(0, value || 0) : 0
 	const maximumFractionDigits = normalized >= 0.01 ? 2 : 4
-	return Intl.NumberFormat("en-US", {
+	return Intl.NumberFormat(uiLocale(), {
 		style: "currency",
 		currency: "USD",
 		minimumFractionDigits: 2,
@@ -120,6 +122,7 @@ function parseSubagentRowData(message: ClineMessage): SubagentRowData | null {
 }
 
 function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTextProps) {
+	const { t } = useTranslation()
 	const promptRef = useRef<HTMLDivElement | null>(null)
 	const [showMoreVisible, setShowMoreVisible] = useState(false)
 
@@ -160,7 +163,7 @@ function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTe
 			</div>
 			{!isExpanded && showMoreVisible && (
 				<button
-					aria-label="Show full subagent prompt"
+					aria-label={t("chat:subagent.showFullPromptAria")}
 					className="absolute right-0 bottom-0 z-10 text-[11px] text-link border-0 px-1 py-[1px] cursor-pointer leading-none rounded-[2px]"
 					onClick={onShowMore}
 					style={{ backgroundColor: "var(--vscode-editor-background)" }}
@@ -170,7 +173,7 @@ function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTe
 						className="pointer-events-none absolute inset-y-0 -left-[6px] w-[6px]"
 						style={{ background: "linear-gradient(to left, var(--vscode-editor-background), transparent)" }}
 					/>
-					Show more
+					{t("chat:subagent.showMore")}
 				</button>
 			)}
 		</div>
@@ -178,12 +181,13 @@ function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTe
 }
 
 export default function SubagentStatusRow({ message, isLast, lastModifiedMessage }: SubagentStatusRowProps) {
+	const { t } = useTranslation()
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
 	const [expandedPrompts, setExpandedPrompts] = useState<Record<number, boolean>>({})
 	const data = useMemo(() => parseSubagentRowData(message), [message])
 
 	if (!data) {
-		return <div className="text-foreground opacity-80">Subagent status update unavailable.</div>
+		return <div className="text-foreground opacity-80">{t("chat:subagent.statusUnavailable")}</div>
 	}
 
 	const resumedBeforeNextVisibleMessage =
@@ -196,8 +200,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 			lastModifiedMessage?.ask === "resume_completed_task" ||
 			resumedBeforeNextVisibleMessage)
 
-	const singular = data.items.length === 1
-	const title = singular ? "Cline wants to use a subagent:" : "Cline wants to use subagents:"
+	const title = t("chat:subagent.wantsToUse", { count: data.items.length })
 	const isPromptConstructionRow = message.ask === "use_subagents" || message.say === "use_subagents"
 	const toggleItem = (index: number) => {
 		setExpandedItems((prev) => ({
@@ -229,7 +232,11 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 					const isStreamingPromptUnderConstruction =
 						isPromptConstructionRow && message.partial === true && index === data.items.length - 1
 					const shouldShowStats = !isStreamingPromptUnderConstruction
-					const statsText = `${formatCount(entry.toolCalls)} tools called · ${formatCount(entry.contextTokens)} tokens · ${formatCost(entry.totalCost)}`
+					const statsText = t("chat:subagent.stats", {
+						toolCalls: formatCount(entry.toolCalls),
+						tokens: formatCount(entry.contextTokens),
+						cost: formatCost(entry.totalCost),
+					})
 					const latestToolCallText = entry.latestToolCall?.trim() || ""
 					return (
 						<div
@@ -253,7 +260,9 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 							)}
 							{shouldShowStats && hasDetails && (
 								<button
-									aria-label={isExpanded ? "Hide subagent output" : "Show subagent output"}
+									aria-label={
+										isExpanded ? t("chat:subagent.hideOutputAria") : t("chat:subagent.showOutputAria")
+									}
 									className="mt-1 text-[11px] opacity-80 flex items-center gap-1 bg-transparent border-0 p-0 cursor-pointer text-left text-foreground w-full"
 									onClick={() => toggleItem(entry.index)}
 									type="button">
@@ -262,7 +271,9 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 									) : (
 										<ChevronRightIcon className="size-2 shrink-0" />
 									)}
-									<span className="shrink-0">{isExpanded ? "Hide output" : "Show output"}</span>
+									<span className="shrink-0">
+										{isExpanded ? t("chat:subagent.hideOutput") : t("chat:subagent.showOutput")}
+									</span>
 								</button>
 							)}
 							{shouldShowStats && !hasDetails && latestToolCallText && (

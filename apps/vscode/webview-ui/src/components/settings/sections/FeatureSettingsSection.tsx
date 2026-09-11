@@ -1,5 +1,6 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { memo, type ReactNode } from "react"
+import { useTranslation } from "react-i18next"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -20,11 +21,12 @@ interface FeatureCheckboxProps {
 	isVisible?: boolean
 }
 
-// Interface for feature toggle configuration
+// Interface for feature toggle configuration.
+// `label` and `description` hold i18n keys, translated with t() at render time.
 interface FeatureToggle {
 	id: string
 	label: string
-	description: ReactNode
+	description: string
 	settingKey: keyof UpdateSettingsRequest
 	stateKey: string
 }
@@ -32,8 +34,8 @@ interface FeatureToggle {
 const agentFeatures: FeatureToggle[] = [
 	{
 		id: "auto-compact",
-		label: "Auto Compact",
-		description: "Automatically compress conversation history.",
+		label: "settings:features.autoCompact.label",
+		description: "settings:features.autoCompact.description",
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
@@ -42,29 +44,29 @@ const agentFeatures: FeatureToggle[] = [
 const editorFeatures: FeatureToggle[] = [
 	{
 		id: "show-feature-tips",
-		label: "Feature Tips",
-		description: "Show rotating tips during the thinking phase to help you discover Cline features.",
+		label: "settings:features.featureTips.label",
+		description: "settings:features.featureTips.description",
 		stateKey: "showFeatureTips",
 		settingKey: "showFeatureTips",
 	},
 	{
 		id: "background-edit",
-		label: "Background Edit",
-		description: "Allow edits without stealing editor focus",
+		label: "settings:features.backgroundEdit.label",
+		description: "settings:features.backgroundEdit.description",
 		stateKey: "backgroundEditEnabled",
 		settingKey: "backgroundEditEnabled",
 	},
 	{
 		id: "checkpoints",
-		label: "Checkpoints",
-		description: "Save progress at key points for easy rollback",
+		label: "settings:features.checkpoints.label",
+		description: "settings:features.checkpoints.description",
 		stateKey: "enableCheckpointsSetting",
 		settingKey: "enableCheckpointsSetting",
 	},
 	{
 		id: "worktrees",
-		label: "Worktrees",
-		description: "Enables git worktree management for running parallel Cline tasks.",
+		label: "settings:features.worktrees.label",
+		description: "settings:features.worktrees.description",
 		stateKey: "worktreesEnabled",
 		settingKey: "worktreesEnabled",
 	},
@@ -73,8 +75,8 @@ const editorFeatures: FeatureToggle[] = [
 const advancedFeatures: FeatureToggle[] = [
 	{
 		id: "hooks",
-		label: "Hooks",
-		description: "Enable lifecycle and tool hooks during task execution.",
+		label: "settings:features.hooks.label",
+		description: "settings:features.hooks.description",
 		stateKey: "hooksEnabled",
 		settingKey: "hooksEnabled",
 	},
@@ -137,6 +139,7 @@ interface FeatureSettingsSectionProps {
 }
 
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
+	const { t } = useTranslation()
 	const {
 		enableCheckpointsSetting,
 		hooksEnabled,
@@ -173,23 +176,29 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 				<div className="mb-5 flex flex-col gap-3">
 					{/* Core features */}
 					<div>
-						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Agent</div>
+						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">
+							{t("settings:features.groups.agent")}
+						</div>
 						<div
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="agent-features">
 							{agentFeatures.map((feature) => (
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
-									description={feature.description}
+									description={t(feature.description)}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
-									label={feature.label}
+									label={t(feature.label)}
 									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
 							<div className="space-y-2 py-3">
-								<Label className="text-sm font-medium text-foreground">Auto Compact Strategy</Label>
-								<p className="text-xs text-muted-foreground">Controls how auto compaction rewrites context.</p>
+								<Label className="text-sm font-medium text-foreground">
+									{t("settings:features.compactionStrategy.label")}
+								</Label>
+								<p className="text-xs text-muted-foreground">
+									{t("settings:features.compactionStrategy.description")}
+								</p>
 								<Select
 									disabled={!useAutoCondense}
 									onValueChange={(value) => updateSetting("compactionStrategy", value)}
@@ -198,15 +207,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="basic">Basic</SelectItem>
-										<SelectItem value="agentic">Agentic</SelectItem>
+										<SelectItem value="basic">{t("settings:features.compactionStrategy.basic")}</SelectItem>
+										<SelectItem value="agentic">
+											{t("settings:features.compactionStrategy.agentic")}
+										</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
 							<FeatureRow
 								checked={webSearchEnabled}
-								description="Let the model search the web when the selected provider and model support it. Applies to new tasks."
-								label="Web Search"
+								description={t("settings:features.webSearch.description")}
+								label={t("settings:features.webSearch.label")}
 								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
 							/>
 						</div>
@@ -214,17 +225,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 					{/* Editor features */}
 					<div>
-						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Editor</div>
+						<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">
+							{t("settings:features.groups.editor")}
+						</div>
 						<div
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="optional-features">
 							{editorFeatures.map((feature) => (
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
-									description={feature.description}
+									description={t(feature.description)}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
-									label={feature.label}
+									label={t(feature.label)}
 									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
@@ -234,32 +247,38 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 				{/* Advanced */}
 				<div>
-					<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Advanced</div>
+					<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">
+						{t("settings:features.groups.advanced")}
+					</div>
 					<div className="relative p-3 my-3 rounded-md border border-editor-widget-border/50" id="advanced-features">
 						<div className="space-y-3">
 							{advancedFeatures.map((feature) => (
 								<FeatureRow
 									checked={featureState[feature.stateKey]}
-									description={feature.description}
+									description={t(feature.description)}
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
-									label={feature.label}
+									label={t(feature.label)}
 									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
 
 							{/* MCP Display Mode */}
 							<div className="space-y-2">
-								<Label className="text-sm font-medium text-foreground">MCP Display Mode</Label>
-								<p className="text-xs text-muted-foreground">Controls how MCP responses are displayed</p>
+								<Label className="text-sm font-medium text-foreground">
+									{t("settings:features.mcpDisplayMode.label")}
+								</Label>
+								<p className="text-xs text-muted-foreground">
+									{t("settings:features.mcpDisplayMode.description")}
+								</p>
 								<Select onValueChange={(v) => updateSetting("mcpDisplayMode", v)} value={mcpDisplayMode}>
 									<SelectTrigger className="w-full">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="plain">Plain Text</SelectItem>
-										<SelectItem value="rich">Rich Display</SelectItem>
-										<SelectItem value="markdown">Markdown</SelectItem>
+										<SelectItem value="plain">{t("settings:features.mcpDisplayMode.plain")}</SelectItem>
+										<SelectItem value="rich">{t("settings:features.mcpDisplayMode.rich")}</SelectItem>
+										<SelectItem value="markdown">{t("settings:features.mcpDisplayMode.markdown")}</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>

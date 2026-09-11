@@ -1,6 +1,7 @@
 import { fromProtobufModelInfo } from "@shared/proto-conversions/models/typeConversion"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
@@ -30,6 +31,7 @@ interface OpenAiCodexProviderProps {
  * derived from the SDK's `ProviderInfo.metadata.usageCostDisplay`.
  */
 export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: OpenAiCodexProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, openAiCodexIsAuthenticated } = useExtensionState()
 	const { config, commitSelection } = useProviderConfig(OPENAI_CODEX_PROVIDER_ID)
 	const {
@@ -83,9 +85,11 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 							justifyContent: "space-between",
 							alignItems: "center",
 						}}>
-						<span style={{ color: "var(--vscode-descriptionForeground)" }}>Signed in to OpenAI Codex</span>
+						<span style={{ color: "var(--vscode-descriptionForeground)" }}>
+							{t("providers:openaiCodex.signedIn")}
+						</span>
 						<VSCodeButton appearance="secondary" onClick={handleSignOut}>
-							Sign Out
+							{t("providers:openaiCodex.signOut")}
 						</VSCodeButton>
 					</div>
 				) : (
@@ -96,9 +100,9 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 								color: "var(--vscode-descriptionForeground)",
 								marginBottom: "10px",
 							}}>
-							Sign in with your ChatGPT Plus or Pro subscription to use GPT-5 models without an API key.
+							{t("providers:openaiCodex.signInDescription")}
 						</p>
-						<VSCodeButton onClick={handleSignIn}>Sign in to OpenAI Codex</VSCodeButton>
+						<VSCodeButton onClick={handleSignIn}>{t("providers:openaiCodex.signInButton")}</VSCodeButton>
 					</div>
 				)}
 			</div>
@@ -106,7 +110,7 @@ export const OpenAiCodexProvider = ({ showModelOptions, isPopup, currentMode }: 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers:shared.modelLabel")}
 						models={models}
 						onChange={(event: Event) => handleModelChange((event.target as HTMLSelectElement | null)?.value ?? "")}
 						selectedModelId={selectedModelId}

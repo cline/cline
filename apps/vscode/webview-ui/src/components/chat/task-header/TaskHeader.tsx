@@ -1,6 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useLayoutEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -43,6 +44,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 	onSendMessage,
 }) => {
+	const { t } = useTranslation()
 	const {
 		apiConfiguration,
 		currentTaskItem,
@@ -130,7 +132,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				}}>
 				{/* Task Title */}
 				<div
-					aria-label={isTaskExpanded ? "Collapse task header" : "Expand task header"}
+					aria-label={isTaskExpanded ? t("taskHeader:collapseAria") : t("taskHeader:expandAria")}
 					className="flex justify-between items-center cursor-pointer"
 					onClick={toggleTaskExpanded}
 					onKeyDown={(e) => {

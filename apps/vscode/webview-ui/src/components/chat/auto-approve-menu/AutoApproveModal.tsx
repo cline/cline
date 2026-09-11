@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useClickAway } from "react-use"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
@@ -15,6 +16,7 @@ interface AutoApproveModalProps {
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
+	const { t } = useTranslation()
 	const { isChecked, updateAction } = useAutoApproveActions()
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
@@ -68,14 +70,14 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					maxHeight: "60vh",
 				}}>
 				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
-					Let Cline take these actions without asking for approval.{" "}
+					{t("autoApprove:description")}{" "}
 					<a
 						className="text-link hover:text-link-hover"
 						href="https://docs.cline.bot/features/auto-approve#auto-approve"
 						rel="noopener"
 						style={{ fontSize: "inherit" }}
 						target="_blank">
-						Docs
+						{t("autoApprove:docs")}
 					</a>
 				</div>
 

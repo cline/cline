@@ -1,0 +1,53 @@
+{
+	"buttons": {
+		"compactTask": "작업 압축",
+		"copyAria": "복사",
+		"copyText": "텍스트 복사",
+		"deleteTask": "작업 삭제",
+		"deleteTaskWithSize": "작업 삭제(크기: {{size}})",
+		"newTaskAria": "새 작업",
+		"openConversationHistory": "대화 기록 파일 열기",
+		"openConversationHistoryAria": "디스크의 대화 기록 열기",
+		"startNewTask": "새 작업 시작"
+	},
+	"collapseAria": "작업 헤더 접기",
+	"compactConfirm": {
+		"cancel": "취소",
+		"cancelTitle": "아니요, 작업을 그대로 유지",
+		"confirm": "압축",
+		"confirmTitle": "예, 작업 압축",
+		"description": "대화 기록을 요약으로 대체하여 컨텍스트 창 공간을 확보합니다.",
+		"title": "현재 작업을 압축하시겠습니까?"
+	},
+	"contextWindowSummary": {
+		"autoCondenseThreshold": "자동 압축 임계값",
+		"contextWindow": "컨텍스트 창",
+		"noTokenData": "토큰 사용 데이터가 없습니다",
+		"remaining": "남음:",
+		"thresholdClickHint": "컨텍스트 창 막대를 클릭하여 새 임계값을 설정하세요.",
+		"thresholdDescription": "컨텍스트 창 사용량이 이 임계값을 초과하면 작업이 자동으로 압축됩니다.",
+		"tokenDetails": {
+			"cacheReads": "캐시 읽기",
+			"cacheWrites": "캐시 쓰기",
+			"completionTokens": "완성 토큰",
+			"promptTokens": "프롬프트 토큰"
+		},
+		"tokenUsage": "토큰 사용량",
+		"total": "전체:",
+		"used": "사용됨:"
+	},
+	"cwdBadge": {
+		"outsideWorkspaceAria": "작업 디렉터리 {{cwd}}이(가) 현재 작업 영역 밖에 있습니다",
+		"outsideWorkspaceTooltip": "이 작업의 작업 디렉터리는 {{cwd}}이며 현재 작업 영역 밖에 있습니다. Cline은 해당 위치에서 파일을 읽고 편집하며 명령을 실행합니다."
+	},
+	"expandAria": "작업 헤더 펼치기",
+	"progressAria": "컨텍스트 창 사용량 진행률",
+	"stickyMessage": {
+		"scrollToMessageAria": "내 메시지로 스크롤: {{message}}",
+		"scrollToMessageTitle": "클릭하여 내 메시지로 스크롤"
+	},
+	"tooltips": {
+		"maxContextWindow": "이 모델의 최대 컨텍스트 창 크기",
+		"tokensUsed": "이 요청에서 현재 사용된 토큰"
+	}
+}

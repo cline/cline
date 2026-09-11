@@ -1,5 +1,6 @@
 import { BannerAction, BannerCardData } from "@shared/cline/banner"
 import React from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"
@@ -19,6 +20,7 @@ interface WhatsNewModalProps {
 }
 
 const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
+	const { t } = useTranslation()
 	const { refreshOpenRouterModels } = useExtensionState()
 
 	// Get latest model list in case user hits shortcut button to set model
@@ -43,7 +45,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 						className="text-lg font-semibold mb-3 pr-6"
 						id="whats-new-title"
 						style={{ color: "var(--vscode-editor-foreground)" }}>
-						🎉 New in v{version}
+						{t("ui:whatsNew.title", { version })}
 					</h2>
 
 					<WhatsNewItems
@@ -59,7 +61,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 						<div className="flex items-center gap-4">
 							{/* X/Twitter */}
 							<a
-								aria-label="Follow us on X"
+								aria-label={t("ui:whatsNew.followOnXAria")}
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
 								href="https://x.com/cline"
 								rel="noopener noreferrer"
@@ -69,7 +71,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 
 							{/* Discord */}
 							<a
-								aria-label="Join our Discord"
+								aria-label={t("ui:whatsNew.joinDiscordAria")}
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
 								href="https://discord.gg/cline"
 								rel="noopener noreferrer"
@@ -79,7 +81,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 
 							{/* GitHub */}
 							<a
-								aria-label="Star us on GitHub"
+								aria-label={t("ui:whatsNew.starOnGitHubAria")}
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
 								href="https://github.com/cline/cline"
 								rel="noopener noreferrer"
@@ -89,7 +91,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 
 							{/* Reddit */}
 							<a
-								aria-label="Join our subreddit"
+								aria-label={t("ui:whatsNew.joinSubredditAria")}
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
 								href="https://www.reddit.com/r/cline/"
 								rel="noopener noreferrer"
@@ -99,7 +101,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 
 							{/* LinkedIn */}
 							<a
-								aria-label="Follow us on LinkedIn"
+								aria-label={t("ui:whatsNew.followOnLinkedInAria")}
 								className="text-[var(--vscode-foreground)] hover:text-[var(--vscode-textLink-activeForeground)] transition-colors"
 								href="https://www.linkedin.com/company/clinebot/"
 								rel="noopener noreferrer"
@@ -110,15 +112,19 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, w
 
 						{/* GitHub Star CTA */}
 						<p className="text-sm text-center" style={{ color: "var(--vscode-descriptionForeground)" }}>
-							Please support Cline by{" "}
-							<a
-								href="https://github.com/cline/cline"
-								rel="noopener noreferrer"
-								style={{ color: "var(--vscode-textLink-foreground)" }}
-								target="_blank">
-								starring us on GitHub
-							</a>
-							.
+							<Trans
+								components={{
+									githubLink: (
+										<a
+											href="https://github.com/cline/cline"
+											rel="noopener noreferrer"
+											style={{ color: "var(--vscode-textLink-foreground)" }}
+											target="_blank"
+										/>
+									),
+								}}
+								i18nKey="ui:whatsNew.supportCta"
+							/>
 						</p>
 					</div>
 				</div>

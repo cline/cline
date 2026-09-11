@@ -274,6 +274,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		preferredLanguage: "English",
+		uiLanguage: "auto",
+		uiLocale: "en",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
 		environment: Environment.production,

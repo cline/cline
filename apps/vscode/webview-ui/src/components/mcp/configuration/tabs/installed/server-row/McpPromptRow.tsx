@@ -1,4 +1,5 @@
 import { McpPrompt } from "@shared/mcp"
+import { useTranslation } from "react-i18next"
 
 type McpPromptRowProps = {
 	prompt: McpPrompt
@@ -6,6 +7,7 @@ type McpPromptRowProps = {
 }
 
 const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
+	const { t } = useTranslation()
 	return (
 		<div
 			key={prompt.name}
@@ -17,7 +19,7 @@ const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
 				onClick={(e) => e.stopPropagation()}
 				style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
 				<div style={{ display: "flex", alignItems: "center", minWidth: 0, flex: "1 1 auto" }}>
-					<span className="codicon codicon-comment-discussion" style={{ marginRight: "6px", flexShrink: 0 }}></span>
+					<span className="codicon codicon-comment-discussion" style={{ marginRight: "6px", flexShrink: 0 }} />
 					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>
 						{prompt.title || prompt.name}
 					</span>
@@ -50,7 +52,7 @@ const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
 							fontSize: "11px",
 							textTransform: "uppercase",
 						}}>
-						Arguments
+						{t("mcp:serverRow.arguments")}
 					</div>
 					{prompt.arguments.map((arg) => (
 						<div
@@ -81,7 +83,7 @@ const McpPromptRow = ({ prompt, serverName }: McpPromptRowProps) => {
 									overflowWrap: "break-word",
 									wordBreak: "break-word",
 								}}>
-								{arg.description || "No description"}
+								{arg.description || t("mcp:serverRow.noDescription")}
 							</span>
 						</div>
 					))}

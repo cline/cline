@@ -27,14 +27,13 @@ export async function discoverBrowser(controller: Controller, _request: EmptyReq
 				message: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
 				endpoint: result.endpoint || "",
 			})
-		} else {
-			return BrowserConnection.create({
-				success: false,
-				message:
-					"No Chrome instances found. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-				endpoint: "",
-			})
 		}
+		return BrowserConnection.create({
+			success: false,
+			message:
+				"No Chrome instances found. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+			endpoint: "",
+		})
 	} catch (error) {
 		return BrowserConnection.create({
 			success: false,

@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
+import { useTranslation, type WithTranslation, withTranslation } from "react-i18next"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { FileServiceClient, WebServiceClient } from "@/services/grpc-client"
 import { checkIfImageUrl, formatUrlForOpening, getSafeHostname } from "./utils/mcpRichUtil"
@@ -11,7 +12,7 @@ interface ImagePreviewProps {
 
 // Use a class component to ensure complete isolation between instances
 class ImagePreview extends React.Component<
-	ImagePreviewProps,
+	ImagePreviewProps & WithTranslation,
 	{
 		loading: boolean
 		error: string | null
@@ -22,7 +23,7 @@ class ImagePreview extends React.Component<
 	private timeoutId: NodeJS.Timeout | null = null
 	private heartbeatId: NodeJS.Timeout | null = null
 
-	constructor(props: ImagePreviewProps) {
+	constructor(props: ImagePreviewProps & WithTranslation) {
 		super(props)
 		this.state = {
 			loading: true,
@@ -148,7 +149,7 @@ class ImagePreview extends React.Component<
 	}
 
 	render() {
-		const { url } = this.props
+		const { url, t } = this.props
 		const { loading, error, fetchStartTime } = this.state
 
 		// Calculate elapsed time for loading state
@@ -190,13 +191,16 @@ class ImagePreview extends React.Component<
 								}
 							`}
 						</style>
-						Loading image from {getSafeHostname(url)}...
+						{t("mcp:chatDisplay.loadingImage", { hostname: getSafeHostname(url) })}
 					</div>
 					{elapsedSeconds > 3 && (
 						<div style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)" }}>
 							{elapsedSeconds > 60
-								? `Waiting for ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s...`
-								: `Waiting for ${elapsedSeconds}s...`}
+								? t("mcp:chatDisplay.waitingMinutes", {
+										minutes: Math.floor(elapsedSeconds / 60),
+										seconds: elapsedSeconds % 60,
+									})
+								: t("mcp:chatDisplay.waitingSeconds", { seconds: elapsedSeconds })}
 						</div>
 					)}
 					{/* Hidden image that we'll use to detect load/error events */}
@@ -244,10 +248,10 @@ class ImagePreview extends React.Component<
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
 					}}>
-					<div style={{ fontWeight: "bold" }}>Failed to load image</div>
+					<div style={{ fontWeight: "bold" }}>{t("mcp:chatDisplay.imageLoadFailed")}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
-						Click to open in browser
+						{t("mcp:chatDisplay.clickToOpenInBrowser")}
 					</div>
 				</div>
 			)
@@ -282,7 +286,7 @@ class ImagePreview extends React.Component<
 				{/\.svg(\?.*)?$/i.test(url) ? (
 					// Special handling for SVG images
 					<object
-						aria-label={`SVG from ${getSafeHostname(url)}`}
+						aria-label={t("mcp:chatDisplay.svgFrom", { hostname: getSafeHostname(url) })}
 						data={DOMPurify.sanitize(url)}
 						style={{
 							width: "100%",
@@ -292,7 +296,7 @@ class ImagePreview extends React.Component<
 						type="image/svg+xml">
 						{/* Fallback if object tag fails */}
 						<img
-							alt={`SVG from ${getSafeHostname(url)}`}
+							alt={t("mcp:chatDisplay.svgFrom", { hostname: getSafeHostname(url) })}
 							src={DOMPurify.sanitize(url)}
 							style={{
 								width: "100%",
@@ -303,7 +307,7 @@ class ImagePreview extends React.Component<
 					</object>
 				) : (
 					<img
-						alt={`Image from ${getSafeHostname(url)}`}
+						alt={t("mcp:chatDisplay.imageFrom", { hostname: getSafeHostname(url) })}
 						loading="eager"
 						src={DOMPurify.sanitize(url)}
 						style={{
@@ -318,16 +322,20 @@ class ImagePreview extends React.Component<
 	}
 }
 
+// Inject the i18n `t` prop (the HOC re-renders the class on language changes)
+const TranslatedImagePreview = withTranslation()(ImagePreview)
+
 // Create a wrapper component that memoizes the ImagePreview to prevent unnecessary re-renders
 const MemoizedImagePreview = React.memo(
-	(props: ImagePreviewProps) => <ImagePreview {...props} />,
+	(props: ImagePreviewProps) => <TranslatedImagePreview {...props} />,
 	(prevProps, nextProps) => prevProps.url === nextProps.url, // Only re-render if URL changes
 )
 
 // Wrap the ImagePreview component with an error boundary
 const ImagePreviewWithErrorBoundary: React.FC<ImagePreviewProps> = (props) => {
+	const { t } = useTranslation()
 	return (
-		<ChatErrorBoundary errorTitle="Something went wrong displaying this image">
+		<ChatErrorBoundary errorTitle={t("mcp:chatDisplay.imageErrorTitle")}>
 			<MemoizedImagePreview {...props} />
 		</ChatErrorBoundary>
 	)

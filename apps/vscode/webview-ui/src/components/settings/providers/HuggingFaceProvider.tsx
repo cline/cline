@@ -1,4 +1,5 @@
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -18,6 +19,7 @@ interface HuggingFaceProviderProps {
  * The Hugging Face provider configuration component
  */
 export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: HuggingFaceProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -29,10 +31,10 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.huggingFaceApiKey || ""}
 				onChange={(value) => handleFieldChange("huggingFaceApiKey", value)}
-				placeholder="Enter API Key..."
+				placeholder={t("providers:shared.enterApiKeyPlaceholder")}
 				style={{ width: "100%" }}
 				type="password">
-				<span style={{ fontWeight: 500 }}>Hugging Face API Key</span>
+				<span style={{ fontWeight: 500 }}>{t("providers:huggingface.apiKeyLabel")}</span>
 			</DebouncedTextField>
 			<p
 				style={{
@@ -40,10 +42,9 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				This key is stored locally and only used to make API requests from this extension. We don’t show pricing here
-				because it depends on your Hugging Face provider settings and isn’t consistently available via their API{" "}
+				{t("providers:shared.apiKeyStoredLocally")} {t("providers:huggingface.pricingNote")}{" "}
 				<a href="https://huggingface.co/settings/tokens" rel="noopener noreferrer" target="_blank">
-					Get your API key here
+					{t("providers:huggingface.getApiKeyLink")}
 				</a>
 			</p>
 

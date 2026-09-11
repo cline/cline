@@ -5,6 +5,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { buildClinePassSubscriptionPageUrl } from "@/components/onboarding/clinePassSubscribe"
 import { useClineAuth } from "@/context/ClineAuthContext"
@@ -26,7 +27,6 @@ interface ClinePassProviderProps {
 
 const CLINE_PASS_PROVIDER_ID = "cline-pass"
 const CLINE_PASS_MODEL_ID_PREFIX = "cline-pass/"
-const FREE_TAB_DESCRIPTION = "Try with limited usage, separate from ClinePass quota."
 
 interface FeaturedTabEntry {
 	id: string
@@ -62,7 +62,10 @@ function toSubscribedEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "d
 	}
 }
 
-function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">): FeaturedTabEntry | null {
+function toFreeEntry(
+	model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">,
+	fallbackLabel: string,
+): FeaturedTabEntry | null {
 	if (!model.id) {
 		return null
 	}
@@ -71,7 +74,7 @@ function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "descrip
 		id: model.id,
 		displayName: model.name || model.id,
 		description: model.description || "",
-		label: typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : "FREE",
+		label: typeof firstTag === "string" && firstTag.length > 0 ? firstTag.toUpperCase() : fallbackLabel,
 	}
 }
 
@@ -86,6 +89,7 @@ function toFreeEntry(model: Pick<ClineRecommendedModel, "id" | "name" | "descrip
  * same Cline API — free models simply ride usage billing at $0).
  */
 export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: ClinePassProviderProps) => {
+	const { t } = useTranslation()
 	const { models, defaultModelId, isLoading, isStale, error } = useProviderModels(CLINE_PASS_PROVIDER_ID)
 	const { config, write, commitSelection } = useProviderConfig(CLINE_PASS_PROVIDER_ID)
 	const { selectedModel, commitModelSelection } = useProviderModelSelection(CLINE_PASS_PROVIDER_ID, currentMode, {
@@ -137,10 +141,11 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 			.filter((entry): entry is FeaturedTabEntry => entry !== null)
 	}, [subscribedModels, models])
 
+	const freeLabel = t("providers:clinePass.freeLabel")
 	const freeCards = useMemo(() => {
 		const source = freeModels.length > 0 ? freeModels : CLINE_RECOMMENDED_MODELS_FALLBACK.free
-		return source.map(toFreeEntry).filter((entry): entry is FeaturedTabEntry => entry !== null)
-	}, [freeModels])
+		return source.map((model) => toFreeEntry(model, freeLabel)).filter((entry): entry is FeaturedTabEntry => entry !== null)
+	}, [freeModels, freeLabel])
 
 	// Land on the tab containing the configured model
 	useEffect(() => {
@@ -176,17 +181,17 @@ export const ClinePassProvider = ({ showModelOptions, isPopup, currentMode }: Cl
 					{/* Tabs */}
 					<TabsContainer style={{ marginTop: 4 }}>
 						<Tab active={activeTab === "subscribed"} onClick={() => setActiveTab("subscribed")}>
-							Subscribed
+							{t("providers:clinePass.subscribedTab")}
 						</Tab>
 						{freeCards.length > 0 && (
 							<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-								Free
+								{t("providers:clinePass.freeTab")}
 							</Tab>
 						)}
 					</TabsContainer>
 
 					{/* Tab description */}
-					{activeTab === "free" && <TabDescription>{FREE_TAB_DESCRIPTION}</TabDescription>}
+					{activeTab === "free" && <TabDescription>{t("providers:clinePass.freeTabDescription")}</TabDescription>}
 
 					{/* Model Cards */}
 					<div style={{ marginBottom: "6px" }}>

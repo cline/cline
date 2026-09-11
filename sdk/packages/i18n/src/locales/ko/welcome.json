@@ -1,0 +1,25 @@
+{
+	"getStartedFree": "무료로 시작하기",
+	"greeting": "안녕하세요, Cline입니다",
+	"heading": "무엇을 도와드릴까요?",
+	"intro": "<sonnetLink>Claude 4.6 Sonnet</sonnetLink>의 획기적인 에이전트 코딩 능력과 파일 생성·편집, 복잡한 프로젝트 탐색, 브라우저 사용, 터미널 명령 실행이 가능한 도구 덕분에 다양한 작업을 수행할 수 있습니다 <aside>(물론 사용자의 허락을 받아서요)</aside>. MCP를 사용해 새로운 도구를 만들어 제 능력을 확장할 수도 있습니다.",
+	"letsGo": "시작해 볼까요!",
+	"quickWins": {
+		"cliTool": {
+			"description": "멋진 작업을 자동화하는 강력한 터미널 CLI를 개발해 보세요",
+			"title": "CLI 도구 만들기"
+		},
+		"heading": "Cline과 함께하는 <wins>[빠른 성과]</wins>",
+		"nextjsApp": {
+			"description": "Next.js와 Tailwind로 아름다운 메모 앱을 만들어 보세요",
+			"title": "Next.js 앱 만들기"
+		},
+		"snakeGame": {
+			"description": "브라우저에서 실행되는 클래식 스네이크 게임을 코딩해 보세요.",
+			"title": "게임 개발하기"
+		}
+	},
+	"signUpDescription": "계정을 등록해 무료로 시작하거나, Claude Sonnet 같은 모델에 접근할 수 있는 API 키를 사용하세요.",
+	"takeATour": "둘러보기",
+	"useOwnApiKey": "내 API 키 사용"
+}

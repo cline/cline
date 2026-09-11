@@ -1,0 +1,316 @@
+{
+	"browser": {
+		"actionLabel": "Browse Action:",
+		"actions": {
+			"click": "Click ({{coordinate}})",
+			"closeBrowser": "Close browser",
+			"launch": "Launch browser at {{url}}",
+			"scrollDown": "Scroll down",
+			"scrollUp": "Scroll up",
+			"type": "Type \"{{text}}\""
+		},
+		"consoleLogs": "Console Logs",
+		"isUsingBrowser": "Cline is using the browser:",
+		"next": "Next",
+		"noNewLogs": "(No new logs)",
+		"previous": "Previous",
+		"screenshotAlt": "Browser screenshot",
+		"sessionStarted": "Browser Session Started",
+		"stepOf": "Step {{current}} of {{total}}",
+		"wantsToUseBrowser": "Cline wants to use the browser:"
+	},
+	"commandOutput": {
+		"approvalRequired": "The model has determined this command requires explicit approval.",
+		"cancel": "cancel",
+		"clickToOpen": "Click to open: {{path}}",
+		"status": {
+			"completed": "Completed",
+			"pending": "Pending",
+			"running": "Running",
+			"skipped": "Skipped"
+		},
+		"stop": "stop",
+		"terminalCancelInfo": "This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands."
+	},
+	"compaction": {
+		"autoCompacting": "Auto compacting context",
+		"cancelled": "Compaction cancelled",
+		"compacted": "Context compacted",
+		"compactedManual": "Context compacted (manual)",
+		"compacting": "Compacting context",
+		"failed": "Compaction failed",
+		"messagesDelta": "{{before}} → {{after}} messages",
+		"skipped": "Compaction skipped",
+		"tokensDelta": "{{before}} → {{after}} tokens"
+	},
+	"completion": {
+		"completed": "Completed",
+		"copyPlanAria": "Copy plan response",
+		"copyResponseAria": "Copy response",
+		"plan": "Plan",
+		"viewChanges": "View Changes"
+	},
+	"contextMenu": {
+		"addFile": "Add File",
+		"addFolder": "Add Folder",
+		"commit": "Commit {{hash}}",
+		"commitHashDescription": "Git commit hash",
+		"gitCommitDescription": "{{shortHash}} by {{author}} on {{date}}",
+		"gitCommits": "Git Commits",
+		"gitCommitsDescription": "Search repository history",
+		"label": "Context mentions",
+		"noResults": "No results found",
+		"pasteUrl": "Paste URL to fetch contents",
+		"problems": "Problems",
+		"searching": "Searching...",
+		"terminal": "Terminal",
+		"workingChanges": "Working changes",
+		"workingChangesDescription": "Current uncommitted changes"
+	},
+	"diffEdit": {
+		"openFileTitle": "Open file in editor"
+	},
+	"errorBoundary": {
+		"errorPrefix": "Error: {{message}}",
+		"title": "Something went wrong displaying this content",
+		"unknownError": "Unknown error"
+	},
+	"errors": {
+		"auth": {
+			"clickRetryBelow": "(Click \"Retry\" below)",
+			"loggedOut": "Whoops looks like you're logged out – click below to sign in",
+			"signIn": "Sign in to Cline"
+		},
+		"billing": {
+			"retryAfterSwitching": "Retry the request after switching.",
+			"switchToUsageBased": "Switch to Usage-Based billing",
+			"switchedToUsageBased": "Switched to Usage-Based billing",
+			"switching": "Switching..."
+		},
+		"clinePassLimit": {
+			"switchFailed": "Failed to switch provider. Select Cline Usage-Billing in API Configuration settings.",
+			"switchPrompt": "Would you like to switch to Usage-Based billing and retry with the Cline provider?",
+			"title": "ClinePass limit reached"
+		},
+		"clineignore": "Cline tried to access <path>{{path}}</path> which is blocked by the <fileCode>.clineignore</fileCode> file.",
+		"creditLimit": {
+			"buyCredits": "Buy Credits",
+			"currentBalance": "Current Balance:",
+			"defaultMessage": "You have run out of credits.",
+			"totalPromotions": "Total Promotions:",
+			"totalSpent": "Total Spent:"
+		},
+		"diffError": "The model used search patterns that don't match anything in the file. Retrying...",
+		"entitlement": {
+			"getClinePass": "Get ClinePass",
+			"headline": "This model requires a ClinePass subscription.",
+			"subscribe": "Subscribe to ClinePass to use this model, then retry your request."
+		},
+		"freeModelLimit": {
+			"limitBody": "You've reached today's free usage limit for this model.",
+			"limitReached": "Daily free model limit reached",
+			"switchFailed": "Failed to switch model. Select {{modelId}} in API Configuration settings.",
+			"switchPaid": "Or switch to the paid version of this model ({{modelId}}) with usage-based billing.",
+			"tryAgainIn": "Try again in {{resetTime}} or select another model.",
+			"tryAgainLater": "Try again later or select another model."
+		},
+		"freePromotionEnded": {
+			"body": "The free promotion for this model has ended and it is no longer available.",
+			"selectAnother": "Select another model to continue.",
+			"selectModel": "Select a Model",
+			"title": "Free model promotion ended"
+		},
+		"orgRestriction": {
+			"body": "Organization accounts cannot use ClinePass subscriptions.",
+			"switchFailed": "Failed to switch account. Use /accounts to switch to your personal account.",
+			"switchToPersonal": "Switch to personal account",
+			"switchedToPersonal": "Switched to personal account",
+			"title": "Organization account cannot use ClinePass"
+		},
+		"powershellHelp": "It seems like you're having Windows PowerShell issues, please see this <helpLink>troubleshooting guide</helpLink>.",
+		"requestId": "Request ID: {{requestId}}",
+		"retryRequest": "Retry Request",
+		"spendLimit": {
+			"limitReachedDaily": "${{limit}} daily limit has been reached.",
+			"limitReachedMonthly": "${{limit}} monthly limit has been reached.",
+			"orgLimits": "Limits set by your organization.",
+			"requestIncrease": "Request Increase",
+			"requestSent": "Request Sent",
+			"resets": "Resets:",
+			"sending": "Sending…",
+			"usage": "Usage",
+			"usageDaily": "Daily usage",
+			"usageMonthly": "Monthly usage"
+		}
+	},
+	"featureTips": {
+		"label": "Tip:",
+		"tips": {
+			"autoApprove": "Enable auto-approve for read-only tools like file reads to speed up exploration.",
+			"checkpoints": "Cline creates checkpoints after changes — you can always restore to a previous state.",
+			"clinerules": "Add a .clinerules file to your project root to give Cline project-specific instructions.",
+			"compact": "Use /compact to condense long conversations and free up context window space.",
+			"disableTips": "You can disable these tips in Settings → Features → \"Feature Tips\".",
+			"dragDrop": "You can drag and drop images into the chat to share screenshots with Cline.",
+			"mcpServers": "Set up MCP Servers to give Cline access to external tools and APIs.",
+			"mentions": "Use @ in the chat input to add files, folders, or URLs as context for your task.",
+			"planMode": "Switch to Plan Mode to discuss and plan an approach before Cline takes action.",
+			"quote": "Use the quote button to select text from Cline's response and reference it in your reply."
+		}
+	},
+	"hook": {
+		"abort": "Abort",
+		"exitCode": "(exit: {{code}})",
+		"label": "Hook:",
+		"status": {
+			"aborted": "Aborted",
+			"completed": "Completed",
+			"failed": "Failed",
+			"running": "Running",
+			"unknown": "Unknown"
+		},
+		"timeoutError": "Took longer than 30 seconds. Check for infinite loops or add timeouts to network requests.",
+		"unknownName": "Unknown",
+		"validationError": "Hook returned invalid JSON. See error details below for more information."
+	},
+	"newTask": {
+		"label": "Task"
+	},
+	"quote": {
+		"dismissAria": "Dismiss quote",
+		"quoteSelectionAria": "Quote selection",
+		"quoteSelectionTitle": "Quote selection in reply"
+	},
+	"reportBug": {
+		"additionalContext": "Additional Context",
+		"apiRequestOutput": "Relevant API Request Output",
+		"clineVersion": "Cline Version",
+		"operatingSystem": "Operating System",
+		"providerModel": "Provider/Model",
+		"stepsToReproduce": "Steps to Reproduce",
+		"systemInfo": "System Info",
+		"title": "Bug Report",
+		"whatHappened": "What Happened?"
+	},
+	"requestStart": {
+		"analyzing": "Analyzing {{path}}/...",
+		"codebase": "codebase",
+		"exploring": "Exploring {{path}}/...",
+		"reading": "Reading {{path}}...",
+		"searchInPath": "\"{{terms}}\" in {{path}}",
+		"searchInPathWithPattern": "\"{{terms}}\" in {{path}} ({{pattern}})",
+		"searching": "Searching {{query}}..."
+	},
+	"row": {
+		"arguments": "Arguments",
+		"collapseSummary": "Collapse summary",
+		"condensingConversation": "Cline is condensing the conversation:",
+		"conditionalRulesApplied": "Conditional rules applied:",
+		"error": "Error",
+		"expandSummary": "Expand summary",
+		"fetchedFromUrl": "Cline fetched content from this URL:",
+		"hasQuestion": "Cline has a question:",
+		"havingTrouble": "Cline is having trouble...",
+		"isCreatingPatches": "Cline is creating patches to edit this file:",
+		"listedFilesRecursive": "Cline recursively viewed all files in this directory:",
+		"listedFilesTopLevel": "Cline viewed the top level files in this directory:",
+		"loadedSkill": "Cline loaded the skill:",
+		"loadingMcpDocumentation": "Loading MCP documentation",
+		"mcpNotification": "MCP Notification:",
+		"outsideWorkspace": "This is outside of your workspace",
+		"outsideWorkspaceFile": "This file is outside of your workspace",
+		"searchExternal": "This search is external",
+		"searchedWeb": "Cline searched the web for:",
+		"shellIntegration": {
+			"backgroundEnabled": "Background Terminal Enabled",
+			"enableBackground": "Enable Background Terminal (Recommended)",
+			"issues": "Shell integration issues",
+			"recommendBackground": "Since you're experiencing repeated shell integration issues, we recommend switching to Background Terminal mode for better reliability.",
+			"stillHavingTrouble": "Still having trouble?",
+			"troubleBody": "Cline may have trouble viewing the command's output. Please update VSCode (<code1>CMD/CTRL + Shift + P</code1> → \"Update\") and make sure you're using a supported shell: zsh, bash, fish, or PowerShell (<code2>CMD/CTRL + Shift + P</code2> → \"Terminal: Select Default Profile\").",
+			"unavailable": "Shell Integration Unavailable"
+		},
+		"summaryLabel": "Summary:",
+		"urlExternal": "This URL is external",
+		"viewedCodeDefinitions": "Cline viewed source code definition names used in this directory:",
+		"wantsToAccessResource": "Cline wants to access a resource on the <server>{{serverName}}</server> MCP server:",
+		"wantsToCondense": "Cline wants to condense your conversation:",
+		"wantsToCreateFile": "Cline wants to create a new file:",
+		"wantsToCreateGithubIssue": "Cline wants to create a Github issue:",
+		"wantsToDeleteFile": "Cline wants to delete this file:",
+		"wantsToEditFile": "Cline wants to edit this file:",
+		"wantsToExecuteCommand": "Cline wants to execute this command:",
+		"wantsToFetchFromUrl": "Cline wants to fetch content from this URL:",
+		"wantsToListFilesRecursive": "Cline wants to recursively view all files in this directory:",
+		"wantsToListFilesTopLevel": "Cline wants to view the top level files in this directory:",
+		"wantsToReadFile": "Cline wants to read this file:",
+		"wantsToSearchDirectory": "Cline wants to search this directory for <code>{{regex}}</code>:",
+		"wantsToSearchWeb": "Cline wants to search the web for:",
+		"wantsToStartNewTask": "Cline wants to start a new task:",
+		"wantsToUseTool": "Cline wants to use a tool on the <server>{{serverName}}</server> MCP server:",
+		"wantsToViewCodeDefinitions": "Cline wants to view source code definition names used in this directory:"
+	},
+	"searchResults": {
+		"collapseAria": "Collapse search results",
+		"expandAria": "Expand search results",
+		"workspace": "Workspace: {{name}}"
+	},
+	"servers": {
+		"goToSettingsAria": "Go to MCP server settings",
+		"hideAria": "Hide MCP Servers",
+		"manageTooltip": "Manage MCP Servers",
+		"showAria": "Show MCP Servers",
+		"title": "MCP Servers"
+	},
+	"slashMenu": {
+		"defaultCommands": "Default Commands",
+		"label": "Slash commands",
+		"mcpPromptFrom": "MCP prompt from {{serverName}}",
+		"mcpPrompts": "MCP Prompts",
+		"noMatchingCommands": "No matching commands found",
+		"workflowCommands": "Workflow Commands"
+	},
+	"subagent": {
+		"hideOutput": "Hide output",
+		"hideOutputAria": "Hide subagent output",
+		"showFullPromptAria": "Show full subagent prompt",
+		"showMore": "Show more",
+		"showOutput": "Show output",
+		"showOutputAria": "Show subagent output",
+		"stats": "{{toolCalls}} tools called · {{tokens}} tokens · {{cost}}",
+		"statusUnavailable": "Subagent status update unavailable.",
+		"wantsToUse_one": "Cline wants to use a subagent:",
+		"wantsToUse_other": "Cline wants to use subagents:"
+	},
+	"textArea": {
+		"act": "Act",
+		"actModeTooltip": "In Act mode, Cline will complete the task immediately",
+		"addContext": "Add Context",
+		"addFilesImages": "Add Files & Images",
+		"dimensionError": "Image dimensions exceed 7500px",
+		"hint": "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images",
+		"openApiSettings": "Open API Settings",
+		"placeholderMessage": "Type a message...",
+		"placeholderTask": "Type your task here...",
+		"plan": "Plan",
+		"planModeTooltip": "In Plan mode, Cline will gather information to architect a plan",
+		"toggleShortcut": "Toggle w/ <kbd>{{keys}}</kbd>",
+		"unsupportedFileError": "Files other than images are currently disabled"
+	},
+	"thinking": {
+		"label": "Thinking",
+		"streaming": "Thinking..."
+	},
+	"userMessage": {
+		"cancel": "Cancel",
+		"editFailed": "Failed to edit and regenerate message",
+		"editRegenerate": "Edit and regenerate from here",
+		"editRegenerateAria": "Edit and regenerate from this message",
+		"resetChat": "Reset Chat",
+		"resetChatTooltip": "Rewind conversation, keep current code edits",
+		"resetCode": "Reset Code",
+		"resetCodeTooltip": "Rewind conversation, reset code edits",
+		"restoring": "Restoring...",
+		"running": "Running..."
+	}
+}

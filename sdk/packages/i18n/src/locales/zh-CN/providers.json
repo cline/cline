@@ -1,0 +1,243 @@
+{
+	"aihubmix": {
+		"discountHelpText": "现在申请可享 10% 折扣！"
+	},
+	"asksage": {
+		"apiUrlLabel": "AskSage API URL",
+		"apiUrlPlaceholder": "输入 AskSage API URL..."
+	},
+	"bedrock": {
+		"accessKeyLabel": "AWS 访问密钥",
+		"accessKeyPlaceholder": "输入访问密钥...",
+		"apiKeyLabel": "AWS Bedrock API 密钥",
+		"apiKeyPlaceholder": "输入 Bedrock API 密钥",
+		"authApiKey": "API 密钥",
+		"authCredentials": "AWS 凭据",
+		"authProfile": "AWS 配置文件",
+		"baseInferenceModelLabel": "基础推理模型",
+		"clearSearchAria": "清除搜索",
+		"credentialsDescription": "通过提供上述密钥进行身份验证，或使用默认的 AWS 凭据提供程序（即 ~/.aws/credentials 或环境变量）。这些凭据仅在本地用于从此扩展发出 API 请求。",
+		"customModelIdPlaceholder": "输入自定义模型 ID...",
+		"customModelNote": "在 Bedrock 中使用应用程序推理配置文件时选择“Custom”。在模型 ID 字段中输入应用程序推理配置文件 ARN。",
+		"customOption": "自定义",
+		"modelIdLabel": "模型 ID",
+		"profileDescription": "使用来自 ~/.aws/credentials 的 AWS 配置文件凭据。将配置文件名称留空以使用默认配置文件。这些凭据仅在本地用于从此扩展发出 API 请求。",
+		"profileLabel": "AWS 配置文件名称",
+		"profilePlaceholder": "输入配置文件名称（留空则为 default）",
+		"regionLabel": "AWS 区域",
+		"regionSearchPlaceholder": "搜索或输入自定义区域...",
+		"secretKeyLabel": "AWS 私有密钥",
+		"secretKeyPlaceholder": "输入私有密钥...",
+		"sessionTokenLabel": "AWS 会话令牌",
+		"sessionTokenPlaceholder": "输入会话令牌...",
+		"useCrossRegionInference": "使用跨区域推理",
+		"useCustomVpcEndpoint": "使用自定义 VPC 终结点",
+		"useGlobalInferenceProfile": "使用全局推理配置文件",
+		"usePromptCaching": "使用提示缓存",
+		"vpcEndpointPlaceholder": "输入 VPC 终结点 URL（可选）"
+	},
+	"claudeCode": {
+		"cliPathDescription": "Claude Code CLI 的路径。",
+		"cliPathLabel": "Claude Code CLI 路径",
+		"latestVersionNote": "默认使用最新版本的 {{model}}。"
+	},
+	"clinePass": {
+		"freeLabel": "免费",
+		"freeTab": "免费",
+		"freeTabDescription": "以有限用量试用，不占用 ClinePass 配额。",
+		"subscribedTab": "已订阅"
+	},
+	"dify": {
+		"description": "Dify 是一个通过统一 API 提供多种 AI 模型访问的平台。配置你的 Dify 实例 URL 和 API 密钥即可开始使用。",
+		"modelSelectionNote": "模型选择在你的 Dify 应用配置中进行。"
+	},
+	"hicap": {
+		"apiKeyLabel": "Hicap API 密钥",
+		"generateApiKey": "生成 API 密钥"
+	},
+	"huggingface": {
+		"apiKeyLabel": "Hugging Face API 密钥",
+		"getApiKeyLink": "在此获取 API 密钥",
+		"pricingNote": "由于价格取决于你的 Hugging Face 提供商设置，且无法通过其 API 稳定获取，因此这里不显示价格信息"
+	},
+	"litellm": {
+		"baseUrlOptionalLabel": "基础 URL（可选）",
+		"description": "LiteLLM 提供统一接口来访问多家 LLM 提供商的模型。更多信息请参阅其<docsLink>快速入门指南</docsLink>。",
+		"extendedThinkingInfo": "扩展思维适用于 Sonnet-4、o3-mini、Deepseek R1 等模型。有关思维模式配置的更多信息，请参阅<docsLink>此文档</docsLink>",
+		"modelListStale": "模型列表相对于当前 LiteLLM 配置可能已过期。",
+		"modelSearchPlaceholder": "搜索或输入自定义模型 ID..."
+	},
+	"lmstudio": {
+		"contextWindowLabel": "上下文窗口",
+		"contextWindowTitle": "不可编辑 - 该值由所连接的终结点返回",
+		"description": "LM Studio 允许你在本地计算机上运行模型。有关入门说明，请参阅其<quickstartLink>快速入门指南。</quickstartLink>你还需要通过 <code>lms server start</code> 启动 LM Studio 的<serverLink>本地服务器</serverLink>功能，才能与此扩展一起使用。",
+		"modelPlaceholder": "例如 meta-llama-3.1-8b-instruct"
+	},
+	"modelPicker": {
+		"customModelIdLabel": "自定义模型 ID",
+		"customModelIdPlaceholder": "输入自定义模型 ID",
+		"modelListStale": "模型列表相对于当前提供商配置可能已过期。",
+		"notInCurrentList": "{{modelId}}（不在当前列表中）",
+		"selectedModelNotInList": "所选模型“{{modelId}}”不在当前列表中。",
+		"useCustomModelButton": "使用自定义模型",
+		"useCustomModelIdOption": "使用自定义模型 ID…"
+	},
+	"moonshot": {
+		"entrypointLabel": "Moonshot 接入点"
+	},
+	"oca": {
+		"acknowledgeButton": "我已知悉并同意",
+		"acknowledgementTitle": "需要确认",
+		"connecting": "正在连接…",
+		"customBaseUrlLabel": "自定义基础 URL（可选）",
+		"disclaimerSubtitle": "免责声明：禁止提交的数据",
+		"employeeCheckbox": "我是 Oracle 员工",
+		"feedbackPrompt": "对 Oracle Code Assist 有什么想法？",
+		"lastRefreshedAt": "上次刷新时间：{{time}}",
+		"logOut": "注销",
+		"oracleEmploymentAria": "Oracle 雇佣关系",
+		"provideFeedback": "提供反馈",
+		"reasoningEffortLabel": "推理强度",
+		"refresh": "刷新",
+		"refreshFailed": "刷新模型失败。请检查你的会话或网络。",
+		"refreshing": "正在刷新…",
+		"setupNote": "请联系你的 IT 管理员将 Oracle Code Assist 设置为模型提供商。Oracle 员工请参阅<quickstartLink>快速入门指南</quickstartLink>",
+		"signInAgain": "重新登录",
+		"signInButton": "使用 Oracle Code Assist 登录",
+		"signedIn": "已登录",
+		"unknownUser": "未知用户"
+	},
+	"ollama": {
+		"apiKeyHelpText": "用于需要身份验证的 Ollama 实例或云服务的可选 API 密钥。本地安装可留空。",
+		"apiKeyPlaceholder": "输入 API 密钥（可选）...",
+		"contextWindowLabel": "模型上下文窗口",
+		"description": "Ollama 允许你在本地计算机上运行模型。有关入门说明，请参阅其<quickstartLink>快速入门指南。</quickstartLink>",
+		"fetchFailed": "无法从 Ollama 服务器获取模型。请确保 Ollama 正在运行且可访问，或在上方手动输入模型 ID。",
+		"modelPlaceholder": "例如 llama3.1",
+		"modelSearchPlaceholder": "搜索并选择模型...",
+		"requestTimeoutDescription": "等待 API 响应的最长时间（毫秒），超时后将中止请求。",
+		"requestTimeoutLabel": "请求超时（毫秒）",
+		"requestTimeoutPlaceholder": "默认：300000（5 分钟）"
+	},
+	"openaiCodex": {
+		"signInButton": "登录 OpenAI Codex",
+		"signInDescription": "使用你的 ChatGPT Plus 或 Pro 订阅登录，无需 API 密钥即可使用 GPT-5 模型。",
+		"signOut": "注销",
+		"signedIn": "已登录 OpenAI Codex"
+	},
+	"openaiCompatible": {
+		"addHeader": "添加标头",
+		"azureApiVersionLabel": "设置 Azure API 版本",
+		"azureIdentityCheckbox": "使用 Azure 标识身份验证",
+		"customHeadersLabel": "自定义标头",
+		"customModelIdLabel": "自定义模型 ID",
+		"headerNamePlaceholder": "标头名称",
+		"headerValuePlaceholder": "标头值",
+		"inputPriceLabel": "输入价格 / 100 万 token",
+		"modelConfigurationTitle": "模型配置",
+		"modelIdLabel": "模型 ID",
+		"modelIdPlaceholder": "输入模型 ID...",
+		"notSetPlaceholder": "未设置",
+		"outputPriceLabel": "输出价格 / 100 万 token",
+		"removeHeader": "移除",
+		"temperatureLabel": "温度"
+	},
+	"openrouter": {
+		"apiKeyLabel": "OpenRouter API 密钥",
+		"balance": "余额：{{balance}}",
+		"balanceTitle": "剩余余额：{{balance}}\n上限：{{limit}}\n已用：{{usage}}",
+		"getApiKeyButton": "获取 OpenRouter API 密钥"
+	},
+	"qwen": {
+		"apiLineDescription": "请根据你所在的位置选择合适的 API 接口。如果你在中国，请选择中国 API 接口；否则请选择国际 API 接口。",
+		"apiLineLabel": "阿里巴巴 API 线路",
+		"apiLineOptions": {
+			"china": "中国 API",
+			"international": "国际 API"
+		}
+	},
+	"qwenCode": {
+		"authDescription": "Qwen Code 是一个基于 OAuth 的 API，需要通过官方 Qwen 客户端进行身份验证。你需要先设置 OAuth 凭据。",
+		"credsPathDescription": "Qwen OAuth 凭据文件的路径。使用 ~/.qwen/oauth_creds.json 或提供自定义路径。",
+		"credsPathLabel": "OAuth 凭据路径",
+		"gettingStartedIntro": "开始使用：",
+		"gettingStartedStep1": "1. 安装官方 Qwen 客户端",
+		"gettingStartedStep2": "2. 使用你的帐户进行身份验证",
+		"gettingStartedStep3": "3. OAuth 凭据将自动存储",
+		"setupInstructions": "设置说明",
+		"title": "Qwen Code API 配置"
+	},
+	"requesty": {
+		"getApiKeyButton": "获取 Requesty API 密钥"
+	},
+	"sapaicore": {
+		"authUrlLabel": "AI Core 身份验证 URL",
+		"authUrlPlaceholder": "输入 AI Core 身份验证 URL...",
+		"baseUrlLabel": "AI Core 基础 URL",
+		"baseUrlPlaceholder": "输入 AI Core 基础 URL...",
+		"clientIdLabel": "AI Core 客户端 ID",
+		"clientIdPlaceholder": "输入 AI Core 客户端 ID...",
+		"clientIdSet": "客户端 ID 已设置。若要更改，请重新输入该值。",
+		"clientSecretLabel": "AI Core 客户端密钥",
+		"clientSecretPlaceholder": "输入 AI Core 客户端密钥...",
+		"clientSecretSet": "客户端密钥已设置。若要更改，请重新输入该值。",
+		"configureCredentials": "请配置你的 SAP AI Core 凭据以查看可用模型。",
+		"docsLink": "有关 SAP AI Core API 访问的更多信息，请参阅此处。",
+		"fetchFailed": "获取模型失败。请检查你的配置。",
+		"noDeployments": "无法从 SAP AI Core 服务实例获取模型。请检查你的 SAP AI Core 配置，或确保你的部署已在服务实例中部署并运行",
+		"orchestrationDescriptionDisabled": "禁用后，仅可访问 AI Core 服务实例中已部署的模型。",
+		"orchestrationDescriptionEnabled": "启用后，无需单独部署即可访问所有可用模型。",
+		"orchestrationModeLabel": "编排模式",
+		"resourceGroupLabel": "AI Core 资源组",
+		"resourceGroupPlaceholder": "输入 AI Core 资源组..."
+	},
+	"shared": {
+		"adaptiveThinkingDescription": "选择“无”可禁用自适应思维。强度越高，回复越详细，token 用量也越多。",
+		"adaptiveThinkingLabel": "自适应思维",
+		"apiKeyLabel": "API 密钥",
+		"apiKeyStoredLocally": "此密钥仅存储在本地，且仅用于从此扩展发出 API 请求。",
+		"baseUrlLabel": "基础 URL",
+		"complexPromptsNote": "Cline 使用复杂的提示词，不同模型的表现可能有所差异。能力较弱的模型可能无法按预期工作。",
+		"contextWindowSizeLabel": "上下文窗口大小",
+		"credentialsStoredLocally": "这些凭据仅存储在本地，且仅用于从此扩展发出 API 请求。",
+		"customBaseUrlPlaceholder": "自定义基础 URL",
+		"defaultPlaceholder": "默认：{{value}}",
+		"enterApiKeyPlaceholder": "输入 API 密钥...",
+		"enterBaseUrlPlaceholder": "输入基础 URL...",
+		"extendedThinkingDescription": "选择“无”可禁用扩展思维。强度越高，思考越深入，但 token 用量也越多。",
+		"loading": "加载中...",
+		"loadingModels": "正在加载模型…",
+		"maxOutputTokensLabel": "最大输出 token 数",
+		"modelLabel": "模型",
+		"mustBePositiveInteger": "{{label}}必须为正整数。",
+		"mustBeValidNumber": "{{label}}必须为有效数字。",
+		"noteLabel": "注意：",
+		"refreshModels": "刷新模型",
+		"remoteConfigManaged": "此设置由你所在组织的远程配置管理",
+		"retry": "重试",
+		"selectModelPlaceholder": "选择模型...",
+		"selectRegionPlaceholder": "选择区域...",
+		"supportsImagesLabel": "支持图像",
+		"useCustomBaseUrl": "使用自定义基础 URL"
+	},
+	"vercelAiGateway": {
+		"apiKeyLabel": "Vercel AI Gateway API 密钥",
+		"getApiKeyNote": "你可以通过<signupLink>在此注册</signupLink>获取 Vercel AI Gateway API 密钥。"
+	},
+	"vertex": {
+		"customModelNote": "如果自定义模型的能力与默认值不同，请在此调整。",
+		"projectIdLabel": "Google Cloud 项目 ID",
+		"projectIdPlaceholder": "输入项目 ID...",
+		"regionLabel": "Google Cloud 区域",
+		"setupDescription": "要使用 Google Cloud Vertex AI，你需要<accountLink>1) 创建 Google Cloud 帐户 › 启用 Vertex AI API › 启用所需的 Claude 模型，</accountLink><cliLink>2) 安装 Google Cloud CLI › 配置应用程序默认凭据。</cliLink>",
+		"supportsReasoningLabel": "支持推理"
+	},
+	"vscodeLm": {
+		"description": "使用其他扩展通过 VS Code 语言模型 API 提供的模型。最常见的来源是 GitHub Copilot——安装 <copilotLink>Copilot 扩展</copilotLink>并在 Copilot 设置中启用模型——但任何注册了语言模型提供程序的扩展都会显示在此处。启用模型后请<refreshLink>刷新模型列表</refreshLink>。",
+		"languageModelLabel": "语言模型"
+	},
+	"zai": {
+		"entrypointDescription": "请根据你所在的位置选择合适的 API 接入点。如果你在中国，请选择 open.bigmodel.cn；否则请选择 api.z.ai。",
+		"entrypointLabel": "Z AI 接入点"
+	}
+}

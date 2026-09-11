@@ -1,7 +1,9 @@
 import type { WorkspaceRoot } from "@shared/multi-root/types"
 import { render, screen } from "@testing-library/react"
 import type { PropsWithChildren } from "react"
+import { I18nextProvider } from "react-i18next"
 import { describe, expect, it, vi } from "vitest"
+import { i18n } from "@/i18n"
 import TaskWorkingDirectoryBadge, { isTaskCwdOutsideWorkspace } from "./TaskWorkingDirectoryBadge"
 
 vi.mock("@/components/ui/tooltip", () => ({
@@ -87,11 +89,13 @@ describe("isTaskCwdOutsideWorkspace", () => {
 describe("TaskWorkingDirectoryBadge", () => {
 	it("renders the cwd basename and full-path tooltip when outside the workspace", () => {
 		render(
-			<TaskWorkingDirectoryBadge
-				platform="linux"
-				taskCwd="/tmp/cline-hello"
-				workspaceRoots={roots("/home/user/project")}
-			/>,
+			<I18nextProvider i18n={i18n}>
+				<TaskWorkingDirectoryBadge
+					platform="linux"
+					taskCwd="/tmp/cline-hello"
+					workspaceRoots={roots("/home/user/project")}
+				/>
+			</I18nextProvider>,
 		)
 		expect(screen.getByText("cline-hello")).toBeDefined()
 		expect(screen.getByText(/working directory is \/tmp\/cline-hello/)).toBeDefined()
@@ -99,18 +103,22 @@ describe("TaskWorkingDirectoryBadge", () => {
 
 	it("renders nothing when the cwd is inside the workspace", () => {
 		const { container } = render(
-			<TaskWorkingDirectoryBadge
-				platform="linux"
-				taskCwd="/home/user/project/src"
-				workspaceRoots={roots("/home/user/project")}
-			/>,
+			<I18nextProvider i18n={i18n}>
+				<TaskWorkingDirectoryBadge
+					platform="linux"
+					taskCwd="/home/user/project/src"
+					workspaceRoots={roots("/home/user/project")}
+				/>
+			</I18nextProvider>,
 		)
 		expect(container.innerHTML).toBe("")
 	})
 
 	it("renders nothing when workspace roots are not yet known", () => {
 		const { container } = render(
-			<TaskWorkingDirectoryBadge platform="linux" taskCwd="/tmp/cline-hello" workspaceRoots={[]} />,
+			<I18nextProvider i18n={i18n}>
+				<TaskWorkingDirectoryBadge platform="linux" taskCwd="/tmp/cline-hello" workspaceRoots={[]} />
+			</I18nextProvider>,
 		)
 		expect(container.innerHTML).toBe("")
 	})

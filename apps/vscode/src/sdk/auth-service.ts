@@ -34,6 +34,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
+import { t } from "@/services/i18n"
 import { telemetryService } from "@/services/telemetry"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
@@ -766,7 +767,7 @@ export class AuthService {
 					Logger.error(`[SdkAuthService] Failed to open browser for Codex: ${url}:`, error)
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
-						message: `Couldn't open your browser for OpenAI sign-in. Open this URL manually: ${url}`,
+						message: t("auth.codexBrowserOpenFailed", { url }),
 					})
 				},
 			})

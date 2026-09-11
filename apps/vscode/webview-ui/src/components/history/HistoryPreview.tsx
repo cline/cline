@@ -1,28 +1,23 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useUsageCostVisibility } from "@/hooks/useUsageCostVisibility"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { formatHistoryDate } from "@/utils/format"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
+	const { t } = useTranslation()
 	const { taskHistory } = useExtensionState()
 	const isCostVisible = useUsageCostVisibility()
 	const handleHistorySelect = (id: string) => {
 		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
 			console.error("Error showing task:", error),
 		)
-	}
-
-	const formatDate = (timestamp: number) => {
-		const date = new Date(timestamp)
-		return date?.toLocaleString("en-US", {
-			month: "short",
-			day: "numeric",
-		})
 	}
 
 	return (
@@ -128,16 +123,16 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							fontSize: "0.85em",
 							textTransform: "uppercase",
 						}}>
-						Recent
+						{t("history:recent")}
 					</span>
 				</div>
 				{taskHistory.filter((item) => item.ts && item.task).length > 0 && (
 					<button
-						aria-label="View all history"
+						aria-label={t("history:viewAllAria")}
 						className="history-view-all-btn"
 						onClick={() => showHistoryView()}
 						type="button">
-						View All
+						{t("history:viewAll")}
 						<span className="codicon codicon-chevron-right" />
 					</button>
 				)}
@@ -154,7 +149,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									<div className="history-task-content">
 										{item.isFavorited && (
 											<span
-												aria-label="Favorited"
+												aria-label={t("history:favorited")}
 												className="codicon codicon-star-full"
 												style={{
 													color: "var(--vscode-button-background)",
@@ -163,10 +158,10 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											/>
 										)}
 										<div className="history-task-description ph-no-capture">{item.task}</div>
-										{item.isLegacy && <span className="history-cost-chip">Legacy</span>}
+										{item.isLegacy && <span className="history-cost-chip">{t("history:legacy")}</span>}
 									</div>
 									<div className="history-meta-stack">
-										<span className="history-date">{formatDate(item.ts)}</span>
+										<span className="history-date">{formatHistoryDate(item.ts)}</span>
 										{item.totalCost != null && isCostVisible(item.apiProvider) && (
 											<span className="history-cost-chip">${item.totalCost.toFixed(2)}</span>
 										)}
@@ -181,7 +176,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								fontSize: "var(--vscode-font-size)",
 								padding: "10px 0",
 							}}>
-							No recent tasks
+							{t("history:noRecentTasks")}
 						</div>
 					)}
 				</div>

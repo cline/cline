@@ -1,10 +1,11 @@
 import type { ModelInfo } from "@shared/api"
+import { uiLocale } from "@/utils/format"
 
 /**
  * Formats a price as a currency string
  */
 export const formatPrice = (price: number) => {
-	return new Intl.NumberFormat("en-US", {
+	return new Intl.NumberFormat(uiLocale(), {
 		style: "currency",
 		currency: "USD",
 		minimumFractionDigits: 2,

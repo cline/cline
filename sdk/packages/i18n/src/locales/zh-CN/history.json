@@ -1,0 +1,35 @@
+{
+	"addToFavorites": "添加到收藏",
+	"clearSearch": "清除搜索",
+	"deleteAll": "删除全部历史记录",
+	"deleteAllAria": "删除全部历史记录",
+	"deleteSelectedAria": "删除选中的项目",
+	"deleteSelected_other": "删除选中的 {{count}} 项",
+	"favorited": "已收藏",
+	"filters": {
+		"favoritesOnly": "仅收藏",
+		"mostExpensive": "花费最多",
+		"mostRelevant": "最相关",
+		"mostTokens": "Token 最多",
+		"newest": "最新",
+		"oldest": "最早",
+		"workspaceOnly": "仅当前工作区"
+	},
+	"groups": {
+		"older": "更早",
+		"today": "今天"
+	},
+	"legacy": "旧版",
+	"modelLabel": "模型",
+	"noRecentTasks": "暂无最近任务",
+	"recent": "最近",
+	"removeFromFavorites": "从收藏中移除",
+	"searchPlaceholder": "模糊搜索历史记录...",
+	"selectAll": "全选",
+	"selectNone": "全不选",
+	"sizeLabel": "大小",
+	"title": "历史记录",
+	"tokensLabel": "Token",
+	"viewAll": "查看全部",
+	"viewAllAria": "查看全部历史记录"
+}

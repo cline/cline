@@ -1,0 +1,62 @@
+{
+	"buttons": {
+		"approve": "Approve",
+		"cancel": "Cancel",
+		"condenseConversation": "Condense Conversation",
+		"proceedAnyways": "Proceed Anyways",
+		"proceedWhileRunning": "Proceed While Running",
+		"reject": "Reject",
+		"reportGithubIssue": "Report GitHub issue",
+		"resumeTask": "Resume Task",
+		"retry": "Retry",
+		"runCommand": "Run Command",
+		"save": "Save",
+		"startNewTask": "Start New Task",
+		"startNewTaskWithContext": "Start New Task with Context"
+	},
+	"clinePassPromo": {
+		"description": "A monthly subscription for the latest open-weights models, at much lower cost than paying for direct API access.",
+		"getButton": "Get ClinePass",
+		"switchProvider": "Switch to ClinePass provider to access subscription.",
+		"title": "Try ClinePass"
+	},
+	"queuedPrompts": {
+		"attachments_one": "{{count}} attachment",
+		"attachments_other": "{{count}} attachments",
+		"cancelQueued": "Cancel queued message",
+		"mixedSummary": "{{queueCount}} queued, {{steerCount}} steering",
+		"queuedMessages_one": "Queued message",
+		"queuedMessages_other": "{{count}} queued messages",
+		"steer": "Steer",
+		"steeringMessages_one": "Steering message",
+		"steeringMessages_other": "{{count}} steering messages"
+	},
+	"toolGroup": {
+		"analyzing": "Analyzing {{path}}/...",
+		"codebase": "codebase",
+		"contextFallback": "Context",
+		"exploredFolders_one": "explored {{count}} folder",
+		"exploredFolders_other": "explored {{count}} folders",
+		"exploring": "Exploring {{path}}/...",
+		"linesFrom": "lines {{start}}+",
+		"linesRange": "lines {{start}}-{{end}}",
+		"patterns_one": "{{count}} pattern",
+		"patterns_other": "{{count}} patterns",
+		"performedSearches_one": "performed {{count}} search",
+		"performedSearches_other": "performed {{count}} searches",
+		"readFiles_one": "read {{count}} file",
+		"readFiles_other": "read {{count}} files",
+		"reading": "Reading {{path}}...",
+		"readingWithLines": "Reading {{path}} ({{lines}})...",
+		"scannedDefinitions_one": "scanned {{count}} definition",
+		"scannedDefinitions_other": "scanned {{count}} definitions",
+		"searchIn": "{{terms}} in {{path}}",
+		"searching": "Searching {{query}}...",
+		"summary": "Cline {{items}}"
+	},
+	"welcome": {
+		"currentLabel": "Current:",
+		"detachedHead": "detached HEAD",
+		"worktreesTooltip": "View and manage git worktrees. Great for running parallel Cline tasks."
+	}
+}

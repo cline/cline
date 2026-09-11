@@ -6,67 +6,82 @@ export enum NEW_USER_TYPE {
 }
 
 type UserTypeSelection = {
+	/** i18n key for the option title (onboarding namespace) */
 	title: string
+	/** i18n key for the option description (onboarding namespace) */
 	description: string
 	type: NEW_USER_TYPE
 	learnMoreUrl?: string
 }
 
+// `title`, `description`, and button `text` hold i18n keys; call t() at the render site.
 export const STEP_CONFIG = {
 	0: {
-		title: "How will you use Cline?",
-		description: "Select an option below to get started.",
+		title: "onboarding:steps.userType.title",
+		description: "onboarding:steps.userType.description",
 		buttons: [
-			{ text: "Continue", action: "next", variant: "default" },
-			{ text: "Login to Cline", action: "signin", variant: "secondary" },
+			{ text: "onboarding:buttons.continue", action: "next", variant: "default" },
+			{ text: "onboarding:buttons.login", action: "signin", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.CLINE_PASS]: {
-		title: "Select a ClinePass model",
+		title: "onboarding:steps.clinePass.title",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding:buttons.createAccount", action: "signup", variant: "default" },
+			{ text: "onboarding:buttons.back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.FREE]: {
-		title: "Select a free model",
+		title: "onboarding:steps.free.title",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding:buttons.createAccount", action: "signup", variant: "default" },
+			{ text: "onboarding:buttons.back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.POWER]: {
-		title: "Select your model",
+		title: "onboarding:steps.power.title",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding:buttons.createAccount", action: "signup", variant: "default" },
+			{ text: "onboarding:buttons.back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.BYOK]: {
-		title: "Configure your provider",
+		title: "onboarding:steps.byok.title",
 		buttons: [
-			{ text: "Continue", action: "done", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding:buttons.continue", action: "done", variant: "default" },
+			{ text: "onboarding:buttons.back", action: "back", variant: "secondary" },
 		],
 	},
 	2: {
-		title: "Almost there!",
-		description: "Complete account creation in your browser. Then come back here to finish up.",
-		buttons: [{ text: "Back", action: "back", variant: "secondary" }],
+		title: "onboarding:steps.accountWait.title",
+		description: "onboarding:steps.accountWait.description",
+		buttons: [{ text: "onboarding:buttons.back", action: "back", variant: "secondary" }],
 	},
 } as const
 
 const CLINE_PASS_USER_TYPE_SELECTION: UserTypeSelection = {
-	title: "ClinePass",
-	description: "Low cost subscription plan for best open weights model.",
+	title: "onboarding:userTypes.clinePass.title",
+	description: "onboarding:userTypes.clinePass.description",
 	type: NEW_USER_TYPE.CLINE_PASS,
 	learnMoreUrl: "https://docs.cline.bot/getting-started/clinepass",
 }
 
 const BASE_USER_TYPE_SELECTIONS: UserTypeSelection[] = [
-	{ title: "Absolutely Free", description: "Get started at no cost", type: NEW_USER_TYPE.FREE },
-	{ title: "Frontier Model", description: "Claude, GPT Codex, Gemini, etc.", type: NEW_USER_TYPE.POWER },
-	{ title: "Bring my own API key", description: "Use Cline with your provider of choice", type: NEW_USER_TYPE.BYOK },
+	{
+		title: "onboarding:userTypes.free.title",
+		description: "onboarding:userTypes.free.description",
+		type: NEW_USER_TYPE.FREE,
+	},
+	{
+		title: "onboarding:userTypes.power.title",
+		description: "onboarding:userTypes.power.description",
+		type: NEW_USER_TYPE.POWER,
+	},
+	{
+		title: "onboarding:userTypes.byok.title",
+		description: "onboarding:userTypes.byok.description",
+		type: NEW_USER_TYPE.BYOK,
+	},
 ]
 
 /** Free leads (and is the default); ClinePass is inserted second when its models are available. */

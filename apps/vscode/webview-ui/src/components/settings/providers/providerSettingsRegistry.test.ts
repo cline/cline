@@ -36,8 +36,8 @@ describe("providerSettingsRegistry", () => {
 		).toEqual({
 			allowsCustomIds: false,
 			baseUrlField: {
-				label: "Use custom base URL",
-				placeholder: "Default: https://generativelanguage.googleapis.com",
+				label: "settings:baseUrl.labelCustom",
+				placeholder: "settings:providerRegistry.gemini.baseUrlPlaceholder",
 			},
 			providerId: "gemini",
 			providerName: "Google Gemini",
@@ -102,7 +102,7 @@ describe("providerSettingsRegistry", () => {
 		).toEqual({
 			allowsCustomIds: false,
 			baseUrlField: {
-				label: "Base URL",
+				label: "settings:baseUrl.label",
 				placeholder: "https://api.minimax.io/anthropic",
 			},
 			providerId: "minimax",
@@ -117,7 +117,7 @@ describe("providerSettingsRegistry", () => {
 		).toEqual({
 			allowsCustomIds: true,
 			baseUrlField: {
-				label: "Base URL",
+				label: "settings:baseUrl.label",
 				placeholder: "https://api.together.xyz/v1",
 			},
 			providerId: "together",
@@ -164,8 +164,8 @@ describe("providerSettingsRegistry", () => {
 		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
 			allowsCustomIds: false,
 			baseUrlField: {
-				label: "Use custom base URL",
-				placeholder: "Default: https://generativelanguage.googleapis.com",
+				label: "settings:baseUrl.labelCustom",
+				placeholder: "settings:providerRegistry.gemini.baseUrlPlaceholder",
 			},
 			providerId: "gemini",
 			providerName: "Gemini",
@@ -174,7 +174,7 @@ describe("providerSettingsRegistry", () => {
 		expect(getFallbackGenericProviderSettings("minimax")).toEqual({
 			allowsCustomIds: false,
 			baseUrlField: {
-				label: "Base URL",
+				label: "settings:baseUrl.label",
 				placeholder: "https://api.minimax.io/anthropic",
 			},
 			providerId: "minimax",
@@ -184,7 +184,7 @@ describe("providerSettingsRegistry", () => {
 		expect(getFallbackGenericProviderSettings("together")).toEqual({
 			allowsCustomIds: true,
 			baseUrlField: {
-				label: "Base URL",
+				label: "settings:baseUrl.label",
 				placeholder: "https://api.together.xyz/v1",
 			},
 			providerId: "together",
@@ -194,8 +194,8 @@ describe("providerSettingsRegistry", () => {
 		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
 			allowsCustomIds: false,
 			baseUrlField: {
-				label: "Use custom base URL",
-				placeholder: "Default: https://generativelanguage.googleapis.com",
+				label: "settings:baseUrl.labelCustom",
+				placeholder: "settings:providerRegistry.gemini.baseUrlPlaceholder",
 			},
 			providerId: "gemini",
 			providerName: "Gemini",

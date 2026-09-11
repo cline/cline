@@ -1,5 +1,5 @@
-import { after, describe, it } from "mocha"
 import * as fs from "fs/promises"
+import { after, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"

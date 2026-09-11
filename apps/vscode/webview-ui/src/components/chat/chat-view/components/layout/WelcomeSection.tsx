@@ -4,6 +4,7 @@ import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
 import HistoryPreview from "@/components/history/HistoryPreview"
@@ -37,6 +38,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
+	const { t } = useTranslation()
 	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, dismissedBanners } =
 		useExtensionState()
 
@@ -255,23 +257,20 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		return {
 			id: CLINE_PASS_PROMO_BANNER_ID,
 			icon: <Sparkles className="size-4 text-[var(--vscode-charts-yellow)]" />,
-			title: "Try ClinePass",
+			title: t("chatView:clinePassPromo.title"),
 			description: (
 				<div className="flex flex-col gap-2">
-					<p className="m-0">
-						A monthly subscription for the latest open-weights models, at much lower cost than paying for direct API
-						access.
-					</p>
+					<p className="m-0">{t("chatView:clinePassPromo.description")}</p>
 					<div>
 						<Button onClick={openSubscribePage} size="sm">
-							Get ClinePass
+							{t("chatView:clinePassPromo.getButton")}
 						</Button>
 					</div>
 					<button
 						className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-xs text-[var(--vscode-textLink-foreground)] underline hover:text-[var(--vscode-textLink-activeForeground,var(--vscode-textLink-foreground))]"
 						onClick={() => void switchToClinePassProvider()}
 						type="button">
-						Switch to ClinePass provider to access subscription.
+						{t("chatView:clinePassPromo.switchProvider")}
 					</button>
 				</div>
 			),
@@ -285,6 +284,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 		openSubscribePage,
 		switchToClinePassProvider,
 		handleBannerDismiss,
+		t,
 	])
 
 	/**
@@ -357,8 +357,10 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 												<div className="flex items-center gap-1.5 text-xs">
 													<GitBranch className="w-3 h-3 stroke-[2.5] flex-shrink-0" />
 													<span className="break-all text-center">
-														<span className="font-semibold">Current:</span>{" "}
-														{currentWorktree.branch || "detached HEAD"}
+														<span className="font-semibold">
+															{t("chatView:welcome.currentLabel")}
+														</span>{" "}
+														{currentWorktree.branch || t("chatView:welcome.detachedHead")}
 													</span>
 												</div>
 												<span className="break-all text-center max-w-[300px]">
@@ -366,9 +368,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 												</span>
 											</button>
 										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											View and manage git worktrees. Great for running parallel Cline tasks.
-										</TooltipContent>
+										<TooltipContent side="bottom">{t("chatView:welcome.worktreesTooltip")}</TooltipContent>
 									</Tooltip>
 								)}
 							</div>
