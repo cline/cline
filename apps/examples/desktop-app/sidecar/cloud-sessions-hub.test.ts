@@ -226,6 +226,34 @@ function createFixture({
 
 describe("CloudSessionManager Hub runtime", () => {
 	it.each([
+		"session.list",
+		"session.create",
+	])("cancels a send stopped while %s is pending", async (blockedCommand) => {
+		const { manager, hub } = createFixture({ hub: new FakeHubClient(false) });
+		let release!: () => void;
+		hub.commandHook = (command) => {
+			if (command === blockedCommand) {
+				hub.commandHook = undefined;
+				return new Promise<void>((resolve) => {
+					release = resolve;
+				});
+			}
+		};
+		const result = manager
+			.send("ses-outer", "cancel this")
+			.catch((error: unknown) => error);
+		await vi.waitFor(() => expect(release).toBeDefined());
+		const aborting = manager.abort("ses-outer");
+		release();
+		await aborting;
+		expect(await result).toBeInstanceOf(Error);
+		expect(
+			hub.commands.some(({ command }) => command === "session.send_input"),
+		).toBe(false);
+		await manager.dispose();
+	});
+
+	it.each([
 		"abort",
 		"dispose",
 	] as const)("%s cancels a provisioning send before opening the Hub", async (action) => {
