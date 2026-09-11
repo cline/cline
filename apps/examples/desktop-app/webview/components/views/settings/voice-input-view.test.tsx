@@ -157,10 +157,10 @@ describe("VoiceInputContent", () => {
 		});
 		await render();
 
-		const toggle = container.querySelector<HTMLButtonElement>(
+		const toggle = container.querySelector<HTMLInputElement>(
 			'[aria-label="Enable voice input"]',
 		);
-		expect(toggle?.getAttribute("aria-checked")).toBe("false");
+		expect(toggle?.checked).toBe(false);
 		await act(async () => toggle?.click());
 
 		expect(invokeMock).toHaveBeenCalledWith("save_voice_input_settings", {
@@ -196,7 +196,7 @@ describe("VoiceInputContent", () => {
 		});
 
 		invokeMock.mockResolvedValue({});
-		const toggle = container.querySelector<HTMLButtonElement>(
+		const toggle = container.querySelector<HTMLInputElement>(
 			'[aria-label="Enable voice input"]',
 		);
 		await act(async () => toggle?.click());

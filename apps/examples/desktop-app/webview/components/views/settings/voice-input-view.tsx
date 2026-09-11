@@ -1,9 +1,9 @@
 "use client";
 
+import { Switch } from "@cline/ui";
 import { AudioLines, Mic, Radio } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
 	Tooltip,
 	TooltipContent,
