@@ -90,7 +90,7 @@ export async function resolveAiSdkTelemetry(
 		return TELEMETRY_DISABLED;
 	}
 
-	const relayTracer = await getHostOtlpTracer();
+	let relayTracer = await getHostOtlpTracer();
 	if (!relayTracer) {
 		const config = readDirectLangfuseTelemetryConfig();
 		if (!config) return TELEMETRY_DISABLED;
@@ -98,9 +98,14 @@ export async function resolveAiSdkTelemetry(
 			providerId,
 			config,
 		);
-		return integration
-			? { isEnabled: true, integrations: integration }
-			: TELEMETRY_DISABLED;
+		// The host may register its relay during asynchronous direct-runtime
+		// initialization. Apply its policy before selecting the stream's route.
+		relayTracer = await getHostOtlpTracer();
+		if (!relayTracer) {
+			return integration
+				? { isEnabled: true, integrations: integration }
+				: TELEMETRY_DISABLED;
+		}
 	}
 
 	if (await isTelemetryOptedOutGlobally()) {

@@ -204,6 +204,56 @@ describe("langfuse telemetry", () => {
 		});
 	});
 
+	it.each([
+		{
+			policy: "sampling disabled",
+			sample: "0",
+			optedOut: false,
+			enabled: false,
+		},
+		{ policy: "user opted out", sample: "100", optedOut: true, enabled: false },
+		{ policy: "metadata only", sample: "100", optedOut: false, enabled: true },
+	])("honors $policy when a relay registers during direct initialization", async ({
+		sample,
+		optedOut,
+		enabled,
+	}) => {
+		const directory = await fs.mkdtemp(
+			path.join(os.tmpdir(), "lf-relay-race-"),
+		);
+		try {
+			globalSettingsPathRef.current = path.join(directory, "settings.json");
+			await fs.writeFile(
+				globalSettingsPathRef.current,
+				JSON.stringify({ telemetryOptOut: optedOut }),
+			);
+			vi.stubEnv("CLINE_TRACE_SAMPLE_PERCENT", sample);
+			vi.stubEnv("CLINE_TRACE_RECORD_CONTENT", "false");
+			// Register the host while the awaited direct runtime is still being
+			// constructed, before its promise resolves back to the caller.
+			integrationOptionsSpy.mockImplementationOnce(() => {
+				getDelegateSpy.mockReturnValue({ _clineOtlpTraceRelay: true });
+			});
+			const decision = await resolveAiSdkTelemetry("cline", "task-a");
+			expect(tracerProviderInstances).toHaveLength(1);
+			if (enabled) {
+				expect(decision).toEqual({
+					isEnabled: true,
+					integrations: expect.any(Object),
+					recordInputs: false,
+					recordOutputs: false,
+				});
+				expect(integrationOptionsSpy).toHaveBeenLastCalledWith({
+					tracer: { name: "managed-global-tracer" },
+				});
+			} else {
+				expect(decision).toEqual({ isEnabled: false });
+			}
+		} finally {
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	it("does not initialize direct export with incomplete credentials", async () => {
 		vi.stubEnv("LANGFUSE_SECRET_KEY", "");
 		await expect(resolveAiSdkTelemetry("cline")).resolves.toEqual({
