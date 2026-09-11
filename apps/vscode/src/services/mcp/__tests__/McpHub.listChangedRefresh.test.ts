@@ -304,8 +304,7 @@ describe("McpHub list_changed notification refresh", () => {
 			request: sinon.stub().rejects(new Error("should not be called")),
 		})
 		;((await (noCapability as any).fetchPromptsList("test-server")) as any).should.deepEqual([])
-		noCapability.connections[0].client &&
-			(noCapability.connections[0].client as any).request.called.should.be.false()
+		noCapability.connections[0].client && (noCapability.connections[0].client as any).request.called.should.be.false()
 
 		// A transient error is still a failure (undefined), not an empty list
 		const transient = makeHubWithClient({
