@@ -284,6 +284,74 @@ describe("WelcomeScreen", () => {
 		}
 	});
 
+	it("keeps a repository picked from a freshly scoped list after an org switch", async () => {
+		accountRef.user = { id: "user-1" };
+		const repository = (owner: string) => ({
+			id: 7,
+			name: "repo",
+			fullName: `${owner}/repo`,
+			url: `https://github.com/${owner}/repo`,
+			defaultBranch: "main",
+		});
+		// Mount-time check sees the old org; every later fetch (the picker's
+		// included) sees the new org.
+		let fetches = 0;
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "list_cloud_repositories") {
+				fetches += 1;
+				return {
+					connected: true,
+					connectUrl: "https://app.example/dashboard/integrations",
+					repositories: [repository(fetches === 1 ? "oldorg" : "neworg")],
+				};
+			}
+			return {};
+		});
+		const onRepoUrlChange = vi.fn();
+		const onCloudBranchChange = vi.fn();
+		const cloudProps = {
+			cloudAgentsEnabled: true,
+			executionTarget: "cloud" as const,
+			onRepoUrlChange,
+			onCloudBranchChange,
+		};
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			...cloudProps,
+		});
+
+		// Pick the new-org repository from the picker (whose fetch is scoped
+		// to the new org).
+		await clickButton("Select repository");
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await clickButton("neworg/repo");
+		expect(onRepoUrlChange).toHaveBeenLastCalledWith(
+			"https://github.com/neworg/repo",
+		);
+
+		// The parent applies the selection; the stale-selection guard must
+		// not wipe it against the old org's snapshot.
+		onRepoUrlChange.mockClear();
+		onCloudBranchChange.mockClear();
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+			...cloudProps,
+			repoUrl: "https://github.com/neworg/repo",
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(onRepoUrlChange).not.toHaveBeenCalledWith("");
+		expect(onCloudBranchChange).not.toHaveBeenCalledWith("");
+		accountRef.user = null;
+	});
+
 	it("re-checks cloud setup when the sidecar broadcasts a scope change", async () => {
 		accountRef.user = { id: "user-1" };
 		subscribeMock.mockClear();
