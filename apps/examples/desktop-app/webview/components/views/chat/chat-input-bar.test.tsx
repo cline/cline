@@ -17,12 +17,14 @@ import {
 } from "./chat-input-bar";
 
 const {
+	toastMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
+	toastMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	speechInputMockState: {
@@ -38,6 +40,7 @@ const {
 
 type MockSpeechInputProps = {
 	disabled?: boolean;
+	onError?: (error: unknown) => void;
 	onActiveChange?: (active: boolean) => void;
 	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 	onProcessingChange?: (processing: boolean) => void;
@@ -86,6 +89,8 @@ vi.mock("@/lib/vercel-streaming-transcription", () => ({
 	startVercelStreamingTranscription: startVercelStreamingTranscriptionMock,
 }));
 
+vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -99,6 +104,7 @@ beforeEach(() => {
 		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
+	toastMock.mockReset();
 	speechInputMockState.current = null;
 	startVercelStreamingTranscriptionMock.mockReset().mockResolvedValue({
 		done: new Promise<void>(() => {}),
@@ -642,6 +648,40 @@ describe("ChatInputBar", () => {
 		);
 	});
 
+	it.each([
+		[
+			new Error("Transcription connection closed"),
+			"Transcription connection closed",
+		],
+		[
+			new DOMException("Permission denied", "NotAllowedError"),
+			"Check the microphone permission for Cline and try again.",
+		],
+	])("shows speech failures in chat with a configured model: %s", async (error, description) => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: false,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "Keep my draft" });
+		await act(async () => {
+			speechInputMockState.current?.onError?.(error);
+		});
+		expect(toastMock).toHaveBeenCalledWith({
+			variant: "destructive",
+			title: "Speech input failed",
+			description,
+		});
+		expect(container.querySelector("textarea")?.value).toBe("Keep my draft");
+		expect(
+			container.querySelector('[aria-label="Record speech"]'),
+		).not.toBeNull();
+	});
+
 	it("inserts a batch transcript only into its captured draft range", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({
@@ -833,7 +873,6 @@ describe("ChatInputBar", () => {
 
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
-		const onOpenVoiceInputSettings = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
 			await act(async () => {
 				root.render(
@@ -862,7 +901,6 @@ describe("ChatInputBar", () => {
 							}))}
 							onModeToggle={vi.fn()}
 							onModelChange={vi.fn()}
-							onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
 							onReasoningChange={onReasoningChange}
