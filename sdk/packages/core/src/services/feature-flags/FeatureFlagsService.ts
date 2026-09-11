@@ -70,25 +70,12 @@ export class FeatureFlagsService {
 	}
 
 	setContext(context: FeatureFlagsContext): void {
-		const previousUserId = this.context.userId ?? null;
+		const identityChanged = this.cacheInfo.userId !== (context.userId ?? null);
 		this.context = { ...context };
-		const nextUserId = this.context.userId ?? null;
-		if (previousUserId !== nextUserId) {
-			// Flag values are evaluated per identity. Keeping the previous
-			// identity's cached values would let the next account inherit them
-			// until its own poll succeeds — which can be never (offline, or a
-			// failing provider) — so an identity change falls back to flag
-			// defaults until a successful poll for the new identity. This also
-			// covers a failed poll right after the switch: poll() restores the
-			// pre-poll cacheInfo, which is now the cleared one, never the
-			// previous identity's values.
-			this.resetCacheForIdentityChange();
+		if (identityChanged) {
+			this.cache.clear();
+			this.cacheInfo = { updateTime: 0, userId: context.userId ?? null };
 		}
-	}
-
-	private resetCacheForIdentityChange(): void {
-		this.cache = new Map();
-		this.cacheInfo = { updateTime: 0, userId: null };
 	}
 
 	hydrateCache(snapshot: FeatureFlagsCacheSnapshot): void {

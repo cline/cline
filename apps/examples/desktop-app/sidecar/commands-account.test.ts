@@ -128,7 +128,7 @@ describe("cline_account command auth states", () => {
 			getAuthToken: () => Promise<string | undefined>;
 		};
 		await expect(serviceOptions.getAuthToken()).resolves.toBe(
-			"persisted-token",
+			"workos:persisted-token",
 		);
 		expect(capture).not.toHaveBeenCalled();
 	});

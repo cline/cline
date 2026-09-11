@@ -18,8 +18,8 @@ const mocks = vi.hoisted(() => ({
 	poll: vi.fn(async () => {}),
 	dispose: vi.fn(async () => {}),
 	setContext: vi.fn(),
-	getFlagPayload: vi.fn((_flag: unknown): unknown => undefined),
 	getBooleanFlagEnabled: vi.fn((_flag: unknown): boolean => false),
+	getFlagPayload: vi.fn((_flag: unknown): unknown => undefined),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -40,8 +40,8 @@ vi.mock("@cline/core", async () => {
 			poll = mocks.poll;
 			dispose = mocks.dispose;
 			setContext = mocks.setContext;
-			getFlagPayload = mocks.getFlagPayload;
 			getBooleanFlagEnabled = mocks.getBooleanFlagEnabled;
+			getFlagPayload = mocks.getFlagPayload;
 		},
 	};
 });
@@ -77,6 +77,7 @@ function accountContextPath(): string {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.getBooleanFlagEnabled.mockReset().mockReturnValue(false);
 	resetDesktopFeatureFlagsForTesting();
 	delete process.env.IS_TEST;
 	delete process.env.E2E_TEST;
@@ -379,5 +380,55 @@ describe("disposeDesktopFeatureFlagsService", () => {
 	it("is a no-op when nothing was created", async () => {
 		await expect(disposeDesktopFeatureFlagsService()).resolves.toBeUndefined();
 		expect(mocks.dispose).not.toHaveBeenCalled();
+	});
+});
+
+describe("cloud agents gate", () => {
+	beforeEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	});
+
+	it("is unavailable and disabled while the rollout flag is off", async () => {
+		const { isCloudAgentsAvailable, isCloudAgentsEnabled } = await import(
+			"./feature-flags"
+		);
+		expect(isCloudAgentsAvailable()).toBe(false);
+		expect(isCloudAgentsEnabled()).toBe(false);
+	});
+
+	it("does not enable a boolean rollout from a truthy variant payload", async () => {
+		const { isCloudAgentsAvailable } = await import("./feature-flags");
+		mocks.getFlagPayload.mockReturnValue("control");
+		expect(isCloudAgentsAvailable()).toBe(false);
+		expect(mocks.getBooleanFlagEnabled).toHaveBeenCalledWith(
+			"code-cloud-agents",
+		);
+	});
+
+	it("needs both the rollout flag and the user's opt-in to enable", async () => {
+		const { isCloudAgentsEnabled, isCloudAgentsAvailable } = await import(
+			"./feature-flags"
+		);
+		const { setCloudSessionsEnabled } = await import("./desktop-settings");
+		mocks.getBooleanFlagEnabled.mockImplementation(
+			(flag: unknown) => flag === "code-cloud-agents",
+		);
+		expect(isCloudAgentsAvailable()).toBe(true);
+		setCloudSessionsEnabled(false);
+		expect(isCloudAgentsEnabled()).toBe(false);
+		setCloudSessionsEnabled(true);
+		expect(isCloudAgentsEnabled()).toBe(true);
+	});
+
+	it("lets the env override force the gate in both directions", async () => {
+		const { isCloudAgentsEnabled, isCloudAgentsAvailable } = await import(
+			"./feature-flags"
+		);
+		mocks.getFlagPayload.mockReturnValue(undefined);
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		expect(isCloudAgentsAvailable()).toBe(true);
+		expect(isCloudAgentsEnabled()).toBe(true);
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		expect(isCloudAgentsEnabled()).toBe(false);
 	});
 });

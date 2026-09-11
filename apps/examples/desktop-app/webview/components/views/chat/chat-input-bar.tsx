@@ -320,7 +320,6 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	onOpenVoiceInputSettings?: () => void;
 	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
@@ -359,7 +358,6 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
 	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
@@ -819,38 +817,30 @@ function ChatInputBarImpl({
 		[transcriptionTarget],
 	);
 
-	const handleSpeechInputError = useCallback(
-		(error: unknown) => {
-			// Microphone failures surface as DOMExceptions (getUserMedia) or
-			// capture-layer events; provider failures (credentials, transcription
-			// setup) as plain Errors, and are fixed in Settings → Voice.
-			const isMicrophoneError =
-				error instanceof DOMException || error instanceof Event;
-			const message =
-				error instanceof Error
-					? error.message
-					: "Check microphone permission and audio provider settings.";
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "error",
-				message: "Speech input failed in the webview",
-				timestamp: new Date().toISOString(),
-				metadata: { failure: message },
-			});
-			if (!isMicrophoneError && onOpenVoiceInputSettings) {
-				onOpenVoiceInputSettings();
-				return;
-			}
-			toast({
-				variant: "destructive",
-				title: "Speech input failed",
-				description: isMicrophoneError
-					? "Check the microphone permission for Cline and try again."
-					: message,
-			});
-		},
-		[onOpenVoiceInputSettings],
-	);
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),

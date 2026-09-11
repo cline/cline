@@ -22,7 +22,11 @@ import {
 	buildClinePostHogClient,
 	PostHogFeatureFlagsProvider,
 } from "@cline/core/services/feature-flags/posthog";
+import { FeatureFlag as SharedFeatureFlag } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
+import { readDesktopSettings } from "./desktop-settings";
+
+const FEATURE_FLAG_CODE_CLOUD_AGENTS = SharedFeatureFlag.CODE_CLOUD_AGENTS;
 
 const DESKTOP_FEATURE_FLAGS_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const DESKTOP_ACCOUNT_CONTEXT_FILE_VERSION = 1;
@@ -292,4 +296,34 @@ export function resetDesktopFeatureFlagsForTesting(): void {
 	desktopFeatureFlagsService = undefined;
 	desktopFeatureFlagsContext = { clientName: "cline-code" };
 	desktopAccountContextHydrated = false;
+}
+
+export function readCloudAgentsEnvOverride(): boolean | undefined {
+	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** Whether the rollout makes cloud sessions available to this install. */
+export function isCloudAgentsAvailable(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	return getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(
+		FEATURE_FLAG_CODE_CLOUD_AGENTS,
+	);
+}
+
+/** Whether cloud sessions are both available and enabled by the user. */
+export function isCloudAgentsEnabled(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	if (!isCloudAgentsAvailable(options)) return false;
+	return readDesktopSettings().cloudSessionsEnabled;
 }
