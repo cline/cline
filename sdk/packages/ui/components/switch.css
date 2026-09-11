@@ -1,4 +1,6 @@
 .cline-ui-switch {
+	--cline-ui-switch-leading-ease: cubic-bezier(0.2, 1.4, 0.3, 1);
+	--cline-ui-switch-trailing-ease: cubic-bezier(0.24, 1.4, 0.4, 1);
 	/* Keep the white thumb and the off track distinct in light mode. */
 	--cline-ui-switch-off-background: var(--neutral-9);
 	--cline-ui-switch-off-hover-background: var(--neutral-10);
@@ -102,8 +104,8 @@
 		0 0.05rem 0.5rem 0 var(--neutral-a4);
 	/* The leading edge stretches the thumb; both edges overshoot slightly, then settle. */
 	transition:
-		inset-inline-start 120ms cubic-bezier(0.2, 1.4, 0.3, 1),
-		inset-inline-end 120ms cubic-bezier(0.34, 1.4, 0.62, 1);
+		inset-inline-start 120ms var(--cline-ui-switch-leading-ease),
+		inset-inline-end 120ms var(--cline-ui-switch-trailing-ease);
 }
 
 .cline-ui-switch__input:checked
@@ -115,7 +117,7 @@
 	);
 	inset-inline-end: var(--cline-ui-switch-padding);
 	transition-timing-function:
-		cubic-bezier(0.34, 1.4, 0.62, 1), cubic-bezier(0.2, 1.4, 0.3, 1);
+		var(--cline-ui-switch-trailing-ease), var(--cline-ui-switch-leading-ease);
 }
 
 .cline-ui-switch__input:disabled {

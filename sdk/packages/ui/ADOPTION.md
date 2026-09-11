@@ -258,7 +258,9 @@ at every scale. It uses Cline's light/dark colors and a shape adapted from the
 
 The thumb widens as it moves in either direction, overshoots slightly, then
 settles back to its resting size after 120ms. Reduced-motion preferences disable this
-transition.
+transition. Tune `--cline-ui-switch-leading-ease` and
+`--cline-ui-switch-trailing-ease` to adjust stretch and rebound; the checked
+state swaps their order so both directions use the same motion.
 
 Checked tracks blend `--primary` with `--accent-8` and use `--primary-emphasis`
 on hover, so they follow the host's selected accent color. Enabled thumbs stay

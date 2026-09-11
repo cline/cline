@@ -408,7 +408,7 @@ describe("@cline/ui theme contract", () => {
 		// Track colors are immediate; the thumb edges stretch slightly in motion.
 		expect(trackStyles).not.toContain("transition:");
 		expect(block(css, ".cline-ui-switch__thumb")).toMatch(
-			/inset-inline-start \d+ms cubic-bezier\(/,
+			/inset-inline-start \d+ms var\(--cline-ui-switch-leading-ease\)/,
 		);
 		expect(block(states, `${input}:checked + ${track}`)).toContain(
 			"background: color-mix(in srgb, var(--primary) 85%, var(--accent-8) 15%);",
