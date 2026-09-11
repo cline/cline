@@ -103,16 +103,27 @@ function isAbortReason(reason?: string): boolean {
 	);
 }
 
-function serializeHookError(error: Error): {
+function serializeHookError(
+	error: unknown,
+	fallbackMessage: string,
+): {
 	name: string;
 	message: string;
 	stack?: string;
 } {
-	return {
-		name: error.name,
-		message: error.message,
-		stack: error.stack,
+	const source = (error ?? {}) as {
+		name?: unknown;
+		message?: unknown;
+		stack?: unknown;
 	};
+	const name =
+		typeof source.name === "string" && source.name ? source.name : "Error";
+	const message =
+		typeof source.message === "string" && source.message
+			? source.message
+			: fallbackMessage;
+	const stack = typeof source.stack === "string" ? source.stack : undefined;
+	return { name, message, stack };
 }
 
 function basePayload(
@@ -300,15 +311,17 @@ export function createRuntimeHooks(options: {
 					);
 					return;
 				}
-				const hookName = isAbortReason(result.error?.message)
-					? "agent_abort"
-					: "agent_error";
+				const reason = result.error?.message || snapshot.lastError;
+				const hookName =
+					result.status === "aborted" || isAbortReason(reason)
+						? "agent_abort"
+						: "agent_error";
 				await dispatchHookPayload(
 					hookName === "agent_abort"
 						? {
 								...basePayload(base, { cwd, workspaceRoot }),
 								hookName,
-								reason: result.error?.message,
+								reason,
 								taskCancel: { taskMetadata: {} },
 							}
 						: {
@@ -316,7 +329,8 @@ export function createRuntimeHooks(options: {
 								hookName,
 								iteration: result.iterations,
 								error: serializeHookError(
-									result.error ?? new Error("Agent run failed"),
+									result.error,
+									reason || "Agent run failed",
 								),
 								taskCancel: { taskMetadata: {} },
 							},

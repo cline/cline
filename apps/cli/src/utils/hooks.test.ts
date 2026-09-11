@@ -29,6 +29,7 @@ vi.mock("./events", () => ({
 	closeInlineStreamIfNeeded: eventMocks.closeInlineStreamIfNeeded,
 }));
 
+import { parseHookEventPayload } from "@cline/shared";
 import { createRuntimeHooks } from "./hooks";
 
 async function emitRunStartAndPrompt(
@@ -231,5 +232,164 @@ describe("createRuntimeHooks", () => {
 
 		expect(dispatchHookEvent).not.toHaveBeenCalled();
 		expect(outputMocks.write).not.toHaveBeenCalled();
+	});
+
+	describe("afterRun", () => {
+		function acrossHubWire(value: unknown) {
+			return JSON.parse(JSON.stringify(value));
+		}
+
+		function snapshotFor(
+			status: "completed" | "aborted" | "failed",
+			lastError?: string,
+		) {
+			return {
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				runId: "run-1",
+				parentAgentId: null,
+				status,
+				iteration: 3,
+				messages: [],
+				pendingToolCalls: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+				lastError,
+			};
+		}
+
+		function hooksWithSpy() {
+			const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+			const runtimeHooks = createRuntimeHooks({
+				yolo: false,
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				dispatchHookEvent,
+			});
+			return { dispatchHookEvent, hooks: runtimeHooks.hooks! };
+		}
+
+		it("keeps the failure reason when the hub wire flattens the run error", async () => {
+			const { dispatchHookEvent, hooks } = hooksWithSpy();
+			const result = acrossHubWire({
+				agentId: "agent-1",
+				runId: "run-1",
+				status: "failed",
+				iterations: 3,
+				outputText: "",
+				messages: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+				error: new Error("The operation timed out."),
+			});
+			expect(result.error).toEqual({});
+
+			await hooks.afterRun?.({
+				snapshot: snapshotFor("failed", "The operation timed out."),
+				result,
+			});
+
+			const dispatched = dispatchHookEvent.mock.calls[0][0];
+			expect(dispatched.hookName).toBe("agent_error");
+			expect(dispatched.error.name).toBe("Error");
+			expect(dispatched.error.message).toBe("The operation timed out.");
+			expect(parseHookEventPayload(acrossHubWire(dispatched))).toBeDefined();
+		});
+
+		it("reports an aborted run as agent_abort carrying its reason", async () => {
+			const { dispatchHookEvent, hooks } = hooksWithSpy();
+			const result = acrossHubWire({
+				agentId: "agent-1",
+				runId: "run-1",
+				status: "aborted",
+				iterations: 2,
+				outputText: "",
+				messages: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+				error: undefined,
+			});
+			expect(result.error).toBeUndefined();
+
+			await hooks.afterRun?.({
+				snapshot: snapshotFor("aborted", "session_stop"),
+				result,
+			});
+
+			const dispatched = dispatchHookEvent.mock.calls[0][0];
+			expect(dispatched.hookName).toBe("agent_abort");
+			expect(dispatched.reason).toBe("session_stop");
+			expect(parseHookEventPayload(acrossHubWire(dispatched))).toBeDefined();
+		});
+
+		it("preserves the name and stack of a real Error off the wire", async () => {
+			const { dispatchHookEvent, hooks } = hooksWithSpy();
+			const result = {
+				agentId: "agent-1",
+				runId: "run-1",
+				status: "failed" as const,
+				iterations: 1,
+				outputText: "",
+				messages: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+				error: new TypeError("boom"),
+			};
+
+			await hooks.afterRun?.({
+				snapshot: snapshotFor("failed", "boom"),
+				result,
+			});
+
+			const dispatched = dispatchHookEvent.mock.calls[0][0];
+			expect(dispatched.error.name).toBe("TypeError");
+			expect(dispatched.error.message).toBe("boom");
+			expect(typeof dispatched.error.stack).toBe("string");
+			expect(parseHookEventPayload(acrossHubWire(dispatched))).toBeDefined();
+		});
+
+		it("still emits a valid agent_end payload for a completed run", async () => {
+			const { dispatchHookEvent, hooks } = hooksWithSpy();
+			const result = acrossHubWire({
+				agentId: "agent-1",
+				runId: "run-1",
+				status: "completed",
+				iterations: 1,
+				outputText: "all done",
+				messages: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			});
+
+			await hooks.afterRun?.({
+				snapshot: snapshotFor("completed"),
+				result,
+			});
+
+			const dispatched = dispatchHookEvent.mock.calls[0][0];
+			expect(dispatched.hookName).toBe("agent_end");
+			expect(dispatched.error).toBeUndefined();
+			expect(parseHookEventPayload(acrossHubWire(dispatched))).toBeDefined();
+		});
 	});
 });
