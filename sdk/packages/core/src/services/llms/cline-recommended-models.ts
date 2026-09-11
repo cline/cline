@@ -238,9 +238,11 @@ export async function fetchClineRecommendedModels(
 	// promise resolves on a microtask, ahead of the zero-delay timer.
 	const deadline = Date.now() + timeoutMs;
 	try {
-		const base = (
-			options.apiBaseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl
-		).replace(/\/+$/, "");
+		const apiBaseUrl =
+			options.apiBaseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+		let end = apiBaseUrl.length;
+		while (end > 0 && apiBaseUrl[end - 1] === "/") end--;
+		const base = apiBaseUrl.slice(0, end);
 		const fetchImpl = options.fetchImpl ?? fetch;
 		const resp = await fetchWithTimeout(
 			fetchImpl,

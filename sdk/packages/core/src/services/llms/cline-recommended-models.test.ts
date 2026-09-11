@@ -95,6 +95,26 @@ function namesOf(data: ClineRecommendedModelsData) {
 }
 
 describe("fetchClineRecommendedModels", () => {
+	it.each([
+		[BASE_URL, BASE_URL],
+		[BASE_URL + "///", BASE_URL],
+		[BASE_URL + "/".repeat(100_000), BASE_URL],
+		[
+			BASE_URL + "/".repeat(100_000) + "path///",
+			BASE_URL + "/".repeat(100_000) + "path",
+		],
+	])("normalizes trailing slashes in case %#", async (apiBaseUrl, expectedBaseUrl) => {
+		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
+		await fetchClineRecommendedModels({
+			apiBaseUrl,
+			fetchImpl,
+			catalogLoader: async () => CATALOG,
+		});
+		expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+			expectedBaseUrl + "/api/v1/ai/cline/recommended-models",
+		);
+	});
+
 	it("resolves display names from the models catalog", async () => {
 		const data = await fetchClineRecommendedModels({
 			apiBaseUrl: BASE_URL,

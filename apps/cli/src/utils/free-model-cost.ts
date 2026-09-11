@@ -28,8 +28,11 @@ async function fetchClineFreeModelIds(
 		CLINE_RECOMMENDED_MODELS_TIMEOUT_MS,
 	);
 	try {
+		const trimmedBaseUrl = baseUrl.trim();
+		let end = trimmedBaseUrl.length;
+		while (end > 0 && trimmedBaseUrl[end - 1] === "/") end--;
 		const response = await fetch(
-			`${baseUrl.trim().replace(/\/+$/, "")}/api/v1/ai/cline/recommended-models`,
+			`${trimmedBaseUrl.slice(0, end)}/api/v1/ai/cline/recommended-models`,
 			{
 				signal: controller.signal,
 			},
