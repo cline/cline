@@ -178,6 +178,25 @@ describe("openai-compatible wire format (openrouter / cline / custom endpoints)"
 		expect(hasTextDelta(events, "hello")).toBe(true);
 	});
 
+	it("surfaces a filtered empty turn as content-filter without retrying", async () => {
+		const filteredSse =
+			chunk({ role: "assistant", content: "" }) +
+			chunk({}, "content_filter") +
+			"data: [DONE]\n\n";
+		const { fetchMock, events } = await run([filteredSse]);
+
+		// Retrying a filtered turn just re-bills the same refusal, so the
+		// middleware must let it through on the first attempt...
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(events.some((event) => event.type === "text-delta")).toBe(false);
+		// ...and the reason must survive as its own finish reason. Collapsed
+		// into "stop" (the old behaviour) this became "Model returned empty
+		// response", telling the user to retry something that cannot succeed.
+		expect(finishEvents(events)).toEqual([
+			expect.objectContaining({ reason: "content-filter" }),
+		]);
+	});
+
 	it("does not retry a tool-call-only turn", async () => {
 		const { fetchMock, events } = await run([toolCallSse], [READ_FILES_TOOL]);
 
