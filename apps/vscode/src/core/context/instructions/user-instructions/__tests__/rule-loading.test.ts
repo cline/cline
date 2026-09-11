@@ -3,7 +3,29 @@ import { expect } from "chai"
 import fs from "fs/promises"
 import os from "os"
 import path from "path"
+import { setRuleDisabledInFrontmatter } from "../cline-rules"
+import { parseYamlFrontmatter } from "../frontmatter"
 import { getRuleFilesTotalContentWithMetadata } from "../rule-helpers"
+
+describe("rule toggle frontmatter persistence", () => {
+	it("keeps the SDK disabled flag in sync when a file-backed rule is toggled", async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "cline-rule-toggle-test-"))
+		try {
+			const rulePath = path.join(tmp, "project-rule.md")
+			await fs.writeFile(rulePath, "Follow this rule")
+
+			expect(await setRuleDisabledInFrontmatter(rulePath, false)).to.equal(true)
+			const disabled = parseYamlFrontmatter(await fs.readFile(rulePath, "utf-8"))
+			expect(disabled.data.disabled).to.equal(true)
+			expect(disabled.body).to.equal("Follow this rule")
+
+			expect(await setRuleDisabledInFrontmatter(rulePath, true)).to.equal(true)
+			expect(await fs.readFile(rulePath, "utf-8")).to.equal("Follow this rule")
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true })
+		}
+	})
+})
 
 describe("rule loading with paths frontmatter", () => {
 	it("filters rules by evaluationContext.paths", async () => {
