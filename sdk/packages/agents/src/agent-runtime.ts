@@ -1633,6 +1633,12 @@ export class AgentRuntime {
 		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
+			// Approval waits are the one place a run can sit for minutes. An abort
+			// that lands there is delivered as a denial of the pending approval;
+			// without this check the loop would go straight on to request approval
+			// for the next tool call of an already-aborted run, surfacing a dead
+			// approval prompt to the host and blocking its teardown on that prompt.
+			this.throwIfAborted();
 			prepared.push(await this.prepareToolExecution(toolCall));
 		}
 
@@ -1755,6 +1761,10 @@ export class AgentRuntime {
 					input,
 					policy,
 				);
+				// A denial that was really a cancellation (the host aborted the run
+				// while waiting) must end the run here, not feed the model a
+				// rejection and carry on.
+				this.throwIfAborted();
 				if (!approval.approved) {
 					const reason = approval.reason ?? "Tool was not executed";
 					skipReason = `${reason} -- ${TOOL_REJECTION_SUFFIX}`;

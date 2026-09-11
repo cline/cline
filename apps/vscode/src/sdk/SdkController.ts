@@ -396,6 +396,9 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
+			// A turn is starting, so approval/question requests are live again after a
+			// clearPending (cancel, mode switch) closed them.
+			onDidBecomeRunning: () => this.interactions.reopen(),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
@@ -415,6 +418,7 @@ export class Controller {
 				return this._terminalManager
 			},
 			onSendStart: () => {
+				this.interactions.reopen()
 				this.beginProviderFailureTelemetryTurn()
 			},
 			// this.mode is assigned later in this constructor; the closure only
