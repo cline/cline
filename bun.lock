@@ -521,6 +521,7 @@
       "name": "webview-ui",
       "version": "0.3.0",
       "dependencies": {
+        "@bidilens/markdown": "0.3.2",
         "@cline/shared": "workspace:*",
         "@cline/ui": "workspace:*",
         "@floating-ui/react": "^0.27.4",
@@ -1016,6 +1017,10 @@
     "@base-ui/utils": ["@base-ui/utils@0.3.2", "", { "dependencies": { "@babel/runtime": "^7.29.2", "@floating-ui/utils": "^0.2.12", "reselect": "^5.2.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-oWy1aq/I2GmYjpl4PhEAhzflF8VPGKgZeq0xAWTbfD5KBWyxcN0ZP2+WHSUm/5Z6lVMBDLReLcoXwSYoRc/zNQ=="],
 
     "@bcoe/v8-coverage": ["@bcoe/v8-coverage@1.0.2", "", {}, "sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA=="],
+
+    "@bidilens/core": ["@bidilens/core@0.3.2", "", {}, "sha512-EDRBaAP4LzEn8w+eFqeDD889ZwwLIsTwD6JOOnooDIuJ46cHI9bMeinuvlt8X/PJn0QHrTfRyg512pRAXYfxhA=="],
+
+    "@bidilens/markdown": ["@bidilens/markdown@0.3.2", "", { "dependencies": { "@bidilens/core": "0.3.2", "@types/hast": "^3.0.4", "@types/mdast": "^4.0.4", "unist-util-visit": "^5.0.0" }, "peerDependencies": { "markdown-it": "^13.0.2 || ^14.0.0 || ^15.0.0" }, "optionalPeers": ["markdown-it"] }, "sha512-zCOGP3h0XEiYHjyGa3V+MxAXK9/rFC2Bt8w+00aY44b+LqHnQfA632a97UJUTFyrIMXgaWFkFMEzin/z7l+PAA=="],
 
     "@biomejs/biome": ["@biomejs/biome@2.4.5", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.4.5", "@biomejs/cli-darwin-x64": "2.4.5", "@biomejs/cli-linux-arm64": "2.4.5", "@biomejs/cli-linux-arm64-musl": "2.4.5", "@biomejs/cli-linux-x64": "2.4.5", "@biomejs/cli-linux-x64-musl": "2.4.5", "@biomejs/cli-win32-arm64": "2.4.5", "@biomejs/cli-win32-x64": "2.4.5" }, "bin": { "biome": "bin/biome" } }, "sha512-OWNCyMS0Q011R6YifXNOg6qsOg64IVc7XX6SqGsrGszPbkVCoaO7Sr/lISFnXZ9hjQhDewwZ40789QmrG0GYgQ=="],
 
