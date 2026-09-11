@@ -5,6 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MarkdownLinkSafetyModal, MemoizedMarkdown } from "./markdown";
 
+HTMLElement.prototype.scrollTo = vi.fn();
+
 const originalClipboard = Object.getOwnPropertyDescriptor(
 	navigator,
 	"clipboard",
@@ -231,10 +233,15 @@ describe("MemoizedMarkdown interactions", () => {
 			expect(button).not.toBeNull();
 			return button as HTMLButtonElement;
 		});
+		expect(copyButton.querySelector(".lucide-copy")).not.toBeNull();
+		expect(copyButton.querySelector("svg")?.getAttribute("stroke-width")).toBe(
+			"2",
+		);
 
 		await click(copyButton);
 		await vi.waitFor(() => {
 			expect(writeText).toHaveBeenCalledWith(`${source}\n`);
+			expect(copyButton.querySelector(".lucide-check")).not.toBeNull();
 		});
 	});
 
