@@ -1153,6 +1153,111 @@ describe("upgradeManagedHub", () => {
 		});
 	});
 
+	it("passes endpoint overrides through to the replacement daemon", async () => {
+		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+			url: "ws://127.0.0.1:26000/hub",
+			authToken: "new-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:26000/hub",
+			protocolVersion: "v1",
+			buildId: "current-build",
+		});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			workspaceRoot: "/workspace",
+			endpoint: { host: "127.0.0.1", port: 26000 },
+		});
+
+		expect(result).toEqual({
+			outcome: "started",
+			url: "ws://127.0.0.1:26000/hub",
+			authToken: "new-token",
+		});
+		// The override shaped the expected replacement endpoint.
+		expect(createHubServerUrl).toHaveBeenCalledWith("127.0.0.1", 26000, "/hub");
+	});
+
+	it("moves a same-build hub to a requested endpoint through the drain-first path", async () => {
+		readHubDiscovery
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "old-token",
+				pid: 12345,
+			})
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:26000/hub",
+				authToken: "new-token",
+			});
+		probeHubServer
+			// A compatible, current-build hub - but not where the caller asked.
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				pid: 12345,
+			})
+			// The retire wait: the old hub is gone.
+			.mockResolvedValueOnce(undefined)
+			// The ensure probe of the replacement at the requested endpoint.
+			.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:26000/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+			});
+		verifyHubConnection.mockResolvedValue(true);
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			workspaceRoot: "/workspace",
+			endpoint: { port: 26000 },
+			waitForIdleMs: 0,
+		});
+
+		expect(result).toEqual({
+			outcome: "replaced",
+			url: "ws://127.0.0.1:26000/hub",
+			authToken: "new-token",
+			activeSessionCount: 0,
+		});
+		// The move went through the same drain-first ladder as a build upgrade.
+		expect(requestHubDrain).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			"old-token",
+			"hub upgrade requested",
+		);
+		expect(requestHubShutdown).toHaveBeenCalled();
+	});
+
+	it("refuses to move a newer hub even when an endpoint override is given", async () => {
+		readHubDiscovery.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "newer-hub-token",
+		});
+		probeHubServer.mockResolvedValueOnce({
+			url: "ws://127.0.0.1:25463/hub",
+			protocolVersion: "v1",
+			buildId: "newer-build",
+			buildEpochMs: 2_000_000,
+		});
+
+		const { upgradeManagedHub } = await import(".");
+		const result = await upgradeManagedHub({
+			endpoint: { port: 26000 },
+			force: true,
+		});
+
+		expect(result).toEqual({
+			outcome: "hub_not_older",
+			url: "ws://127.0.0.1:25463/hub",
+			authToken: "newer-hub-token",
+		});
+		expect(requestHubDrain).not.toHaveBeenCalled();
+		expect(requestHubShutdown).not.toHaveBeenCalled();
+	});
+
 	it("un-drains and reports failure when the old hub survives the retire ladder", async () => {
 		queryHubSessionActivity.mockResolvedValue({
 			activeSessionCount: 1,
