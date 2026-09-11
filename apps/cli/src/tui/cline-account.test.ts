@@ -105,6 +105,7 @@ describe("createClineAccountService", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 		coreMocks.getProviderSettings.mockReset();
 		coreMocks.saveProviderSettings.mockReset();
 		coreMocks.fetchMe.mockReset();
@@ -119,9 +120,15 @@ describe("createClineAccountService", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 	});
 
-	it("refreshes persisted Cline OAuth credentials before creating the account service", async () => {
+	it.each([
+		undefined,
+		"  https://override.test  ",
+		"   ",
+	])("routes OAuth refresh and account requests to the platform API with override %j", async (clineApiBaseUrl) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://platform.test");
 		vi.spyOn(Date, "now").mockReturnValue(100_000);
 		mockFetchJson({
 			success: true,
@@ -141,6 +148,7 @@ describe("createClineAccountService", () => {
 		});
 		coreMocks.getProviderSettings.mockReturnValue({
 			provider: "cline",
+			baseUrl: "https://inference.test/api/v1",
 			auth: {
 				accessToken: "workos:old-access",
 				refreshToken: "refresh-token",
@@ -150,10 +158,18 @@ describe("createClineAccountService", () => {
 		});
 
 		const { createClineAccountService } = await import("./cline-account");
-		const service = await createClineAccountService({ config: makeConfig() });
+		const service = await createClineAccountService({
+			config: makeConfig(),
+			clineApiBaseUrl,
+		});
 
 		expect(service).toBeDefined();
-		expect(globalThis.fetch).toHaveBeenCalled();
+		const expectedBaseUrl = clineApiBaseUrl?.trim() || "https://platform.test";
+		expect(coreMocks.serviceOptions[0]?.apiBaseUrl).toBe(expectedBaseUrl);
+		expect(globalThis.fetch).toHaveBeenCalledWith(
+			expect.stringContaining(expectedBaseUrl + "/"),
+			expect.anything(),
+		);
 		expect(coreMocks.saveProviderSettings).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "cline",
@@ -203,6 +219,7 @@ describe("loadClineAccountSnapshot", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 		coreMocks.getProviderSettings.mockReset();
 		coreMocks.saveProviderSettings.mockReset();
 		coreMocks.fetchMe.mockReset();
@@ -217,6 +234,7 @@ describe("loadClineAccountSnapshot", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 	});
 
 	it("identifies the loaded Cline account for telemetry and feature flags", async () => {
@@ -268,6 +286,7 @@ describe("loadIndividualSubscriptionPlans", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 		coreMocks.getProviderSettings.mockReset();
 		coreMocks.saveProviderSettings.mockReset();
 		coreMocks.fetchMe.mockReset();
@@ -282,6 +301,7 @@ describe("loadIndividualSubscriptionPlans", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 	});
 
 	it("loads individual subscription plans through the authorized account service", async () => {

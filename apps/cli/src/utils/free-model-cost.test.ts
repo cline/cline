@@ -32,7 +32,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline",
 				modelId: "deepseek/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(true);
 
@@ -58,7 +57,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline",
 				modelId: "cline-free/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(true);
 
@@ -66,7 +64,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline-pass",
 				modelId: "deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(false);
 	});
@@ -79,7 +76,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "openrouter",
 				modelId: "deepseek/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(false);
 		expect(fetchMock).not.toHaveBeenCalled();
@@ -102,7 +98,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline-pass",
 				modelId: "deepseek/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(true);
 
@@ -111,7 +106,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline-pass",
 				modelId: "cline-pass/glm-5.1",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(false);
 	});
@@ -133,7 +127,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline",
 				modelId: "acme/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(false);
 	});
@@ -156,14 +149,12 @@ describe("shouldZeroClineFreeModelCost", () => {
 			shouldZeroClineFreeModelCost({
 				providerId: "cline",
 				modelId: "deepseek/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(false);
 		await expect(
 			shouldZeroClineFreeModelCost({
 				providerId: "cline",
 				modelId: "deepseek/deepseek-v4-flash",
-				baseUrl: "https://cline.test/api/v1",
 			}),
 		).resolves.toBe(true);
 		expect(fetchMock).toHaveBeenCalledTimes(2);

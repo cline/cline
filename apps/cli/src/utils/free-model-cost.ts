@@ -66,7 +66,7 @@ function getClineFreeModelIds(baseUrl: string): Promise<readonly string[]> {
 }
 
 export async function shouldZeroClineFreeModelCost(
-	config: Pick<Config, "providerId" | "modelId" | "baseUrl">,
+	config: Pick<Config, "providerId" | "modelId">,
 ): Promise<boolean> {
 	// Free models are also selectable on ClinePass — they ride usage billing at $0
 	if (config.providerId !== "cline" && config.providerId !== "cline-pass")
