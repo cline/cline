@@ -120,6 +120,20 @@ describe("workspace paths", () => {
 		]);
 	});
 
+	it("excludes cloud sessions so /workspace never pollutes local recents", () => {
+		const paths = workspacePathsFromSessions([
+			{ workspaceRoot: "/projects/local", startedAt: "2026-02-01T00:00:00Z" },
+			{
+				workspaceRoot: "/workspace",
+				cwd: "/workspace",
+				origin: "cloud",
+				startedAt: "2026-03-01T00:00:00Z",
+			},
+		]);
+
+		expect(paths).toEqual(["/projects/local"]);
+	});
+
 	it("builds the project catalog from every loaded history workspace", () => {
 		const sessions = Array.from({ length: 25 }, (_, index) => ({
 			workspaceRoot: `/projects/project-${String(index + 1).padStart(2, "0")}`,
