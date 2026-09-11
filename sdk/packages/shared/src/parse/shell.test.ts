@@ -9,8 +9,18 @@ import {
 describe("shell helpers", () => {
 	it("selects PowerShell on Windows and bash elsewhere", () => {
 		expect(getDefaultShell("win32")).toBe("powershell");
-		expect(getDefaultShell("darwin")).toBe("/bin/bash");
-		expect(getDefaultShell("linux")).toBe("/bin/bash");
+		expect(getDefaultShell("darwin")).toBe("bash");
+		expect(getDefaultShell("linux")).toBe("bash");
+	});
+
+	it("keeps the default shell classified as posix", () => {
+		// Execution and prompting both branch on getShellKind, so a default that
+		// stopped classifying as posix would advertise the wrong syntax.
+		expect(getShellKind(getDefaultShell("linux"))).toBe("posix");
+		expect(getShellInvocation(getDefaultShell("linux"), "ls").args).toEqual([
+			"-c",
+			"ls",
+		]);
 	});
 
 	it("uses an ASCII bootstrap with Unicode-safe PowerShell stdin", () => {
