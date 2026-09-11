@@ -16,14 +16,37 @@ describe("reconcileBufferedCloudEvents", () => {
 		payload,
 	});
 
-	it("preserves submitted lifecycle while marking only newly reflected prompts", () => {
+	it.each([
+		"Continue",
+		"",
+	])("preserves submitted lifecycle while marking only newly reflected %j prompts", (prompt) => {
 		const submitted = (id: string) =>
 			event("session.pending_prompt_submitted", id, {
-				prompt: { id, prompt: "Continue", delivery: "queue" },
+				prompt: {
+					id,
+					prompt,
+					delivery: "queue",
+					...(prompt
+						? {}
+						: {
+								userImages: ["data:image/png;base64,AA=="],
+								attachmentCount: 1,
+							}),
+				},
 			});
 		const first = submitted("q-1");
 		const later = submitted("q-2");
-		const baseline = [{ role: "user", content: "Continue" }];
+		const baseline = [
+			{
+				role: "user",
+				content: prompt || [
+					{
+						type: "image",
+						source: { type: "base64", media_type: "image/png", data: "AA==" },
+					},
+				],
+			},
+		];
 		// An older identical user message must not consume a new submission.
 		expect(
 			reconcileBufferedCloudEvents([first], baseline, {
@@ -32,7 +55,10 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual([first]);
 		const snapshot = [
 			...baseline,
-			{ role: "user", content: "<user_input>Continue</user_input>" },
+			{
+				...baseline[0],
+				...(prompt ? { content: `<user_input>${prompt}</user_input>` } : {}),
+			},
 		];
 		const completed = event("run.completed", "done");
 		const running = event("run.started", "next");
