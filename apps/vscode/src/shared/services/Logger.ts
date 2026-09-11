@@ -4,12 +4,12 @@
 export class Logger {
 	private static isVerbose = process.env.IS_DEV === "true"
 
-	private static subscribers: Set<(msg: string) => void> = new Set()
+	private static subscribers: Set<(level: string, msg: string) => void> = new Set()
 
-	private static output(msg: string): void {
+	private static output(level: string, msg: string): void {
 		for (const subscriber of Logger.subscribers) {
 			try {
-				subscriber(msg)
+				subscriber(level, msg)
 			} catch {
 				// ignore errors from subscribers
 			}
@@ -19,7 +19,7 @@ export class Logger {
 	/**
 	 * Register a callback to receive log output messages.
 	 */
-	static subscribe(outputFn: (msg: string) => void) {
+	static subscribe(outputFn: (level: string, msg: string) => void) {
 		Logger.subscribers.add(outputFn)
 	}
 
@@ -54,8 +54,7 @@ export class Logger {
 				fullMessage += ` ${args.map((arg) => JSON.stringify(arg)).join(" ")}`
 			}
 			const errorSuffix = error?.message ? ` ${error.message}` : ""
-			const ts = new Date().toISOString()
-			Logger.output(`${ts} ${level} ${fullMessage}${errorSuffix}`.trimEnd())
+			Logger.output(level, `${fullMessage}${errorSuffix}`.trimEnd())
 		} catch {
 			// do nothing if Logger fails
 		}
