@@ -13,5 +13,12 @@
 				"dragDropEnabled": false
 			}
 		]
+	},
+	"bundle": {
+		"windows": {
+			"nsis": {
+				"installerHooks": "nsis/installer-hooks.nsh"
+			}
+		}
 	}
 }
