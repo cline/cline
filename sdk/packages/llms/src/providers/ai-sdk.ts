@@ -2059,9 +2059,14 @@ export function withEmptyResponseRetry(
 	});
 }
 
-function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
+function createAiSdkProvider(
+	defaultKind: ProviderModuleKind,
+): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
+			// Multi-protocol HTTP gateways declare model adapters in models.dev.
+			// Keep native and local CLI transports authoritative for their models.
+			const kind = resolveModelProviderKind(defaultKind, context);
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
 			const capturedError: { current: CapturedStreamError | undefined } = {
@@ -2376,6 +2381,27 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 			}
 		},
 	});
+}
+
+function resolveModelProviderKind(
+	defaultKind: ProviderModuleKind,
+	context: GatewayProviderContext,
+): ProviderModuleKind {
+	if (
+		defaultKind !== "openai-compatible" ||
+		!context.provider.metadata?.routing?.modelApiProtocol
+	)
+		return defaultKind;
+	switch (context.model.metadata?.apiProtocol) {
+		case "openai-responses":
+			return "openai";
+		case "anthropic":
+			return "anthropic";
+		case "gemini":
+			return "google";
+		default:
+			return defaultKind;
+	}
 }
 
 export const createOpenAIProvider = createAiSdkProvider("openai");

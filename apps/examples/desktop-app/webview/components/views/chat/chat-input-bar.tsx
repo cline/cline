@@ -8,10 +8,10 @@ import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
 	Brain,
-	CircleCheck,
 	CircleStop,
 	Cpu,
 	Paperclip,
+	Plus,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,7 +54,6 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
-	subscribeToProviderCatalogInvalidation,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
@@ -321,7 +320,7 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	onOpenVoiceInputSettings?: () => void;
+	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -359,7 +358,7 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
+	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -505,6 +504,14 @@ function ChatInputBarImpl({
 			return;
 		}
 		const prompt = promptInput.trim();
+		if (!prompt) {
+			toast({
+				title: "Add a message to go with your attachments",
+				description:
+					"Describe what you want Cline to do with the attached files before sending.",
+			});
+			return;
+		}
 		setPromptInput("");
 		onSend(prompt);
 	}, [
@@ -810,38 +817,30 @@ function ChatInputBarImpl({
 		[transcriptionTarget],
 	);
 
-	const handleSpeechInputError = useCallback(
-		(error: unknown) => {
-			// Microphone failures surface as DOMExceptions (getUserMedia) or
-			// capture-layer events; provider failures (credentials, transcription
-			// setup) as plain Errors, and are fixed in Settings → Voice.
-			const isMicrophoneError =
-				error instanceof DOMException || error instanceof Event;
-			const message =
-				error instanceof Error
-					? error.message
-					: "Check microphone permission and audio provider settings.";
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "error",
-				message: "Speech input failed in the webview",
-				timestamp: new Date().toISOString(),
-				metadata: { failure: message },
-			});
-			if (!isMicrophoneError && onOpenVoiceInputSettings) {
-				onOpenVoiceInputSettings();
-				return;
-			}
-			toast({
-				variant: "destructive",
-				title: "Speech input failed",
-				description: isMicrophoneError
-					? "Check the microphone permission for Cline and try again."
-					: message,
-			});
-		},
-		[onOpenVoiceInputSettings],
-	);
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -1524,6 +1523,7 @@ function ChatInputBarImpl({
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
+							onOpenModelSettings={onOpenModelSettings}
 							onProviderChange={onProviderChange}
 							provider={provider}
 						/>
@@ -1598,6 +1598,9 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
+/** Sentinel provider-picker row that opens Settings → Models instead of selecting. */
+const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
+
 const ModelSelector = memo(function ModelSelector({
 	provider,
 	model,
@@ -1606,6 +1609,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange,
 	onModelSupportsReasoningChange,
 	onModelSupportsImagesChange,
+	onOpenModelSettings,
 }: {
 	provider: string;
 	model: string;
@@ -1614,6 +1618,8 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
+	/** Opens Settings → Models; adds a "set up another provider" row when set. */
+	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1626,9 +1632,6 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
-	const [configuredProviderIds, setConfiguredProviderIds] = useState<string[]>(
-		[],
-	);
 	const [providerNames, setProviderNames] = useState<Record<string, string>>(
 		{},
 	);
@@ -1803,7 +1806,6 @@ const ModelSelector = memo(function ModelSelector({
 					...(payload.providerModelDetails ?? {}),
 				}));
 				setReasoningCapabilitySource("catalog");
-				setConfiguredProviderIds(payload.configuredProviderIds);
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
 					if (normalizedProvider) {
@@ -1882,26 +1884,6 @@ const ModelSelector = memo(function ModelSelector({
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
-	}, []);
-
-	// Credentials saved or removed in settings (or OAuth completing) invalidate
-	// the shared catalog; refetch so the readiness indicators don't go stale
-	// while the composer stays mounted.
-	useEffect(() => {
-		let cancelled = false;
-		const unsubscribe = subscribeToProviderCatalogInvalidation(() => {
-			loadProviderModelCatalog()
-				.then((payload) => {
-					if (!cancelled) {
-						setConfiguredProviderIds(payload.configuredProviderIds);
-					}
-				})
-				.catch(() => {});
-		});
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
 	}, []);
 
 	// The remembered selection (what new sessions default to) is only written
@@ -1993,6 +1975,11 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
+			if (value === ADD_PROVIDER_OPTION_VALUE) {
+				setMobileOpen(false);
+				onOpenModelSettings?.();
+				return;
+			}
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
@@ -2017,6 +2004,7 @@ const ModelSelector = memo(function ModelSelector({
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
+			onOpenModelSettings,
 			onProviderChange,
 			pickerDataForProvider,
 			rememberSelection,
@@ -2030,25 +2018,25 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
-	// Enabled providers can lack usable credentials (e.g. entries seeded by
-	// legacy migration), so mark the ones that are actually ready for a turn.
+	// The picker only lists providers with saved settings, so it is also the
+	// natural place to reach the rest of the catalog.
 	const providerOptions = useMemo(
-		() =>
-			providers.map((value) => ({
-				...(configuredProviderIds.includes(value)
-					? {
-							indicator: (
-								<CircleCheck
-									aria-label="Configured"
-									className="size-3 shrink-0 text-emerald-500"
-								/>
-							),
-						}
-					: {}),
+		() => [
+			...providers.map((value) => ({
 				label: providerNames[value]?.trim() || value,
 				value,
 			})),
-		[configuredProviderIds, providerNames, providers],
+			...(onOpenModelSettings
+				? [
+						{
+							icon: <Plus className="size-3 shrink-0 text-muted-foreground" />,
+							label: "Set up another provider",
+							value: ADD_PROVIDER_OPTION_VALUE,
+						},
+					]
+				: []),
+		],
+		[onOpenModelSettings, providerNames, providers],
 	);
 	const selectedModelLabel =
 		visibleModelPicker.options.find((option) => option.value === resolvedModel)

@@ -508,9 +508,6 @@ export default function Home() {
 												handleSettingsSectionChange("Models")
 											}
 											parentSession={activeParentSession}
-											onOpenVoiceInputSettings={() =>
-												handleSettingsSectionChange("Voice")
-											}
 											onThreadStarted={handleThreadStarted}
 										/>
 									</div>
@@ -574,7 +571,6 @@ function ChatThreadPane({
 	onOpenSetup,
 	onOpenModelSettings,
 	parentSession,
-	onOpenVoiceInputSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -596,7 +592,6 @@ function ChatThreadPane({
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
-	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1552,7 +1547,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
-			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
