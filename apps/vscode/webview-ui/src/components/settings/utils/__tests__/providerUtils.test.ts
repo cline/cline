@@ -1,6 +1,6 @@
 import type { ApiConfiguration } from "@shared/api"
-import { describe, expect, it } from "vitest"
-import { getModeSpecificFields } from "../providerUtils"
+import { describe, expect, it, vi } from "vitest"
+import { getModeSpecificFields, syncModeConfigurations } from "../providerUtils"
 
 describe("getModeSpecificFields", () => {
 	it("returns undefined provider-specific fields when apiConfiguration is undefined", () => {
@@ -27,5 +27,39 @@ describe("getModeSpecificFields", () => {
 		expect(fields.openRouterModelId).toBe("openrouter/some-model")
 		expect(fields.clineModelId).toBeUndefined()
 		expect(fields.clineModelInfo).toBeUndefined()
+	})
+
+	it("resolves independent Plan and Act Bedrock prompt-cache settings", () => {
+		const apiConfiguration: ApiConfiguration = {
+			awsBedrockUsePromptCache: true,
+			planModeAwsBedrockUsePromptCache: false,
+			actModeAwsBedrockUsePromptCache: true,
+		}
+
+		expect(getModeSpecificFields(apiConfiguration, "plan").awsBedrockUsePromptCache).toBe(false)
+		expect(getModeSpecificFields(apiConfiguration, "act").awsBedrockUsePromptCache).toBe(true)
+	})
+
+	it("uses the legacy shared Bedrock prompt-cache value as an upgrade fallback", () => {
+		const apiConfiguration: ApiConfiguration = { awsBedrockUsePromptCache: true }
+
+		expect(getModeSpecificFields(apiConfiguration, "plan").awsBedrockUsePromptCache).toBe(true)
+		expect(getModeSpecificFields(apiConfiguration, "act").awsBedrockUsePromptCache).toBe(true)
+	})
+
+	it("synchronizes Bedrock prompt-cache values when separate models are disabled", async () => {
+		const handleFieldsChange = vi.fn(async () => {})
+		const apiConfiguration: ApiConfiguration = {
+			planModeApiProvider: "anthropic",
+			planModeAwsBedrockUsePromptCache: true,
+			actModeAwsBedrockUsePromptCache: false,
+		}
+
+		await syncModeConfigurations(apiConfiguration, "plan", handleFieldsChange)
+
+		expect(handleFieldsChange).toHaveBeenCalledTimes(1)
+		const updates = handleFieldsChange.mock.calls[0]?.[0]
+		expect(updates?.planModeAwsBedrockUsePromptCache).toBe(true)
+		expect(updates?.actModeAwsBedrockUsePromptCache).toBe(true)
 	})
 })

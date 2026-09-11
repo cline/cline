@@ -20,4 +20,19 @@ describe("api configuration provider conversion", () => {
 			expect(result.planModeApiProvider).toBe(provider)
 		}
 	})
+
+	it("round-trips independent Plan and Act Bedrock prompt-cache settings", () => {
+		const proto = convertApiConfigurationToProto({
+			awsBedrockUsePromptCache: true,
+			planModeAwsBedrockUsePromptCache: true,
+			actModeAwsBedrockUsePromptCache: false,
+		})
+
+		expect(proto.planModeAwsBedrockUsePromptCache).toBe(true)
+		expect(proto.actModeAwsBedrockUsePromptCache).toBe(false)
+
+		const result = convertProtoToApiConfiguration(proto)
+		expect(result.planModeAwsBedrockUsePromptCache).toBe(true)
+		expect(result.actModeAwsBedrockUsePromptCache).toBe(false)
+	})
 })
