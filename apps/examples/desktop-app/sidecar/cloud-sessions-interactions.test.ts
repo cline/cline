@@ -108,6 +108,35 @@ const transportError = () =>
 	new HubTransportError("hub_connection_closed", "socket closed");
 
 describe("CloudSessionManager interactions", () => {
+	it("keeps a pending send cancelled when deletion clears its abort token", async () => {
+		const { manager, connection, ensureAttached, command } =
+			await createFixture();
+		manager["connections"].set("ses-outer", connection);
+		vi.spyOn(manager["options"].api, "delete").mockResolvedValue(undefined);
+		let releaseAttach!: () => void;
+		ensureAttached.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseAttach = resolve;
+				}),
+		);
+		const result = manager
+			.send("ses-outer", "cancel this")
+			.catch((error: unknown) => error);
+		await vi.waitFor(() => expect(releaseAttach).toBeDefined());
+		await manager.abort("ses-outer");
+		await manager.delete("ses-outer");
+		releaseAttach();
+		expect(await result).toMatchObject({
+			message: "Cloud session prompt cancelled",
+		});
+		expect(connection.disposed).toBe(true);
+		expect(connection.client.dispose).toHaveBeenCalledOnce();
+		expect(
+			command.mock.calls.some(([name]) => name === "session.send_input"),
+		).toBe(false);
+	});
+
 	it("does not dispatch a pending send after abort and allows a later send", async () => {
 		const { manager, ensureAttached, command } = await createFixture();
 		let releaseAttach!: () => void;
