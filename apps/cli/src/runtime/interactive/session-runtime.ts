@@ -147,14 +147,13 @@ export function createInteractiveSessionRuntime(input: {
 			return sessionManager;
 		}
 		const manager = await createCliCore({
-			// Interactive startup must never wait for a detached hub daemon to boot.
-			// `auto` uses an already-compatible hub when one is immediately available,
-			// but falls back to the local runtime while the hub is prewarmed in the
-			// background. Forcing `hub` here routes through `ensureCompatibleLocalHubUrl`,
-			// which can poll for up to the hub startup timeout before the TUI is usable.
-			// Yolo and sandbox modes must stay fully local and must not prewarm or reuse
-			// the shared daemon hub.
-			backendMode: "auto",
+			// Backend selection is deferred to ClineCore, which honors
+			// CLINE_SESSION_BACKEND_MODE and otherwise defaults to `auto`: use an
+			// already-compatible hub when one is immediately available, but fall back
+			// to the local runtime while the hub is prewarmed in the background.
+			// Never force `hub` here — `ensureCompatibleLocalHubUrl` can poll for up
+			// to the hub startup timeout before the TUI is usable. Yolo and sandbox
+			// modes stay fully local via `forceLocalBackend` below.
 			forceLocalBackend:
 				input.config.mode === "yolo" || input.config.sandbox === true,
 			capabilities: {
