@@ -39,6 +39,8 @@ export interface AgentImagePart {
 	type: "image";
 	image: string | Uint8Array | ArrayBuffer | URL;
 	mediaType?: string;
+	/** Host-assigned provenance for current-screen media reservation, not authority. */
+	source?: "computer";
 }
 
 export interface AgentFilePart {

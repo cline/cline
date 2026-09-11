@@ -8,9 +8,8 @@ import type { ComputerUserCoordinator } from "./coordinator";
  * the generic `ask_question`/`submit_and_exit` built-ins. Questions and
  * completion go to the DRIVER agent (via the coordinator), never to the
  * human, and both terminal tools carry the structured report the driver
- * needs. `post_driver_update` is the non-terminal progress channel that
- * feeds status polling ("The computer user reported: ... 43 seconds ago")
- * and the replay artifact.
+ * needs. `post_driver_update` is the non-terminal progress channel; every
+ * update steers the driver session and is also retained in the replay artifact.
  */
 
 const PostDriverUpdateInput = z
@@ -75,7 +74,7 @@ export function createComputerUserCollaborationTools(
 	const postDriverUpdate = createTool({
 		name: "post_driver_update",
 		description:
-			"Post a status note for the driver agent. The driver sees it when polling status; warnings interrupt the driver immediately. Use after understanding the task, at meaningful milestones, before long waits, and when blocked.",
+			"Post a concise update for the driver agent. Every update wakes the driver through a steer message. Use after understanding the task, at meaningful milestones, before long waits, and when blocked.",
 		inputSchema: zodToJsonSchema(PostDriverUpdateInput),
 		execute: async (input: unknown) => {
 			const parsed = PostDriverUpdateInput.parse(input);

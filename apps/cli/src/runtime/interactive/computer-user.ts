@@ -7,6 +7,7 @@ import {
 	ComputerUseClient,
 	ComputerUserCoordinator,
 	ComputerUserTranscriptLog,
+	createComputerInstructionObservationHooks,
 	createComputerUserCollaborationTools,
 	createComputerUserDriverTools,
 	createComputerUseTool,
@@ -26,7 +27,7 @@ import { acquireAbortRejectionShield } from "../active-runtime";
 /**
  * CLI host integration for the asynchronous computer user.
  *
- * The driver session gets four `computer_user_*` tools; the helper runs as a
+ * The driver session gets `computer_user_*` tools; the helper runs as a
  * dedicated interactive ClineCore session on the Anthropic provider (the
  * computer-use beta header requires the direct provider — see qwanban's
  * README). Enabled by the same `CLINE_COMPUTER_USE_PORT` opt-in as the raw
@@ -126,11 +127,11 @@ export async function createInteractiveComputerUser(input: {
 	config: Config;
 	providerSettingsManager: Pick<ProviderSettingsManager, "getProviderSettings">;
 	/**
-	 * Injects a prompt into the driver's conversation. Must resolve the
+	 * Emits a steer message into the driver's conversation. Must resolve the
 	 * driver session id at call time (session rebuilds change it), which
 	 * `sessionRuntime.sendCurrentTurn` does.
 	 */
-	notifyDriver: (prompt: string, delivery: "queue" | "steer") => void;
+	emitSteerMessage: (prompt: string) => void;
 	env?: NodeJS.ProcessEnv;
 }): Promise<InteractiveComputerUser | undefined> {
 	// Check the local precondition (credentials) before dialing the backend:
@@ -290,9 +291,12 @@ export async function createInteractiveComputerUser(input: {
 				const started = await (await getHelperCore()).start({
 					config: {
 						...startInput.config,
-						hooks: createTranscriptRecordingHooks(recorder, source, (event) =>
-							transcriptLog.append(event),
-						),
+						hooks: {
+							...createTranscriptRecordingHooks(recorder, source, (event) =>
+								transcriptLog.append(event),
+							),
+							...createComputerInstructionObservationHooks(computerClient),
+						},
 					} as never,
 					interactive: startInput.interactive,
 				});
@@ -334,8 +338,7 @@ export async function createInteractiveComputerUser(input: {
 			stop: async (sessionId) => (await getHelperCore()).stop(sessionId),
 		},
 		helperConfig,
-		notifyDriver: ({ prompt, delivery }) =>
-			input.notifyDriver(prompt, delivery),
+		emitSteerMessage: input.emitSteerMessage,
 		recorder,
 		transcriptLog,
 	});

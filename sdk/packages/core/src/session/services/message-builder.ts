@@ -1446,6 +1446,15 @@ export class MessageBuilder {
 			}
 			let contentChanged = false;
 			const content = message.content.map((block) => {
+				if (block.type === "image" && block.source === "computer") {
+					const out = mapImage(
+						block,
+						cursor.occurrence++,
+						true,
+					) as ContentBlock;
+					if (out !== block) contentChanged = true;
+					return out;
+				}
 				if (
 					block.type !== "tool_result" ||
 					this.resolveToolName(block) !== "computer" ||

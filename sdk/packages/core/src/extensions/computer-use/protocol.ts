@@ -139,6 +139,14 @@ export interface ComputerUseImage {
 	mediaType: string;
 }
 
+/** OS-observed foreground window, not the focused editable control. */
+export interface ComputerUseForegroundWindow {
+	/** Full executable path on Windows; null when unknown (including Linux). */
+	executable: string | null;
+	/** Window title; null means unknown, while an empty string means untitled. */
+	title: string | null;
+}
+
 /** Response envelope received from the computer-use backend, one per line. */
 export interface ComputerUseResponse {
 	/** Echoes the request id this response answers. */
@@ -153,6 +161,13 @@ export interface ComputerUseResponse {
 	 * optionally others that return a post-action screenshot).
 	 */
 	image?: ComputerUseImage;
+	/**
+	 * Foreground context sampled with this image. qbt includes this on every
+	 * image response; optional here for compatibility with older backends.
+	 * Null means unavailable, absent, unstable during capture, or unsupported
+	 * (macOS). Linux reports a title only; Windows can report both fields.
+	 */
+	foregroundWindow?: ComputerUseForegroundWindow | null;
 	/** Present in the response to a "get_display_info" request. */
 	display?: ComputerUseDisplayInfo;
 	/** Present when ok is false. */

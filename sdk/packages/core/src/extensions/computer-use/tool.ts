@@ -1,6 +1,7 @@
 import type { AgentTool, AgentToolContext } from "@cline/shared";
 import { createTool } from "@cline/shared";
 import { ComputerUseClient, type ComputerUseClientOptions } from "./client";
+import { formatComputerObservation } from "./observation";
 import type {
 	ComputerUseAction,
 	ComputerUseCoordinate,
@@ -194,8 +195,9 @@ export async function createComputerUseTool(
 		description:
 			`Control the screen and keyboard/mouse of a remote computer environment. ` +
 			`The display is ${widthPx}x${heightPx} pixels. ` +
-			`Use "screenshot" to see the current screen before acting, since the environment ` +
-			`may change between turns. Coordinates are [x, y] pixels from the top-left corner. ` +
+			`Inspect the latest screenshot before acting, including any automatically attached ` +
+			`instruction observation. Use "screenshot" if no current image is available or the ` +
+			`state is uncertain. Coordinates are [x, y] pixels from the top-left corner. ` +
 			`Every click, type, key, scroll, and drag action returns a screenshot of the ` +
 			`resulting state — do not take a separate screenshot just to see what an action ` +
 			`did; reserve standalone screenshots for navigation, loading, or uncertain state. ` +
@@ -236,17 +238,15 @@ export async function createComputerUseTool(
 				return resultText;
 			}
 
-			return [
-				{
-					type: "text" as const,
-					text: resultText,
-				},
-				{
-					type: "image" as const,
-					data: response.image.data,
-					mediaType: response.image.mediaType,
-				},
-			];
+			return formatComputerObservation(response, resultText).map((part) =>
+				part.type === "image"
+					? {
+							type: "image" as const,
+							data: part.image,
+							mediaType: part.mediaType,
+						}
+					: part,
+			);
 		},
 	});
 }

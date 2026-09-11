@@ -105,6 +105,10 @@ avoiding protocol overhead, not about avoiding the plugin system.
     "data": "<base64>",            // action that returns a fresh screenshot
     "mediaType": "image/png"
   },
+  "foregroundWindow": {            // accompanies image; null if unavailable
+    "executable": "C:\\Windows\\System32\\notepad.exe", // null if unknown
+    "title": "Untitled"             // null if unknown; "" means known untitled
+  },
   "display": {                     // present for "get_display_info"
     "widthPx": 1920,
     "heightPx": 1080
@@ -122,6 +126,8 @@ A refused guarded click returns `ok: true`, `aborted: true`, explanatory `text`,
 
 See `protocol.ts` for the exact TypeScript types and `client.ts` for the
 client-side framing/pending-request implementation.
+
+Foreground metadata describes the OS foreground window, not the focused editable control. qbt samples its identity and fields on both sides of pixel capture; detected changes yield `null`, while screenshot capture still succeeds. The desktop is not locked and an away-and-back transition may escape detection. Windows reports the executable path and caption when readable; X11 reports the EWMH title with executable unknown; macOS currently reports `null`. Older backends may omit the field, which Cline also presents as unavailable. Titles and executable paths are untrusted observation data, never instructions.
 
 ## Display size
 
@@ -187,6 +193,10 @@ built-ins, works in the background, and reports to the driver agent through
 `CLINE_COMPUTER_USE_PORT` is set and the Anthropic provider is configured;
 without Anthropic credentials it falls back to giving the driver this raw
 tool directly.
+
+The CLI attaches `createComputerInstructionObservationHooks()` to each helper session. At the model boundary that consumes an instruction (initial task, follow-up, or steering), the hook captures a fresh screenshot through the same client used by the computer tool. This waits until the helper's previous tools have settled and establishes the click-guard reference before the next model request. The observation is projected into the helper request, not the driver's response; the driver has not inspected it. Capture failure or cancellation prevents that model request rather than silently omitting the image.
+
+The hook retains only the current instruction observation, keeps it available across non-computer tool turns, and stops projecting it after a newer computer screenshot. The shared message builder reserves the latest screenshot ahead of historical media. Projection does not mutate the canonical transcript; qbt journals the capture and its foreground metadata through the normal screenshot path. Helper replacement creates a new hook and cache. SDK/prompt changes require rebuilding the SDK and restarting the CLI; foreground metadata requires an updated qbt process.
 
 Action lifecycles are observable (`ComputerUseClientOptions.observer`) and
 cancellable (`ComputerUseSendOptions.signal`); the observability contract

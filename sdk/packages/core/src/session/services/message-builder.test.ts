@@ -5,6 +5,7 @@ import {
 	type ToolResultContent,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { formatComputerObservation } from "../../extensions/computer-use/observation";
 import {
 	agentMessagesToMessages,
 	messagesToAgentMessages,
@@ -1210,6 +1211,65 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(messages).toEqual(snapshot);
 	});
 
+	it("reserves an instruction screenshot ahead of older computer frames and attachments", () => {
+		const attachment = imageData(16, 1);
+		const olderScreen = imageData(16, 2);
+		const instructionScreen = imageData(16, 3);
+		const newerScreen = imageData(16, 4);
+		const builder = new MessageBuilder({
+			mediaBudget: {
+				maxImageEncodedBytes: 128,
+				maxImageDecodedBytes: 128,
+				maxTotalMediaBytes: Buffer.byteLength(instructionScreen, "utf8"),
+			},
+		});
+		const observation = agentMessagesToMessages([
+			{
+				id: "instruction-screen",
+				role: "user",
+				createdAt: 0,
+				content: formatComputerObservation({
+					id: 1,
+					ok: true,
+					image: { data: instructionScreen, mediaType: "image/png" },
+					foregroundWindow: { executable: "editor.exe", title: "Document" },
+				}),
+			},
+		]);
+		const messages: Message[] = [
+			{
+				role: "user",
+				content: [{ type: "image", data: attachment, mediaType: "image/png" }],
+			},
+			toolUseMessage("computer_1", "computer", { action: "screenshot" }),
+			toolResultMessage("computer_1", "computer", [
+				{ type: "image", data: olderScreen, mediaType: "image/png" },
+			]),
+			{ role: "user", content: "Now follow this instruction" },
+			...observation,
+		];
+		const before = structuredClone(messages);
+		const built = builder.buildForApi(messages);
+		const serialized = serializeForAiSdk(built);
+		expect(serialized).toContain(instructionScreen);
+		expect(serialized).not.toContain(olderScreen);
+		expect(serialized).not.toContain(attachment);
+		expect(serialized.match(/"mediaType":"image\/png"/g)).toHaveLength(1);
+		expect(messages).toEqual(before);
+
+		const next = builder.buildForApi([
+			...messages,
+			toolUseMessage("computer_2", "computer", { action: "left_click" }),
+			toolResultMessage("computer_2", "computer", [
+				{ type: "image", data: newerScreen, mediaType: "image/png" },
+			]),
+		]);
+		const nextSerialized = serializeForAiSdk(next);
+		expect(nextSerialized).toContain(newerScreen);
+		expect(nextSerialized).not.toContain(instructionScreen);
+		expect(nextSerialized.match(/"mediaType":"image\/png"/g)).toHaveLength(1);
+	});
+
 	it("projects a long computer session to one current screenshot", () => {
 		const screenshots = Array.from({ length: 20 }, (_, index) =>
 			imageData(420_000, index + 1),
@@ -1236,8 +1296,35 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		expect(serialized).not.toContain(
 			"[media omitted: invalid or exceeds size limit]",
 		);
-		expect(providerPayload.match(/"type":"image-data"/g)).toHaveLength(1);
+		expect(providerPayload.match(/"mediaType":"image\/png"/g)).toHaveLength(1);
 		expect(providerPayload).toContain(screenshots.at(-1));
+	});
+
+	it("does not mistake a literal observation label in a user attachment for a screenshot", () => {
+		const screen = imageData(16, 1);
+		const attachment = imageData(16, 2);
+		const messages: Message[] = [
+			toolUseMessage("computer_1", "computer", { action: "screenshot" }),
+			toolResultMessage("computer_1", "computer", [
+				{ type: "image", data: screen, mediaType: "image/png" },
+			]),
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "Explain the label [Computer observation] in this diagram.",
+					},
+					{ type: "image", data: attachment, mediaType: "image/png" },
+				],
+			},
+		];
+		const serialized = serializeForAiSdk(
+			new MessageBuilder().buildForApi(messages),
+		);
+		expect(serialized).toContain(screen);
+		expect(serialized).toContain(attachment);
+		expect(serialized).not.toContain("older computer screenshot omitted");
 	});
 
 	it("reserves the newest computer screenshot before unrelated historical media", () => {

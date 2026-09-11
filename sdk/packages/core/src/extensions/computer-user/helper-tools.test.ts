@@ -26,7 +26,7 @@ describe("computer-user collaboration tools", () => {
 		const coordinator = new ComputerUserCoordinator({
 			host: makeIdleHost(),
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 		});
 		const tools = createComputerUserCollaborationTools(coordinator);
 		const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -40,14 +40,12 @@ describe("computer-user collaboration tools", () => {
 		);
 	});
 
-	it("post_driver_update records the note; a warning interrupts the driver", async () => {
-		const driverMessages: Array<{ prompt: string; delivery: string }> = [];
-		let clock = 5_000_000;
+	it("post_driver_update steers every note to the driver", async () => {
+		const driverMessages: string[] = [];
 		const coordinator = new ComputerUserCoordinator({
 			host: makeIdleHost(),
 			helperConfig: {},
-			notifyDriver: (input) => driverMessages.push(input),
-			now: () => clock,
+			emitSteerMessage: (prompt) => driverMessages.push(prompt),
 		});
 		const tools = createComputerUserCollaborationTools(coordinator);
 		const update = tools.find((tool) => tool.name === "post_driver_update");
@@ -56,27 +54,23 @@ describe("computer-user collaboration tools", () => {
 			{ kind: "progress", message: "opened the dashboard" },
 			ctx,
 		);
-		expect(driverMessages).toHaveLength(0);
-		clock += 43_000;
-		expect(coordinator.status().latestNote).toMatchObject({
-			text: "opened the dashboard",
-			ageSeconds: 43,
-		});
+		expect(driverMessages).toEqual([
+			"[COMPUTER USER PROGRESS] opened the dashboard",
+		]);
 
 		await update?.execute(
 			{ kind: "warning", message: "an unexpected login prompt appeared" },
 			ctx,
 		);
-		expect(driverMessages).toHaveLength(1);
-		expect(driverMessages[0]?.prompt).toContain("[COMPUTER USER WARNING]");
-		expect(driverMessages[0]?.delivery).toBe("steer");
+		expect(driverMessages).toHaveLength(2);
+		expect(driverMessages[1]).toContain("[COMPUTER USER WARNING]");
 	});
 
 	it("ask_driver stashes the question the settle path delivers", async () => {
 		const coordinator = new ComputerUserCoordinator({
 			host: makeIdleHost(),
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 		});
 		const tools = createComputerUserCollaborationTools(coordinator);
 		const ask = tools.find((tool) => tool.name === "ask_driver");

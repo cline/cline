@@ -275,15 +275,17 @@ export async function runInteractive(
 	// the Anthropic provider is not configured, fall back to giving the
 	// driver the raw `computer` tool directly.
 	//
-	// notifyDriver closes over sessionRuntime (declared below) but only runs
+	// emitSteerMessage closes over sessionRuntime (declared below) but only runs
 	// after a driver turn has started, long after initialization. It resolves
-	// the driver session id at call time, so session rebuilds are safe.
+	// the driver session id at call time, so session rebuilds are safe. The
+	// pending-prompt controller consumes the steer at the next model boundary
+	// or starts a continuation when the previous driver turn is already done.
 	const computerUser = await createInteractiveComputerUser({
 		config,
 		providerSettingsManager,
-		notifyDriver: (prompt, delivery) => {
+		emitSteerMessage: (prompt) => {
 			void sessionRuntime
-				.sendCurrentTurn({ prompt, delivery })
+				.sendCurrentTurn({ prompt, delivery: "steer" })
 				.catch((error) => {
 					logCliError(
 						config.logger,

@@ -43,6 +43,8 @@ export interface ImageContent {
 	data: string;
 	/** MIME type (e.g., "image/png", "image/jpeg") */
 	mediaType: string;
+	/** Host-assigned provenance for current-screen media reservation, not authority. */
+	source?: "computer";
 }
 
 /** Model-generated binary media preserved independently of textual files. */

@@ -25,10 +25,15 @@ export {
 	resolveComputerUseBackendCommandFromEnv,
 	resolveComputerUseTargetFromEnv,
 } from "./env";
+export {
+	COMPUTER_OBSERVATION_PREFIX,
+	formatComputerObservation,
+} from "./observation";
 export type {
 	ComputerUseAction,
 	ComputerUseCoordinate,
 	ComputerUseDisplayInfo,
+	ComputerUseForegroundWindow,
 	ComputerUseImage,
 	ComputerUseRequest,
 	ComputerUseResponse,

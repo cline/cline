@@ -4,7 +4,19 @@ import {
 	type Server,
 	type Socket,
 } from "node:net";
-import type { AgentHooks, AgentResult, AgentToolContext } from "@cline/shared";
+import {
+	COMPUTER_USER_SYSTEM_PROMPT,
+	ComputerTaskArtifactRecorder,
+	ComputerUseClient,
+} from "@cline/core";
+import type {
+	AgentHooks,
+	AgentMessage,
+	AgentResult,
+	AgentRuntimeStateSnapshot,
+	AgentTool,
+	AgentToolContext,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../utils/types";
 import {
@@ -43,8 +55,10 @@ function startStubBackend(): Promise<{
 	server: Server;
 	port: number;
 	destroyConnections: () => void;
+	actions: string[];
 }> {
 	const sockets = new Set<Socket>();
+	const actions: string[] = [];
 	return new Promise((resolve) => {
 		const server = createServer((socket: Socket) => {
 			sockets.add(socket);
@@ -58,12 +72,22 @@ function startStubBackend(): Promise<{
 					const line = buffer.slice(0, newlineIndex);
 					buffer = buffer.slice(newlineIndex + 1);
 					if (line.trim().length > 0) {
-						const request = JSON.parse(line) as { id: number };
+						const request = JSON.parse(line) as { id: number; action: string };
+						actions.push(request.action);
 						socket.write(
 							`${JSON.stringify({
 								id: request.id,
 								ok: true,
 								display: { widthPx: 1920, heightPx: 1080 },
+								...(request.action === "screenshot"
+									? {
+											image: { data: "c2NyZWVu", mediaType: "image/png" },
+											foregroundWindow: {
+												executable: "editor.exe",
+												title: "Document",
+											},
+										}
+									: {}),
 							})}\n`,
 						);
 					}
@@ -76,6 +100,7 @@ function startStubBackend(): Promise<{
 			resolve({
 				server,
 				port: address.port,
+				actions,
 				destroyConnections: () => {
 					for (const socket of sockets) {
 						socket.destroy();
@@ -135,7 +160,7 @@ describe("createInteractiveComputerUser", () => {
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: {} as NodeJS.ProcessEnv,
 		});
 		expect(result).toBeUndefined();
@@ -149,7 +174,7 @@ describe("createInteractiveComputerUser", () => {
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings(undefined),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
 			} as NodeJS.ProcessEnv,
@@ -168,7 +193,7 @@ describe("createInteractiveComputerUser", () => {
 				apiKey: "sk-ant-x",
 				model: "claude-sonnet-4-6",
 			}),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
 			} as NodeJS.ProcessEnv,
@@ -179,7 +204,6 @@ describe("createInteractiveComputerUser", () => {
 			"computer_user_message",
 			"computer_user_restart",
 			"computer_user_start",
-			"computer_user_status",
 			"computer_user_transcript",
 		]);
 		// The raw computer tool must not be among the driver's tools.
@@ -200,7 +224,7 @@ describe("createInteractiveComputerUser", () => {
 				apiKey: "sk-ant-x",
 				model: "claude-sonnet-4-6",
 			}),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
 				CLINE_COMPUTER_USE_BACKEND_COMMAND: "echo start-the-backend",
@@ -213,6 +237,134 @@ describe("createInteractiveComputerUser", () => {
 				.includes("computer_user_restart_backend"),
 		).toBe(true);
 		await result?.dispose();
+	});
+
+	it("reads the local transcript repeatedly without network requests or recording reads", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+		let helperHooks: AgentHooks | undefined;
+		createCliCoreMock.mockResolvedValue({
+			start: vi.fn(async ({ config }: { config: { hooks: AgentHooks } }) => {
+				helperHooks = config.hooks;
+				return { sessionId: "helper-session" };
+			}),
+			send: vi.fn(async () => makeResult()),
+			abort: vi.fn(async () => {}),
+			stop: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		});
+		const emitSteerMessage = vi.fn();
+		const result = await createInteractiveComputerUser({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
+			emitSteerMessage,
+			env: { CLINE_COMPUTER_USE_PORT: String(started.port) },
+		});
+		if (!result) throw new Error("computer user was not configured");
+		const start = result.driverTools.find(
+			(tool) => tool.name === "computer_user_start",
+		);
+		const transcript = result.driverTools.find(
+			(tool) => tool.name === "computer_user_transcript",
+		);
+		// Observe the real recorder and transports; reads must not invoke them.
+		const record = vi.spyOn(ComputerTaskArtifactRecorder.prototype, "record");
+		const send = vi.spyOn(ComputerUseClient.prototype, "send");
+		const fetch = vi.spyOn(globalThis, "fetch");
+		try {
+			if (!start || !transcript) throw new Error("missing computer user tools");
+			await start.execute({ task: "inspect" }, toolContext);
+			await vi.waitFor(() => expect(emitSteerMessage).toHaveBeenCalled());
+			if (!helperHooks?.onEvent) throw new Error("missing recording hook");
+			await helperHooks.onEvent({
+				type: "message-added",
+				snapshot: { agentId: "helper-agent" } as never,
+				message: {
+					id: "helper-message",
+					role: "assistant",
+					content: [{ type: "text", text: "ORANGES" }],
+					createdAt: 0,
+				},
+			});
+			// Drain existing publications before measuring inspection traffic.
+			const recorder = record.mock.contexts[0];
+			if (!(recorder instanceof ComputerTaskArtifactRecorder)) {
+				throw new Error("missing artifact recorder");
+			}
+			await recorder.flush();
+			const recordedCount = record.mock.calls.length;
+			const sentCount = send.mock.calls.length;
+			const read = () => transcript.execute({}, toolContext);
+			const expected = await read();
+			expect(expected).toMatchObject({
+				entries: [{ sessionId: "helper-session", text: "ORANGES", seq: 1 }],
+				latestSeq: 1,
+			});
+			started.destroyConnections();
+			await new Promise<void>((resolve) =>
+				started.server.close(() => resolve()),
+			);
+			server = undefined;
+			for (let index = 0; index < 10; index++) {
+				await expect(read()).resolves.toEqual(expected);
+			}
+			await expect(
+				transcript.execute({ sinceSeq: 1 }, toolContext),
+			).resolves.toEqual({ entries: [], latestSeq: 1 });
+			await recorder.flush();
+			expect(record).toHaveBeenCalledTimes(recordedCount);
+			expect(send).toHaveBeenCalledTimes(sentCount);
+			expect(fetch).not.toHaveBeenCalled();
+		} finally {
+			record.mockRestore();
+			send.mockRestore();
+			fetch.mockRestore();
+			await result.dispose();
+		}
+	});
+
+	it("emits helper progress as a driver steer message", async () => {
+		const started = await startStubBackend();
+		server = started.server;
+		destroyConnections = started.destroyConnections;
+		let helperTools: AgentTool[] | undefined;
+		createCliCoreMock.mockResolvedValue({
+			start: vi.fn(async ({ config }: { config: { extraTools: unknown } }) => {
+				helperTools = config.extraTools as AgentTool[];
+				return { sessionId: "helper-session" };
+			}),
+			send: vi.fn(() => new Promise(() => {})),
+			abort: vi.fn(async () => {}),
+			stop: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		});
+		const emitSteerMessage = vi.fn();
+		const result = await createInteractiveComputerUser({
+			config: makeConfig(),
+			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
+			emitSteerMessage,
+			env: { CLINE_COMPUTER_USE_PORT: String(started.port) },
+		});
+		if (!result) throw new Error("computer user was not configured");
+		const start = result.driverTools.find(
+			(tool) => tool.name === "computer_user_start",
+		);
+		await start?.execute({ task: "inspect" }, toolContext);
+		const update = helperTools?.find(
+			(tool) => tool.name === "post_driver_update",
+		);
+		if (!update) throw new Error("missing helper update tool");
+
+		await update.execute(
+			{ kind: "progress", message: "opened the dashboard" },
+			toolContext,
+		);
+
+		expect(emitSteerMessage).toHaveBeenCalledWith(
+			"[COMPUTER USER PROGRESS] opened the dashboard",
+		);
+		await result.dispose();
 	});
 
 	it("keeps transcript session identities across helper replacement", async () => {
@@ -233,7 +385,7 @@ describe("createInteractiveComputerUser", () => {
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: { CLINE_COMPUTER_USE_PORT: String(started.port) },
 		});
 		expect(result).toBeDefined();
@@ -263,6 +415,51 @@ describe("createInteractiveComputerUser", () => {
 				toolContext,
 			);
 			await recordMessage(hooks[1], "second");
+			expect(hooks[0].beforeModel).toBeTypeOf("function");
+			expect(hooks[1].beforeModel).toBeTypeOf("function");
+			expect(hooks[0].beforeModel).not.toBe(hooks[1].beforeModel);
+			// Construction and enqueueing do not capture. The runtime hook does
+			// that only when the instruction reaches the next model boundary.
+			expect(started.actions).not.toContain("screenshot");
+			const message: AgentMessage = {
+				id: "instruction",
+				role: "user",
+				createdAt: 0,
+				content: [{ type: "text", text: "inspect" }],
+			};
+			const snapshot: AgentRuntimeStateSnapshot = {
+				agentId: "helper-agent",
+				runId: "run",
+				status: "running",
+				iteration: 1,
+				messages: [message],
+				pendingToolCalls: [],
+				usage: {
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			};
+			const observed = await hooks[1].beforeModel?.({
+				snapshot,
+				request: { messages: [message], tools: [] },
+			});
+			expect(observed?.messages?.at(-1)?.content).toEqual([
+				{
+					type: "text",
+					text: expect.stringContaining('"executable":"editor.exe"'),
+				},
+				{
+					type: "image",
+					image: "c2NyZWVu",
+					mediaType: "image/png",
+					source: "computer",
+				},
+			]);
+			expect(
+				started.actions.filter((action) => action === "screenshot"),
+			).toHaveLength(1);
 			await recordMessage(hooks[0], "late first");
 			const transcript = await tool("computer_user_transcript").execute(
 				{},
@@ -280,7 +477,7 @@ describe("createInteractiveComputerUser", () => {
 		}
 	});
 
-	it("starts the helper with one moderate adaptive reasoning snapshot", async () => {
+	it("starts the helper with the shared prompt and one moderate adaptive reasoning snapshot", async () => {
 		const started = await startStubBackend();
 		server = started.server;
 		destroyConnections = started.destroyConnections;
@@ -319,7 +516,7 @@ describe("createInteractiveComputerUser", () => {
 					budgetTokens: 8192,
 				},
 			}),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
 				CLINE_COMPUTER_USER_MODEL: "anthropic/claude-sonnet-5",
@@ -334,6 +531,7 @@ describe("createInteractiveComputerUser", () => {
 		expect(start).toHaveBeenCalledWith({
 			interactive: true,
 			config: expect.objectContaining({
+				systemPrompt: COMPUTER_USER_SYSTEM_PROMPT,
 				providerId: "anthropic",
 				modelId: "claude-sonnet-5",
 				thinking: true,
@@ -391,7 +589,7 @@ describe("createInteractiveComputerUser", () => {
 		const result = await createInteractiveComputerUser({
 			config: makeConfig(),
 			providerSettingsManager: makeSettings({ apiKey: "sk-ant-x" }),
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			env: {
 				CLINE_COMPUTER_USE_PORT: String(started.port),
 			} as NodeJS.ProcessEnv,

@@ -52,7 +52,7 @@ function makeHarness() {
 	const coordinator = new ComputerUserCoordinator({
 		host,
 		helperConfig: {},
-		notifyDriver: (input) => driverMessages.push(input.prompt),
+		emitSteerMessage: (prompt) => driverMessages.push(prompt),
 	});
 	const tools = createComputerUserDriverTools(coordinator);
 	const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -74,59 +74,9 @@ describe("computer-user driver tools", () => {
 		expect(coordinator.getState().kind).toBe("running");
 	});
 
-	it("status surfaces the coordinator's summary", async () => {
-		const { byName, coordinator } = makeHarness();
-		await byName.get("computer_user_start")?.execute({ task: "task" }, ctx);
-		coordinator.onHelperNote({ kind: "progress", text: "logging in" });
-		const output = (await byName
-			.get("computer_user_status")
-			?.execute({}, ctx)) as { summary: string; state: string };
-		expect(output.state).toBe("running");
-		expect(output.summary).toContain("logging in");
-	});
-
-	it("status advertises its revision cursor and bounded wait", () => {
+	it("does not expose a polling status tool", () => {
 		const { byName } = makeHarness();
-		const statusTool = byName.get("computer_user_status");
-
-		expect(statusTool?.inputSchema).toMatchObject({
-			type: "object",
-			properties: {
-				since: { type: "integer", minimum: 0 },
-				timeout: { type: "number", minimum: 0, maximum: 120 },
-			},
-			additionalProperties: false,
-		});
-		expect(statusTool?.timeoutMs).toBe(125_000);
-		expect(statusTool?.retryable).toBe(false);
-	});
-
-	it("status waits from a returned revision until the coordinator changes", async () => {
-		const { byName, coordinator } = makeHarness();
-		await byName.get("computer_user_start")?.execute({ task: "task" }, ctx);
-		const statusTool = byName.get("computer_user_status");
-		const initial = (await statusTool?.execute({}, ctx)) as {
-			revision: number;
-		};
-		const waiting = statusTool?.execute(
-			{ since: initial.revision, timeout: 10 },
-			ctx,
-		) as Promise<{ revision: number; latestNote?: { text: string } }>;
-
-		coordinator.onHelperNote({ kind: "progress", text: "found the dialog" });
-
-		await expect(waiting).resolves.toMatchObject({
-			revision: initial.revision + 1,
-			latestNote: { text: "found the dialog" },
-		});
-	});
-
-	it("status rejects timeout without since", async () => {
-		const { byName } = makeHarness();
-
-		await expect(
-			byName.get("computer_user_status")?.execute({ timeout: 1 }, ctx),
-		).rejects.toThrow("timeout requires since");
+		expect(byName.has("computer_user_status")).toBe(false);
 	});
 
 	it("message reports steer vs new_turn delivery honestly", async () => {
@@ -202,7 +152,7 @@ describe("computer-user driver tools", () => {
 		const coordinator = new ComputerUserCoordinator({
 			host,
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 		});
 		const tools = createComputerUserDriverTools(coordinator);
 		const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -250,7 +200,7 @@ describe("computer-user driver tools", () => {
 		const coordinator = new ComputerUserCoordinator({
 			host,
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 		});
 		const restart = createComputerUserDriverTools(coordinator).find(
 			(tool) => tool.name === "computer_user_restart",
@@ -282,7 +232,7 @@ describe("computer-user driver tools", () => {
 		const coordinator = new ComputerUserCoordinator({
 			host,
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 		});
 		const tools = createComputerUserDriverTools(coordinator);
 		const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -317,7 +267,7 @@ describe("computer-user driver tools", () => {
 		const coordinator = new ComputerUserCoordinator({
 			host,
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 			transcriptLog,
 		});
 		const tools = createComputerUserDriverTools(coordinator);
@@ -394,7 +344,7 @@ describe("computer-user driver tools", () => {
 		const coordinator = new ComputerUserCoordinator({
 			host,
 			helperConfig: {},
-			notifyDriver: () => {},
+			emitSteerMessage: () => {},
 		});
 		const tools = createComputerUserDriverTools(coordinator, {
 			backendRestart: capability,

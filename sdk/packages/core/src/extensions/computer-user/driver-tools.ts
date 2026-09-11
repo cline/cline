@@ -7,13 +7,12 @@ import type { ComputerUserCoordinator } from "./coordinator";
 /**
  * Driver-facing tools for delegating GUI work to the asynchronous computer
  * user. Start and message return without waiting for the helper's turn;
- * interrupt returns after the active turn is quiescent. Status can return
- * immediately or wait for a bounded change. Transcript peeks the helper's
- * recent activity; restart recreates a degraded helper session. Results,
- * questions, and warnings also arrive as steer messages injected into the
+ * interrupt returns after the active turn is quiescent. Transcript peeks the
+ * helper's recent activity; restart recreates a degraded helper session. Notes,
+ * results, questions, and warnings arrive as steer messages injected into the
  * driver's conversation. The tools are separate (rather than one action
  * union) because their approval semantics differ: hosts typically
- * auto-approve status and transcript checks while gating start/interrupt/
+ * auto-approve transcript checks while gating start/interrupt/
  * restart.
  */
 
@@ -51,32 +50,6 @@ const InterruptInput = z
 			.describe("Why the work should stop. Shown to the computer user."),
 	})
 	.strict();
-
-const MAX_STATUS_WAIT_SECONDS = 120;
-const StatusInput = z
-	.object({
-		since: z
-			.number()
-			.int()
-			.nonnegative()
-			.optional()
-			.describe(
-				"Revision returned by a previous status call. Returns immediately if status has changed since this revision.",
-			),
-		timeout: z
-			.number()
-			.nonnegative()
-			.max(MAX_STATUS_WAIT_SECONDS)
-			.optional()
-			.describe(
-				`Maximum seconds to wait for a change when since is current (0-${MAX_STATUS_WAIT_SECONDS}). Requires since.`,
-			),
-	})
-	.strict()
-	.refine((input) => input.timeout === undefined || input.since !== undefined, {
-		message: "timeout requires since",
-		path: ["timeout"],
-	});
 
 const MAX_TRANSCRIPT_LIMIT = 100;
 const TranscriptInput = z
@@ -145,7 +118,7 @@ export function createComputerUserDriverTools(
 	const start = createTool({
 		name: "computer_user_start",
 		description:
-			"Delegate a task requiring GUI/computer interaction to the computer user, a separate agent controlling a computer environment. Returns immediately; you will be notified in this conversation when it finishes, fails, or has a question. Continue with other work meanwhile, or poll computer_user_status.",
+			"Delegate a task requiring GUI/computer interaction to the computer user, a separate agent controlling a computer environment. Returns immediately; progress, observations, questions, failures, and completion wake this session through steer messages, including after the current turn finishes.",
 		inputSchema: zodToJsonSchema(StartInput),
 		retryable: false,
 		execute: async (input: unknown) => {
@@ -157,25 +130,6 @@ export function createComputerUserDriverTools(
 				runId,
 				note: "The computer user is working in the background. You will be notified here when it reports.",
 			};
-		},
-	});
-
-	const status = createTool({
-		name: "computer_user_status",
-		description:
-			"Get the computer user's current state, latest update, and revision. To wait without polling, pass the revision from a previous response as since plus a timeout in seconds. Returns immediately if the revision has already changed; otherwise waits until a change or timeout.",
-		inputSchema: zodToJsonSchema(StatusInput),
-		timeoutMs: (MAX_STATUS_WAIT_SECONDS + 5) * 1000,
-		retryable: false,
-		execute: async (input: unknown, context) => {
-			const parsed = StatusInput.parse(input);
-			return parsed.since === undefined
-				? coordinator.status()
-				: coordinator.waitForStatus(
-						parsed.since,
-						(parsed.timeout ?? 0) * 1000,
-						context.signal,
-					);
 		},
 	});
 
@@ -260,14 +214,7 @@ export function createComputerUserDriverTools(
 		},
 	});
 
-	const tools: AgentTool[] = [
-		start,
-		status,
-		message,
-		interrupt,
-		transcript,
-		restart,
-	];
+	const tools: AgentTool[] = [start, message, interrupt, transcript, restart];
 
 	if (options?.backendRestart) {
 		const backendRestart = options.backendRestart;

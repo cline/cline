@@ -1,5 +1,5 @@
 import type { AgentResult } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
 	ComputerUserCoordinator,
 	type ComputerUserSessionHost,
@@ -51,11 +51,11 @@ function makeControllableHost() {
 }
 
 function makeCoordinator(host: ComputerUserSessionHost) {
-	const driverMessages: Array<{ prompt: string; delivery: string }> = [];
+	const driverMessages: string[] = [];
 	const coordinator = new ComputerUserCoordinator({
 		host,
 		helperConfig: { providerId: "anthropic", modelId: "claude-sonnet-4-6" },
-		notifyDriver: (input) => driverMessages.push(input),
+		emitSteerMessage: (prompt) => driverMessages.push(prompt),
 	});
 	return { coordinator, driverMessages };
 }
@@ -68,10 +68,6 @@ async function settle(): Promise<void> {
 }
 
 describe("ComputerUserCoordinator", () => {
-	afterEach(() => {
-		vi.useRealTimers();
-	});
-
 	it("start returns immediately and completion notifies the driver via steer", async () => {
 		const { host, pendingSends } = makeControllableHost();
 		const { coordinator, driverMessages } = makeCoordinator(host);
@@ -91,133 +87,9 @@ describe("ComputerUserCoordinator", () => {
 
 		expect(coordinator.getState().kind).toBe("idle");
 		expect(driverMessages).toHaveLength(1);
-		expect(driverMessages[0]?.delivery).toBe("steer");
-		expect(driverMessages[0]?.prompt).toContain("[COMPUTER USER DONE]");
-		expect(driverMessages[0]?.prompt).toContain("payments health check");
-		expect(driverMessages[0]?.prompt).toContain("0/3 healthy instances");
-	});
-
-	it("a status wait unblocking on completion carries the final report", async () => {
-		const { host, pendingSends } = makeControllableHost();
-		const { coordinator } = makeCoordinator(host);
-		await coordinator.start("check the dashboard");
-		// The helper's finish tool bumps the revision before the run settles;
-		// a driver polling at that point sees "running" and waits again. That
-		// second wait must unblock on the idle transition WITH the outcome.
-		coordinator.onHelperFinish({
-			result: "Dashboard is green",
-			observations: [],
-		});
-		const stillRunning = coordinator.status();
-		expect(stillRunning.state).toBe("running");
-
-		const wait = coordinator.waitForStatus(stillRunning.revision, 5_000);
-		pendingSends[0]?.resolve(makeResult());
-		const unblocked = await wait;
-
-		expect(unblocked.state).toBe("idle");
-		expect(unblocked.lastReport?.result).toBe("Dashboard is green");
-		expect(unblocked.summary).toContain("Dashboard is green");
-	});
-
-	it("status reports the latest note with a poll-time age", async () => {
-		let clock = 1_000_000;
-		const { host } = makeControllableHost();
-		const coordinator = new ComputerUserCoordinator({
-			host,
-			helperConfig: {},
-			notifyDriver: () => {},
-			now: () => clock,
-		});
-		await coordinator.start("task");
-		coordinator.onHelperNote({ kind: "progress", text: "signing in" });
-		clock += 43_000;
-
-		const status = coordinator.status();
-		expect(status.latestNote?.ageSeconds).toBe(43);
-		expect(status.summary).toContain('"signing in" 43 seconds ago');
-		expect(status.summary).toContain("working");
-	});
-
-	it("returns immediately when status is newer than since", async () => {
-		const { host } = makeControllableHost();
-		const { coordinator } = makeCoordinator(host);
-		const initialRevision = coordinator.status().revision;
-
-		await coordinator.start("task");
-
-		await expect(
-			coordinator.waitForStatus(initialRevision, 10_000),
-		).resolves.toMatchObject({
-			revision: initialRevision + 1,
-			state: "running",
-		});
-	});
-
-	it("waits at the current revision until observable status changes", async () => {
-		const { host } = makeControllableHost();
-		const { coordinator } = makeCoordinator(host);
-		await coordinator.start("task");
-		const currentRevision = coordinator.status().revision;
-		let settled = false;
-		const waiting = coordinator
-			.waitForStatus(currentRevision, 10_000)
-			.then((status) => {
-				settled = true;
-				return status;
-			});
-
-		await Promise.resolve();
-		expect(settled).toBe(false);
-		coordinator.onHelperNote({ kind: "progress", text: "opened settings" });
-
-		await expect(waiting).resolves.toMatchObject({
-			revision: currentRevision + 1,
-			state: "running",
-			latestNote: { text: "opened settings" },
-		});
-	});
-
-	it("returns the current snapshot when the wait times out", async () => {
-		vi.useFakeTimers();
-		const { host } = makeControllableHost();
-		const { coordinator } = makeCoordinator(host);
-		await coordinator.start("task");
-		const current = coordinator.status();
-
-		const waiting = coordinator.waitForStatus(current.revision, 5_000);
-		await vi.advanceTimersByTimeAsync(5_000);
-
-		await expect(waiting).resolves.toMatchObject({
-			revision: current.revision,
-			state: current.state,
-		});
-	});
-
-	it("rejects a future revision instead of waiting forever", async () => {
-		const { host } = makeControllableHost();
-		const { coordinator } = makeCoordinator(host);
-
-		await expect(coordinator.waitForStatus(1, 10_000)).rejects.toThrow(
-			/current revision 0/,
-		);
-	});
-
-	it("aborts a status wait and removes it from later status changes", async () => {
-		const { host } = makeControllableHost();
-		const { coordinator } = makeCoordinator(host);
-		const controller = new AbortController();
-		const waiting = coordinator.waitForStatus(
-			coordinator.status().revision,
-			10_000,
-			controller.signal,
-		);
-
-		controller.abort(new Error("driver turn stopped"));
-
-		await expect(waiting).rejects.toThrow("driver turn stopped");
-		await coordinator.start("task");
-		expect(coordinator.status().state).toBe("running");
+		expect(driverMessages[0]).toContain("[COMPUTER USER DONE]");
+		expect(driverMessages[0]).toContain("payments health check");
+		expect(driverMessages[0]).toContain("0/3 healthy instances");
 	});
 
 	it("message steers a running helper without starting a new run", async () => {
@@ -296,8 +168,8 @@ describe("ComputerUserCoordinator", () => {
 		await settle();
 
 		expect(coordinator.getState().kind).toBe("waiting_for_driver");
-		expect(driverMessages[0]?.prompt).toContain("[COMPUTER USER QUESTION]");
-		expect(driverMessages[0]?.prompt).toContain("Replace or Merge?");
+		expect(driverMessages[0]).toContain("[COMPUTER USER QUESTION]");
+		expect(driverMessages[0]).toContain("Replace or Merge?");
 
 		const result = await coordinator.message("Choose Merge");
 		expect(result.delivered).toBe("new_turn");
@@ -338,7 +210,7 @@ describe("ComputerUserCoordinator", () => {
 			kind: "failed",
 			error: "provider exploded",
 		});
-		expect(driverMessages[0]?.prompt).toContain("[COMPUTER USER FAILED]");
+		expect(driverMessages[0]).toContain("[COMPUTER USER FAILED]");
 
 		const result = await coordinator.message("try again");
 		expect(result.delivered).toBe("new_turn");

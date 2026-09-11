@@ -198,7 +198,12 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 				metadata: { data: block.data },
 			};
 		case "image":
-			return { type: "image", image: block.data, mediaType: block.mediaType };
+			return {
+				type: "image",
+				image: block.data,
+				mediaType: block.mediaType,
+				...(block.source === "computer" ? { source: block.source } : {}),
+			};
 		case "media":
 			return { type: "media", media: block.media };
 		case "file":
@@ -263,6 +268,7 @@ function agentPartToContentBlock(
 						type: "image",
 						data: part.image,
 						mediaType: part.mediaType ?? "image/png",
+						...(part.source === "computer" ? { source: part.source } : {}),
 					} satisfies ImageContent)
 				: undefined;
 		case "file":

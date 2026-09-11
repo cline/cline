@@ -12,8 +12,7 @@ import type {
  * The helper is a persistent, interactive session on a separately configured
  * provider (e.g. Anthropic/Sonnet while the driver runs GPT). Driver-facing
  * commands start and steer the helper without waiting for its turn; interruption
- * waits until the active helper run is quiescent. Status can either return a
- * snapshot or wait for a bounded status change. The helper reports back through
+ * waits until the active helper run is quiescent. The helper reports back through
  * terminal collaboration tools (`ask_driver`, `finish_computer_task`) plus
  * non-terminal notes (`post_driver_update`).
  *
@@ -46,11 +45,8 @@ export interface ComputerUserSessionHost {
 	stop(sessionId: string): Promise<void>;
 }
 
-/** Injects a message into the driver's conversation (steer or queue). */
-export type DriverNotifier = (input: {
-	prompt: string;
-	delivery: "queue" | "steer";
-}) => void;
+/** Emits a steer message that wakes the driver's conversation. */
+export type DriverNotifier = (prompt: string) => void;
 
 // ---------------------------------------------------------------------------
 // State machine
@@ -59,7 +55,6 @@ export type DriverNotifier = (input: {
 export interface HelperNote {
 	text: string;
 	kind: "progress" | "observation" | "warning";
-	reportedAt: number;
 }
 
 export interface DriverQuestion {
@@ -85,26 +80,11 @@ export type ComputerUserState =
 	| { kind: "failed"; sessionId: string; error: string }
 	| { kind: "disposed" };
 
-export interface ComputerUserStatus {
-	/** Opaque monotonic cursor for a later waitForStatus call. */
-	revision: number;
-	state: ComputerUserState["kind"];
-	sessionId?: string;
-	runId?: string;
-	latestNote?: HelperNote & { ageSeconds: number };
-	pendingQuestion?: DriverQuestion;
-	/** The most recent completed run's report, retained until the next run. */
-	lastReport?: { result: string; observations: string[] };
-	lastMeaningfulProgressAt?: number;
-	/** Human-readable one-liner for the driver's tool result. */
-	summary: string;
-}
-
 export interface ComputerUserCoordinatorOptions {
 	host: ComputerUserSessionHost;
 	/** Fully-resolved helper session config (provider, tools, prompt). */
 	helperConfig: Record<string, unknown>;
-	notifyDriver: DriverNotifier;
+	emitSteerMessage: DriverNotifier;
 	recorder?: ComputerTaskArtifactRecorder;
 	/** In-process tail of the helper's transcript, for the driver's peek tool. */
 	transcriptLog?: ComputerUserTranscriptLog;
@@ -113,14 +93,8 @@ export interface ComputerUserCoordinatorOptions {
 
 export class ComputerUserCoordinator {
 	private state: ComputerUserState = { kind: "uninitialized" };
-	private statusRevision = 0;
-	private readonly statusWaiters = new Set<() => void>();
-	private latestNote: HelperNote | undefined;
-	private lastMeaningfulProgressAt: number | undefined;
 	private pendingQuestion: DriverQuestion | undefined;
 	private finalReport: { result: string; observations: string[] } | undefined;
-	/** Retained after completion so status polls can read the outcome. */
-	private lastReport: { result: string; observations: string[] } | undefined;
 	/** Serializes all state transitions; the background run stays outside it. */
 	private transitionQueue: Promise<unknown> = Promise.resolve();
 	/** Resolves after each run's serialized settlement has completed. */
@@ -157,8 +131,6 @@ export class ComputerUserCoordinator {
 				prompt: task,
 			};
 			this.state = { kind: "running", sessionId, run };
-			this.lastReport = undefined;
-			this.markProgress();
 			this.recordStatusChange("running");
 			this.launchRun(sessionId, run);
 			return { sessionId, runId: run.runId };
@@ -199,8 +171,6 @@ export class ComputerUserCoordinator {
 						prompt: text,
 					};
 					this.state = { kind: "running", sessionId, run };
-					this.lastReport = undefined;
-					this.markProgress();
 					this.recordStatusChange("running");
 					this.launchRun(sessionId, run);
 					return { delivered: "new_turn" as const };
@@ -257,82 +227,6 @@ export class ComputerUserCoordinator {
 		return { interrupted: true };
 	}
 
-	status(): ComputerUserStatus {
-		const noteAge = this.latestNote
-			? Math.max(
-					0,
-					Math.round((this.now() - this.latestNote.reportedAt) / 1000),
-				)
-			: undefined;
-		return {
-			revision: this.statusRevision,
-			state: this.state.kind,
-			sessionId: "sessionId" in this.state ? this.state.sessionId : undefined,
-			runId: "run" in this.state ? this.state.run.runId : undefined,
-			latestNote:
-				this.latestNote && noteAge !== undefined
-					? { ...this.latestNote, ageSeconds: noteAge }
-					: undefined,
-			pendingQuestion:
-				this.state.kind === "waiting_for_driver"
-					? this.state.question
-					: undefined,
-			lastReport: this.lastReport,
-			lastMeaningfulProgressAt: this.lastMeaningfulProgressAt,
-			summary: this.buildSummary(noteAge),
-		};
-	}
-
-	/**
-	 * Returns once status has advanced beyond `since`, or when `timeoutMs`
-	 * elapses. The revision check and waiter registration share one synchronous
-	 * section, so a status transition cannot land between them and be missed.
-	 */
-	waitForStatus(
-		since: number,
-		timeoutMs: number,
-		signal?: AbortSignal,
-	): Promise<ComputerUserStatus> {
-		if (since > this.statusRevision) {
-			return Promise.reject(
-				new Error(
-					`Status revision ${since} is newer than the current revision ${this.statusRevision}`,
-				),
-			);
-		}
-		if (since < this.statusRevision || timeoutMs === 0) {
-			return Promise.resolve(this.status());
-		}
-		if (signal?.aborted) {
-			return Promise.reject(statusWaitAbortReason(signal));
-		}
-
-		return new Promise<ComputerUserStatus>((resolve, reject) => {
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const cleanup = () => {
-				this.statusWaiters.delete(onStatusChange);
-				if (timer !== undefined) {
-					clearTimeout(timer);
-				}
-				signal?.removeEventListener("abort", onAbort);
-			};
-			const finish = () => {
-				cleanup();
-				resolve(this.status());
-			};
-			const onStatusChange = () => finish();
-			const onAbort = () => {
-				cleanup();
-				reject(statusWaitAbortReason(signal));
-			};
-
-			this.statusWaiters.add(onStatusChange);
-			timer = setTimeout(finish, timeoutMs);
-			timer.unref?.();
-			signal?.addEventListener("abort", onAbort, { once: true });
-		});
-	}
-
 	/** Aborts active work, stops the helper session, and releases resources. */
 	async dispose(): Promise<void> {
 		await this.transition(async () => {
@@ -387,9 +281,6 @@ export class ComputerUserCoordinator {
 				);
 			}
 			this.state = { kind: "uninitialized" };
-			this.lastReport = undefined;
-			this.latestNote = undefined;
-			this.lastMeaningfulProgressAt = undefined;
 			this.pendingQuestion = undefined;
 			this.finalReport = undefined;
 			this.recordStatusChange("uninitialized");
@@ -415,17 +306,11 @@ export class ComputerUserCoordinator {
 	// -----------------------------------------------------------------------
 
 	/** Called by the helper's `post_driver_update` tool. */
-	onHelperNote(note: Omit<HelperNote, "reportedAt">): void {
-		this.latestNote = { ...note, reportedAt: this.now() };
-		this.markProgress();
-		this.advanceStatusRevision();
+	onHelperNote(note: HelperNote): void {
 		this.record("helper.note", { kind: note.kind, message: note.text });
-		if (note.kind === "warning") {
-			this.options.notifyDriver({
-				prompt: `[COMPUTER USER WARNING] ${note.text}`,
-				delivery: "steer",
-			});
-		}
+		this.options.emitSteerMessage(
+			`[COMPUTER USER ${note.kind.toUpperCase()}] ${note.text}`,
+		);
 	}
 
 	/**
@@ -444,8 +329,6 @@ export class ComputerUserCoordinator {
 			eventId: `evt_${nanoid(12)}`,
 		};
 		this.pendingQuestion = question;
-		this.markProgress();
-		this.advanceStatusRevision();
 		this.record("helper.question", {
 			question: input.question,
 			context: input.context,
@@ -457,8 +340,6 @@ export class ComputerUserCoordinator {
 	/** Called by the helper's terminal `finish_computer_task` tool. */
 	onHelperFinish(report: { result: string; observations: string[] }): void {
 		this.finalReport = report;
-		this.markProgress();
-		this.advanceStatusRevision();
 	}
 
 	// -----------------------------------------------------------------------
@@ -533,31 +414,18 @@ export class ComputerUserCoordinator {
 				const message = error?.message ?? result?.text ?? "Unknown error";
 				this.state = { kind: "failed", sessionId, error: message };
 				this.recordStatusChange("failed");
-				this.options.notifyDriver({
-					prompt: `[COMPUTER USER FAILED] ${message}`,
-					delivery: "steer",
-				});
+				this.options.emitSteerMessage(`[COMPUTER USER FAILED] ${message}`);
 				return;
 			}
 			if (question) {
 				this.state = { kind: "waiting_for_driver", sessionId, question };
 				this.recordStatusChange("waiting_for_driver");
-				this.options.notifyDriver({
-					prompt: formatQuestionForDriver(question),
-					delivery: "steer",
-				});
+				this.options.emitSteerMessage(formatQuestionForDriver(question));
 				return;
 			}
 			this.state = { kind: "idle", sessionId };
-			// Retain the outcome so a status wait that unblocks on this
-			// transition reads the result immediately instead of waiting
-			// for the queued DONE message to reach the driver.
-			this.lastReport = report;
 			this.recordStatusChange("idle");
-			this.options.notifyDriver({
-				prompt: formatCompletionForDriver(report, result),
-				delivery: "steer",
-			});
+			this.options.emitSteerMessage(formatCompletionForDriver(report, result));
 		});
 	}
 
@@ -567,38 +435,6 @@ export class ComputerUserCoordinator {
 		// caller's rejection.
 		this.transitionQueue = next.catch(() => {});
 		return next;
-	}
-
-	private markProgress(): void {
-		this.lastMeaningfulProgressAt = this.now();
-	}
-
-	private buildSummary(noteAgeSeconds: number | undefined): string {
-		const note = this.latestNote;
-		const noteLine =
-			note && noteAgeSeconds !== undefined
-				? `The computer user reported: "${note.text}" ${noteAgeSeconds} seconds ago.`
-				: "The computer user has not posted an update yet.";
-		switch (this.state.kind) {
-			case "uninitialized":
-				return "The computer user has not been started.";
-			case "running":
-				return `${noteLine} Status: working.`;
-			case "waiting_for_driver":
-				return `${noteLine} Status: waiting for your answer to a question.`;
-			case "cancelling":
-				return `${noteLine} Status: being interrupted.`;
-			case "failed":
-				return `${noteLine} Status: failed.`;
-			case "idle":
-				// A status wait that unblocks on completion gets the outcome
-				// here, without racing the queued DONE steer message.
-				return this.lastReport
-					? `The computer user finished: "${this.lastReport.result}" Status: idle.`
-					: `${noteLine} Status: idle.`;
-			case "disposed":
-				return "The computer user has been shut down.";
-		}
 	}
 
 	private record(
@@ -619,27 +455,8 @@ export class ComputerUserCoordinator {
 	}
 
 	private recordStatusChange(to: ComputerUserState["kind"]): void {
-		this.advanceStatusRevision();
 		this.record("helper.status_changed", { to });
 	}
-
-	private advanceStatusRevision(): void {
-		this.statusRevision += 1;
-		const waiters = [...this.statusWaiters];
-		this.statusWaiters.clear();
-		for (const wake of waiters) {
-			wake();
-		}
-	}
-}
-
-function statusWaitAbortReason(signal: AbortSignal | undefined): Error {
-	if (signal?.reason instanceof Error) {
-		return signal.reason;
-	}
-	return new Error(
-		typeof signal?.reason === "string" ? signal.reason : "Status wait aborted",
-	);
 }
 
 function formatQuestionForDriver(question: DriverQuestion): string {

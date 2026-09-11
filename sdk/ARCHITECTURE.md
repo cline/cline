@@ -126,6 +126,12 @@ Design rules:
 6. `@cline/agents` runs the loop using `@cline/llms` handlers.
 7. `@cline/core` persists state, artifacts, and metadata.
 
+#### Computer-user observations
+
+The CLI's computer-user helper remains local to the computer-use backend. A per-session `beforeModel` hook in `packages/core/src/extensions/computer-user/instruction-observation.ts` attaches a screenshot when an instruction reaches the model, including mid-run steering after tools settle. It uses the computer tool's shared client, so the image and the backend's click-guard reference advance at the same boundary. Capture errors and cancellation prevent the model request; helper replacement owns a fresh cache. The observation is a helper-only request projection, not an image inspected by the driver or a mutation of the canonical transcript. qbt journals the underlying capture.
+
+The qbt screenshot response carries foreground-window executable/title metadata sampled around pixel capture. Missing or unstable metadata is unknown, not a focused-control guarantee. Both instruction observations and ordinary computer results use the same formatter and the message builder's latest-screenshot media reservation.
+
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
