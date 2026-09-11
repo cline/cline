@@ -67,12 +67,12 @@ export async function resolveAiSdkTelemetry(
 	providerId: string,
 	samplingKey?: string,
 ): Promise<AiSdkTelemetryDecision> {
-	if (await ensureLangfuseTelemetry(providerId)) {
-		return { isEnabled: true };
-	}
-
 	if (!isClineProviderId(providerId)) {
 		return TELEMETRY_DISABLED;
+	}
+
+	if (await ensureLangfuseTelemetry(providerId)) {
+		return { isEnabled: true };
 	}
 
 	if (await isTelemetryOptedOutGlobally()) {
