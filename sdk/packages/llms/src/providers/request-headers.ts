@@ -23,7 +23,17 @@ export interface OpenAICodexRequestHeaderContext {
 
 export interface ResolveProviderRequestHeadersInput {
 	providerId: string;
-	sessionId: string;
+	/**
+	 * Session (task) id the request belongs to, surfaced as `X-Task-ID` for
+	 * Cline billing providers and `session_id` for OpenAI Codex.
+	 *
+	 * Optional because not every request is part of a session: standalone
+	 * one-shot utility calls (e.g. VS Code commit message generation) have no
+	 * task. When omitted, `X-Task-ID` is left off entirely rather than sent
+	 * empty — the pre-SDK extension sent `X-Task-ID: ""` from that same
+	 * commit-message path, so no Cline surface depends on a meaningful id here.
+	 */
+	sessionId?: string;
 	source?: string;
 	defaultSource: string;
 	client?: ProviderRequestHeaderClientContext;
@@ -77,6 +87,7 @@ function buildClineRequestHeaders(
 	const platform = trimNonEmpty(input.client?.platform) ?? source;
 	const platformVersion =
 		trimNonEmpty(input.client?.platformVersion) ?? clientVersion;
+	const sessionId = trimNonEmpty(input.sessionId);
 	return {
 		...DEFAULT_CLINE_REQUEST_HEADERS,
 		"User-Agent": `Cline/${clientVersion}`,
@@ -86,7 +97,7 @@ function buildClineRequestHeaders(
 		"X-PLATFORM": platform,
 		"X-PLATFORM-VERSION": platformVersion,
 		"X-CORE-VERSION": input.coreVersion,
-		"X-Task-ID": input.sessionId,
+		...(sessionId ? { "X-Task-ID": sessionId } : {}),
 	};
 }
 
@@ -125,9 +136,10 @@ function buildOpenAICodexRequestHeaders(
 	const accountId =
 		trimNonEmpty(input.openAiCodex?.accountId) ??
 		deriveOpenAICodexAccountId(input.openAiCodex?.accessToken);
+	const sessionId = trimNonEmpty(input.sessionId);
 	return {
 		originator: "cline",
-		session_id: input.sessionId,
+		...(sessionId ? { session_id: sessionId } : {}),
 		"User-Agent": `Cline/${trimNonEmpty(input.openAiCodex?.userAgentVersion) ?? "1.0.0"}`,
 		...(accountId ? { "ChatGPT-Account-Id": accountId } : {}),
 	};
