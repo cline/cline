@@ -1,9 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentExtension, BasicLogger } from "@cline/shared";
-import { createTool, getClineEnvironmentConfig } from "@cline/shared";
+import {
+	createTool,
+	FeatureFlag,
+	getClineEnvironmentConfig,
+} from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
 import { RuntimeOAuthTokenManager } from "../../runtime/orchestration/runtime-oauth-token-manager";
+import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { resolveLocalClineAuthToken } from "../../services/providers/local-provider-service";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 
@@ -27,7 +32,8 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  * importantly compiled binaries that cannot spawn the plugin sandbox, such as
  * the packaged desktop app — and gives CLI-hosted sessions the same tools.
  * Deleting the state file (or disconnecting every integration) turns the
- * tools off for new sessions; running sessions keep their frozen tool set.
+ * tools off for new sessions; running sessions keep their frozen tool set,
+ * but every execution rechecks the account beta flag.
  */
 
 const COMPOSIO_STATE_FILE_NAME = "composio.json";
@@ -105,6 +111,12 @@ async function executeComposioTool(
 	tool: StoredComposioTool,
 	input: unknown,
 ): Promise<unknown> {
+	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
+		return {
+			successful: false,
+			error: "Composio connectors are not enabled for this account.",
+		};
+	}
 	const auth = await resolveConnectorsAuth();
 	if (!auth) {
 		return {
@@ -164,11 +176,14 @@ async function executeComposioTool(
  * The state is read once here, at session-bootstrap time, so a session's
  * tool set is frozen at start exactly like the previous plugin's was.
  */
-export function createComposioToolsExtension(options?: {
+export async function createComposioToolsExtension(options?: {
 	logger?: BasicLogger;
-}): AgentExtension | undefined {
+}): Promise<AgentExtension | undefined> {
 	const state = loadComposioState();
 	if (!state?.toolkits) {
+		return undefined;
+	}
+	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
 		return undefined;
 	}
 	const toolkits = Object.entries(state.toolkits).filter(

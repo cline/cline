@@ -7,7 +7,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import type { BasicLogger } from "@cline/shared";
+import { isClineAccountFeatureEnabled } from "@cline/core";
+import { type BasicLogger, FeatureFlag } from "@cline/shared";
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import {
 	COMPOSIO_RECOMMENDED_TOOLKITS,
@@ -381,8 +382,7 @@ function readReconciledComposioState(
 
 /**
  * Whether connectors are available to this install. The proxy enforces
- * entitlement (signed-in Cline account on an internal domain / rollout
- * cohort) on every route; a `listConnections` probe both proves sign-in and
+ * entitlement for the signed-in Cline account on every route; a `listConnections` probe both proves sign-in and
  * exercises that gate. 401/403 → not available. Result is cached briefly to
  * spare the network the UI's frequent status polls; a forced refresh (or
  * cache miss) re-probes.
@@ -391,6 +391,11 @@ async function isConnectorsAvailable(options?: {
 	forceRefresh?: boolean;
 	ctx?: ClineAuthTelemetryContext;
 }): Promise<boolean> {
+	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
+		configuredCache = null;
+		catalogCache = null;
+		return false;
+	}
 	if (
 		!options?.forceRefresh &&
 		configuredCache &&
@@ -514,6 +519,9 @@ export async function getComposioStatus(options?: {
 		forceRefresh: options?.refresh,
 		ctx,
 	});
+	if (!configured) {
+		return { configured: false, integrations: [] };
+	}
 	const state = readReconciledComposioState(options?.logger);
 	if (!options?.refresh || !configured) {
 		return buildStatusResponse(state, configured);

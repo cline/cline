@@ -15,6 +15,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * per test, so no network — and no Composio key — is involved. `ConnectorsApiError`
  * is kept real so status-code handling (401/403/404) is exercised faithfully.
  */
+const beta = vi.hoisted(() => ({ enabled: true }));
+vi.mock("@cline/core", async () => ({
+	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
+	isClineAccountFeatureEnabled: async () => beta.enabled,
+}));
+
 const proxy = vi.hoisted(() => ({
 	fetchConnectableToolkits: vi.fn(),
 	initiateConnection: vi.fn(),
@@ -89,6 +95,7 @@ function makeAvailable(connections: unknown[] = []): void {
 }
 
 beforeEach(() => {
+	beta.enabled = true;
 	vi.clearAllMocks();
 	__resetComposioCachesForTesting();
 	// Sensible defaults; individual tests override.
@@ -463,5 +470,46 @@ describe("disconnectComposioToolkit", () => {
 			status.integrations.find((e) => e.toolkit === "github")?.status,
 		).toBe("not_connected");
 		expect(readStateFile(dir).toolkits).toEqual({});
+	});
+});
+
+describe("Composio beta access", () => {
+	it("hides saved connectors and catalog without making proxy requests", async () => {
+		const dir = useTempDataDir();
+		writeState(dir, {
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		beta.enabled = false;
+		expect(await getComposioStatus({ refresh: true })).toEqual({
+			configured: false,
+			integrations: [],
+		});
+		expect(await listComposioToolkits()).toEqual({
+			configured: false,
+			toolkits: [],
+		});
+		await expect(connectComposioToolkit("gmail")).rejects.toThrow(
+			/not be enabled/,
+		);
+		expect(proxy.listConnections).not.toHaveBeenCalled();
+		expect(proxy.fetchConnectableToolkits).not.toHaveBeenCalled();
+		expect(proxy.initiateConnection).not.toHaveBeenCalled();
+	});
+
+	it("does not reuse cached availability after beta access is removed", async () => {
+		useTempDataDir();
+		await getComposioStatus();
+		proxy.listConnections.mockClear();
+		beta.enabled = false;
+		expect(await getComposioStatus()).toEqual({
+			configured: false,
+			integrations: [],
+		});
+		expect(proxy.listConnections).not.toHaveBeenCalled();
 	});
 });

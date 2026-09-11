@@ -6,6 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * errors as `{"error": "..."}`. Mocks auth resolution and `fetch` directly —
  * one level below `composio.test.ts`, which mocks this module instead.
  */
+const beta = vi.hoisted(() => ({ enabled: true }));
+vi.mock("@cline/core", async () => ({
+	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
+	isClineAccountFeatureEnabled: async () => beta.enabled,
+}));
+
 vi.mock("./cline-auth", () => ({
 	resolveConnectorsApiAuth: vi.fn(async () => ({
 		baseUrl: "https://core-api.staging.int.cline.bot",
@@ -29,6 +35,7 @@ function mockFetchOnce(status: number, body: string) {
 }
 
 beforeEach(() => {
+	beta.enabled = true;
 	vi.clearAllMocks();
 });
 
@@ -82,5 +89,21 @@ describe("requestConnectorsApi envelope handling", () => {
 				"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
 			status: 401,
 		} satisfies Partial<ConnectorsApiError>);
+	});
+});
+
+describe("Composio beta request gate", () => {
+	it("blocks requests without the beta flag", async () => {
+		beta.enabled = false;
+		mockFetchOnce(200, "{}");
+		await expect(listConnections()).rejects.toMatchObject({ status: 403 });
+		expect(global.fetch).not.toHaveBeenCalled();
+	});
+
+	it("allows revoking existing connections after beta access is removed", async () => {
+		beta.enabled = false;
+		mockFetchOnce(200, "");
+		await expect(deleteConnection("acct-1")).resolves.toBeUndefined();
+		expect(global.fetch).toHaveBeenCalledOnce();
 	});
 });

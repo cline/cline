@@ -1,4 +1,5 @@
-import type { BasicLogger } from "@cline/shared";
+import { isClineAccountFeatureEnabled } from "@cline/core";
+import { type BasicLogger, FeatureFlag } from "@cline/shared";
 import type { ComposioToolkitSlug } from "../webview/lib/composio-types";
 import {
 	type ClineAuthTelemetryContext,
@@ -13,6 +14,9 @@ import {
  * the reason this proxy exists: Composio project keys cannot be user-scoped,
  * so any client-held key (however permission-scoped) would allow executing
  * tools as other users. See the backend contract notes on each function.
+ *
+ * The backend must also enforce `CLINE_COMPOSIO_BETA` for the authenticated
+ * account; client-side rollout checks are not an authorization boundary.
  *
  * Every function resolves the account bearer token itself (shared
  * refresh-aware resolver) and throws {@link ConnectorsApiError} with the
@@ -79,6 +83,16 @@ async function requestConnectorsApi<T>(
 		throw new ConnectorsApiError(
 			"Sign in to your Cline account to use connectors.",
 			401,
+		);
+	}
+	// Revocation remains available for cleanup after beta access is removed.
+	if (
+		method !== "DELETE" &&
+		!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))
+	) {
+		throw new ConnectorsApiError(
+			"Composio connectors are not enabled for this account.",
+			403,
 		);
 	}
 	let response: Response;

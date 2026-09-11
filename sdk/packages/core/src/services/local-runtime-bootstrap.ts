@@ -474,7 +474,7 @@ export async function prepareLocalRuntimeBootstrap(
 	// state rather than through a drop-in plugin: compiled hosts (the packaged
 	// desktop app) cannot spawn the plugin sandbox, and every host with the
 	// state file should serve the same tools.
-	const composioToolsExtension = createComposioToolsExtension({
+	const composioToolsExtension = await createComposioToolsExtension({
 		logger: localConfig?.logger,
 	});
 	const builtInExtensionList = [

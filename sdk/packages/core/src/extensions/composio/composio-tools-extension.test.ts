@@ -8,6 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * extension resolves a Cline account token. Mock the token resolution so
  * tests can drive the signed-in / signed-out cases without a real account.
  */
+const beta = vi.hoisted(() => ({ enabled: true }));
+vi.mock("../../services/feature-flags/cline-account-feature-flags", () => ({
+	isClineAccountFeatureEnabled: async () => beta.enabled,
+}));
+
 const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
 	baseUrl: "https://api.cline.bot",
@@ -54,7 +59,7 @@ function writeState(state: unknown): void {
 }
 
 async function setupTools(): Promise<RegisteredTool[]> {
-	const extension = createComposioToolsExtension();
+	const extension = await createComposioToolsExtension();
 	const tools: RegisteredTool[] = [];
 	if (!extension) {
 		return tools;
@@ -69,6 +74,7 @@ async function setupTools(): Promise<RegisteredTool[]> {
 }
 
 beforeEach(() => {
+	beta.enabled = true;
 	tempDataDir = mkdtempSync(join(tmpdir(), "composio-ext-test-"));
 	process.env.CLINE_DATA_DIR = tempDataDir;
 	auth.token = "cline_token_123";
@@ -87,14 +93,47 @@ afterEach(() => {
 
 describe("createComposioToolsExtension", () => {
 	it("returns undefined when there is no connector state", async () => {
-		expect(createComposioToolsExtension()).toBeUndefined();
+		expect(await createComposioToolsExtension()).toBeUndefined();
 	});
 
 	it("returns undefined when every connected toolkit has zero tools", async () => {
 		writeState({
 			toolkits: { github: { connectedAccountId: "ca_github", tools: [] } },
 		});
-		expect(createComposioToolsExtension()).toBeUndefined();
+		expect(await createComposioToolsExtension()).toBeUndefined();
+	});
+
+	it("does not register saved tools without beta access", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		beta.enabled = false;
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("refuses execution when beta access is removed after registration", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "ca_gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		const tools = await setupTools();
+		beta.enabled = false;
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		expect(await tools[0].execute({})).toEqual({
+			successful: false,
+			error: "Composio connectors are not enabled for this account.",
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("registers one snake_case tool per stored schema", async () => {
