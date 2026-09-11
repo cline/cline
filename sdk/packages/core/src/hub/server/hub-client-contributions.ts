@@ -35,11 +35,14 @@ export {
 
 import type {
 	AvailableRuntimeCommand,
+	SkillConfig,
 	UserInstructionConfig,
 	UserInstructionConfigRecord,
 	UserInstructionConfigService,
 	UserInstructionConfigType,
 } from "../../extensions/config";
+import { normalizeRuntimeCommandName } from "../../extensions/config/runtime-commands";
+import { formatSkillInvocation } from "../../extensions/config/user-instruction-plugin";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	createSkillsTool,
@@ -218,11 +221,16 @@ export function parseHubClientContributions(
 function serializeToolContext(
 	context: AgentToolContext,
 ): Record<string, unknown> {
+	const metadata = context.metadata ? { ...context.metadata } : undefined;
 	return {
+		sessionId: context.sessionId,
 		agentId: context.agentId,
 		conversationId: context.conversationId,
+		runId: context.runId,
 		iteration: context.iteration,
-		metadata: context.metadata,
+		toolCallId: context.toolCallId,
+		metadata:
+			metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
 }
 
@@ -303,19 +311,8 @@ function createSnapshotSkillsExecutor(
 				? `Skill "${skillName}" is ambiguous. Use one of: ${enabled.map((entry) => entry.id).join(", ")}`
 				: `Skill "${skillName}" not found.`;
 		}
-		const skill = enabled[0].skill as {
-			name: string;
-			description?: string;
-			instructions: string;
-		};
-		const trimmedArgs = args?.trim();
-		const argsTag = trimmedArgs
-			? `\n<command-args>${trimmedArgs}</command-args>`
-			: "";
-		const description = skill.description?.trim()
-			? `Description: ${skill.description.trim()}\n\n`
-			: "";
-		return `<command-name>${skill.name}</command-name>${argsTag}\n<command-instructions>\n${description}${skill.instructions}\n</command-instructions>`;
+		const skill = enabled[0].skill as SkillConfig;
+		return formatSkillInvocation(skill, args);
 	}) as SkillsExecutor;
 
 	Object.defineProperty(executor, "configuredSkills", {
@@ -361,17 +358,23 @@ function createUserInstructionServiceProxy(
 			type: UserInstructionConfigType,
 		) => [...snapshot.records[type]] as UserInstructionConfigRecord<TConfig>[],
 		listRuntimeCommands: () => [...snapshot.runtimeCommands],
-		resolveRuntimeSlashCommand: (input) => {
+		resolveRuntimeSlashCommand: (input, options) => {
 			if (!input.startsWith("/") || input.length < 2) return input;
 			const match = input.match(/^\/(\S+)/);
-			const name = match?.[1];
-			if (!name) return input;
+			const rawName = match?.[1];
+			if (!rawName) return input;
+			const name = normalizeRuntimeCommandName(rawName);
+			// Normalize the snapshot side too: older clients serve snapshots
+			// with raw configured names (e.g. "Ship"), which would otherwise
+			// never match the normalized typed token.
 			const command = snapshot.runtimeCommands.find(
-				(item) => item.name === name,
+				(item) => normalizeRuntimeCommandName(item.name) === name,
 			);
-			return command
-				? `${command.instructions}${input.slice(name.length + 1)}`
-				: input;
+			if (!command) return input;
+			if (command.kind === "skill" && options?.expandSkillCommands === false) {
+				return input;
+			}
+			return `${command.instructions}${input.slice(rawName.length + 1)}`;
 		},
 		hasConfiguredSkills: (allowedSkillNames) =>
 			configuredSkills(snapshot, allowedSkillNames).some(
@@ -453,6 +456,11 @@ function createToolExecutorProxy(
 					context: serializeToolContext(context),
 				},
 				targetClientId,
+				context.emitUpdate
+					? (payload) => {
+							context.emitUpdate?.(asToolUpdate(payload));
+						}
+					: undefined,
 			);
 			return response?.result;
 		},

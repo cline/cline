@@ -110,6 +110,22 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("resolves the turn phase to 'error' when the turn surfaced a provider error", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+		options.messageTranslatorState.setErrorSeen()
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("error")
+		expect(options.setTurnPhase).not.toHaveBeenCalledWith("awaiting_followup")
+	})
+
 	it("marks a submitted queued prompt as a new streaming turn", async () => {
 		const message: ClineMessage = { ts: 1, type: "say", say: "user_feedback", text: "queued prompt" }
 		const { coordinator, options } = makeCoordinator({
@@ -174,6 +190,7 @@ describe("SdkSessionEventCoordinator", () => {
 		// would lose the Resume Task button (showing scroll-arrows).
 		const { coordinator, options, event } = makeCoordinator({
 			activeSession: makeActiveSession({ isRunning: false }),
+			turnPhase: "resumable",
 			translation: {
 				messages: [],
 				sessionEnded: false,
@@ -184,6 +201,28 @@ describe("SdkSessionEventCoordinator", () => {
 		await coordinator.handleSessionEvent(event)
 
 		expect(options.setTurnPhase).not.toHaveBeenCalled()
+	})
+
+	it("resolves the phase when a queued turn completes after its running flag was clobbered", async () => {
+		// When the SDK drains a queued prompt at turn end, the previous turn's send promise
+		// settles after the queued turn already started and flips isRunning back to false
+		// mid-turn. The queued turn's real completion must still resolve the terminal phase —
+		// treating it as a cancel straggler leaves the phase stuck on "streaming" (endless
+		// Thinking). Only an actual cancel (phase "resumable") is preserved.
+		const { coordinator, options, event } = makeCoordinator({
+			activeSession: makeActiveSession({ isRunning: false }),
+			turnPhase: "streaming",
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(false)
 	})
 
 	it("updates task usage when the active session has a start result", async () => {
@@ -274,6 +313,7 @@ describe("SdkSessionEventCoordinator", () => {
 				event: {
 					type: "error",
 					error,
+					recoverable: false,
 				},
 			},
 		} as unknown as CoreSessionEvent
@@ -296,6 +336,27 @@ describe("SdkSessionEventCoordinator", () => {
 				sessionId: "session-123",
 				event: {
 					type: "error",
+				},
+			},
+		} as unknown as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.captureProviderApiError).not.toHaveBeenCalled()
+	})
+
+	it("does not capture provider failure telemetry for recoverable error events (mistake notices)", async () => {
+		const { coordinator, options } = makeCoordinator()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-123",
+				event: {
+					type: "error",
+					// The MistakeTracker emits one of these per recorded mistake,
+					// carrying tool-failure details — not a provider API error.
+					error: new Error('2 tool call(s) failed: [shell] {"error":"command not found"}'),
+					recoverable: true,
 				},
 			},
 		} as unknown as CoreSessionEvent
@@ -355,6 +416,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTask: vi.fn(() => input.task),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		setTurnPhase: vi.fn(),
+		getTurnPhase: vi.fn(() => input.turnPhase ?? "streaming"),
 		captureProviderApiError: vi.fn(),
 		beginProviderFailureTelemetryTurn: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
@@ -393,6 +455,7 @@ function makeActiveSession(input: Partial<{ isRunning: boolean }> = {}) {
 interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	task: { taskId: string }
+	turnPhase: "streaming" | "resumable"
 	isClineFreeModel: () => Promise<boolean>
 	translation: {
 		messages: ClineMessage[]

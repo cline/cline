@@ -1,13 +1,23 @@
-import { DEFAULT_MCP_TIMEOUT_SECONDS, MIN_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
+import {
+	DEFAULT_MCP_TIMEOUT_SECONDS,
+	MAX_MCP_TIMEOUT_SECONDS,
+	MIN_MCP_TIMEOUT_SECONDS,
+	resolveMcpTimeoutSeconds,
+} from "@shared/mcp"
 import { z } from "zod"
 import { TYPE_ERROR_MESSAGE } from "./constants"
 
 const AutoApproveSchema = z.array(z.string()).default([])
 
+// Settings reads are tolerant: a malformed optional timeout must not reject
+// every MCP server. Writes use the strict schema exported below.
+const ReadTimeoutSchema = z.preprocess(resolveMcpTimeoutSeconds, z.number()).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS)
+export const McpTimeoutSecondsSchema = z.number().finite().min(MIN_MCP_TIMEOUT_SECONDS).max(MAX_MCP_TIMEOUT_SECONDS)
+
 export const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
-	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
+	timeout: ReadTimeoutSchema,
 	// Marker for servers that were added by remote config sync.
 	// Used to identify which servers should be removed when they are no longer in the remote config.
 	remoteConfigured: z.boolean().optional(),
@@ -62,7 +72,7 @@ const nestedTransportConfigSchema = z
 		]),
 		disabled: z.boolean().optional(),
 		autoApprove: AutoApproveSchema.optional(),
-		timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
+		timeout: ReadTimeoutSchema,
 		remoteConfigured: z.boolean().optional(),
 		oauth: z.unknown().optional(),
 		metadata: z.unknown().optional(),

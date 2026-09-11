@@ -1,11 +1,15 @@
 import type { CoreSessionEvent } from "@cline/core"
-import type { AgentEvent } from "@cline/shared"
-import type { ClineAskUseMcpServer } from "@shared/ExtensionMessage"
+import type { Message as SdkMessage } from "@cline/llms"
+import type { AgentEvent, MessageWithMetadata } from "@cline/shared"
+import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
+import { getDesktopDir } from "@/utils/path"
 import {
+	buildToolApprovalAskMessage,
 	extractToolOutputText,
 	historyItemToSessionFields,
 	MessageTranslatorState,
+	sdkMessagesToClineMessages,
 	translateSessionEvent,
 } from "./message-translator"
 
@@ -221,6 +225,57 @@ describe("translateSessionEvent — pending prompts", () => {
 			expect.objectContaining({
 				say: "user_feedback",
 				text: "please just finish",
+			}),
+		])
+	})
+
+	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
+		// A bare Resume that races the abort settling is auto-queued by the
+		// runtime; when it drains, the submitted-prompt echo must not leak the
+		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
+		// hidden from every other transcript surface, and a visible bubble
+		// would shift edit/regenerate ordinal mapping).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "[TASK RESUMPTION] Please continue where you left off.",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([])
+	})
+
+	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+		// Attachment-only follow-ups ride on the synthetic prompt; the user's
+		// images/files are real content and must stay visible (matching
+		// isSyntheticSdkUserMessage, which counts such messages as visible).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				delivery: "queue",
+				attachmentCount: 1,
+				userImages: ["image.png"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "",
+				images: ["image.png"],
 			}),
 		])
 	})
@@ -570,6 +625,44 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].say).toBe("text")
 		expect(result.messages[0].text).toBe("Hello world")
 		expect(result.messages[0].partial).toBe(false)
+	})
+
+	it("translates generated media content_end to the shared media payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: "",
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				partial: false,
+			}),
+		])
 	})
 
 	it("translates tool content_end with error", () => {
@@ -1074,6 +1167,135 @@ describe("translateSessionEvent — agent_event done", () => {
 })
 
 // ---------------------------------------------------------------------------
+// translateSessionEvent — inferred turn-final completion retag
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — inferred turn-final completion", () => {
+	const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+		({
+			type: "agent_event",
+			payload: { sessionId: "session-1", event: event as AgentEvent },
+		}) as CoreSessionEvent
+
+	const endText = (state: MessageTranslatorState, text: string) =>
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "text", text }), state)
+
+	const done = (state: MessageTranslatorState, reason: "completed" | "aborted" | "error" = "completed") =>
+		translateSessionEvent(agentEvent({ type: "done", reason, text: "", iterations: 1 }), state)
+
+	it("retags the turn-final text to plan_completion_result in plan mode", () => {
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const textResult = endText(state, "Here is the plan.")
+
+		const doneResult = done(state)
+
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
+	it("does not retag when the turn ends on a tool call after the text", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Wrapping up now.")
+
+		// The translator is tool-agnostic: any tool whose lifecycle.completesRun
+		// ends the run after its result (a host extraTool, or yolo's
+		// submit_and_exit) leaves the trailing text as a non-final say.
+		translateSessionEvent(
+			agentEvent({ type: "content_start", contentType: "tool", toolName: "completing_extra_tool", input: {} }),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "tool", toolName: "completing_extra_tool", output: "ok" }),
+			state,
+		)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("does not retag an aborted or errored turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Halfway through...")
+		expect(done(state, "aborted").messages).toHaveLength(0)
+
+		// The abort cleared the candidate — a later stray done must not resurrect it.
+		expect(done(state).messages).toHaveLength(0)
+
+		endText(state, "Almost there...")
+		const errorResult = translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("boom"), recoverable: false }),
+			state,
+		)
+		expect(errorResult.messages.some((m) => m.say === "completion_result")).toBe(false)
+		expect(done(state).messages.filter((m) => m.say === "completion_result")).toHaveLength(0)
+	})
+
+	it("retags only the last finalized text of the turn (text → tool → text)", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Let me check the file first.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				input: { path: "/a.ts" },
+			}),
+			state,
+		)
+		translateSessionEvent(
+			agentEvent({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				toolCallId: "call-1",
+				output: "contents",
+			}),
+			state,
+		)
+		const finalText = endText(state, "All done — the file looks good.")
+
+		const doneResult = done(state)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: finalText.messages[0].ts,
+			say: "completion_result",
+			text: "All done — the file looks good.",
+		})
+	})
+
+	it("does not retag when the completion tool already rendered the green box", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Wrapping up.")
+		translateSessionEvent(
+			agentEvent({
+				type: "content_start",
+				contentType: "tool",
+				toolName: "attempt_completion",
+				input: { result: "Done!" },
+			}),
+			state,
+		)
+		translateSessionEvent(agentEvent({ type: "content_end", contentType: "tool", toolName: "attempt_completion" }), state)
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+
+	it("clearTurnOutcome drops a stale candidate from the previous turn", () => {
+		const state = new MessageTranslatorState()
+		endText(state, "Previous turn's answer.")
+		state.clearTurnOutcome() // new user turn begins
+
+		expect(done(state).messages).toHaveLength(0)
+	})
+})
+
+// ---------------------------------------------------------------------------
 // translateSessionEvent — agent_event (error)
 // ---------------------------------------------------------------------------
 
@@ -1104,6 +1326,179 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.messages[1].text).toBe("API rate limit exceeded")
 		expect(result.messages[1].partial).toBe(false)
 		expect(result.turnComplete).toBe(true)
+	})
+
+	it("appends region-switch guidance when Vertex rejects a model on the global endpoint", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].ask).toBe("api_req_failed")
+		expect(result.messages[1].text).toContain("model not available in region: global")
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+		expect(result.messages[1].text).toContain("us-east5")
+	})
+
+	it("appends the same guidance for Google's Publisher Model not-found body on the global location", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const message =
+			"Publisher Model `projects/test-project/locations/global/publishers/anthropic/models/claude-fable-5` was not found or your project does not have access to it."
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toContain(message)
+		expect(result.messages[1].text).toContain("does not support the Vertex AI global endpoint")
+	})
+
+	it("leaves region errors from other providers untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "bedrock")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "model not available in region: global" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("model not available in region: global")
+	})
+
+	it("leaves unrelated Vertex errors untouched", () => {
+		const state = new MessageTranslatorState(undefined, () => "vertex")
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: { message: "Quota exceeded for metric: generate_requests" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[1].text).toBe("Quota exceeded for metric: generate_requests")
+	})
+
+	it("treats recoverable errors as in-run notices: no messages, no turn end, no error phase", () => {
+		// The MistakeTracker emits a recoverable error event for every recorded
+		// mistake (e.g. a plan-mode guard-blocked command as the turn's only
+		// tool call) while the run keeps going. It must not surface the error
+		// recovery UI or mark the turn errored/complete.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error('1 tool call(s) failed: [run_commands] {"error":"Command not executed"}'),
+					recoverable: true,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.turnComplete).toBe(false)
+		expect(state.wasErrorSeen()).toBe(false)
+	})
+
+	it("still retags the plan completion when a recoverable mistake happened mid-turn", () => {
+		// Regression: a plan-mode turn whose blocked run_commands call fed the
+		// MistakeTracker used to end in the error phase with the plan text left
+		// as a plain say, so the plan→act toggle never auto-continued.
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+			({
+				type: "agent_event",
+				payload: { sessionId: "session-1", event: event as AgentEvent },
+			}) as CoreSessionEvent
+
+		// Mid-turn recoverable mistake (blocked tool call was the only tool).
+		translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("1 tool call(s) failed: [run_commands]"), recoverable: true }),
+			state,
+		)
+		// The model recovers and presents the plan, then the turn completes.
+		const textResult = translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "text", text: "Here is the plan." }),
+			state,
+		)
+		const doneResult = translateSessionEvent(
+			agentEvent({ type: "done", reason: "completed", text: "", iterations: 2 }),
+			state,
+		)
+
+		expect(state.wasErrorSeen()).toBe(false)
+		expect(doneResult.messages).toContainEqual({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
+	it("records the error outcome when the turn terminates with done(reason:'error')", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "error",
+					text: "stream failed before assistant output",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.turnComplete).toBe(true)
+		expect(state.wasErrorSeen()).toBe(true)
+	})
+
+	it("does not record an error outcome for a successful done event", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "done",
+					reason: "completed",
+					text: "",
+					iterations: 1,
+				} as AgentEvent,
+			},
+		}
+
+		translateSessionEvent(event, state)
+		expect(state.wasErrorSeen()).toBe(false)
 	})
 
 	it("reshapes insufficient_credits error into ClineError-compatible format", () => {
@@ -1503,8 +1898,9 @@ describe("translateSessionEvent — full streaming flow", () => {
 		expect(endResult.messages[0].partial).toBe(false)
 		expect(endResult.messages[0].text).toBe("Hello world!")
 
-		// 3. Done — without attempt_completion, emits ask:"completion_result"
-		// with empty text (no green rectangle, just enables follow-up input)
+		// 3. Done — the turn ended cleanly on a text response, so the final text row is
+		// retagged in place (same ts) to say:"completion_result" for the green
+		// "Task Completed" box (act mode is the default when no mode source is provided).
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -1520,7 +1916,14 @@ describe("translateSessionEvent — full streaming flow", () => {
 			},
 			state,
 		)
-		expect(doneResult.messages).toHaveLength(0)
+		expect(doneResult.messages).toHaveLength(1)
+		expect(doneResult.messages[0]).toMatchObject({
+			ts: endResult.messages[0].ts,
+			type: "say",
+			say: "completion_result",
+			text: "Hello world!",
+			partial: false,
+		})
 		expect(doneResult.turnComplete).toBe(true)
 	})
 
@@ -1642,6 +2045,125 @@ describe("translateSessionEvent — agent_event notice", () => {
 		expect(result.messages[0].say).toBe("info")
 		expect(result.messages[0].text).toBe("Retrying API request...")
 		expect(result.messages[0].partial).toBe(false)
+	})
+
+	function noticeEvent(message: string, metadata?: Record<string, unknown>): CoreSessionEvent {
+		return {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message,
+					metadata,
+				} as AgentEvent,
+			},
+		}
+	}
+
+	it("translates compaction status notices into a divider row updated in place", () => {
+		const state = new MessageTranslatorState()
+
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+		expect(started).toHaveLength(1)
+		expect(started[0].say).toBe("compaction")
+		expect(JSON.parse(started[0].text ?? "{}")).toMatchObject({ status: "started", mode: "auto" })
+
+		const completed = translateSessionEvent(
+			noticeEvent("auto-compacted", {
+				kind: "auto_compaction",
+				phase: "completed",
+				tokensBefore: 120_000,
+				tokensAfter: 40_000,
+				messagesBefore: 80,
+				messagesAfter: 12,
+			}),
+			state,
+		).messages
+		expect(completed).toHaveLength(1)
+		expect(completed[0].say).toBe("compaction")
+		// Same ts: the webview replaces the "started" spinner row in place.
+		expect(completed[0].ts).toBe(started[0].ts)
+		expect(JSON.parse(completed[0].text ?? "{}")).toMatchObject({
+			status: "completed",
+			mode: "auto",
+			tokensBefore: 120_000,
+			tokensAfter: 40_000,
+			messagesBefore: 80,
+			messagesAfter: 12,
+		})
+	})
+
+	it("suppresses known-internal status notices instead of rendering raw slugs", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			noticeEvent("compaction-budget-adjusted", { kind: "compaction_budget_emergency", actionCount: 1 }),
+			state,
+		)
+		expect(result.messages).toHaveLength(0)
+	})
+
+	it("renders an unrecognized status notice as an info row rather than dropping it", () => {
+		// Only the known-internal set is suppressed; a status notice added to the
+		// SDK later should surface (even as a raw slug) instead of vanishing.
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(noticeEvent("some-future-status", { kind: "something_new" }), state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("info")
+		expect(result.messages[0].text).toBe("some-future-status")
+	})
+
+	it("finalizes a dangling compaction divider as failed when the turn errors", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const errored = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "error", error: new Error("boom"), recoverable: false } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = errored.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "failed" })
+	})
+
+	it("finalizes a dangling compaction divider as cancelled when the turn ends", () => {
+		const state = new MessageTranslatorState()
+		const started = translateSessionEvent(
+			noticeEvent("auto-compacting", { kind: "auto_compaction", phase: "started" }),
+			state,
+		).messages
+
+		const done = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "done", reason: "aborted" } as unknown as AgentEvent,
+				},
+			},
+			state,
+		).messages
+
+		const divider = done.find((message) => message.say === "compaction")
+		expect(divider).toBeDefined()
+		expect(divider?.ts).toBe(started[0].ts)
+		expect(JSON.parse(divider?.text ?? "{}")).toMatchObject({ status: "cancelled" })
 	})
 })
 
@@ -2844,6 +3366,30 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 		expect(tool.content).toBe("export const x = 1")
 	})
 
+	it("editor with insert_line is an edit of an existing file, not a new-file creation", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-insert",
+					// A prepend/insert: new_text present, no old_text, but insert_line set.
+					// The SDK editor executor requires the file to already exist for insert,
+					// so this must map to editedExistingFile (not newFileCreated).
+					input: { path: "/src/existing.ts", new_text: "// prepended", insert_line: 1 },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.path).toBe("/src/existing.ts")
+	})
+
 	it("S6-48: editor with old_str/new_str also builds search/replace diff", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
@@ -2964,6 +3510,183 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 			expect(tool.content).toBe("the-patch-content")
 			expect(tool.diff).toBe("the-patch-content")
 		})
+	})
+})
+
+describe("apply_patch multi-file split (cline#9904)", () => {
+	const startEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: { input: patch },
+			} as AgentEvent,
+		},
+	})
+
+	const endEvent = (callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_end",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+			} as AgentEvent,
+		},
+	})
+
+	const TWO_FILE = [
+		"*** Begin Patch",
+		"*** Update File: src/a.ts",
+		"@@",
+		"-const a = 1",
+		"+const a = 2",
+		"*** Add File: src/b.ts",
+		"+export const b = 3",
+		"*** End Patch",
+	].join("\n")
+
+	const DELETE_UPDATE = [
+		"*** Begin Patch",
+		"*** Delete File: src/gone.ts",
+		"*** Update File: src/keep.ts",
+		"@@",
+		"-old",
+		"+new",
+		"*** End Patch",
+	].join("\n")
+
+	const SINGLE_FILE = ["*** Begin Patch", "*** Update File: src/file.ts", "@@", "-old", "+new", "*** End Patch"].join("\n")
+
+	it("content_start streams a single whole-patch preview row for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+
+		// Streaming preview is intentionally one row (the whole patch); the per-file
+		// split happens only at content_end so the finalized ids match (cline#9904).
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].partial).toBe(true)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(TWO_FILE)
+	})
+
+	it("content_end finalizes one per-file message for a multi-file patch", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].partial).toBe(false)
+		const a = JSON.parse(result.messages[0].text!)
+		const b = JSON.parse(result.messages[1].text!)
+		expect(a.tool).toBe("editedExistingFile")
+		expect(a.path).toBe("src/a.ts")
+		expect(b.tool).toBe("newFileCreated")
+		expect(b.path).toBe("src/b.ts")
+		expect(a.content).not.toContain("src/b.ts")
+		expect(b.content).not.toContain("src/a.ts")
+	})
+
+	it("reconciles start→end by ts: N rows, none left partial (cline#9904 orphan guard)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		// Merge both batches by ts the way MessageStateHandler.addMessages does:
+		// a later message with an existing ts replaces the earlier one.
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		// Exactly one row per file, and no orphaned streaming (partial) row survives.
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	const bareStartEvent = (patch: string, callId: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_start",
+				contentType: "tool",
+				toolName: "apply_patch",
+				toolCallId: callId,
+				input: patch,
+			} as AgentEvent,
+		},
+	})
+
+	it("reconciles start→end by ts for a bare-string multi-file patch (no { input } wrapper)", () => {
+		const state = new MessageTranslatorState()
+		const startResult = translateSessionEvent(bareStartEvent(TWO_FILE, "call-1"), state)
+
+		expect(startResult.messages).toHaveLength(1)
+		expect(startResult.messages[0].partial).toBe(true)
+		expect(JSON.parse(startResult.messages[0].text!).content).toBe(TWO_FILE)
+
+		const endResult = translateSessionEvent(endEvent("call-1"), state)
+
+		const byTs = new Map<number, (typeof startResult.messages)[number]>()
+		for (const message of [...startResult.messages, ...endResult.messages]) {
+			byTs.set(message.ts, message)
+		}
+		const survivors = [...byTs.values()]
+
+		expect(survivors).toHaveLength(2)
+		expect(survivors.every((m) => m.partial === false)).toBe(true)
+		const paths = survivors.map((m) => JSON.parse(m.text!).path).sort()
+		expect(paths).toEqual(["src/a.ts", "src/b.ts"])
+	})
+
+	it("each per-file sub-patch keeps the Begin/End Patch wrapper", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(TWO_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+		for (const message of result.messages) {
+			const tool = JSON.parse(message.text!)
+			expect(tool.content.startsWith("*** Begin Patch")).toBe(true)
+			expect(tool.content.trimEnd().endsWith("*** End Patch")).toBe(true)
+		}
+	})
+
+	it("maps delete and update actions to fileDeleted and editedExistingFile", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(DELETE_UPDATE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const del = JSON.parse(result.messages[0].text!)
+		const upd = JSON.parse(result.messages[1].text!)
+		expect(del.tool).toBe("fileDeleted")
+		expect(del.path).toBe("src/gone.ts")
+		expect(upd.tool).toBe("editedExistingFile")
+		expect(upd.path).toBe("src/keep.ts")
+		expect(upd.content).not.toContain("src/gone.ts")
+	})
+
+	it("leaves a single-file patch as one message at content_end (S6-48 unchanged)", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(startEvent(SINGLE_FILE, "call-1"), state)
+		const result = translateSessionEvent(endEvent("call-1"), state)
+
+		expect(result.messages).toHaveLength(1)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe(SINGLE_FILE)
+		expect(tool.diff).toBe(SINGLE_FILE)
 	})
 })
 
@@ -3184,5 +3907,285 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].say).toBe("use_mcp_server")
 		expect(result.messages[0].partial).toBe(false)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Display-path relativization — tool paths shown in the chat view render
+// relative to the task's cwd instead of as full absolute paths.
+// ---------------------------------------------------------------------------
+
+describe("tool display paths are relativized to the cwd", () => {
+	const CWD = "/home/user/project"
+	const stateWithCwd = () => new MessageTranslatorState(undefined, undefined, undefined, () => CWD)
+
+	const toolEvent = (
+		type: "content_start" | "content_end",
+		toolName: string,
+		input?: unknown,
+		callId = "call-1",
+	): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "s1",
+			event: { type, contentType: "tool", toolName, toolCallId: callId, input } as AgentEvent,
+		},
+	})
+
+	const parseTool = (text: string | undefined) => JSON.parse(text ?? "{}") as ClineSayTool
+
+	it("renders a readFile path inside the cwd as relative, keeping the absolute click-to-open target", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/src/index.ts` }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.tool).toBe("readFile")
+		expect(tool.path).toBe("src/index.ts")
+		// The webview's readFile card opens `content` in the editor on click.
+		expect(tool.content).toBe(`${CWD}/src/index.ts`)
+	})
+
+	it("keeps paths outside the cwd absolute", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: "/etc/hosts" }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("/etc/hosts")
+	})
+
+	it("treats an in-cwd entry named with a '..' prefix as inside the cwd", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: `${CWD}/..config/x.ts` }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("..config/x.ts")
+	})
+
+	it("keeps paths absolute when the cwd is the no-workspace Desktop fallback", () => {
+		// With no workspace open, getWorkspaceRoot() falls back to the Desktop;
+		// classic getReadablePath keeps full absolute paths in that case.
+		const desktop = getDesktopDir()
+		const state = new MessageTranslatorState(undefined, undefined, undefined, () => desktop)
+		const absolutePath = `${desktop}/project/file.ts`
+		const result = translateSessionEvent(toolEvent("content_start", "read_files", { path: absolutePath }), state)
+		expect(parseTool(result.messages[0].text).path).toBe(absolutePath.replace(/\\/g, "/"))
+	})
+
+	it("relativizes '*** Move to:' destinations in apply_patch payloads", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/old.ts`,
+			`*** Move to: ${CWD}/src/new.ts`,
+			"@@",
+			"-old",
+			"+new",
+			"*** End Patch",
+		].join("\n")
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/old.ts")
+		expect(tool.content).toContain("*** Move to: src/new.ts")
+		expect(tool.content).not.toContain(CWD)
+	})
+
+	it("renders the cwd itself as its basename", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "list_files", { path: CWD }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("project")
+	})
+
+	it("relativizes editor and delete_file paths", () => {
+		const editState = stateWithCwd()
+		const editResult = translateSessionEvent(
+			toolEvent("content_start", "editor", { path: `${CWD}/a/b.ts`, old_text: "x", new_text: "y" }),
+			editState,
+		)
+		const editTool = parseTool(editResult.messages[0].text)
+		expect(editTool.tool).toBe("editedExistingFile")
+		expect(editTool.path).toBe("a/b.ts")
+
+		const deleteState = stateWithCwd()
+		const deleteResult = translateSessionEvent(
+			toolEvent("content_start", "delete_file", { path: `${CWD}/a/b.ts` }),
+			deleteState,
+		)
+		expect(parseTool(deleteResult.messages[0].text).path).toBe("a/b.ts")
+	})
+
+	it("rewrites apply_patch file markers so the diff view shows relative paths", () => {
+		const state = stateWithCwd()
+		const patch = `*** Begin Patch\n*** Update File: ${CWD}/src/app.ts\n@@\n-old\n+new\n*** End Patch`
+		const result = translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const tool = parseTool(result.messages[0].text)
+		expect(tool.content).toContain("*** Update File: src/app.ts")
+		expect(tool.content).not.toContain(`*** Update File: ${CWD}`)
+	})
+
+	it("splits multi-file apply_patch into rows with relativized paths and markers", () => {
+		const state = stateWithCwd()
+		const patch = [
+			"*** Begin Patch",
+			`*** Update File: ${CWD}/src/a.ts`,
+			`*** Move to: ${CWD}/src/a-renamed.ts`,
+			"@@",
+			"-old",
+			"+new",
+			`*** Add File: ${CWD}/src/b.ts`,
+			"+added",
+			"*** End Patch",
+		].join("\n")
+		translateSessionEvent(toolEvent("content_start", "apply_patch", { patch }), state)
+		const result = translateSessionEvent(toolEvent("content_end", "apply_patch"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const first = parseTool(result.messages[0].text)
+		const second = parseTool(result.messages[1].text)
+		expect(first.path).toBe("src/a.ts")
+		expect(first.content).toContain("*** Update File: src/a.ts")
+		expect(first.content).toContain("*** Move to: src/a-renamed.ts")
+		expect(second.path).toBe("src/b.ts")
+		expect(second.content).toContain("*** Add File: src/b.ts")
+	})
+
+	it("relativizes each row of a multi-file read_files finalize", () => {
+		const state = stateWithCwd()
+		const input = { files: [{ path: `${CWD}/src/a.ts` }, { path: "/outside/b.ts" }] }
+		translateSessionEvent(toolEvent("content_start", "read_files", input), state)
+		const result = translateSessionEvent(toolEvent("content_end", "read_files"), state)
+
+		expect(result.messages).toHaveLength(2)
+		const first = parseTool(result.messages[0].text)
+		const second = parseTool(result.messages[1].text)
+		expect(first.path).toBe("src/a.ts")
+		expect(first.content).toBe(`${CWD}/src/a.ts`)
+		expect(second.path).toBe("/outside/b.ts")
+	})
+
+	it("does not touch web url / search query / skill-name pseudo-paths", () => {
+		const state = stateWithCwd()
+		const result = translateSessionEvent(toolEvent("content_start", "web_fetch", { url: "https://example.com/a/b" }), state)
+		expect(parseTool(result.messages[0].text).path).toBe("https://example.com/a/b")
+	})
+
+	it("leaves paths untouched when no cwd source is configured", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			toolEvent("content_start", "read_files", { path: "/home/user/project/src/index.ts" }),
+			state,
+		)
+		expect(parseTool(result.messages[0].text).path).toBe("/home/user/project/src/index.ts")
+	})
+
+	it("relativizes the path in tool-approval ask messages", () => {
+		const message = buildToolApprovalAskMessage("editor", { path: `${CWD}/src/index.ts`, content: "x" }, 1, CWD)
+		expect(parseTool(message.text).path).toBe("src/index.ts")
+	})
+
+	it("reconstructs hook status chips from injected hook context and keeps the completion retag", () => {
+		const messages: SdkMessage[] = [
+			{ role: "user", content: '<user_input mode="act">read the readme</user_input>' } as SdkMessage,
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I'll read it." },
+					{ type: "tool_use", id: "t1", name: "read_files", input: { path: "README.md" } },
+				],
+			} as SdkMessage,
+			{ role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "hello" }] } as SdkMessage,
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<hook_context source="PreToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE\n</hook_context>\n\n<hook_context source="PostToolUse" tool_name="read_files" tool_call_id="t1">\nNOTE2\n</hook_context>',
+					},
+				],
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			} as SdkMessage,
+			{ role: "assistant", content: [{ type: "text", text: "The readme says hello." }] } as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+
+		const hookRows = clineMessages.filter((m) => m.say === "hook_status").map((m) => JSON.parse(m.text ?? "{}"))
+		expect(hookRows).toEqual([
+			{ hookName: "PreToolUse", toolName: "read_files", status: "completed" },
+			{ hookName: "PostToolUse", toolName: "read_files", status: "completed" },
+		])
+
+		// The injected context never renders as a user bubble.
+		expect(clineMessages.some((m) => m.text?.includes("<hook_context"))).toBe(false)
+
+		// The hidden injection is not a turn boundary: the final text keeps the
+		// inferred completion retag.
+		expect(clineMessages.some((m) => m.say === "completion_result" || m.ask === "completion_result")).toBe(true)
+	})
+
+	it("relativizes persisted-history tool paths via options.cwd", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "tool_use", id: "t1", name: "read_files", input: { path: `${CWD}/src/index.ts` } }],
+			} as SdkMessage,
+		]
+		const clineMessages = sdkMessagesToClineMessages(messages, undefined, { cwd: CWD })
+		const toolMessage = clineMessages.find((m) => m.say === "tool")
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
+	})
+
+	it("rehydrates generated images from persisted SDK history", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" }],
+			} as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const imageMessage = clineMessages.find((message) => message.media?.length)
+		expect(imageMessage).toEqual(
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				media: [
+					expect.objectContaining({
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: "aGVsbG8=" },
+					}),
+				],
+			}),
+		)
+	})
+
+	it("renders provider model activities through the persisted local-tool path", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: "Bun 1.3.14 is current.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun release" },
+							output: "Bun 1.3.14",
+						},
+					],
+				},
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const toolMessage = clineMessages.find((message) => message.say === "tool")
+
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text)).toMatchObject({
+			tool: "webSearch",
+		})
+		expect(clineMessages).toContainEqual(
+			expect.objectContaining({
+				type: "say",
+				text: "Bun 1.3.14 is current.",
+			}),
+		)
 	})
 })

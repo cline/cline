@@ -141,7 +141,6 @@ interface TaskProxyTerminalManager {
  */
 interface TaskProxyState {
 	askResponse?: ClineAskResponse
-	autoRetryAttempts?: number
 	/** Focus chain checklist (stub — focus chain removed) */
 	currentFocusChainChecklist?: null
 	/** Abort flag for task cancellation (classic TaskState used boolean) */

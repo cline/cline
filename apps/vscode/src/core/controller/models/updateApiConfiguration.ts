@@ -145,7 +145,7 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 					options,
 				),
 			)
-			await clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
+			clearOrganizationForClinePassProviderSelection(controller, controller.stateManager.getApiConfiguration())
 		}
 
 		// Update the task's API model shim if there's an active task

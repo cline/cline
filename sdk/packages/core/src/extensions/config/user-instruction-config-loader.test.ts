@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -137,6 +144,81 @@ Document rollout and rollback steps.`,
 		expect(workflow.disabled).toBe(true);
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/12151: a leading UTF-8 BOM
+	// (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not prevent frontmatter
+	// from being recognized.
+	it("parses markdown frontmatter when the content starts with a UTF-8 BOM", () => {
+		const skill = parseSkillConfigFromMarkdown(
+			`\uFEFF---
+name: my-skill
+description: A test skill
+---
+This is a test skill.`,
+			"fallback",
+		);
+		expect(skill.name).toBe("my-skill");
+		expect(skill.description).toBe("A test skill");
+		expect(skill.instructions).toBe("This is a test skill.");
+	});
+
+	it("keeps Agent Plugin skills strict and namespaced while watching", async () => {
+		const tempRoot = await realpath(
+			await mkdtemp(join(tmpdir(), "core-user-instructions-agent-plugin-")),
+		);
+		tempRoots.push(tempRoot);
+		const pluginRoot = join(tempRoot, "portable");
+		const skillRoot = join(pluginRoot, "skills", "review");
+		const filePath = join(skillRoot, "SKILL.md");
+		await mkdir(skillRoot, { recursive: true });
+		await writeFile(
+			filePath,
+			"---\nname: review\ndescription: Review portable code\n---\n",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: {
+				directories: [],
+				agentPluginSkills: [
+					{
+						pluginName: "portable",
+						pluginRoot,
+						directoryPath: skillRoot,
+						filePath,
+						metadata: {
+							name: "review",
+							description: "Review portable code",
+						},
+					},
+				],
+			},
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		await watcher.refreshAll();
+		expect(watcher.getSnapshot("skill").get("portable:review")).toMatchObject({
+			item: {
+				name: "review",
+				description: "Review portable code",
+				instructions: "",
+				source: {
+					type: "agent-plugin",
+					pluginName: "portable",
+					pluginRoot,
+					skillRoot,
+					filePath,
+				},
+			},
+		});
+
+		await writeFile(
+			filePath,
+			"---\nname: review\ndescription: Review portable code\ndisabled: true\n---\nInvalid now.",
+		);
+		await watcher.refreshType("skill");
+		expect(watcher.getSnapshot("skill")).toEqual(new Map());
+	});
+
 	it("emits typed events for skills, rules, and workflows in one watcher", async () => {
 		const tempRoot = await mkdtemp(
 			join(tmpdir(), "core-user-instructions-loader-"),
@@ -191,6 +273,48 @@ Escalation runbook`,
 			);
 		} finally {
 			unsubscribe();
+		}
+	});
+
+	it("still loads all rules when .clinerules is a legacy single file", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-clinerules-file-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const originalHomeDir = process.env.HOME?.trim() || homedir();
+		setHomeDir(join(tempRoot, "home"));
+		const workspaceRoot = join(tempRoot, "workspace");
+		const globalRulesDir = join(tempRoot, "home", ".cline", "rules");
+		await mkdir(workspaceRoot, { recursive: true });
+		await mkdir(globalRulesDir, { recursive: true });
+		// Legacy single-file ruleset: `.clinerules/skills` and
+		// `.clinerules/workflows` now resolve through a file (ENOTDIR), which
+		// must not abort scanning of the other config sources.
+		await writeFile(
+			join(workspaceRoot, ".clinerules"),
+			"Never introduce ESM syntax.",
+		);
+		await writeFile(
+			join(globalRulesDir, "style.md"),
+			"Sign off with GLOBAL-OK.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: workspaceRoot },
+			rules: { workspacePath: workspaceRoot },
+			workflows: { workspacePath: workspaceRoot },
+		});
+
+		try {
+			await watcher.refreshAll();
+			const rules = [...watcher.getSnapshot("rule").values()].map(
+				(record) => record.item.instructions,
+			);
+			expect(rules).toContain("Never introduce ESM syntax.");
+			expect(rules).toContain("Sign off with GLOBAL-OK.");
+		} finally {
+			setHomeDir(originalHomeDir);
 		}
 	});
 

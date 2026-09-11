@@ -1,7 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CronOneOffSpec, CronScheduleSpec } from "@cline/shared";
+import {
+	type CronOneOffSpec,
+	type CronScheduleSpec,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+} from "@cline/shared";
 import { loadSqliteDb } from "@cline/shared/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SqliteCronStore } from "./sqlite-cron-store";
@@ -71,6 +76,72 @@ describe("SqliteCronStore", () => {
 		expect(result.record.notesDirectory).toBe("/notes");
 		expect(result.record.extensions).toEqual(["rules", "skills"]);
 		expect(result.record.source).toBe("automation");
+	});
+
+	it("defaults hub schedules to yolo and preserves explicit modes on update", () => {
+		const created = store.createHubSchedule({
+			name: "Routine",
+			cronPattern: "0 * * * *",
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+		});
+		expect(created.mode).toBe("yolo");
+
+		const act = store.updateHubSchedule(created.externalId, {
+			scheduleId: created.externalId,
+			mode: "act",
+		});
+		expect(act?.mode).toBe("act");
+		expect(
+			store.updateHubSchedule(created.externalId, {
+				scheduleId: created.externalId,
+				name: "Renamed routine",
+			})?.mode,
+		).toBe("act");
+
+		expect(
+			store.updateHubSchedule(created.externalId, {
+				scheduleId: created.externalId,
+				mode: "plan",
+			})?.mode,
+		).toBe("plan");
+		expect(
+			store.updateHubSchedule(created.externalId, {
+				scheduleId: created.externalId,
+				mode: "yolo",
+			})?.mode,
+		).toBe("yolo");
+	});
+
+	it.each([
+		undefined,
+		"unknown",
+	])("falls back to yolo when updating a hub schedule with stored mode %s", (storedMode) => {
+		const scheduleId = `sched-${storedMode ?? "missing"}`;
+		store.upsertSpec({
+			externalId: scheduleId,
+			sourcePath: `hub/schedules/${scheduleId}.cron.md`,
+			triggerKind: "schedule",
+			sourceHash: "legacy-hash",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "schedule",
+				id: scheduleId,
+				title: "Legacy routine",
+				prompt: "Do the work",
+				workspaceRoot: "/ws",
+				schedule: "0 * * * *",
+				enabled: true,
+				mode: storedMode as CronScheduleSpec["mode"],
+				source: "hub-schedule",
+			},
+		});
+
+		const updated = store.updateHubSchedule(scheduleId, {
+			scheduleId,
+			name: "Updated routine",
+		});
+		expect(updated?.mode).toBe("yolo");
 	});
 
 	it("does not bump revision on cosmetic-only re-upsert with same hash", () => {
@@ -207,7 +278,7 @@ describe("SqliteCronStore: runs", () => {
 
 	it("enqueues a queued one-off run and detects duplicates", () => {
 		const spec = seedOneOff();
-		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(false);
+		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(false);
 		const run = store.enqueueRun({
 			specId: spec.specId,
 			specRevision: 1,
@@ -216,7 +287,40 @@ describe("SqliteCronStore: runs", () => {
 		});
 		expect(run.status).toBe("queued");
 		expect(run.triggerKind).toBe("one_off");
-		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(true);
+		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
+	});
+
+	it("numbers a spec's runs by creation order regardless of status", () => {
+		const spec = seedOneOff();
+		const other = store.upsertSpec({
+			externalId: "other",
+			sourcePath: "other.md",
+			triggerKind: "one_off",
+			sourceHash: "hash-other",
+			parseStatus: "valid",
+			spec: {
+				triggerKind: "one_off",
+				id: "other",
+				title: "Other",
+				prompt: "p",
+				workspaceRoot: "/ws",
+				enabled: true,
+			},
+		}).record;
+		const enqueue = (specId: string) =>
+			store.enqueueRun({ specId, specRevision: 1, triggerKind: "manual" });
+		const first = enqueue(spec.specId);
+		const second = enqueue(spec.specId);
+		const otherFirst = enqueue(other.specId);
+		const third = enqueue(spec.specId);
+		// A cancelled run keeps its slot so later numbers never shift.
+		store.completeRun(second.runId, { status: "cancelled" });
+
+		expect(store.getRunOrdinal(first.runId)).toBe(1);
+		expect(store.getRunOrdinal(second.runId)).toBe(2);
+		expect(store.getRunOrdinal(third.runId)).toBe(3);
+		expect(store.getRunOrdinal(otherFirst.runId)).toBe(1);
+		expect(store.getRunOrdinal("crun_missing")).toBeUndefined();
 	});
 
 	it("treats failed one-off runs as satisfying the revision", () => {
@@ -227,7 +331,40 @@ describe("SqliteCronStore: runs", () => {
 			triggerKind: "one_off",
 		});
 		store.completeRun(run.runId, { status: "failed", error: "boom" });
-		expect(store.hasOneOffRunForRevision(spec.specId, 1)).toBe(true);
+		expect(store.hasConsumedOneOffRevision(spec.specId, 1)).toBe(true);
+	});
+
+	it("consumes a queued one-time occurrence when manually triggered", () => {
+		const runAt = Date.now() + 60_000;
+		const spec = store.createHubSchedule({
+			name: "Run once",
+			cronPattern: ONE_TIME_SCHEDULE_CRON_PATTERN,
+			prompt: "Do the work",
+			workspaceRoot: "/ws",
+			metadata: { [ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY]: runAt },
+		});
+		const scheduled = store.enqueueRun({
+			specId: spec.specId,
+			specRevision: spec.revision,
+			triggerKind: "one_off",
+			scheduledFor: new Date(runAt).toISOString(),
+		});
+
+		const manual = store.enqueueHubScheduleRun(spec.externalId, "manual");
+		const repeatedManual = store.enqueueHubScheduleRun(
+			spec.externalId,
+			"manual",
+		);
+
+		expect(manual).toEqual(
+			expect.objectContaining({ triggerKind: "manual", status: "queued" }),
+		);
+		expect(repeatedManual?.runId).toBe(manual?.runId);
+		expect(store.getRun(scheduled.runId)?.status).toBe("cancelled");
+		expect(store.getSpec(spec.specId)?.nextRunAt).toBeUndefined();
+		expect(store.hasConsumedOneOffRevision(spec.specId, spec.revision)).toBe(
+			true,
+		);
 	});
 
 	it("claims due queued runs and completes them", () => {
@@ -288,7 +425,10 @@ describe("SqliteCronStore: runs", () => {
 		expect(runs[0]?.status).toBe("cancelled");
 	});
 
-	it("requeues a claimed run when ownership matches", () => {
+	it.each([
+		false,
+		true,
+	])("requeues a claimed run when ownership matches (release attempt: %s)", (releaseAttempt) => {
 		const spec = seedOneOff();
 		const queued = store.enqueueRun({
 			specId: spec.specId,
@@ -304,14 +444,27 @@ describe("SqliteCronStore: runs", () => {
 			store.requeueRun({
 				runId: claim?.run.runId,
 				claimToken: claim?.claimToken,
-				error: "retry later",
+				error: releaseAttempt ? undefined : "retry later",
+				releaseAttempt,
 			}),
 		).toBe(true);
 		const run = store.getRun(queued.runId);
 		expect(run?.status).toBe("queued");
 		expect(run?.claimToken).toBeUndefined();
 		expect(run?.startedAt).toBeUndefined();
-		expect(run?.error).toBe("retry later");
+		expect(run?.error).toBe(releaseAttempt ? undefined : "retry later");
+		expect(run?.attemptCount).toBe(releaseAttempt ? 0 : 1);
+		// A stale owner cannot decrement again after its claim has been released.
+		expect(
+			store.requeueRun({
+				runId: queued.runId,
+				claimToken: claim?.claimToken,
+				releaseAttempt: true,
+			}),
+		).toBe(false);
+		expect(store.getRun(queued.runId)?.attemptCount).toBe(
+			releaseAttempt ? 0 : 1,
+		);
 	});
 });
 

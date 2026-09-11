@@ -30,6 +30,7 @@ import type {
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
 } from "../../types/session";
+import { withSessionHistoryOriginMetadata } from "../history-origin";
 import type { SessionCompactionState } from "../models/session-compaction";
 import type { SessionRow } from "../models/session-row";
 import { SessionManifestStore } from "../stores/session-manifest-store";
@@ -68,20 +69,18 @@ export class UnifiedSessionPersistenceService {
 	}
 
 	private toPersistedMessages(
-		messages: LlmsProviders.Message[] | undefined,
+		messages: LlmsProviders.MessageWithMetadata[] | undefined,
 		result?: AgentResult,
-		previousMessages?: LlmsProviders.Message[],
+		previousMessages?: LlmsProviders.MessageWithMetadata[],
 	): StoredMessageWithMetadata[] | undefined {
 		if (!messages) return undefined;
 		return result
 			? withLatestAssistantTurnMetadata(
 					result.messages,
 					result,
-					previousMessages as LlmsProviders.MessageWithMetadata[] | undefined,
+					previousMessages,
 				)
-			: normalizeStoredMessagesForPersistence(
-					messages as LlmsProviders.MessageWithMetadata[],
-				);
+			: normalizeStoredMessagesForPersistence(messages);
 	}
 
 	ensureSessionsDir(): string {
@@ -115,16 +114,25 @@ export class UnifiedSessionPersistenceService {
 		const manifestPath =
 			this.manifestStore.artifacts.sessionManifestPath(sessionId);
 		const metadata = resolveMetadataWithTitle({
-			metadata: input.metadata,
+			metadata: withSessionHistoryOriginMetadata(input.metadata, {
+				mode: input.mode,
+				version: input.version,
+			}),
 			prompt: input.prompt,
 		});
+		const status: SessionStatus = input.status ?? "running";
+		const terminal = !isNonTerminalSessionStatus(status);
+		const endedAt = terminal ? (input.endedAt ?? nowIso()) : undefined;
+		const exitCode = terminal ? (input.exitCode ?? 0) : undefined;
 		const manifest = {
 			version: 1 as const,
 			session_id: sessionId,
 			source: input.source,
 			pid: input.pid,
 			started_at: startedAt,
-			status: "running" as const,
+			...(endedAt ? { ended_at: endedAt } : {}),
+			...(exitCode !== undefined ? { exit_code: exitCode } : {}),
+			status,
 			interactive: input.interactive,
 			provider: input.provider,
 			model: input.model,
@@ -139,14 +147,14 @@ export class UnifiedSessionPersistenceService {
 			messages_path: messagesPath,
 		};
 
-		await this.adapter.upsertSession({
+		const row: SessionRow = {
 			sessionId,
 			source: input.source,
 			pid: input.pid,
 			startedAt,
-			endedAt: null,
-			exitCode: null,
-			status: "running",
+			endedAt: endedAt ?? null,
+			exitCode: exitCode ?? null,
+			status,
 			statusLock: 0,
 			interactive: input.interactive,
 			provider: input.provider,
@@ -167,13 +175,10 @@ export class UnifiedSessionPersistenceService {
 			hookPath: "",
 			messagesPath,
 			updatedAt: nowIso(),
-		});
+		};
+		await this.adapter.upsertSession(row);
 
-		this.manifestStore.initializeMessagesFile(
-			sessionId,
-			messagesPath,
-			startedAt,
-		);
+		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
 		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 		return { manifestPath, messagesPath, compactionPath, manifest };
 	}
@@ -310,12 +315,10 @@ export class UnifiedSessionPersistenceService {
 
 	persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.Message[],
+		messages: LlmsProviders.MessageWithMetadata[],
 		systemPrompt?: string,
 	): Promise<void> {
-		const normalizedMessages = normalizeStoredMessagesForPersistence(
-			messages as LlmsProviders.MessageWithMetadata[],
-		);
+		const normalizedMessages = normalizeStoredMessagesForPersistence(messages);
 		return this.manifestStore.persistSessionMessages(
 			sessionId,
 			normalizedMessages,
@@ -381,7 +384,7 @@ export class UnifiedSessionPersistenceService {
 		status: SessionStatus,
 		summary?: string,
 		result?: AgentResult,
-		messages?: LlmsProviders.Message[],
+		messages?: LlmsProviders.MessageWithMetadata[],
 	): Promise<void> {
 		return this.teamChildren.onTeamTaskEnd(
 			rootSessionId,
@@ -507,15 +510,20 @@ export class UnifiedSessionPersistenceService {
 		return await this.adapter.getSession(row.sessionId);
 	}
 
-	async listSessions(limit = 200): Promise<SessionRow[]> {
+	async listSessions(
+		limit = 200,
+		options: { rootOnly?: boolean } = {},
+	): Promise<SessionRow[]> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
 		await this.reconcileDeadSessions(scanLimit);
 
-		const rows = (await this.adapter.listSessions({ limit: scanLimit })).slice(
-			0,
-			requestedLimit,
-		);
+		const rows = (
+			await this.adapter.listSessions({
+				limit: scanLimit,
+				rootOnly: options.rootOnly,
+			})
+		).slice(0, requestedLimit);
 		// Resolve manifest titles concurrently and off-thread. Each row only needs
 		// the manifest's `metadata.title`, so read just that asynchronously instead
 		// of synchronously reading + Zod-parsing the entire manifest per row.
@@ -532,6 +540,24 @@ export class UnifiedSessionPersistenceService {
 				: meta;
 			return { ...row, metadata: resolved };
 		});
+	}
+
+	/**
+	 * Lightweight, effectively unbounded listing of session ids + metadata
+	 * (no manifest reads, no dead-session reconciliation). listSessions caps
+	 * its scan at 2000 rows; callers that must see every row — e.g. import
+	 * dedup markers — use this instead.
+	 */
+	async listSessionMetadata(
+		limit = Number.MAX_SAFE_INTEGER,
+	): Promise<Array<{ sessionId: string; metadata?: Record<string, unknown> }>> {
+		const rows = await this.adapter.listSessions({
+			limit: Math.max(1, Math.floor(limit)),
+		});
+		return rows.map((row) => ({
+			sessionId: row.sessionId,
+			metadata: sanitizeMetadata(row.metadata ?? undefined),
+		}));
 	}
 
 	async reconcileDeadSessions(limit = 2000): Promise<number> {

@@ -2,8 +2,13 @@ import type { MessageWithMetadata } from "@cline/llms";
 import type { AgentResult } from "@cline/shared";
 import { formatModeSwitchNotice, formatUserInputBlock } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { withSessionHistoryOriginMetadata } from "../session/history-origin";
+import { makeSubSessionId } from "../session/models/session-graph";
+import type { SessionRow } from "../session/models/session-row";
 import {
+	buildMessagesFilePayload,
 	deriveTitleFromPrompt,
+	resolveMessagesFileContext,
 	withLatestAssistantTurnMetadata,
 } from "./session-data";
 import { summarizeUsageFromMessages } from "./usage";
@@ -12,6 +17,42 @@ type LegacyStoredMessage = MessageWithMetadata & {
 	providerId?: string;
 	modelId?: string;
 };
+
+function createSessionRow(overrides: Partial<SessionRow> = {}): SessionRow {
+	return {
+		sessionId: "root-session",
+		source: "vscode",
+		pid: 123,
+		startedAt: "2026-07-31T00:00:00.000Z",
+		endedAt: null,
+		exitCode: null,
+		status: "running",
+		statusLock: 0,
+		interactive: true,
+		provider: "anthropic",
+		model: "claude-sonnet-4-6",
+		cwd: "/workspace",
+		workspaceRoot: "/workspace",
+		teamName: null,
+		enableTools: true,
+		enableSpawn: true,
+		enableTeams: true,
+		parentSessionId: null,
+		parentAgentId: null,
+		agentId: null,
+		conversationId: null,
+		isSubagent: false,
+		prompt: "test",
+		metadata: withSessionHistoryOriginMetadata(undefined, {
+			mode: "user",
+			version: "3.99.0",
+		}),
+		hookPath: "",
+		messagesPath: "/tmp/root.messages.json",
+		updatedAt: "2026-07-31T00:00:00.000Z",
+		...overrides,
+	};
+}
 
 function createResult(overrides: Partial<AgentResult> = {}): AgentResult {
 	return {
@@ -56,6 +97,75 @@ describe("deriveTitleFromPrompt", () => {
 		expect(deriveTitleFromPrompt(formatUserInputBlock(prompt, "plan"))).toBe(
 			"how should we refactor this?",
 		);
+	});
+});
+
+describe("messages file provenance", () => {
+	it("writes root source, session mode, and client version", () => {
+		const row = createSessionRow();
+		const payload = buildMessagesFilePayload({
+			updatedAt: row.updatedAt,
+			context: resolveMessagesFileContext(row),
+			messages: [],
+		});
+
+		expect(payload).toMatchObject({
+			agent: "lead",
+			sessionId: "root-session",
+			origin: {
+				source: "vscode",
+				mode: "user",
+				sessionId: "root-session",
+				version: "3.99.0",
+			},
+		});
+	});
+
+	it("records the automation trigger for scheduled runs", () => {
+		const row = createSessionRow({
+			source: "core",
+			metadata: withSessionHistoryOriginMetadata(undefined, {
+				mode: "automation",
+				trigger: "hub-schedule",
+			}),
+		});
+
+		expect(resolveMessagesFileContext(row).origin).toEqual({
+			source: "core",
+			mode: "automation",
+			sessionId: "root-session",
+			trigger: "hub-schedule",
+		});
+	});
+
+	it("writes subagent lineage under the actual child session ID", () => {
+		const childSessionId = makeSubSessionId("root-session", "guardian");
+		const row = createSessionRow({
+			sessionId: childSessionId,
+			parentSessionId: "root-session",
+			parentAgentId: "lead",
+			agentId: "guardian",
+			conversationId: "conversation-1",
+			isSubagent: true,
+			metadata: withSessionHistoryOriginMetadata(undefined, {
+				mode: "subagent",
+				version: "3.99.0",
+			}),
+		});
+
+		expect(resolveMessagesFileContext(row)).toEqual({
+			agent: "subagent",
+			sessionId: childSessionId,
+			taskType: "subagent_task",
+			origin: {
+				source: "vscode",
+				mode: "subagent",
+				sessionId: childSessionId,
+				parentThreadId: "root-session",
+				subagent: "guardian",
+				version: "3.99.0",
+			},
+		});
 	});
 });
 

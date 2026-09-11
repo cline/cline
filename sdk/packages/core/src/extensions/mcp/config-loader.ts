@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
 	existsSync,
 	mkdirSync,
@@ -9,14 +10,19 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { BasicLogger } from "@cline/shared";
+import {
+	isMcpTimeoutConfigured,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
+import { resolveNativeMcpTransport } from "./remote-proxy";
 import type {
 	McpManager,
+	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,
@@ -24,6 +30,17 @@ import type {
 
 const stringRecordSchema = z.record(z.string(), z.string());
 const metadataSchema = z.record(z.string(), z.unknown());
+
+// Preserve omission and malformed values for the stdio initialize budget.
+// Finite numbers clamp through the shared resolver without rejecting otherwise
+// valid servers in the settings file. Ordinary requests resolve undefined to
+// the shared default later, while initialize can still distinguish whether the
+// user explicitly configured a timeout.
+const timeoutFieldSchema = z.preprocess(
+	(value) =>
+		isMcpTimeoutConfigured(value) ? resolveMcpTimeoutSeconds(value) : undefined,
+	z.number().optional(),
+);
 const oauthStateSchema = z
 	.object({
 		clientInformation: z.record(z.string(), z.unknown()).optional(),
@@ -33,6 +50,13 @@ const oauthStateSchema = z
 		redirectUrl: z.string().url().optional(),
 		lastError: z.string().optional(),
 		lastAuthenticatedAt: z.number().int().positive().optional(),
+		authorizationRequired: z.boolean().optional(),
+	})
+	.strip();
+const oauthClientSchema = z
+	.object({
+		clientId: z.string().min(1),
+		clientSecret: z.string().min(1).optional(),
 	})
 	.strip();
 
@@ -62,12 +86,23 @@ const mcpTransportSchema = z.discriminatedUnion("type", [
 	streamableHttpTransportSchema,
 ]);
 
-const nestedRegistrationBodySchema = z.object({
-	transport: mcpTransportSchema,
-	disabled: z.boolean().optional(),
-	metadata: metadataSchema.optional(),
-	oauth: oauthStateSchema.optional(),
-});
+const nestedRegistrationBodySchema = z
+	.object({
+		transport: mcpTransportSchema,
+		disabled: z.boolean().optional(),
+		timeout: timeoutFieldSchema,
+		metadata: metadataSchema.optional(),
+		oauthClient: oauthClientSchema.optional(),
+		oauth: oauthStateSchema.optional(),
+	})
+	.transform((value) => ({
+		transport: value.transport,
+		disabled: value.disabled,
+		timeoutSeconds: value.timeout,
+		metadata: value.metadata,
+		oauthClient: value.oauthClient,
+		oauth: value.oauth,
+	}));
 
 const legacyTransportTypeSchema = z
 	.enum(["stdio", "sse", "http", "streamableHttp"])
@@ -77,7 +112,9 @@ const legacyRegistrationBaseSchema = z.object({
 	type: z.enum(["stdio", "sse", "streamableHttp"]).optional(),
 	transportType: legacyTransportTypeSchema,
 	disabled: z.boolean().optional(),
+	timeout: timeoutFieldSchema,
 	metadata: metadataSchema.optional(),
+	oauthClient: oauthClientSchema.optional(),
 	oauth: oauthStateSchema.optional(),
 });
 
@@ -120,7 +157,9 @@ const legacyStdioRegistrationSchema = legacyRegistrationBaseSchema
 			env: value.env,
 		},
 		disabled: value.disabled,
+		timeoutSeconds: value.timeout,
 		metadata: value.metadata,
+		oauthClient: value.oauthClient,
 		oauth: value.oauth,
 	}));
 
@@ -152,7 +191,9 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 					headers: value.headers,
 				},
 				disabled: value.disabled,
+				timeoutSeconds: value.timeout,
 				metadata: value.metadata,
+				oauthClient: value.oauthClient,
 				oauth: value.oauth,
 			};
 		}
@@ -163,7 +204,9 @@ const legacyUrlRegistrationSchema = legacyRegistrationBaseSchema
 				headers: value.headers,
 			},
 			disabled: value.disabled,
+			timeoutSeconds: value.timeout,
 			metadata: value.metadata,
+			oauthClient: value.oauthClient,
 			oauth: value.oauth,
 		};
 	});
@@ -186,6 +229,15 @@ export interface McpSettingsFile {
 
 export interface LoadMcpSettingsOptions {
 	filePath?: string;
+}
+
+export interface UpdateMcpServerOAuthStateOptions
+	extends LoadMcpSettingsOptions {
+	/**
+	 * When present, only update OAuth state while the server still has this
+	 * configured client. `null` asserts that dynamic registration is still in use.
+	 */
+	expectedOAuthClient?: McpServerOAuthClientConfig | null;
 }
 
 export interface RegisterMcpServersFromSettingsOptions {
@@ -211,6 +263,15 @@ export class McpSettingsUpdateSkippedError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = "McpSettingsUpdateSkippedError";
+	}
+}
+
+export class McpOAuthClientChangedError extends Error {
+	constructor(serverName: string) {
+		super(
+			`OAuth client configuration changed while authorizing MCP server "${serverName}". Start authorization again.`,
+		);
+		this.name = "McpOAuthClientChangedError";
 	}
 }
 
@@ -654,6 +715,7 @@ export function normalizeMcpServerOAuthState(
 		...(value.lastAuthenticatedAt
 			? { lastAuthenticatedAt: value.lastAuthenticatedAt }
 			: {}),
+		...(value.authorizationRequired ? { authorizationRequired: true } : {}),
 	};
 	return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
@@ -680,13 +742,68 @@ export function resolveMcpServerRegistrations(
 	options: LoadMcpSettingsOptions = {},
 ): McpServerRegistration[] {
 	const config = loadMcpSettingsFile(options);
-	return Object.entries(config.mcpServers).map(([name, value]) => ({
+	return Object.entries(config.mcpServers).map(([name, value]) =>
+		toMcpServerRegistration(name, value),
+	);
+}
+
+function toMcpServerRegistration(
+	name: string,
+	value: Omit<McpServerRegistration, "name">,
+): McpServerRegistration {
+	return {
 		name,
-		transport: value.transport,
+		transport: resolveNativeMcpTransport(value.transport),
 		disabled: value.disabled,
+		timeoutSeconds: value.timeoutSeconds,
 		metadata: value.metadata,
+		oauthClient: value.oauthClient,
 		oauth: value.oauth,
-	}));
+	};
+}
+
+/**
+ * Parses one raw MCP settings entry without requiring sibling entries to be
+ * valid. Hosts with an editable settings UI can use this to keep healthy and
+ * repairable entries visible when a hand-edited sibling is malformed.
+ */
+export function parseMcpServerRegistration(
+	name: string,
+	value: unknown,
+): McpServerRegistration {
+	const result = mcpRegistrationBodySchema.safeParse(value);
+	if (!result.success) {
+		const details = result.error.issues
+			.map((issue) => {
+				const path = issue.path.join(".");
+				return path ? `${path}: ${issue.message}` : issue.message;
+			})
+			.join("; ");
+		throw new Error(`Invalid MCP server "${name}": ${details}`);
+	}
+	return toMcpServerRegistration(name, result.data);
+}
+
+/** Resolves one configured server without requiring sibling entries to parse. */
+export function resolveMcpServerRegistration(
+	serverName: string,
+	options: LoadMcpSettingsOptions = {},
+): McpServerRegistration | undefined {
+	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
+	const settings = readJsonObject(filePath);
+	const serversValue = settings.mcpServers;
+	if (
+		!serversValue ||
+		typeof serversValue !== "object" ||
+		Array.isArray(serversValue)
+	) {
+		return undefined;
+	}
+	const server = getOwnServerRecord(
+		serversValue as Record<string, unknown>,
+		serverName,
+	);
+	return server ? parseMcpServerRegistration(serverName, server) : undefined;
 }
 
 export function setMcpServerDisabled(
@@ -738,12 +855,26 @@ export function getMcpServerOAuthState(
 function buildOAuthStateMutator(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
+	options: UpdateMcpServerOAuthStateOptions,
 ): McpSettingsMutator<McpServerOAuthState> {
 	return (settings) => {
 		const servers = settings.mcpServers as Record<string, unknown>;
 		const server = getOwnServerRecord(servers, serverName);
 		if (!server) {
 			throw new Error(`Unknown MCP server: ${serverName}`);
+		}
+		if (options.expectedOAuthClient !== undefined) {
+			const parsedClient = oauthClientSchema.safeParse(server.oauthClient);
+			const currentClient = parsedClient.success
+				? parsedClient.data
+				: undefined;
+			const expectedClient = options.expectedOAuthClient ?? undefined;
+			if (
+				currentClient?.clientId !== expectedClient?.clientId ||
+				currentClient?.clientSecret !== expectedClient?.clientSecret
+			) {
+				throw new McpOAuthClientChangedError(serverName);
+			}
 		}
 
 		const current = validateOauthState(server.oauth) ?? {};
@@ -768,12 +899,12 @@ function buildOAuthStateMutator(
 export function updateMcpServerOAuthState(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-	options: LoadMcpSettingsOptions = {},
+	options: UpdateMcpServerOAuthStateOptions = {},
 ): McpServerOAuthState {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
 	return updateMcpSettingsFileSync(
 		filePath,
-		buildOAuthStateMutator(serverName, updater),
+		buildOAuthStateMutator(serverName, updater, options),
 	);
 }
 
@@ -785,12 +916,12 @@ export function updateMcpServerOAuthState(
 export async function updateMcpServerOAuthStateAsync(
 	serverName: string,
 	updater: (current: McpServerOAuthState) => McpServerOAuthState,
-	options: LoadMcpSettingsOptions = {},
+	options: UpdateMcpServerOAuthStateOptions = {},
 ): Promise<McpServerOAuthState> {
 	const filePath = options.filePath ?? resolveDefaultMcpSettingsPath();
 	return updateMcpSettingsFile(
 		filePath,
-		buildOAuthStateMutator(serverName, updater),
+		buildOAuthStateMutator(serverName, updater, options),
 	);
 }
 
@@ -799,21 +930,38 @@ export function listMcpServerOAuthStatuses(
 ): McpServerOAuthStatus[] {
 	const registrations = resolveMcpServerRegistrations(options);
 	return registrations
-		.map((registration) => {
-			const oauthSupported = registration.transport.type !== "stdio";
-			const accessToken = registration.oauth?.tokens?.access_token;
-			return {
-				serverName: registration.name,
-				oauthSupported,
-				oauthConfigured:
-					oauthSupported &&
-					typeof accessToken === "string" &&
-					accessToken.trim().length > 0,
-				lastError: registration.oauth?.lastError,
-				lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
-			};
-		})
+		.map(getMcpServerOAuthStatus)
 		.sort((left, right) => left.serverName.localeCompare(right.serverName));
+}
+
+/** Calculates OAuth status for one already-parsed registration. */
+export function getMcpServerOAuthStatus(
+	registration: McpServerRegistration,
+): McpServerOAuthStatus {
+	const oauthSupported = registration.transport.type !== "stdio";
+	const accessToken = registration.oauth?.tokens?.access_token;
+	const tokenClientInformation = registration.oauth?.clientInformation;
+	const tokensMatchConfiguredClient = registration.oauthClient
+		? tokenClientInformation?.client_id === registration.oauthClient.clientId &&
+			tokenClientInformation?.client_secret ===
+				registration.oauthClient.clientSecret
+		: true;
+	const oauthConfigured =
+		oauthSupported &&
+		tokensMatchConfiguredClient &&
+		typeof accessToken === "string" &&
+		accessToken.trim().length > 0;
+	return {
+		serverName: registration.name,
+		oauthSupported,
+		oauthConfigured,
+		authorizationRequired:
+			oauthSupported &&
+			!oauthConfigured &&
+			registration.oauth?.authorizationRequired === true,
+		lastError: registration.oauth?.lastError,
+		lastAuthenticatedAt: registration.oauth?.lastAuthenticatedAt,
+	};
 }
 
 export async function registerMcpServersFromSettingsFile(

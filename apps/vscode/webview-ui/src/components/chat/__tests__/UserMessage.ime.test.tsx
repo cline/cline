@@ -118,4 +118,21 @@ describe("UserMessage – IME composition handling", () => {
 			}),
 		)
 	})
+
+	it("removes an image before regenerating an edited message", async () => {
+		const user = userEvent.setup()
+		render(<UserMessage images={["image.png"]} messageTs={123} text="Update this" />)
+
+		await user.click(screen.getByText("Update this"))
+		const thumbnail = screen.getByAltText("Thumbnail image-1")
+		fireEvent.mouseEnter(thumbnail.parentElement as HTMLElement)
+		const removeButton = thumbnail.parentElement?.querySelector(".codicon-close")?.parentElement
+		expect(removeButton).not.toBeNull()
+		await user.click(removeButton as HTMLElement)
+
+		expect(screen.queryByAltText("Thumbnail image-1")).not.toBeInTheDocument()
+		await user.click(screen.getByRole("button", { name: "Reset Chat" }))
+		await waitFor(() => expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledTimes(1))
+		expect(TaskServiceClient.editMessageAndRegenerate).toHaveBeenCalledWith(expect.objectContaining({ images: [] }))
+	})
 })

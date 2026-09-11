@@ -1,4 +1,6 @@
-import type { Message } from "@cline/shared";
+import { readFileSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
+import type { Message, MessageWithMetadata } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { hydrateSessionMessages } from "./hydrate-messages";
@@ -106,6 +108,7 @@ describe("hydrateSessionMessages", () => {
 			},
 			{
 				kind: "tool_call",
+				toolCallId: "tool-1",
 				toolName: "switch_to_act_mode",
 				inputSummary: expect.any(String),
 				rawInput: {},
@@ -135,6 +138,36 @@ describe("hydrateSessionMessages", () => {
 		]);
 	});
 
+	// Regression test for https://github.com/cline/cline/issues/13036:
+	// persisted sessions with malformed tool inputs must stay resumable.
+	it("hydrates tool calls with malformed inputs without throwing", () => {
+		const messages = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "tool-1",
+						name: "run_commands",
+						input: { command: null },
+					},
+				],
+			},
+		] as Message[];
+
+		expect(hydrateSessionMessages(messages)).toEqual([
+			{
+				kind: "tool_call",
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				inputSummary: "",
+				rawInput: { command: null },
+				streaming: false,
+				mode: undefined,
+			},
+		]);
+	});
+
 	it("leaves mode undefined for transcripts without user_input wrappers", () => {
 		const messages = [
 			{ role: "user", content: "plain old message" },
@@ -150,5 +183,120 @@ describe("hydrateSessionMessages", () => {
 				mode: undefined,
 			},
 		]);
+	});
+
+	it("materializes generated images from resumed assistant history", () => {
+		const messages = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "image",
+						data: Buffer.from("history-image").toString("base64"),
+						mediaType: "image/webp",
+					},
+				],
+			},
+		] as Message[];
+
+		const [entry] = hydrateSessionMessages(messages);
+		expect(entry).toMatchObject({
+			kind: "assistant_media",
+			modality: "image",
+			mediaType: "image/webp",
+			byteLength: 13,
+			mode: undefined,
+		});
+		if (entry?.kind !== "assistant_media" || !entry.location) {
+			throw new Error("Expected a materialized assistant image");
+		}
+		try {
+			expect(readFileSync(entry.location, "utf8")).toBe("history-image");
+		} finally {
+			rmSync(dirname(entry.location), { recursive: true, force: true });
+		}
+	});
+
+	it("hydrates provider model tools through the ordinary tool card path", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				id: "assistant-search",
+				role: "assistant",
+				content: "Bun 1.3.14 is the latest stable release.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun stable release" },
+							output: { sources: ["https://bun.sh/blog/bun-v1.3.14"] },
+						},
+					],
+				},
+			},
+		];
+
+		expect(hydrateSessionMessages(messages)).toEqual([
+			{
+				kind: "tool_call",
+				toolCallId: "search-1",
+				toolName: "web_search",
+				inputSummary: expect.any(String),
+				rawInput: { query: "latest Bun stable release" },
+				streaming: false,
+				mode: undefined,
+				result: {
+					outputSummary: '{"sources":["https://bun.sh/blog/bun-v1.3.14"]}',
+					rawOutput: '{"sources":["https://bun.sh/blog/bun-v1.3.14"]}',
+					error: undefined,
+				},
+			},
+			{
+				kind: "assistant_text",
+				text: "Bun 1.3.14 is the latest stable release.",
+				streaming: false,
+				mode: undefined,
+			},
+		]);
+	});
+
+	it("hydrates structured native search output and mirrors live error payloads", () => {
+		const nativeResult = {
+			type: "web_search_result",
+			url: "https://bun.sh/blog/bun-v1.3.14",
+			title: "Bun v1.3.14",
+			pageAge: "2026-08-12",
+			encryptedContent: "encrypted",
+		};
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: "Search failed.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-native",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun" },
+							output: [nativeResult],
+							isError: true,
+						},
+					],
+				},
+			},
+		];
+
+		const [toolEntry] = hydrateSessionMessages(messages);
+		expect(toolEntry).toMatchObject({
+			kind: "tool_call",
+			toolCallId: "search-native",
+			result: {
+				outputSummary: "",
+				rawOutput: undefined,
+				error: JSON.stringify([nativeResult]),
+			},
+		});
 	});
 });

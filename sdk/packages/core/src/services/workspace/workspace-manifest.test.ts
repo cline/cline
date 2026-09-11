@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, parse } from "node:path";
+import { emptyWorkspaceManifest, upsertWorkspaceInfo } from "@cline/shared";
 import simpleGit from "simple-git";
 import { afterEach, describe, expect, test } from "vitest";
 import {
@@ -127,6 +128,19 @@ describe("generateWorkspaceInfoWithDiagnostics", () => {
 		expect(result.error).toBeUndefined();
 		expect(result.info.latestGitCommitHash).toBeTruthy();
 		expect(result.info.latestGitBranchName).toBeTruthy();
+	});
+
+	test("filesystem root omits the hint and passes manifest validation", async () => {
+		// basename of a root path ("/", "C:\\") is "", which WorkspaceInfoSchema
+		// rejects — the hint must be omitted, not empty, or upsertWorkspaceInfo
+		// throws for every session rooted there.
+		const root = parse(tmpdir()).root;
+		const { info } = await generateWorkspaceInfoWithDiagnostics(root);
+		expect(info.rootPath).toBe(root);
+		expect(info.hint).toBeUndefined();
+		expect(() =>
+			upsertWorkspaceInfo(emptyWorkspaceManifest(), info),
+		).not.toThrow();
 	});
 
 	test("nonexistent workspace path still reports an error", async () => {

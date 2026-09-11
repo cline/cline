@@ -274,7 +274,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			threshold: 0.6,
 			shouldSort: true,
 			isCaseSensitive: false,
-			ignoreLocation: false,
+			// Match anywhere in the task text. With location-based scoring, a
+			// match more than ~60 characters into the title scores above the
+			// threshold and the task silently vanishes from search results
+			// (e.g. searching "aqueducts" in "Write a detailed 800-word essay
+			// about the history of the Roman aqueducts...").
+			ignoreLocation: true,
 			includeMatches: true,
 			minMatchCharLength: 1,
 		})

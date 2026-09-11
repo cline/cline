@@ -6,10 +6,10 @@ import type {
 import type {
 	BudgetAction,
 	BudgetMutationAction,
+	BudgetPolicyIntent,
 	BudgetProjectionOptions,
 	BudgetProjectionResult,
 	BudgetProjectionWarning,
-	BudgetPolicyIntent,
 } from "./types";
 
 type EstimateMessageTokens = (message: MessageWithMetadata) => number;
@@ -192,7 +192,11 @@ function collectMessageClosure(
 }
 
 function isUnsafeBlock(block: ContentBlock): boolean {
-	return block.type === "image" || block.type === "redacted_thinking";
+	return (
+		block.type === "image" ||
+		block.type === "media" ||
+		block.type === "redacted_thinking"
+	);
 }
 
 function isNestedUnsafeToolResultBlock(

@@ -259,9 +259,9 @@ jobs:
       - name: Check packaged next trace activation
         working-directory: staging
         run: |
-            # Check the shipped next bundle, not the loader or the legacy cohort.
-            set -euo pipefail
-            unzip -p "cline-nightly-${{ steps.version.outputs.version }}.vsix" extension/next/dist/extension.js | node "$GITHUB_WORKSPACE/next-src/apps/vscode/scripts/check-trace-artifact.mjs" -
+          # Check the shipped next bundle, not the loader or the legacy cohort.
+          set -euo pipefail
+          unzip -p "cline-nightly-${{ steps.version.outputs.version }}.vsix" extension/next/dist/extension.js | node "$GITHUB_WORKSPACE/next-src/apps/vscode/scripts/check-trace-artifact.mjs" -
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4

@@ -1,6 +1,12 @@
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	captureTaskLifecycleEvent as captureSharedTaskLifecycleEvent,
 	type ITelemetryService,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
 import { describe, expect, test, vi } from "vitest";
 import {
@@ -9,12 +15,19 @@ import {
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureScheduleRun,
+	captureTaskCompleted,
+	captureTaskCreated,
+	captureTaskLifecycleEvent,
+	captureTaskRestarted,
 	captureTelemetryOptOut,
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
 	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
@@ -81,11 +94,74 @@ describe("captureTelemetryOptOut", () => {
 	});
 });
 
+describe("task lifecycle contract", () => {
+	test.each([
+		["task.created", captureTaskCreated],
+		["task.restarted", captureTaskRestarted],
+	] as const)("emits %s with canonical provider and model fields", (event, emit) => {
+		const stub = createTelemetryStub();
+		emit(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event,
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+			},
+		});
+	});
+
+	test("emits task.completed with canonical provider and model fields", () => {
+		const stub = createTelemetryStub();
+		captureTaskCompleted(stub.telemetry, {
+			ulid: "session-1",
+			provider: "anthropic",
+			model: "claude-sonnet-4.6",
+			source: "submit_and_exit",
+		});
+
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: "task.completed",
+			properties: {
+				ulid: "session-1",
+				provider: "anthropic",
+				model: "claude-sonnet-4.6",
+				source: "submit_and_exit",
+			},
+		});
+	});
+});
+
 describe("CORE_TELEMETRY_EVENTS", () => {
 	test("catalogs the unexpected reasoning token event", () => {
 		expect(CORE_TELEMETRY_EVENTS.AGENT.UNEXPECTED_REASONING_TOKENS).toBe(
 			AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 		);
+	});
+
+	test("catalogs task lifecycle events", () => {
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_REQUEST_STARTED).toBe(
+			TASK_PROVIDER_REQUEST_STARTED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_STREAM_STARTED).toBe(
+			TASK_PROVIDER_STREAM_STARTED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.FIRST_CHUNK_RECEIVED).toBe(
+			TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.PROVIDER_STREAM_FAILED).toBe(
+			TASK_PROVIDER_STREAM_FAILED_EVENT,
+		);
+		expect(CORE_TELEMETRY_EVENTS.TASK.CANCELLED).toBe(TASK_CANCELLED_EVENT);
+	});
+
+	test("re-exports the task lifecycle telemetry helper", () => {
+		expect(captureTaskLifecycleEvent).toBe(captureSharedTaskLifecycleEvent);
 	});
 });
 
@@ -270,6 +346,35 @@ describe("captureWorkspacePathResolved", () => {
 		).not.toThrow();
 	});
 });
+
+describe("captureMistakeLimitReached", () => {
+	const baseProps = {
+		ulid: "sess-1",
+		model: "claude-3-5-sonnet",
+		provider: "anthropic",
+		reason: "tool_execution_failed",
+		consecutiveMistakes: 3,
+		maxConsecutiveMistakes: 3,
+	};
+
+	test("emits task.mistake_limit_reached with limit context and a timestamp", () => {
+		const stub = createTelemetryStub();
+		captureMistakeLimitReached(stub.telemetry, baseProps);
+		expect(stub.capture).toHaveBeenCalledTimes(1);
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+		const { event, properties } = captureCallAt(stub, 0);
+		expect(event).toBe("task.mistake_limit_reached");
+		expect(properties).toMatchObject(baseProps);
+		expect(typeof properties?.timestamp).toBe("string");
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			captureMistakeLimitReached(undefined, baseProps),
+		).not.toThrow();
+	});
+});
+
 describe("captureCompactionExecuted", () => {
 	const baseProps = {
 		ulid: "ulid-1",
@@ -852,4 +957,60 @@ describe("identifyAccount", () => {
 			identifyAccount(undefined, { id: "usr-123", provider: "cline" }),
 		).not.toThrow();
 	});
+});
+
+describe("clearAccountTelemetryIdentity", () => {
+	test("restores anonymous identity and clears account properties", () => {
+		const stub = createTelemetryStub();
+
+		clearAccountTelemetryIdentity(stub.telemetry, "  machine-123  ");
+
+		expect(stub.telemetry.setDistinctId).toHaveBeenCalledWith("machine-123");
+		expect(stub.telemetry.updateCommonProperties).toHaveBeenCalledWith({
+			user_id: undefined,
+			account_id: undefined,
+			account_email: undefined,
+			provider: undefined,
+			organization_id: undefined,
+			organization_name: undefined,
+			member_id: undefined,
+		});
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() =>
+			clearAccountTelemetryIdentity(undefined, "machine-123"),
+		).not.toThrow();
+	});
+});
+
+test("scheduler telemetry allowlists diagnostics and tolerates capture failures", () => {
+	const { telemetry, capture } = createTelemetryStub();
+	const input = {
+		phase: "finished" as const,
+		triggerKind: "schedule" as const,
+		attemptCount: 2,
+		startDelayMs: 60_000,
+		durationMs: 30_000,
+		outcome: "timeout" as const,
+		prompt: "private prompt",
+		workspaceRoot: "/private/workspace",
+		error: "secret",
+	};
+	captureScheduleRun(telemetry, input);
+	expect(capture).toHaveBeenCalledWith({
+		event: "schedule.run_finished",
+		properties: {
+			triggerKind: "schedule",
+			attemptCount: 2,
+			startDelayMs: 60_000,
+			durationMs: 30_000,
+			outcome: "timeout",
+		},
+	});
+	capture.mockImplementation(() => {
+		throw new Error("telemetry unavailable");
+	});
+	expect(() => captureScheduleRun(telemetry, input)).not.toThrow();
+	expect(() => captureScheduleRun(undefined, input)).not.toThrow();
 });

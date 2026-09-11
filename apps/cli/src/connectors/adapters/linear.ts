@@ -47,10 +47,12 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import { getConnectorSystemPrompt } from "./prompts";
@@ -289,48 +291,54 @@ class LinearConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Linear bot display name")
-			.option("--api-key <key>", "Linear personal API key")
-			.option("--client-id <id>", "Linear OAuth client id")
-			.option("--client-secret <secret>", "Linear OAuth client secret")
-			.option("--access-token <token>", "Pre-obtained Linear access token")
-			.option("--webhook-secret <secret>", "Linear webhook signing secret")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--provider-api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for Linear sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option("--base-url <url>", "Public base URL for webhook configuration")
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  LINEAR_API_KEY             Personal API key",
-					"  LINEAR_CLIENT_ID           OAuth client id",
-					"  LINEAR_CLIENT_SECRET       OAuth client secret",
-					"  LINEAR_ACCESS_TOKEN        Pre-obtained access token",
-					"  LINEAR_WEBHOOK_SECRET      Webhook signing secret",
-					"  LINEAR_BOT_USERNAME        Bot display name (default: linear-bot)",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Linear bot display name")
+				.option("--api-key <key>", "Linear personal API key")
+				.option("--client-id <id>", "Linear OAuth client id")
+				.option("--client-secret <secret>", "Linear OAuth client secret")
+				.option("--access-token <token>", "Pre-obtained Linear access token")
+				.option("--webhook-secret <secret>", "Linear webhook signing secret")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--provider-api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Linear sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option("--base-url <url>", "Public base URL for webhook configuration")
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  LINEAR_API_KEY             Personal API key",
+						"  LINEAR_CLIENT_ID           OAuth client id",
+						"  LINEAR_CLIENT_SECRET       OAuth client secret",
+						"  LINEAR_ACCESS_TOKEN        Pre-obtained access token",
+						"  LINEAR_WEBHOOK_SECRET      Webhook signing secret",
+						"  LINEAR_BOT_USERNAME        Bot display name (default: linear-bot)",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectLinearOptions {
@@ -349,6 +357,7 @@ class LinearConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -395,7 +404,7 @@ class LinearConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -477,11 +486,29 @@ class LinearConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopLinearConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override instanceIdFromOptions(
+		options: ConnectLinearOptions,
+	): string | undefined {
+		return options.userName;
+	}
+
 	protected override async runWithOptions(
 		options: ConnectLinearOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
+		context.setPersistenceInstanceId(options.userName);
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const staleState = this.removeStaleState(
@@ -492,25 +519,24 @@ class LinearConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<LinearThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_LINEAR_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[linear] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[linear] starting background connector pid=${pid} user=${options.userName}`,
-				foregroundHint:
-					"[linear] use `cline connect linear -i ...` to run in the foreground",
-				launchFailureMessage: "failed to launch Linear connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_LINEAR_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[linear] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[linear] starting background connector pid=${pid} user=${options.userName}`,
+			foregroundHint:
+				"[linear] use `cline connect linear -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Linear connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -625,7 +651,9 @@ class LinearConnector extends ConnectorBase<
 			thread: Thread<LinearThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -650,6 +678,7 @@ class LinearConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
@@ -711,9 +740,7 @@ class LinearConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {

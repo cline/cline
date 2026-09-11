@@ -112,7 +112,12 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 								<span className="ph-no-capture">/{command.name}</span>
 							</div>
 							{showDescriptions && command.description && (
-								<div className="text-[0.85em] text-(--vscode-descriptionForeground) whitespace-normal overflow-hidden text-ellipsis">
+								<div
+									className={`text-[0.85em] ${
+										itemIndex === selectedIndex
+											? "text-(--vscode-quickInputList-focusForeground)"
+											: "text-(--vscode-descriptionForeground)"
+									} whitespace-normal overflow-hidden text-ellipsis`}>
 									<span className="ph-no-capture">{command.description}</span>
 								</div>
 							)}

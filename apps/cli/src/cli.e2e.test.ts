@@ -767,6 +767,71 @@ Break work into clear steps.`,
 		);
 	});
 
+	it("routes mcp uninstall and its rm alias", () => {
+		const tempRoot = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-mcp-rm-"));
+		tempDirs.push(tempRoot);
+		const settingsPath = path.join(tempRoot, "cline_mcp_settings.json");
+		const writeSettings = () => {
+			writeFileSync(
+				settingsPath,
+				JSON.stringify(
+					{
+						mcpServers: {
+							docs: { transport: { type: "stdio", command: "node" } },
+							remote: {
+								transport: {
+									type: "streamableHttp",
+									url: "https://mcp.example.com",
+								},
+							},
+						},
+						customTopLevelKey: true,
+					},
+					null,
+					2,
+				),
+				"utf8",
+			);
+		};
+		const readServers = () =>
+			(
+				JSON.parse(readFileSync(settingsPath, "utf8")) as {
+					mcpServers?: Record<string, unknown>;
+				}
+			).mcpServers ?? {};
+
+		writeSettings();
+		const uninstallResult = runCli(["mcp", "uninstall", "docs"], {
+			env: { ...createIsolatedEnv(), CLINE_MCP_SETTINGS_PATH: settingsPath },
+		});
+		expect(uninstallResult.status).toBe(0);
+		expect(asText(uninstallResult.stdout)).toContain(
+			"Uninstalled MCP server docs.",
+		);
+		expect(Object.keys(readServers())).toEqual(["remote"]);
+
+		writeSettings();
+		const aliasResult = runCli(["mcp", "rm", "remote", "--json"], {
+			env: { ...createIsolatedEnv(), CLINE_MCP_SETTINGS_PATH: settingsPath },
+		});
+		expect(aliasResult.status).toBe(0);
+		expect(JSON.parse(asText(aliasResult.stdout).trim())).toEqual({
+			name: "remote",
+			status: "uninstalled",
+		});
+		expect(Object.keys(readServers())).toEqual(["docs"]);
+
+		writeSettings();
+		const missingResult = runCli(["mcp", "remove", "missing"], {
+			env: { ...createIsolatedEnv(), CLINE_MCP_SETTINGS_PATH: settingsPath },
+		});
+		expect(missingResult.status).toBe(1);
+		expect(asText(missingResult.stderr)).toContain(
+			'MCP server "missing" is not installed.',
+		);
+		expect(Object.keys(readServers())).toEqual(["docs", "remote"]);
+	});
+
 	it("lists available tools", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));

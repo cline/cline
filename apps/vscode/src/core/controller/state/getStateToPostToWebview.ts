@@ -4,7 +4,7 @@
 // This allows the SdkController to reuse the classic state-building logic
 // without inheriting the entire classic Controller implementation.
 
-import { readCompactionStrategyGlobally } from "@cline/core"
+import { isModelToolEnabledGlobally, readCompactionStrategyGlobally } from "@cline/core"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import type { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { ClineEnv } from "@/config"
@@ -12,6 +12,7 @@ import { ExtensionRegistryInfo } from "@/registry"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { getExtensionVariant } from "@/services/telemetry/rollout-metadata"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getClineOnboardingModels } from "../models/getClineOnboardingModels"
 
@@ -25,8 +26,11 @@ export async function getStateToPostToWebview(controller: {
 	mcpHub?: any
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string
+	foregroundCommandRunning?: boolean
 	workspaceManager?: any
 	checkpointRestoreInput?: ExtensionState["checkpointRestoreInput"]
+	isRemoteConfigAvailable?: boolean
+	currentRemoteConfigRevision?: number
 }): Promise<ExtensionState> {
 	const stateManager = controller.stateManager
 
@@ -39,9 +43,9 @@ export async function getStateToPostToWebview(controller: {
 	const browserSettings = stateManager.getGlobalSettingsKey("browserSettings")
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
 	const mode = stateManager.getGlobalSettingsKey("mode")
-	const yoloModeToggled = stateManager.getGlobalSettingsKey("yoloModeToggled")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const compactionStrategy = readCompactionStrategyGlobally()
+	const webSearchEnabled = isModelToolEnabledGlobally("web_search")
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
 	const mcpMarketplaceEnabled = stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
@@ -62,9 +66,7 @@ export async function getStateToPostToWebview(controller: {
 	const isNewUser = stateManager.getGlobalStateKey("isNewUser")
 	const welcomeViewCompleted = !!stateManager.getGlobalStateKey("welcomeViewCompleted")
 
-	const customPrompt = stateManager.getGlobalSettingsKey("customPrompt")
 	const mcpResponsesCollapsed = stateManager.getGlobalStateKey("mcpResponsesCollapsed")
-	const maxConsecutiveMistakes = stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
 	const favoritedModelIds = stateManager.getGlobalStateKey("favoritedModelIds")
 	const lastDismissedInfoBannerVersion = stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 	const lastDismissedModelBannerVersion = stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
@@ -110,6 +112,7 @@ export async function getStateToPostToWebview(controller: {
 
 	return {
 		version,
+		extensionVariant: getExtensionVariant(),
 		apiConfiguration,
 		currentTaskItem,
 		clineMessages,
@@ -118,9 +121,9 @@ export async function getStateToPostToWebview(controller: {
 		browserSettings,
 		preferredLanguage,
 		mode,
-		yoloModeToggled,
 		useAutoCondense,
 		compactionStrategy,
+		webSearchEnabled,
 		subagentsEnabled,
 		userInfo,
 		mcpMarketplaceEnabled,
@@ -150,13 +153,12 @@ export async function getStateToPostToWebview(controller: {
 		welcomeViewCompleted,
 		onboardingModels,
 		mcpResponsesCollapsed,
-		maxConsecutiveMistakes,
-		customPrompt,
 		taskHistory: processedTaskHistory,
 		shouldShowAnnouncement,
 		favoritedModelIds,
 		backgroundCommandRunning: controller.backgroundCommandRunning ?? false,
 		backgroundCommandTaskId: controller.backgroundCommandTaskId,
+		foregroundCommandRunning: controller.foregroundCommandRunning ?? false,
 		workspaceRoots: controller.workspaceManager?.getRoots?.() ?? [],
 		primaryRootIndex: controller.workspaceManager?.getPrimaryIndex?.() ?? 0,
 		isMultiRootWorkspace: (controller.workspaceManager?.getRoots?.()?.length ?? 0) > 1,
@@ -172,10 +174,12 @@ export async function getStateToPostToWebview(controller: {
 		lastDismissedInfoBannerVersion,
 		lastDismissedModelBannerVersion,
 		remoteConfigSettings: stateManager.getRemoteConfigSettings?.(),
+		remoteConfigRevision: controller.currentRemoteConfigRevision ?? 0,
 		lastDismissedCliBannerVersion,
 		dismissedBanners,
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
+		remoteConfigAvailable: controller.isRemoteConfigAvailable ?? false,
 		showFeatureTips,
 		banners,
 		welcomeBanners,

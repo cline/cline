@@ -1,29 +1,42 @@
-export type { DefaultMcpServerClientFactoryOptions } from "./client";
-export { createDefaultMcpServerClientFactory } from "./client";
+export type {
+	DefaultMcpServerClientFactoryOptions,
+	ProbeMcpServerConnectionOptions,
+	ProbeMcpServerConnectionResult,
+} from "./client";
+export {
+	createDefaultMcpServerClientFactory,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
+	probeMcpServerConnection,
+} from "./client";
 export type {
 	LoadMcpSettingsOptions,
+	McpSettingsFile,
 	McpSettingsLockOptions,
 	McpSettingsMutator,
-	McpSettingsFile,
 	RegisterMcpServersFromSettingsOptions,
 	SetMcpServerDisabledOptions,
+	UpdateMcpServerOAuthStateOptions,
 } from "./config-loader";
 export {
 	getMcpServerOAuthState,
+	getMcpServerOAuthStatus,
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpOAuthClientChangedError,
+	McpSettingsLockTimeoutError,
+	McpSettingsMutatorPurityError,
+	McpSettingsUpdateSkippedError,
+	parseMcpServerRegistration,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
 	updateMcpServerOAuthStateAsync,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsLockTimeoutError,
-	McpSettingsMutatorPurityError,
-	McpSettingsUpdateSkippedError,
 } from "./config-loader";
 export { InMemoryMcpManager } from "./manager";
 export type {
@@ -46,6 +59,7 @@ export {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
 } from "./policies";
+export { augmentMcpTimeoutError } from "./timeout";
 export { createMcpTools } from "./tools";
 export type {
 	CreateMcpToolsOptions,
@@ -54,6 +68,7 @@ export type {
 	McpManagerOptions,
 	McpServerClient,
 	McpServerClientFactory,
+	McpServerOAuthClientConfig,
 	McpServerOAuthState,
 	McpServerOAuthStatus,
 	McpServerRegistration,

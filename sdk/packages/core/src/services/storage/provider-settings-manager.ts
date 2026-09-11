@@ -22,6 +22,8 @@ import {
 	StoredProviderSettingsSchema,
 	type ToProviderConfigOptions,
 	toProviderConfig,
+	type VoiceInputSettings,
+	VoiceInputSettingsSchema,
 } from "../../types/provider-settings";
 import {
 	ensureCustomProvidersLoadedSync,
@@ -49,6 +51,72 @@ export interface ResolveLastUsedProviderSettingsOptions {
 
 const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
+
+/**
+ * A pasted credential can carry invisible control or format characters (BOM,
+ * zero-width spaces, bidirectional marks) that make the provider reject it
+ * with a 401 indistinguishable from a genuinely wrong key — while masked
+ * rendering hides the corruption from the user. Strip those characters and
+ * surrounding whitespace from every credential-bearing field before the
+ * value is persisted.
+ */
+const INVISIBLE_CHARS = /[\p{Cc}\p{Cf}]/gu;
+
+function sanitizeSecret(value: string | undefined): string | undefined {
+	if (typeof value !== "string") {
+		return value;
+	}
+	const cleaned = value.replace(INVISIBLE_CHARS, "").trim();
+	return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function sanitizeCredentialFields(
+	settings: ProviderSettings,
+): ProviderSettings {
+	const next: ProviderSettings = {
+		...settings,
+		apiKey: sanitizeSecret(settings.apiKey),
+	};
+	if (settings.auth) {
+		next.auth = {
+			...settings.auth,
+			apiKey: sanitizeSecret(settings.auth.apiKey),
+			accessToken: sanitizeSecret(settings.auth.accessToken),
+			refreshToken: sanitizeSecret(settings.auth.refreshToken),
+		};
+	}
+	if (settings.aws) {
+		next.aws = {
+			...settings.aws,
+			accessKey: sanitizeSecret(settings.aws.accessKey),
+			secretKey: sanitizeSecret(settings.aws.secretKey),
+			sessionToken: sanitizeSecret(settings.aws.sessionToken),
+		};
+	}
+	if (settings.gcp) {
+		next.gcp = {
+			...settings.gcp,
+			projectId: sanitizeSecret(settings.gcp.projectId),
+			region: sanitizeSecret(settings.gcp.region),
+		};
+	}
+	if (settings.sap) {
+		next.sap = {
+			...settings.sap,
+			clientId: sanitizeSecret(settings.sap.clientId),
+			clientSecret: sanitizeSecret(settings.sap.clientSecret),
+		};
+	}
+	if (settings.headers) {
+		next.headers = Object.fromEntries(
+			Object.entries(settings.headers).map(([name, value]) => [
+				name,
+				value.replace(INVISIBLE_CHARS, "").trim(),
+			]),
+		);
+	}
+	return next;
+}
 
 function inferLegacyDataDir(filePath: string): string | undefined {
 	if (basename(filePath) !== "providers.json") {
@@ -149,7 +217,9 @@ export class ProviderSettingsManager {
 		settings: unknown,
 		options: SaveProviderSettingsOptions = {},
 	): StoredProviderSettings {
-		const validatedSettings = ProviderSettingsSchema.parse(settings);
+		const validatedSettings = sanitizeCredentialFields(
+			ProviderSettingsSchema.parse(settings),
+		);
 		const previous = this.read();
 		const providerId = validatedSettings.provider;
 		const shouldSetLastUsed = options.setLastUsed !== false;
@@ -212,6 +282,23 @@ export class ProviderSettingsManager {
 	getProviderSettings(providerId: string): ProviderSettings | undefined {
 		const state = this.read();
 		return this.resolveProviderSettings(state, providerId);
+	}
+
+	getVoiceInputSettings(): VoiceInputSettings | undefined {
+		return this.read().modes.voiceInput;
+	}
+
+	setVoiceInputSettings(
+		settings: VoiceInputSettings | undefined,
+	): StoredProviderSettings {
+		const state = this.read();
+		if (settings) {
+			state.modes.voiceInput = VoiceInputSettingsSchema.parse(settings);
+		} else {
+			delete state.modes.voiceInput;
+		}
+		this.write(state);
+		return state;
 	}
 
 	private resolveLastUsedProviderId(

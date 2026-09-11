@@ -1,6 +1,7 @@
+import assert from "node:assert/strict"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
-import { describe, expect, it, vi } from "vitest"
+import { describe, it, vi } from "vitest"
 import type { Controller } from ".."
 import { updateAutoApprovalSettings } from "./updateAutoApprovalSettings"
 
@@ -58,9 +59,11 @@ describe("updateAutoApprovalSettings", () => {
 			},
 		}
 
-		expect(controller.stateManager.setGlobalState.mock.calls).toEqual([["autoApprovalSettings", expectedSettings]])
-		expect(controller.stateManager.setTaskSettings.mock.calls).toEqual([["task-1", "autoApprovalSettings", expectedSettings]])
-		expect(controller.postStateToWebview.mock.calls.length).toBe(1)
+		assert.deepEqual(controller.stateManager.setGlobalState.mock.calls, [["autoApprovalSettings", expectedSettings]])
+		assert.deepEqual(controller.stateManager.setTaskSettings.mock.calls, [
+			["task-1", "autoApprovalSettings", expectedSettings],
+		])
+		assert.equal(controller.postStateToWebview.mock.calls.length, 1)
 	})
 
 	it("does not create a task override when no task is active", async () => {
@@ -76,9 +79,9 @@ describe("updateAutoApprovalSettings", () => {
 			}),
 		)
 
-		expect(controller.stateManager.setGlobalState.mock.calls.length).toBe(1)
-		expect(controller.stateManager.setTaskSettings.mock.calls.length).toBe(0)
-		expect(controller.postStateToWebview.mock.calls.length).toBe(1)
+		assert.equal(controller.stateManager.setGlobalState.mock.calls.length, 1)
+		assert.equal(controller.stateManager.setTaskSettings.mock.calls.length, 0)
+		assert.equal(controller.postStateToWebview.mock.calls.length, 1)
 	})
 
 	it("ignores stale auto-approval settings versions", async () => {
@@ -100,8 +103,8 @@ describe("updateAutoApprovalSettings", () => {
 			}),
 		)
 
-		expect(controller.stateManager.setGlobalState.mock.calls.length).toBe(0)
-		expect(controller.stateManager.setTaskSettings.mock.calls.length).toBe(0)
-		expect(controller.postStateToWebview.mock.calls.length).toBe(0)
+		assert.equal(controller.stateManager.setGlobalState.mock.calls.length, 0)
+		assert.equal(controller.stateManager.setTaskSettings.mock.calls.length, 0)
+		assert.equal(controller.postStateToWebview.mock.calls.length, 0)
 	})
 })

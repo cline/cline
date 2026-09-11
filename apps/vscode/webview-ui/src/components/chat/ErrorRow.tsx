@@ -1,6 +1,8 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { memo } from "react"
 import { ClineAuthStatus } from "@/components/account/ClineAuthStatus"
+import ClineFreeModelLimitError from "@/components/chat/ClineFreeModelLimitError"
+import ClineFreePromotionEndedError from "@/components/chat/ClineFreePromotionEndedError"
 import ClinePassLimitError from "@/components/chat/ClinePassLimitError"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import EntitlementError from "@/components/chat/EntitlementError"
@@ -82,6 +84,18 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 					if (clineError?.isErrorType(ClineErrorType.ClinePassLimit)) {
 						const detailMessage = clineError?._error?.details?.message || errorMessage
 						return <ClinePassLimitError message={detailMessage} />
+					}
+
+					if (clineError?.isErrorType(ClineErrorType.ClineFreeModelLimit)) {
+						const detailMessage = clineError?._error?.details?.message || errorMessage
+						return <ClineFreeModelLimitError message={detailMessage} />
+					}
+
+					// A retired free model answers model-not-found once its promotion
+					// ends — dedicated copy plus a route into the model picker,
+					// since retrying the deleted model can never succeed.
+					if (clineError?.isErrorType(ClineErrorType.ClineFreePromotionEnded)) {
+						return <ClineFreePromotionEndedError />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {

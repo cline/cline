@@ -1,10 +1,21 @@
 import type {
+	ClientContext,
 	HubCommandEnvelope,
+	HubCommandInput,
 	HubReplyEnvelope,
 	JsonValue,
 	ToolApprovalRequest,
+	UserContext,
 } from "@cline/shared";
-import { createSessionId, parseRuntimeConfigExtensions } from "@cline/shared";
+import {
+	createSessionId,
+	parseRuntimeConfigExtensions,
+	ReasoningEffortSchema,
+} from "@cline/shared";
+import {
+	isCoreBuiltinToolAvailable,
+	resolveToolClientType,
+} from "../../../extensions/tools/runtime";
 import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
 	RuntimeSessionConfig,
@@ -15,6 +26,7 @@ import {
 	SessionVersioningError,
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
+import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
@@ -36,6 +48,91 @@ import {
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 
+function readHubContextString(
+	record: Record<string, unknown> | undefined,
+	key: string,
+): string | undefined {
+	const candidate = record?.[key];
+	return typeof candidate === "string" && candidate.trim()
+		? candidate.trim()
+		: undefined;
+}
+
+/** Parse the serializable subset of ExtensionContext carried by Hub clients. */
+export function readHubClientContext(
+	value: unknown,
+): ClientContext | undefined {
+	const record = asPlainRecord(value);
+	const name = typeof record?.name === "string" ? record.name.trim() : "";
+	if (!name) return undefined;
+	const version = readHubContextString(record, "version");
+	const platform = readHubContextString(record, "platform");
+	const platformVersion = readHubContextString(record, "platformVersion");
+	return {
+		name,
+		...(version ? { version } : {}),
+		...(platform ? { platform } : {}),
+		...(platformVersion ? { platformVersion } : {}),
+		...(typeof record?.isMultiRoot === "boolean"
+			? { isMultiRoot: record.isMultiRoot }
+			: {}),
+	};
+}
+
+/** Parse authenticated identity separately from the transport-neutral config. */
+export function readHubUserContext(value: unknown): UserContext | undefined {
+	const record = asPlainRecord(value);
+	const distinctId = readHubContextString(record, "distinctId");
+	const rawAccountId = record?.accountId;
+	const accountId =
+		rawAccountId === null ? null : readHubContextString(record, "accountId");
+	const email = readHubContextString(record, "email");
+	const organizationId = readHubContextString(record, "organizationId");
+	if (!distinctId && accountId === undefined && !email && !organizationId) {
+		return undefined;
+	}
+	return {
+		...(distinctId ? { distinctId } : {}),
+		...(accountId !== undefined ? { accountId } : {}),
+		...(email ? { email } : {}),
+		...(organizationId ? { organizationId } : {}),
+	};
+}
+
+async function deleteSessionAndCleanDerivedState(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<boolean> {
+	const deleted = await ctx.sessionHost.deleteSession(sessionId);
+	ctx.sessionState.delete(sessionId);
+	// False means canonical history was already absent. Eviction is still safe
+	// and repairs any index left stale by an earlier deletion.
+	try {
+		ctx.sessionSearch.removeSession(sessionId);
+	} catch (error) {
+		// Search is disposable derived state. A failed eviction must not reverse a
+		// completed canonical deletion; reconciliation will retry the cleanup.
+		logHubMessage("warn", "session search eviction failed", {
+			error,
+			sessionId,
+		});
+	}
+	return deleted;
+}
+
+export function selectSessionTools<T extends { name: string }>(
+	tools: readonly T[],
+	mode: string,
+	source?: string,
+): T[] {
+	const clientType = resolveToolClientType(source);
+	return tools.filter(
+		(tool) =>
+			(mode !== "yolo" || tool.name !== TASKS_TOOL_NAME) &&
+			isCoreBuiltinToolAvailable(tool.name, clientType),
+	);
+}
+
 function readConnectionString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0
 		? value.trim()
@@ -45,16 +142,9 @@ function readConnectionString(value: unknown): string | undefined {
 function readConnectionReasoningEffort(
 	value: unknown,
 ): SessionConnectionUpdate["reasoningEffort"] | undefined {
-	if (
-		value === "low" ||
-		value === "medium" ||
-		value === "high" ||
-		value === "xhigh" ||
-		value === null
-	) {
-		return value;
-	}
-	return undefined;
+	if (value === null) return null;
+	const result = ReasoningEffortSchema.safeParse(value);
+	return result.success ? result.data : undefined;
 }
 
 export function readSessionConnectionUpdate(
@@ -117,13 +207,30 @@ function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
 	// Clients may echo old records back through session.update; keep ownership
-	// on the live hub state only.
-	if (!metadata || !(CAPABILITY_OWNER_METADATA_KEY in metadata)) {
+	// and approval policy on server-created session state only.
+	if (
+		!metadata ||
+		(!("autoApproveTools" in metadata) &&
+			!(CAPABILITY_OWNER_METADATA_KEY in metadata))
+	) {
 		return metadata;
 	}
 	const sanitized = { ...metadata };
 	delete sanitized[CAPABILITY_OWNER_METADATA_KEY];
+	delete sanitized.autoApproveTools;
 	return sanitized;
+}
+
+export function resolveSessionAutoApproveTools(
+	toolPolicies: unknown,
+	runtimeOptions: Record<string, unknown>,
+): boolean {
+	const policies = asPlainRecord(toolPolicies);
+	const globalPolicy = asPlainRecord(policies?.["*"]);
+	if (typeof globalPolicy?.autoApprove === "boolean") {
+		return globalPolicy.autoApprove;
+	}
+	return runtimeOptions.autoApproveTools === true;
 }
 
 function authorizeSessionCompactionAccess(input: {
@@ -183,6 +290,8 @@ export async function handleSessionCreate(
 		payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 			? (payload.runtimeOptions as Record<string, unknown>)
 			: {};
+	const clientContext = readHubClientContext(runtimeOptions.clientContext);
+	const userContext = readHubUserContext(runtimeOptions.userContext);
 	const initialCompactionState = parseSessionCompactionState(
 		payload.initialCompactionState,
 	);
@@ -201,6 +310,10 @@ export async function handleSessionCreate(
 	} else if (runtimeOptions.checkpointEnabled === true) {
 		metadata.checkpointEnabled = true;
 	}
+	metadata.autoApproveTools = resolveSessionAutoApproveTools(
+		payload.toolPolicies,
+		runtimeOptions,
+	);
 	const modelSelection =
 		payload.modelSelection && typeof payload.modelSelection === "object"
 			? (payload.modelSelection as Record<string, unknown>)
@@ -210,18 +323,7 @@ export async function handleSessionCreate(
 			? payload.workspaceRoot.trim()
 			: typeof payload.cwd === "string" && payload.cwd.trim()
 				? payload.cwd.trim()
-				: "";
-	if (!workspaceRoot) {
-		logHubMessage("warn", "session.create.invalid", {
-			...baseLogContext,
-			reason: "missing_workspace_root",
-		});
-		return errorReply(
-			envelope,
-			"invalid_session_create",
-			"session.create requires workspaceRoot or cwd",
-		);
-	}
+				: undefined;
 	const clientId = envelope.clientId?.trim() || "hub-client";
 	const clientContributions = parseHubClientContributions(
 		runtimeOptions.clientContributions,
@@ -271,6 +373,11 @@ export async function handleSessionCreate(
 					? metadata.model
 					: "hub"),
 	});
+	const sessionMode =
+		sessionConfig?.mode ??
+		(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+			? runtimeOptions.mode
+			: "act");
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
@@ -289,6 +396,27 @@ export async function handleSessionCreate(
 			},
 			configExtensions,
 			...clientContributionRuntime.localRuntime,
+			...(clientContext || userContext
+				? {
+						extensionContext: {
+							...clientContributionRuntime.localRuntime.extensionContext,
+							...(clientContext ? { client: clientContext } : {}),
+							...(userContext ? { user: userContext } : {}),
+						},
+					}
+				: {}),
+			extensions: [
+				...(ctx.sessionExtensions ?? []),
+				...(clientContributionRuntime.localRuntime.extensions ?? []),
+			],
+			extraTools: selectSessionTools(
+				[
+					...(ctx.sessionTools ?? []),
+					...(clientContributionRuntime.localRuntime.extraTools ?? []),
+				],
+				sessionMode,
+				typeof metadata.source === "string" ? metadata.source : undefined,
+			),
 		},
 		capabilities: {
 			toolExecutors: clientContributionRuntime.toolExecutors,
@@ -327,11 +455,7 @@ export async function handleSessionCreate(
 				(typeof runtimeOptions.systemPrompt === "string"
 					? runtimeOptions.systemPrompt
 					: ""),
-			mode:
-				sessionConfig?.mode ??
-				(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-					? runtimeOptions.mode
-					: "act"),
+			mode: sessionMode,
 			maxIterations:
 				sessionConfig?.maxIterations ??
 				(typeof runtimeOptions.maxIterations === "number"
@@ -459,6 +583,8 @@ export async function handleSessionRestore(
 			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
 				? (payload.runtimeOptions as Record<string, unknown>)
 				: {};
+		const clientContext = readHubClientContext(runtimeOptions.clientContext);
+		const userContext = readHubUserContext(runtimeOptions.userContext);
 		const initialCompactionState = parseSessionCompactionState(
 			payload.initialCompactionState,
 		);
@@ -481,6 +607,10 @@ export async function handleSessionRestore(
 		} else if (runtimeOptions.checkpointEnabled === true) {
 			metadata.checkpointEnabled = true;
 		}
+		metadata.autoApproveTools = resolveSessionAutoApproveTools(
+			payload.toolPolicies,
+			runtimeOptions,
+		);
 
 		const modelSelection =
 			payload.modelSelection && typeof payload.modelSelection === "object"
@@ -509,6 +639,7 @@ export async function handleSessionRestore(
 		const result = await service.restoreCheckpoint({
 			sessionId: sourceSessionId,
 			checkpointRunCount,
+			telemetry: ctx.telemetry,
 			restore: {
 				messages: restoreOptions.messages as boolean | undefined,
 				workspace: restoreOptions.workspace as boolean | undefined,
@@ -536,6 +667,11 @@ export async function handleSessionRestore(
 							? payload.cwd.trim()
 							: context.sourceSession.workspaceRoot ||
 								context.sourceSession.cwd;
+				const sessionMode =
+					sessionConfig?.mode ??
+					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+						? runtimeOptions.mode
+						: "act");
 				return {
 					source:
 						typeof metadata.source === "string" ? metadata.source : undefined,
@@ -554,6 +690,27 @@ export async function handleSessionRestore(
 						},
 						configExtensions,
 						...clientContributionRuntime.localRuntime,
+						...(clientContext || userContext
+							? {
+									extensionContext: {
+										...clientContributionRuntime.localRuntime.extensionContext,
+										...(clientContext ? { client: clientContext } : {}),
+										...(userContext ? { user: userContext } : {}),
+									},
+								}
+							: {}),
+						extensions: [
+							...(ctx.sessionExtensions ?? []),
+							...(clientContributionRuntime.localRuntime.extensions ?? []),
+						],
+						extraTools: selectSessionTools(
+							[
+								...(ctx.sessionTools ?? []),
+								...(clientContributionRuntime.localRuntime.extraTools ?? []),
+							],
+							sessionMode,
+							typeof metadata.source === "string" ? metadata.source : undefined,
+						),
 					},
 					capabilities: {
 						toolExecutors: clientContributionRuntime.toolExecutors,
@@ -584,11 +741,7 @@ export async function handleSessionRestore(
 							(typeof runtimeOptions.systemPrompt === "string"
 								? runtimeOptions.systemPrompt
 								: ""),
-						mode:
-							sessionConfig?.mode ??
-							(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-								? runtimeOptions.mode
-								: "act"),
+						mode: sessionMode,
 						maxIterations:
 							sessionConfig?.maxIterations ??
 							(typeof runtimeOptions.maxIterations === "number"
@@ -629,6 +782,15 @@ export async function handleSessionRestore(
 			},
 			startSession: (startInput) => ctx.sessionHost.startSession(startInput),
 			getStartedSessionId: (started) => started.sessionId,
+			cleanupStartedSession: async (started) => {
+				if (
+					!(await deleteSessionAndCleanDerivedState(ctx, started.sessionId))
+				) {
+					throw new Error(
+						`Failed to clean up restored session ${started.sessionId}`,
+					);
+				}
+			},
 			readRestoredSession: (sessionId) => ctx.sessionHost.getSession(sessionId),
 		});
 		if (!restoreMessages) {
@@ -849,12 +1011,36 @@ export async function handleSessionList(
 ): Promise<HubReplyEnvelope> {
 	const limit =
 		typeof envelope.payload?.limit === "number" ? envelope.payload.limit : 200;
-	const records = await ctx.sessionHost.listSessions(limit);
+	const records = await ctx.sessionHost.listSessions(limit, {
+		rootOnly: envelope.payload?.rootOnly === true,
+	});
 	const sessions = records.map((session) =>
 		toHubSessionRecord(session, ctx.sessionState.get(session.sessionId)),
 	);
 	return okReply(envelope, {
 		sessions,
+	});
+}
+
+export async function handleSessionSearch(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const payload = (envelope.payload ??
+		{}) as unknown as HubCommandInput<"session.search">;
+	if (typeof payload.query !== "string" || !payload.query.trim()) {
+		return errorReply(
+			envelope,
+			"invalid_search_query",
+			"session.search requires a non-empty query",
+		);
+	}
+	return okReply(envelope, {
+		hits: ctx.sessionSearch.search({
+			query: payload.query,
+			limit: payload.limit,
+			workspaceRoot: payload.workspaceRoot,
+		}),
 	});
 }
 
@@ -999,8 +1185,7 @@ export async function handleSessionDelete(
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
 	const sessionId = extractSessionId(envelope);
-	const deleted = await ctx.sessionHost.deleteSession(sessionId);
-	ctx.sessionState.delete(sessionId);
+	const deleted = await deleteSessionAndCleanDerivedState(ctx, sessionId);
 	return okReply(envelope, { deleted });
 }
 

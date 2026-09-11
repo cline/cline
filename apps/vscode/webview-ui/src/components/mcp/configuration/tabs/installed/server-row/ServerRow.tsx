@@ -26,7 +26,7 @@ import { McpServiceClient } from "@/services/grpc-client"
 import type { MarketplaceMcpMetadata } from "../ServersToggleList"
 import McpPromptRow from "./McpPromptRow"
 import McpResourceRow from "./McpResourceRow"
-import McpToolRow from "./McpToolRow"
+import McpToolRow, { SHOW_MCP_PER_TOOL_AUTO_APPROVE } from "./McpToolRow"
 
 // constant JSX.Elements
 const TimeoutOptions = [
@@ -328,7 +328,7 @@ const ServerRow = ({
 							<VSCodePanelView id="tools-view">
 								{server.tools && server.tools.length > 0 ? (
 									<div className="flex flex-col gap-2 w-full pt-2">
-										{server.name && autoApprovalSettings.actions.useMcp && (
+										{SHOW_MCP_PER_TOOL_AUTO_APPROVE && server.name && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
 												checked={server.tools.every((tool) => tool.autoApprove)}
 												className="mb-1 text-xs"
@@ -393,6 +393,10 @@ const ServerRow = ({
 							<VSCodeDropdown className="w-full" onChange={handleTimeoutChange} value={timeoutValue}>
 								{TimeoutOptions}
 							</VSCodeDropdown>
+							<p className="mt-1 mb-0 text-xs text-description">
+								Applies to every request this server handles, in VS Code and the CLI. For other values, set
+								"timeout" (seconds) in cline_mcp_settings.json.
+							</p>
 						</div>
 						<Button
 							className="w-[calc(100%-14px)] mt-1 mx-1.5 mb-3"

@@ -1,0 +1,12 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Cline Beta",
+	"identifier": "bot.cline.app.beta",
+	"plugins": {
+		"updater": {
+			"endpoints": [
+				"https://github.com/cline/cline/releases/download/desktop-beta/latest.json"
+			]
+		}
+	}
+}

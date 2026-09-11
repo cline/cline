@@ -6,13 +6,13 @@ on:
             - main
         paths:
             - "sdk/**"
+            - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_dispatch:
     pull_request:
-        branches:
-            - main
         paths:
             - "sdk/**"
+            - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_call:
 
@@ -97,6 +97,10 @@ jobs:
             - name: Run SDK Tests (Windows)
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'windows-latest' }}
               run: bun -F './sdk/packages/**' test
+
+            - name: Run Desktop Sidecar Tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+              run: bun -F @cline/code test:sidecar
 
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}

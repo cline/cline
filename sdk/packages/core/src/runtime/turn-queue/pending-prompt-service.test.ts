@@ -120,6 +120,42 @@ describe("PendingPromptService", () => {
 		).toThrow("prompt cannot be empty");
 	});
 
+	it("keeps prompts enqueued while the session is aborting", async () => {
+		const sessionId = "sess-enqueue-while-aborting";
+		const session = {
+			sessionId,
+			pendingPrompts: [],
+			aborting: true,
+			drainingPendingPrompts: false,
+			status: "running",
+			agent: {
+				canStartRun: () => false,
+			},
+		} as unknown as ActiveSession;
+		const events: CoreSessionEvent[] = [];
+		const send = vi.fn().mockResolvedValue(undefined);
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: (event) => events.push(event),
+			send,
+		});
+
+		// A prompt typed right after Escape lands during the abort window; it
+		// must join the queue (which survives the abort) instead of being
+		// silently dropped.
+		controller.enqueue(sessionId, {
+			prompt: "typed after escape",
+			delivery: "queue",
+		});
+
+		expect(controller.list(sessionId).map((prompt) => prompt.prompt)).toEqual([
+			"typed after escape",
+		]);
+		// The drain must not start while the abort is still settling.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(send).not.toHaveBeenCalled();
+	});
+
 	it("requeues a drained prompt when send fails", async () => {
 		const sessionId = "sess-drain-failure";
 		const session = {

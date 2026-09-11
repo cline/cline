@@ -4,6 +4,7 @@ import type * as LlmsProviders from "@cline/llms";
 import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
 import { normalizeUserInput, stripModeNotices } from "@cline/shared";
 import { nanoid } from "nanoid";
+import { readSessionHistoryOriginMetadata } from "../session/history-origin";
 import {
 	parseSubSessionId,
 	parseTeamTaskSubSessionId,
@@ -274,30 +275,52 @@ export type MessagesFileContext = {
 	agent: "lead" | "subagent" | "teammate";
 	sessionId: string;
 	taskType?: string;
+	origin: {
+		source: string;
+		mode: string;
+		sessionId: string;
+		parentThreadId?: string;
+		subagent?: string;
+		version?: string;
+		trigger?: string;
+	};
 };
 
 export function resolveMessagesFileContext(
-	sessionId: string,
+	row: SessionRow,
 ): MessagesFileContext {
-	const teamTaskMatch = parseTeamTaskSubSessionId(sessionId);
+	const historyOrigin = readSessionHistoryOriginMetadata(row.metadata);
+	const origin = {
+		source: row.source,
+		mode: historyOrigin?.mode ?? "user",
+		sessionId: row.sessionId,
+		...(row.parentSessionId ? { parentThreadId: row.parentSessionId } : {}),
+		...(row.agentId ? { subagent: row.agentId } : {}),
+		...(historyOrigin?.version ? { version: historyOrigin.version } : {}),
+		...(historyOrigin?.trigger ? { trigger: historyOrigin.trigger } : {}),
+	};
+	const teamTaskMatch = parseTeamTaskSubSessionId(row.sessionId);
 	if (teamTaskMatch) {
 		return {
 			agent: "teammate",
-			sessionId: teamTaskMatch.rootSessionId,
+			sessionId: row.sessionId,
 			taskType: "team",
+			origin,
 		};
 	}
-	const subSessionMatch = parseSubSessionId(sessionId);
+	const subSessionMatch = parseSubSessionId(row.sessionId);
 	if (subSessionMatch) {
 		return {
 			agent: "subagent",
-			sessionId: subSessionMatch.rootSessionId,
+			sessionId: row.sessionId,
 			taskType: "subagent_task",
+			origin,
 		};
 	}
 	return {
 		agent: "lead",
-		sessionId,
+		sessionId: row.sessionId,
+		origin,
 	};
 }
 
@@ -312,6 +335,7 @@ export function buildMessagesFilePayload(input: {
 	agent: "lead" | "subagent" | "teammate";
 	sessionId: string;
 	taskType?: string;
+	origin: MessagesFileContext["origin"];
 	messages: StoredMessageWithMetadata[];
 	system_prompt?: string;
 } {
@@ -321,6 +345,7 @@ export function buildMessagesFilePayload(input: {
 		agent: input.context.agent,
 		sessionId: input.context.sessionId,
 		...(input.context.taskType ? { taskType: input.context.taskType } : {}),
+		origin: input.context.origin,
 		messages: normalizeStoredMessagesForPersistence(input.messages),
 		...(input.systemPrompt ? { system_prompt: input.systemPrompt } : {}),
 	};

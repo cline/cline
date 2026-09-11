@@ -16,7 +16,10 @@ import { Controller } from ".."
 export async function refreshOpenAiModels(controller: Controller, request: OpenAiModelsRequest): Promise<StringArray> {
 	try {
 		const providerConfig = controller.getProviderConfigStore().read(parseProviderId(request.providerId || "openai"))
-		const baseUrl = providerConfig.baseUrl
+		// Trailing slashes would produce "<baseUrl>//models", which many
+		// servers reject even though chat completions still work (the AI SDK
+		// normalizes the base URL for those).
+		const baseUrl = providerConfig.baseUrl?.trim().replace(/\/+$/, "")
 		const apiKey = providerConfig.apiKey
 
 		if (!baseUrl) {

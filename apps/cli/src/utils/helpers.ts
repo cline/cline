@@ -53,8 +53,38 @@ export function resolveWorkspaceRoot(cwd: string): string {
 	return cwd;
 }
 
-export function truncate(str: string, maxLen: number): string {
-	const oneLine = str.replace(/\n/g, " ").trim();
+function safeJsonStringify(value: unknown): string {
+	try {
+		return JSON.stringify(value) ?? "";
+	} catch {
+		return "";
+	}
+}
+
+/**
+ * Normalizes an untrusted runtime value into a display string without ever
+ * throwing. Tool inputs/outputs cross the model/tool boundary, so they may
+ * not match their TypeScript annotations (e.g. `{ command: null }`).
+ */
+export function toDisplayString(value: unknown): string {
+	if (typeof value === "string") {
+		return value;
+	}
+	if (value === null || value === undefined) {
+		return "";
+	}
+	if (typeof value === "object") {
+		return safeJsonStringify(value);
+	}
+	try {
+		return String(value);
+	} catch {
+		return "";
+	}
+}
+
+export function truncate(value: unknown, maxLen: number): string {
+	const oneLine = toDisplayString(value).replace(/\n/g, " ").trim();
 	if (oneLine.length <= maxLen) {
 		return oneLine;
 	}
@@ -66,14 +96,21 @@ export function formatStructuredCommand(cmd: unknown): string {
 		return cmd;
 	}
 	if (cmd && typeof cmd === "object" && "command" in cmd) {
-		const structured = cmd as { command: string; args?: unknown };
-		const args = Array.isArray(structured.args) ? structured.args : [];
+		const structured = cmd as { command?: unknown; args?: unknown };
+		const command = toDisplayString(structured.command);
+		// Drop only nullish entries: they carry no display value, while an
+		// empty string is a valid argv entry that must stay in the summary.
+		const args = Array.isArray(structured.args)
+			? structured.args
+					.filter((arg) => arg !== null && arg !== undefined)
+					.map(toDisplayString)
+			: [];
 		if (args.length === 0) {
-			return structured.command;
+			return command;
 		}
-		return `${structured.command} ${args.join(" ")}`;
+		return `${command} ${args.join(" ")}`;
 	}
-	return String(cmd);
+	return toDisplayString(cmd);
 }
 
 function summarizeRunCommandsInput(input: unknown): string {
@@ -82,14 +119,17 @@ function summarizeRunCommandsInput(input: unknown): string {
 	}
 
 	if (Array.isArray(input)) {
-		return input.map(formatStructuredCommand).join("; ");
+		return input.map(formatStructuredCommand).filter(Boolean).join("; ");
 	}
 
 	if (input && typeof input === "object") {
 		const obj = input as Record<string, unknown>;
 		if (obj.commands !== undefined) {
 			if (Array.isArray(obj.commands)) {
-				return obj.commands.map(formatStructuredCommand).join("; ");
+				return obj.commands
+					.map(formatStructuredCommand)
+					.filter(Boolean)
+					.join("; ");
 			}
 			return formatStructuredCommand(obj.commands);
 		}
@@ -157,7 +197,11 @@ export function formatToolInput(toolName: string, input: unknown): string {
 			if (Array.isArray(obj.requests)) {
 				return truncate(
 					obj.requests
-						.map((r) => r.url)
+						.map((r) =>
+							r && typeof r === "object" && "url" in r
+								? toDisplayString((r as { url?: unknown }).url)
+								: "",
+						)
 						.filter(Boolean)
 						.join(", "),
 					120,
@@ -286,7 +330,7 @@ export function formatToolInput(toolName: string, input: unknown): string {
 			return "list";
 	}
 
-	return truncate(JSON.stringify(input), 60);
+	return truncate(input, 60);
 }
 
 export function formatToolOutput(output: unknown): string {
@@ -330,10 +374,10 @@ export function formatToolOutput(output: unknown): string {
 								)
 								.filter(Boolean)
 								.join(" ") || "Successfully read image"
-						: String(result ?? "");
+						: toDisplayString(result);
 					return truncate(resultStr, 80);
 				}
-				return truncate(JSON.stringify(item), 80);
+				return truncate(item, 80);
 			})
 			.filter((s) => s.length > 0);
 
@@ -346,7 +390,7 @@ export function formatToolOutput(output: unknown): string {
 		return `${results[0]} (+${results.length - 1} more)`;
 	}
 
-	return truncate(JSON.stringify(output), 100);
+	return truncate(output, 100);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

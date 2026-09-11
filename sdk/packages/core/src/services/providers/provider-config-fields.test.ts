@@ -22,9 +22,8 @@ describe("getProviderConfigFields", () => {
 		expect(result.fields.apiKey).toEqual({
 			note: "Keep empty if no API key for local inference.",
 		});
-		expect(result.fields.baseUrl?.defaultValue).toBe(
-			"http://localhost:11434/v1",
-		);
+		// The native-API vendor appends /api itself; the default is a bare host.
+		expect(result.fields.baseUrl?.defaultValue).toBe("http://localhost:11434");
 	});
 
 	it("returns api-key auth with apiKey + baseUrl for LM Studio", () => {
@@ -80,6 +79,12 @@ describe("getProviderConfigFields", () => {
 
 	it("returns local auth with no fields for openai-codex-cli", () => {
 		const result = getProviderConfigFields("openai-codex-cli");
+		expect(result.authMethod).toBe("local");
+		expect(result.fields).toEqual({});
+	});
+
+	it("returns local auth with no fields for claude-code", () => {
+		const result = getProviderConfigFields("claude-code");
 		expect(result.authMethod).toBe("local");
 		expect(result.fields).toEqual({});
 	});

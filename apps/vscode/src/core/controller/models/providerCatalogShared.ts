@@ -1,4 +1,5 @@
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import { filterChatModelMap, resolveChatModelDefault } from "@/sdk/model-catalog/chat-models"
 import type {
 	EffectiveProviderConfig,
 	Mode,
@@ -42,6 +43,7 @@ export interface ProviderCatalogStateController extends ProviderCatalogControlle
 		getApiConfiguration?(): ApiConfiguration
 	}
 	handleApiConfigurationChanged?(previous: ApiConfiguration, next: ApiConfiguration): void
+	postStateToWebview?(): Promise<void>
 }
 
 export function hasProviderCatalogStateController(
@@ -49,6 +51,23 @@ export function hasProviderCatalogStateController(
 ): controller is ProviderCatalogStateController {
 	const candidate = controller as { stateManager?: { setGlobalStateBatch?: unknown } }
 	return typeof candidate.stateManager?.setGlobalStateBatch === "function"
+}
+
+/**
+ * Resolve a provider's models through the SDK provider catalog and return
+ * them as a plain record, throwing on catalog errors. Shared by the
+ * per-provider refresh handlers, which are thin RPC adapters over this call.
+ */
+export async function resolveProviderModelsRecord(
+	controller: ProviderCatalogController,
+	providerId: string,
+	options?: { readonly forceRefresh?: boolean },
+): Promise<Record<string, ModelInfo>> {
+	const result = await controller.getProviderCatalog().resolveModels(parseProviderId(providerId), options)
+	if (!result.ok) {
+		throw new Error(result.error.message)
+	}
+	return Object.fromEntries(result.models)
 }
 
 export function parseProviderIdRequest(rawProviderId: string | undefined, fieldName = "provider_id"): ProviderId {
@@ -177,16 +196,30 @@ export function toProviderModelsResponse(
 	requestId: string,
 	result: ProviderModelsResult,
 ): ProviderModelsResponse {
+	if (!result.ok) {
+		return ProviderModelsResponse.create({
+			providerId,
+			requestId,
+			configFingerprint: result.configFingerprint,
+			fetchedAt: result.fetchedAt,
+			ok: false,
+			models: {},
+			error: toCatalogErrorInfo(result.error),
+		})
+	}
+
+	const chatModels = filterChatModelMap(result.models)
+	const defaultModelId = resolveChatModelDefault(result.defaultModelId, chatModels)
+
 	return ProviderModelsResponse.create({
 		providerId,
 		requestId,
 		configFingerprint: result.configFingerprint,
 		fetchedAt: result.fetchedAt,
-		ok: result.ok,
-		models: result.ok ? toProtobufModels(result.models) : {},
-		defaultModelId: result.ok ? result.defaultModelId : undefined,
-		source: result.ok ? result.source : undefined,
-		error: result.ok ? undefined : toCatalogErrorInfo(result.error),
+		ok: true,
+		models: toProtobufModels(chatModels),
+		defaultModelId,
+		source: result.source,
 	})
 }
 
@@ -208,6 +241,7 @@ export function toRedactedProviderConfigResponse(
 		actSelection: toCommittedModelSelectionProto(store?.readSelection(config.providerId, "act")),
 		aws: toRedactedAwsProviderConfigProto(config.aws),
 		gcp: toRedactedGcpProviderConfigProto(config.gcp),
+		contextWindow: config.contextWindow,
 	})
 }
 
@@ -227,6 +261,10 @@ export function toProviderConfigPatch(protoPatch: WriteProviderConfigPatch | und
 		...(protoPatch.apiLine !== undefined ? { apiLine: protoPatch.apiLine } : {}),
 		...(protoPatch.aws !== undefined ? { aws: toAwsProviderConfigPatch(protoPatch) } : {}),
 		...(protoPatch.gcp !== undefined ? { gcp: toGcpProviderConfigPatch(protoPatch) } : {}),
+		// A zero context window over the wire means "clear the setting".
+		...(protoPatch.contextWindow !== undefined
+			? { contextWindow: protoPatch.contextWindow > 0 ? protoPatch.contextWindow : null }
+			: {}),
 		...(protoPatch.accessToken !== undefined || protoPatch.refreshToken !== undefined || protoPatch.accountId !== undefined
 			? {
 					auth: {

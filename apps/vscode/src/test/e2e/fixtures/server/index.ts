@@ -7,6 +7,7 @@ import {
 	E2E_MOCK_CLINE_MODELS,
 	E2E_MOCK_CLINE_RECOMMENDED_MODELS,
 	E2E_MOCK_EDITOR_TOOL_CALL,
+	E2E_MOCK_POWERSHELL_TOOL_CALL,
 	E2E_REGISTERED_MOCK_ENDPOINTS,
 } from "./api"
 import { ClineDataMock } from "./data"
@@ -480,27 +481,33 @@ export class ClineApiServerMock {
 						// a `role: "tool"` message. Detect that follow-up first — the
 						// original "edit_request" user prompt is still present in the
 						// conversation history of the follow-up request, so order matters.
-						// Scoped to edit_request conversations so tool results from other
-						// (future) scenarios don't mis-route to EDIT_REQUEST_COMPLETE.
+						// Scope tool-result routing to the mock scenarios that issued a tool
+						// call so unrelated conversations retain the default response.
 						const hasToolResult =
-							body.includes("edit_request") &&
+							(body.includes("edit_request") || body.includes("powershell_background_request")) &&
 							Array.isArray(messages) &&
 							messages.some((m: { role?: string }) => m?.role === "tool")
 
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
-						let includeEditorToolCall = false
+						let toolCall: typeof E2E_MOCK_EDITOR_TOOL_CALL | typeof E2E_MOCK_POWERSHELL_TOOL_CALL | undefined
 						log("Chat completion mock selection:", {
 							isEditRequest: body.includes("edit_request"),
+							isPowerShellRequest: body.includes("powershell_background_request"),
 							hasToolResult,
 						})
 						if (hasToolResult) {
-							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
+							responseText = body.includes("powershell_background_request")
+								? E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_COMPLETE
+								: E2E_MOCK_API_RESPONSES.EDIT_REQUEST_COMPLETE
 						} else if (body.includes("edit_request")) {
 							// Stream lead-in text followed by a structured `editor` tool
 							// call (OpenAI tool_calls deltas) — the only tool-call syntax
 							// the SDK runtime executes.
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST_LEAD_IN
-							includeEditorToolCall = true
+							toolCall = E2E_MOCK_EDITOR_TOOL_CALL
+						} else if (body.includes("powershell_background_request")) {
+							responseText = E2E_MOCK_API_RESPONSES.POWERSHELL_REQUEST_LEAD_IN
+							toolCall = E2E_MOCK_POWERSHELL_TOOL_CALL
 						}
 						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
 
@@ -523,16 +530,16 @@ export class ClineApiServerMock {
 							// for a tool_calls index must carry `id` + `function.name`;
 							// `function.arguments` accumulates as string fragments. Split
 							// the arguments JSON to exercise fragment reassembly.
-							const argumentsJson = JSON.stringify(E2E_MOCK_EDITOR_TOOL_CALL.arguments)
+							const argumentsJson = toolCall ? JSON.stringify(toolCall.arguments) : ""
 							const argsSplitAt = Math.floor(argumentsJson.length / 2)
-							const toolCallDeltas = includeEditorToolCall
+							const toolCallDeltas = toolCall
 								? [
 										[
 											{
 												index: 0,
-												id: E2E_MOCK_EDITOR_TOOL_CALL.id,
+												id: toolCall.id,
 												type: "function",
-												function: { name: E2E_MOCK_EDITOR_TOOL_CALL.name, arguments: "" },
+												function: { name: toolCall.name, arguments: "" },
 											},
 										],
 										[
@@ -600,7 +607,7 @@ export class ClineApiServerMock {
 											{
 												index: 0,
 												delta: {},
-												finish_reason: includeEditorToolCall ? "tool_calls" : "stop",
+												finish_reason: toolCall ? "tool_calls" : "stop",
 											},
 										],
 										usage: {
@@ -711,7 +718,11 @@ export class ClineApiServerMock {
 
 			handleRequest().catch((err) => {
 				console.error("Request handling error:", err)
-				sendApiError("Internal server error", 500)
+				if (!res.headersSent) {
+					sendApiError("Internal server error", 500)
+				} else if (!res.writableEnded) {
+					res.end()
+				}
 			})
 		})
 

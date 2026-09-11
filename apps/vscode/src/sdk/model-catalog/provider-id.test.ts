@@ -28,6 +28,12 @@ describe("parseProviderId", () => {
 		expect(parseProviderId("NOUSRESEARCH")).toBe("nousresearch")
 	})
 
+	it("folds the SDK openai-compatible spelling to the extension's openai id", () => {
+		expect(parseProviderId("openai-compatible")).toBe("openai")
+		expect(parseProviderId("  OpenAI-Compatible  ")).toBe("openai")
+		expect(warnSpy).not.toHaveBeenCalled()
+	})
+
 	it("warns once per non-empty unknown provider id", () => {
 		parseProviderId("provider-id-test-unknown-a")
 		parseProviderId("provider-id-test-unknown-a")
@@ -50,6 +56,7 @@ describe("parseProviderId", () => {
 		parseProviderId("v0")
 		parseProviderId("xiaomi")
 		parseProviderId("tencent-tokenhub")
+		parseProviderId("chutes")
 
 		expect(warnSpy).not.toHaveBeenCalled()
 	})
@@ -66,6 +73,7 @@ describe("isKnownProviderId", () => {
 		expect(isKnownProviderId(parseProviderId("v0"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("xiaomi"))).toBe(true)
 		expect(isKnownProviderId(parseProviderId("tencent-tokenhub"))).toBe(true)
+		expect(isKnownProviderId(parseProviderId("chutes"))).toBe(true)
 	})
 
 	it("returns false for a custom provider id", () => {

@@ -33,7 +33,6 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -368,6 +367,57 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		expect(configs[0]?.systemPrompt).toBe(
 			"Base prompt.\n\nAlways preserve architectural boundaries.",
 		);
+	});
+
+	it("composes tool-conditional rules only when the tool is enabled", async () => {
+		const conditionalRuleExtension: AgentExtension = {
+			name: "conditional-tool-rule",
+			manifest: { capabilities: ["rules"] },
+			setup: (api) => {
+				api.registerRule({
+					id: "conditional-tool-rule:guidance",
+					content: "Use tasks for durable follow-up work.",
+					whenToolAvailable: "tasks",
+				});
+			},
+		};
+		const todoListTool: AgentTool = {
+			name: "tasks",
+			description: "Manage durable agenda items.",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({ ok: true }),
+		};
+
+		const enabledCapture = withCapturingFakeRuntime();
+		const enabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+			}),
+			enabledCapture.deps,
+		);
+		await enabledSession.run("go");
+
+		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
+			"Base prompt.\n\nUse tasks for durable follow-up work.",
+		);
+		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
+
+		const disabledCapture = withCapturingFakeRuntime();
+		const disabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+				toolPolicies: { tasks: { enabled: false } },
+			}),
+			disabledCapture.deps,
+		);
+		await disabledSession.run("go");
+
+		expect(disabledCapture.configs[0]?.systemPrompt).toBe("Base prompt.");
+		expect(disabledCapture.configs[0]?.tools).toEqual([]);
 	});
 
 	it("passes session, caller, and logger context into extension setup()", async () => {
@@ -845,10 +895,60 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	expect(runtimeConfig.toolContextMetadata).toEqual(
 		expect.objectContaining({
 			modelSupportsImages: true,
-			[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: telemetry,
 		}),
 	);
+	// The live telemetry service is a host object with cyclic internals; it
+	// must never ride on toolContextMetadata, which crosses process
+	// boundaries over JSON IPC (plugin sandbox, hub clients).
+	expect(Object.values(runtimeConfig.toolContextMetadata ?? {})).not.toContain(
+		telemetry,
+	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
+});
+
+it.each([
+	["absent", undefined],
+	["empty", []],
+])("keeps image support enabled when the capability list is %s", async (_label, capabilities) => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					...(capabilities === undefined ? {} : { capabilities }),
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: true }),
+	);
+});
+
+it("disables image support when a populated capability list omits images", async () => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					capabilities: ["tools", "prompt-cache"],
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: false }),
+	);
 });
 
 describe("SessionRuntime.run", () => {
@@ -867,6 +967,116 @@ describe("SessionRuntime.run", () => {
 		expect(result.startedAt).toBeInstanceOf(Date);
 		expect(result.endedAt).toBeInstanceOf(Date);
 		expect(typeof result.durationMs).toBe("number");
+	});
+
+	it("disables tools and completion-tool policy for dedicated image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						operation: "image-generation",
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
+	});
+
+	it("preserves tools and completion-tool policy for mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "openai/gpt-5-image";
+		const completionPolicy = { requireCompletionTool: true };
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["tools", "images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["image", "text"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy,
+			}),
+			deps,
+		);
+
+		await session.run("Answer normally or generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools?.map((tool) => tool.name)).toEqual(["read_files"]);
+		expect(configs[0]?.completionPolicy).toEqual(completionPolicy);
+	});
+
+	it("disables tools and completion-tool policy for tool-less mixed image models", async () => {
+		const { deps, configs } = withCapturingFakeRuntime();
+		const modelId = "google/gemini-2.5-flash-image";
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				modelId,
+				knownModels: {
+					[modelId]: {
+						id: modelId,
+						capabilities: ["images"],
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
+					},
+				},
+				tools: [
+					{
+						name: "read_files",
+						description: "Read files",
+						inputSchema: { type: "object" },
+						execute: async () => "contents",
+					},
+				],
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			deps,
+		);
+
+		await session.run("Generate an image");
+
+		expect(configs).toHaveLength(1);
+		expect(configs[0]?.tools).toEqual([]);
+		expect(configs[0]?.completionPolicy).toBeUndefined();
 	});
 
 	it("appends the user turn into the conversation store", async () => {
@@ -1556,6 +1766,119 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 });
 
 // ---------------------------------------------------------------------------
+// external abort signal
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime external abort signal", () => {
+	it("observes the parent signal only while a run is active", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const removeEventListener = vi.spyOn(
+			controller.signal,
+			"removeEventListener",
+		);
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			deps,
+		);
+
+		expect(addEventListener).not.toHaveBeenCalled();
+		await session.run("delegated task");
+
+		expect(addEventListener).toHaveBeenCalledOnce();
+		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it("does not retain the parent signal when extension startup fails", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const extension: AgentExtension = {
+			name: "failing-startup",
+			manifest: { capabilities: ["tools"] },
+			setup: () => {
+				throw new Error("startup failed");
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				abortSignal: controller.signal,
+				extensions: [extension],
+				hookErrorMode: "throw",
+			}),
+		);
+
+		await expect(session.run("delegated task")).rejects.toThrow(
+			"startup failed",
+		);
+		expect(addEventListener).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"before",
+		"during",
+	] as const)("retains a parent abort received %s delegated startup", async (timing) => {
+		const controller = new AbortController();
+		let releaseStartup: (() => void) | undefined;
+		// AgentRuntime plugin setup has no cancellation contract. Release this
+		// finite startup explicitly and verify the retained abort is applied before
+		// the model runs; making arbitrary plugin initialization abortable is not
+		// part of SessionRuntime cancellation propagation.
+		const startupGate = new Promise<void>((resolve) => {
+			releaseStartup = resolve;
+		});
+		let markStartupEntered: (() => void) | undefined;
+		const startupEntered = new Promise<void>((resolve) => {
+			markStartupEntered = resolve;
+		});
+		const modelStream = vi.fn(async () =>
+			(async function* () {
+				yield { type: "text-delta" as const, text: "should not run" };
+				yield { type: "finish" as const, reason: "stop" as const };
+			})(),
+		);
+		const scriptedModel: AgentModel = { stream: modelStream };
+
+		if (timing === "before") {
+			controller.abort("parent session aborted");
+		}
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({
+						...config,
+						model: scriptedModel,
+						plugins: [
+							...(config.plugins ?? []),
+							{
+								name: "delayed-startup",
+								async setup() {
+									markStartupEntered?.();
+									await startupGate;
+									return {};
+								},
+							},
+						],
+					}),
+			},
+		);
+		const runPromise = session.run("delegated task");
+		await startupEntered;
+		if (timing === "during") {
+			controller.abort("parent session aborted");
+		}
+		releaseStartup?.();
+
+		await expect(runPromise).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(modelStream).not.toHaveBeenCalled();
+		await session.shutdown();
+	});
+});
+
+// ---------------------------------------------------------------------------
 // shutdown
 // ---------------------------------------------------------------------------
 
@@ -2189,6 +2512,61 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		expect(abortCalls).toHaveLength(0);
 	});
 
+	it("captures task.mistake_limit_reached telemetry exactly once when the limit is hit", async () => {
+		const capture = vi.fn();
+		const telemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn(async () => {}),
+			dispose: vi.fn(async () => {}),
+		};
+		const { deps } = makeScriptedRuntime({
+			events: failedToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				execution: { maxConsecutiveMistakes: 2 },
+				sessionId: "sess_mistakes",
+				telemetry,
+			}),
+			deps,
+		);
+
+		await session.run("one");
+		// First failed turn — counter 1 < 2, no telemetry yet.
+		const limitEvents = () =>
+			capture.mock.calls
+				.map((call) => call[0])
+				.filter((event) => event.event === "task.mistake_limit_reached");
+		expect(limitEvents()).toHaveLength(0);
+
+		await session.continue("two");
+		// Second failed turn hits the limit: exactly one event, even though
+		// no `onConsecutiveMistakeLimitReached` callback is configured (the
+		// tracker falls back to the default stop decision).
+		const events = limitEvents();
+		expect(events).toHaveLength(1);
+		expect(events[0].properties).toMatchObject({
+			ulid: "sess_mistakes",
+			model: "claude-3-5-sonnet",
+			provider: "anthropic",
+			reason: "tool_execution_failed",
+			consecutiveMistakes: 2,
+			maxConsecutiveMistakes: 2,
+			isSubagent: false,
+		});
+		expect(events[0].properties.agentId).toMatch(/^agent_/);
+	});
+
 	it("aborts on hard-threshold loop detection of identical tool calls", async () => {
 		const identical = (i: number): AgentRuntimeEvent => ({
 			type: "tool-started",
@@ -2340,5 +2718,92 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.continue("b");
 		await session.continue("c");
 		expect(abortCalls).toHaveLength(0);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Auth retry
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime auth retry", () => {
+	const authFailure: Partial<AgentRunResult> = {
+		status: "failed",
+		error: new Error(
+			"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
+		),
+	};
+
+	/** Runtime factory that scripts each successive AgentRuntime build. */
+	function withSequencedRuntimes(scripts: FakeAgentRuntimeScript[]): {
+		deps: SessionRuntimeOrchestratorDeps;
+		createdCount: () => number;
+	} {
+		let created = 0;
+		const deps: SessionRuntimeOrchestratorDeps = {
+			createAgentRuntimeImpl: () => {
+				const script = scripts[Math.min(created, scripts.length - 1)];
+				created += 1;
+				return makeFakeAgentRuntime(script).runtime;
+			},
+		};
+		return { deps, createdCount: () => created };
+	}
+
+	it("retries once with refreshed credentials when a run fails with an auth error", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const capture = vi.fn();
+		const telemetry = { capture } as unknown as AgentConfig["telemetry"];
+		const { deps, createdCount } = withSequencedRuntimes([
+			{ result: authFailure },
+			{ result: { outputText: "recovered" } },
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({ onAuthError, telemetry }),
+			deps,
+		);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(2);
+		expect(result.finishReason).toBe("completed");
+		expect(result.text).toBe("recovered");
+		expect(capture).toHaveBeenCalledWith({
+			event: "user.auth_run_retry",
+			properties: { provider: "anthropic", recovered: true },
+		});
+	});
+
+	it("returns the failed result when the host cannot refresh credentials", async () => {
+		const onAuthError = vi.fn(async () => false);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{ result: authFailure },
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).toHaveBeenCalledTimes(1);
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
+	});
+
+	it("does not invoke onAuthError for non-auth failures", async () => {
+		const onAuthError = vi.fn(async () => true);
+		const { deps, createdCount } = withSequencedRuntimes([
+			{
+				result: {
+					status: "failed",
+					error: new Error("Model stream failed"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
+
+		const result = await session.run("go");
+
+		expect(onAuthError).not.toHaveBeenCalled();
+		expect(createdCount()).toBe(1);
+		expect(result.finishReason).toBe("error");
 	});
 });

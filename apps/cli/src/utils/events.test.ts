@@ -1,3 +1,5 @@
+import { readFileSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
 import type { AgentEvent, TeamEvent } from "@cline/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -118,6 +120,41 @@ describe("handleEvent text formatting", () => {
 		expect(output).toMatch(/\[run_commands\].*\n.*\[read_files\]/s);
 	});
 
+	it("saves generated images and prints an openable path", () => {
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "media",
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: {
+						type: "base64",
+						data: Buffer.from("one-shot-image").toString("base64"),
+					},
+				},
+			} as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain("[generated image]");
+		const suffix = "/generated.png";
+		const pathEnd = output.indexOf(suffix);
+		const pathStart = output.lastIndexOf(" ", pathEnd);
+		const path =
+			pathEnd >= 0 && pathStart >= 0
+				? output.slice(pathStart + 1, pathEnd + suffix.length)
+				: undefined;
+		expect(path).toBeDefined();
+		if (!path) throw new Error("Expected generated image path in CLI output");
+		try {
+			expect(readFileSync(path, "utf8")).toBe("one-shot-image");
+		} finally {
+			rmSync(dirname(path), { recursive: true, force: true });
+		}
+	});
+
 	it("does not echo ask_question through the generic tool renderer", () => {
 		handleEvent(
 			{
@@ -220,6 +257,37 @@ describe("handleEvent text formatting", () => {
 		expect(errorOutput).toContain("ClinePass limit reached");
 		expect(errorOutput).toContain("Switch to Cline usage-based billing");
 		expect(errorOutput).toContain("--provider cline");
+	});
+
+	it("formats daily free model limit agent errors before writing to stderr", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error(
+					"Error: Error 429: Daily free limit reached on model deepseek/deepseek-v4-flash. Try again in 23h 59m",
+				),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(errorOutput).toContain("Daily free model limit reached");
+		expect(errorOutput).toContain("select another model");
+		expect(errorOutput).not.toContain("usage-based billing");
+	});
+
+	it("formats removed free model errors using the configured model id", () => {
+		handleEvent(
+			{
+				type: "error",
+				error: new Error("Error 404: model not found"),
+				recoverable: false,
+			} as unknown as AgentEvent,
+			{ modelId: "cline-free/retired-model" } as Config,
+		);
+
+		expect(errorOutput).toContain("Free model promotion ended");
+		expect(errorOutput).toContain("Select another model");
 	});
 
 	it("suppresses heartbeat-only team progress messages", () => {

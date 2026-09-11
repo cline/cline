@@ -33,6 +33,7 @@
  */
 
 import type * as vscode from "vscode"
+import { type AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { Logger } from "@/shared/services/Logger"
 import { GlobalStateAndSettingKeys, LocalStateKeys, SecretKeys } from "@/shared/storage/state-keys"
 import type { StorageContext } from "@/shared/storage/storage-context"
@@ -44,8 +45,14 @@ const FILE_BACKED_STORAGE_EXPORT_VERSION = 1
 /** Version 2 imports legacy MCP settings files into the shared SDK/CLI settings path. */
 const MCP_SETTINGS_MIGRATION_VERSION = 2
 
+/**
+ * Version 3 folds the removed "YOLO mode" / "auto-approve all" toggles into the
+ * auto-approval settings: users who ran unattended keep running unattended.
+ */
+const YOLO_MODE_MIGRATION_VERSION = 3
+
 /** Bump this when adding new migration steps. */
-const CURRENT_MIGRATION_VERSION = MCP_SETTINGS_MIGRATION_VERSION
+const CURRENT_MIGRATION_VERSION = YOLO_MODE_MIGRATION_VERSION
 
 /** Sentinel key written to both globalState and workspaceState to track migration independently. */
 const MIGRATION_VERSION_KEY = "__vscodeMigrationVersion"
@@ -68,6 +75,8 @@ export interface MigrationResult {
 	skippedExisting: number
 	mcpServersAdded: number
 	mcpServersSkippedExisting: number
+	/** True when a legacy YOLO / auto-approve-all toggle was folded into autoApprovalSettings. */
+	yoloModeMigrated: boolean
 }
 
 /**
@@ -96,6 +105,7 @@ export async function exportVSCodeStorageToSharedFiles(
 		skippedExisting: 0,
 		mcpServersAdded: 0,
 		mcpServersSkippedExisting: 0,
+		yoloModeMigrated: false,
 	}
 
 	// Check sentinels independently
@@ -105,8 +115,9 @@ export async function exportVSCodeStorageToSharedFiles(
 	const needGlobalMigration = globalVersion === undefined || globalVersion < FILE_BACKED_STORAGE_EXPORT_VERSION
 	const needWorkspaceMigration = workspaceVersion === undefined || workspaceVersion < FILE_BACKED_STORAGE_EXPORT_VERSION
 	const needMcpSettingsMigration = globalVersion === undefined || globalVersion < MCP_SETTINGS_MIGRATION_VERSION
+	const needYoloModeMigration = globalVersion === undefined || globalVersion < YOLO_MODE_MIGRATION_VERSION
 
-	if (!needGlobalMigration && !needWorkspaceMigration && !needMcpSettingsMigration) {
+	if (!needGlobalMigration && !needWorkspaceMigration && !needMcpSettingsMigration && !needYoloModeMigration) {
 		Logger.info(
 			`[Migration] File-backed stores already current (global: v${globalVersion}, workspace: v${workspaceVersion}), skipping.`,
 		)
@@ -182,6 +193,12 @@ export async function exportVSCodeStorageToSharedFiles(
 			storage.secrets.setBatch(secretsBatch)
 		}
 
+		// ─── 1b. Fold removed YOLO / auto-approve-all toggles into
+		//         autoApprovalSettings (if needed) ───────────────────────
+		if (needYoloModeMigration) {
+			result.yoloModeMigrated = migrateYoloModeToAutoApprovalSettings(vscodeContext, storage)
+		}
+
 		// ─── 2. Migrate workspace state (if needed) ────────────────────
 		if (needWorkspaceMigration) {
 			// Batch workspace state keys
@@ -211,17 +228,22 @@ export async function exportVSCodeStorageToSharedFiles(
 		}
 
 		// If the original v1 export was already complete, still advance sentinels
-		// for this workspace after the v2 MCP migration attempt so future startups
-		// don't re-run it. New workspaces still have no workspace sentinel and will
+		// for this workspace after the v2/v3 migration attempts so future startups
+		// don't re-run them. New workspaces still have no workspace sentinel and will
 		// get their v1 workspace-state export when first opened.
-		if (!needGlobalMigration && needMcpSettingsMigration) {
+		if (!needGlobalMigration && (needMcpSettingsMigration || needYoloModeMigration)) {
 			storage.globalState.update(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
 		}
-		if (!needWorkspaceMigration && needMcpSettingsMigration) {
+		if (!needWorkspaceMigration && (needMcpSettingsMigration || needYoloModeMigration)) {
 			storage.workspaceState.set(MIGRATION_VERSION_KEY, CURRENT_MIGRATION_VERSION)
 		}
 
-		result.migrated = needGlobalMigration || needWorkspaceMigration || needMcpSettingsMigration || result.mcpServersAdded > 0
+		result.migrated =
+			needGlobalMigration ||
+			needWorkspaceMigration ||
+			needMcpSettingsMigration ||
+			needYoloModeMigration ||
+			result.mcpServersAdded > 0
 
 		Logger.info(
 			`[Migration] Complete: ${result.globalStateCount} global state keys, ` +
@@ -236,4 +258,56 @@ export async function exportVSCodeStorageToSharedFiles(
 	}
 
 	return result
+}
+
+/**
+ * The "YOLO mode" and "auto-approve all" toggles were removed: both were blanket
+ * "run without asking" switches that bypassed the per-action auto-approval
+ * settings. To keep previously-unattended setups unattended, a user who had
+ * either toggle enabled gets every auto-approval action enabled instead.
+ *
+ * Reads consider both stores: the file store wins when it has an explicit value
+ * (matching the export's merge semantics — e.g. a user who turned YOLO off in
+ * the SDK extension must not be re-migrated from a stale VSCode `true`), and the
+ * VSCode memento covers legacy-extension users whose value was never exported
+ * (the keys are no longer part of GlobalStateAndSettingKeys).
+ *
+ * The dead keys are intentionally left in place: current builds no longer read
+ * them (the state loader only visits known keys), and the file store is shared
+ * with older builds that still do — deleting the value would flip YOLO off for
+ * a user who downgrades. Same downgrade-safety rule as the v1 export.
+ *
+ * @returns true when the toggles were folded into autoApprovalSettings
+ */
+function migrateYoloModeToAutoApprovalSettings(vscodeContext: vscode.ExtensionContext, storage: StorageContext): boolean {
+	const readRemovedToggle = (key: string): boolean => {
+		const fileValue = storage.globalState.get(key)
+		const effective = fileValue !== undefined ? fileValue : vscodeContext.globalState.get(key)
+		return effective === true
+	}
+
+	const shouldEnableAllActions = readRemovedToggle("yoloModeToggled") || readRemovedToggle("autoApproveAllToggled")
+
+	if (shouldEnableAllActions) {
+		const existing = storage.globalState.get<AutoApprovalSettings>("autoApprovalSettings") ?? DEFAULT_AUTO_APPROVAL_SETTINGS
+		const migrated: AutoApprovalSettings = {
+			...existing,
+			version: (existing.version ?? 1) + 1,
+			actions: {
+				...existing.actions,
+				readFiles: true,
+				readFilesExternally: true,
+				editFiles: true,
+				editFilesExternally: true,
+				executeSafeCommands: true,
+				executeAllCommands: true,
+				useBrowser: true,
+				useMcp: true,
+			},
+		}
+		storage.globalState.update("autoApprovalSettings", migrated)
+		Logger.info("[Migration] Legacy YOLO/auto-approve-all toggle detected — enabled all auto-approval actions")
+	}
+
+	return shouldEnableAllActions
 }

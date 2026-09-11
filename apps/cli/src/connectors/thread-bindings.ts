@@ -153,6 +153,26 @@ export function writeBindings<TState extends ConnectorThreadState>(
 	writeJsonFile(path, bindings);
 }
 
+/**
+ * Key under which turns for `thread` must be serialised.
+ *
+ * This has to follow the same identity rule as {@link findBindingForThread},
+ * because whatever shares a session has to share a queue. A DM reuses one
+ * binding — and therefore one runtime session — for every message in the
+ * channel, so keying the queue by thread id would let two messages in the same
+ * DM run against that one session concurrently. That surfaces as
+ * "SessionRuntime.shutdown called while a run is in progress", or as two
+ * conversations interleaved in one session's history.
+ *
+ * Channel threads each own their binding, so they keep their own key and go on
+ * running independently of one another.
+ */
+export function resolveThreadTurnQueueKey(
+	thread: Pick<ConnectorBindingThreadIdentity, "id" | "channelId" | "isDM">,
+): string {
+	return thread.isDM ? `dm:${thread.channelId}` : thread.id;
+}
+
 export function findBindingForThread<TState extends ConnectorThreadState>(
 	bindings: ConnectorBindingStore<TState>,
 	thread: ConnectorBindingThreadIdentity,

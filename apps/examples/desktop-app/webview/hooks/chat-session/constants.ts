@@ -1,3 +1,4 @@
+import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -10,21 +11,14 @@ export const CHAT_WS_ENDPOINT_RETRY_DELAY_MS = 100;
 export const CHAT_WS_RECONNECT_BASE_DELAY_MS = 300;
 export const CHAT_WS_RECONNECT_MAX_DELAY_MS = 3000;
 export const CHAT_WS_REQUEST_TIMEOUT_MS = 120000;
-export const OAUTH_MANAGED_PROVIDERS = new Set([
-	"cline",
-	"oca",
-	"openai-codex",
-]);
-
-// Default Cline model — keep in sync with @cline/llms CLINE_DEFAULT_MODEL
-const CLINE_DEFAULT_MODEL = "anthropic/claude-sonnet-4.6";
+export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-connection";
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
 	workspaceRoot: "",
 	cwd: "",
 	provider: "cline",
-	model: CLINE_DEFAULT_MODEL,
+	model: CLINE_DEFAULT_MODEL_ID,
 	apiKey: process.env.CLINE_API_KEY || "",
 	mode: "act",
 	systemPrompt: undefined,
@@ -32,8 +26,6 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	thinking: undefined,
 	reasoningEffort: undefined,
 	enableTools: true,
-	enableSpawn: undefined,
-	enableTeams: undefined,
 	autoApproveTools: true,
 	missionStepInterval: undefined,
 	missionTimeIntervalMs: undefined,

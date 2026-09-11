@@ -15,15 +15,12 @@ vi.mock("./hooks-adapter", () => ({
 }))
 
 describe("SdkSessionConfigBuilder", () => {
-	it("adds the CLI plan-mode switch_to_act_mode tool only in plan mode", async () => {
-		const stateManager = {
-			getGlobalSettingsKey: vi.fn(() => "plan"),
-		}
-		const onSwitchToActMode = vi.fn()
+	it("never exposes a switch_to_act_mode tool, even in plan mode", async () => {
+		// Matches the legacy extension: the model cannot switch plan -> act
+		// itself; the user must flip the Plan/Act toggle.
 		const builder = new SdkSessionConfigBuilder({
-			stateManager: stateManager as never,
+			stateManager: {} as never,
 			emitHookMessage: vi.fn(),
-			onSwitchToActMode,
 		})
 
 		mocks.buildSessionConfig.mockResolvedValueOnce({
@@ -31,44 +28,28 @@ describe("SdkSessionConfigBuilder", () => {
 			hooks: {},
 		})
 		const planConfig = await builder.build({ cwd: "/workspace", mode: "plan" })
-		const switchTool = planConfig.extraTools?.find((tool) => tool.name === "switch_to_act_mode")
-		expect(switchTool).toBeDefined()
-		// Ends the run cleanly after the tool result so the loop never starts an
-		// iteration that the stop hook would abort (which surfaced in the webview
-		// as "API Request Cancelled").
-		expect(switchTool?.lifecycle?.completesRun).toBe(true)
-		expect(await switchTool?.execute({}, {} as never)).toBe(
-			"You successfully switched to act mode, proceed with the plan. You now have access to editing files and running commands. (The switch_to_act_mode tool is only available in plan mode.)",
-		)
-		expect(onSwitchToActMode).toHaveBeenCalledOnce()
+		expect(planConfig.extraTools?.some((tool) => tool.name === "switch_to_act_mode")).toBe(false)
 
 		mocks.buildSessionConfig.mockResolvedValueOnce({
-			extraTools: [switchTool],
+			extraTools: [],
 			hooks: {},
 		})
 		const actConfig = await builder.build({ cwd: "/workspace", mode: "act" })
 		expect(actConfig.extraTools?.some((tool) => tool.name === "switch_to_act_mode")).toBe(false)
 	})
 
-	it("stops before the next model call after switch_to_act_mode queues a mode change", async () => {
-		const baseBeforeModel = vi.fn(async () => ({ metadata: "base" }))
-		mocks.buildAgentHooks.mockReturnValueOnce({ beforeModel: baseBeforeModel })
+	it("wires the agent hooks into the SDK config", async () => {
+		const hooks = { beforeModel: vi.fn() }
+		mocks.buildAgentHooks.mockReturnValueOnce(hooks)
 		mocks.buildSessionConfig.mockResolvedValueOnce({ hooks: {} })
 
 		const builder = new SdkSessionConfigBuilder({
 			stateManager: {} as never,
 			emitHookMessage: vi.fn(),
-			onSwitchToActMode: vi.fn(),
-			shouldStopAfterModeSwitch: () => true,
 		})
 
 		const config = await builder.build({ cwd: "/workspace", mode: "act" })
-
-		await expect(config.hooks?.beforeModel?.({} as never)).resolves.toEqual({
-			metadata: "base",
-			stop: true,
-		})
-		expect(baseBeforeModel).toHaveBeenCalledOnce()
+		expect(config.hooks).toBe(hooks)
 	})
 
 	it("passes the mistake-limit callback into the SDK config without overriding SDK execution defaults", async () => {
@@ -78,7 +59,6 @@ describe("SdkSessionConfigBuilder", () => {
 		const builder = new SdkSessionConfigBuilder({
 			stateManager: { getGlobalSettingsKey: vi.fn(() => 3) } as never,
 			emitHookMessage: vi.fn(),
-			onSwitchToActMode: vi.fn(),
 			onConsecutiveMistakeLimitReached,
 		})
 

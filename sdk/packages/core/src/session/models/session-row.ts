@@ -36,6 +36,8 @@ export interface SessionRow {
 export interface CreateRootSessionInput {
 	sessionId: string;
 	source: SessionSource;
+	mode?: string;
+	version?: string;
 	pid: number;
 	startedAt: string;
 	interactive: boolean;
@@ -55,6 +57,8 @@ export interface CreateRootSessionInput {
 export interface CreateRootSessionWithArtifactsInput {
 	sessionId: string;
 	source: SessionSource;
+	mode?: string;
+	version?: string;
 	pid: number;
 	interactive: boolean;
 	provider: string;
@@ -68,6 +72,16 @@ export interface CreateRootSessionWithArtifactsInput {
 	prompt?: string;
 	metadata?: Record<string, unknown>;
 	startedAt?: string;
+	/**
+	 * Create the session already in a terminal state (defaults to "running").
+	 * Sessions that are pure history from birth — imports — use this so they
+	 * never pass through a transient running/pid-0 state that the
+	 * stale-session reconciler (in any process sharing the DB) could flip to
+	 * failed before the creator finishes writing.
+	 */
+	status?: SessionStatus;
+	endedAt?: string;
+	exitCode?: number;
 }
 
 export interface RootSessionArtifacts {

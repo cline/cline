@@ -30,7 +30,7 @@ export {
 	createApplyPatchExecutor,
 	type PatchFileChange,
 } from "./apply-patch";
-export { PatchActionType } from "./apply-patch-parser";
+export { PATCH_MARKERS, PatchActionType } from "./apply-patch-parser";
 export {
 	CommandExitError,
 	createShellExecutor,
@@ -41,6 +41,10 @@ export {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
 } from "./file-read";
+export {
+	RunCommandExecutionController,
+	type RunningCommandRegistration,
+} from "./run-command-execution-controller";
 export { createSearchExecutor, type SearchExecutorOptions } from "./search";
 export {
 	createWebFetchExecutor,

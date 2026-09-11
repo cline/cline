@@ -94,6 +94,77 @@ describe("checkpoint workspace comparison", () => {
 		});
 	});
 
+	it("reads untracked-at-snapshot files from the stash third parent", async () => {
+		// Replicate createWorktreeStashCommit: capture untracked files in a
+		// third-parent commit alongside a plain `git stash create`.
+		writeFileSync(join(dir, "pre-existing.txt"), "untouched\n", "utf8");
+		writeFileSync(join(dir, "edited-later.txt"), "original\n", "utf8");
+		writeFileSync(join(dir, "deleted-later.txt"), "will be deleted\n", "utf8");
+		writeFileSync(join(dir, "tracked.txt"), "checkpoint dirty\n", "utf8");
+
+		const indexFile = join(dir, ".git", "checkpoint-test-index");
+		const gitWithIndex = (args: string[]) =>
+			execFileSync("git", ["-C", dir, ...args], {
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "pipe"],
+				env: { ...process.env, GIT_INDEX_FILE: indexFile },
+			}).trim();
+		gitWithIndex([
+			"add",
+			"--force",
+			"pre-existing.txt",
+			"edited-later.txt",
+			"deleted-later.txt",
+		]);
+		const untrackedTree = gitWithIndex(["write-tree"]);
+		const untrackedParent = git(dir, [
+			"commit-tree",
+			untrackedTree,
+			"-m",
+			"untracked files on cline checkpoint",
+		]);
+		const stashRef = git(dir, ["stash", "create", "cline checkpoint test"]);
+		const snapshotRef = git(dir, [
+			"commit-tree",
+			`${stashRef}^{tree}`,
+			"-p",
+			git(dir, ["rev-parse", `${stashRef}^1`]),
+			"-p",
+			git(dir, ["rev-parse", `${stashRef}^2`]),
+			"-p",
+			untrackedParent,
+			"-m",
+			"cline checkpoint test",
+		]);
+
+		writeFileSync(join(dir, "edited-later.txt"), "changed\n", "utf8");
+		rmSync(join(dir, "deleted-later.txt"));
+
+		const diffs = await buildCheckpointWorkspaceDiff(dir, {
+			ref: snapshotRef,
+			createdAt: Date.now(),
+			runCount: 1,
+			kind: "stash",
+		});
+
+		const paths = diffs.map((diff) => diff.filePath);
+		// Unchanged pre-existing untracked file must not appear as "added".
+		expect(paths).not.toContain(join(dir, "pre-existing.txt"));
+		expect(
+			diffs.find((diff) => diff.filePath.endsWith("edited-later.txt")),
+		).toMatchObject({
+			leftContent: "original\n",
+			rightContent: "changed\n",
+		});
+		// A file untracked at snapshot time and deleted since shows as deleted.
+		expect(
+			diffs.find((diff) => diff.filePath.endsWith("deleted-later.txt")),
+		).toMatchObject({
+			leftContent: "will be deleted\n",
+			rightContent: "",
+		});
+	});
+
 	it("selects the nearest checkpoint at or before the requested run", async () => {
 		const session = {
 			sessionId: "session-1",

@@ -1,16 +1,22 @@
+export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
+	GetModelsForProviderOptions,
 	ModelCollection,
 	ModelIdAliasRule,
 	ModelInfo,
 	ModelInfo as CatalogModelInfo,
 	ProviderCapability as CatalogProviderCapability,
 	ProviderInfo,
+	ProviderModelFilter,
 } from "./models";
 export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+	filterImageOutputModels,
 	filterOpenAICodexModels,
+	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
 	getGeneratedModelsForProvider,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,
@@ -32,6 +38,23 @@ export {
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
 export {
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./providers/local-cli";
+export { toGatewayModelCapabilities } from "./providers/model-capabilities";
+export {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	builtinProviderSupportsModelOperation,
+	providerManifestSupportsModelOperation,
+	resolveModelOperation,
+} from "./providers/model-operations";
+export {
+	type ModelToolSupportInput,
+	providerManifestSupportsModelTool,
+	providerOffersModelTool,
+	supportsModelTool,
+} from "./providers/model-tools";
+export {
 	type OpenAICodexRequestHeaderContext,
 	type ProviderRequestHeaderClientContext,
 	type ProviderRequestHeaderLayers,
@@ -43,12 +66,17 @@ export type {
 	ProviderId,
 } from "./providers.browser";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,

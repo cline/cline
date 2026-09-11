@@ -21,7 +21,7 @@ export function PageFrame({
 					className,
 				)}
 			>
-				<div className={cn("max-w-[86rem]", contentClassName)}>{children}</div>
+				<div className={cn("max-w-344", contentClassName)}>{children}</div>
 			</div>
 		</ScrollArea>
 	);
@@ -54,13 +54,13 @@ export function PageHeader({
 			<div className="min-w-0">
 				<div className="flex min-w-0 items-center gap-3">
 					{Icon ? <Icon className="size-8 shrink-0 text-primary" /> : null}
-					<h1 className="truncate text-[32px] font-semibold leading-[1.15] tracking-normal text-foreground">
+					<h1 className="truncate text-3xl font-semibold  text-foreground">
 						{title}
 					</h1>
 					{meta}
 				</div>
 				{description ? (
-					<p className="mt-3 max-w-2xl text-[15px] leading-6 text-muted-foreground">
+					<p className="mt-3 max-w-2xl text-base text-muted-foreground">
 						{description}
 					</p>
 				) : null}

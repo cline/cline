@@ -105,7 +105,6 @@ export function fromProtobufOpenAiCompatibleModelInfo(protoInfo: ProtoOpenAiComp
 		supportsGlobalEndpoint: protoInfo.supportsGlobalEndpoint,
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
 		temperature: protoInfo.temperature,
-		isR1FormatRequired: protoInfo.isR1FormatRequired,
 	}
 }
 

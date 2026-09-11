@@ -11,7 +11,7 @@ import {
 	type ProviderModelOverrides,
 	toProtobufModelOverrides as toProtobufProviderModelOverrides,
 } from "@shared/proto-conversions/models/modelOverrides"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { ProviderId } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
@@ -54,11 +54,24 @@ function toWriteProviderConfigPatch(patch: ProviderConfigWritePatch): WriteProvi
 export function useProviderConfig(providerId: ProviderId) {
 	const [config, setConfig] = useState<ProviderConfigResponse | undefined>(undefined)
 
-	const read = useCallback(async () => {
-		const response = await ModelsServiceClient.readProviderConfig(StringRequest.create({ value: providerId }))
+	// Reads and writes resolve asynchronously and can complete out of order
+	// (e.g. a slow initial read landing after a user-triggered write). Only
+	// the latest issued request may apply its response; anything older is
+	// stale and would roll the UI state back.
+	const requestSeqRef = useRef(0)
+	const applyConfig = useCallback((seq: number, response: ProviderConfigResponse) => {
+		if (seq !== requestSeqRef.current) {
+			return
+		}
 		setConfig(response)
+	}, [])
+
+	const read = useCallback(async () => {
+		const seq = ++requestSeqRef.current
+		const response = await ModelsServiceClient.readProviderConfig(StringRequest.create({ value: providerId }))
+		applyConfig(seq, response)
 		return response
-	}, [providerId])
+	}, [providerId, applyConfig])
 
 	useEffect(() => {
 		void read()
@@ -66,16 +79,33 @@ export function useProviderConfig(providerId: ProviderId) {
 
 	const write = useCallback(
 		async (patch: ProviderConfigWritePatch) => {
-			const response = await ModelsServiceClient.writeProviderConfig(
-				WriteProviderConfigRequest.create({
-					providerId,
-					patch: toWriteProviderConfigPatch(patch),
-				}),
-			)
-			setConfig(response)
-			return response
+			const seq = ++requestSeqRef.current
+			try {
+				const response = await ModelsServiceClient.writeProviderConfig(
+					WriteProviderConfigRequest.create({
+						providerId,
+						patch: toWriteProviderConfigPatch(patch),
+					}),
+				)
+				applyConfig(seq, response)
+				return response
+			} catch (error) {
+				// A failed write may still have partially applied host-side, and
+				// its failure means no response will ever apply for this seq —
+				// without a re-read, older dropped responses could leave config
+				// stale (or undefined) forever. Re-read to converge on the
+				// backend's actual state, but only if this write is still the
+				// latest request: when a newer request is already in flight, its
+				// response (or its own failure recovery) supersedes this one,
+				// and a recovery read issued now could race ahead of the newer
+				// write host-side and pin a pre-write snapshot as the latest.
+				if (seq === requestSeqRef.current) {
+					void read().catch(() => {})
+				}
+				throw error
+			}
 		},
-		[providerId],
+		[providerId, applyConfig, read],
 	)
 
 	const commitSelection = useCallback(

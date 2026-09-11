@@ -56,4 +56,16 @@ describe("parseYamlFrontmatter", () => {
 		expect(result.data).to.deep.equal({ count: 42, enabled: true, tags: ["a", "b"] })
 		expect(result.body.trim()).to.equal("Content")
 	})
+
+	// Regression test for https://github.com/cline/cline/issues/12151
+	// A leading UTF-8 BOM (e.g. saved by Windows Notepad's "UTF-8 with BOM" encoding) must not
+	// prevent frontmatter from being recognized.
+	it("parses frontmatter correctly when the content has a leading UTF-8 BOM", () => {
+		const input = `\uFEFF---\nname: my-skill\ndescription: A test skill\n---\n# my-skill\nThis is a test skill.`
+		const result = parseYamlFrontmatter(input)
+		expect(result.hadFrontmatter).to.equal(true)
+		expect(result.parseError).to.equal(undefined)
+		expect(result.data).to.deep.equal({ name: "my-skill", description: "A test skill" })
+		expect(result.body.trim()).to.equal("# my-skill\nThis is a test skill.")
+	})
 })

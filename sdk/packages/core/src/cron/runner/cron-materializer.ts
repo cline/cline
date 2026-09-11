@@ -71,14 +71,14 @@ export class CronMaterializer {
 	public materializeOneOff(spec: CronSpecRecord): boolean {
 		if (spec.triggerKind !== "one_off") return false;
 		if (!spec.enabled || spec.removed) return false;
-		if (this.store.hasOneOffRunForRevision(spec.specId, spec.revision)) {
+		if (this.store.hasConsumedOneOffRevision(spec.specId, spec.revision)) {
 			return false;
 		}
 		this.store.enqueueRun({
 			specId: spec.specId,
 			specRevision: spec.revision,
 			triggerKind: "one_off",
-			scheduledFor: new Date(this.nowFn()).toISOString(),
+			scheduledFor: spec.nextRunAt ?? new Date(this.nowFn()).toISOString(),
 		});
 		return true;
 	}

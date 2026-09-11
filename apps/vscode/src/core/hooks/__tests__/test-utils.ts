@@ -6,9 +6,8 @@ import should from "should"
 import sinon from "sinon"
 import { HostProvider } from "../../../hosts/host-provider"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
-import { setVscodeHostProviderMock } from "../../../test/host-provider-test-utils"
+import { setVscodeHostProviderMock, stubWorkspacePaths } from "../../../test/host-provider-test-utils"
 import * as diskModule from "../../storage/disk"
-import { StateManager } from "../../storage/StateManager"
 import { HookDiscoveryCache } from "../HookDiscoveryCache"
 import { HookFactory, Hooks, NamedHookInput } from "../hook-factory"
 
@@ -97,17 +96,7 @@ export async function createHookTestEnv(): Promise<HookTestEnv> {
 	const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
 	const hooksDir = await createHooksDirectory(tempDir)
 
-	sandbox.stub(StateManager, "get").returns({
-		getGlobalStateKey: (key: string) => {
-			if (key === "workspaceRoots") {
-				return [{ path: tempDir }]
-			}
-			if (key === "primaryRootIndex") {
-				return 0
-			}
-			return undefined
-		},
-	} as any)
+	stubWorkspacePaths(sandbox, [tempDir])
 
 	resetHookCache()
 	stubHookDirs(sandbox, [hooksDir])
@@ -211,7 +200,7 @@ export async function writeHookScriptForPlatform(hookPath: string, nodeScript: s
 	if (process.platform === "win32") {
 		const jsPath = `${hookPath}.js`
 		const ps1Path = `${hookPath}.ps1`
-		const psBridge = buildPowerShellNodeBridge(process.execPath, path.basename(jsPath))
+		const psBridge = buildPowerShellNodeBridge(resolveNodeExecutableForBridge(), path.basename(jsPath))
 
 		await fs.writeFile(jsPath, nodeScript)
 		await fs.writeFile(ps1Path, psBridge)
@@ -222,15 +211,38 @@ export async function writeHookScriptForPlatform(hookPath: string, nodeScript: s
 	await fs.chmod(hookPath, 0o755)
 }
 
+let cachedBridgeNodePath: string | undefined
+
+// Under `bun test`, process.execPath is bun.exe. Prefer a real node executable
+// for the companion script: bun.exe on Windows intermittently dropped piped
+// stdout when the script exited right after console.log, which made the hook
+// suites flaky on Windows CI. Node is already a hard prerequisite of this suite
+// on every platform (the Unix variants run via the `#!/usr/bin/env node`
+// shebang), so falling back to process.execPath only matters when node is
+// missing from PATH entirely.
+function resolveNodeExecutableForBridge(): string {
+	if (!cachedBridgeNodePath) {
+		cachedBridgeNodePath = Bun.which("node") ?? process.execPath
+	}
+	return cachedBridgeNodePath
+}
+
 function buildPowerShellNodeBridge(nodePath: string, jsFileName: string): string {
 	const escapedNodePath = nodePath.replace(/'/g, "''")
 	const escapedJsFileName = jsFileName.replace(/'/g, "''")
 
+	// Launch node without PowerShell pipeline plumbing: the child inherits this
+	// powershell process's own stdin/stdout/stderr pipes, so the hook input JSON
+	// flows directly from HookProcess to node and node's output flows directly
+	// back. The previous `[Console]::In.ReadToEnd()` + `$inputData | & node`
+	// pipeline was flaky on Windows CI: when the node script exited without
+	// reading stdin (most fixtures don't), PowerShell's pipeline write raced the
+	// child exit and, with $ErrorActionPreference = 'Stop', intermittently
+	// terminated the bridge with exit code 1 and dropped the script's stdout.
 	return [
 		`$ErrorActionPreference = 'Stop'`,
 		`$scriptPath = Join-Path -Path $PSScriptRoot -ChildPath '${escapedJsFileName}'`,
-		`$inputData = [Console]::In.ReadToEnd()`,
-		`$inputData | & '${escapedNodePath}' $scriptPath`,
+		`& '${escapedNodePath}' $scriptPath`,
 		`if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }`,
 		`exit 0`,
 	].join("\n")

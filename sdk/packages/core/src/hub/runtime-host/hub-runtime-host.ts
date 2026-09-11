@@ -22,6 +22,7 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
@@ -29,6 +30,7 @@ import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
 import type {
+	ListSessionsOptions,
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
 	RestoreSessionInput,
@@ -44,6 +46,7 @@ import type {
 } from "../../runtime/host/runtime-host";
 import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { RuntimeHostEventBus } from "../../runtime/host/runtime-host-support";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import {
 	parseSessionCompactionState,
 	type SessionCompactionState,
@@ -161,16 +164,47 @@ function buildCommandSessionConfig(
 	return sessionConfig;
 }
 
+function buildSessionHistoryMetadata(
+	input: StartSessionInput,
+): Record<string, unknown> {
+	return withSessionHistoryOriginMetadata(input.sessionMetadata, {
+		mode: input.mode,
+		version: input.localRuntime?.extensionContext?.client?.version,
+	});
+}
+
+function buildCommandSessionMetadata(
+	input: StartSessionInput,
+): Record<string, unknown> {
+	return {
+		...buildSessionHistoryMetadata(input),
+		source: input.source ?? SessionSource.CORE,
+		provider: input.config.providerId,
+		model: input.config.modelId,
+		enableTools: input.config.enableTools,
+		enableSpawn: input.config.enableSpawnAgent,
+		enableTeams: input.config.enableAgentTeams,
+		teamName: input.config.teamName,
+		prompt: input.prompt,
+		interactive: input.interactive === true,
+	};
+}
+
 function parseToolContext(value: unknown): AgentToolContext {
 	const payload =
 		value && typeof value === "object" && !Array.isArray(value)
 			? (value as Record<string, unknown>)
 			: {};
 	return {
+		sessionId:
+			typeof payload.sessionId === "string" ? payload.sessionId : undefined,
 		agentId: typeof payload.agentId === "string" ? payload.agentId : "",
 		conversationId:
 			typeof payload.conversationId === "string" ? payload.conversationId : "",
+		runId: typeof payload.runId === "string" ? payload.runId : undefined,
 		iteration: typeof payload.iteration === "number" ? payload.iteration : 0,
+		toolCallId:
+			typeof payload.toolCallId === "string" ? payload.toolCallId : undefined,
 		metadata:
 			payload.metadata &&
 			typeof payload.metadata === "object" &&
@@ -223,11 +257,14 @@ function buildClientContributionRegistration(
 				executor,
 				capabilityName: `${HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX}${executor}`,
 			},
-			async ({ payload, abortSignal }) => {
+			async ({ payload, abortSignal, progress }) => {
 				const args = Array.isArray(payload.args) ? [...payload.args] : [];
 				const context = {
 					...parseToolContext(payload.context),
 					signal: abortSignal,
+					emitUpdate: (update: unknown) => {
+						progress({ update });
+					},
 				};
 				return { result: await executorFn(...args, context) };
 			},
@@ -668,8 +705,12 @@ function buildManifest(
 ): SessionManifest {
 	const workspaceRoot =
 		session?.workspaceRoot?.trim() ||
-		input.config.workspaceRoot ||
-		input.config.cwd;
+		input.config.workspaceRoot?.trim() ||
+		input.config.cwd?.trim();
+	if (!workspaceRoot) {
+		throw new Error("Hub runtime did not return a resolved workspace path.");
+	}
+	const cwd = session?.cwd?.trim() || input.config.cwd?.trim() || workspaceRoot;
 	return SessionManifestSchema.parse({
 		version: 1,
 		session_id: sessionId,
@@ -680,17 +721,14 @@ function buildManifest(
 		interactive: input.interactive === true,
 		provider: input.config.providerId,
 		model: input.config.modelId,
-		cwd: session?.cwd?.trim() || input.config.cwd,
+		cwd,
 		workspace_root: workspaceRoot,
 		team_name: input.config.teamName,
 		enable_tools: input.config.enableTools,
 		enable_spawn: input.config.enableSpawnAgent,
 		enable_teams: input.config.enableAgentTeams,
 		prompt: input.prompt?.trim() || undefined,
-		metadata:
-			input.sessionMetadata && Object.keys(input.sessionMetadata).length > 0
-				? input.sessionMetadata
-				: undefined,
+		metadata: buildSessionHistoryMetadata(input),
 	});
 }
 
@@ -831,6 +869,12 @@ export class HubRuntimeHost implements RuntimeHost {
 			input.localRuntime,
 			capabilities,
 		);
+		const clientContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.client,
+		);
+		const userContext = toJsonSerializable(
+			input.localRuntime?.extensionContext?.user,
+		);
 		const plannedSessionId =
 			input.config.sessionId?.trim() || createSessionId();
 		const sendCreateCommand = () =>
@@ -840,19 +884,10 @@ export class HubRuntimeHost implements RuntimeHost {
 				sessionConfig: toJsonRecord(
 					buildCommandSessionConfig(input, plannedSessionId),
 				),
-				metadata: {
-					...(input.sessionMetadata ?? {}),
-					source: input.source ?? SessionSource.CORE,
-					provider: input.config.providerId,
-					model: input.config.modelId,
-					enableTools: input.config.enableTools,
-					enableSpawn: input.config.enableSpawnAgent,
-					enableTeams: input.config.enableAgentTeams,
-					teamName: input.config.teamName,
-					prompt: input.prompt,
-					interactive: input.interactive === true,
-				},
+				metadata: buildCommandSessionMetadata(input),
 				runtimeOptions: {
+					...(clientContext ? { clientContext } : {}),
+					...(userContext ? { userContext } : {}),
 					...(clientContributions.manifest.length > 0
 						? { clientContributions: clientContributions.manifest }
 						: {}),
@@ -901,6 +936,15 @@ export class HubRuntimeHost implements RuntimeHost {
 			this.cleanupPlannedSession(plannedSessionId);
 			throw new Error("Hub runtime did not return a session id.");
 		}
+		let manifest: SessionManifest;
+		try {
+			manifest = snapshot
+				? buildManifestFromSnapshot(snapshot, input)
+				: buildManifest(sessionId, input, session);
+		} catch (error) {
+			this.cleanupPlannedSession(plannedSessionId);
+			throw error;
+		}
 		if (sessionId !== plannedSessionId) {
 			this.cleanupPlannedSession(plannedSessionId);
 			this.registerPlannedSession(
@@ -912,9 +956,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 		return {
 			sessionId,
-			manifest: snapshot
-				? buildManifestFromSnapshot(snapshot, input)
-				: buildManifest(sessionId, input, session),
+			manifest,
 			manifestPath: "",
 			messagesPath: "",
 			result: undefined,
@@ -945,6 +987,12 @@ export class HubRuntimeHost implements RuntimeHost {
 					manifest: [],
 					handlers: new Map<string, ClientContributionHandler>(),
 				};
+		const clientContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.client)
+			: undefined;
+		const userContext = startConfig
+			? toJsonSerializable(startConfig.localRuntime?.extensionContext?.user)
+			: undefined;
 		let plannedSessionId: string | undefined;
 		let startSessionConfig: Record<string, unknown> | undefined;
 		if (startConfig) {
@@ -980,19 +1028,10 @@ export class HubRuntimeHost implements RuntimeHost {
 									startConfig.config.cwd,
 								cwd: startConfig.config.cwd ?? input.cwd,
 								sessionConfig: toJsonRecord(startSessionConfig),
-								metadata: {
-									...(startConfig.sessionMetadata ?? {}),
-									source: startConfig.source ?? SessionSource.CORE,
-									provider: startConfig.config.providerId,
-									model: startConfig.config.modelId,
-									enableTools: startConfig.config.enableTools,
-									enableSpawn: startConfig.config.enableSpawnAgent,
-									enableTeams: startConfig.config.enableAgentTeams,
-									teamName: startConfig.config.teamName,
-									prompt: startConfig.prompt,
-									interactive: startConfig.interactive === true,
-								},
+								metadata: buildCommandSessionMetadata(startConfig),
 								runtimeOptions: {
+									...(clientContext ? { clientContext } : {}),
+									...(userContext ? { userContext } : {}),
 									...(clientContributions.manifest.length > 0
 										? { clientContributions: clientContributions.manifest }
 										: {}),
@@ -1074,31 +1113,45 @@ export class HubRuntimeHost implements RuntimeHost {
 			| RestoreSessionResult["checkpoint"]
 			| undefined;
 		if (!checkpoint) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
 			throw new Error("Hub checkpoint restore returned no checkpoint");
 		}
-		return {
-			sessionId: newSessionId,
-			startResult: newSessionId
-				? {
-						sessionId: newSessionId,
-						manifest: snapshot
-							? buildManifestFromSnapshot(
-									snapshot,
-									startConfig ?? ({} as StartSessionInput),
-								)
-							: buildManifest(
-									newSessionId,
-									startConfig ?? ({} as StartSessionInput),
-									session,
-								),
-						manifestPath: "",
-						messagesPath: "",
-						result: undefined,
-					}
-				: undefined,
-			messages,
-			checkpoint,
-		};
+		try {
+			return {
+				sessionId: newSessionId,
+				startResult: newSessionId
+					? {
+							sessionId: newSessionId,
+							manifest: snapshot
+								? buildManifestFromSnapshot(
+										snapshot,
+										startConfig ?? ({} as StartSessionInput),
+									)
+								: buildManifest(
+										newSessionId,
+										startConfig ?? ({} as StartSessionInput),
+										session,
+									),
+							manifestPath: "",
+							messagesPath: "",
+							result: undefined,
+						}
+					: undefined,
+				messages,
+				checkpoint,
+			};
+		} catch (error) {
+			if (newSessionId) {
+				this.cleanupPlannedSession(newSessionId);
+			} else if (plannedSessionId) {
+				this.cleanupPlannedSession(plannedSessionId);
+			}
+			throw error;
+		}
 	}
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
@@ -1214,6 +1267,20 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 	}
 
+	async proceedWhileRunning(
+		sessionId: string,
+		toolCallId?: string,
+	): Promise<number> {
+		const reply = await this.client.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		return typeof reply.payload?.detachedCount === "number"
+			? reply.payload.detachedCount
+			: 0;
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
@@ -1252,8 +1319,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		return sessionRecordFromPayload(reply.payload);
 	}
 
-	async listSessions(limit = 100): Promise<SessionRecord[]> {
-		const reply = await this.client.command("session.list", { limit });
+	async listSessions(
+		limit = 100,
+		options: ListSessionsOptions = {},
+	): Promise<SessionRecord[]> {
+		const reply = await this.client.command("session.list", {
+			limit,
+			...(options.rootOnly ? { rootOnly: true } : {}),
+		});
 		const snapshots = Array.isArray(reply.payload?.snapshots)
 			? reply.payload.snapshots.flatMap((value) => {
 					const snapshot = parseCoreSessionSnapshot(value);
@@ -1404,7 +1477,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").Message[]> {
+	): Promise<import("@cline/llms").MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1432,7 +1505,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").Message[])
+			? (messages as import("@cline/llms").MessageWithMetadata[])
 			: [];
 	}
 
@@ -1445,6 +1518,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		options?: RuntimeHostSubscribeOptions,
 	): () => void {
 		return this.events.subscribe(listener, options);
+	}
+
+	hasSessionSubscription(sessionId: string): boolean {
+		return this.sessionSubscriptions.has(sessionId.trim());
 	}
 
 	private ensureSessionSubscription(sessionId: string): void {
@@ -1686,6 +1763,29 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "assistant.media": {
+				const media =
+					event.payload?.media &&
+					typeof event.payload.media === "object" &&
+					!Array.isArray(event.payload.media)
+						? (event.payload.media as Record<string, unknown>)
+						: undefined;
+				if (!isGeneratedMedia(media)) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "media",
+							media,
+						},
+					},
+				});
+				return;
+			}
 			case "assistant.finished": {
 				this.events.emit({
 					type: "agent_event",
@@ -1780,6 +1880,28 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
+			case "tool.updated": {
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_update",
+							contentType: "tool",
+							toolCallId:
+								typeof event.payload?.toolCallId === "string"
+									? event.payload.toolCallId
+									: undefined,
+							toolName:
+								typeof event.payload?.toolName === "string"
+									? event.payload.toolName
+									: undefined,
+							update: event.payload?.update,
+						},
+					},
+				});
+				return;
+			}
 			case "tool.finished": {
 				const toolCallId =
 					typeof event.payload?.toolCallId === "string"
@@ -1822,13 +1944,20 @@ export class HubRuntimeHost implements RuntimeHost {
 						payload: { sessionId, snapshot },
 					});
 				}
-				this.events.emit({
-					type: "status",
-					payload: {
-						sessionId,
-						status: session?.status ?? "running",
-					},
-				});
+				// Snapshot-only session.updated events (persistence updates)
+				// carry no session record and can trail a turn's final idle
+				// update. Defaulting them to "running" flipped clients back to
+				// busy after the turn had finished — for queue-drained turns
+				// nothing else owns the busy flag, so it stuck forever (e.g.
+				// the desktop's workspace-restore gate). Report the snapshot's
+				// real status, or nothing when neither source has one.
+				const status = session?.status ?? snapshot?.status;
+				if (status) {
+					this.events.emit({
+						type: "status",
+						payload: { sessionId, status },
+					});
+				}
 				return;
 			}
 			case "session.pending_prompts": {

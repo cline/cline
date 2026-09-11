@@ -105,6 +105,7 @@ function createLocalRuntimeHost(
 		sessionService:
 			backend ?? options.sessionService ?? createLocalBackend(options),
 		capabilities: options.capabilities,
+		logger: options.logger,
 		telemetry: options.telemetry,
 		toolPolicies: options.toolPolicies,
 		distinctId,
@@ -139,7 +140,6 @@ export async function createRuntimeHost(
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);
-	prewarmLocalHubIfNeeded(configuredMode, options);
 	if (configuredMode === "remote") {
 		const remoteEndpoint = options.remote?.endpoint?.trim();
 		if (!remoteEndpoint) {
@@ -238,6 +238,7 @@ export async function createRuntimeHost(
 				});
 			}
 		}
+		prewarmLocalHubIfNeeded(configuredMode, options);
 		options.logger?.log("Falling back to local runtime host", {
 			reason: "compatible_hub_unavailable",
 			severity: "warn",

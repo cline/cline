@@ -51,10 +51,12 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -234,48 +236,54 @@ class GoogleChatConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "Google Chat bot username label")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for Google Chat sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option("--base-url <url>", "Public base URL for webhook configuration")
-			.option(
-				"--pubsub-topic <topic>",
-				"Optional Pub/Sub topic for all-message events",
-			)
-			.option("--impersonate-user <email>", "Optional delegation user email")
-			.option("--use-adc", "Use Google Application Default Credentials")
-			.option("--credentials-json <json>", "Service account credentials JSON")
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  GOOGLE_CHAT_CREDENTIALS      Service account JSON",
-					"  GOOGLE_CHAT_USE_ADC=true     Use Application Default Credentials",
-					"  GOOGLE_CHAT_PUBSUB_TOPIC     Optional Pub/Sub topic",
-					"  GOOGLE_CHAT_IMPERSONATE_USER Optional delegation user",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "Google Chat bot username label")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Google Chat sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option("--base-url <url>", "Public base URL for webhook configuration")
+				.option(
+					"--pubsub-topic <topic>",
+					"Optional Pub/Sub topic for all-message events",
+				)
+				.option("--impersonate-user <email>", "Optional delegation user email")
+				.option("--use-adc", "Use Google Application Default Credentials")
+				.option("--credentials-json <json>", "Service account credentials JSON")
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  GOOGLE_CHAT_CREDENTIALS      Service account JSON",
+						"  GOOGLE_CHAT_USE_ADC=true     Use Application Default Credentials",
+						"  GOOGLE_CHAT_PUBSUB_TOPIC     Optional Pub/Sub topic",
+						"  GOOGLE_CHAT_IMPERSONATE_USER Optional delegation user",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectGoogleChatOptions {
@@ -289,6 +297,7 @@ class GoogleChatConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -315,7 +324,7 @@ class GoogleChatConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -409,11 +418,72 @@ class GoogleChatConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopGoogleChatConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	private parseCredentials(
+		options: ConnectGoogleChatOptions,
+	):
+		| { client_email: string; private_key: string; project_id?: string }
+		| undefined {
+		if (!options.credentialsJson) {
+			return undefined;
+		}
+		const parsed = JSON.parse(options.credentialsJson) as Record<
+			string,
+			unknown
+		>;
+		if (
+			typeof parsed.client_email !== "string" ||
+			typeof parsed.private_key !== "string"
+		) {
+			throw new Error(
+				"credentials JSON must include string client_email and private_key fields",
+			);
+		}
+		return {
+			client_email: parsed.client_email,
+			private_key: parsed.private_key,
+			project_id:
+				typeof parsed.project_id === "string" ? parsed.project_id : undefined,
+		};
+	}
+
+	protected override async validateOptions(
+		options: ConnectGoogleChatOptions,
+		io: ConnectIo,
+	): Promise<number> {
+		try {
+			this.parseCredentials(options);
+			return 0;
+		} catch (error) {
+			io.writeErr(
+				`invalid GOOGLE_CHAT_CREDENTIALS JSON: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return 1;
+		}
+	}
+
+	protected override instanceIdFromOptions(
+		options: ConnectGoogleChatOptions,
+	): string | undefined {
+		return options.userName;
+	}
+
 	protected override async runWithOptions(
 		options: ConnectGoogleChatOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
+		context.setPersistenceInstanceId(options.userName);
 		const statePath = this.resolveConnectorStatePath(options.userName);
 		const bindingsPath = this.resolveBindingsPath(options.userName);
 		const staleState = this.removeStaleState(
@@ -424,26 +494,25 @@ class GoogleChatConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<GoogleChatThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_GCHAT_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[gchat] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[gchat] starting background connector pid=${pid} user=${options.userName}`,
-				foregroundHint:
-					"[gchat] use `cline connect gchat -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Google Chat connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_GCHAT_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[gchat] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[gchat] starting background connector pid=${pid} user=${options.userName}`,
+			foregroundHint:
+				"[gchat] use `cline connect gchat -i ...` to run in the foreground",
+			launchFailureMessage:
+				"failed to launch Google Chat connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -452,38 +521,7 @@ class GoogleChatConnector extends ConnectorBase<
 		});
 		const logger = createChatSdkLogger(loggerAdapter);
 		const consoleLogger = new ConsoleLogger("info", "gchat-connect");
-		let parsedCredentials:
-			| { client_email: string; private_key: string; project_id?: string }
-			| undefined;
-		if (options.credentialsJson) {
-			try {
-				const parsed = JSON.parse(options.credentialsJson) as Record<
-					string,
-					unknown
-				>;
-				if (
-					typeof parsed.client_email !== "string" ||
-					typeof parsed.private_key !== "string"
-				) {
-					throw new Error(
-						"credentials JSON must include string client_email and private_key fields",
-					);
-				}
-				parsedCredentials = {
-					client_email: parsed.client_email,
-					private_key: parsed.private_key,
-					project_id:
-						typeof parsed.project_id === "string"
-							? parsed.project_id
-							: undefined,
-				};
-			} catch (error) {
-				io.writeErr(
-					`invalid GOOGLE_CHAT_CREDENTIALS JSON: ${error instanceof Error ? error.message : String(error)}`,
-				);
-				return 1;
-			}
-		}
+		const parsedCredentials = this.parseCredentials(options);
 		const endpointUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/gchat`;
 		const gchat = createGoogleChatAdapter(
 			parsedCredentials
@@ -590,7 +628,9 @@ class GoogleChatConnector extends ConnectorBase<
 			thread: Thread<GoogleChatThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -613,6 +653,7 @@ class GoogleChatConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
@@ -674,9 +715,7 @@ class GoogleChatConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {

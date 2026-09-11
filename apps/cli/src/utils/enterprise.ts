@@ -141,13 +141,18 @@ function captureRemoteConfigInitialized(bundle: RemoteConfigBundle): void {
 export async function prepareCliEnterpriseIntegration(
 	input: ClineCoreStartInput,
 ) {
+	const workspacePath =
+		input.config.workspaceRoot?.trim() || input.config.cwd?.trim();
+	if (!workspacePath) {
+		return undefined;
+	}
 	const bundle = await loadCliRemoteConfigBundle();
 	if (!bundle) {
 		return undefined;
 	}
 	captureRemoteConfigInitialized(bundle);
 	return prepareRemoteConfigCoreIntegration({
-		workspacePath: input.config.workspaceRoot ?? input.config.cwd,
+		workspacePath,
 		pluginName: "enterprise",
 		controlPlane: {
 			name: "cline-account",

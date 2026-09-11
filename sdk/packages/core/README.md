@@ -51,6 +51,15 @@ console.log(result.result?.text);
 await cline.dispose();
 ```
 
+When both `cwd` and `workspaceRoot` are omitted, the execution host places
+the session in the shared chat workspace at
+`<cline-data-dir>/workspaces/chat` (by default
+`~/.cline/data/workspaces/chat`), seeded with an `AGENTS.md` rules file that
+tells the agent to treat the session as a chat and only create a named
+project folder when the user asks for one.
+Read the resolved paths from `result.manifest.cwd` and
+`result.manifest.workspace_root`.
+
 ## Session Bootstrap
 
 `ClineCore.create(...)` also accepts `prepare(input)`.
@@ -59,6 +68,9 @@ Use it when a host needs to prepare workspace-scoped runtime state before each
 session starts, then apply watcher/extensions/telemetry inputs through
 explicit `localRuntime` bootstrap fields without widening the shared host
 contract.
+
+Preparation runs before the execution host resolves an omitted workspace, so
+pathless starts expose neither `cwd` nor `workspaceRoot` to `prepare(input)`.
 
 ## Main APIs
 

@@ -18,6 +18,7 @@ import {
 	createDifyProvider,
 	createGoogleProvider,
 	createMistralProvider,
+	createOllamaProvider,
 	createOpenAICodexProvider,
 	createOpenAICompatibleProvider,
 	createOpenAIProvider,
@@ -27,6 +28,7 @@ import {
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
 import { createGateway } from "./gateway";
+import { toGatewayModelCapabilities } from "./model-capabilities";
 import {
 	getProviderCollection,
 	getProviderCollectionSync,
@@ -50,45 +52,6 @@ const BUILTIN_PROVIDER_MAP = new Map(
 	]),
 );
 
-function toGatewayCapabilities(
-	capabilities: readonly string[] | undefined,
-): GatewayModelDefinition["capabilities"] {
-	if (!capabilities?.length) {
-		return undefined;
-	}
-
-	const mapped = new Set<
-		NonNullable<GatewayModelDefinition["capabilities"]>[number]
-	>();
-	for (const capability of capabilities) {
-		switch (capability) {
-			case "tools":
-			case "reasoning":
-			case "prompt-cache":
-			case "images":
-			case "audio":
-				mapped.add(capability);
-				break;
-			case "files":
-			case "streaming":
-			case "temperature":
-			case "reasoning-effort":
-			case "computer-use":
-			case "global-endpoint":
-				mapped.add("text");
-				break;
-			case "structured_output":
-				mapped.add("structured-output");
-				break;
-			default:
-				mapped.add("text");
-		}
-	}
-
-	mapped.add("text");
-	return [...mapped];
-}
-
 function toGatewayModelDefinition(
 	providerId: string,
 	model: ModelInfo,
@@ -101,8 +64,15 @@ function toGatewayModelDefinition(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
-		capabilities: toGatewayCapabilities(model.capabilities),
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
+		capabilities: toGatewayModelCapabilities(model.capabilities),
+		reasoningOptions: model.reasoningOptions,
 		metadata: {
+			...(model.metadata?.apiProtocol
+				? { apiProtocol: model.metadata.apiProtocol }
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,
@@ -161,6 +131,8 @@ function resolveFactory(
 			return createOpenCodeProvider;
 		case "dify":
 			return createDifyProvider;
+		case "ollama":
+			return createOllamaProvider;
 		case "sapaicore":
 			return createSapAiCoreProvider;
 		default:
@@ -380,6 +352,8 @@ export function toGatewayRequestMessages(
 										mediaType: part.mediaType,
 									},
 								];
+							case "media":
+								return [{ type: "media" as const, media: part.media }];
 							case "file":
 								return [{ type: "text" as const, text: part.content }];
 							case "redacted_thinking":
@@ -428,19 +402,83 @@ function buildGatewayRequest(
 			config.thinkingBudgetTokens !== undefined
 				? {
 						enabled: config.thinking,
-						effort:
-							config.reasoningEffort === "xhigh"
-								? "high"
-								: config.reasoningEffort === "low" ||
-										config.reasoningEffort === "medium" ||
-										config.reasoningEffort === "high"
-									? config.reasoningEffort
-									: undefined,
+						effort: config.reasoningEffort,
 						budgetTokens: config.thinkingBudgetTokens,
 					}
 				: undefined,
 		signal,
 	};
+}
+
+function buildGatewayModels(
+	providerId: string,
+	config: ProviderConfig,
+): Omit<GatewayModelDefinition, "providerId">[] | undefined {
+	const definitions = new Map<
+		string,
+		Omit<GatewayModelDefinition, "providerId">
+	>();
+	for (const model of Object.values(config.knownModels ?? {})) {
+		const { providerId: _providerId, ...definition } = toGatewayModelDefinition(
+			providerId,
+			model,
+		);
+		definitions.set(definition.id, definition);
+	}
+
+	// Caller-configured limits are authoritative for the selected model —
+	// project them onto its gateway definition so the resolved model carries
+	// the right limits (e.g. Ollama's num_ctx derives from the resolved
+	// model's context window). `maxInputTokens` is where
+	// `ProviderSettings.contextWindow` lands via `toProviderConfig`; an
+	// explicit `modelInfo` override wins over the generic limit.
+	const configuredContextWindow =
+		typeof config.maxInputTokens === "number" &&
+		Number.isFinite(config.maxInputTokens) &&
+		config.maxInputTokens > 0
+			? Math.floor(config.maxInputTokens)
+			: undefined;
+	const modelInfo =
+		config.modelInfo && config.modelInfo.id === config.modelId
+			? config.modelInfo
+			: undefined;
+	if (config.modelId && (configuredContextWindow !== undefined || modelInfo)) {
+		const base = definitions.get(config.modelId) ?? {
+			id: config.modelId,
+			name: config.modelId,
+		};
+		const { providerId: _providerId, ...modelInfoDefinition } = modelInfo
+			? toGatewayModelDefinition(providerId, modelInfo)
+			: { providerId };
+		const definedOverrides = Object.fromEntries(
+			Object.entries(modelInfoDefinition).filter(([key, value]) => {
+				if (value === undefined) {
+					return false;
+				}
+				// toGatewayModelDefinition always emits a metadata object; drop
+				// it when it carries no actual values so it can't clobber the
+				// base definition's real metadata.
+				if (key === "metadata") {
+					return Object.values(value as Record<string, unknown>).some(
+						(entry) => entry !== undefined,
+					);
+				}
+				return true;
+			}),
+		);
+		definitions.set(config.modelId, {
+			...base,
+			...(configuredContextWindow !== undefined
+				? {
+						contextWindow: configuredContextWindow,
+						maxInputTokens: configuredContextWindow,
+					}
+				: {}),
+			...definedOverrides,
+		} as Omit<GatewayModelDefinition, "providerId">);
+	}
+
+	return definitions.size > 0 ? [...definitions.values()] : undefined;
 }
 
 function buildGatewayConfig(config: ProviderConfig) {
@@ -453,14 +491,7 @@ function buildGatewayConfig(config: ProviderConfig) {
 		timeoutMs: config.timeoutMs,
 		fetch: config.fetch,
 		defaultModelId: config.modelId,
-		models: config.knownModels
-			? Object.values(config.knownModels).map((model) => {
-					const definition = toGatewayModelDefinition(providerId, model);
-					const { providerId: _providerId, ...definitionWithoutProviderId } =
-						definition;
-					return definitionWithoutProviderId;
-				})
-			: undefined,
+		models: buildGatewayModels(providerId, config),
 		options: {
 			region: config.region ?? config.gcp?.region,
 			project: config.gcp?.projectId,
@@ -485,10 +516,20 @@ function buildGatewayConfig(config: ProviderConfig) {
 	};
 }
 
-function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
+function toApiStreamChunk(
+	id: string,
+	event: AgentModelEvent,
+): ApiStreamChunk | undefined {
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
+		case "media":
+			return { type: "media", id, media: event.media };
+		case "tool-result":
+			// Model-tool activity is available through the AgentModel/AgentRuntime
+			// event path. The legacy ApiStream contract has no observational tool
+			// event that would not imply caller-owned execution.
+			return undefined;
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {
@@ -604,7 +645,10 @@ class GatewayApiHandler implements ApiHandler {
 		const id = `gw_${nanoid(10)}`;
 		const stream = (async function* () {
 			for await (const event of await gateway.stream(request)) {
-				yield toApiStreamChunk(id, event);
+				const chunk = toApiStreamChunk(id, event);
+				if (chunk) {
+					yield chunk;
+				}
 			}
 		})() as ApiStream;
 		stream.id = id;
@@ -660,7 +704,10 @@ export async function createGatewayApiHandlerAsync(
 			const id = `gw_${nanoid(10)}`;
 			const stream = (async function* () {
 				for await (const event of await gateway.stream(request)) {
-					yield toApiStreamChunk(id, event);
+					const chunk = toApiStreamChunk(id, event);
+					if (chunk) {
+						yield chunk;
+					}
 				}
 			})() as ApiStream;
 			stream.id = id;
@@ -668,3 +715,12 @@ export async function createGatewayApiHandlerAsync(
 		}
 	})(config);
 }
+
+/**
+ * Internal test hook. Not part of the public API; production callers go
+ * through `createGatewayApiHandler(Async)`.
+ */
+export const _testing = {
+	buildGatewayConfig,
+	buildGatewayModels,
+};

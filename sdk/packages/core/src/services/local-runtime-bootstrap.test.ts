@@ -1,9 +1,17 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../package.json";
 import type { ProviderSettings } from "../types/provider-settings";
+import { CORE_TELEMETRY_EVENTS } from "./telemetry/core-events";
 
 function createProviderSettingsManager(settings?: ProviderSettings) {
 	return {
@@ -78,6 +86,154 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			loadLatestOnInit: true,
 			loadPrivateOnAuth: true,
 		});
+	});
+
+	it("discovers user Agent Plugins on the execution host and ignores workspace packages", async () => {
+		const root = realpathSync(
+			mkdtempSync(join(tmpdir(), "core-agent-plugin-bootstrap-")),
+		);
+		const previousHome = process.env.HOME;
+		const homeRoot = join(root, "home");
+		setHomeDir(homeRoot);
+		try {
+			const globalSettingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = globalSettingsPath;
+			const workspaceRoot = join(root, "workspace");
+			mkdirSync(workspaceRoot, { recursive: true });
+			const pluginRoot = join(homeRoot, ".agents", "plugins", "portable");
+			const skillRoot = join(pluginRoot, "skills", "review");
+			mkdirSync(skillRoot, { recursive: true });
+			writeFileSync(
+				join(pluginRoot, "plugin.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+					name: "portable",
+				}),
+				"utf8",
+			);
+			const workspacePluginRoot = join(
+				workspaceRoot,
+				".agents",
+				"plugins",
+				"workspace-owned",
+			);
+			mkdirSync(workspacePluginRoot, { recursive: true });
+			writeFileSync(
+				join(workspacePluginRoot, "plugin.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+					name: "workspace-owned",
+				}),
+				"utf8",
+			);
+			writeFileSync(
+				join(workspacePluginRoot, "mcp.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+					mcpServers: {
+						untrusted: {
+							type: "streamable-http",
+							url: "https://workspace.example.test/mcp",
+						},
+					},
+				}),
+				"utf8",
+			);
+			const resolvedSkillRoot = realpathSync.native(skillRoot);
+			writeFileSync(
+				join(skillRoot, "SKILL.md"),
+				"---\nname: review\ndescription: Review code\n---\nReview carefully.",
+				"utf8",
+			);
+			writeFileSync(
+				join(pluginRoot, "mcp.json"),
+				JSON.stringify({
+					$schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+					mcpServers: {
+						tools: {
+							type: "streamable-http",
+							url: "https://example.com/mcp",
+						},
+					},
+				}),
+				"utf8",
+			);
+
+			const { prepareLocalRuntimeBootstrap } = await import(
+				"./local-runtime-bootstrap"
+			);
+			const bootstrap = await prepareLocalRuntimeBootstrap({
+				input: {
+					...createStartInput(),
+					config: {
+						...createStartInput().config,
+						cwd: workspaceRoot,
+						workspaceRoot,
+					},
+				},
+				sessionId: "agent-plugin-session",
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+
+			expect(bootstrap.runtimeBuilderInput.agentPluginSkills).toEqual([
+				expect.objectContaining({
+					pluginName: "portable",
+					directoryPath: resolvedSkillRoot,
+				}),
+			]);
+			expect(bootstrap.runtimeBuilderInput.agentPluginMcpServers).toEqual([
+				expect.objectContaining({
+					pluginName: "portable",
+					serverName: "tools",
+					registration: expect.objectContaining({
+						name: "portable.tools",
+					}),
+				}),
+			]);
+			expect(
+				bootstrap.runtimeBuilderInput.agentPluginMcpServers?.some(
+					(server) => server.pluginName === "workspace-owned",
+				),
+			).toBe(false);
+
+			writeFileSync(
+				globalSettingsPath,
+				JSON.stringify({ disabledAgentPlugins: ["portable"] }),
+				"utf8",
+			);
+			const disabledBootstrap = await prepareLocalRuntimeBootstrap({
+				input: {
+					...createStartInput(),
+					config: {
+						...createStartInput().config,
+						cwd: workspaceRoot,
+						workspaceRoot,
+					},
+				},
+				sessionId: "disabled-agent-plugin-session",
+				providerSettingsManager: createProviderSettingsManager() as never,
+				onPluginEvent: () => {},
+				onTeamEvent: () => {},
+				createSpawnTool,
+				readSessionMetadata: async () => undefined,
+				writeSessionMetadata: async () => {},
+			});
+
+			expect(disabledBootstrap.runtimeBuilderInput.agentPluginSkills).toEqual(
+				[],
+			);
+			expect(
+				disabledBootstrap.runtimeBuilderInput.agentPluginMcpServers,
+			).toEqual([]);
+		} finally {
+			setHomeDir(previousHome ?? "~");
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("lets stored provider model catalog settings override hub defaults", async () => {
@@ -347,6 +503,56 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		expect(bootstrap.providerConfig.fetch).toBe(customFetch);
 	});
 
+	it("stamps the session origin on every telemetry event the session emits", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const capture = vi.fn();
+		const defaultTelemetry = {
+			capture,
+			captureRequired: vi.fn(),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateMetadata: vi.fn(),
+			setCommonProperties: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: () => true,
+			flush: vi.fn(),
+			dispose: vi.fn(),
+		};
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-origin",
+			sessionOrigin: { mode: "import", trigger: "claude-code" },
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: defaultTelemetry as never,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		bootstrap.config.telemetry?.capture({
+			event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
+			properties: { ulid: "sess-origin" },
+		});
+
+		expect(capture).toHaveBeenLastCalledWith({
+			event: CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR,
+			properties: expect.objectContaining({
+				ulid: "sess-origin",
+				session_origin: "import",
+				session_origin_trigger: "claude-code",
+			}),
+		});
+	});
+
 	it("prefers per-session config fetch over defaultFetch", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"
@@ -471,6 +677,82 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			"x-provider-config": "provider-config",
 			"x-shared": "config-wins",
 			"x-stored": "stored",
+		});
+	});
+
+	it("rebuilds extensionContext.client from hub-baked request headers", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-hub-client",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.extensionContext?.client).toEqual({
+			name: "cline-cli",
+			version: "3.0.38",
+		});
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			"User-Agent": "Cline/3.0.38",
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+		});
+	});
+
+	it("prefers configured extensionContext.client over header-derived identity", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "header-client",
+			"X-CLIENT-VERSION": "0.0.1",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			localRuntime: {
+				extensionContext: {
+					client: { name: "cline-vscode", version: "9.9.9" },
+				},
+			},
+			sessionId: "sess-local-client",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.extensionContext?.client).toEqual({
+			name: "cline-vscode",
+			version: "9.9.9",
 		});
 	});
 

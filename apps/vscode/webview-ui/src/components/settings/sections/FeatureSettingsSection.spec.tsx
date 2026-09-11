@@ -9,7 +9,6 @@ const mockExtensionState = vi.hoisted(() => ({
 		hooksEnabled: false,
 		showFeatureTips: false,
 		mcpDisplayMode: "rich",
-		yoloModeToggled: false,
 		useAutoCondense: false,
 		compactionStrategy: "basic",
 		subagentsEnabled: false,

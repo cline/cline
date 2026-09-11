@@ -57,6 +57,16 @@ describe("resolveDataDir", () => {
 		}
 	})
 
+	it("trims a whitespace-padded CLINE_DATA_DIR like createStorageContext", () => {
+		const original = process.env.CLINE_DATA_DIR
+		process.env.CLINE_DATA_DIR = "  /env/data  "
+		try {
+			expect(resolveDataDir()).toBe("/env/data")
+		} finally {
+			process.env.CLINE_DATA_DIR = original
+		}
+	})
+
 	it("falls back to CLINE_DIR/data", () => {
 		const originalData = process.env.CLINE_DATA_DIR
 		const originalDir = process.env.CLINE_DIR

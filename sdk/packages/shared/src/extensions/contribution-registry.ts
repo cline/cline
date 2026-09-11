@@ -24,6 +24,11 @@ export interface AgentExtensionRule {
 	id: string;
 	content: string | (() => string | Promise<string>);
 	source?: string;
+	/**
+	 * Include this rule only while the named tool is available after host,
+	 * global-settings, and per-session policy filtering.
+	 */
+	whenToolAvailable?: string;
 }
 
 export interface AgentExtensionMessageBuilder<TMessage = unknown> {
@@ -179,11 +184,19 @@ export interface PluginSetupContext {
 	/** Host-provided logger scoped to this session/plugin setup. */
 	logger?: BasicLogger;
 	/**
-	 * Host-provided telemetry service when available in the current process.
+	 * Host-provided telemetry service. Feature-detect it
+	 * (`ctx.telemetry?.capture(...)`): it is undefined when the host has no
+	 * telemetry service.
 	 *
-	 * This service is intentionally not serialized across plugin sandbox process
-	 * boundaries; sandboxed plugins should feature-detect this property and expect
-	 * it to be undefined unless a future host adds an explicit telemetry bridge.
+	 * In-process plugins receive the host service directly. Sandboxed plugins
+	 * receive a bridge — the live service cannot cross the JSON IPC boundary —
+	 * that forwards `capture`/`captureRequired`/`recordCounter`/
+	 * `recordHistogram`/`recordGauge` to the host, which namespaces every
+	 * event and metric under `plugin.`, stamps `plugin_name`, and drops them
+	 * when the user has opted out of telemetry. Bridge caveats: properties
+	 * must be JSON-serializable; `isEnabled()` always reports `true` (the
+	 * host is the arbiter, so do not gate expensive property computation on
+	 * it); identity and common-property setters are no-ops.
 	 */
 	telemetry?: ITelemetryService;
 }

@@ -14,15 +14,19 @@ export interface RolloutBundleActivation {
 export const ROLLOUT_BUNDLE_ACTIVATED_EVENT = "extension.rollout.bundle_activated"
 export const ROLLOUT_ERROR_MESSAGE_LIMIT = 500
 
+/**
+ * The rollout variant this bundle was built as, or undefined for ordinary builds.
+ * CLINE_ROLLOUT_VARIANT is inlined at build time by the combined rollout workflow only.
+ */
+export function getExtensionVariant(): ExtensionVariant | undefined {
+	const variant = process.env.CLINE_ROLLOUT_VARIANT
+	return variant === "legacy" || variant === "next" ? variant : undefined
+}
+
 /** Return rollout metadata only for bundles built by the combined rollout workflow. */
 export function getRolloutTelemetryMetadata(): Partial<RolloutTelemetryMetadata> {
-	const variant = process.env.CLINE_ROLLOUT_VARIANT
-
-	if (variant !== "legacy" && variant !== "next") {
-		return {}
-	}
-
-	return { extension_variant: variant }
+	const variant = getExtensionVariant()
+	return variant ? { extension_variant: variant } : {}
 }
 
 export function getRolloutErrorProperties(error: unknown): {

@@ -1,9 +1,13 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { installMcpServer } from "@cline/core";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildMcpInstallDefaults,
 	buildMcpInstallTransport,
 	runMcpInstallCommand,
+	runMcpUninstallCommand,
 } from "./mcp";
 
 vi.mock("@cline/core", async (importOriginal) => {
@@ -53,6 +57,19 @@ describe("mcp install command", () => {
 			name: "ctx7",
 			type: "streamableHttp",
 			url: "https://mcp.context7.com/mcp",
+		});
+	});
+
+	it("shows mcp-remote marketplace entries as native remote servers", () => {
+		expect(
+			buildMcpInstallDefaults({
+				name: "linear",
+				targetArgs: ["npx", "-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			}),
+		).toEqual({
+			name: "linear",
+			type: "streamableHttp",
+			url: "https://mcp.linear.app/mcp",
 		});
 	});
 
@@ -267,5 +284,133 @@ describe("mcp install command", () => {
 				args: ["server.js"],
 			},
 		});
+	});
+});
+
+describe("mcp uninstall command", () => {
+	let root = "";
+
+	beforeEach(() => {
+		root = mkdtempSync(join(tmpdir(), "cli-mcp-uninstall-"));
+	});
+
+	afterEach(() => {
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	function writeSettings(): string {
+		const settingsPath = join(root, "cline_mcp_settings.json");
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						docs: {
+							transport: {
+								type: "streamableHttp",
+								url: "https://example.com/mcp",
+							},
+						},
+						keep: {
+							transport: { type: "stdio", command: "node" },
+							disabled: true,
+						},
+					},
+					customTopLevelKey: true,
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		return settingsPath;
+	}
+
+	function readSettings(settingsPath: string): Record<string, unknown> & {
+		mcpServers?: Record<string, unknown>;
+	} {
+		return JSON.parse(readFileSync(settingsPath, "utf8")) as Record<
+			string,
+			unknown
+		> & { mcpServers?: Record<string, unknown> };
+	}
+
+	it("uninstalls the requested server and reports success", async () => {
+		const settingsPath = writeSettings();
+		const writeln = vi.fn();
+		const writeErr = vi.fn();
+
+		const code = await runMcpUninstallCommand({
+			name: "docs",
+			settingsPath,
+			io: { writeln, writeErr },
+		});
+
+		expect(code).toBe(0);
+		expect(writeln).toHaveBeenCalledWith("Uninstalled MCP server docs.");
+		expect(writeErr).not.toHaveBeenCalled();
+
+		const written = readSettings(settingsPath);
+		expect(Object.keys(written.mcpServers ?? {})).toEqual(["keep"]);
+		expect(written.mcpServers?.keep).toEqual({
+			transport: { type: "stdio", command: "node" },
+			disabled: true,
+		});
+		expect(written.customTopLevelKey).toBe(true);
+	});
+
+	it("prints uninstall JSON with --json", async () => {
+		const settingsPath = writeSettings();
+		const writeln = vi.fn();
+
+		const code = await runMcpUninstallCommand({
+			name: "docs",
+			settingsPath,
+			json: true,
+			io: { writeln, writeErr: vi.fn() },
+		});
+
+		expect(code).toBe(0);
+		expect(JSON.parse(writeln.mock.calls[0]?.[0])).toEqual({
+			name: "docs",
+			status: "uninstalled",
+		});
+		expect(writeln).toHaveBeenCalledTimes(1);
+	});
+
+	it("reports an error and leaves settings intact for an unknown server", async () => {
+		const settingsPath = writeSettings();
+		const before = readFileSync(settingsPath, "utf8");
+		const writeln = vi.fn();
+		const writeErr = vi.fn();
+
+		const code = await runMcpUninstallCommand({
+			name: "missing",
+			settingsPath,
+			io: { writeln, writeErr },
+		});
+
+		expect(code).toBe(1);
+		expect(writeErr).toHaveBeenCalledWith(
+			'MCP server "missing" is not installed.',
+		);
+		expect(writeln).not.toHaveBeenCalled();
+		expect(readFileSync(settingsPath, "utf8")).toBe(before);
+	});
+
+	it("rejects a blank name without rewriting settings", async () => {
+		const settingsPath = writeSettings();
+		const before = readFileSync(settingsPath, "utf8");
+		const writeErr = vi.fn();
+
+		const code = await runMcpUninstallCommand({
+			name: "   ",
+			settingsPath,
+			io: { writeErr },
+		});
+
+		expect(code).toBe(1);
+		expect(writeErr).toHaveBeenCalledWith("MCP server name is required");
+		expect(readFileSync(settingsPath, "utf8")).toBe(before);
 	});
 });

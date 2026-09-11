@@ -82,4 +82,40 @@ describe("buildSdkProviderConfig", () => {
 		})
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("v0")
 	})
+
+	it("forwards the Ollama request timeout and context window to standalone handlers", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "ollama",
+				actModeOllamaModelId: "qwen2.5:7b",
+				requestTimeoutMs: 45_000,
+				ollamaApiOptionsCtxNum: "16384",
+			},
+			"act",
+		)
+
+		expect(providerConfig).toMatchObject({
+			providerId: "ollama",
+			modelId: "qwen2.5:7b",
+			timeoutMs: 45_000,
+			modelInfo: { id: "qwen2.5:7b", contextWindow: 16384 },
+		})
+	})
+
+	it("omits timeoutMs for Ollama when no explicit timeout is configured", () => {
+		mocks.providerSettingsManager.getProviderSettings.mockReturnValue(undefined)
+
+		const providerConfig = buildSdkProviderConfig(
+			{
+				actModeApiProvider: "ollama",
+				actModeOllamaModelId: "qwen2.5:7b",
+			},
+			"act",
+		)
+
+		expect(providerConfig.providerId).toBe("ollama")
+		expect("timeoutMs" in providerConfig).toBe(false)
+	})
 })

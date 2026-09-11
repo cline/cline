@@ -125,7 +125,9 @@ export async function generateWorkspaceInfoWithDiagnostics(
 	const rootPath = normalizeWorkspacePath(workspacePath);
 	const info: WorkspaceInfo = {
 		rootPath,
-		hint: basename(rootPath),
+		// basename("/") and basename("C:\\") are "", which WorkspaceInfoSchema
+		// rejects — omit the hint for root paths instead.
+		hint: basename(rootPath) || undefined,
 	};
 	const gitState: GitWorkspaceState = {};
 	let firstError: { errorType: string; message: string } | undefined;

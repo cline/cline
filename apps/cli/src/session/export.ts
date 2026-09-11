@@ -1,3 +1,4 @@
+import { projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
@@ -30,9 +31,12 @@ export function generateConversationHTML(
 	data: ConversationHistory,
 	fileName: string,
 ): string {
+	const displayMessages = projectSessionMessagesForDisplay(data.messages).map(
+		({ message }) => message,
+	);
 	// Build tool results map
 	const toolResultsMap = new Map<string, ToolResultContent>();
-	data.messages.forEach((msg) => {
+	displayMessages.forEach((msg) => {
 		if (!isStringContent(msg.content)) {
 			msg.content.forEach((block) => {
 				if (block.type === "tool_result") {
@@ -43,7 +47,7 @@ export function generateConversationHTML(
 	});
 
 	// Filter messages (same logic as viewer)
-	const filteredMessages = data.messages.filter((msg) => {
+	const filteredMessages = displayMessages.filter((msg) => {
 		if (msg.role === "assistant") return true;
 		if (isStringContent(msg.content)) {
 			return msg.content.trim().length > 0;
@@ -696,11 +700,50 @@ function renderContentHTML(
 					return renderToolUseHTML(block, toolResultsMap.get(block.id));
 				case "tool_result":
 					return ""; // Tool results are rendered with their corresponding tool_use
+				case "image":
+					return renderGeneratedMediaHTML({
+						modality: "image",
+						mediaType: block.mediaType,
+						source: { type: "base64", data: block.data },
+					});
+				case "media":
+					return renderGeneratedMediaHTML(block.media);
 				default:
 					return "";
 			}
 		})
 		.join("\n");
+}
+
+function renderGeneratedMediaHTML(media: {
+	modality: "image" | "audio" | "video" | "file";
+	mediaType: string;
+	source:
+		| { type: "base64"; data: string }
+		| { type: "url"; url: string }
+		| { type: "artifact"; artifactId: string };
+}): string {
+	const source =
+		media.source.type === "base64"
+			? `data:${media.mediaType};base64,${media.source.data}`
+			: media.source.type === "url"
+				? media.source.url
+				: undefined;
+	if (!source) {
+		return `<p class="generated-media">Generated ${escapeHtml(media.modality)} (${escapeHtml(media.mediaType)})</p>`;
+	}
+	const escapedSource = escapeHtml(source);
+	const escapedType = escapeHtml(media.mediaType);
+	switch (media.modality) {
+		case "image":
+			return `<img class="generated-media" src="${escapedSource}" alt="Generated image" />`;
+		case "audio":
+			return `<audio class="generated-media" controls src="${escapedSource}" type="${escapedType}"></audio>`;
+		case "video":
+			return `<video class="generated-media" controls src="${escapedSource}" type="${escapedType}"></video>`;
+		case "file":
+			return `<a class="generated-media" href="${escapedSource}" download>Generated file (${escapedType})</a>`;
+	}
 }
 
 function renderTextHTML(text: string): string {

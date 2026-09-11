@@ -67,7 +67,7 @@ describe("ContextWindow compact button", () => {
 		)
 
 		fireEvent.click(screen.getByRole("button", { name: /compact task/i }))
-		fireEvent.click(screen.getByRole("button", { name: /yes/i }))
+		fireEvent.click(screen.getByRole("button", { name: /^compact$/i }))
 
 		await waitFor(() => expect(condense).toHaveBeenCalledWith({ value: "compact" }))
 		expect(onSendMessage).not.toHaveBeenCalled()

@@ -121,7 +121,15 @@ export class SdkTaskStartCoordinator {
 			})
 
 			const task = this.createAndSetTask(taskSessionId)
-			this.emitInitialTaskMessage(taskSessionId, prompt ?? "")
+			this.emitInitialTaskMessage(taskSessionId, prompt ?? "", images, files)
+
+			// The turn phase was already set to "streaming" (in SdkController.initTask), but the
+			// webview only learns the phase through a full state post. Ship one now, in parallel
+			// with the potentially slow session startup below, so the chat shows the thinking
+			// indicator as soon as the task message lands instead of after startNewSession settles.
+			this.options.postStateToWebview().catch((error) => {
+				Logger.error("[SdkController] Failed to post state after emitting initial task message:", error)
+			})
 
 			const { startResult, sdkHost } = await this.options.sessions.startNewSession(startInput)
 			if (startResult.sessionId !== taskSessionId) {
@@ -222,12 +230,19 @@ export class SdkTaskStartCoordinator {
 		return task
 	}
 
-	private emitInitialTaskMessage(sessionId: string, task: string): void {
+	private emitInitialTaskMessage(sessionId: string, task: string, images?: string[], files?: string[]): void {
+		// Attachments must ride on the authoritative task message: the webview's
+		// optimistic pending copy is only cleared once an identical message (text
+		// AND images/files) arrives from the extension. Omitting them left the
+		// optimistic message unconfirmed forever, so it was re-injected into the
+		// transcript even after "New Task" cleared it (#12924).
 		const taskMessage: ClineMessage = {
 			ts: Date.now(),
 			type: "say",
 			say: "task",
 			text: task,
+			...(images?.length ? { images } : {}),
+			...(files?.length ? { files } : {}),
 			partial: false,
 		}
 		this.options.messages.appendAndEmit([taskMessage], {

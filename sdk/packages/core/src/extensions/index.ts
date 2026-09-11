@@ -1,6 +1,25 @@
+export type {
+	AgentPluginPackageDiagnostic,
+	AgentPluginPackageDiagnosticScope,
+	AgentPluginPackageLoadReport,
+	AgentPluginPackageManifest,
+	AgentPluginPackageMcpServer,
+	AgentPluginPackageSkill,
+	AgentSkillMetadata,
+	LoadAgentPluginPackagesOptions,
+	LoadedAgentPluginPackage,
+	ParsedAgentSkill,
+} from "./agent-plugin";
+export {
+	AGENT_PLUGINS_V1_MANIFEST_SCHEMA,
+	AGENT_PLUGINS_V1_MCP_SCHEMA,
+	loadAgentPluginPackages,
+	parseAgentSkillMarkdown,
+} from "./agent-plugin";
 export type { ResolveAgentPluginPathsOptions } from "./plugin/plugin-config-loader";
 export {
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,

@@ -14,6 +14,7 @@ import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/s
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { BlobStoreSettings } from "@/shared/storage"
+import { deleteRemoteConfigFromCache } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
@@ -59,19 +60,15 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (remoteConfig.remoteMCPServers !== undefined) {
 		transformed.remoteMCPServers = remoteConfig.remoteMCPServers
 	}
-	if (remoteConfig.yoloModeAllowed !== undefined) {
-		// only set the yoloModeToggled field if yolo mode is not allowed. Otherwise, we let the user toggle it.
-		if (remoteConfig.yoloModeAllowed === false) {
-			transformed.yoloModeToggled = false
-		}
-	}
-
 	// Map OpenTelemetry settings
 	if (remoteConfig.openTelemetryEnabled !== undefined) {
 		transformed.openTelemetryEnabled = remoteConfig.openTelemetryEnabled
 	}
 	if (remoteConfig.openTelemetryMetricsExporter !== undefined) {
 		transformed.openTelemetryMetricsExporter = remoteConfig.openTelemetryMetricsExporter
+	}
+	if (remoteConfig.openTelemetryTracesExporter !== undefined) {
+		transformed.openTelemetryTracesExporter = remoteConfig.openTelemetryTracesExporter
 	}
 	if (remoteConfig.openTelemetryLogsExporter !== undefined) {
 		transformed.openTelemetryLogsExporter = remoteConfig.openTelemetryLogsExporter
@@ -249,14 +246,22 @@ async function applyRemoteOTELConfig(transformed: Partial<RemoteConfigFields>, t
 		if (isOpenTelemetryConfigValid(otelConfig)) {
 			const client = new OpenTelemetryClientProvider(otelConfig)
 
-			if (client.meterProvider || client.loggerProvider) {
-				telemetryService.addProvider(
-					await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
-						name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
-						bypassUserSettings: true,
-					}).initialize(),
-				)
+			try {
+				if (client.meterProvider || client.loggerProvider || client.tracerProvider) {
+					telemetryService.addProvider(
+						await new OpenTelemetryTelemetryProvider(client.meterProvider, client.loggerProvider, {
+							name: REMOTE_CONFIG_OTEL_PROVIDER_ID,
+							bypassUserSettings: true,
+							client,
+						}).initialize(),
+					)
+					return
+				}
+			} catch (error) {
+				await client.dispose()
+				throw error
 			}
+			await client.dispose()
 		}
 	} catch (err) {
 		Logger.error("[REMOTE CONFIG DEBUG] Failed to apply remote OTEL config", err)
@@ -276,19 +281,32 @@ async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigField
 	}
 }
 
-export function clearRemoteConfig() {
+export async function clearRemoteConfig(organizationId?: string): Promise<void> {
 	try {
 		const stateManager = StateManager.get()
 
 		stateManager.clearRemoteConfig()
-		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+		await telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
 		stateManager.setGlobalState("remoteSkillsToggles", {})
+		stateManager.setGlobalState("lastManagedOrganizationId", undefined)
 
 		// clear secrets
 		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
+
+		// The per-org disk cache holds the full config, including any
+		// enterprise blob-store secrets, and would otherwise resurrect the
+		// cleared policy via the offline fallback. Best-effort async removal.
+		// Sign-out deauths before clearing, so callers that know the org must
+		// pass it explicitly; otherwise fall back to the live lookup.
+		const cachedOrganizationId = organizationId ?? AuthService.getInstance().getActiveOrganizationId()
+		if (cachedOrganizationId) {
+			void deleteRemoteConfigFromCache(cachedOrganizationId).catch((err) =>
+				Logger.error("[REMOTE CONFIG] Failed to delete cached remote config", err),
+			)
+		}
 	} catch (err) {
 		Logger.error("[REMOTE CONFIG] Failed to clear remote config", err)
 	}
@@ -307,7 +325,7 @@ export async function applyRemoteConfig(
 	const stateManager = StateManager.get()
 	// If no remote config provided, clear the cache and relevant state
 	if (!remoteConfig) {
-		clearRemoteConfig()
+		await clearRemoteConfig()
 		return
 	}
 
@@ -343,7 +361,7 @@ export async function applyRemoteConfig(
 	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
 	stateManager.setGlobalState("remoteSkillsToggles", syncedSkillToggles)
 
-	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
+	await telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 	// If the existing configured provider is valid, don't update it
 	const apiConfiguration = stateManager.getApiConfiguration()

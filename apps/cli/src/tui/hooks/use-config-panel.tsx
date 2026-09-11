@@ -45,6 +45,7 @@ export function useConfigPanel(opts: {
 	) => Promise<InteractiveConfigData | undefined>;
 	openModelSelector: (options?: OpenModelSelectorOptions) => Promise<void>;
 	openMcpManager: (options?: { refocus?: boolean }) => Promise<boolean>;
+	openThemePicker: (options?: { refocus?: boolean }) => Promise<void>;
 	refocusTextarea: () => void;
 }) {
 	const emptyConfigData = useMemo(
@@ -118,6 +119,8 @@ export function useConfigPanel(opts: {
 					});
 				} else if (action.kind === "open-model") {
 					await opts.openModelSelector({ onCancel: () => {} });
+				} else if (action.kind === "open-theme") {
+					await opts.openThemePicker({ refocus: false });
 				} else if (action.kind === "toggle-item") {
 					await opts.onToggleConfigItem?.(action.item);
 				} else if (action.kind === "delete-item") {

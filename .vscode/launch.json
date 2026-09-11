@@ -51,7 +51,8 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
-				"CLINE_ENVIRONMENT": "staging"
+				"CLINE_ENVIRONMENT": "staging",
+				"CLINE_DIR": "${userHome}/.cline_staging"
 			}
 		},
 		{
@@ -75,7 +76,8 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
-				"CLINE_ENVIRONMENT": "local"
+				"CLINE_ENVIRONMENT": "local",
+				"CLINE_DIR": "${userHome}/.cline_local"
 			}
 		},
 		{

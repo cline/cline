@@ -16,6 +16,22 @@ import type { EventEmitter } from "events"
 /**
  * Event types for terminal process
  */
+export interface UnobservedTerminalCommand {
+	/** The execution path that could not provide authoritative completion. */
+	source: "sendText" | "markerlessShellIntegration"
+	/** Who owns the still-running command when observation ends. */
+	ownership: "managed" | "continued" | "detached"
+}
+
+export type UnobservedTerminalCommandDisposition = "disposeBeforeNextTerminalAcquisition" | "preserve"
+
+/** Derive cleanup and reporting policy from the same unobserved-command snapshot. */
+export function getUnobservedTerminalCommandDisposition(
+	command: UnobservedTerminalCommand,
+): UnobservedTerminalCommandDisposition {
+	return command.source === "sendText" && command.ownership === "managed" ? "disposeBeforeNextTerminalAcquisition" : "preserve"
+}
+
 export interface TerminalCompletionDetails {
 	/** Process exit code when available */
 	exitCode?: number | null
@@ -28,6 +44,12 @@ export interface TerminalCompletionDetails {
 	 * closing mid-`npm test` must not be read as tests passing.
 	 */
 	terminalClosed?: boolean
+	/**
+	 * The snapshotted outcome when VS Code could not observe completion. The
+	 * command may have completed or may still be running; cleanup and reporting
+	 * must both derive from this value.
+	 */
+	unobservedCommand?: UnobservedTerminalCommand
 }
 
 export interface TerminalProcessEvents {
@@ -35,7 +57,7 @@ export interface TerminalProcessEvents {
 	continue: []
 	completed: [details?: TerminalCompletionDetails]
 	error: [error: Error]
-	no_shell_integration: []
+	unobserved_command: [outcome: UnobservedTerminalCommand]
 }
 
 /**
@@ -47,7 +69,7 @@ export interface TerminalProcessEvents {
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
- * - 'no_shell_integration': Emitted when shell integration is not available
+ * - 'unobserved_command': Emitted when command completion cannot be observed
  */
 export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	/**
@@ -63,9 +85,16 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	/**
 	 * Continue execution without waiting for completion.
 	 * Stops event emission and resolves the promise.
-	 * This is called when user clicks "Proceed While Running".
 	 */
 	continue(): void
+
+	/**
+	 * Resolve the awaited promise while the command keeps running ("Proceed
+	 * While Running"). Unlike continue(), output listeners stay attached and
+	 * 'line'/'completed' events keep flowing, so callers can stream the rest
+	 * of the output (e.g. to a log file) until the command completes.
+	 */
+	detach(): void
 
 	/**
 	 * Get output that hasn't been retrieved yet.
@@ -145,8 +174,8 @@ export type TerminalProcessResultPromise = Promise<void> &
 		on(event: "continue", listener: () => void): TerminalProcessResultPromise
 		/** Listen for error events */
 		on(event: "error", listener: (error: Error) => void): TerminalProcessResultPromise
-		/** Listen for no shell integration event */
-		on(event: "no_shell_integration", listener: () => void): TerminalProcessResultPromise
+		/** Listen for an unobserved command outcome */
+		on(event: "unobserved_command", listener: (outcome: UnobservedTerminalCommand) => void): TerminalProcessResultPromise
 		/** Listen once for any event */
 		once(event: string, listener: (...args: any[]) => void): TerminalProcessResultPromise
 	}

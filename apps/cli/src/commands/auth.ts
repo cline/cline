@@ -10,9 +10,9 @@ import {
 	saveProviderOAuthCredentials,
 } from "@cline/core";
 import { Command } from "commander";
-import open from "open";
 import React from "react";
 import { disableOpenTuiGraphicsProbe } from "../tui/opentui-env";
+import open from "../utils/open";
 import {
 	getPersistedProviderApiKey,
 	isOAuthProvider,

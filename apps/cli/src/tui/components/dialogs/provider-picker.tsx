@@ -1,6 +1,7 @@
 import {
 	completeClineDeviceAuth,
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	isOAuthProvider,
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
@@ -13,16 +14,15 @@ import {
 import { getClineEnvironmentConfig } from "@cline/shared";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-	checkCodexCliInstalled,
-	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
+	checkLocalCliInstalled,
+	type LocalCliStatus,
+	type ProviderLocalCli,
+} from "../../../utils/local-cli";
+import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -33,12 +33,14 @@ import {
 	updateProviderConfigValue,
 } from "../../utils/provider-config-values";
 import { getProviderSection } from "../../utils/provider-sections";
+import { canContinueLocalCliSetup } from "../../views/onboarding/model";
 import {
 	getSearchableListRowsWindow,
 	type SearchableItem,
 } from "../searchable-list";
 import {
 	buildClinePassSubscriptionPageUrl,
+	resolveOAuthWaitKeyAction,
 	saveManualProviderApiKey,
 } from "./provider-picker-helpers";
 
@@ -62,6 +64,7 @@ export function ProviderPickerContent(
 	props: ChoiceContext<string> & { currentProviderId: string },
 ) {
 	const { resolve, dismiss, dialogId, currentProviderId } = props;
+	const palette = useDialogPalette();
 	const [providers, setProviders] = useState<ProviderItem[]>([]);
 	const [search, setSearch] = useState("");
 	const [selected, setSelected] = useState(0);
@@ -80,7 +83,7 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: isOpenAICodexCliProvider(p.id),
+					isLocalAuth: isLocalAuthProvider(p.id),
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -271,6 +274,7 @@ export function UseExistingOrReconfigureContent(
 	},
 ) {
 	const { resolve, dismiss, dialogId, providerName, extraOptions } = props;
+	const palette = useDialogPalette();
 	const options: ExistingProviderOption[] = useMemo(
 		() => [
 			{ value: "use_existing", label: "Use existing configuration" },
@@ -350,6 +354,7 @@ function ClinePassBrowserPageContent(
 		url,
 		openedStatus,
 	} = props;
+	const palette = useDialogPalette();
 	const [status, setStatus] = useState("Opening browser...");
 
 	useEffect(() => {
@@ -488,6 +493,7 @@ export function ProviderConfigInputContent(
 		providerName,
 		providerSettingsManager,
 	} = props;
+	const palette = useDialogPalette();
 
 	const config = useMemo(
 		() => getProviderConfigFields(providerId),
@@ -649,28 +655,25 @@ export function ProviderConfigInputContent(
 	);
 }
 
-export function CodexCliStatusContent(
+export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
+		cli?: ProviderLocalCli;
 		providerName: string;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
-	const [status, setStatus] = useState<CodexCliStatus | undefined>();
+	const { resolve, dismiss, dialogId, cli, providerName } = props;
+	const palette = useDialogPalette();
+	const [status, setStatus] = useState<LocalCliStatus | undefined>();
 	const [checking, setChecking] = useState(false);
 
 	const refresh = useCallback(() => {
+		if (!cli) return;
 		setStatus(undefined);
 		setChecking(true);
-		checkCodexCliInstalled()
+		checkLocalCliInstalled(cli)
 			.then(setStatus)
-			.catch((error: unknown) => {
-				setStatus({
-					installed: false,
-					reason: error instanceof Error ? error.message : String(error),
-				});
-			})
 			.finally(() => setChecking(false));
-	}, []);
+	}, [cli]);
 
 	useEffect(() => {
 		refresh();
@@ -685,7 +688,7 @@ export function CodexCliStatusContent(
 			refresh();
 			return;
 		}
-		if (key.name === "return" && status?.installed) {
+		if (key.name === "return" && canContinueLocalCliSetup(cli, status)) {
 			resolve(true);
 		}
 	}, dialogId);
@@ -696,31 +699,37 @@ export function CodexCliStatusContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			{checking && <text fg="gray">Checking for Codex CLI...</text>}
+			{checking && <text fg="gray">Checking for {providerName}...</text>}
 
 			{status?.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg={palette.success}>{"\u25cf"} Codex CLI installed</text>
+					<text fg={palette.success}>
+						{"\u25cf"} {providerName} installed
+					</text>
 					<text fg="gray">{status.version}</text>
 				</box>
 			)}
 
 			{status && !status.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg="yellow">Codex CLI was not found</text>
+					<text fg="yellow">{providerName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install Codex CLI from:</text>
-					<text fg={palette.act} selectable>
-						{CODEX_CLI_INSTALL_URL}
-					</text>
+					{cli?.docsUrl && (
+						<box flexDirection="column">
+							<text fg="gray">Install {providerName} from:</text>
+							<text fg={palette.act} selectable>
+								{cli.docsUrl}
+							</text>
+						</box>
+					)}
 				</box>
 			)}
 
 			<text fg="gray">
 				<em>
-					{status?.installed
+					{cli
 						? "Enter to continue, R to recheck, Esc to go back"
-						: "R to recheck, Esc to go back"}
+						: "Enter to continue, Esc to go back"}
 				</em>
 			</text>
 		</box>
@@ -748,6 +757,7 @@ export function OAuthLoginContent(
 		providerName,
 		allowApiKeyFallback,
 	} = props;
+	const palette = useDialogPalette();
 	const [mode, setMode] = useState<"browser" | "device">(
 		providerId === "cline" ? "device" : "browser",
 	);
@@ -877,21 +887,20 @@ export function OAuthLoginContent(
 	}, []);
 
 	useDialogKeyboard((key) => {
-		if (key.name === "escape") {
-			cancelAuthAttempt();
-			dismiss();
+		const action = resolveOAuthWaitKeyAction(key, allowApiKeyFallback);
+		if (action === "ignore") return;
+		cancelAuthAttempt();
+		if (action === "use_api_key") {
+			resolve("use_api_key");
 			return;
 		}
-		if (key.name === "k" && allowApiKeyFallback) {
-			cancelAuthAttempt();
-			resolve("use_api_key");
-		}
+		dismiss();
 	}, dialogId);
 
-	const escapeHint = allowApiKeyFallback
-		? "K to enter an API key instead, Esc to cancel"
-		: "Esc to cancel";
-	const escapeHintColor = allowApiKeyFallback ? "white" : "gray";
+	const cancelHint = allowApiKeyFallback
+		? "K to enter an API key instead, any other key to cancel"
+		: "Press any key to cancel";
+	const cancelHintColor = allowApiKeyFallback ? "white" : "gray";
 
 	if (mode === "device") {
 		return (
@@ -919,8 +928,8 @@ export function OAuthLoginContent(
 
 				{deviceError && <text fg="red">{deviceError}</text>}
 
-				<text fg={escapeHintColor}>
-					<em>{escapeHint}</em>
+				<text fg={cancelHintColor}>
+					<em>{cancelHint}</em>
 				</text>
 			</box>
 		);
@@ -942,8 +951,8 @@ export function OAuthLoginContent(
 
 			{error && <text fg="red">{error}</text>}
 
-			<text fg={escapeHintColor}>
-				<em>{escapeHint}</em>
+			<text fg={cancelHintColor}>
+				<em>{cancelHint}</em>
 			</text>
 		</box>
 	);
@@ -969,6 +978,7 @@ export function OAuthApiKeyInputContent(
 		providerName,
 		providerSettingsManager,
 	} = props;
+	const palette = useDialogPalette();
 	const [value, setValue] = useState("");
 
 	const submit = () => {

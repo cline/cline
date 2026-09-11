@@ -32,13 +32,27 @@ export interface PluginToolSummary {
 
 export interface ListPluginToolsResult {
 	tools: PluginToolSummary[];
+	plugins: PluginContributionSummary[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
+}
+
+export interface PluginContributionSummary {
+	pluginName: string;
+	path: string;
+	capabilities: string[];
+	tools: string[];
+	rules: string[];
+	hooks: string[];
+	commands: string[];
+	mcpServers: string[];
+	providers: string[];
 }
 
 type PluginToolDescriptor = Omit<PluginToolSummary, "enabled">;
 type PluginToolDescriptorCacheEntry = {
 	tools: PluginToolDescriptor[];
+	plugins: PluginContributionSummary[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
 };
@@ -118,27 +132,46 @@ async function collectPluginContributions(
 	workspaceInfo?: { rootPath: string },
 ): Promise<{
 	tools: AgentTool[];
+	rules: Array<Parameters<AgentExtensionApi["registerRule"]>[0]>;
+	commands: Array<Parameters<AgentExtensionApi["registerCommand"]>[0]>;
+	mcpServers: Array<Parameters<AgentExtensionApi["registerMcpServer"]>[0]>;
+	providers: Array<Parameters<AgentExtensionApi["registerProvider"]>[0]>;
 }> {
 	if (!extension.setup) {
-		return { tools: [] };
+		return {
+			tools: [],
+			rules: [],
+			commands: [],
+			mcpServers: [],
+			providers: [],
+		};
 	}
 
 	const tools: AgentTool[] = [];
+	const rules: Array<Parameters<AgentExtensionApi["registerRule"]>[0]> = [];
+	const commands: Array<Parameters<AgentExtensionApi["registerCommand"]>[0]> =
+		[];
+	const mcpServers: Array<
+		Parameters<AgentExtensionApi["registerMcpServer"]>[0]
+	> = [];
+	const providers: Array<Parameters<AgentExtensionApi["registerProvider"]>[0]> =
+		[];
 	const api: AgentExtensionApi = {
 		registerTool: (tool) => tools.push(tool),
-		registerCommand: () => {},
+		registerCommand: (command) => commands.push(command),
 		registerMessageBuilder: () => {},
-		registerRule: () => {},
-		registerProvider: () => {},
+		registerRule: (rule) => rules.push(rule),
+		registerProvider: (provider) => providers.push(provider),
 		registerAutomationEventType: () => {},
-		registerMcpServer: (_server) => {
+		registerMcpServer: (server) => {
 			if (!extension.manifest.capabilities.includes("mcp")) {
 				throw new Error('registerMcpServer requires the "mcp" capability');
 			}
+			mcpServers.push(server);
 		},
 	};
 	await extension.setup(api, { workspaceInfo });
-	return { tools };
+	return { tools, rules, commands, mcpServers, providers };
 }
 
 export async function listPluginToolsWithDiagnostics(input: {
@@ -154,7 +187,7 @@ export async function listPluginToolsWithDiagnostics(input: {
 	});
 	const disabled = resolveDisabledToolNames(input.disabledToolNames);
 	if (pluginPaths.length === 0) {
-		return { tools: [], failures: [], warnings: [] };
+		return { tools: [], plugins: [], failures: [], warnings: [] };
 	}
 
 	const cacheKey = await buildPluginToolDescriptorCacheKey({
@@ -168,12 +201,14 @@ export async function listPluginToolsWithDiagnostics(input: {
 	if (cached) {
 		return {
 			tools: withEnabledState(cached.tools, disabled),
+			plugins: cached.plugins,
 			failures: cached.failures,
 			warnings: cached.warnings,
 		};
 	}
 
 	const tools: PluginToolDescriptor[] = [];
+	const plugins: PluginContributionSummary[] = [];
 	let failures: PluginInitializationFailure[] = [];
 	let warnings: PluginInitializationWarning[] = [];
 	let sandboxed: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
@@ -221,6 +256,21 @@ export async function listPluginToolsWithDiagnostics(input: {
 					description: tool.description?.trim() || undefined,
 				});
 			}
+			plugins.push({
+				pluginName: extension.name,
+				path: pluginPath,
+				capabilities: [...extension.manifest.capabilities].sort(),
+				tools: contributions.tools.map((tool) => tool.name).sort(),
+				rules: contributions.rules.map((rule) => rule.id).sort(),
+				hooks: Object.keys(extension.hooks ?? {}).sort(),
+				commands: contributions.commands.map((command) => command.name).sort(),
+				mcpServers: contributions.mcpServers
+					.map((server) => server.name)
+					.sort(),
+				providers: contributions.providers
+					.map((provider) => provider.name)
+					.sort(),
+			});
 		}
 	} catch (error) {
 		failures = pluginPaths.map((pluginPath) => ({
@@ -238,11 +288,13 @@ export async function listPluginToolsWithDiagnostics(input: {
 	const sortedTools = sortPluginToolDescriptors(tools);
 	cachePluginToolDescriptors(cacheKey, {
 		tools: sortedTools,
+		plugins,
 		failures,
 		warnings,
 	});
 	return {
 		tools: withEnabledState(sortedTools, disabled),
+		plugins,
 		failures,
 		warnings,
 	};

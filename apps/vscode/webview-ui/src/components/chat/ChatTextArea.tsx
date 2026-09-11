@@ -5,7 +5,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon } from "lucide-react"
+import { AtSignIcon, PlusIcon, TriangleAlertIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -43,6 +43,7 @@ import {
 	validateSlashCommand,
 } from "@/utils/slash-commands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import { getModeToggleDraftAction } from "./chat-textarea-mode-toggle"
 import ServersToggleModal from "./ServersToggleModal"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
@@ -259,7 +260,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
-		const { selectedProvider, selectedModelId } = useNormalizedApiConfiguration(mode)
+		const { selectedProvider, selectedModelId, selectedModelInfo } = useNormalizedApiConfiguration(mode)
+		// Images are attached regardless; when the selected model has no image input the thumbnails get a warning
+		// badge and a notice offers to switch models. Unknown capability data fails open, like core does.
+		const modelSupportsImages = selectedModelInfo.supportsImages !== false
+		const unsupportedImagesAttached = selectedImages.length > 0 && !modelSupportsImages
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -586,7 +591,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					event.preventDefault()
 
 					if (!sendingDisabled) {
-						setIsTextAreaFocused(false)
+						// Note: don't set isTextAreaFocused to false here. The textarea keeps
+						// DOM focus after sending, and clearing the flag without an actual
+						// blur desyncs it permanently (programmatic .focus() on an
+						// already-focused element never re-fires onFocus), which hides the
+						// plan/act mode outline until a real blur/refocus cycle.
 						onSend()
 					}
 				}
@@ -1036,16 +1045,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				)
 				// Focus the textarea after mode toggle with slight delay
 				setTimeout(() => {
-					if (response.value) {
-						// The toggle consumed the composer content as the continuation
-						// message. Clear only what was submitted: the rebuild can take a
-						// moment and the user may have typed or attached new content in
-						// the meantime, which must not be wiped.
-						if ((textAreaRef.current?.value ?? "") === submittedText) {
+					const consumedComposerContent = response.value === true
+					const currentText = textAreaRef.current?.value ?? ""
+					// Reconcile only the submitted draft: the rebuild can take a moment
+					// and the user may have typed new content in the meantime.
+					const draftAction = getModeToggleDraftAction({
+						consumed: consumedComposerContent,
+						currentText,
+						submittedText,
+					})
+
+					switch (draftAction) {
+						case "clear":
 							setInputValue("")
-						}
+							break
+						case "restore":
+							setInputValue(submittedText)
+							break
+						case "keep":
+							break
+					}
+
+					if (consumedComposerContent) {
 						setSelectedImages((current) => (current === submittedImages ? [] : current))
 						setSelectedFiles((current) => (current === submittedFiles ? [] : current))
+					} else {
+						if (submittedImages.length > 0) {
+							setSelectedImages((current) => (current.length === 0 ? submittedImages : current))
+						}
+						if (submittedFiles.length > 0) {
+							setSelectedFiles((current) => (current.length === 0 ? submittedFiles : current))
+						}
 					}
 					textAreaRef.current?.focus()
 				}, 100)
@@ -1537,6 +1567,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<Thumbnails
 							files={selectedFiles}
 							images={selectedImages}
+							imagesUnsupported={unsupportedImagesAttached}
 							onHeightChange={handleThumbnailsHeightChange}
 							setFiles={setSelectedFiles}
 							setImages={setSelectedImages}
@@ -1559,7 +1590,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								data-testid="send-button"
 								onClick={() => {
 									if (!sendingDisabled) {
-										setIsTextAreaFocused(false)
 										onSend()
 									}
 								}}
@@ -1567,6 +1597,28 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 				</div>
+				{unsupportedImagesAttached && (
+					<div
+						className="flex items-center gap-1.5 px-3.5 pb-1.5 text-xs"
+						data-testid="images-unsupported-notice"
+						role="status"
+						style={{ color: "var(--vscode-editorWarning-foreground)" }}>
+						<TriangleAlertIcon className="shrink-0" size={12} />
+						<span className="min-w-0">
+							{selectedModelId} doesn't support images, so{" "}
+							{selectedImages.length === 1 ? "the attached image" : `the ${selectedImages.length} attached images`}{" "}
+							will be ignored.{" "}
+							<button
+								className="underline cursor-pointer bg-transparent border-0 p-0 m-0 text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+								data-testid="images-unsupported-choose-model"
+								onClick={handleModelButtonClick}
+								type="button">
+								Choose an image-capable model
+							</button>{" "}
+							or remove {selectedImages.length === 1 ? "it" : "them"}.
+						</span>
+					</div>
+				)}
 				<div className="flex justify-between items-center -mt-[2px] px-3 pb-2">
 					{/* Always render both components, but control visibility with CSS */}
 					<div className="relative flex-1 min-w-0 h-5">

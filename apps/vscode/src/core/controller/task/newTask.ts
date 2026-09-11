@@ -60,9 +60,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 			...(request.taskSettings?.mode !== undefined && {
 				mode: convertPlanActMode(request.taskSettings.mode),
 			}),
-			...(request.taskSettings?.customPrompt === "compact" && {
-				customPrompt: "compact",
-			}),
 			...(request.taskSettings?.planModeApiProvider !== undefined && {
 				planModeApiProvider: convertProtoToApiProvider(request.taskSettings.planModeApiProvider),
 			}),

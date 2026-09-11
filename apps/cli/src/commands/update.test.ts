@@ -1,8 +1,23 @@
+import type { ChildProcess } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { mockSpawn } = vi.hoisted(() => ({
+	mockSpawn: vi.fn(),
+}));
+
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>();
+	return {
+		...actual,
+		spawn: mockSpawn,
+	};
+});
+
 import {
+	applyDeferredUpdate,
 	autoUpdateOnStartup,
 	checkForUpdates,
 	getInstallationInfo,
@@ -234,6 +249,102 @@ describe("hub restart owner selection", () => {
 			"/tmp/cline-update-test-data/locks/hub/production.json",
 		);
 	});
+});
+
+describe("deferred auto update", () => {
+	afterEach(() => {
+		mockSpawn.mockReset();
+		if (originalBuildEnv === undefined) {
+			delete process.env.CLINE_BUILD_ENV;
+		} else {
+			process.env.CLINE_BUILD_ENV = originalBuildEnv;
+		}
+		if (originalHubDiscoveryPath === undefined) {
+			delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		} else {
+			process.env.CLINE_HUB_DISCOVERY_PATH = originalHubDiscoveryPath;
+		}
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("does nothing when no update was recorded", async () => {
+		expect(await applyDeferredUpdate(undefined)).toBe("none");
+		expect(mockSpawn).not.toHaveBeenCalled();
+	});
+
+	it("starts the detached install when no hub is discoverable", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-update-test-"));
+		tempDirs.push(root);
+		process.env.CLINE_BUILD_ENV = "production";
+		process.env.CLINE_HUB_DISCOVERY_PATH = join(root, "production.json");
+		const unref = vi.fn();
+		mockSpawn.mockReturnValue({ unref } as unknown as ChildProcess);
+
+		const outcome = await applyDeferredUpdate({
+			command: "npm update -g cline --tag latest --min-release-age=0",
+		});
+
+		expect(outcome).toBe("started");
+		expect(mockSpawn).toHaveBeenCalledWith(
+			"npm update -g cline --tag latest --min-release-age=0",
+			expect.objectContaining({
+				detached: true,
+				shell: true,
+				stdio: "ignore",
+			}),
+		);
+		expect(unref).toHaveBeenCalled();
+	});
+
+	it("defers while another cli client is attached to the hub", async () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-update-test-"));
+		tempDirs.push(root);
+		const discoveryPath = join(root, "production.json");
+		process.env.CLINE_BUILD_ENV = "production";
+		process.env.CLINE_HUB_DISCOVERY_PATH = discoveryPath;
+		const {
+			createLocalHubScheduleRuntimeHandlers,
+			NodeHubClient,
+			startHubWebSocketServer,
+		} = await import("@cline/core");
+		const server = await startHubWebSocketServer({
+			host: "127.0.0.1",
+			port: 0,
+			owner: { ownerId: "update-test", discoveryPath },
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		const cliClient = new NodeHubClient({
+			url: server.url,
+			authToken: server.authToken,
+			clientType: "cli",
+			displayName: "fake attached cli",
+		});
+		try {
+			await cliClient.command("client.list", {});
+
+			expect(await applyDeferredUpdate({ command: "echo update" })).toBe(
+				"deferred",
+			);
+			expect(mockSpawn).not.toHaveBeenCalled();
+
+			await cliClient.dispose();
+			const unref = vi.fn();
+			mockSpawn.mockReturnValue({ unref } as unknown as ChildProcess);
+			// The hub unregisters the client when its socket closes; poll
+			// briefly rather than assuming the close is processed instantly.
+			let outcome = "deferred";
+			const deadline = Date.now() + 3_000;
+			while (outcome === "deferred" && Date.now() < deadline) {
+				outcome = await applyDeferredUpdate({ command: "echo update" });
+			}
+			expect(outcome).toBe("started");
+		} finally {
+			await cliClient.dispose().catch(() => undefined);
+			await server.close();
+		}
+	}, 15_000);
 });
 
 describe("withMinimumReleaseAgeBypass", () => {

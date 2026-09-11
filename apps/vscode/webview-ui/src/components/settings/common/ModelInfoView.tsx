@@ -178,8 +178,8 @@ interface ModelInfoViewProps {
 	/**
 	 * Suppress the per-token pricing display (compact input/output row, cache
 	 * pricing in Advanced, and tiered pricing). Set this for providers whose
-	 * billing is subscription-based or otherwise not per-token, mirroring the
-	 * SDK's `ProviderInfo.metadata.usageCostDisplay = "hide"` signal (see
+	 * billing is subscription-based or otherwise not per-token — any
+	 * `ProviderInfo.metadata.usageCostDisplay` other than `"show"` (see
 	 * `resolveProviderUsageCostDisplay` in `@cline/llms`).
 	 */
 	hideUsageCost?: boolean

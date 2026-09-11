@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createGatewayApiHandler, toGatewayRequestMessages } from "./compat";
+import {
+	_testing,
+	createGatewayApiHandler,
+	toGatewayRequestMessages,
+} from "./compat";
 import { ClineNotSubscribedError } from "./errors";
+import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "./gateway";
 import type { Message } from "./types";
 
 const streamTextSpy = vi.fn();
@@ -357,7 +362,35 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
-	it("does not convert catalog maxTokens into request maxOutputTokens", async () => {
+	it.each([
+		["openai-responses", "openai"],
+		["anthropic", "anthropic"],
+	])("retains live model protocol %s through the handler", async (apiProtocol, family) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+		});
+		const handler = createGatewayApiHandler({
+			providerId: "opencode-go",
+			modelId: "new-live-model",
+			apiKey: "test-key",
+			knownModels: {
+				"new-live-model": { id: "new-live-model", metadata: { apiProtocol } },
+			},
+		});
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Exercise the live catalog -> handler -> gateway projection.
+		}
+		expect(streamTextSpy.mock.calls.at(-1)?.[0].model).toMatchObject({
+			modelId: "new-live-model",
+			family,
+		});
+	});
+
+	it("uses the default maxOutputTokens without expanding to catalog maxTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -391,7 +424,40 @@ describe("createGatewayApiHandler.createMessage", () => {
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 			| { maxOutputTokens?: unknown }
 			| undefined;
-		expect(call).not.toHaveProperty("maxOutputTokens");
+		expect(call).toHaveProperty(
+			"maxOutputTokens",
+			DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+		);
+	});
+
+	it("conservatively normalizes exotic effort for unlisted OpenRouter models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "reasoning-model",
+			apiKey: "test-key",
+			thinking: true,
+			reasoningEffort: "max",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				reasoning: "xhigh",
+			}),
+		);
 	});
 
 	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
@@ -771,5 +837,98 @@ describe("toGatewayRequestMessages — tool_result with images", () => {
 		const [userMessage] = toGatewayRequestMessages(messages);
 		const toolResult = userMessage.content[0] as Record<string, unknown>;
 		expect(toolResult.output).toBe("raw string output");
+	});
+});
+
+describe("buildGatewayModels", () => {
+	const { buildGatewayModels } = _testing;
+
+	it("projects configured maxInputTokens onto the selected gateway model", () => {
+		const models = buildGatewayModels("ollama", {
+			providerId: "ollama",
+			modelId: "llama3.1",
+			maxInputTokens: 8192,
+			knownModels: {
+				"llama3.1": {
+					id: "llama3.1",
+					name: "llama3.1",
+					contextWindow: 131072,
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "llama3.1",
+				contextWindow: 8192,
+				maxInputTokens: 8192,
+			}),
+		]);
+	});
+
+	it("preserves catalog reasoning controls on projected gateway models", () => {
+		const reasoningOptions = [
+			{ type: "effort" as const, values: ["medium", "high", "max"] as const },
+		];
+		const models = buildGatewayModels("openrouter", {
+			providerId: "openrouter",
+			modelId: "openai/gpt-5.6",
+			knownModels: {
+				"openai/gpt-5.6": {
+					id: "openai/gpt-5.6",
+					name: "GPT-5.6",
+					contextWindow: 400_000,
+					reasoningOptions,
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "openai/gpt-5.6",
+				reasoningOptions,
+			}),
+		]);
+	});
+
+	it("creates a definition for the selected model when it is not in knownModels", () => {
+		const models = buildGatewayModels("ollama", {
+			providerId: "ollama",
+			modelId: "minimax-m3:cloud",
+			maxInputTokens: 500000,
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "minimax-m3:cloud",
+				contextWindow: 500000,
+				maxInputTokens: 500000,
+			}),
+		]);
+	});
+
+	it("lets an explicit modelInfo override win over the generic limit", () => {
+		const models = buildGatewayModels("ollama", {
+			providerId: "ollama",
+			modelId: "llama3.1",
+			maxInputTokens: 8192,
+			modelInfo: { id: "llama3.1", contextWindow: 16384 },
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "llama3.1",
+				contextWindow: 16384,
+			}),
+		]);
+	});
+
+	it("returns undefined when there is nothing to project", () => {
+		expect(
+			buildGatewayModels("ollama", {
+				providerId: "ollama",
+				modelId: "llama3.1",
+			}),
+		).toBeUndefined();
 	});
 });

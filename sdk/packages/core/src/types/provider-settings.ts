@@ -22,6 +22,17 @@ export { toProviderConfig };
 
 export type ProviderTokenSource = "manual" | "oauth" | "migration";
 
+export const VoiceInputSettingsSchema = z.object({
+	providerId: z.string().min(1),
+	modelId: z.string().min(1),
+});
+
+export type VoiceInputSettings = z.infer<typeof VoiceInputSettingsSchema>;
+
+export interface StoredProviderModes {
+	voiceInput?: VoiceInputSettings;
+}
+
 export interface StoredProviderSettingsEntry {
 	settings: ProviderSettings;
 	updatedAt: string;
@@ -31,8 +42,14 @@ export interface StoredProviderSettingsEntry {
 export interface StoredProviderSettings {
 	version: 1;
 	lastUsedProvider?: string;
+	modes: StoredProviderModes;
 	providers: Record<string, StoredProviderSettingsEntry>;
 }
+
+export const StoredProviderModesSchema: z.ZodType<StoredProviderModes> =
+	z.object({
+		voiceInput: VoiceInputSettingsSchema.optional(),
+	});
 
 export const StoredProviderSettingsEntrySchema: z.ZodType<StoredProviderSettingsEntry> =
 	z.object({
@@ -45,12 +62,14 @@ export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 	z.object({
 		version: z.literal(1),
 		lastUsedProvider: z.string().min(1).optional(),
+		modes: StoredProviderModesSchema.default({}),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
 	});
 
 export function emptyStoredProviderSettings(): StoredProviderSettings {
 	return {
 		version: 1,
+		modes: {},
 		providers: {},
 	};
 }

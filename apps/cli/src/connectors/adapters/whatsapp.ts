@@ -51,10 +51,12 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -272,47 +274,53 @@ class WhatsAppConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("--base-url <PUBLIC_BASE_URL> [options]")
-			.option("--user-name <name>", "WhatsApp bot username label")
-			.option("--phone-number-id <id>", "WhatsApp Business phone number id")
-			.option("--access-token <token>", "Meta access token")
-			.option("--app-secret <secret>", "Meta app secret")
-			.option("--verify-token <token>", "Webhook verify token")
-			.option("--api-version <version>", "Graph API version", "v21.0")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--enable-tools", "Enable tools for WhatsApp sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.option("--host <host>", "Webhook listen host")
-			.option("--port <port>", "Webhook listen port")
-			.option("--base-url <url>", "Public base URL for webhook configuration")
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Environment:",
-					"  WHATSAPP_ACCESS_TOKEN       Meta access token",
-					"  WHATSAPP_APP_SECRET         Meta app secret",
-					"  WHATSAPP_PHONE_NUMBER_ID    WhatsApp Business phone number id",
-					"  WHATSAPP_VERIFY_TOKEN       Webhook verification token",
-					"  WHATSAPP_BOT_USERNAME       Bot username label",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("--base-url <PUBLIC_BASE_URL> [options]")
+				.option("--user-name <name>", "WhatsApp bot username label")
+				.option("--phone-number-id <id>", "WhatsApp Business phone number id")
+				.option("--access-token <token>", "Meta access token")
+				.option("--app-secret <secret>", "Meta app secret")
+				.option("--verify-token <token>", "Webhook verify token")
+				.option("--api-version <version>", "Graph API version", "v21.0")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for WhatsApp sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.option("--host <host>", "Webhook listen host")
+				.option("--port <port>", "Webhook listen port")
+				.option("--base-url <url>", "Public base URL for webhook configuration")
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Environment:",
+						"  WHATSAPP_ACCESS_TOKEN       Meta access token",
+						"  WHATSAPP_APP_SECRET         Meta app secret",
+						"  WHATSAPP_PHONE_NUMBER_ID    WhatsApp Business phone number id",
+						"  WHATSAPP_VERIFY_TOKEN       Webhook verification token",
+						"  WHATSAPP_BOT_USERNAME       Bot username label",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectWhatsAppOptions {
@@ -331,6 +339,7 @@ class WhatsAppConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			enableTools?: boolean;
+			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 			port?: string;
@@ -363,7 +372,7 @@ class WhatsAppConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.tools !== false,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -444,15 +453,36 @@ class WhatsAppConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopWhatsAppConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override instanceIdFromOptions(
+		options: ConnectWhatsAppOptions,
+	): string | undefined {
+		return resolveInstanceKey({
+			phoneNumberId: options.phoneNumberId,
+			userName: options.userName,
+		});
+	}
+
 	protected override async runWithOptions(
 		options: ConnectWhatsAppOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
 		const instanceKey = resolveInstanceKey({
 			phoneNumberId: options.phoneNumberId,
 			userName: options.userName,
 		});
+		context.setPersistenceInstanceId(instanceKey);
 		const statePath = this.resolveConnectorStatePath(instanceKey);
 		const bindingsPath = this.resolveBindingsPath(instanceKey);
 		const staleState = this.removeStaleState(
@@ -463,26 +493,24 @@ class WhatsAppConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<WhatsAppThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_WHATSAPP_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[whatsapp] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
-				foregroundHint:
-					"[whatsapp] use `cline connect whatsapp -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch WhatsApp connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_WHATSAPP_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[whatsapp] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
+			foregroundHint:
+				"[whatsapp] use `cline connect whatsapp -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch WhatsApp connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -597,7 +625,9 @@ class WhatsAppConnector extends ConnectorBase<
 			thread: Thread<WhatsAppThreadState>,
 			text: string,
 		) => {
-			const queueKey = thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -622,6 +652,7 @@ class WhatsAppConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						getSessionMetadata: (currentThread, _clientId, currentState) => ({
 							userName: options.userName,
@@ -698,9 +729,7 @@ class WhatsAppConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {

@@ -13,12 +13,18 @@ const gatewayMock = vi.hoisted(() => {
 	};
 });
 
-vi.mock("@cline/llms", () => ({
+vi.mock("@cline/llms", async (importOriginal) => ({
 	createGateway: gatewayMock.createGateway,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID: {},
 	hasRegisteredHandler: gatewayMock.hasRegisteredHandler,
 	createHandlerAsync: gatewayMock.createHandlerAsync,
 	normalizeProviderId: (id: string) => id,
+	// Capability translation is the behaviour under test in the gateway model
+	// assertions below, so use the real translator rather than a stub that
+	// would re-implement (and could disagree with) it.
+	toGatewayModelCapabilities: (
+		await importOriginal<typeof import("@cline/llms")>()
+	).toGatewayModelCapabilities,
 }));
 
 describe("createAgentModelFromConfig", () => {
@@ -142,6 +148,10 @@ describe("createAgentModelFromConfig", () => {
 						contextWindow: 1_000_000,
 						maxInputTokens: 1_000_000,
 						maxTokens: 65_536,
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
 						capabilities: [
 							"tools",
 							"reasoning",
@@ -180,6 +190,10 @@ describe("createAgentModelFromConfig", () => {
 			contextWindow: 1_000_000,
 			maxInputTokens: 1_000_000,
 			maxOutputTokens: 65_536,
+			modalities: {
+				input: ["text", "image"],
+				output: ["text", "image"],
+			},
 			capabilities: expect.arrayContaining([
 				"text",
 				"tools",
@@ -264,6 +278,79 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards the workspace cwd as a Claude Code gateway provider option", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+						cwd: "/home/user/project/packages/app",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project/packages/app",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("falls back to the workspace root when no cwd is set for Claude Code", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
 	it("forwards Vertex GCP settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
@@ -296,6 +383,152 @@ describe("createAgentModelFromConfig", () => {
 							location: "global",
 							region: "global",
 						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("forwards a caller-supplied timeout to the gateway provider config", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "minimax-m3:cloud",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "minimax-m3:cloud",
+					timeoutMs: 180000,
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						timeoutMs: 180000,
+					}),
+				],
+			}),
+		);
+	});
+
+	it("projects providers.json contextWindow (maxInputTokens) onto the selected gateway model", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "llama3.1",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "llama3.1",
+					// Where ProviderSettings.contextWindow lands via toProviderConfig.
+					maxInputTokens: 8192,
+					knownModels: {
+						"llama3.1": {
+							id: "llama3.1",
+							name: "llama3.1",
+							contextWindow: 131072,
+						},
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						models: [
+							expect.objectContaining({
+								id: "llama3.1",
+								contextWindow: 8192,
+								maxInputTokens: 8192,
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it("surfaces a caller-supplied modelInfo for the selected model as a gateway model definition", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "minimax-m3:cloud",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "minimax-m3:cloud",
+					modelInfo: {
+						id: "minimax-m3:cloud",
+						name: "minimax-m3:cloud",
+						contextWindow: 500000,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						models: [
+							expect.objectContaining({
+								id: "minimax-m3:cloud",
+								contextWindow: 500000,
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it("ignores a caller-supplied modelInfo for a different model id", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "ollama",
+				modelId: "llama3.1",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "ollama",
+					modelId: "llama3.1",
+					modelInfo: {
+						id: "some-other-model",
+						contextWindow: 500000,
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "ollama",
+						models: undefined,
 					}),
 				],
 			}),
@@ -363,7 +596,9 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+		const model = provider.operations.language(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;

@@ -16,7 +16,8 @@ import {
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { getMcpManagerEntryStatus } from "../components/dialogs/mcp-manager-dialog";
 import { resolveModelDisplayName } from "../components/status-bar";
-import { getModeAccent, palette } from "../palette";
+import { useDialogPalette, useThemeController } from "../hooks/use-theme";
+import { type DialogPalette, getThemeDefinition } from "../themes";
 import {
 	type ConfigAction,
 	canDeleteConfigFooterRow,
@@ -24,6 +25,8 @@ import {
 	getAdjacentConfigTab,
 	getConfigFooterText,
 	getConfigItemDisplayName,
+	getConfigPluginSections,
+	getConfigTabCountHeading,
 	getConfigTabs,
 	getPluginDiagnosticsLoadingText,
 	isInlineConfigAction,
@@ -33,6 +36,7 @@ import {
 	resolveConfigItemSelectAction,
 	resolveConfigItemToggleAction,
 	resolveInitialConfigTab,
+	shouldRenderConfigItemAsEnabled,
 	toTabLabel,
 } from "./config-view-helpers";
 
@@ -116,11 +120,13 @@ function getVisibleWindow<T>(
 	return { items: items.slice(start, end), startIndex: start };
 }
 
-const COMPACTION_MODE_COLORS: Record<CliCompactionMode, string> = {
-	agentic: palette.success,
-	basic: "yellow",
-	off: "gray",
-};
+function getCompactionModeColor(
+	mode: CliCompactionMode,
+	palette: DialogPalette,
+): string {
+	if (mode === "agentic") return palette.success;
+	return mode === "basic" ? "yellow" : "gray";
+}
 
 export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	config: Config;
@@ -295,6 +301,16 @@ function appendSkillRows(
 	}
 }
 
+function appendPluginRows(
+	rows: ConfigRow[],
+	items: InteractiveConfigItem[],
+): void {
+	for (const section of getConfigPluginSections(items)) {
+		rows.push({ kind: "head", label: section.label });
+		appendExtRows(rows, section.items);
+	}
+}
+
 function withOptimisticToggle(
 	data: InteractiveConfigData,
 	item: InteractiveConfigItem,
@@ -406,6 +422,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [togglingItemId, setTogglingItemId] = useState<string | null>(null);
 	const [toggleError, setToggleError] = useState<string | undefined>();
 	const [navPos, setNavPos] = useState(0);
+	const themeController = useThemeController();
+	const palette = useDialogPalette();
+	const currentThemeLabel =
+		getThemeDefinition(themeController.selectedThemeId)?.label ?? "Auto";
 
 	const displayName = resolveModelDisplayName(config);
 
@@ -459,6 +479,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			r.push({ kind: "provider" });
 			r.push({ kind: "model" });
 			r.push({ kind: "toggle", id: "mode", label: "Mode" });
+			r.push({ kind: "toggle", id: "theme", label: "Theme" });
 			r.push({ kind: "toggle", id: "compaction", label: "Compaction" });
 			r.push({
 				kind: "toggle",
@@ -469,10 +490,13 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 			r.push({ kind: "toggle", id: "verbose", label: "Verbose" });
 		} else {
 			const activeItems = resolveActiveConfigItems(configData, activeTab);
-			r.push({
-				kind: "head",
-				label: `${toTabLabel(activeTab)} (${activeItems.length})`,
-			});
+			const countHeading = getConfigTabCountHeading(
+				activeTab,
+				activeItems.length,
+			);
+			if (countHeading) {
+				r.push({ kind: "head", label: countHeading });
+			}
 
 			if (activeItems.length === 0 && !pluginToolsLoading) {
 				r.push({
@@ -496,6 +520,21 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 				}
 			} else if (activeTab === "skills") {
 				appendSkillRows(r, activeItems);
+			} else if (activeTab === "plugins") {
+				appendPluginRows(r, activeItems);
+				if (pluginToolsLoading) {
+					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
+					r.push({
+						kind: "detail",
+						text: loadingText ?? "Loading plugin diagnostics...",
+					});
+				}
+				if (pluginToolsError) {
+					r.push({
+						kind: "detail",
+						text: pluginToolsError,
+					});
+				}
 			} else {
 				for (const item of activeItems) {
 					r.push({
@@ -513,19 +552,6 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 										lastError: item.loadError,
 									})
 								: getPluginLoadErrorLabel(item),
-					});
-				}
-				if (activeTab === "plugins" && pluginToolsLoading) {
-					const loadingText = getPluginDiagnosticsLoadingText(activeTab);
-					r.push({
-						kind: "detail",
-						text: loadingText ?? "Loading plugin diagnostics...",
-					});
-				}
-				if (activeTab === "plugins" && pluginToolsError) {
-					r.push({
-						kind: "detail",
-						text: pluginToolsError,
 					});
 				}
 			}
@@ -600,6 +626,9 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 					case "mode":
 						setMode(mode === "plan" ? "act" : "plan");
 						props.onToggleMode();
+						break;
+					case "theme":
+						resolve({ kind: "open-theme" });
 						break;
 					case "auto-approve":
 						setAutoApprove(!autoApprove);
@@ -813,7 +842,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						let valueColor: string;
 						if (row.id === "mode") {
 							value = mode === "plan" ? "Plan" : "Act";
-							valueColor = getModeAccent(mode);
+							valueColor = mode === "plan" ? palette.plan : palette.act;
+						} else if (row.id === "theme") {
+							value = currentThemeLabel;
+							valueColor = palette.act;
 						} else if (row.id === "auto-approve") {
 							value = autoApprove ? "● on" : "○ off";
 							valueColor = autoApprove ? palette.success : "gray";
@@ -822,7 +854,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 							valueColor = autoUpdateEnabled ? palette.success : "gray";
 						} else if (row.id === "compaction") {
 							value = formatCliCompactionMode(compactionMode);
-							valueColor = COMPACTION_MODE_COLORS[compactionMode];
+							valueColor = getCompactionModeColor(compactionMode, palette);
 						} else {
 							value = verbose ? "● on" : "○ off";
 							valueColor = verbose ? palette.success : "gray";
@@ -857,11 +889,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 											: "○ "
 								: "";
 						const rightLabel = row.rightLabel ?? "";
-						const toggleable = isToggleableConfigItem(row.item);
 						const prefix = " ".repeat(row.indent ?? 0);
 						const rowColor = row.item.loadError
 							? "red"
-							: toggleable && enabledState === "enabled"
+							: shouldRenderConfigItemAsEnabled(row.item, enabledState)
 								? palette.success
 								: enabledState === "partial"
 									? "yellow"

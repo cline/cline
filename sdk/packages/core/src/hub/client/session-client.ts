@@ -1,10 +1,20 @@
 import type * as LlmsProviders from "@cline/llms";
 import type {
+	AgendaAutomationPolicy,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
 	ChatStartSessionResponse,
 	ChatTurnResult,
+	HubCommandInput,
+	HubCommandOutput,
 	HubEventEnvelope,
+	HubSessionSearchHit,
+	HubTaskCreateInput,
+	HubTaskUpdateInput,
+	HubTypedCommandName,
 	TeamProgressProjectionEvent,
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
@@ -29,6 +39,8 @@ export interface HubSessionClientOptions {
 export interface HubSessionRow {
 	sessionId: string;
 	parentSessionId?: string;
+	/** Hub runtime status when the server provided one. */
+	status?: string;
 	metadata?: Record<string, unknown>;
 	messagesPath?: string;
 }
@@ -57,7 +69,7 @@ export interface HubRestoreResponse {
 		manifestPath: string;
 		messagesPath: string;
 	};
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 }
 
@@ -97,6 +109,7 @@ function extractSessionRow(
 			typeof metadata?.parentSessionId === "string"
 				? metadata.parentSessionId
 				: undefined,
+		status: typeof session.status === "string" ? session.status : undefined,
 		messagesPath:
 			typeof metadata?.messagesPath === "string"
 				? metadata.messagesPath
@@ -205,6 +218,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.text_delta",
 				payload,
 			};
+		case "assistant.media":
+			return {
+				sessionId,
+				eventType: "runtime.chat.media",
+				payload,
+			};
 		case "usage.updated":
 			return {
 				sessionId,
@@ -221,6 +240,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_start",
+				payload,
+			};
+		case "tool.updated":
+			return {
+				sessionId,
+				eventType: "runtime.chat.tool_call_update",
 				payload,
 			};
 		case "tool.finished":
@@ -292,6 +317,18 @@ export class HubSessionClient {
 		await this.ensureMetadataApplied();
 	}
 
+	private async taskCommand<TCommand extends HubTypedCommandName>(
+		command: TCommand,
+		input: HubCommandInput<TCommand>,
+	): Promise<HubCommandOutput<TCommand>> {
+		await this.ensureMetadataApplied();
+		const reply = await this.client.command(
+			command,
+			input as unknown as Record<string, unknown>,
+		);
+		return (reply.payload ?? {}) as HubCommandOutput<TCommand>;
+	}
+
 	close(): void {
 		this.client.close();
 	}
@@ -322,6 +359,7 @@ export class HubSessionClient {
 				enableSpawnAgent: request.enableSpawn !== false,
 				enableAgentTeams: request.enableTeams !== false,
 				disableMcpSettingsTools: request.disableMcpSettingsTools,
+				agentPluginPaths: request.agentPluginPaths,
 				missionLogIntervalSteps: request.missionStepInterval,
 				missionLogIntervalMs: request.missionTimeIntervalMs,
 			},
@@ -433,7 +471,9 @@ export class HubSessionClient {
 		return extractSessionRow(reply.payload);
 	}
 
-	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
+	async readMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -448,7 +488,9 @@ export class HubSessionClient {
 			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
 		}
 		const messages = reply.payload?.messages;
-		return Array.isArray(messages) ? (messages as LlmsProviders.Message[]) : [];
+		return Array.isArray(messages)
+			? (messages as LlmsProviders.MessageWithMetadata[])
+			: [];
 	}
 
 	async restore(input: HubRestoreRequest): Promise<HubRestoreResponse> {
@@ -486,6 +528,7 @@ export class HubSessionClient {
 								enableSpawnAgent: request.enableSpawn !== false,
 								enableAgentTeams: request.enableTeams !== false,
 								disableMcpSettingsTools: request.disableMcpSettingsTools,
+								agentPluginPaths: request.agentPluginPaths,
 								missionLogIntervalSteps: request.missionStepInterval,
 								missionLogIntervalMs: request.missionTimeIntervalMs,
 							},
@@ -556,6 +599,18 @@ export class HubSessionClient {
 		return sessions
 			.map((session) => extractSessionRow({ session }))
 			.filter((row): row is HubSessionRow => Boolean(row?.sessionId));
+	}
+
+	async searchSessions(input: {
+		query: string;
+		limit?: number;
+		workspaceRoot?: string;
+	}): Promise<HubSessionSearchHit[]> {
+		await this.ensureMetadataApplied();
+		const reply = await this.client.command("session.search", input);
+		return Array.isArray(reply.payload?.hits)
+			? (reply.payload.hits as unknown as HubSessionSearchHit[])
+			: [];
 	}
 
 	async deleteSession(
@@ -736,5 +791,70 @@ export class HubSessionClient {
 		return Array.isArray(reply.payload?.upcoming)
 			? (reply.payload?.upcoming as Array<Record<string, unknown>>)
 			: [];
+	}
+
+	async createTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.create", input);
+		return result.task;
+	}
+
+	async listTasks(
+		input: AgendaTaskListInput = {},
+	): Promise<AgendaTaskRecord[]> {
+		const result = await this.taskCommand("task.list", input);
+		return Array.isArray(result.tasks) ? result.tasks : [];
+	}
+
+	async getTask(taskId: string): Promise<AgendaTaskRecord | undefined> {
+		const result = await this.taskCommand("task.get", { taskId });
+		return result.task;
+	}
+
+	async updateTask(input: HubTaskUpdateInput): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.update", input);
+		return result.task;
+	}
+
+	async approveTask(
+		taskId: string,
+		expectedRevision: number,
+	): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.approve", {
+			taskId,
+			expectedRevision,
+		});
+		return result.task;
+	}
+
+	async cancelTask(
+		taskId: string,
+		expectedRevision: number,
+		reason?: string,
+	): Promise<AgendaTaskRecord> {
+		const result = await this.taskCommand("task.cancel", {
+			taskId,
+			reason,
+			expectedRevision,
+		});
+		return result.task;
+	}
+
+	async runTask(
+		taskId: string,
+		expectedRevision: number,
+	): Promise<{ task: AgendaTaskRecord; run?: AgendaTaskRunRecord }> {
+		return await this.taskCommand("task.run", { taskId, expectedRevision });
+	}
+
+	async getTaskAutomation(): Promise<AgendaAutomationPolicy> {
+		const result = await this.taskCommand("task.automation.get", {});
+		return result.policy;
+	}
+
+	async setTaskAutomation(
+		policy: Omit<AgendaAutomationPolicy, "updatedAt">,
+	): Promise<AgendaAutomationPolicy> {
+		const result = await this.taskCommand("task.automation.set", { policy });
+		return result.policy;
 	}
 }

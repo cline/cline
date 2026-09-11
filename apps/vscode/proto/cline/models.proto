@@ -130,11 +130,13 @@ message OpenRouterModelInfo {
 //    strings are silently dropped by the host. The array is additive over
 //    the base metadata; the explicit supports_* booleans win when both are
 //    present.
-//  - `is_r1_format_required` is a legacy alias that forces the R1 chat
-//    format only when true; `api_format` is canonical.
 //  - Invalid numbers (non-positive token limits, negative prices or
 //    temperature, non-finite values) are silently discarded, not rejected.
 message ModelOverrides {
+  // Field 15 was the removed legacy `is_r1_format_required` alias.
+  reserved 15;
+  reserved "is_r1_format_required";
+
   optional string name = 1;
   optional int64 max_tokens = 2;
   optional int64 context_window = 3;
@@ -149,7 +151,6 @@ message ModelOverrides {
   optional double cache_writes_price = 12;
   optional double temperature = 13;
   optional ApiFormat api_format = 14;
-  optional bool is_r1_format_required = 15;
 }
 
 // Shared response message for model information
@@ -252,6 +253,9 @@ message ProviderConfigResponse {
   optional CommittedModelSelection act_selection = 11;
   optional AwsProviderConfig aws = 12;
   optional GcpProviderConfig gcp = 13;
+  // Provider-level context window (providers.json `contextWindow`). Used by
+  // bring-your-own-model providers (e.g. Ollama, where it maps to num_ctx).
+  optional int32 context_window = 14;
 }
 
 message CommittedModelSelection {
@@ -280,6 +284,8 @@ message WriteProviderConfigPatch {
   optional bool clear_headers = 10;
   optional AwsProviderConfig aws = 11;
   optional GcpProviderConfig gcp = 12;
+  // Provider-level context window; 0 clears the setting.
+  optional int32 context_window = 13;
 }
 
 message WriteProviderConfigRequest {
@@ -621,6 +627,10 @@ enum ApiFormat {
 
 // Model info for OpenAI-compatible models
 message OpenAiCompatibleModelInfo {
+  // Field 14 was the removed legacy `is_r1_format_required` flag.
+  reserved 14;
+  reserved "is_r1_format_required";
+
   optional int64 max_tokens = 1;
   optional int64 context_window = 2;
   optional bool supports_images = 3;
@@ -634,7 +644,6 @@ message OpenAiCompatibleModelInfo {
   optional string description = 11;
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
-  optional bool is_r1_format_required = 14;
   optional ApiFormat api_format = 15;
 }
 

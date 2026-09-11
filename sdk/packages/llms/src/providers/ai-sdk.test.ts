@@ -218,11 +218,66 @@ describe("ai-sdk usage normalization", () => {
 	});
 
 	describe("cost extraction with pricing fallback", () => {
-		it("uses market_cost when available (Vercel)", () => {
-			const vercelUsage = (fixtures as Record<string, unknown>)
-				.vercel_stream_usage as Record<string, unknown>;
-			const normalized = normalizeUsage(vercelUsage);
-			expect(normalized.totalCost).toBe(0.000641);
+		it.each([
+			["cline-pass", "included-model", { input: 3, output: 15 }],
+			["cline", "cline-pass/included-model", undefined],
+			["cline", "cline-free/free-model", undefined],
+			["cline", "vendor/model:free", undefined],
+			["cline", "vendor/promotional-model", { input: 0, output: 0 }],
+		])("zeros included usage for %s/%s", (providerId, modelId, pricing) => {
+			for (const raw of [
+				undefined,
+				{
+					cost: 0.5,
+					market_cost: 1,
+					cost_details: { upstream_inference_cost: 2 },
+				},
+			]) {
+				expect(
+					normalizeUsage(
+						{ inputTokens: 1000, outputTokens: 100, raw },
+						undefined,
+						pricing,
+						{ providerId, modelId },
+					),
+				).toMatchObject({ inputTokens: 1000, outputTokens: 100, totalCost: 0 });
+			}
+		});
+
+		it.each([
+			"cline",
+			"openrouter",
+		])("preserves paid usage for %s", (providerId) => {
+			expect(
+				normalizeUsage(
+					{ inputTokens: 1000, outputTokens: 100, cost: 0.5 },
+					undefined,
+					{ input: 3, output: 15 },
+					{ providerId, modelId: "vendor/paid-model" },
+				).totalCost,
+			).toBe(0.5);
+		});
+
+		it("prefers billed cost over market_cost when Vercel applies a discount", () => {
+			const normalized = normalizeUsage({
+				inputTokens: 11,
+				outputTokens: 5,
+				raw: {
+					cost: 0.0001025,
+					market_cost: 0.000205,
+					cost_details: { upstream_inference_cost: null },
+				},
+			});
+			expect(normalized.totalCost).toBe(0.0001025);
+		});
+
+		it("uses market_cost when billed cost is unavailable", () => {
+			const normalized = normalizeUsage({
+				inputTokens: 11,
+				outputTokens: 5,
+				raw: { market_cost: 0.000205 },
+			});
+			expect(normalized.totalCost).toBe(0.000205);
 		});
 
 		it("sums BYOK fee + upstream provider cost when OpenRouter marks the request as BYOK", () => {

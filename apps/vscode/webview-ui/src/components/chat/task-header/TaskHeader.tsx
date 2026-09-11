@@ -14,6 +14,7 @@ import NewTaskButton from "./buttons/NewTaskButton"
 import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import ContextWindow from "./ContextWindow"
 import { highlightText } from "./Highlights"
+import TaskWorkingDirectoryBadge from "./TaskWorkingDirectoryBadge"
 
 const IS_DEV = process.env.IS_DEV === "true"
 interface TaskHeaderProps {
@@ -49,6 +50,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
 		environment,
+		workspaceRoots,
+		platform,
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
@@ -89,8 +92,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	// Local providers report no cost; the openai-compatible provider can
 	// report cost only when the user has supplied both prices. For every
 	// other provider, the SDK is the source of truth for whether to render
-	// per-task cost: providers with `metadata.usageCostDisplay = "hide"`
-	// (e.g. ChatGPT Plus/Pro subscription) are filtered out here. This
+	// per-task cost: any `metadata.usageCostDisplay` other than "show" —
+	// "hide", or "subscription" for flat-rate providers like ClinePass and
+	// ChatGPT Plus/Pro where the computed figure would be an API-rate
+	// estimate rather than a real charge — suppresses the cost here. This
 	// mirrors the CLI's `shouldShowCliUsageCost` consumer and removes the
 	// previous extension-side hard-coded "openai-codex" check.
 	const usageCostDisplay = useProviderUsageCostDisplay(modeFields.apiProvider)
@@ -102,7 +107,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		(modeFields.apiProvider !== "vscode-lm" &&
 			modeFields.apiProvider !== "ollama" &&
 			modeFields.apiProvider !== "lmstudio" &&
-			usageCostDisplay !== "hide")
+			usageCostDisplay === "show")
 
 	// Event handlers
 	const toggleTaskExpanded = useCallback(() => setIsTaskExpanded(!isTaskExpanded), [setIsTaskExpanded, isTaskExpanded])
@@ -161,6 +166,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 					</div>
 					<div className="inline-flex items-center justify-end select-none shrink-0">
+						<TaskWorkingDirectoryBadge
+							platform={platform}
+							taskCwd={currentTaskItem?.cwdOnTaskInitialization}
+							workspaceRoots={workspaceRoots}
+						/>
 						{isCostAvailable && (
 							<div
 								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"

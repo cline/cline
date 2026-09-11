@@ -4,6 +4,7 @@ import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import "should"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
+import * as getLatestOutputModule from "./get-latest-output"
 import { VscodeTerminalProcess } from "./VscodeTerminalProcess"
 import { TerminalRegistry } from "./VscodeTerminalRegistry"
 
@@ -245,8 +246,10 @@ describe("TerminalProcess (Integration Tests)", () => {
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
 
-		// This event should be emitted for terminals without shell integration
-		;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+		;(emitSpy as sinon.SinonSpy)
+			.calledWith("unobserved_command", { source: "sendText", ownership: "managed" })
+			.should.be.true()
+		process.getCompletionDetails().unobservedCommand?.should.eql({ source: "sendText", ownership: "managed" })
 	})
 
 	// The following tests require shell integration and controlled terminal output
@@ -311,6 +314,34 @@ describe("TerminalProcess (Integration Tests)", () => {
 			await runPromise
 
 			process.getCompletionDetails().exitCode?.should.equal(1)
+		})
+
+		it("completes when the shell execution ends while the read stream remains open", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			const mockExecution = { read: () => createHangingStream([OSC633_C, "test output\n"]) }
+			const mockExecuteCommand = sandbox.stub().returns(mockExecution)
+			sandbox.stub(terminal, "shellIntegration").get(() => ({ executeCommand: mockExecuteCommand }))
+
+			let endListener: ((e: vscode.TerminalShellExecutionEndEvent) => unknown) | undefined
+			sandbox.stub(vscode.window, "onDidEndTerminalShellExecution").callsFake((listener) => {
+				endListener = listener
+				return { dispose: () => {} }
+			})
+
+			const emitSpy = sandbox.spy(process, "emit")
+			const runPromise = process.run(terminal, "echo test")
+			await sandbox.clock.tickAsync(0)
+
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.false()
+			endListener?.({ terminal, execution: mockExecution, exitCode: 0 } as unknown as vscode.TerminalShellExecutionEndEvent)
+			await runPromise
+
+			;(emitSpy as sinon.SinonSpy).calledWith("line", "test output").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			process.getCompletionDetails().exitCode?.should.equal(0)
 		})
 
 		it("falls back to no exit code when onDidEndTerminalShellExecution never fires", async () => {
@@ -530,7 +561,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			// The buffered pre-C output is emitted as fallback output
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "remote output").should.be.true()
 			// The terminal must be evicted from the reuse pool
-			;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+			;(emitSpy as sinon.SinonSpy)
+				.calledWith("unobserved_command", { source: "markerlessShellIntegration", ownership: "managed" })
+				.should.be.true()
 		})
 
 		it("should complete after the max quiet time even without a prompt", async () => {
@@ -549,7 +582,9 @@ describe("TerminalProcess (Integration Tests)", () => {
 			await runPromise
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
-			;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.true()
+			;(emitSpy as sinon.SinonSpy)
+				.calledWith("unobserved_command", { source: "markerlessShellIntegration", ownership: "managed" })
+				.should.be.true()
 		})
 
 		it("should complete when no data ever arrives", async () => {
@@ -604,7 +639,74 @@ describe("TerminalProcess (Integration Tests)", () => {
 			;(emitSpy as sinon.SinonSpy).calledWith("line", "build finished").should.be.true()
 			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 			// Shell integration worked — the terminal stays reusable
-			;(emitSpy as sinon.SinonSpy).calledWith("no_shell_integration").should.be.false()
+			;(emitSpy as sinon.SinonSpy).calledWith("unobserved_command").should.be.false()
+		})
+
+		it("should report a silent command with the C marker as a success, not a capture failure", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// A command that completes with exit 0 and no output — $null,
+			// git add -A on a clean tree. The C marker proves the read() stream
+			// worked, so the emptiness is genuine (GitHub #13272).
+			const mockExecuteCommand = sandbox.stub().returns({
+				read: () => createMockStream([OSC633_C, OSC633_D]),
+			})
+			sandbox.stub(terminal, "shellIntegration").get(() => ({
+				executeCommand: mockExecuteCommand,
+			}))
+
+			// If the capture-failure fallback fired, it would read the terminal
+			// snapshot and emit a "could not be captured" line.
+			const snapshotStub = sandbox.stub(getLatestOutputModule, "getLatestTerminalOutput").resolves("should-not-be-used")
+			const emitSpy = sandbox.spy(process, "emit")
+			const runPromise = process.run(terminal, "$null")
+
+			// The mock never fires onDidEndTerminalShellExecution, so the
+			// exit-code race after the stream ends always times out.
+			await sandbox.clock.tickAsync(EXIT_CODE_EVENT_TIMEOUT_MS + 1_000)
+			await runPromise
+
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("continue").should.be.true()
+			// The only permitted "line" event is the empty start-of-output
+			// notification the UI spinner relies on — no content, and critically
+			// no "could not be captured" fallback message, may be emitted.
+			const lineEvents = (emitSpy as sinon.SinonSpy).args
+				.filter(([event]) => event === "line")
+				.map(([, line]) => String(line ?? ""))
+			lineEvents.every((line) => line === "").should.be.true()
+			;(emitSpy as sinon.SinonSpy).calledWith("unobserved_command").should.be.false()
+			;(snapshotStub as sinon.SinonStub).called.should.be.false()
+		})
+
+		it("should still use the terminal snapshot fallback when neither markers nor output arrive", async () => {
+			const terminal = TerminalRegistry.createTerminal().terminal
+			createdTerminals.push(terminal)
+
+			// No C marker ever arrives, so an empty output cannot be trusted as
+			// a silent success — the capture-failure fallback must still fire.
+			stubHangingShellIntegration(terminal, [])
+
+			const snapshotStub = sandbox
+				.stub(getLatestOutputModule, "getLatestTerminalOutput")
+				.resolves("terminal snapshot content")
+			const emitSpy = sandbox.spy(process, "emit")
+			const runPromise = process.run(terminal, "some-command")
+
+			// No data ever: the first idle timeout (10s) with prompt-stepped
+			// idle checks up to the 30s cap. Add slack for the exit-code race.
+			await sandbox.clock.tickAsync(60_000)
+			await runPromise
+
+			;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
+			// The fallback message must reach the agent with the snapshot.
+			const fallbackLines = (emitSpy as sinon.SinonSpy).args
+				.filter(([event]) => event === "line")
+				.map(([, line]) => String(line))
+			fallbackLines.should.matchAny(/could not be captured through shell integration/)
+			fallbackLines.should.matchAny(/terminal snapshot content/)
+			;(snapshotStub as sinon.SinonStub).called.should.be.true()
 		})
 
 		it("should complete when the terminal closes mid-command", async () => {
@@ -692,6 +794,43 @@ describe("TerminalProcess (Integration Tests)", () => {
 
 		processAny.emitIfEol(" continued\n")
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 3 continued").should.be.true()
+		processAny.buffer.should.equal("")
+	})
+
+	it("detach emits continue but keeps line listeners attached and listening", () => {
+		const processAny = process as any
+		const continueEvents: number[] = []
+		const lines: string[] = []
+		process.on("continue", () => continueEvents.push(1))
+		process.on("line", (line) => lines.push(line))
+
+		process.detach()
+		continueEvents.length.should.equal(1)
+
+		// Unlike continue(), detach must not stop listening or drop 'line'
+		// listeners: output after detach still reaches subscribers (this is
+		// what streams the rest of a detached command to the log file).
+		processAny.isListening.should.be.true()
+		processAny.emitIfEol("after detach\n")
+		lines.should.containEql("after detach")
+	})
+
+	it("detach flushes a buffered partial line before emitting continue", () => {
+		const processAny = process as any
+		const events: string[] = []
+		process.on("continue", () => events.push("continue"))
+		process.on("line", (line) => events.push(`line:${line}`))
+
+		// A chunk with no trailing newline stays in the internal buffer.
+		processAny.emitIfEol("partial output")
+		processAny.buffer.should.equal("partial output")
+
+		process.detach()
+
+		// The partial line must reach listeners before 'continue' resolves the
+		// awaited promise; otherwise it is missing from the partial output and
+		// from the log's initial flush.
+		events.should.eql(["line:partial output", "continue"])
 		processAny.buffer.should.equal("")
 	})
 })

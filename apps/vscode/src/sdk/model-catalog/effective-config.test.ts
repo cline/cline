@@ -54,7 +54,27 @@ describe("buildEffectiveProviderConfig", () => {
 			providerId: parseProviderId("ollama"),
 			apiKey: "provider-ollama-key",
 			baseUrl: "http://state-ollama:11434",
-			extras: { ollamaApiOptionsCtxNum: "8192" },
+			// The legacy state string surfaces as the provider-neutral
+			// contextWindow when providers.json has none.
+			contextWindow: 8192,
+		})
+	})
+
+	it("prefers the providers.json contextWindow over the legacy Ollama state key", async () => {
+		const { buildEffectiveProviderConfig } = await import("./effective-config")
+		mocks.setProviderSettings({
+			ollama: {
+				provider: "ollama",
+				contextWindow: 65536,
+			},
+		})
+		mocks.setApiConfiguration({
+			ollamaApiOptionsCtxNum: "8192",
+		})
+
+		expect(buildEffectiveProviderConfig(parseProviderId("ollama"))).toEqual({
+			providerId: parseProviderId("ollama"),
+			contextWindow: 65536,
 		})
 	})
 

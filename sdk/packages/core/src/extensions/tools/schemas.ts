@@ -18,7 +18,9 @@ const AbsolutePath = z
 
 export const ReadFileLineRangeSchema = z
 	.object({
-		start_line: z
+		// Models sometimes emit line numbers as strings; coerce so a `"3"` does not
+		// reject the whole tool call. The advertised JSON Schema is unaffected.
+		start_line: z.coerce
 			.number()
 			.int()
 			.positive()
@@ -27,7 +29,7 @@ export const ReadFileLineRangeSchema = z
 			.describe(
 				"Optional one-based starting line number to read from; use null or omit for the start of the file",
 			),
-		end_line: z
+		end_line: z.coerce
 			.number()
 			.int()
 			.positive()
@@ -207,7 +209,8 @@ export const EditFileInputSchema = z
 			.describe(
 				`The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided. Keep this at or below ${INPUT_ARG_CHAR_LIMIT} characters when possible; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.`,
 			),
-		insert_line: z
+		// See start_line above: coerced so a stringified line number still applies.
+		insert_line: z.coerce
 			.number()
 			.int()
 			.nullable()

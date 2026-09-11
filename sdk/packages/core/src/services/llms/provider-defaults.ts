@@ -164,12 +164,14 @@ async function mergeKnownModels(
 	// For providers with a registered public model source (Ollama, LM Studio),
 	// the live response is the authoritative list of what the user has
 	// actually installed. Skip the bundled catalog so the picker doesn't
-	// show models that aren't downloaded.
+	// show models that aren't downloaded — even when the live fetch fails or
+	// returns nothing. Falling back to the bundled (cloud) catalog here would
+	// auto-select a model the user never installed (e.g. Ollama silently
+	// defaulting to a cloud nemotron model when the local server is down).
 	const hasPublicModelSource = Boolean(
 		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider.modelsSourceUrl,
 	);
-	const publicHasResults = Object.keys(publicModels).length > 0;
-	if (hasPublicModelSource && publicHasResults) {
+	if (hasPublicModelSource) {
 		return Llms.sortModelsByReleaseDate({
 			...publicModels,
 			...userKnownModels,
@@ -203,14 +205,18 @@ async function mergeKnownModels(
 
 	if (providerId === "cline") {
 		// Cline recommendations can use Vercel-style ids while the broader
-		// catalog includes OpenRouter aliases for the same models.
-		return Llms.sortModelsByReleaseDate({
-			...Llms.preferCanonicalModelIds(
-				knownModelsWithoutUserOverrides,
-				Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
-			),
-			...userKnownModels,
-		});
+		// catalog includes OpenRouter aliases for the same models. Image-output
+		// models are temporarily unavailable through Cline's inference backend,
+		// so filter them only at the Cline catalog boundary.
+		return Llms.sortModelsByReleaseDate(
+			Llms.filterImageOutputModels({
+				...Llms.preferCanonicalModelIds(
+					knownModelsWithoutUserOverrides,
+					Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+				),
+				...userKnownModels,
+			}),
+		);
 	}
 
 	return Llms.sortModelsByReleaseDate({
@@ -652,6 +658,17 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	poolside: fetchPoolsidePrivateModels,
 };
 
+/**
+ * Whether a provider's model catalog comes from the customer's configured
+ * endpoint rather than a shared public catalog.
+ *
+ * Keep this derived from the fetcher registry so host consumers cannot drift
+ * from the providers whose live metadata is endpoint-specific.
+ */
+export function isPrivateModelCatalogProvider(providerId: string): boolean {
+	return Object.hasOwn(PRIVATE_PROVIDER_MODEL_FETCHERS, providerId);
+}
+
 const PUBLIC_MODELS_CACHE = new Map<
 	string,
 	{ data: Record<string, ModelInfo>; expiresAt: number }
@@ -795,44 +812,73 @@ async function getPrivateProviderModels(
 
 async function fetchLiveModelsCatalog(
 	url: string,
+	includeClineCloudModels: boolean,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return Llms.fetchLiveProviderModels(url, globalThis.fetch);
+	// Bound both catalog sources, including response-body reads, while keeping
+	// any cancellation supplied by the source fetcher.
+	const fetchWithTimeout = Object.assign(
+		(...args: Parameters<typeof fetch>) => {
+			const [input, init] = args;
+			const timeout = AbortSignal.timeout(
+				DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
+			);
+			const signal = init?.signal
+				? AbortSignal.any([init.signal, timeout])
+				: timeout;
+			return globalThis.fetch(input, { ...init, signal });
+		},
+		globalThis.fetch,
+	);
+	return Llms.fetchLiveProviderModels(url, fetchWithTimeout, {
+		includeClineCloudModels,
+	});
 }
 
 export async function getLiveModelsCatalog(
-	options: Pick<ModelCatalogConfig, "url" | "cacheTtlMs"> = {},
+	options: Pick<
+		ModelCatalogConfig,
+		"url" | "cacheTtlMs" | "includeClineCloudModels"
+	> = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
+	const includeClineCloudModels = options.includeClineCloudModels === true;
+	const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
 	const now = Date.now();
 
-	const cached = MODELS_CATALOG_CACHE.get(url);
+	const cached = MODELS_CATALOG_CACHE.get(cacheKey);
 	if (cached && cached.expiresAt > now) {
 		return cached.data;
 	}
 
-	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(url);
+	const inFlight = MODELS_CATALOG_IN_FLIGHT.get(cacheKey);
 	if (inFlight) {
 		return inFlight;
 	}
 
-	const request = fetchLiveModelsCatalog(url)
+	const request = fetchLiveModelsCatalog(url, includeClineCloudModels)
 		.then((data) => {
-			MODELS_CATALOG_CACHE.set(url, { data, expiresAt: now + cacheTtlMs });
+			MODELS_CATALOG_CACHE.set(cacheKey, {
+				data,
+				expiresAt: now + cacheTtlMs,
+			});
 			return data;
 		})
 		.finally(() => {
-			MODELS_CATALOG_IN_FLIGHT.delete(url);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
 		});
 
-	MODELS_CATALOG_IN_FLIGHT.set(url, request);
+	MODELS_CATALOG_IN_FLIGHT.set(cacheKey, request);
 	return request;
 }
 
 export function clearLiveModelsCatalogCache(url?: string): void {
 	if (url) {
-		MODELS_CATALOG_CACHE.delete(url);
-		MODELS_CATALOG_IN_FLIGHT.delete(url);
+		for (const includeClineCloudModels of [false, true]) {
+			const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
+			MODELS_CATALOG_CACHE.delete(cacheKey);
+			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
+		}
 		return;
 	}
 

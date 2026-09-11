@@ -13,7 +13,11 @@
  * `@cline/llms` `compat.ts`.
  */
 
-import type { ApiHandler, ApiStreamChunk } from "@cline/llms";
+import {
+	type ApiHandler,
+	type ApiStreamChunk,
+	classifyProviderError,
+} from "@cline/llms";
 import type {
 	AgentModel,
 	AgentModelEvent,
@@ -28,6 +32,8 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 	switch (chunk.type) {
 		case "text":
 			return [{ type: "text-delta", text: chunk.text }];
+		case "media":
+			return [{ type: "media", media: chunk.media }];
 		case "reasoning":
 			// Thought signatures are read as `metadata.thoughtSignature` by
 			// downstream adapters (see ai-sdk format), so surface it there.
@@ -80,6 +86,13 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 					type: "finish",
 					reason: doneFinishReason(chunk),
 					error: chunk.error,
+					// Handlers report failures as an already-flattened message, so
+					// classification works from the text alone here. Keeps registered
+					// handlers (e.g. VS Code LM) eligible for the runtime's
+					// context-overflow recovery.
+					...(chunk.error
+						? { errorClass: classifyProviderError(chunk.error) }
+						: {}),
 				},
 			];
 		default:
@@ -159,10 +172,16 @@ export function createAgentModelFromApiHandler(
 				}
 			} catch (error) {
 				if (!sawFinish) {
+					const aborted = request.signal?.aborted === true;
 					yield {
 						type: "finish",
-						reason: request.signal?.aborted ? "aborted" : "error",
+						reason: aborted ? "aborted" : "error",
 						error: error instanceof Error ? error.message : String(error),
+						// Classify while the raw error is still structured — the
+						// message alone can hide the provider's detail (status codes,
+						// response bodies). Without this, an overflow rejection from a
+						// registered handler would never reach recovery.
+						...(aborted ? {} : { errorClass: classifyProviderError(error) }),
 					};
 				}
 			}

@@ -70,6 +70,20 @@ chmod +x .cline/hooks/PreToolUse.sh
 cline -i "clean up the repo"  # Destructive operations will be blocked
 ```
 
+#### `PreToolUse_ClineignoreGuard.sh`
+
+Block file reads, edits, and shell commands whose paths match gitignore-style patterns in a workspace `.clineignore` file — an enforced replacement for the legacy `.clineignore` feature. Handles both the CLI and VS Code extension hook payload shapes, and protects `.clineignore` itself from modification. See the [.clineignore docs](https://docs.cline.bot/customization/clineignore) for the full walkthrough.
+
+```bash
+mkdir -p .cline/hooks
+cp examples/hooks/PreToolUse_ClineignoreGuard.sh .cline/hooks/PreToolUse.sh
+chmod +x .cline/hooks/PreToolUse.sh
+echo ".env" >> .clineignore
+cline -i "read the .env file"  # The read is cancelled before it runs
+```
+
+For the VS Code extension, copy it to `.clinerules/hooks/PreToolUse` (no file extension) instead and check "Enable Hooks" in Cline's feature settings.
+
 #### `PreToolUse_RequireReview.sh`
 
 Require user review before certain operations (file writes to critical files).

@@ -170,6 +170,9 @@ export function computeConfigFingerprint(providerId: ProviderId, config: Effecti
 		region: config.region ?? null,
 		aws: sanitizeAws(config.aws),
 		gcp: sanitizeGcp(config.gcp),
+		// The context window is not a secret; include it raw so changes
+		// invalidate cached model lists.
+		contextWindow: config.contextWindow ?? null,
 		extras: sanitizeExtras(config.extras),
 		auth: {
 			accountId: config.auth?.accountId ?? null,

@@ -5,9 +5,13 @@ import { writeDiagnostic } from "../utils/output";
 
 /**
  * Supported ACP OAuth provider IDs.
+ *
+ * This list doubles as the set of selectable providers (see
+ * `setSessionConfigOption`)
  */
 export const ACP_AUTH_METHODS = [
 	{ id: "cline", name: "Sign in with Cline" },
+	{ id: "cline-pass", name: "Sign in with ClinePass" },
 	{ id: "openai-codex", name: "Sign in with ChatGPT Subscription" },
 ] as const;
 
@@ -30,7 +34,7 @@ async function performOAuthLogin(input: {
 	providerSettingsManager: ProviderSettingsManager;
 }): Promise<string> {
 	const [{ createOAuthClientCallbacks }, { default: open }] = await Promise.all(
-		[import("@cline/core"), import("open")],
+		[import("@cline/core"), import("../utils/open")],
 	);
 
 	const callbacks = createOAuthClientCallbacks({

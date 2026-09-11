@@ -1,5 +1,9 @@
 import type { AgentMode } from "@cline/core";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared";
+import {
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	USER_REJECTED_TOOL_REASON,
+} from "@cline/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RuntimeToolInteraction, TuiProps } from "../types";
 
@@ -36,16 +40,16 @@ function toRuntimeToolInteraction(
 	};
 }
 
-function deniedToolResult(request: ToolApprovalRequest): ToolApprovalResult {
+function deniedToolResult(): ToolApprovalResult {
 	return {
 		approved: false,
-		reason: `Tool "${request.toolName}" was denied by user`,
+		reason: USER_REJECTED_TOOL_REASON,
 	};
 }
 
 function dismissPendingInteraction(pending: PendingRuntimeToolInteraction) {
 	if (pending.kind === "tool_approval") {
-		pending.resolve(deniedToolResult(pending.request));
+		pending.resolve(deniedToolResult());
 		return;
 	}
 	pending.resolve("[User dismissed the question]");
@@ -111,9 +115,7 @@ export function useRuntimeDialogBridge(input: {
 			if (!pending || pending.id !== id || pending.kind !== "tool_approval") {
 				return;
 			}
-			pending.resolve(
-				approved ? { approved: true } : deniedToolResult(pending.request),
-			);
+			pending.resolve(approved ? { approved: true } : deniedToolResult());
 			const hasNext = finishActive(id);
 			if (!hasNext) {
 				refocusTextarea();

@@ -6,7 +6,7 @@ The production intent remains `OTEL_TRACES_EXPORTER=otlp` and
 
 ## Compilation and artifact paths
 
-Compared with upstream main `7e20bbc0e016164574169ab3cfa31701a1237d1e`:
+Integrated and compared with upstream main `632fce5071b3f6f0040748ff9dc42aec73977b91`:
 
 - Stable combined: `ext-vscode-ab-package.yml`, `Build next bundle` in
   `next-src/apps/vscode` runs `bun run package` (production esbuild).
@@ -24,11 +24,11 @@ Compared with upstream main `7e20bbc0e016164574169ab3cfa31701a1237d1e`:
 - `build:sdk` preserves literal env reads. Setting activation flags only there
   does not inline them; the consuming application compilation must do that.
 
-Only the combined workflow files were adapted from main; CLI's unrelated signing
-and release-notification changes were not imported. Current-main rollout scripts
-and client tracing prerequisites (#13974/#14070, including esbuild and CLI binary
-defines) must be integrated separately. This older activation checkout alone does
-not contain them. A missing feature must fail the smoke, not silently pass.
+The activation branch now includes current-main rollout scripts and client
+tracing prerequisites (#13974/#14070, including esbuild and CLI binary defines).
+Current-main signing, legacy packaging, and release guards are preserved; the
+activation diff only adds the intended next-bundle settings and checks. A missing
+feature must fail the smoke, not silently pass.
 
 ## Check and limitations
 
@@ -58,11 +58,11 @@ bun test ./apps/vscode/src/test/trace-packaging.test.ts ./apps/vscode/src/test/p
 
 The minified build test compiles the real SDK telemetry config in two passes and
 scans a host-native Bun executable without running it; scope/content fixture
-stand-ins do not validate the absent client implementation.
+stand-ins do not validate the full client implementation.
 Publication subprocesses in the existing nightly-script tests are mocked. No
 workflow dispatch, full runtime harness, credentials, network export or publishing
 is required by these tests. Full combined VSIX and all-platform binary checks still
-require an integrated checkout and its build dependencies.
+require their build dependencies and separate release-candidate validation.
 
 ## Local validation of the integrated implementation
 
@@ -78,5 +78,5 @@ checks direct environment reads instead of rejecting the name everywhere.
 
 These checks do not constitute a combined A/B VSIX build, cross-platform binary
 validation, or staging execution. Those release candidates must still be built
-and exercised after integrating current-main rollout prerequisites and the
-client fix; activation remains blocked until those checks and staging pass.
+and exercised using the integrated branch; activation remains blocked until
+those checks, staging validation, and separate governance approval pass.

@@ -1,4 +1,6 @@
+export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 export type {
+	GetModelsForProviderOptions,
 	ModelCollection,
 	ModelIdAliasRule,
 	ModelInfo,
@@ -6,16 +8,20 @@ export type {
 	ProviderCapability as CatalogProviderCapability,
 	ProviderClient,
 	ProviderInfo,
+	ProviderModelFilter,
 	ProviderProtocol,
 } from "./models";
 export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	filterImageOutputModels,
 	filterOpenAICodexModels,
+	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
+	getModelOverridesForProvider,
 	getModelsForProvider,
 	getProvider,
 	getProviderCollection,
@@ -59,29 +65,40 @@ export type {
 export {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	classifyProviderError,
 	createHandler,
 	createHandlerAsync,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	getGeneratedModelsForRuntimeProvider,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
 	isBuiltInProviderId,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,
 	isClineOrgIndividualInferenceSubscriptionMessage,
 	isClinePassLimitError,
 	isClinePassLimitMessage,
+	isProviderApiLine,
 	isRegisteredHandlerAsync,
 	normalizeProviderId,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+	type ProviderApiLine,
 	registerAsyncHandler,
 	registerHandler,
+	resolveProviderApiLineBaseUrl,
 } from "./providers";
 export {
 	type ProviderUsageCostDisplay,
@@ -90,6 +107,23 @@ export {
 } from "./providers/billing";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
+export {
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./providers/local-cli";
+export { toGatewayModelCapabilities } from "./providers/model-capabilities";
+export {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	builtinProviderSupportsModelOperation,
+	providerManifestSupportsModelOperation,
+	resolveModelOperation,
+} from "./providers/model-operations";
+export {
+	type ModelToolSupportInput,
+	providerManifestSupportsModelTool,
+	providerOffersModelTool,
+	supportsModelTool,
+} from "./providers/model-tools";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
 export {
 	type OpenAICodexRequestHeaderContext,
@@ -98,4 +132,23 @@ export {
 	type ResolveProviderRequestHeadersInput,
 	resolveProviderRequestHeaders,
 } from "./providers/request-headers";
+export {
+	type ClineProvider,
+	type ClineProviderOptions,
+	type ClineWebSearchInput,
+	type ClineWebSearchOptions,
+	type ClineWebSearchResult,
+	createCline,
+} from "./providers/vendors/cline";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export {
+	type AudioTranscriptionRequest,
+	type AudioTranscriptionResult,
+	type AudioTranscriptionRoute,
+	createStreamingAudioTranscriptionSession,
+	DEFAULT_TRANSCRIPTION_TIMEOUT_MS,
+	resolveAudioTranscriptionRoute,
+	type StreamingAudioTranscriptionSession,
+	type StreamingAudioTranscriptionSessionRequest,
+	transcribeAudio,
+} from "./transcription";

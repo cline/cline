@@ -9,6 +9,7 @@ export default defineConfig({
 			"sdk/packages/shared/vitest.config.ts",
 			"sdk/packages/ui/vitest.config.ts",
 			"apps/cli/vitest.config.ts",
+			"apps/examples/vscode/vitest.config.ts",
 		],
 	},
 });

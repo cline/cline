@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type {
-	AutomationEventEnvelope,
-	CronSpec,
-	CronSpecExtensionKind,
-	CronTriggerKind,
-	HubScheduleCreateInput,
-	HubScheduleUpdateInput,
+import {
+	type AutomationEventEnvelope,
+	type CronSpec,
+	type CronSpecExtensionKind,
+	type CronTriggerKind,
+	type HubScheduleCreateInput,
+	type HubScheduleUpdateInput,
+	ONE_TIME_SCHEDULE_CRON_PATTERN,
+	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
 import {
 	asOptionalString,
@@ -292,6 +294,7 @@ function jsonOrNull(value: Record<string, unknown> | undefined): string | null {
 }
 
 const MEANINGFUL_FIELD_KEYS = [
+	"triggerKind",
 	"prompt",
 	"workspaceRoot",
 	"mode",
@@ -335,6 +338,20 @@ function hasMeaningfulChange(
 			return true;
 		}
 	}
+	const oneOffTimingApplies =
+		prev.triggerKind === "one_off" || nextValues.triggerKind === "one_off";
+	const nextMetadata = nextValues.metadata as
+		| Record<string, unknown>
+		| undefined;
+	if (
+		oneOffTimingApplies &&
+		normalizeForCompare(
+			prev.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY],
+		) !==
+			normalizeForCompare(nextMetadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY])
+	) {
+		return true;
+	}
 	if (prevEnabled === false && nextEnabled === true) return true;
 	return false;
 }
@@ -347,14 +364,34 @@ function filenameStemFromPath(sourcePath: string): string {
 		.replace(/\.md$/, "");
 }
 
+const HUB_SCHEDULE_SOURCE_PATH_PREFIX = "hub/schedules/";
+
 function hubScheduleSourcePath(scheduleId: string): string {
-	return `hub/schedules/${scheduleId}.cron.md`;
+	return `${HUB_SCHEDULE_SOURCE_PATH_PREFIX}${scheduleId}.cron.md`;
+}
+
+/**
+ * DB-native hub schedules (created via the schedule tools/UI) live only in
+ * cron.db under a virtual sourcePath that never exists on disk. File-backed
+ * specs can spoof `source: hub-schedule` in frontmatter — even inside a
+ * physical `hub/schedules/` directory — but reconciliation always records
+ * their source file's mtime, which DB-native rows never have. All three
+ * markers are required to identify a DB-native hub schedule.
+ */
+export function isHubManagedSpec(
+	spec: Pick<CronSpecRecord, "source" | "sourcePath" | "sourceMtimeMs">,
+): boolean {
+	return (
+		spec.source === "hub-schedule" &&
+		spec.sourcePath.startsWith(HUB_SCHEDULE_SOURCE_PATH_PREFIX) &&
+		spec.sourceMtimeMs === undefined
+	);
 }
 
 function hubScheduleMetadata(
 	input: HubScheduleCreateInput,
 ): Record<string, unknown> | undefined {
-	const metadata = {
+	const metadata: Record<string, unknown> = {
 		...(input.metadata ?? {}),
 		...(input.createdBy ? { __hubScheduleCreatedBy: input.createdBy } : {}),
 		...(input.cwd ? { __hubScheduleCwd: input.cwd } : {}),
@@ -362,17 +399,19 @@ function hubScheduleMetadata(
 			? { __hubRuntimeOptions: input.runtimeOptions }
 			: {}),
 	};
+	if (input.cronPattern.trim() !== ONE_TIME_SCHEDULE_CRON_PATTERN) {
+		delete metadata[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+	}
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
-	return {
-		triggerKind: "schedule",
+	const oneTime = input.cronPattern.trim() === ONE_TIME_SCHEDULE_CRON_PATTERN;
+	const common = {
 		title: input.name.trim(),
 		prompt: input.prompt,
 		workspaceRoot: input.workspaceRoot.trim(),
-		schedule: input.cronPattern.trim(),
-		mode: input.mode ?? "act",
+		mode: input.mode ?? "yolo",
 		systemPrompt: input.systemPrompt,
 		modelSelection: input.modelSelection
 			? JSON.parse(JSON.stringify(input.modelSelection))
@@ -393,7 +432,18 @@ function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
 		tags: input.tags?.filter((tag) => tag.trim().length > 0),
 		enabled: input.enabled !== false,
 		metadata: hubScheduleMetadata(input),
-	} as CronSpec;
+	};
+	return oneTime
+		? {
+				...common,
+				triggerKind: "one_off",
+			}
+		: {
+				...common,
+				triggerKind: "schedule",
+				schedule: input.cronPattern.trim(),
+				timezone: input.timezone?.trim() || undefined,
+			};
 }
 
 function hubScheduleHash(input: HubScheduleCreateInput): string {
@@ -430,9 +480,27 @@ function cronSpecRecordToHubScheduleInput(
 	delete metadata.__hubScheduleCreatedBy;
 	delete metadata.__hubScheduleCwd;
 	delete metadata.__hubRuntimeOptions;
+	const cronPattern =
+		updates.cronPattern ??
+		(current.triggerKind === "one_off"
+			? ONE_TIME_SCHEDULE_CRON_PATTERN
+			: (current.scheduleExpr ?? ""));
+	const nextMetadata = {
+		...metadata,
+		...(updates.metadata ?? {}),
+	};
+	if (cronPattern.trim() !== ONE_TIME_SCHEDULE_CRON_PATTERN) {
+		delete nextMetadata[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+	}
 	return {
 		name: updates.name ?? current.title,
-		cronPattern: updates.cronPattern ?? current.scheduleExpr ?? "",
+		cronPattern,
+		timezone:
+			updates.timezone === null
+				? undefined
+				: updates.timezone !== undefined
+					? updates.timezone
+					: current.timezone,
 		prompt: updates.prompt ?? current.prompt ?? "",
 		workspaceRoot: updates.workspaceRoot ?? current.workspaceRoot ?? "",
 		cwd,
@@ -450,9 +518,9 @@ function cronSpecRecordToHubScheduleInput(
 			updates.mode ??
 			(current.mode === "plan"
 				? "plan"
-				: current.mode === "yolo"
-					? "yolo"
-					: "act"),
+				: current.mode === "act"
+					? "act"
+					: "yolo"),
 		systemPrompt:
 			updates.systemPrompt === null
 				? undefined
@@ -476,11 +544,9 @@ function cronSpecRecordToHubScheduleInput(
 		tags: updates.tags ?? current.tags,
 		runtimeOptions,
 		metadata:
-			updates.metadata !== undefined
-				? updates.metadata
-				: Object.keys(metadata).length > 0
-					? (metadata as HubScheduleCreateInput["metadata"])
-					: undefined,
+			Object.keys(nextMetadata).length > 0
+				? (nextMetadata as HubScheduleCreateInput["metadata"])
+				: undefined,
 	};
 }
 
@@ -499,6 +565,8 @@ export interface ListRunsOptions {
 }
 
 export interface ClaimRunOptions {
+	/** Database-wide concurrency limit; defaults to 10. Per-spec limits always apply. */
+	maxConcurrency?: number;
 	nowIso: string;
 	leaseMs: number;
 	limit?: number;
@@ -607,15 +675,16 @@ export class SqliteCronStore {
 
 	public createHubSchedule(input: HubScheduleCreateInput): CronSpecRecord {
 		const scheduleId = `sched_${randomUUID()}`;
+		const spec = hubScheduleInputToCronSpec(input);
 		const result = this.upsertSpec({
 			externalId: scheduleId,
 			sourcePath: hubScheduleSourcePath(scheduleId),
-			triggerKind: "schedule",
+			triggerKind: spec.triggerKind,
 			sourceHash: hubScheduleHash(input),
 			parseStatus: "valid",
-			spec: hubScheduleInputToCronSpec(input),
+			spec,
 		});
-		this.initializeScheduleNextRun(result.record.specId);
+		this.initializeHubScheduleNextRun(result.record.specId, input);
 		const record = this.getSpec(result.record.specId);
 		if (!record) throw new Error("failed to create hub schedule");
 		return record;
@@ -633,17 +702,26 @@ export class SqliteCronStore {
 	}
 
 	public listHubSchedules(
-		options: { enabled?: boolean; limit?: number; tags?: string[] } = {},
+		options: {
+			enabled?: boolean;
+			limit?: number;
+			tags?: string[];
+			workspaceRoot?: string;
+		} = {},
 	): CronSpecRecord[] {
 		const where = [
 			"source = 'hub-schedule'",
-			"trigger_kind = 'schedule'",
+			"trigger_kind IN ('schedule', 'one_off')",
 			"removed = 0",
 		];
 		const params: unknown[] = [];
 		if (typeof options.enabled === "boolean") {
 			where.push("enabled = ?");
 			params.push(options.enabled ? 1 : 0);
+		}
+		if (options.workspaceRoot?.trim()) {
+			where.push("workspace_root = ?");
+			params.push(options.workspaceRoot.trim());
 		}
 		if (options.tags && options.tags.length > 0) {
 			for (const tag of options.tags) {
@@ -666,21 +744,65 @@ export class SqliteCronStore {
 		scheduleId: string,
 		updates: HubScheduleUpdateInput,
 	): CronSpecRecord | undefined {
-		const current = this.getHubSchedule(scheduleId);
-		if (!current) return undefined;
-		const input = cronSpecRecordToHubScheduleInput(current, updates);
-		const result = this.upsertSpec({
-			externalId: scheduleId,
-			sourcePath: current.sourcePath,
-			triggerKind: "schedule",
-			sourceHash: hubScheduleHash(input),
-			parseStatus: "valid",
-			spec: hubScheduleInputToCronSpec(input),
-		});
-		if (updates.cronPattern !== undefined || updates.enabled !== undefined) {
-			this.initializeScheduleNextRun(result.record.specId);
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const current = this.getHubSchedule(scheduleId);
+			if (!current) {
+				this.db.exec("COMMIT;");
+				return undefined;
+			}
+			const input = cronSpecRecordToHubScheduleInput(current, updates);
+			const spec = hubScheduleInputToCronSpec(input);
+			const result = this.upsertSpec({
+				externalId: scheduleId,
+				sourcePath: current.sourcePath,
+				triggerKind: spec.triggerKind,
+				sourceHash: hubScheduleHash(input),
+				parseStatus: "valid",
+				spec,
+			});
+			const enabledChanged = current.enabled !== result.record.enabled;
+			const involvesOneOff =
+				current.triggerKind === "one_off" ||
+				result.record.triggerKind === "one_off";
+			if (involvesOneOff && (result.revisionChanged || enabledChanged)) {
+				this.cancelQueuedOneOffRunsForSpec(result.record.specId);
+			}
+			if (
+				updates.cronPattern !== undefined ||
+				updates.timezone !== undefined ||
+				updates.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY] !==
+					undefined ||
+				updates.enabled !== undefined
+			) {
+				this.initializeHubScheduleNextRun(result.record.specId, input);
+			}
+			const updated = this.getSpec(result.record.specId);
+			this.db.exec("COMMIT;");
+			return updated;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
 		}
-		return this.getSpec(result.record.specId);
+	}
+
+	private initializeHubScheduleNextRun(
+		specId: string,
+		input: HubScheduleCreateInput,
+	): void {
+		if (input.enabled === false) {
+			this.updateSpecNextRunAt(specId, undefined);
+			return;
+		}
+		if (input.cronPattern.trim() === ONE_TIME_SCHEDULE_CRON_PATTERN) {
+			const runAt = input.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY];
+			if (typeof runAt !== "number" || !Number.isFinite(runAt)) {
+				throw new Error("runAt metadata is required for one-time schedules");
+			}
+			this.updateSpecNextRunAt(specId, new Date(runAt).toISOString());
+			return;
+		}
+		this.initializeScheduleNextRun(specId);
 	}
 
 	public deleteHubSchedule(scheduleId: string): boolean {
@@ -704,12 +826,82 @@ export class SqliteCronStore {
 		) {
 			return undefined;
 		}
+		if (spec.triggerKind === "one_off" && triggerKind === "manual") {
+			return this.consumeOneOffWithManualRun(spec);
+		}
 		return this.enqueueRun({
 			specId: spec.specId,
 			specRevision: spec.revision,
 			triggerKind,
 			scheduledFor: nowIso(),
 		});
+	}
+
+	private consumeOneOffWithManualRun(
+		spec: CronSpecRecord,
+	): CronRunRecord | undefined {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const current = this.getSpec(spec.specId);
+			if (
+				!current ||
+				current.revision !== spec.revision ||
+				current.triggerKind !== "one_off" ||
+				!current.enabled ||
+				current.removed ||
+				current.parseStatus !== "valid"
+			) {
+				this.db.exec("COMMIT;");
+				return undefined;
+			}
+			const now = nowIso();
+			this.db
+				.prepare(
+					`UPDATE cron_specs SET next_run_at = NULL, updated_at = ?
+						WHERE spec_id = ? AND revision = ?`,
+				)
+				.run(now, current.specId, current.revision);
+
+			const existingRow = this.db
+				.prepare(
+					`SELECT * FROM cron_runs
+						WHERE spec_id = ? AND spec_revision = ?
+							AND trigger_kind IN ('one_off', 'manual')
+							AND status != 'cancelled'
+						ORDER BY CASE trigger_kind WHEN 'manual' THEN 0 ELSE 1 END,
+							created_at ASC
+						LIMIT 1`,
+				)
+				.get(current.specId, current.revision);
+			const existing = existingRow ? runToRecord(existingRow) : undefined;
+			if (existing && existing.status !== "queued") {
+				this.db.exec("COMMIT;");
+				return existing;
+			}
+			if (existing?.triggerKind === "manual") {
+				this.db.exec("COMMIT;");
+				return existing;
+			}
+
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET status = 'cancelled', updated_at = ?
+						WHERE spec_id = ? AND spec_revision = ?
+							AND trigger_kind = 'one_off' AND status = 'queued'`,
+				)
+				.run(now, current.specId, current.revision);
+			const run = this.enqueueRun({
+				specId: current.specId,
+				specRevision: current.revision,
+				triggerKind: "manual",
+				scheduledFor: now,
+			});
+			this.db.exec("COMMIT;");
+			return run;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
 	}
 
 	public listEventSpecsForType(eventType: string): CronSpecRecord[] {
@@ -733,6 +925,7 @@ export class SqliteCronStore {
 
 		const spec = input.spec;
 		const nextValues: Record<string, unknown> = {
+			triggerKind: spec?.triggerKind ?? input.triggerKind,
 			title:
 				spec?.title ??
 				existing?.title ??
@@ -764,6 +957,7 @@ export class SqliteCronStore {
 			notesDirectory: spec?.notesDirectory,
 			extensions: spec?.extensions,
 			source: spec?.source,
+			metadata: spec?.metadata,
 		};
 
 		const enabled = input.parseStatus === "valid" && (spec?.enabled ?? true);
@@ -1078,6 +1272,43 @@ export class SqliteCronStore {
 		return row ? runToRecord(row) : undefined;
 	}
 
+	/**
+	 * 1-based position of a run among every run ever created for its spec,
+	 * in creation order. Counts runs of every status (including cancelled and
+	 * failed ones) so the number is stable: a later cancellation never shifts
+	 * the numbers already stamped onto earlier sessions. Returns undefined
+	 * for an unknown run.
+	 */
+	public getRunOrdinal(runId: string): number | undefined {
+		const row = this.db
+			.prepare(
+				`SELECT COUNT(*) AS count
+					FROM cron_runs r
+					INNER JOIN cron_runs target ON target.run_id = ?
+					WHERE r.spec_id = target.spec_id
+						AND (
+							r.created_at < target.created_at
+							OR (r.created_at = target.created_at AND r.rowid <= target.rowid)
+						)`,
+			)
+			.get(runId) as { count?: unknown } | undefined;
+		const count = Number(row?.count ?? 0);
+		return count > 0 ? count : undefined;
+	}
+
+	/** Execute synchronous event acceptance and materialization as one atomic write. */
+	public eventTransaction<T>(work: () => T): T {
+		this.db.exec("BEGIN IMMEDIATE;");
+		try {
+			const result = work();
+			this.db.exec("COMMIT;");
+			return result;
+		} catch (error) {
+			this.db.exec("ROLLBACK;");
+			throw error;
+		}
+	}
+
 	public insertEventLog(
 		event: AutomationEventEnvelope,
 		options: { receivedAtIso?: string } = {},
@@ -1311,12 +1542,12 @@ export class SqliteCronStore {
 		return this.getRun(options.runId);
 	}
 
-	public hasOneOffRunForRevision(specId: string, revision: number): boolean {
+	public hasConsumedOneOffRevision(specId: string, revision: number): boolean {
 		const row = this.db
 			.prepare(
 				`SELECT run_id FROM cron_runs
 					WHERE spec_id = ? AND spec_revision = ?
-						AND trigger_kind = 'one_off'
+						AND trigger_kind IN ('one_off', 'manual')
 					LIMIT 1`,
 			)
 			.get(specId, revision);
@@ -1363,6 +1594,18 @@ export class SqliteCronStore {
 		return changes;
 	}
 
+	private cancelQueuedOneOffRunsForSpec(specId: string): number {
+		const changes =
+			this.db
+				.prepare(
+					`UPDATE cron_runs SET status = 'cancelled', updated_at = ?
+						WHERE spec_id = ? AND trigger_kind = 'one_off'
+							AND status = 'queued'`,
+				)
+				.run(nowIso(), specId).changes ?? 0;
+		return changes;
+	}
+
 	public claimDueRuns(options: ClaimRunOptions): ClaimedCronRun[] {
 		const referenceIso = options.nowIso;
 		const boundedLease = Math.max(1_000, Math.floor(options.leaseMs));
@@ -1373,24 +1616,35 @@ export class SqliteCronStore {
 		const claimed: ClaimedCronRun[] = [];
 		this.db.exec("BEGIN IMMEDIATE;");
 		try {
-			const rows = this.db
-				.prepare(
-					`SELECT * FROM cron_runs
-						WHERE (
-								status = 'queued'
-								OR (
-									status = 'running'
-									AND claim_until_at IS NOT NULL
-									AND claim_until_at <= ?
-									AND completed_at IS NULL
-								)
-							)
-							AND (scheduled_for IS NULL OR scheduled_for <= ?)
-						ORDER BY COALESCE(scheduled_for, created_at) ASC
-						LIMIT ?`,
+			// Re-evaluate capacity after every claim in the same write transaction.
+			// Filtering before LIMIT lets unrelated specs pass a saturated backlog.
+			const nextDueRun = this.db.prepare(`
+				SELECT * FROM cron_runs
+				WHERE (
+					status = 'queued'
+					OR (status = 'running' AND claim_until_at <= :now AND completed_at IS NULL)
 				)
-				.all(referenceIso, referenceIso, limit);
-			for (const row of rows) {
+				AND (scheduled_for IS NULL OR scheduled_for <= :now)
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.status = 'running' AND active.claim_until_at > :now
+				) < :capacity
+				AND (
+					SELECT COUNT(*) FROM cron_runs active
+					WHERE active.spec_id = cron_runs.spec_id
+					AND active.status = 'running' AND active.claim_until_at > :now
+				) < COALESCE((
+					SELECT MAX(1, max_parallel) FROM cron_specs WHERE spec_id = cron_runs.spec_id
+				), 1)
+				ORDER BY COALESCE(scheduled_for, created_at) ASC, rowid ASC
+				LIMIT 1
+			`);
+			while (claimed.length < limit) {
+				const row = nextDueRun.get({
+					now: referenceIso,
+					capacity: Math.max(1, Math.floor(options.maxConcurrency ?? 10)),
+				});
+				if (!row) break;
 				const runId = asString(row.run_id);
 				if (!runId) continue;
 				const claimToken = `cclaim_${randomUUID()}`;
@@ -1504,6 +1758,8 @@ export class SqliteCronStore {
 		update: ClaimBoundUpdate & {
 			error?: string;
 			scheduledFor?: string;
+			/** Undo the claim's attempt increment when execution never started. */
+			releaseAttempt?: boolean;
 		},
 	): boolean {
 		const updatedAt = nowIso();
@@ -1512,6 +1768,7 @@ export class SqliteCronStore {
 				.prepare(
 					`UPDATE cron_runs SET
 						status = 'queued',
+						attempt_count = MAX(0, attempt_count - ?),
 						claim_started_at = NULL,
 						claim_token = NULL,
 						claim_until_at = NULL,
@@ -1525,6 +1782,7 @@ export class SqliteCronStore {
 					WHERE run_id = ? AND claim_token = ?`,
 				)
 				.run(
+					update.releaseAttempt ? 1 : 0,
 					update.error ?? null,
 					update.scheduledFor ?? null,
 					updatedAt,
@@ -1534,12 +1792,18 @@ export class SqliteCronStore {
 		return changes > 0;
 	}
 
-	public attachSessionIdToRun(runId: string, sessionId: string): void {
-		this.db
-			.prepare(
-				`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ?`,
-			)
-			.run(sessionId, nowIso(), runId);
+	public attachSessionIdToRun(
+		runId: string,
+		sessionId: string,
+		claimToken: string,
+	): boolean {
+		return (
+			(this.db
+				.prepare(
+					`UPDATE cron_runs SET session_id = ?, updated_at = ? WHERE run_id = ? AND claim_token = ? AND status = 'running'`,
+				)
+				.run(sessionId, nowIso(), runId, claimToken).changes ?? 0) === 1
+		);
 	}
 
 	public attachReportPathToRun(runId: string, reportPath: string): void {

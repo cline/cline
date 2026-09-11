@@ -58,7 +58,15 @@ async function readCheckpointFile(
 	try {
 		return await runGit(cwd, ["show", `${ref}:${relativePath}`]);
 	} catch {
-		return "";
+		// Stash-shaped checkpoints keep files that were untracked at snapshot
+		// time in a third-parent commit (see createWorktreeStashCommit), not in
+		// the stash commit's own tree. Fall back to it so pre-existing
+		// untracked files don't falsely appear as newly added.
+		try {
+			return await runGit(cwd, ["show", `${ref}^3:${relativePath}`]);
+		} catch {
+			return "";
+		}
 	}
 }
 
@@ -73,18 +81,39 @@ async function readWorktreeFile(
 	}
 }
 
+async function listCheckpointUntrackedPaths(
+	cwd: string,
+	ref: string,
+): Promise<string[]> {
+	// Untracked-at-snapshot files live in the stash commit's third parent.
+	// Plain commit checkpoints (and stashes without untracked files) have no
+	// third parent, so treat failure as "none".
+	try {
+		return parseNulList(
+			await runGit(cwd, ["ls-tree", "-r", "-z", "--name-only", `${ref}^3`]),
+		);
+	} catch {
+		return [];
+	}
+}
+
 async function listChangedPaths(
 	cwd: string,
 	checkpoint: CheckpointEntry,
 ): Promise<string[]> {
 	await runGit(cwd, ["cat-file", "-e", `${checkpoint.ref}^{tree}`]);
-	const [trackedOutput, untrackedOutput] = await Promise.all([
-		runGit(cwd, ["diff", "--name-only", "-z", checkpoint.ref, "--"]),
-		runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
-	]);
+	const [trackedOutput, untrackedOutput, checkpointUntracked] =
+		await Promise.all([
+			runGit(cwd, ["diff", "--name-only", "-z", checkpoint.ref, "--"]),
+			runGit(cwd, ["ls-files", "--others", "--exclude-standard", "-z"]),
+			listCheckpointUntrackedPaths(cwd, checkpoint.ref),
+		]);
 	const paths = new Set([
 		...parseNulList(trackedOutput),
 		...parseNulList(untrackedOutput),
+		// Include files untracked at snapshot time so ones deleted since then
+		// still show up; unchanged ones are filtered out by content equality.
+		...checkpointUntracked,
 	]);
 	return [...paths].sort((a, b) => a.localeCompare(b));
 }

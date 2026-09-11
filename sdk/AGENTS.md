@@ -30,7 +30,7 @@ flowchart TD
   shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"]
   llms --> agents & core
   agents --> core
-  core --> apps["CLI / VS Code / Code App"]
+  core --> apps["CLI / VS Code / Desktop App"]
 ```
 
 Rules:

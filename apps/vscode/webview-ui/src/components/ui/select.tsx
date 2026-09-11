@@ -52,10 +52,13 @@ function SelectContent({
 	children,
 	position = "popper",
 	align = "center",
+	container,
 	...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+	container?: React.ComponentProps<typeof SelectPrimitive.Portal>["container"]
+}) {
 	return (
-		<SelectPrimitive.Portal>
+		<SelectPrimitive.Portal container={container}>
 			<SelectPrimitive.Content
 				align={align}
 				className={cn(
@@ -96,7 +99,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
 	return (
 		<SelectPrimitive.Item
 			className={cn(
-				"focus:bg-button-background/50 focus:text-input [&_svg:not([class*='text-'])]:text-description relative flex w-full cursor-default items-center gap-2 rounded-xs py-1 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-2 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+				"focus:bg-selection focus:text-selection-foreground [&_svg:not([class*='text-'])]:text-description [&:focus_svg:not([class*='text-'])]:text-selection-foreground relative flex w-full cursor-default items-center gap-2 rounded-xs py-1 pr-8 pl-2 text-xs outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-2 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
 				className,
 			)}
 			data-slot="select-item"

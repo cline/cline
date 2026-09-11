@@ -1,7 +1,24 @@
 import { existsSync, readFileSync } from "node:fs";
-import { updateMcpSettingsFileSync } from "@cline/core";
+import {
+	getMcpServerOAuthStatus,
+	parseMcpServerRegistration,
+	updateMcpSettingsFileSync,
+} from "@cline/core";
 import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import type { JsonRecord } from "./types";
+
+export function shouldProbeMcpServerAfterUpsert(options: {
+	isRemote: boolean;
+	requestedDisabled: boolean;
+	existingWasEnabled: boolean;
+	transportIdentityUnchanged: boolean;
+}): boolean {
+	return (
+		options.isRemote &&
+		!options.requestedDisabled &&
+		!(options.existingWasEnabled && options.transportIdentityUnchanged)
+	);
+}
 
 export function readMcpServersResponse(): JsonRecord {
 	const settingsPath = resolveMcpSettingsPath();
@@ -9,56 +26,123 @@ export function readMcpServersResponse(): JsonRecord {
 		return { settingsPath, hasSettingsFile: false, servers: [] };
 	}
 	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
-	const servers = parsed.mcpServers as JsonRecord | undefined;
-	const entries = Object.entries(servers ?? {}).map(([name, body]) => {
-		const record = body as JsonRecord;
+	return buildMcpServersResponse(settingsPath, parsed);
+}
+
+export function buildMcpServersResponse(
+	settingsPath: string,
+	parsed: JsonRecord,
+): JsonRecord {
+	const serversValue = parsed.mcpServers;
+	const servers =
+		serversValue &&
+		typeof serversValue === "object" &&
+		!Array.isArray(serversValue)
+			? (serversValue as JsonRecord)
+			: {};
+	const entries = Object.entries(servers).map(([name, body]) => {
+		const record =
+			body && typeof body === "object" && !Array.isArray(body)
+				? (body as JsonRecord)
+				: {};
 		const transport =
 			record.transport && typeof record.transport === "object"
 				? (record.transport as JsonRecord)
 				: undefined;
-		const transportType = String(
-			transport?.type ?? record.transportType ?? record.type ?? "stdio",
+		let registration: ReturnType<typeof parseMcpServerRegistration> | undefined;
+		let configurationError: string | undefined;
+		try {
+			registration = parseMcpServerRegistration(name, body);
+		} catch (error) {
+			configurationError =
+				error instanceof Error ? error.message : String(error);
+		}
+		const resolvedTransport = registration?.transport;
+		const rawTransportType = String(
+			transport?.type ?? record.transportType ?? record.type ?? "",
 		).trim();
+		const hasRawUrl =
+			typeof transport?.url === "string" || typeof record.url === "string";
+		const fallbackTransportType =
+			rawTransportType === "sse"
+				? "sse"
+				: rawTransportType === "streamableHttp" || rawTransportType === "http"
+					? "streamableHttp"
+					: hasRawUrl
+						? "sse"
+						: "stdio";
+		const oauthStatus = registration
+			? getMcpServerOAuthStatus(registration)
+			: undefined;
 		return {
 			name,
-			transportType,
+			transportType: resolvedTransport?.type ?? fallbackTransportType,
 			disabled: record.disabled === true,
-			command:
-				typeof transport?.command === "string"
+			command: resolvedTransport
+				? resolvedTransport.type === "stdio"
+					? resolvedTransport.command
+					: undefined
+				: typeof transport?.command === "string"
 					? transport.command
 					: typeof record.command === "string"
 						? record.command
 						: undefined,
-			args: Array.isArray(transport?.args)
-				? transport.args
-				: Array.isArray(record.args)
-					? record.args
-					: undefined,
-			cwd:
-				typeof transport?.cwd === "string"
+			args: resolvedTransport
+				? resolvedTransport.type === "stdio"
+					? resolvedTransport.args
+					: undefined
+				: Array.isArray(transport?.args)
+					? transport.args
+					: Array.isArray(record.args)
+						? record.args
+						: undefined,
+			cwd: resolvedTransport
+				? resolvedTransport.type === "stdio"
+					? resolvedTransport.cwd
+					: undefined
+				: typeof transport?.cwd === "string"
 					? transport.cwd
 					: typeof record.cwd === "string"
 						? record.cwd
 						: undefined,
-			env:
-				transport?.env && typeof transport.env === "object"
+			env: resolvedTransport
+				? resolvedTransport.type === "stdio"
+					? resolvedTransport.env
+					: undefined
+				: transport?.env && typeof transport.env === "object"
 					? transport.env
 					: record.env && typeof record.env === "object"
 						? record.env
 						: undefined,
-			url:
-				typeof transport?.url === "string"
+			url: resolvedTransport
+				? resolvedTransport.type !== "stdio"
+					? resolvedTransport.url
+					: undefined
+				: typeof transport?.url === "string"
 					? transport.url
 					: typeof record.url === "string"
 						? record.url
 						: undefined,
-			headers:
-				transport?.headers && typeof transport.headers === "object"
+			headers: resolvedTransport
+				? resolvedTransport.type !== "stdio"
+					? resolvedTransport.headers
+					: undefined
+				: transport?.headers && typeof transport.headers === "object"
 					? transport.headers
 					: record.headers && typeof record.headers === "object"
 						? record.headers
 						: undefined,
-			metadata: record.metadata,
+			metadata: registration?.metadata ?? record.metadata,
+			...(configurationError ? { configurationError } : {}),
+			oauthStatus: oauthStatus
+				? {
+						supported: oauthStatus.oauthSupported,
+						configured: oauthStatus.oauthConfigured,
+						authorizationRequired: oauthStatus.authorizationRequired,
+						lastError: oauthStatus.lastError,
+						lastAuthenticatedAt: oauthStatus.lastAuthenticatedAt,
+					}
+				: undefined,
 		};
 	});
 	return { settingsPath, hasSettingsFile: true, servers: entries };

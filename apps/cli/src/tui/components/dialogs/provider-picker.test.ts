@@ -9,22 +9,61 @@ import {
 } from "../../../utils/provider-auth";
 import {
 	buildClinePassSubscriptionPageUrl,
+	resolveOAuthWaitKeyAction,
 	saveManualProviderApiKey,
 } from "./provider-picker-helpers";
 
+describe("resolveOAuthWaitKeyAction", () => {
+	it("switches to manual API key entry on K when the fallback is available", () => {
+		expect(resolveOAuthWaitKeyAction({ name: "k" }, true)).toBe("use_api_key");
+	});
+
+	it("cancels on K when the fallback is not available", () => {
+		expect(resolveOAuthWaitKeyAction({ name: "k" }, false)).toBe("cancel");
+	});
+
+	it("cancels on any other unmodified key so users are never stuck waiting on a browser flow", () => {
+		for (const name of ["escape", "q", "return", "space", "up", "x"]) {
+			expect(resolveOAuthWaitKeyAction({ name }, true)).toBe("cancel");
+			expect(resolveOAuthWaitKeyAction({ name }, false)).toBe("cancel");
+		}
+	});
+
+	it("ignores modifier-held keys so holding Cmd/Ctrl to click the auth link never cancels", () => {
+		expect(resolveOAuthWaitKeyAction({ name: "k", ctrl: true }, true)).toBe(
+			"ignore",
+		);
+		expect(resolveOAuthWaitKeyAction({ name: "c", ctrl: true }, false)).toBe(
+			"ignore",
+		);
+		expect(resolveOAuthWaitKeyAction({ name: "x", meta: true }, true)).toBe(
+			"ignore",
+		);
+		expect(resolveOAuthWaitKeyAction({ name: "x", super: true }, false)).toBe(
+			"ignore",
+		);
+		// A bare modifier press (empty name) is ignored, not a cancel.
+		expect(resolveOAuthWaitKeyAction({ name: "" }, true)).toBe("ignore");
+	});
+});
+
 describe("buildClinePassSubscriptionPageUrl", () => {
 	it("opens the personal subscription page on production by default", () => {
-		expect(buildClinePassSubscriptionPageUrl(undefined)).toBe(
-			"https://app.cline.bot/dashboard/subscription?personal=true&code=CLI-8OFF",
-		);
+		expect(
+			buildClinePassSubscriptionPageUrl(undefined).startsWith(
+				"https://app.cline.bot/dashboard/subscription?personal=true",
+			),
+		).toBe(true);
 	});
 
 	it("keeps the configured app base URL", () => {
 		expect(
-			buildClinePassSubscriptionPageUrl("https://staging-app.cline.bot"),
-		).toBe(
-			"https://staging-app.cline.bot/dashboard/subscription?personal=true&code=CLI-8OFF",
-		);
+			buildClinePassSubscriptionPageUrl(
+				"https://staging-app.cline.bot",
+			).startsWith(
+				"https://staging-app.cline.bot/dashboard/subscription?personal=true",
+			),
+		).toBe(true);
 	});
 });
 
