@@ -750,6 +750,8 @@ export function ProviderDetailContent({
 	};
 
 	const oauthConnected = Boolean(provider.oauthAccessTokenPresent);
+	const localCliMissing =
+		authKind === "local" && provider.localCli?.installed === false;
 
 	const connectionSection =
 		authKind === "oauth" ? (
@@ -867,12 +869,37 @@ export function ProviderDetailContent({
 						<p className="text-sm font-medium text-foreground">
 							Uses your local CLI sign-in
 						</p>
-						<p className="text-xs text-muted-foreground">
-							Credentials come from the provider's own CLI on this machine — no
-							API key needed.
-						</p>
+						{localCliMissing ? (
+							<p className="text-xs text-muted-foreground">
+								The{" "}
+								<span className="font-mono text-foreground">
+									{provider.localCli?.command}
+								</span>{" "}
+								command was not found on this machine. Install it and sign in
+								with it, then reopen this page.
+							</p>
+						) : (
+							<p className="text-xs text-muted-foreground">
+								Credentials come from the provider's own CLI on this machine —
+								no API key needed.
+							</p>
+						)}
+						{localCliMissing && provider.localCli?.docsUrl ? (
+							<button
+								className="mt-1 inline-flex items-center gap-1 text-sm text-primary underline-offset-2 transition-colors hover:underline"
+								onClick={() =>
+									void openExternalUrl(provider.localCli?.docsUrl ?? "")
+								}
+								type="button"
+							>
+								Install {provider.name}
+								<ExternalLink className="size-3.5" />
+							</button>
+						) : null}
 					</div>
-					{connected
+					{/* A saved entry stays disconnectable even when its CLI has since
+					    disappeared from PATH, so the stale entry can be cleared. */}
+					{provider.enabled
 						? onDisconnect && (
 								<Button
 									className="shrink-0"
@@ -887,6 +914,7 @@ export function ProviderDetailContent({
 						: onConnect && (
 								<Button
 									className="shrink-0"
+									disabled={localCliMissing}
 									onClick={onConnect}
 									size="sm"
 									type="button"

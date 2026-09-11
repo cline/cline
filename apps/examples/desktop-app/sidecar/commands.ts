@@ -92,6 +92,7 @@ import {
 	identifyDesktopFeatureFlagsAccount,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { withLocalCliStatus } from "./local-cli";
 import {
 	clearLegacyCodexCredentials,
 	OPENAI_CODEX_PROVIDER_ID,
@@ -1942,7 +1943,10 @@ export async function handleCommand(
 	if (command === "list_provider_catalog") {
 		const manager = new ProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager, { isClinePassEnabled: true });
+		const catalog = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		return { ...catalog, providers: withLocalCliStatus(catalog.providers) };
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();

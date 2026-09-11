@@ -42,6 +42,7 @@ import {
 	requestSidecarAskQuestion,
 	sendEvent,
 } from "./context";
+import { assertLocalCliAvailable } from "./local-cli";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -1149,6 +1150,11 @@ async function handleSend(
 	if (providerChanged && session?.busy) {
 		throw new Error("Cannot switch providers while a turn is running");
 	}
+	// Refuse before any busy/transition state is claimed, so nothing unwinds.
+	const effectiveConfig = nextConfig ?? session?.config ?? request.config ?? {};
+	assertLocalCliAvailable(
+		String(effectiveConfig.provider ?? effectiveConfig.providerId ?? ""),
+	);
 	const ownsBusyState = Boolean(
 		session && delivery !== "queue" && delivery !== "steer",
 	);
