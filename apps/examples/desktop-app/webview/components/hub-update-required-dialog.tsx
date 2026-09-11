@@ -1,5 +1,6 @@
 "use client";
 
+import { describeOutdatedHubSessions } from "@cline/shared/browser";
 import { useCallback, useEffect, useState } from "react";
 import {
 	AlertDialog,
@@ -18,7 +19,6 @@ import {
 } from "@/hooks/use-app-update";
 import { desktopClient } from "@/lib/desktop-client";
 import {
-	describeOutdatedHubSessions,
 	isPersistableHubMismatchKey,
 	resolveHubUpdateRestartDecision,
 	retainDismissalForIncomingMismatch,

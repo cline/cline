@@ -123,16 +123,6 @@ export class CloudSessionError extends Error {
 	}
 }
 
-function isTransientGitHubTokenVendFailure(error: unknown): boolean {
-	if (!(error instanceof CloudSessionError) || error.status !== 502)
-		return false;
-	const detail = error.detail.toLowerCase();
-	return (
-		detail.includes("couldn't authenticate with github") &&
-		detail.includes("reconnecting the integration")
-	);
-}
-
 type ApiResponse<T> = {
 	success?: boolean;
 	data?: T;
@@ -740,8 +730,13 @@ export class CloudSessionApi {
 		if (!response.ok) {
 			throw cloudErrorForResponse(response.status, payload, this.appBaseUrl);
 		}
-		const messages = (payload as { messages?: unknown } | undefined)?.messages;
-		return Array.isArray(messages) ? messages : [];
+		if (payload?.version !== 1 || !Array.isArray(payload.messages)) {
+			throw new CloudSessionError(
+				"request_failed",
+				"Invalid archived session history",
+			);
+		}
+		return payload.messages;
 	}
 }
 function isExpiredRecord(record: CloudSessionRecord): boolean {
@@ -804,7 +799,6 @@ type CloudSessionManagerOptions = {
 	getActiveOrganizationId?: (options?: {
 		fresh?: boolean;
 	}) => Promise<string | undefined>;
-	sleep?: (ms: number) => Promise<void>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
@@ -1269,7 +1263,7 @@ export class CloudSessionManager {
 		sessionId: string,
 	): Promise<JsonRecord | undefined> {
 		const cached = this.getCachedDiscoveryRecord(sessionId);
-		if (!cached || typeof this.options.api.status !== "function") {
+		if (!cached) {
 			return undefined;
 		}
 		try {
@@ -1301,10 +1295,7 @@ export class CloudSessionManager {
 		}
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
-				if (
-					session.status !== "provisioning" ||
-					typeof this.options.api.status !== "function"
-				) {
+				if (session.status !== "provisioning") {
 					return session;
 				}
 				const result = await this.options.api
@@ -1336,15 +1327,16 @@ export class CloudSessionManager {
 			}
 			const connection = this.connections.get(session.id);
 			if (connection) {
-				// Expired sandboxes must stop reconnecting.
 				connection.remote = session;
-				if (isExpiredRecord(session)) {
-					const live = this.ctx.liveSessions.get(session.id);
-					if (live) {
-						live.busy = false;
-						live.status = "expired";
-						live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
-					}
+			}
+			if (isExpiredRecord(session)) {
+				if (live) {
+					live.busy = false;
+					live.status = "expired";
+					live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
+				}
+				if (connection) {
+					// Expired sandboxes must stop reconnecting.
 					void this.disposeConnection(session.id).catch(() => undefined);
 				}
 			}
@@ -1479,25 +1471,7 @@ export class CloudSessionManager {
 		const organizationId =
 			input.organizationId ??
 			(await this.resolveActiveOrganizationId({ fresh: true }));
-		let created: Awaited<ReturnType<CloudSessionApi["create"]>> | undefined;
-		for (let attempt = 0; attempt < 3; attempt += 1) {
-			try {
-				created = await this.options.api.create({ ...input, organizationId });
-				break;
-			} catch (error) {
-				// The secrets proxy occasionally 502s while vending the GitHub
-				// token; that specific failure is safe to retry (nothing was
-				// provisioned). Any other 502 could have provisioned.
-				if (!isTransientGitHubTokenVendFailure(error) || attempt === 2) {
-					throw error;
-				}
-				await (
-					this.options.sleep ??
-					((ms: number) =>
-						new Promise<void>((resolve) => setTimeout(resolve, ms)))
-				)(500 * (attempt + 1));
-			}
-		}
+		const created = await this.options.api.create({ ...input, organizationId });
 		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
