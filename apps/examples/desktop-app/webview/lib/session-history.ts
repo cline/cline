@@ -57,6 +57,7 @@ export interface SessionHistoryItem {
 	prompt?: string;
 	startedAt: string;
 	endedAt?: string;
+	lastActivityAt?: string;
 	metadata?: SessionMetadata;
 }
 

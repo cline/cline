@@ -152,9 +152,10 @@ export function parseTimestamp(value?: string): number {
 }
 
 export function sessionActivityTimestamp(session: SessionHistoryItem): number {
+	const lastActivityAt = parseTimestamp(session.lastActivityAt);
 	const endedAt = parseTimestamp(session.endedAt);
 	const startedAt = parseTimestamp(session.startedAt);
-	return Math.max(endedAt, startedAt);
+	return Math.max(lastActivityAt, endedAt, startedAt);
 }
 
 // Order by last activity, not by start time: a long-running session that was
@@ -305,7 +306,9 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		source: getSessionSource(session) || undefined,
 		codebase: basenamePath(workspacePath),
 		workspacePath,
-		time: formatRelativeTime(session.endedAt || session.startedAt),
+		time: formatRelativeTime(
+			session.lastActivityAt || session.endedAt || session.startedAt,
+		),
 		provider: session.provider || "",
 		model: session.model || "",
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
@@ -425,6 +428,7 @@ function areSessionsEquivalent(
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
+			a.lastActivityAt !== b.lastActivityAt ||
 			a.prompt !== b.prompt ||
 			getSessionMetadataIsScheduled(a.metadata) !==
 				getSessionMetadataIsScheduled(b.metadata) ||
@@ -434,6 +438,7 @@ function areSessionsEquivalent(
 				getSessionMetadataTitle(b.metadata) ||
 			getSessionMetadataPinned(a.metadata) !==
 				getSessionMetadataPinned(b.metadata) ||
+			a.metadata?.provisioningPhase !== b.metadata?.provisioningPhase ||
 			!areScheduleInfosEqual(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),
