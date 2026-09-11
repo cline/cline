@@ -329,3 +329,13 @@ describe("replaySessionHistory", () => {
 		]);
 	});
 });
+
+it("does not replay display-only errors as assistant output", () => {
+	expect(
+		translateHistoricalMessage({
+			role: "assistant",
+			content: "API key expired.",
+			metadata: { displayOnly: true, displayRole: "error" },
+		}),
+	).toEqual([]);
+});

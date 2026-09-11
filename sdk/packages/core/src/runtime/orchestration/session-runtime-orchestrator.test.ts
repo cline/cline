@@ -1187,13 +1187,30 @@ describe("SessionRuntime.run", () => {
 			},
 		} as unknown as AgentRuntime;
 
-		const session = new SessionRuntime(makeAgentConfig(), {
-			createAgentRuntimeImpl: () => slowRuntime,
-		});
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			{
+				createAgentRuntimeImpl: () => slowRuntime,
+			},
+		);
 		const first = session.run("one");
 		await Promise.resolve();
 		expect(session.canStartRun()).toBe(false);
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
 		await expect(session.continue("two")).rejects.toThrow(/"running"/i);
+		await expect(session.run("three")).rejects.toThrow(/"running"/i);
+		expect(session.getMessages()).toEqual(before);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+		expect(events.filter((event) => event.type === "error")).toHaveLength(0);
 		release?.();
 		await first;
 		expect(session.canStartRun()).toBe(true);
@@ -1900,6 +1917,29 @@ describe("SessionRuntime external abort signal", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.shutdown", () => {
+	it("rejects new runs without changing a stopped transcript", async () => {
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			withFakeRuntime().deps,
+		);
+		await session.run("done");
+		await session.shutdown();
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		await expect(session.run("again")).rejects.toThrow("after shutdown");
+		await expect(session.continue("again")).rejects.toThrow("after shutdown");
+		expect(session.getMessages()).toEqual(before);
+		expect(events).toEqual([]);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+	});
 	it("completes successfully when no run is active and locks out future runs", async () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		await expect(session.shutdown()).resolves.toBeUndefined();

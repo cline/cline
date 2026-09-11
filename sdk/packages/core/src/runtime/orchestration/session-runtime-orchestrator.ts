@@ -495,7 +495,7 @@ export class SessionRuntime {
 
 	/** True when no run is currently active and the session is not shut down. */
 	canStartRun(): boolean {
-		return !this.running && !this.shutdownCalled;
+		return !this.running && !this.activeRunPromise && !this.shutdownCalled;
 	}
 
 	/**
@@ -681,6 +681,8 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		const rejection = this.getRunAdmissionError();
+		if (rejection) return Promise.reject(rejection);
 		this.conversation.resetForRun();
 		this.resetConversationBoundaryTrackers();
 		return this.executeRun({
@@ -696,6 +698,8 @@ export class SessionRuntime {
 		userImages?: string[],
 		userFiles?: string[],
 	): Promise<AgentResult> {
+		const rejection = this.getRunAdmissionError();
+		if (rejection) return Promise.reject(rejection);
 		return this.executeRun({
 			userMessage,
 			userImages,
@@ -725,6 +729,18 @@ export class SessionRuntime {
 			}
 		}
 		return mergeSystemPromptRules(this.config.systemPrompt, rules);
+	}
+
+	private getRunAdmissionError(): Error | undefined {
+		if (this.shutdownCalled)
+			return new Error(
+				`SessionRuntime.run called after shutdown (agentId=${this.agentId})`,
+			);
+		if (this.running || this.activeRunPromise)
+			return new Error(
+				`SessionRuntime state is "running"; call canStartRun() first (agentId=${this.agentId})`,
+			);
+		return undefined;
 	}
 
 	private executeRun(input: {

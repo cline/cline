@@ -93,6 +93,10 @@ import {
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
+	clearLegacyCodexCredentials,
+	OPENAI_CODEX_PROVIDER_ID,
+} from "./legacy-codex-credentials";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -692,9 +696,13 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
-function routineScheduleTiming(
-	args?: Record<string, unknown>,
-): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+function routineScheduleTiming(args?: Record<string, unknown>):
+	| {
+			cronPattern: string;
+			timezone?: string;
+			metadata?: Record<string, number>;
+	  }
+	| undefined {
 	if (args?.schedule_type === "once") {
 		const runAt =
 			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
@@ -706,7 +714,9 @@ function routineScheduleTiming(
 			: undefined;
 	}
 	const cronPattern = asTrimmedString(args?.cron_pattern);
-	return cronPattern ? { cronPattern } : undefined;
+	return cronPattern
+		? { cronPattern, timezone: asTrimmedString(args?.timezone) }
+		: undefined;
 }
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -2101,6 +2111,13 @@ export async function handleCommand(
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
 			syncAccountContextFromSettings(ctx, manager);
+		}
+		// Signing out of ChatGPT removes its providers.json entry; the legacy
+		// import would restore it from the extension's secrets.json on the next
+		// command unless those credentials go too. A failed write throws so
+		// the webview reports the sign-out as failed and resyncs.
+		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
+			clearLegacyCodexCredentials();
 		}
 		return saved;
 	}
