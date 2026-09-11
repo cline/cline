@@ -182,6 +182,7 @@ Supported commands:
 | `get_git_branch` | async `execFile("git", ...)` |
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
+| `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |

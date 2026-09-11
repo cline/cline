@@ -8,6 +8,7 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
 	buildPreviousTimestampMap,
 	getThoughtDurationMilliseconds,
@@ -862,6 +863,255 @@ describe("useChatSession", () => {
 			},
 			{ timeoutMs: null },
 		);
+	});
+
+	it("starts in a fresh git worktree when asked to", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; config?: Record<string, unknown> }
+					| undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: request.config?.cwd,
+						workspaceRoot: request.config?.workspaceRoot,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBeNull();
+		// The worktree is cut from the workspace the user had selected...
+		expect(invokeMock).toHaveBeenCalledWith("create_git_worktree", {
+			cwd: "/repos/demo",
+		});
+		// ...and the session starts inside it, which the UI then adopts.
+		expect(invokeMock).toHaveBeenCalledWith("chat_session_command", {
+			request: expect.objectContaining({
+				action: "start",
+				config: expect.objectContaining({
+					cwd: worktreePath,
+					workspaceRoot: worktreePath,
+				}),
+			}),
+		});
+		expect(current.config).toMatchObject({
+			cwd: worktreePath,
+			workspaceRoot: worktreePath,
+		});
+	});
+
+	it("returns to the remembered repo when a new thread follows a worktree task", async () => {
+		const repo = "/repos/demo";
+		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		// The page remembers the repo, never the worktree it was cut from.
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace: repo,
+			workspaces: [repo],
+		});
+		await act(async () => {
+			current.setWorkspacePath(repo);
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+		expect(current.config.cwd).toBe(worktreePath);
+
+		await act(async () => current.reset());
+
+		expect(current.config).toMatchObject({ cwd: repo, workspaceRoot: repo });
+	});
+
+	it("keeps the workspace across a reset when it is not a task worktree", async () => {
+		writeWorkspaceSelectionToWindow({
+			lastWorkspace: "/repos/other",
+			workspaces: ["/repos/other"],
+		});
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+
+		await act(async () => current.reset());
+
+		expect(current.config).toMatchObject({
+			cwd: "/repos/demo",
+			workspaceRoot: "/repos/demo",
+		});
+	});
+
+	it("surfaces a worktree creation failure without starting a session", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "create_git_worktree") {
+				throw new Error("Not a git repository: /workspace/cline");
+			}
+			return [];
+		});
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBe(
+			"Couldn't create a worktree: Not a git repository: /workspace/cline",
+		);
+		expect(current.status).toBe("error");
+		expect(
+			invokeMock.mock.calls.some(
+				([command]) => command === "chat_session_command",
+			),
+		).toBe(false);
+	});
+
+	it("queues a prompt sent during worktree allocation behind the one session", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		let releaseWorktree: (() => void) | undefined;
+		const sends: string[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					await new Promise<void>((resolve) => {
+						releaseWorktree = resolve;
+					});
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; prompt?: string; sessionId?: string }
+					| undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					sends.push(`${request.sessionId}:${request.prompt}`);
+					return {
+						ok: true,
+						queued: request.prompt === "Second",
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+
+		let first: Promise<boolean> | undefined;
+		let second: Promise<boolean> | undefined;
+		await act(async () => {
+			first = current.sendPrompt("First", [], { inNewWorktree: true });
+			second = current.sendPrompt("Second", [], { inNewWorktree: true });
+			await Promise.resolve();
+		});
+		expect(releaseWorktree).toBeDefined();
+		await act(async () => {
+			releaseWorktree?.();
+			await Promise.all([first, second]);
+		});
+
+		expect(
+			invokeMock.mock.calls.filter(
+				([command]) => command === "create_git_worktree",
+			),
+		).toHaveLength(1);
+		expect(
+			invokeMock.mock.calls.filter(
+				([command, args]) =>
+					command === "chat_session_command" &&
+					(args as { request?: { action?: string } })?.request?.action ===
+						"start",
+			),
+		).toHaveLength(1);
+		expect(sends).toEqual([
+			"session-worktree:First",
+			"session-worktree:Second",
+		]);
+	});
+
+	it("removes the new worktree when the session fails to start in it", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command === "remove_git_worktree") return { path: worktreePath };
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					throw new Error("runtime unavailable");
+				}
+				return [];
+			},
+		);
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBe("runtime unavailable");
+		expect(invokeMock).toHaveBeenCalledWith("remove_git_worktree", {
+			path: worktreePath,
+		});
+		expect(
+			invokeMock.mock.calls.some(
+				([, args]) =>
+					(args as { request?: { action?: string } })?.request?.action ===
+					"send",
+			),
+		).toBe(false);
 	});
 
 	it("preserves server validation errors", async () => {

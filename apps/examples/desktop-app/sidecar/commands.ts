@@ -1,7 +1,8 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, extname, isAbsolute, join } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, sep } from "node:path";
 import { promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
@@ -68,6 +69,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import { resolveClineDir } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -684,6 +686,86 @@ async function listGitBranches(
 		.map((v) => v.trim())
 		.filter(Boolean);
 	return { current: current || undefined, branches };
+}
+
+/**
+ * Creates a git worktree for the repo containing `cwd` and checks out a fresh
+ * branch in it, so a task can run isolated from the user's working tree.
+ * Mirrors the CLI's `--worktree` layout: `~/.cline/worktrees/<id>/<repo>`.
+ */
+async function createGitWorktree(
+	cwd: string,
+): Promise<{ path: string; branch: string }> {
+	const { stdout } = await execFileAsync(
+		"git",
+		["rev-parse", "--show-toplevel"],
+		{ cwd, encoding: "utf8" },
+	).catch(() => {
+		throw new Error(`Not a git repository: ${cwd}`);
+	});
+	const repoRoot = stdout.trim();
+	const id = randomUUID().replaceAll("-", "").slice(0, 5);
+	const branch = `cline/${id}`;
+	const worktreePath = join(
+		resolveClineDir(),
+		"worktrees",
+		id,
+		basename(repoRoot) || "workspace",
+	);
+	mkdirSync(dirname(worktreePath), { recursive: true });
+	await execFileAsync(
+		"git",
+		["-C", repoRoot, "worktree", "add", "-b", branch, worktreePath, "HEAD"],
+		{ encoding: "utf8" },
+	);
+	return { path: worktreePath, branch };
+}
+
+/** True for paths of the exact `~/.cline/worktrees/<id>/<repo>` shape. */
+function isTaskWorktreePath(path: string): boolean {
+	return (
+		path.length > 0 &&
+		dirname(dirname(path)) === join(resolveClineDir(), "worktrees")
+	);
+}
+
+/**
+ * Removes a worktree created by `createGitWorktree`, discarding any
+ * uncommitted work in it, and deletes its `cline/<id>` branch. Only that
+ * generated branch is deleted: if the task switched the worktree to another
+ * branch, that branch (and its commits) is kept. Paths outside
+ * `~/.cline/worktrees` are left alone. Best-effort: failures are logged.
+ */
+async function removeTaskWorktree(
+	ctx: SidecarContext,
+	worktreePath: string,
+): Promise<{ path: string; repoRoot?: string }> {
+	const git = (args: string[]) =>
+		execFileAsync("git", ["-C", worktreePath, ...args], {
+			encoding: "utf8",
+		}).then((result) => result.stdout.trim());
+	const branch = `cline/${basename(dirname(worktreePath))}`;
+	let repoRoot: string | undefined;
+	try {
+		const commonDir = await git([
+			"rev-parse",
+			"--path-format=absolute",
+			"--git-common-dir",
+		]);
+		repoRoot = dirname(commonDir);
+		await git(["worktree", "remove", "--force", worktreePath]);
+		await execFileAsync("git", ["-C", repoRoot, "branch", "-D", branch], {
+			encoding: "utf8",
+		}).catch(() => undefined);
+	} catch (error) {
+		ctx.logger?.error?.("Failed to remove task worktree", {
+			worktreePath,
+			error,
+		});
+	}
+	// The `<id>` directory that held the worktree.
+	removePathIfExists(dirname(worktreePath), { recursive: true });
+	return { path: worktreePath, repoRoot };
 }
 
 // ---------------------------------------------------------------------------
@@ -1758,6 +1840,9 @@ export async function handleCommand(
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
+		const sessionCwd =
+			row?.cwd?.trim() ||
+			(typeof manifest?.cwd === "string" ? manifest.cwd.trim() : "");
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
@@ -1842,11 +1927,25 @@ export async function handleCommand(
 			sessionId,
 			deleted,
 		});
+		// A task worktree goes with its task, unless another session still
+		// lives in (or under) it, e.g. a second thread started while it was
+		// the workspace. Only the exact `<home>/<id>/<repo>` shape qualifies,
+		// since removal also deletes the `<id>` parent directory.
+		const removedWorktree =
+			deleted &&
+			isTaskWorktreePath(sessionCwd) &&
+			!store.list(10_000).some((other) => {
+				const cwd = other.cwd?.trim() ?? "";
+				return cwd === sessionCwd || cwd.startsWith(sessionCwd + sep);
+			})
+				? await removeTaskWorktree(ctx, sessionCwd)
+				: undefined;
 		if (deleted) {
 			broadcastEvent(ctx, "session_deleted", {
 				sessionId,
 				command,
 				deleted: true,
+				removedWorktree,
 			});
 		}
 		return deleted;
@@ -2494,6 +2593,24 @@ export async function handleCommand(
 		const { refreshWorkspaceMetadata } = await import("./chat-session");
 		refreshWorkspaceMetadata(targetCwd);
 		return { branch };
+	}
+	if (command === "create_git_worktree") {
+		const cwd =
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot;
+		return await createGitWorktree(cwd);
+	}
+
+	// Rolls back a worktree from `create_git_worktree` whose session never
+	// started. Only the generated `~/.cline/worktrees/<id>/<repo>` shape is
+	// accepted, since removal also deletes the `<id>` parent directory.
+	if (command === "remove_git_worktree") {
+		const path = typeof args?.path === "string" ? args.path.trim() : "";
+		if (!isTaskWorktreePath(path)) {
+			throw new Error(`Not a task worktree: ${path}`);
+		}
+		return await removeTaskWorktree(ctx, path);
 	}
 
 	// ── Routine schedules ─────────────────────────────────────────────

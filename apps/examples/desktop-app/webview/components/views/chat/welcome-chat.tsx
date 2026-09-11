@@ -13,6 +13,7 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
+import type { WorkIn } from "@/lib/work-in-selection";
 import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
@@ -24,6 +25,8 @@ export function WelcomeScreen({
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	workIn,
+	onWorkInChange,
 	onOpenSession,
 }: {
 	active: boolean;
@@ -35,6 +38,8 @@ export function WelcomeScreen({
 	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const {
@@ -145,6 +150,8 @@ export function WelcomeScreen({
 									onSelectChat={selectChat}
 									onSwitchGitBranch={onSwitchGitBranch}
 									onSwitchWorkspace={switchWorkspace}
+									onWorkInChange={onWorkInChange}
+									workIn={workIn}
 									workspaceRoot={workspaceRoot}
 									workspaces={workspaces}
 								/>

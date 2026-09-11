@@ -133,6 +133,15 @@ export function isExcludedWorkspacePath(path: string): boolean {
 	);
 }
 
+/**
+ * Worktrees the app creates for tasks (`~/.cline/worktrees/<id>/<repo>`) are
+ * transient: a task runs there, but they are never the workspace to remember
+ * or to start the next thread in.
+ */
+export function isTaskWorktreePath(path: string): boolean {
+	return /[\\/]\.cline[\\/]worktrees[\\/]/.test(normalizeWorkspacePath(path));
+}
+
 export function filterWorkspacePaths(paths: readonly string[]): string[] {
 	return paths.filter((path) => !isExcludedWorkspacePath(path));
 }
