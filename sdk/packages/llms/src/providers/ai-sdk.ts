@@ -325,9 +325,9 @@ function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Partial<CallSettings> {
-	const reasoning = resolvePortableReasoning(request);
+	const reasoning = resolvePortableReasoning(request, context);
 	return {
 		...(request.maxTokens !== undefined
 			? { maxOutputTokens: request.maxTokens }
@@ -2205,7 +2205,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					messagesSystemPrompt,
 				);
-				const portableReasoning = resolvePortableReasoning(request);
+				const portableReasoning = resolvePortableReasoning(request, context);
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
