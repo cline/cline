@@ -6,6 +6,7 @@ import {
 	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
 	BUILTIN_SPECS,
 	type ProviderFamily,
+	resolveSpecBaseUrl,
 } from "./builtins";
 
 const FAMILY_FACTORY_PROMISES = new Map<
@@ -105,7 +106,7 @@ export const BUILTIN_PROVIDER_REGISTRATIONS: GatewayProviderRegistration[] =
 		defaults: {
 			...spec.defaults,
 			apiKeyEnv: spec.apiKeyEnv,
-			baseUrl: spec.defaults?.baseUrl,
+			baseUrl: resolveSpecBaseUrl(spec),
 			// Surface the regional endpoint facts as a default option so the
 			// registry can resolve a base URL from a caller-selected
 			// `options.apiLine` (see GatewayRegistry.createProvider).

@@ -247,6 +247,67 @@ const OCA_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 	},
 ];
 
+// SAP AI Core authenticates with OAuth client credentials against an AI Core
+// endpoint, so the generic API-key field cannot configure it. Field paths
+// mirror ProviderSettings.sap / baseUrl and the readiness check in
+// @cline/core's isProviderSettingsUsable.
+const SAP_AI_CORE_CONFIG_FIELDS: readonly ProviderConfigField[] = [
+	{
+		path: "baseUrl",
+		label: "AI Core Base URL",
+		type: "url",
+		placeholder: "https://api.ai.<region>.aws.ml.hana.ondemand.com",
+		description: "AI Core API endpoint for inference requests.",
+		required: true,
+	},
+	{
+		path: "sap.clientId",
+		label: "Client ID",
+		type: "text",
+		placeholder: "sb-...|xsuaa_std!b...",
+		required: true,
+	},
+	{
+		path: "sap.clientSecret",
+		label: "Client Secret",
+		type: "password",
+		secret: true,
+		required: true,
+	},
+	{
+		path: "sap.tokenUrl",
+		label: "Token URL",
+		type: "url",
+		placeholder: "https://<subdomain>.authentication.sap.hana.ondemand.com",
+		required: true,
+	},
+	{
+		path: "sap.resourceGroup",
+		label: "Resource Group",
+		type: "text",
+		placeholder: "default",
+	},
+	{
+		path: "sap.deploymentId",
+		label: "Deployment ID",
+		type: "text",
+		description: "Targets a specific deployment instead of a resource group.",
+	},
+];
+
+const OPENAI_COMPATIBLE_CONFIG_FIELDS: readonly ProviderConfigField[] = [
+	API_KEY_FIELD,
+	BASE_URL_FIELD,
+	{
+		path: "azure.apiVersion",
+		label: "Azure API Version",
+		type: "text",
+		placeholder: "2025-01-01-preview",
+		description:
+			"Required for Azure AI Foundry deployments, whose Base URL ends at /openai/deployments/<deployment>.",
+	},
+];
+
 const QWEN_API_LINE_BASE_URLS: Readonly<Record<ProviderApiLine, string>> = {
 	china: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 	international: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
@@ -267,6 +328,17 @@ const QWEN_CONFIG_FIELDS: readonly ProviderConfigField[] = [
 	},
 ];
 
+/**
+ * models.dev publishes some endpoints as env-var templates (e.g. Neon's
+ * `${NEON_AI_GATEWAY_BASE_URL}/v1`) because the host is per-account. Nothing
+ * expands them, so shipping one as a default leaves the provider requesting a
+ * literal `${...}` URL. Treat them as "the user supplies this" instead.
+ */
+export function resolveSpecBaseUrl(spec: BuiltinSpec): string | undefined {
+	const baseUrl = spec.defaults?.baseUrl?.trim();
+	return baseUrl && !baseUrl.includes("${") ? baseUrl : undefined;
+}
+
 function defaultConfigFieldsForSpec(
 	spec: BuiltinSpec,
 ): readonly ProviderConfigField[] {
@@ -274,8 +346,23 @@ function defaultConfigFieldsForSpec(
 	if (spec.apiKeyEnv?.length) {
 		fields.push(API_KEY_FIELD);
 	}
-	if (spec.defaults?.baseUrl?.trim()) {
-		fields.push(BASE_URL_FIELD);
+	// Offer the field whenever the provider has an endpoint at all, including
+	// templated ones: those have no usable default, so the input is the only
+	// way to configure the provider. Show the template as the placeholder so
+	// the user can see which part is theirs to fill in.
+	const declaredBaseUrl = spec.defaults?.baseUrl?.trim();
+	if (declaredBaseUrl) {
+		fields.push(
+			resolveSpecBaseUrl(spec)
+				? BASE_URL_FIELD
+				: {
+						...BASE_URL_FIELD,
+						placeholder: declaredBaseUrl,
+						description:
+							"This provider's endpoint is account-specific; substitute your own values.",
+						required: true,
+					},
+		);
 	}
 	return fields;
 }
@@ -769,6 +856,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "gpt-4o",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
+		configFields: OPENAI_COMPATIBLE_CONFIG_FIELDS,
 	},
 	cline,
 	clinePass,
@@ -1288,6 +1376,7 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaultModelId: "anthropic--claude-3.5-sonnet",
 		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
 		modelsProviderId: "sapaicore",
+		configFields: SAP_AI_CORE_CONFIG_FIELDS,
 		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	...OPENAI_COMPATIBLE_SPEC_OVERRIDES,
@@ -1364,7 +1453,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			name: spec.name,
 			description: spec.description,
 			protocol: spec.protocol ?? inferProtocol(spec),
-			baseUrl: spec.defaults?.baseUrl,
+			baseUrl: resolveSpecBaseUrl(spec),
 			modelsSourceUrl: spec.modelsSourceUrl,
 			docsUrl: spec.docsUrl,
 			defaultModelId,
@@ -1428,7 +1517,7 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		})),
 		capabilities,
 		env: spec.env ?? ["browser", "node"],
-		api: spec.defaults?.baseUrl,
+		api: resolveSpecBaseUrl(spec),
 		apiKeyEnv: spec.apiKeyEnv,
 		docsUrl: spec.docsUrl,
 		metadata,

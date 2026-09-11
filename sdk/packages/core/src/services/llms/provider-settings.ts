@@ -26,10 +26,13 @@ export const normalizeProviderId = Llms.normalizeProviderId;
 
 export type ProviderDefaultsConfig = ProviderDefaults;
 
+// Dots are allowed because the catalog carries domain-style provider ids from
+// models.dev (e.g. `wafer.ai`). Rejecting them made those providers listable
+// but impossible to save credentials for.
 export const ProviderIdSchema = z
 	.string()
 	.min(1)
-	.regex(/^[a-z0-9][a-z0-9-]*$/i);
+	.regex(/^[a-z0-9][a-z0-9.-]*$/i);
 
 export const ProviderProtocolSchema = z.enum([
 	"anthropic",
