@@ -308,8 +308,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
 					)
 				case "mostRelevant":
-					// NOTE: you must never sort directly on object since it will cause members to be reordered
-					return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
+				// Fuse sorts by relevance score; fall through to recency so the
+				// most recently executed matching task always appears first.
 				case "newest":
 				default:
 					return b.ts - a.ts
