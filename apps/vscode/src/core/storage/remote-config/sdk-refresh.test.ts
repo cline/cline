@@ -96,6 +96,22 @@ describe("refreshSdkRemoteConfig", () => {
 		captureRemoteConfigRefresh.mockReset()
 	})
 
+	it("awaits telemetry cleanup before publishing a cleared integration", async () => {
+		const cleanup = deferred<void>()
+		const started = deferred<void>()
+		clearRemoteConfig.mockImplementation(() => {
+			started.resolve()
+			return cleanup.promise
+		})
+		const { controller, setRemoteConfigCoreIntegration } = makeController()
+		const clearing = clearSdkRemoteConfig(controller as never, { workspacePath: "/tmp/remote-config-test" })
+		await started.promise
+		expect(setRemoteConfigCoreIntegration).not.toHaveBeenCalled()
+		cleanup.resolve()
+		await clearing
+		expect(setRemoteConfigCoreIntegration).toHaveBeenCalledWith(undefined)
+	})
+
 	it("does not let an older response overwrite a newer published integration", async () => {
 		const older = deferred<unknown>()
 		const newer = deferred<unknown>()
