@@ -2,6 +2,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { CoreSessionConfig } from "@cline/core"
+import * as ClineCore from "@cline/core"
 import * as LlmsModels from "@cline/llms"
 import { ApiFormat } from "@shared/proto/cline/models"
 import { Logger } from "@shared/services/Logger"
@@ -615,6 +616,69 @@ describe("buildSessionConfig", () => {
 		const providerConfigKnownModels = (config.providerConfig as { knownModels?: Record<string, unknown> }).knownModels
 		expect(providerConfigKnownModels).toBeDefined()
 		expect(config.knownModels).toBe(providerConfigKnownModels)
+	})
+
+	it("budgets LM Studio sessions against the live server context window", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "lmstudio",
+			actModeLmStudioModelId: "qwen3-27b",
+			lmStudioBaseUrl: "http://localhost:1234",
+		} as any)
+		const modelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({
+			"qwen3-27b": {
+				id: "qwen3-27b",
+				name: "qwen3-27b",
+				contextWindow: 128_000,
+				capabilities: ["streaming", "tools"],
+				status: "active",
+			},
+		})
+		const resolveSpy = vi.spyOn(ClineCore, "resolveProviderConfig").mockResolvedValueOnce({
+			modelId: "qwen3-27b",
+			knownModels: {
+				"qwen3-27b": {
+					id: "qwen3-27b",
+					name: "qwen3-27b",
+					contextWindow: 40_000,
+					capabilities: ["streaming", "tools"],
+					status: "active",
+				},
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		// The session factory normalizes the LM Studio base URL onto the SDK's
+		// OpenAI-compatible shape (`/v1`), which the live model resolution reuses.
+		expect(resolveSpy).toHaveBeenCalledWith(
+			"lmstudio",
+			expect.objectContaining({ failOnError: false }),
+			expect.objectContaining({ providerId: "lmstudio", modelId: "qwen3-27b", baseUrl: "http://localhost:1234/v1" }),
+		)
+		expect(config.knownModels?.["qwen3-27b"]).toMatchObject({ contextWindow: 40_000 })
+		expect(config.providerConfig?.knownModels?.["qwen3-27b"]).toMatchObject({ contextWindow: 40_000 })
+		modelsSpy.mockRestore()
+		resolveSpy.mockRestore()
+	})
+
+	it("keeps LM Studio session creation non-fatal when the live model lookup fails", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "lmstudio",
+			actModeLmStudioModelId: "qwen3-27b",
+		} as any)
+		const lookupError = new Error("connection refused")
+		const resolveSpy = vi.spyOn(ClineCore, "resolveProviderConfig").mockRejectedValueOnce(lookupError)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("lmstudio")
+		expect(config.modelId).toBe("qwen3-27b")
+		expect(config.knownModels?.["qwen3-27b"]).toBeUndefined()
+		expect(Logger.warn).toHaveBeenCalledWith(
+			"[SessionFactory] Failed to resolve live model info for provider=lmstudio:",
+			lookupError,
+		)
+		resolveSpy.mockRestore()
 	})
 
 	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {

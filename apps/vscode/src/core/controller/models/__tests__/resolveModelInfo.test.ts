@@ -90,6 +90,32 @@ describe("resolveModelInfo", () => {
 		expect(catalog.resolveModels).not.toHaveBeenCalled()
 	})
 
+	it("refreshes LM Studio metadata instead of returning a stale committed context window", async () => {
+		const { resolveModelInfo } = await import("../resolveModelInfo")
+		const providerId = parseProviderId("lmstudio")
+		const store = makeStore({ providerId })
+		vi.mocked(store.readSelection).mockReturnValue({
+			providerId,
+			modelId: "qwen",
+			modelInfoSource: "catalog",
+			modelInfo: { name: "qwen", contextWindow: 128_000, supportsPromptCache: false },
+		})
+		const catalog = makeCatalog()
+		vi.mocked(catalog.resolveModels).mockResolvedValue(
+			peekResult("lmstudio", [["qwen", { name: "qwen", contextWindow: 40_000, supportsPromptCache: false }]], "qwen"),
+		)
+
+		const response = await resolveModelInfo(makeController(store, catalog), {
+			providerId: "lmstudio",
+			modelId: "qwen",
+		})
+
+		expect(response.source).toBe("sdk-known-models")
+		expect(response.modelInfo?.contextWindow).toBe(40_000)
+		expect(catalog.peekModels).not.toHaveBeenCalled()
+		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
+	})
+
 	it("returns sdk-known-models from a populated catalog peek", async () => {
 		const { resolveModelInfo } = await import("../resolveModelInfo")
 		const store = makeStore({ providerId: parseProviderId("deepseek") })
