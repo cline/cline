@@ -1,12 +1,18 @@
-type MutableTracerProvider = {
-	addSpanProcessor?: (spanProcessor: unknown) => void;
-	getDelegate?: () => unknown;
-};
+import type { Tracer } from "@opentelemetry/api";
+import type { Telemetry } from "ai";
 
-type LangfuseTelemetryConfig = {
+type DirectLangfuseTelemetryConfig = {
 	baseUrl: string;
 	publicKey: string;
 	secretKey: string;
+};
+
+type DirectLangfuseTelemetryRuntime = {
+	integration: Telemetry;
+	tracerProvider: {
+		forceFlush(): Promise<void>;
+		shutdown(): Promise<void>;
+	};
 };
 
 export type LangfuseTraceAttributes = {
@@ -37,10 +43,26 @@ export async function withLangfuseTraceAttributes<T>(
 
 const LANGFUSE_DEBUG_ENV = "CLINE_DEBUG_LANGFUSE";
 
-let langfuseTelemetryReady: boolean | undefined;
-let langfuseTelemetryInitPromise:
-	| Promise<boolean | "relay-active">
-	| undefined;
+let directLangfuseRuntimes = new Map<
+	string,
+	Promise<DirectLangfuseTelemetryRuntime | undefined>
+>();
+let directLangfuseDisposableRegistration: Promise<void> | undefined;
+let langfuseContextManagerInitialization: Promise<void> | undefined;
+
+function readDirectLangfuseTelemetryConfig():
+	| DirectLangfuseTelemetryConfig
+	| undefined {
+	const baseUrl = process.env.LANGFUSE_BASE_URL?.trim();
+	const publicKey = process.env.LANGFUSE_PUBLIC_KEY?.trim();
+	const secretKey = process.env.LANGFUSE_SECRET_KEY?.trim();
+
+	if (!baseUrl || !publicKey || !secretKey) {
+		return undefined;
+	}
+
+	return { baseUrl, publicKey, secretKey };
+}
 
 function isClineProviderId(providerId: string): boolean {
 	return providerId === "cline" || providerId === "cline-pass";
@@ -48,6 +70,7 @@ function isClineProviderId(providerId: string): boolean {
 
 export type AiSdkTelemetryDecision = {
 	isEnabled: boolean;
+	integrations?: Telemetry;
 	recordInputs?: boolean;
 	recordOutputs?: boolean;
 };
@@ -55,13 +78,9 @@ export type AiSdkTelemetryDecision = {
 const TELEMETRY_DISABLED: AiSdkTelemetryDecision = { isEnabled: false };
 
 /**
- * Decide AI SDK telemetry for one stream. Two independent export paths:
- * - Direct Langfuse (env-configured credentials, hub/internal): unchanged
- *   behavior — full content, every request.
- * - Host OTLP tracer (collector relay): a host that registered a traces
- *   exporter gets every task (100%). CLINE_TRACE_SAMPLE_PERCENT reduces
- *   that, sampled per task by `samplingKey` so a task's requests trace
- *   together. Metadata-only unless CLINE_TRACE_RECORD_CONTENT is set.
+ * Select exactly one per-call integration. A host OTLP relay takes precedence
+ * over direct credentials, and its sampling, opt-out and content policy is
+ * checked on every stream. Direct exports own an isolated tracer provider.
  */
 export async function resolveAiSdkTelemetry(
 	providerId: string,
@@ -71,8 +90,22 @@ export async function resolveAiSdkTelemetry(
 		return TELEMETRY_DISABLED;
 	}
 
-	if (await ensureLangfuseTelemetry(providerId)) {
-		return { isEnabled: true };
+	let relayTracer = await getHostOtlpTracer();
+	if (!relayTracer) {
+		const config = readDirectLangfuseTelemetryConfig();
+		if (!config) return TELEMETRY_DISABLED;
+		const integration = await ensureDirectLangfuseIntegration(
+			providerId,
+			config,
+		);
+		// The host may register its relay during asynchronous direct-runtime
+		// initialization. Apply its policy before selecting the stream's route.
+		relayTracer = await getHostOtlpTracer();
+		if (!relayTracer) {
+			return integration
+				? { isEnabled: true, integrations: integration }
+				: TELEMETRY_DISABLED;
+		}
 	}
 
 	if (await isTelemetryOptedOutGlobally()) {
@@ -93,14 +126,18 @@ export async function resolveAiSdkTelemetry(
 			return TELEMETRY_DISABLED;
 		}
 	}
-	if (!(await hasHostOtlpTracer())) {
-		return TELEMETRY_DISABLED;
-	}
-
-	// Literal env access so bundlers can inline a build-time value.
+	const { LangfuseVercelAiSdkIntegration } = await import(
+		"@langfuse/vercel-ai-sdk"
+	);
+	// Resolve the host tracer per call so remote-config replacement cannot
+	// leave a cached integration attached to a shut-down provider.
+	const integration = new LangfuseVercelAiSdkIntegration({
+		tracer: relayTracer,
+	});
 	const recordContent = isEnvTruthy(process.env.CLINE_TRACE_RECORD_CONTENT);
 	return {
 		isEnabled: true,
+		integrations: integration,
 		recordInputs: recordContent,
 		recordOutputs: recordContent,
 	};
@@ -155,24 +192,19 @@ async function isTelemetryOptedOutGlobally(): Promise<boolean> {
  * by "some recording tracer exists". A console-only tracer must neither
  * enable the relay path nor suppress direct Langfuse export.
  */
-async function hasHostOtlpTracer(): Promise<boolean> {
-	try {
-		const [{ trace }, { isOtlpTraceRelayProvider }] = await Promise.all([
-			import("@opentelemetry/api"),
-			import("@cline/shared"),
-		]);
-		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
-		return (
-			isOtlpTraceRelayProvider(tracerProvider) ||
-			isOtlpTraceRelayProvider(
-				typeof tracerProvider?.getDelegate === "function"
-					? tracerProvider.getDelegate()
-					: undefined,
-			)
-		);
-	} catch {
-		return false;
+async function getHostOtlpTracer(): Promise<Tracer | undefined> {
+	const [{ trace }, { isOtlpTraceRelayProvider }] = await Promise.all([
+		import("@opentelemetry/api"),
+		import("@cline/shared"),
+	]);
+	const provider = trace.getTracerProvider() as { getDelegate?: () => unknown };
+	if (
+		isOtlpTraceRelayProvider(provider) ||
+		isOtlpTraceRelayProvider(provider.getDelegate?.())
+	) {
+		return trace.getTracer("cline-provider-langfuse");
 	}
+	return undefined;
 }
 
 /** FNV-1a: stable across processes so a task samples identically on retries. */
@@ -185,264 +217,127 @@ function fnv1a32(value: string): number {
 	return hash;
 }
 
-function readLangfuseTelemetryConfig(): LangfuseTelemetryConfig | undefined {
-	const env = process?.env;
-	const baseUrl = env?.LANGFUSE_BASE_URL?.trim();
-	const publicKey = env?.LANGFUSE_PUBLIC_KEY?.trim();
-	const secretKey = env?.LANGFUSE_SECRET_KEY?.trim();
-
-	if (!baseUrl || !publicKey || !secretKey) {
-		return undefined;
-	}
-
-	return {
-		baseUrl,
-		publicKey,
-		secretKey,
-	};
-}
-
-export function hasLangfuseTelemetryConfig(): boolean {
-	return readLangfuseTelemetryConfig() !== undefined;
-}
-
-export async function ensureLangfuseTelemetry(
+async function ensureDirectLangfuseIntegration(
 	providerId: string,
-): Promise<boolean> {
-	if (!isClineProviderId(providerId)) {
-		return false;
+	config: DirectLangfuseTelemetryConfig,
+): Promise<Telemetry | undefined> {
+	const configKey = JSON.stringify(config);
+	let runtimePromise = directLangfuseRuntimes.get(configKey);
+	if (!runtimePromise) {
+		runtimePromise = registerDirectLangfuseDisposable().then(
+			async () => await initializeDirectLangfuseTelemetry(config),
+		);
+		directLangfuseRuntimes.set(configKey, runtimePromise);
 	}
 
-	if (!hasLangfuseTelemetryConfig()) {
-		return false;
+	const runtime = await runtimePromise;
+	if (!runtime && directLangfuseRuntimes.get(configKey) === runtimePromise) {
+		directLangfuseRuntimes.delete(configKey);
 	}
-
-	if (langfuseTelemetryReady !== undefined) {
-		debugLangfuse(`cached readiness=${String(langfuseTelemetryReady)}`);
-		return langfuseTelemetryReady;
-	}
-
-	if (!langfuseTelemetryInitPromise) {
-		langfuseTelemetryInitPromise = initializeLangfuseTelemetry();
-	}
-
-	const result = await langfuseTelemetryInitPromise;
-	if (result === "relay-active") {
-		// Not cached: the relay owning the tracer slot now may be disposed
-		// later, at which point the direct path should get to try again.
-		langfuseTelemetryInitPromise = undefined;
-		return false;
-	}
-	langfuseTelemetryReady = result;
-	debugLangfuse(`initialized readiness=${String(langfuseTelemetryReady)}`);
-	return langfuseTelemetryReady;
+	debugLangfuse(
+		`resolved direct integration=${String(Boolean(runtime))} provider=${providerId}`,
+	);
+	return runtime?.integration;
 }
 
-async function initializeLangfuseTelemetry(): Promise<boolean | "relay-active"> {
-	// Register for cleanup once, when initialization begins.
-	const { registerDisposable } = await import("@cline/shared");
-	registerDisposable(disposeLangfuseTelemetry);
-	const config = readLangfuseTelemetryConfig();
-	if (!config) {
-		return false;
+async function registerDirectLangfuseDisposable(): Promise<void> {
+	if (!directLangfuseDisposableRegistration) {
+		directLangfuseDisposableRegistration = import("@cline/shared").then(
+			({ registerDisposable }) => {
+				registerDisposable(disposeLangfuseTelemetry);
+			},
+		);
 	}
+	await directLangfuseDisposableRegistration;
+}
 
+async function ensureLangfuseContextManager(): Promise<void> {
+	if (!langfuseContextManagerInitialization) {
+		langfuseContextManagerInitialization = Promise.all([
+			import("@opentelemetry/api"),
+			import("@opentelemetry/context-async-hooks"),
+		]).then(([{ context }, { AsyncLocalStorageContextManager }]) => {
+			const contextManager = new AsyncLocalStorageContextManager().enable();
+			if (!context.setGlobalContextManager(contextManager)) {
+				// Another OpenTelemetry owner already installed a context manager.
+				contextManager.disable();
+			}
+		});
+	}
+	await langfuseContextManagerInitialization;
+}
+
+async function initializeDirectLangfuseTelemetry(
+	config: DirectLangfuseTelemetryConfig,
+): Promise<DirectLangfuseTelemetryRuntime | undefined> {
 	try {
-		// Give Langfuse and any other OTEL exporter a stable resource identity.
-		// Respect an explicitly configured service name from the host.
+		// Direct SDK consumers own this isolated exporter. It intentionally does
+		// not replace or modify the process's global tracer provider.
 		if (!process.env.OTEL_SERVICE_NAME?.trim()) {
 			process.env.OTEL_SERVICE_NAME = "cline-sdk";
 		}
+		await ensureLangfuseContextManager();
 		const [
 			{ LangfuseSpanProcessor },
 			{ LangfuseVercelAiSdkIntegration },
-			{ registerTelemetry },
-			{ trace },
 			{ NodeTracerProvider },
 		] = await Promise.all([
 			import("@langfuse/otel"),
 			import("@langfuse/vercel-ai-sdk"),
-			import("ai"),
-			import("@opentelemetry/api"),
 			import("@opentelemetry/sdk-trace-node"),
 		]);
 
-		// One export path per host: when the registered tracer provider is the
-		// OTLP collector relay (identified by its creator's marker, so a
-		// console-only tracer never trips this), attaching the direct Langfuse
-		// processor to it would ship every span twice — once direct, once
-		// through the collector — so the direct path declines. Non-relay
-		// providers keep the original cooperative behavior below. Class names
-		// are unreliable here (release binaries are minified), so all other
-		// provider detection is structural.
-		const { isOtlpTraceRelayProvider } = await import("@cline/shared");
-		const tracerProvider = trace.getTracerProvider() as MutableTracerProvider;
-		const existingDelegate =
-			typeof tracerProvider?.getDelegate === "function"
-				? tracerProvider.getDelegate()
-				: undefined;
-		if (
-			isOtlpTraceRelayProvider(tracerProvider) ||
-			isOtlpTraceRelayProvider(existingDelegate)
-		) {
-			debugLangfuse(
-				"OTLP relay tracer registered; declining direct Langfuse export (one export path per host)",
-			);
-			return "relay-active";
-		}
-
-		const spanProcessor = new LangfuseSpanProcessor({
-			baseUrl: config.baseUrl,
-			publicKey: config.publicKey,
-			secretKey: config.secretKey,
-		});
-		debugLangfuse(`creating span processor baseUrl=${config.baseUrl}`);
-
-		if (typeof tracerProvider?.addSpanProcessor === "function") {
-			tracerProvider.addSpanProcessor(spanProcessor);
-			const hasDelegate = hasActiveTracerDelegate(trace);
-			if (hasDelegate) {
-				registerTelemetry(new LangfuseVercelAiSdkIntegration());
-			}
-			debugLangfuse(
-				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
-			);
-			return hasDelegate;
-		}
-
-		if (isRecordingTracerProvider(existingDelegate)) {
-			// A non-relay provider owns the global slot, so registering our own
-			// would be rejected. Attach to it when it accepts processors.
-			const delegate = existingDelegate as MutableTracerProvider;
-			if (typeof delegate.addSpanProcessor === "function") {
-				delegate.addSpanProcessor(spanProcessor);
-				registerTelemetry(new LangfuseVercelAiSdkIntegration());
-				debugLangfuse("attached processor to registered tracer delegate");
-				return true;
-			}
-			debugLangfuse(
-				"tracer provider slot already owned; disabling Langfuse export",
-			);
-			return false;
-		}
-
-		const nodeTracerProvider = new NodeTracerProvider({
+		const spanProcessor = new LangfuseSpanProcessor(config);
+		const tracerProvider = new NodeTracerProvider({
 			spanProcessors: [spanProcessor],
-		} as unknown as ConstructorParameters<typeof NodeTracerProvider>[0]);
-		nodeTracerProvider.register();
-		if (!isRegisteredGlobalTracerProvider(trace, nodeTracerProvider)) {
-			debugLangfuse(
-				"tracer provider registration was not accepted; disabling Langfuse export",
-			);
-			// Shut the orphaned provider down so its span processor does not
-			// keep buffering spans that can never be exported.
-			await nodeTracerProvider.shutdown?.();
-			return false;
-		}
-		registerTelemetry(new LangfuseVercelAiSdkIntegration());
-		debugLangfuse("registered NodeTracerProvider delegateReady=true");
-		return true;
+		});
+		const integration = new LangfuseVercelAiSdkIntegration({
+			tracer: tracerProvider.getTracer("cline-langfuse-direct"),
+		});
+		debugLangfuse(`created isolated direct exporter baseUrl=${config.baseUrl}`);
+
+		return { integration, tracerProvider };
 	} catch (error) {
 		debugLangfuse(
-			`initialization failed error=${error instanceof Error ? error.message : String(error)}`,
+			`direct initialization failed error=${error instanceof Error ? error.message : String(error)}`,
 		);
-		return false;
-	}
-}
-
-function hasActiveTracerDelegate(traceApi: {
-	getTracerProvider: () => unknown;
-}): boolean {
-	const tracerProvider = traceApi.getTracerProvider() as MutableTracerProvider;
-	if (typeof tracerProvider.getDelegate !== "function") {
-		// Some runtimes expose the registered tracer provider directly rather
-		// than through OpenTelemetry's ProxyTracerProvider. A direct provider
-		// has no delegate to inspect, but its addSpanProcessor API is sufficient
-		// evidence that it can receive and export spans.
-		return typeof tracerProvider.addSpanProcessor === "function";
-	}
-
-	return isRecordingTracerProvider(tracerProvider.getDelegate());
-}
-
-/**
- * Distinguishes a recording tracer provider from OpenTelemetry's no-op
- * fallback without relying on constructor names, which minified release
- * builds rename. Real SDK providers expose lifecycle methods the no-op
- * provider lacks.
- */
-function isRecordingTracerProvider(provider: unknown): boolean {
-	if (!provider || typeof provider !== "object") {
-		return false;
-	}
-	const candidate = provider as {
-		addSpanProcessor?: unknown;
-		forceFlush?: unknown;
-		shutdown?: unknown;
-	};
-	return (
-		typeof candidate.addSpanProcessor === "function" ||
-		typeof candidate.forceFlush === "function" ||
-		typeof candidate.shutdown === "function"
-	);
-}
-
-/**
- * Confirms the OpenTelemetry API accepted a provider registration. The API
- * silently keeps the previous owner when the global slot is taken, so the
- * only reliable signal is identity: the global provider (or its proxy
- * delegate) must be the exact instance that was just registered.
- */
-function isRegisteredGlobalTracerProvider(
-	traceApi: { getTracerProvider: () => unknown },
-	provider: unknown,
-): boolean {
-	const globalProvider = traceApi.getTracerProvider() as
-		| MutableTracerProvider
-		| null
-		| undefined;
-	if (globalProvider === provider) {
-		return true;
-	}
-	return (
-		typeof globalProvider?.getDelegate === "function" &&
-		globalProvider.getDelegate() === provider
-	);
-}
-
-async function flushLangfuseTelemetry(): Promise<void> {
-	try {
-		const { trace } = await import("@opentelemetry/api");
-		const tracerProvider = trace.getTracerProvider() as {
-			getDelegate?: () => {
-				forceFlush?: () => Promise<void>;
-			};
-		};
-		await tracerProvider.getDelegate?.()?.forceFlush?.();
-		debugLangfuse("forceFlush completed");
-	} catch (error) {
-		debugLangfuse(
-			`forceFlush failed error=${error instanceof Error ? error.message : String(error)}`,
-		);
+		return undefined;
 	}
 }
 
 export async function disposeLangfuseTelemetry(): Promise<void> {
-	try {
-		await flushLangfuseTelemetry();
-		const { trace } = await import("@opentelemetry/api");
-		const tracerProvider = trace.getTracerProvider() as {
-			getDelegate?: () => {
-				shutdown?: () => Promise<void>;
-			};
-		};
-		await tracerProvider.getDelegate?.()?.shutdown?.();
-		debugLangfuse("shutdown completed");
-	} catch (error) {
-		debugLangfuse(
-			`shutdown failed error=${error instanceof Error ? error.message : String(error)}`,
-		);
-	}
+	const pendingRuntimes = [...directLangfuseRuntimes.values()];
+	directLangfuseRuntimes.clear();
+	directLangfuseDisposableRegistration = undefined;
+	const settledRuntimes = await Promise.allSettled(pendingRuntimes);
+	const runtimes = settledRuntimes.flatMap((result) =>
+		result.status === "fulfilled" && result.value ? [result.value] : [],
+	);
+
+	await Promise.all(
+		runtimes.map(async ({ tracerProvider }) => {
+			try {
+				await tracerProvider.forceFlush();
+				debugLangfuse("direct forceFlush completed");
+			} catch (error) {
+				debugLangfuse(
+					`direct forceFlush failed error=${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}),
+	);
+	await Promise.all(
+		runtimes.map(async ({ tracerProvider }) => {
+			try {
+				await tracerProvider.shutdown();
+				debugLangfuse("direct shutdown completed");
+			} catch (error) {
+				debugLangfuse(
+					`direct shutdown failed error=${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}),
+	);
 }
 
 export function debugLangfuse(message: string): void {
@@ -453,10 +348,7 @@ export function debugLangfuse(message: string): void {
 }
 
 function isLangfuseDebugEnabled(): boolean {
-	return isEnvTruthy(process.env[LANGFUSE_DEBUG_ENV]);
-}
-
-function isEnvTruthy(raw: string | undefined): boolean {
+	const raw = process.env[LANGFUSE_DEBUG_ENV];
 	if (!raw) {
 		return false;
 	}
@@ -464,7 +356,14 @@ function isEnvTruthy(raw: string | undefined): boolean {
 	return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
+function isEnvTruthy(raw: string | undefined): boolean {
+	if (!raw) return false;
+	const normalized = raw.trim().toLowerCase();
+	return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
 export function resetLangfuseTelemetryForTests(): void {
-	langfuseTelemetryReady = undefined;
-	langfuseTelemetryInitPromise = undefined;
+	directLangfuseRuntimes = new Map();
+	directLangfuseDisposableRegistration = undefined;
+	langfuseContextManagerInitialization = undefined;
 }
