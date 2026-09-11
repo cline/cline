@@ -1,5 +1,6 @@
 "use client";
 
+import { Switch } from "@cline/ui";
 import {
 	Bot,
 	Code,
@@ -28,7 +29,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";

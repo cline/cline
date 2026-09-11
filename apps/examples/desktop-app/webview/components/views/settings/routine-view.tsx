@@ -5,6 +5,7 @@ import {
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import {
 	CheckCircle2,
 	ChevronDown,
@@ -63,7 +64,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	Tooltip,
