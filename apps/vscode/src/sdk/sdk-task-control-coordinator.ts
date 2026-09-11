@@ -6,6 +6,7 @@ import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { isAbortError, type SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { TASK_CANCELLED_DENIAL_REASON, TASK_CLEARED_DENIAL_REASON, TASK_SWITCHED_DENIAL_REASON } from "./tool-approval-denial"
 
 export interface SdkTaskControlCoordinatorOptions {
 	sessions: SdkSessionLifecycle
@@ -65,7 +66,7 @@ export class SdkTaskControlCoordinator {
 	}
 
 	async cancelTask(): Promise<void> {
-		this.options.interactions.clearPending("Task cancelled")
+		this.options.interactions.clearPending(TASK_CANCELLED_DENIAL_REASON)
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
@@ -111,7 +112,7 @@ export class SdkTaskControlCoordinator {
 		// Supersede any in-flight showTaskWithId so it cannot re-install a task
 		// after the user cleared the view (e.g. clicked New Task).
 		this.taskViewGeneration++
-		this.options.interactions.clearPending("Task cleared")
+		this.options.interactions.clearPending(TASK_CLEARED_DENIAL_REASON)
 
 		await this.options.sessions.endActiveSession("clearTask")
 
@@ -175,7 +176,7 @@ export class SdkTaskControlCoordinator {
 			// resolvers live on the shared interaction coordinator, so ending the session
 			// alone does not discard them; if one leaks across this task switch, the first
 			// message sent in the newly selected task is consumed as the old task's response.
-			this.options.interactions.clearPending("Task switched")
+			this.options.interactions.clearPending(TASK_SWITCHED_DENIAL_REASON)
 
 			// When reopening the task that is currently active, wait for its stop to
 			// land so the persisted session status read below reflects how the last

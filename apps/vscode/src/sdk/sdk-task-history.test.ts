@@ -8,6 +8,7 @@ import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMe
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { TASK_CLEARED_DENIAL_REASON } from "./tool-approval-denial"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
@@ -218,6 +219,47 @@ describe("SdkTaskHistory", () => {
 			tool: "editedExistingFile",
 			path: "/Users/maxpaulus/c/c2/README.md",
 		})
+	})
+
+	it("renders no tool row for an approval a task lifecycle teardown denied", () => {
+		const clearedToolResult = JSON.stringify({ error: TASK_CLEARED_DENIAL_REASON })
+
+		const result = sdkMessagesToClineMessages([
+			{ role: "user", content: "add a joke" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_1",
+						name: "editor",
+						input: {
+							path: "/Users/maxpaulus/c/c2/README.md",
+							old_text: "## License",
+							new_text: "## A Note from Cline",
+						},
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_1",
+						name: "editor",
+						content: clearedToolResult,
+						is_error: true,
+					},
+				],
+			},
+		])
+
+		expect(result).toMatchObject([
+			{ type: "say", say: "task", text: "add a joke", partial: false },
+			{ type: "ask", ask: "completion_result", partial: false },
+		])
+		expect(result.map((message) => message.text).join("\n")).not.toContain(clearedToolResult)
 	})
 
 	it("retags only the final turn's text, styled by the mode recovered from user_input wrappers", async () => {
