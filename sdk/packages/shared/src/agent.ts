@@ -634,6 +634,8 @@ export type AgentRuntimeEvent =
 			snapshot: AgentRuntimeStateSnapshot;
 			iteration: number;
 			toolCallCount: number;
+			/** True when the turn produced nothing visible: no text, tool call, or media (e.g. reasoning only). */
+			emptyTurn?: boolean;
 	  }
 	| {
 			type: "status-notice";
