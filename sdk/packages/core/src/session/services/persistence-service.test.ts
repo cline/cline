@@ -102,6 +102,55 @@ describe("UnifiedSessionPersistenceService", () => {
 		},
 	);
 
+	sqliteIt(
+		"lists root sessions ahead of thousands of newer child rows when rootOnly is set",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "root-only-db-"));
+			tempDirs.push(dbDir);
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store);
+			const insert = (
+				sessionId: string,
+				startedAt: string,
+				parentSessionId: string | null,
+			) =>
+				store.run(
+					`INSERT INTO sessions (
+						session_id, source, pid, started_at, status, interactive, provider, model,
+						cwd, workspace_root, enable_tools, enable_spawn, enable_teams,
+						parent_session_id, is_subagent, hook_path, updated_at
+					) VALUES (?, 'cli', 0, ?, 'completed', 0, 'p', 'm', '/tmp', '/tmp', 1, 0, 0, ?, ?, '', ?)`,
+					[
+						sessionId,
+						startedAt,
+						parentSessionId,
+						parentSessionId ? 1 : 0,
+						startedAt,
+					],
+				);
+			store.run("BEGIN");
+			insert("root", "2026-01-01T00:00:00.000Z", null);
+			for (let index = 0; index < 2500; index += 1) {
+				insert(
+					`root__sub__${index}`,
+					`2026-01-02T00:00:${String(index).padStart(2, "0")}.${String(index).padStart(3, "0")}Z`,
+					"root",
+				);
+			}
+			store.run("COMMIT");
+
+			expect(await service.listSessions(10)).not.toContainEqual(
+				expect.objectContaining({ sessionId: "root" }),
+			);
+			expect(
+				(await service.listSessions(10, { rootOnly: true })).map(
+					(row) => row.sessionId,
+				),
+			).toEqual(["root"]);
+		},
+	);
+
 	it("persists compaction state as a separate session artifact", async () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-artifact-"));
 		tempDirs.push(sessionsDir);

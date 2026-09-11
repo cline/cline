@@ -15,7 +15,9 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
+	type ClineAccountUser,
 	captureAuthRefreshSoftFailure,
+	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -23,18 +25,25 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	identifyAccount,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
+	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
+	resolveClineAccountTelemetryIdentity,
 	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
+	SESSION_IMPORT_TOOLS,
+	type SessionImportRequest,
+	SessionImportService,
+	type SessionImportTool,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
 	saveVoiceInputSettings,
@@ -45,6 +54,7 @@ import {
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
+	upgradeManagedHub,
 } from "@cline/core";
 import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
@@ -62,6 +72,7 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import { resolveDesktopTelemetryUser } from "./client-context";
 import {
 	listClineGitHubRepositories,
 	listClineIntegrations,
@@ -92,6 +103,10 @@ import {
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
+	clearLegacyCodexCredentials,
+	OPENAI_CODEX_PROVIDER_ID,
+} from "./legacy-codex-credentials";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -120,6 +135,8 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { getPullRequestStatus } from "./pull-request";
+import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -315,14 +332,23 @@ function removePathIfExists(
 // refreshes would invalidate each other.
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
-function syncFeatureFlagsAccountFromResult(
+function syncAccountContextFromResult(
 	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
 	operation: string,
 	result: unknown,
 ): void {
 	if (operation === "fetchMe") {
-		const user = result as { id?: string; email?: string } | undefined;
+		const user = result as ClineAccountUser | undefined;
 		if (user?.id) {
+			const identity = resolveClineAccountTelemetryIdentity(user);
+			ctx.telemetryUser = resolveDesktopTelemetryUser({
+				accountId: identity.id,
+				email: identity.email,
+				organizationId: identity.organizationId,
+			});
+			identifyAccount(ctx.telemetry, identity);
+			persistClineAccountTelemetryIdentity(manager, identity);
 			void identifyDesktopFeatureFlagsAccount(
 				{ id: user.id, email: user.email },
 				{ logger: ctx.logger, telemetry: ctx.telemetry },
@@ -332,12 +358,39 @@ function syncFeatureFlagsAccountFromResult(
 	}
 }
 
-function syncFeatureFlagsAccountFromSettings(
+function syncAccountContextFromSettings(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
 ): void {
+	const auth = manager.getProviderSettings("cline")?.auth;
+	const accountId = auth?.accountId?.trim();
+	if (!auth || !accountId) {
+		syncSignedOutAccountContext(ctx);
+		return;
+	}
+	ctx.telemetryUser = resolveDesktopTelemetryUser({
+		accountId,
+		organizationId: auth.organizationId,
+	});
+	identifyAccount(ctx.telemetry, {
+		id: accountId,
+		provider: "cline",
+		organizationId: auth.organizationId,
+		organizationName: auth.organizationName,
+		memberId: auth.memberId,
+	});
 	void identifyDesktopFeatureFlagsAccount(
-		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ id: accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
+function syncSignedOutAccountContext(ctx: SidecarContext): void {
+	const telemetryUser = resolveDesktopTelemetryUser();
+	ctx.telemetryUser = telemetryUser;
+	clearAccountTelemetryIdentity(ctx.telemetry, telemetryUser.distinctId);
+	void identifyDesktopFeatureFlagsAccount(
+		{},
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
 }
@@ -653,9 +706,13 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
-function routineScheduleTiming(
-	args?: Record<string, unknown>,
-): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+function routineScheduleTiming(args?: Record<string, unknown>):
+	| {
+			cronPattern: string;
+			timezone?: string;
+			metadata?: Record<string, number>;
+	  }
+	| undefined {
 	if (args?.schedule_type === "once") {
 		const runAt =
 			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
@@ -667,7 +724,9 @@ function routineScheduleTiming(
 			: undefined;
 	}
 	const cronPattern = asTrimmedString(args?.cron_pattern);
-	return cronPattern ? { cronPattern } : undefined;
+	return cronPattern
+		? { cronPattern, timezone: asTrimmedString(args?.timezone) }
+		: undefined;
 }
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -925,7 +984,7 @@ async function listHubSettings(
 async function toggleHubSetting(
 	ctx: SidecarContext,
 	input: {
-		type: "plugins" | "tools";
+		type: "plugins" | "tools" | "skills";
 		path?: string;
 		name?: string;
 		enabled?: boolean;
@@ -964,13 +1023,18 @@ async function listUserInstructionConfigs(
 		const items: unknown[] = [];
 		for (const record of userInstructionService.listRecords(type)) {
 			const item = record.item as unknown as JsonRecord;
-			if (item.disabled === true) continue;
+			const disabled = item.disabled === true;
+			// Rules and workflows have no toggle UI, so keep hiding disabled
+			// ones; skills need to stay visible (disabled) so they can be
+			// re-enabled from the Skills tab.
+			if (disabled && type !== "skill") continue;
 			items.push({
 				id: record.id,
 				name: item.name ?? record.id,
 				description: item.description,
 				instructions: item.instructions,
 				path: record.filePath,
+				...(type === "skill" ? { enabled: !disabled } : {}),
 			});
 		}
 		return items;
@@ -1041,6 +1105,34 @@ async function listUserInstructionConfigs(
 	} finally {
 		userInstructionService.stop();
 	}
+	const knownSkillPaths = new Set(
+		skills.flatMap((skill) => {
+			if (!skill || typeof skill !== "object") return [];
+			const path = (skill as JsonRecord).path;
+			return typeof path === "string" ? [path] : [];
+		}),
+	);
+	for (const skill of hubSettings.skills) {
+		if (
+			skill.agentPlugin !== true ||
+			skill.enabled === false ||
+			knownSkillPaths.has(skill.path)
+		) {
+			continue;
+		}
+		skills.push({
+			id: skill.id,
+			name: skill.name,
+			description: skill.description,
+			instructions: "",
+			path: skill.path,
+			enabled: true,
+			source: skill.source,
+			agentPlugin: true,
+			pluginName: skill.pluginName,
+		});
+		knownSkillPaths.add(skill.path);
+	}
 
 	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
 	// Pin spawn/teams availability so this listing matches the hub's
@@ -1060,9 +1152,15 @@ async function listUserInstructionConfigs(
 		runtimeCommands,
 		agents: loadAgents(),
 		plugins: hubSettings.plugins.map((plugin) => ({
+			id: plugin.id,
 			name: plugin.name,
 			path: plugin.path,
 			enabled: plugin.enabled !== false,
+			source: plugin.source,
+			toggleable: plugin.toggleable === true,
+			agentPlugin: plugin.agentPlugin === true,
+			description: plugin.description,
+			loadError: plugin.loadError,
 			contributions: plugin.contributions,
 		})),
 		tools: [
@@ -1393,6 +1491,45 @@ export async function handleCommand(
 		return "";
 	}
 
+	// ── Managed hub upgrade ───────────────────────────────────────────
+	if (command === "hub_upgrade") {
+		// Replacing the shared Hub interrupts other clients' sessions, so it
+		// carries the same per-connection gate as the tool-approval commands:
+		// only the webview connection dialed with the approval token may ask,
+		// never an arbitrary local WebSocket client.
+		if (!options?.connection?.data?.canApproveTools) {
+			throw new Error("hub upgrade requires a trusted desktop connection");
+		}
+		// Only reached after the user accepted the blocking "Hub update
+		// required" dialog, so force: the old Hub is replaced even though it
+		// is still serving other clients' sessions. Drain-first semantics
+		// still give in-flight turns the wait window to finish.
+		const result = await upgradeManagedHub({
+			workspaceRoot: ctx.workspaceRoot,
+			force: true,
+			reason: "Cline Desktop hub update",
+		});
+		if (result.outcome === "hub_not_older") {
+			throw new Error(
+				"The running Cline Hub is newer than this app, so it was not replaced. Update Cline instead.",
+			);
+		}
+		if (result.outcome === "still_busy") {
+			throw new Error(
+				"The running Cline Hub picked up new sessions before it could be replaced, so it was left running. Try again.",
+			);
+		}
+		// The mismatch is resolved: a null broadcast closes the dialog in
+		// every connected webview and stops the replay-on-connect.
+		ctx.hubBuildMismatch = null;
+		broadcastEvent(ctx, "hub_build_mismatch", null);
+		return {
+			outcome: result.outcome,
+			url: result.url ?? null,
+			interruptedSessionCount: result.activeSessionCount ?? 0,
+		};
+	}
+
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -1523,6 +1660,57 @@ export async function handleCommand(
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
+	}
+
+	// ── Session import from other coding tools ────────────────────────
+	if (command === "list_importable_sessions") {
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		return {
+			installedTools: importer.installedTools(),
+			sessions: await importer.discover(),
+		};
+	}
+	if (command === "import_sessions") {
+		const rawSelections = Array.isArray(args?.selections)
+			? args.selections
+			: [];
+		const requests: SessionImportRequest[] = [];
+		for (const selection of rawSelections) {
+			if (!selection || typeof selection !== "object") continue;
+			const tool = String((selection as JsonRecord).tool ?? "").trim();
+			const sourceId = String((selection as JsonRecord).sourceId ?? "").trim();
+			if (!sourceId) continue;
+			if (!(SESSION_IMPORT_TOOLS as readonly string[]).includes(tool)) {
+				continue;
+			}
+			requests.push({ tool: tool as SessionImportTool, sourceId });
+		}
+		if (requests.length === 0) {
+			throw new Error("at least one { tool, sourceId } selection is required");
+		}
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const importer = new SessionImportService(backend);
+		// Opening a history session resumes on the row's provider/model, so the
+		// UI passes what a new chat would run on; the source tool's own
+		// provider/model stay in metadata.importedFrom.
+		// Never let the source tool's provider become the resume target: when
+		// the caller sends no selection, use the app default like other
+		// server-started sessions do.
+		const provider = asTrimmedString(args?.provider) ?? "cline";
+		const model = asTrimmedString(args?.model) ?? CLINE_DEFAULT_MODEL_ID;
+		const results = await importer.importMany(
+			requests,
+			(result, index) => {
+				broadcastEvent(ctx, "session_import_progress", {
+					index,
+					total: requests.length,
+					result,
+				});
+			},
+			{ provider, model },
+		);
+		return { results };
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -1712,10 +1900,7 @@ export async function handleCommand(
 			// an expired or server-revoked token. Explicit sign-out is handled
 			// at its source in `save_provider_settings`; this catches the rest
 			// so a stale account never keeps serving its rollout cohort.
-			void identifyDesktopFeatureFlagsAccount(
-				{},
-				{ logger: ctx.logger, telemetry: ctx.telemetry },
-			);
+			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -1728,7 +1913,7 @@ export async function handleCommand(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
-		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
 	}
 
@@ -1837,9 +2022,13 @@ export async function handleCommand(
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
+		const provider = String(args?.provider ?? "").trim();
+		// Known models are merged in unfiltered after the provider's own model
+		// rules run, so including them here would leak e.g. the full OpenAI
+		// catalog into the ChatGPT Subscription (codex) picker.
 		return await getLocalProviderModels(
-			String(args?.provider ?? ""),
-			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+			provider,
+			manager.getProviderConfig(provider, { includeKnownModels: false }),
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -1997,7 +2186,14 @@ export async function handleCommand(
 		// authoritative signal — it fires the moment credentials are cleared
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
-			syncFeatureFlagsAccountFromSettings(ctx, manager);
+			syncAccountContextFromSettings(ctx, manager);
+		}
+		// Signing out of ChatGPT removes its providers.json entry; the legacy
+		// import would restore it from the extension's secrets.json on the next
+		// command unless those credentials go too. A failed write throws so
+		// the webview reports the sign-out as failed and resyncs.
+		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
+			clearLegacyCodexCredentials();
 		}
 		return saved;
 	}
@@ -2065,7 +2261,16 @@ export async function handleCommand(
 					);
 				});
 			},
-			{ owner: options?.connection },
+			{
+				owner: options?.connection,
+				// Push the device sign-in confirmation code so the webview can
+				// show it while the user confirms it in the browser.
+				onUserCode: (userCode) =>
+					broadcastEvent(ctx, "provider_oauth_user_code", {
+						provider: providerId,
+						userCode,
+					}),
+			},
 		);
 	}
 	if (command === "cancel_provider_oauth_login") {
@@ -2326,6 +2531,17 @@ export async function handleCommand(
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
+	if (command === "capture_pull_request_event") {
+		capturePullRequestEvent(ctx.telemetry, args);
+		return null;
+	}
+	if (command === "get_pull_request_status") {
+		return await getPullRequestStatus(
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot,
+		);
+	}
 	if (command === "get_git_branch") {
 		const cwd =
 			typeof args?.cwd === "string" && args.cwd.trim()
@@ -2441,6 +2657,18 @@ export async function handleCommand(
 		const snapshot = await toggleHubSetting(ctx, {
 			type: "plugins",
 			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
+	}
+	if (command === "set_skill_disabled") {
+		const skillPath = String(args?.path ?? "").trim();
+		if (!skillPath) {
+			throw new Error("skill path is required");
+		}
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "skills",
+			path: skillPath,
 			enabled: args?.disabled !== true,
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);

@@ -47,7 +47,10 @@ export function shouldCloseExtDetailForKey(keyName: string): boolean {
 
 export function shouldToggleExtDetailForKey(
 	keyName: string,
-	item: Pick<InteractiveConfigItem, "kind" | "source" | "enabled">,
+	item: Pick<
+		InteractiveConfigItem,
+		"kind" | "source" | "enabled" | "pluginName" | "toggleable"
+	>,
 ): boolean {
 	return (
 		keyName === "space" &&
@@ -57,7 +60,10 @@ export function shouldToggleExtDetailForKey(
 }
 
 export function getExtDetailFooterText(
-	item: Pick<InteractiveConfigItem, "kind" | "source" | "enabled">,
+	item: Pick<
+		InteractiveConfigItem,
+		"kind" | "source" | "enabled" | "pluginName" | "toggleable"
+	>,
 ): string {
 	return typeof item.enabled === "boolean" &&
 		isToggleableInteractiveConfigItem(item)
