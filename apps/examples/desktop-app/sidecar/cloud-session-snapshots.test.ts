@@ -112,6 +112,58 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["a-1", "done-1", "done-2"]);
 	});
 
+	it.each([
+		["bar", "foobar", false],
+		["bar", "foobar", true],
+		["Done", "Done", false],
+	] as const)("preserves aborted %j beside saved %j (reverse: %s)", (partial, saved, reverse) => {
+		const aborted = [
+			event("assistant.delta", "partial", { text: partial }),
+			event("run.aborted", "aborted"),
+		];
+		const completed = [
+			event("assistant.delta", "saved-delta", { text: saved }),
+			event("assistant.finished", "saved-finished", { text: saved }),
+			event("run.completed", "completed"),
+		];
+		expect(
+			reconcileBufferedCloudEvents(
+				reverse ? [...completed, ...aborted] : [...aborted, ...completed],
+				[{ role: "assistant", content: saved }],
+			).map((item) => item.eventId),
+		).toEqual(
+			reverse
+				? ["completed", "partial", "aborted"]
+				: ["partial", "aborted", "completed"],
+		);
+	});
+
+	it.each([
+		"assistant",
+		"reasoning",
+	] as const)("does not let finished %s hide the other aborted content", (finished) => {
+		const partial = finished === "assistant" ? "reasoning" : "assistant";
+		const buffered = [
+			event(`${finished}.finished`, "saved", {
+				text: "foobar",
+				reasoning: "foobar",
+			}),
+			event(`${partial}.delta`, "partial", { text: "bar" }),
+			event("run.aborted", "aborted"),
+		];
+		expect(
+			reconcileBufferedCloudEvents(buffered, [
+				{
+					role: "assistant",
+					content: [
+						{ type: "text", text: "foobar" },
+						{ type: "thinking", thinking: "foobar" },
+					],
+				},
+			]).map((item) => item.eventId),
+		).toEqual(["partial", "aborted"]);
+	});
+
 	it("supersedes despite trailing whitespace in the streamed text", () => {
 		const buffered = [
 			event("assistant.finished", "f-1", { text: "the answer \n" }),

@@ -287,13 +287,20 @@ export function reconcileBufferedCloudEvents(
 		const snapshotSegment = segment.filter((event) =>
 			beforeTranscript.has(event),
 		);
-		const streamed = terminal ? streamedAssistantText(snapshotSegment) : "";
+		// Aborted generations do not persist unfinished text or reasoning.
+		const mayMatch = (kind: "assistant" | "reasoning") =>
+			terminal &&
+			(segment.at(-1)?.event !== "run.aborted" ||
+				snapshotSegment.some((event) => event.event === `${kind}.finished`));
+		const streamed = mayMatch("assistant")
+			? streamedAssistantText(snapshotSegment)
+			: "";
 		const persistedIndex = streamed
 			? unclaimedAssistantTexts.findIndex((text) => text.endsWith(streamed))
 			: -1;
 		const contentPersisted = persistedIndex >= 0;
 		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
-		const thinking = terminal
+		const thinking = mayMatch("reasoning")
 			? streamedAssistantText(snapshotSegment, "reasoning")
 			: "";
 		const thinkingIndex = thinking
