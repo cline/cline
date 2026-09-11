@@ -186,6 +186,7 @@ async function renderVoiceComposer({
 	prompt = "",
 	promptVersion = 0,
 	status = "idle",
+	readOnly = false,
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -196,11 +197,13 @@ async function renderVoiceComposer({
 	prompt?: string;
 	promptVersion?: number;
 	status?: ChatSessionStatus;
+	readOnly?: boolean;
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					readOnly={readOnly}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
@@ -238,6 +241,25 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("prevents sending from a read-only session", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.readOnly).toBe(true);
+		const send = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Send message"]',
+		);
+		expect(send).not.toBeNull();
+		expect(send?.disabled).toBe(true);
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+			send?.click();
+		});
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
 	it("blocks sending existing draft images after switching models and preserves the draft", async () => {
 		const onSend = vi.fn();
 		const attachments = [{ id: "image", name: "photo.jfif", isImage: true }];
