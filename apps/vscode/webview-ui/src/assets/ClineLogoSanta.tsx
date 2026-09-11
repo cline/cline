@@ -19,7 +19,8 @@ const ClineLogoSanta = (props: SVGProps<SVGSVGElement> & { environment?: Environ
 	const fillColor = environment ? getEnvironmentColor(environment) : "var(--vscode-icon-foreground)"
 
 	return (
-		<svg height="50" viewBox="0 0 66.62 63.92" width="47" xmlns="http://www.w3.org/2000/svg" {...svgProps}>
+		<svg height="50" role="img" viewBox="0 0 66.62 63.92" width="47" xmlns="http://www.w3.org/2000/svg" {...svgProps}>
+			<title>Cline wearing a Santa hat</title>
 			{/* New Cline robot logo, positioned beneath the existing Santa hat. */}
 			<g transform="translate(9.3 14) scale(.42)">
 				<path
