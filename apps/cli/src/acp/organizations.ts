@@ -35,10 +35,8 @@ let oauthTokenManager: RuntimeOAuthTokenManager | undefined;
 
 function createAccountService(input: ClineAccountInput): ClineAccountService {
 	const { providerSettingsManager } = input;
-	const settings = providerSettingsManager.getProviderSettings("cline");
 	return new ClineAccountService({
-		apiBaseUrl:
-			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		apiBaseUrl: getClineEnvironmentConfig().apiBaseUrl,
 		getAuthToken: async () => {
 			try {
 				oauthTokenManager ??= new RuntimeOAuthTokenManager({

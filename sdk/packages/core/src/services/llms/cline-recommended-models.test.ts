@@ -2,7 +2,8 @@ import {
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getGeneratedProviderModels,
 } from "@cline/llms";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
@@ -94,9 +95,29 @@ function namesOf(data: ClineRecommendedModelsData) {
 }
 
 describe("fetchClineRecommendedModels", () => {
+	it.each([
+		[BASE_URL, BASE_URL],
+		[BASE_URL + "///", BASE_URL],
+		[BASE_URL + "/".repeat(100_000), BASE_URL],
+		[
+			BASE_URL + "/".repeat(100_000) + "path///",
+			BASE_URL + "/".repeat(100_000) + "path",
+		],
+	])("normalizes trailing slashes in case %#", async (apiBaseUrl, expectedBaseUrl) => {
+		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
+		await fetchClineRecommendedModels({
+			apiBaseUrl,
+			fetchImpl,
+			catalogLoader: async () => CATALOG,
+		});
+		expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+			expectedBaseUrl + "/api/v1/ai/cline/recommended-models",
+		);
+	});
+
 	it("resolves display names from the models catalog", async () => {
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: jsonResponse(ENDPOINT_PAYLOAD),
 			catalogLoader: async () => CATALOG,
 		});
@@ -120,7 +141,7 @@ describe("fetchClineRecommendedModels", () => {
 
 	it("degrades to endpoint names and id slugs when the catalog is unavailable", async () => {
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: jsonResponse(ENDPOINT_PAYLOAD),
 			catalogLoader: async () => {
 				throw new Error("models.dev unreachable");
@@ -136,7 +157,7 @@ describe("fetchClineRecommendedModels", () => {
 
 	it("does not wait for a hung catalog loader beyond the timeout", async () => {
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: jsonResponse(ENDPOINT_PAYLOAD),
 			timeoutMs: 25,
 			catalogLoader: () => new Promise(() => {}),
@@ -161,7 +182,7 @@ describe("fetchClineRecommendedModels", () => {
 
 		const startedAt = Date.now();
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: slowFeed,
 			timeoutMs,
 			catalogLoader: () => new Promise(() => {}),
@@ -187,7 +208,7 @@ describe("fetchClineRecommendedModels", () => {
 		};
 
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: slowFeed,
 			timeoutMs,
 			catalogLoader: async () => CATALOG,
@@ -198,7 +219,7 @@ describe("fetchClineRecommendedModels", () => {
 
 	it("returns the bundled fallback untouched when the endpoint fails", async () => {
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: async () => new Response("nope", { status: 500 }),
 			catalogLoader: async () => CATALOG,
 		});
@@ -365,7 +386,7 @@ describe("getCachedClineRecommendedModels", () => {
 			});
 		};
 		const options = {
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl,
 			catalogLoader: async () => CATALOG,
 		};
@@ -391,7 +412,7 @@ describe("getCachedClineRecommendedModels", () => {
 			return new Response("nope", { status: 500 });
 		};
 		const options = {
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl,
 			catalogLoader: async () => CATALOG,
 		};
@@ -419,7 +440,7 @@ describe("getCachedClineRecommendedModels", () => {
 			});
 		};
 		const stale = getCachedClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: staleFetch,
 			catalogLoader: async () => CATALOG,
 		});
@@ -439,7 +460,7 @@ describe("getCachedClineRecommendedModels", () => {
 			});
 		};
 		await getCachedClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: freshFetch,
 			catalogLoader: async () => CATALOG,
 		});
@@ -460,7 +481,7 @@ describe("peekClineRecommendedModels", () => {
 		resetClineRecommendedModelsCacheForTests();
 		let calls = 0;
 		await getCachedClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: async () => {
 				calls += 1;
 				return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
@@ -485,7 +506,7 @@ describe("generated offline featured models", () => {
 	it("preserves every generated tier and its authored order without loading a live catalog", async () => {
 		let catalogLoaded = false;
 		const data = await fetchClineRecommendedModels({
-			baseUrl: BASE_URL,
+			apiBaseUrl: BASE_URL,
 			fetchImpl: async () => {
 				throw new Error("offline");
 			},
@@ -550,5 +571,55 @@ describe("generated offline featured models", () => {
 				);
 			}
 		}
+	});
+});
+
+describe("recommendations platform API routing", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.unstubAllEnvs();
+	});
+
+	it.each([
+		["production", "https://api.cline.bot"],
+		["staging", "https://core-api.staging.int.cline.bot"],
+		["local", "http://localhost:7777"],
+	])("uses the %s platform with a persisted inference URL", async (environment, apiBaseUrl) => {
+		vi.stubEnv("CLINE_ENVIRONMENT_OVERRIDE", environment);
+		vi.stubEnv("CLINE_API_BASE_URL", "");
+		const readSettings = vi
+			.spyOn(ProviderSettingsManager.prototype, "getProviderSettings")
+			.mockReturnValue({
+				provider: "cline",
+				baseUrl: "https://api.cline.bot/api/v1",
+			});
+		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
+		await fetchClineRecommendedModels({
+			fetchImpl,
+			catalogLoader: async () => CATALOG,
+		});
+		expect(fetchImpl).toHaveBeenCalledWith(
+			`${apiBaseUrl}/api/v1/ai/cline/recommended-models`,
+			expect.anything(),
+		);
+		expect(readSettings).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		undefined,
+		"  https://explicit.test/  ",
+	])("honors platform overrides (%s)", async (apiBaseUrl) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://platform.test/");
+		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
+		await fetchClineRecommendedModels({
+			apiBaseUrl,
+			fetchImpl,
+			catalogLoader: async () => CATALOG,
+		});
+		const host = apiBaseUrl ? "https://explicit.test" : "https://platform.test";
+		expect(fetchImpl).toHaveBeenCalledWith(
+			`${host}/api/v1/ai/cline/recommended-models`,
+			expect.anything(),
+		);
 	});
 });

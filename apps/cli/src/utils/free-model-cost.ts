@@ -19,14 +19,6 @@ function modelIdsMatch(selectedModelId: string, freeModelId: string): boolean {
 	return selected === free;
 }
 
-function resolveClineRecommendedModelsUrl(baseUrl: string): string {
-	const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-	const apiBaseUrl = normalizedBaseUrl.endsWith("/api/v1")
-		? normalizedBaseUrl.slice(0, -"/api/v1".length)
-		: normalizedBaseUrl;
-	return `${apiBaseUrl}/api/v1/ai/cline/recommended-models`;
-}
-
 async function fetchClineFreeModelIds(
 	baseUrl: string,
 ): Promise<readonly string[] | undefined> {
@@ -36,9 +28,15 @@ async function fetchClineFreeModelIds(
 		CLINE_RECOMMENDED_MODELS_TIMEOUT_MS,
 	);
 	try {
-		const response = await fetch(resolveClineRecommendedModelsUrl(baseUrl), {
-			signal: controller.signal,
-		});
+		const trimmedBaseUrl = baseUrl.trim();
+		let end = trimmedBaseUrl.length;
+		while (end > 0 && trimmedBaseUrl[end - 1] === "/") end--;
+		const response = await fetch(
+			`${trimmedBaseUrl.slice(0, end)}/api/v1/ai/cline/recommended-models`,
+			{
+				signal: controller.signal,
+			},
+		);
 		if (!response.ok) return undefined;
 		const json = (await response.json()) as { free?: unknown };
 		return Array.isArray(json.free)
@@ -71,7 +69,7 @@ function getClineFreeModelIds(baseUrl: string): Promise<readonly string[]> {
 }
 
 export async function shouldZeroClineFreeModelCost(
-	config: Pick<Config, "providerId" | "modelId" | "baseUrl">,
+	config: Pick<Config, "providerId" | "modelId">,
 ): Promise<boolean> {
 	// Free models are also selectable on ClinePass — they ride usage billing at $0
 	if (config.providerId !== "cline" && config.providerId !== "cline-pass")
@@ -79,8 +77,7 @@ export async function shouldZeroClineFreeModelCost(
 	const modelId = normalizeModelId(config.modelId);
 	if (!modelId) return false;
 
-	const baseUrl =
-		config.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+	const baseUrl = getClineEnvironmentConfig().apiBaseUrl;
 	const freeModelIds = await getClineFreeModelIds(baseUrl);
 	return freeModelIds.some((freeModelId) =>
 		modelIdsMatch(modelId, freeModelId),

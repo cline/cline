@@ -38,7 +38,10 @@ const fakeTelemetry = { __id: "fake-telemetry" } as unknown as Parameters<
 
 function makeManager() {
 	return {
-		getProviderSettings: vi.fn(() => undefined),
+		getProviderSettings: vi.fn(() => ({
+			provider: "cline",
+			baseUrl: "https://inference.test/api/v1",
+		})),
 	} as unknown as Parameters<
 		typeof runOAuthAuthFlow
 	>[0]["providerSettingsManager"];
@@ -152,6 +155,7 @@ describe("onboarding auth telemetry forwarding", () => {
 		expect(hoisted.completeClineDeviceAuth).toHaveBeenCalledTimes(1);
 		const [opts] = hoisted.completeClineDeviceAuth.mock.calls[0];
 		expect(opts.telemetry).toBe(fakeTelemetry);
+		expect(opts.apiBaseUrl).toBe("https://api.example");
 		// We do NOT forward telemetry to startClineDeviceAuth — auth_started is
 		// emitted by completeClineDeviceAuth, so passing telemetry to the start
 		// helper would double-emit the event.

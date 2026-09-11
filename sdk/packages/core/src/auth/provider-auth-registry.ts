@@ -219,20 +219,18 @@ function createClineAuthHandler(input: {
 		storageProviderId: input.storageProviderId,
 		formatAccessToken: formatClineApiKey,
 		normalizeStoredAccessToken: stripClineApiKeyPrefix,
-		login: ({ settings, callbacks, telemetry }) =>
+		login: ({ callbacks, telemetry }) =>
 			loginClineOAuth({
-				apiBaseUrl:
-					settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+				apiBaseUrl: getClineEnvironmentConfig().apiBaseUrl,
 				useWorkOSDeviceAuth: true,
 				callbacks,
 				telemetry,
 			}),
-		refresh: ({ settings, credentials, forceRefresh, telemetry }) =>
+		refresh: ({ credentials, forceRefresh, telemetry }) =>
 			getValidClineCredentials(
 				credentials as ClineOAuthCredentials,
 				{
-					apiBaseUrl:
-						settings.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+					apiBaseUrl: getClineEnvironmentConfig().apiBaseUrl,
 					telemetry,
 				},
 				{ forceRefresh },

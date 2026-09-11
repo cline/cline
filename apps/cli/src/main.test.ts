@@ -1224,13 +1224,12 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 			undefined,
 			expect.objectContaining({
-				clineApiBaseUrl: undefined,
 				clineProviderSettings: undefined,
 			}),
 		);
 	});
 
-	it("passes Cline provider settings as Cline account options", async () => {
+	it("passes Cline credentials without overriding the platform API URL", async () => {
 		const clineSettings = {
 			provider: "cline",
 			baseUrl: "https://api.example.test",
@@ -1254,9 +1253,11 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 			undefined,
 			expect.objectContaining({
-				clineApiBaseUrl: "https://api.example.test",
 				clineProviderSettings: clineSettings,
 			}),
+		);
+		expect(runtimeMocks.runInteractive.mock.calls[0]?.[3]).not.toHaveProperty(
+			"clineApiBaseUrl",
 		);
 	});
 

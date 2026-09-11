@@ -66,19 +66,10 @@ export function isClineAccountCreditsErrorMessage(message: string): boolean {
 	);
 }
 
-function resolveAccountApiBaseUrl(input: {
-	clineApiBaseUrl?: string;
-	clineProviderSettings?: ProviderSettings;
-}): string {
-	const settingsBaseUrl = input.clineProviderSettings?.baseUrl?.trim();
-	if (settingsBaseUrl) {
-		return settingsBaseUrl;
-	}
-	const configuredBaseUrl = input.clineApiBaseUrl?.trim();
-	if (configuredBaseUrl) {
-		return configuredBaseUrl;
-	}
-	return getClineEnvironmentConfig().apiBaseUrl;
+function resolveAccountApiBaseUrl(input: { clineApiBaseUrl?: string }): string {
+	return (
+		input.clineApiBaseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl
+	);
 }
 
 function resolveClineAccountAuthToken(input: {
@@ -143,7 +134,6 @@ export async function createClineAccountService(input: {
 		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
 	const apiBaseUrl = resolveAccountApiBaseUrl({
 		clineApiBaseUrl: input.clineApiBaseUrl,
-		clineProviderSettings: settings,
 	});
 	const authToken = await resolveValidClineAccountAuthToken({
 		config: input.config,
