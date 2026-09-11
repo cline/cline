@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import * as esbuild from "esbuild"
@@ -172,6 +173,47 @@ const standaloneConfig = {
 	external: ["vscode", "@grpc/reflection", "grpc-health-check", "better-sqlite3"],
 }
 
+// Plugin sandbox bootstrap. @cline/core loads plugins by spawning a separate
+// node subprocess whose entry it resolves at runtime as
+// `<main bundle dir>/extensions/plugin-sandbox-bootstrap.js`. Bundling
+// @cline/core into extension.js leaves nothing on disk to spawn, so the
+// bootstrap must be emitted as its own file next to the main bundle —
+// otherwise every session silently runs without plugins.
+const pluginSandboxBootstrapEntry = path.resolve(
+	__dirname,
+	"../../sdk/packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
+)
+
+const pluginSandboxBootstrapConfig = {
+	...baseConfig,
+	entryPoints: [pluginSandboxBootstrapEntry],
+	outfile: `${destDir}/extensions/plugin-sandbox-bootstrap.js`,
+	// jiti must stay external (shipped on disk at <destDir>/node_modules/jiti
+	// by copyJitiForPluginSandbox): the sandbox compiles plugin TypeScript
+	// through jiti's babel transform (dist/babel.cjs), which jiti's lazy
+	// loader resolves relative to its real on-disk package files.
+	external: ["jiti"],
+}
+
+function copyJitiForPluginSandbox() {
+	const requireFromCore = createRequire(pluginSandboxBootstrapEntry)
+	const jitiRoot = path.dirname(requireFromCore.resolve("jiti/package.json"))
+	const dest = path.resolve(__dirname, destDir, "node_modules", "jiti")
+	fs.rmSync(dest, { recursive: true, force: true })
+	fs.cpSync(jitiRoot, dest, { recursive: true, dereference: true })
+}
+
+async function buildPluginSandbox() {
+	if (!fs.existsSync(pluginSandboxBootstrapEntry)) {
+		throw new Error(
+			`Plugin sandbox bootstrap not found at ${pluginSandboxBootstrapEntry}. ` +
+				"Build the SDK packages first (bun run build:sdk from the repo root).",
+		)
+	}
+	await esbuild.build(pluginSandboxBootstrapConfig)
+	copyJitiForPluginSandbox()
+}
+
 // E2E build script configuration
 const e2eBuildConfig = {
 	...baseConfig,
@@ -184,6 +226,9 @@ const e2eBuildConfig = {
 
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
+	if (!e2eBuild) {
+		await buildPluginSandbox()
+	}
 	const extensionCtx = await esbuild.context(config)
 	if (watch) {
 		await extensionCtx.watch()
