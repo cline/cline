@@ -126,7 +126,8 @@ const createServerTypeSchema = () => {
 		})
 			.transform((data) => {
 				// Support both type and transportType fields
-				const finalType = data.type || (data.transportType === "sse" ? "sse" : undefined) || "sse"
+				const finalType =
+					data.type || (data.transportType === "sse" ? "sse" : undefined) || (data.transportType ? undefined : "sse")
 				return {
 					...data,
 					type: finalType as "sse",
@@ -148,8 +149,10 @@ const createServerTypeSchema = () => {
 		})
 			.transform((data) => {
 				// Support both type and transportType fields
-				// Note: legacy transportType was "http" not "streamableHttp"
-				const finalType = data.type || (data.transportType === "http" ? "streamableHttp" : undefined) || "streamableHttp"
+				const finalType =
+					data.type ||
+					(data.transportType === "http" || data.transportType === "streamableHttp" ? "streamableHttp" : undefined) ||
+					(data.transportType ? undefined : "streamableHttp")
 				return {
 					...data,
 					type: finalType as "streamableHttp",
