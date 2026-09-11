@@ -14,6 +14,8 @@ import {
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
+	DIAG_ANNOTATION_NEVER_OPENED,
+	DIAG_ANNOTATION_UNROUTED,
 	DIAG_ORPHAN_BLOCK_FRAME,
 	DIAG_STALE_EPOCH,
 	DIAG_SUBAGENT_WITHOUT_TURN,
@@ -72,8 +74,8 @@ class RecordingConsumer implements SessionConsumer {
 					},
 				};
 			},
-			onTool: (): ToolSink => {
-				this.record("tool:open");
+			onTool: (_start, annotations): ToolSink => {
+				this.record("tool:open", String(annotations.length));
 				return {
 					onProgress: (): void => {
 						this.record("tool:progress");
@@ -224,6 +226,170 @@ describe("assembler — repairs and diagnostics", () => {
 			outcome: { kind: "completed" },
 		});
 		expect(consumer.diagnostics).toContain(DIAG_TURN_CLOSE_WITHOUT_OPEN);
+	});
+});
+
+describe("assembler — annotations (delivery rule 6)", () => {
+	const approval = (messageTs: number) =>
+		({
+			kind: "annotation",
+			ns: "approval",
+			body: { state: "approved", messageTs },
+		}) as const;
+
+	it("hands pre-open annotations to onTool with the start", () => {
+		const consumer = new RecordingConsumer();
+		const assembler = new StreamAssembler(consumer);
+		const framer = new AgentEventFramer();
+		assembler.pushAll(
+			framer.frameAll([{ type: "iteration_start", iteration: 1 }]),
+		);
+		// The approval decision is sequenced before the tool start.
+		assembler.pushAll(framer.annotateBlock("c1", approval(7)));
+		assembler.pushAll(
+			framer.frameAll([
+				{
+					type: "content_start",
+					contentType: "tool",
+					toolCallId: "c1",
+					toolName: "read_file",
+					input: {},
+				},
+				{
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "c1",
+					update: {},
+				},
+				{
+					type: "content_end",
+					contentType: "tool",
+					toolCallId: "c1",
+					output: "ok",
+				},
+				{ type: "done", reason: "completed", text: "", iterations: 1 },
+			]),
+		);
+		expect(
+			consumer.events.map(
+				(event) => `${event.call}${event.detail ? `:${event.detail}` : ""}`,
+			),
+		).toEqual([
+			"turn:open",
+			"notice",
+			"tool:open:1",
+			"tool:progress",
+			"tool:close:completed",
+			"turn:close:completed:1",
+		]);
+		expect(consumer.diagnostics).toEqual([]);
+	});
+
+	it("delivers an annotation on an open block immediately, in frame order", () => {
+		const consumer = new RecordingConsumer();
+		const assembler = new StreamAssembler(consumer);
+		const framer = new AgentEventFramer();
+		assembler.pushAll(
+			framer.frameAll([
+				{ type: "iteration_start", iteration: 1 },
+				{
+					type: "content_start",
+					contentType: "tool",
+					toolCallId: "c1",
+					toolName: "read_file",
+					input: {},
+				},
+				{
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "c1",
+					update: {},
+				},
+			]),
+		);
+		assembler.pushAll(framer.annotateBlock("c1", approval(7)));
+		assembler.pushAll(
+			framer.frameAll([
+				{
+					type: "content_end",
+					contentType: "tool",
+					toolCallId: "c1",
+					output: "ok",
+				},
+				{ type: "done", reason: "completed", text: "", iterations: 1 },
+			]),
+		);
+		expect(
+			consumer.events.map(
+				(event) => `${event.call}${event.detail ? `:${event.detail}` : ""}`,
+			),
+		).toEqual([
+			"turn:open",
+			"notice",
+			"tool:open:0",
+			"tool:progress",
+			"tool:annotation",
+			"tool:close:completed",
+			"turn:close:completed:1",
+		]);
+		expect(consumer.diagnostics).toEqual([]);
+	});
+
+	it("reports held annotations whose block never opened when the turn closes", () => {
+		const consumer = new RecordingConsumer();
+		const assembler = new StreamAssembler(consumer);
+		const framer = new AgentEventFramer();
+		assembler.pushAll(
+			framer.frameAll([{ type: "iteration_start", iteration: 1 }]),
+		);
+		assembler.pushAll(framer.annotateBlock("never", approval(7)));
+		assembler.pushAll(
+			framer.frameAll([
+				{ type: "done", reason: "completed", text: "", iterations: 1 },
+			]),
+		);
+		expect(consumer.events.map((event) => event.call)).toEqual([
+			"turn:open",
+			"notice",
+			"turn:close",
+		]);
+		expect(consumer.diagnostics).toEqual([DIAG_ANNOTATION_NEVER_OPENED]);
+		// Nothing lingers: a later turn opening the same block id gets no stale annotation.
+		assembler.pushAll(
+			framer.frameAll([
+				{ type: "iteration_start", iteration: 1 },
+				{
+					type: "content_start",
+					contentType: "tool",
+					toolCallId: "never",
+					toolName: "read_file",
+					input: {},
+				},
+			]),
+		);
+		expect(consumer.events[consumer.events.length - 1]).toEqual({
+			call: "tool:open",
+			detail: "0",
+		});
+	});
+
+	it("an annotation addressed to a closed turn is unrouted", () => {
+		const consumer = new RecordingConsumer();
+		const assembler = new StreamAssembler(consumer);
+		assembler.pushAll(
+			new AgentEventFramer().frameAll([
+				{ type: "iteration_start", iteration: 1 },
+				{ type: "done", reason: "completed", text: "", iterations: 1 },
+			]),
+		);
+		assembler.push({
+			v: 2,
+			epoch: 0,
+			seq: 50,
+			scope: { agentPath: ["root"], turnId: "turn-1", blockId: "c1" },
+			...approval(7),
+		});
+		expect(consumer.diagnostics).toEqual([DIAG_ANNOTATION_UNROUTED]);
 	});
 });
 

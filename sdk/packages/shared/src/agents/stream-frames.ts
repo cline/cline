@@ -173,13 +173,30 @@ export interface UsageBody {
 }
 
 /**
+ * The user's decision on a tool block that required approval. Published
+ * by the host's approval coordinator, addressed to the tool block, and
+ * sequenced BEFORE the block's open: the runtime awaits approval before
+ * it emits the tool start. Consumers therefore receive it from the
+ * assembler together with the block's open.
+ *
+ * - `approved`: `messageTs` is the id of the approval prompt row the
+ *   host rendered; a consumer that renders the tool as a row updates
+ *   that row in place instead of adding a second one.
+ * - `denied`: the block was never executed. The runtime still emits its
+ *   open and an errored close carrying `reason`; consumers render
+ *   neither.
+ */
+export type ApprovalAnnotation =
+	| { state: "approved"; messageTs: number }
+	| { state: "denied"; reason: string };
+
+/**
  * Namespaced, typed data attached to a scope by a non-agent producer
  * (approval coordinator, checkpoint tracker). Closed union at schema
  * level; unknown namespaces decode as `{ ns: "unknown", raw }`.
- * Emitted from Phase 2+; declared here so the wire contract is total.
  */
 export type AnnotationBody =
-	| { kind: "annotation"; ns: "approval"; body: Record<string, unknown> }
+	| { kind: "annotation"; ns: "approval"; body: ApprovalAnnotation }
 	| { kind: "annotation"; ns: "checkpoint"; body: Record<string, unknown> }
 	| { kind: "annotation"; ns: "hook"; body: Record<string, unknown> }
 	| { kind: "annotation"; ns: "unknown"; raw: unknown };
@@ -244,7 +261,7 @@ export const BLOCK_CLOSE_WITHOUT_OPEN = "block-close-without-open";
 export const TURN_FRAME_WITHOUT_TURN = "turn-frame-without-turn";
 /** Any frame after the session close. */
 export const AFTER_SESSION_END = "after-session-end";
-/** Annotation addressed to a scope never seen in this stream. */
+/** Annotation addressed to a turn never seen in this stream. */
 export const ANNOTATION_UNKNOWN_SCOPE = "annotation-unknown-scope";
 /** Address does not match the frame kind (missing turnId/blockId). */
 export const BAD_SCOPE_ADDRESS = "bad-scope-address";
@@ -318,7 +335,6 @@ export function validateFrameStream(
 	const knownTurns = new Set<string>();
 	// blockKey: `${agentPath joined}/${turnId}/${blockId}` -> turnKey
 	const openBlocks = new Map<string, string>();
-	const knownBlocks = new Set<string>();
 
 	for (let index = 0; index < frames.length; index += 1) {
 		const frame = frames[index];
@@ -379,7 +395,6 @@ export function validateFrameStream(
 					break;
 				}
 				openBlocks.set(blockKey, turnKey);
-				knownBlocks.add(blockKey);
 				break;
 			}
 			case "delta": {
@@ -438,13 +453,12 @@ export function validateFrameStream(
 				break;
 			}
 			case "annotation": {
-				// Legal on open or closed scopes, but the scope must be one
-				// this stream has seen (late annotations target real scopes).
-				if (blockKey !== undefined) {
-					if (!knownBlocks.has(blockKey)) {
-						violation(index, frame, ANNOTATION_UNKNOWN_SCOPE, blockKey);
-					}
-				} else if (turnKey !== undefined && !knownTurns.has(turnKey)) {
+				// Legal before, during, or after the scope's lifetime: a
+				// block annotation may precede the block's open (approval
+				// is decided before the runtime starts the tool) or follow
+				// its close (a checkpoint restore marks a finished edit).
+				// The turn, however, must be one this stream has seen.
+				if (turnKey !== undefined && !knownTurns.has(turnKey)) {
 					violation(index, frame, ANNOTATION_UNKNOWN_SCOPE, turnKey);
 				}
 				break;

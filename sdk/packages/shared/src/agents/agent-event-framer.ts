@@ -31,6 +31,7 @@
  */
 import type { AgentEvent, AgentFinishReason } from "./types";
 import {
+	type AnnotationBody,
 	FRAME_SCHEMA_VERSION,
 	type FrameBody,
 	type StreamError,
@@ -461,6 +462,20 @@ export class AgentEventFramer {
 		return out;
 	}
 
+	/**
+	 * Annotate a tool block of the current turn from a non-agent producer
+	 * (design: Annotations). The block need not be open: an approval
+	 * decision precedes the runtime's tool start, so its annotation is
+	 * sequenced before the block's open. Like every turn-scoped frame,
+	 * this lazily opens the turn when none is open yet.
+	 */
+	annotateBlock(blockId: string, body: AnnotationBody): StreamFrame[] {
+		const out: StreamFrame[] = [];
+		const turnId = this.ensureTurn(out);
+		this.emit(out, this.blockScope(turnId, blockId), body);
+		return out;
+	}
+
 	// -------------------------------------------------------------------------
 	// Scope helpers
 	// -------------------------------------------------------------------------
@@ -705,6 +720,15 @@ export class SessionFramer {
 		}
 		out.push(...this.streamFor(agentPath).frameEvent(event));
 		return out;
+	}
+
+	/** Annotate a tool block of the agent at `agentPath` (root first). */
+	annotateBlock(
+		agentPath: string[],
+		blockId: string,
+		body: AnnotationBody,
+	): StreamFrame[] {
+		return this.streamFor(agentPath).annotateBlock(blockId, body);
 	}
 
 	/** Close open scopes on every path (host fence without a terminal). */

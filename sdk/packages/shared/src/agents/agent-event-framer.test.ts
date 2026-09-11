@@ -67,6 +67,76 @@ const kindsOf = (frames: StreamFrame[]): string[] =>
 		frame.kind === "open" ? `open:${frame.openKind}` : frame.kind,
 	);
 
+describe("annotations — non-agent producers addressing tool blocks", () => {
+	const approved = {
+		kind: "annotation",
+		ns: "approval",
+		body: { state: "approved", messageTs: 42 },
+	} as const;
+
+	it("a pre-open annotation is addressed to the open turn, shares the seq counter, and validates", () => {
+		const framer = new AgentEventFramer();
+		const frames = [
+			...framer.frameAll([iterStart(1)]),
+			...framer.annotateBlock("call_1", approved),
+			...framer.frameAll([toolOpen("call_1", {}), toolClose("call_1"), done()]),
+		];
+		expect(kindsOf(frames)).toEqual([
+			"open:turn",
+			"notice",
+			"annotation",
+			"open:tool",
+			"close",
+			"close",
+		]);
+		const annotation = frames[2];
+		expect(annotation.scope).toEqual({
+			agentPath: ["root"],
+			turnId: "turn-1",
+			blockId: "call_1",
+		});
+		for (let i = 1; i < frames.length; i += 1) {
+			expect(frames[i].seq).toBe(frames[i - 1].seq + 1);
+		}
+		expect(validateFrameStream(frames).violations).toEqual([]);
+	});
+
+	it("annotating with no open turn lazily opens one, like every turn-scoped event", () => {
+		const framer = new AgentEventFramer();
+		const frames = framer.annotateBlock("call_1", approved);
+		expect(kindsOf(frames)).toEqual(["open:turn", "annotation"]);
+		expect(frames[1].scope.turnId).toBe("turn-1");
+	});
+
+	it("SessionFramer routes the annotation to the agent path's stream", () => {
+		const framer = new SessionFramer();
+		const frames = [
+			...framer.frameRoutedEvent(["root", "agent-a"], iterStart(1)),
+			...framer.annotateBlock(["root", "agent-a"], "call_1", approved),
+		];
+		expect(frames[2].scope).toEqual({
+			agentPath: ["root", "agent-a"],
+			turnId: "turn-1",
+			blockId: "call_1",
+		});
+	});
+
+	it("an annotation on a turn the stream never opened is a violation", () => {
+		const frames = new AgentEventFramer().frameAll([iterStart(1), done()]);
+		const stray: StreamFrame = {
+			v: 2,
+			epoch: 0,
+			seq: frames[frames.length - 1].seq + 1,
+			scope: { agentPath: ["root"], turnId: "turn-9", blockId: "call_1" },
+			...approved,
+		};
+		const validation = validateFrameStream([...frames, stray]);
+		expect(validation.violations.map((violation) => violation.code)).toEqual([
+			"annotation-unknown-scope",
+		]);
+	});
+});
+
 describe("SessionFramer — multiplexed agent paths", () => {
 	it("interleaved root and child streams share one strictly-increasing seq and validate cleanly", () => {
 		const framer = new SessionFramer();

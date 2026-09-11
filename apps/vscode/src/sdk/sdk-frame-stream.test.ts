@@ -105,4 +105,34 @@ describe("SdkFrameStream", () => {
 		expect(warn).toHaveBeenCalled()
 		warn.mockRestore()
 	})
+
+	it("an approval decision before the tool start is a legal, diagnostic-free frame", () => {
+		const warn = vi.spyOn(Logger, "warn").mockImplementation(() => {})
+		const minter = new MessageIdMinter()
+		const stream = new SdkFrameStream(minter)
+		stream.handleSessionEvent(sessionEvent({ type: "iteration_start", iteration: 1 }))
+		// The coordinator records the decision; the runtime then starts the tool.
+		stream.annotateToolApproval("t1", { state: "approved", messageTs: 5 })
+		stream.handleSessionEvent(
+			sessionEvent({ type: "content_start", contentType: "tool", toolCallId: "t1", toolName: "read_file" }),
+		)
+		stream.handleSessionEvent(
+			sessionEvent({ type: "content_end", contentType: "tool", toolCallId: "t1", toolName: "read_file", output: "ok" }),
+		)
+		stream.handleSessionEvent(sessionEvent({ type: "done", reason: "completed", text: "ok", iterations: 1 }))
+		expect(stream.streamDiagnostics).toEqual([])
+		expect(warn).not.toHaveBeenCalled()
+		warn.mockRestore()
+	})
+
+	it("a decision whose tool never starts is reported when the turn closes", () => {
+		const warn = vi.spyOn(Logger, "warn").mockImplementation(() => {})
+		const minter = new MessageIdMinter()
+		const stream = new SdkFrameStream(minter)
+		stream.handleSessionEvent(sessionEvent({ type: "iteration_start", iteration: 1 }))
+		stream.annotateToolApproval("never", { state: "denied", reason: "cancelled" })
+		stream.handleSessionEvent(sessionEvent({ type: "done", reason: "aborted", text: "", iterations: 1 }))
+		expect(stream.streamDiagnostics.map((diagnostic) => diagnostic.code)).toEqual(["annotation-never-opened"])
+		warn.mockRestore()
+	})
 })

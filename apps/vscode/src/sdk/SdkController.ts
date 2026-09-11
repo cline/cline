@@ -372,10 +372,17 @@ export class Controller {
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			// Open the diff editor preview before the approval buttons render.
 			onToolApprovalAsk: (request) => this.diffEdits.openForApproval(request.toolCallId, request.toolName, request.input),
-			recordApprovedToolMessage: (toolCallId, messageTs) =>
-				this.messageTranslatorState.recordApprovedToolMessageTs(toolCallId, messageTs),
+			// Both ClineMessage paths learn the decision in this same synchronous
+			// callback: the v1 translator through its side tables, the frame
+			// bridge through an approval annotation sequenced ahead of the tool
+			// block's open.
+			recordApprovedToolMessage: (toolCallId, messageTs) => {
+				this.messageTranslatorState.recordApprovedToolMessageTs(toolCallId, messageTs)
+				this.frameStream.annotateToolApproval(toolCallId, { state: "approved", messageTs })
+			},
 			recordDeniedToolApproval: (toolCallId, toolName, reason) => {
 				this.messageTranslatorState.recordDeniedToolApproval(toolCallId, toolName, reason)
+				this.frameStream.annotateToolApproval(toolCallId, { state: "denied", reason })
 				// A denied edit's executor never runs, so close its diff preview here. Covers
 				// manual Reject and clearPending (task cancel/abort) in one place.
 				void this.diffEdits.discardPreview(toolCallId)
