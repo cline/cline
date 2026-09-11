@@ -2015,6 +2015,47 @@ describe("listLocalProviders", () => {
 		});
 	});
 
+	it("enables ClinePass from a Cline sign-in that never wrote a ClinePass entry", async () => {
+		// Desktop onboarding signs in as "cline" only; the shared credentials
+		// make ClinePass usable, so it must surface as enabled without its own
+		// providers.json entry.
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(manager.read().providers["cline-pass"]).toBeUndefined();
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			configured: true,
+			oauthAccessTokenPresent: true,
+		});
+	});
+
+	it("keeps ClinePass disabled when Cline has no entry", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass?.enabled).toBe(false);
+	});
+
 	it("exposes model count", async () => {
 		await addLocalProvider(manager, {
 			providerId: "count-provider",
