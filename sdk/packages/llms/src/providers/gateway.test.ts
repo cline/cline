@@ -3499,6 +3499,59 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it.each([
+		"cline-pass",
+		"cline",
+	])("emits zero cost for included models on %s", async (providerId) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 1000,
+						completion_tokens: 200,
+						cost: 0.5,
+						market_cost: 1,
+					},
+				},
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: "test-key",
+					models: [
+						{
+							id: "included-model",
+							name: "Included Model",
+							metadata: {
+								pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+							},
+						},
+					],
+				},
+			],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "included-model",
+				messages: baseMessages,
+			}),
+		);
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: {
+				inputTokens: 1000,
+				outputTokens: 200,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0,
+			},
+		});
+	});
+
 	it("preserves explicit zero cost instead of falling back to catalog pricing", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

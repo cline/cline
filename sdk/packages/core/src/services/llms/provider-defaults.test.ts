@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	getLiveModelsCatalog,
 	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
@@ -29,6 +30,47 @@ describe("isPrivateModelCatalogProvider", () => {
 		"anthropic",
 	])("does not classify %s as endpoint-specific", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
+});
+
+describe("live catalog request bounds", () => {
+	it("aborts stalled sources and returns a fallback catalog", async () => {
+		const controllers: AbortController[] = [];
+		const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+			const controller = new AbortController();
+			controllers.push(controller);
+			return controller.signal;
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				(_input, init: RequestInit) =>
+					new Promise((_resolve, reject) => {
+						init.signal?.addEventListener(
+							"abort",
+							() => reject(init.signal?.reason),
+							{ once: true },
+						);
+					}),
+			),
+		);
+		const pending = getLiveModelsCatalog();
+		expect(controllers.length).toBeGreaterThan(0);
+		expect(timeout).toHaveBeenCalledWith(5_000);
+		for (const controller of controllers) controller.abort();
+		await expect(pending).resolves.toEqual({});
+	});
+
+	it("refreshes the shared feed after its cache expires", async () => {
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const fetchMock = vi.fn(async () => Response.json({}));
+		vi.stubGlobal("fetch", fetchMock);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		now.mockReturnValue(1_101);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 });
 
@@ -557,7 +599,7 @@ describe("resolveProviderConfig", () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			"http://tailscale-host:11434/api/tags",
-			{ method: "GET" },
+			{ method: "GET", signal: expect.any(AbortSignal) },
 		);
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});
@@ -759,13 +801,17 @@ describe("resolveProviderConfig", () => {
 		const openAiResolved = await resolveProviderConfig("openai-native");
 		const modelIds = Object.keys(resolved?.knownModels ?? {});
 
-		expect(modelIds).toEqual(expect.arrayContaining(["gpt-5.5", "gpt-5.4"]));
+		expect(modelIds).toEqual(
+			expect.arrayContaining(["gpt-5.5", "gpt-5.6-terra", "gpt-6-astra"]),
+		);
 		expect(modelIds).not.toContain("gpt-5.5-pro");
 		expect(modelIds).not.toContain("gpt-5.1-codex-max");
 		expect(modelIds).not.toContain("gpt-5.2-codex");
+		expect(modelIds).not.toContain("gpt-5.4");
+		expect(modelIds).not.toContain("gpt-5.4-mini");
 		expect(modelIds).not.toContain("gpt-5.4-nano");
+		expect(modelIds).not.toContain("gpt-5.6");
 		expect(modelIds).not.toContain("o3");
-		expect(resolved?.knownModels?.["gpt-5.4"]).toBeDefined();
 		expect(resolved?.knownModels?.["gpt-5.5"]).toEqual(
 			expect.objectContaining({
 				...openAiResolved?.knownModels?.["gpt-5.5"],
@@ -783,23 +829,24 @@ describe("resolveProviderConfig", () => {
 			{ cacheTtlMs: 1 },
 			{
 				providerId: "openai-codex",
-				modelId: "gpt-5.4",
+				modelId: "gpt-5.6-terra",
 				apiKey: "oauth-token",
 				accountId: "acct_123",
 			},
 		);
 
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(
-			expect.arrayContaining(["gpt-5.4", "gpt-5.4-mini", "gpt-5.5"]),
+			expect.arrayContaining(["gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"]),
 		);
-		expect(resolved?.knownModels?.["gpt-5.4-mini"]).toEqual(
+		expect(resolved?.knownModels?.["gpt-5.6-luna"]).toEqual(
 			expect.objectContaining({
-				name: "GPT-5.4 mini",
-				// catalog input cap scaled to the 95% effective Codex budget
+				name: "GPT-5.6 Luna",
+				// Codex backend caps, scaled to the 95% effective budget
 				maxInputTokens: 272_000 * 0.95,
 				contextWindow: 400_000,
 			}),
 		);
+		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
 	});
 });

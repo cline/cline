@@ -8,6 +8,10 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import {
+	buildPreviousTimestampMap,
+	getThoughtDurationMilliseconds,
+} from "../components/views/chat/messages/group-messages";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -401,6 +405,113 @@ describe("useChatSession", () => {
 		await act(async () => current.abort());
 
 		expect(current.status).toBe("idle");
+	});
+
+	it("keeps a new task on starting while the hub reports the just-created session idle", async () => {
+		// The hub publishes session.created / session.updated with the record's
+		// "idle" status during the start RPC, before the first prompt's run
+		// begins. Applying it over "starting" flipped the composer placeholder
+		// and hid the request indicator for a frame on every new task.
+		const startResponse = deferred<{ cwd: string; workspaceRoot: string }>();
+		let plannedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						// The sidecar reuses the planned id the webview passes.
+						plannedSessionId = request.config?.sessionId ?? "";
+						return {
+							...(await startResponse.promise),
+							sessionId: plannedSessionId,
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							queued: true,
+							promptsInQueue: [{ id: "p1", prompt: "hello", steer: false }],
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendTask: Promise<void> | undefined;
+		await act(async () => {
+			sendTask = current.sendPrompt("hello");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(current.status).toBe("starting");
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "idle" });
+			statusHandler({ sessionId: plannedSessionId, status: "idle" });
+		});
+		expect(current.status).toBe("starting");
+
+		await act(async () => {
+			startResponse.resolve({
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+			});
+			await sendTask;
+		});
+		expect(current.status).toBe("running");
+
+		// Once nothing is in flight, the hub's status applies as before.
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "idle" });
+		});
+		expect(current.status).toBe("idle");
+	});
+
+	it("still applies a terminal status that lands while a submission is in flight", async () => {
+		// Only the transient "idle" is held back; a failed session must unstick
+		// the UI even if the send response never arrives.
+		const startResponse = deferred<{ cwd: string; workspaceRoot: string }>();
+		let plannedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						plannedSessionId = request.config?.sessionId ?? "";
+						return {
+							...(await startResponse.promise),
+							sessionId: plannedSessionId,
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			void current.sendPrompt("hello");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		expect(current.status).toBe("starting");
+		const statusHandler = handlerFor("chat_session_status");
+
+		await act(async () => {
+			statusHandler({ sessionId: plannedSessionId, status: "failed" });
+		});
+		expect(current.status).toBe("failed");
 	});
 
 	it("preserves authoritative completion across abort races", async () => {
@@ -1820,6 +1931,62 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("idle");
 	});
 
+	it.each([
+		{
+			label: "hands the prompt back when the runtime threw before the turn",
+			messages: undefined,
+			expectedTaken: false,
+			expectedUserMessages: 0,
+		},
+		{
+			label: "keeps the prompt when the run failed mid-turn",
+			messages: [{ role: "user", content: "Rebase the branch" }],
+			expectedTaken: true,
+			expectedUserMessages: 1,
+		},
+	])("$label", async ({ messages, expectedTaken, expectedUserMessages }) => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: {
+								finishReason: "error",
+								text: "Token refresh failed: 401 - Could not validate your refresh token.",
+								messages,
+							},
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		let taken: boolean | undefined;
+		await act(async () => {
+			taken = await current.sendPrompt("Rebase the branch");
+		});
+
+		expect(taken).toBe(expectedTaken);
+		expect(current.status).toBe("failed");
+		expect(
+			current.messages.filter((message) => message.role === "user"),
+		).toHaveLength(expectedUserMessages);
+		expect(
+			current.messages.findLast((message) => message.role === "error")?.content,
+		).toContain("Token refresh failed: 401");
+	});
+
 	it("publishes the first user message before cold session startup resolves", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {
@@ -2477,7 +2644,7 @@ describe("useChatSession", () => {
 		expect(userMessages[1]?.id).toBe("queued_user_queued-prompt-2");
 	});
 
-	it("keeps live stream timestamps in milliseconds", async () => {
+	it("stamps live rows on the webview clock rather than the sidecar timestamp", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -2509,7 +2676,9 @@ describe("useChatSession", () => {
 		);
 		expect(chatEventHandler).toBeDefined();
 		expect(userMessage).toBeDefined();
-		const thinkingTimestamp = (userMessage?.createdAt ?? Date.now()) + 5_000;
+		// A sidecar `ts` from a different clock must not leak into the row.
+		const thinkingTimestamp = (userMessage?.createdAt ?? Date.now()) - 60_000;
+		const before = Date.now();
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -2521,10 +2690,12 @@ describe("useChatSession", () => {
 			});
 		});
 
-		expect(
-			current.messages.find((message) => message.role === "assistant")
-				?.createdAt,
-		).toBe(thinkingTimestamp);
+		const assistantCreatedAt = current.messages.find(
+			(message) => message.role === "assistant",
+		)?.createdAt;
+		expect(assistantCreatedAt).not.toBe(thinkingTimestamp);
+		expect(assistantCreatedAt).toBeGreaterThanOrEqual(before);
+		expect(assistantCreatedAt).toBeLessThanOrEqual(Date.now());
 	});
 
 	it("updates current token usage from live usage events", async () => {
@@ -2587,6 +2758,193 @@ describe("useChatSession", () => {
 			cacheReadTokens: 4_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+	});
+
+	it("keeps a queued prompt's user bubble when the preceding blocking send resolves after it starts", async () => {
+		const sessionId = "session-queued-bubble";
+		const sendResponse = deferred<unknown>();
+		// The runtime persists the transcript at iteration boundaries, so while
+		// the queued turn is in flight the canonical read still ends at the
+		// previous turn's assistant message.
+		const canonicalAfterFirstTurn = [
+			{
+				id: "canonical-user-1",
+				sessionId,
+				role: "user",
+				content: "write an essay",
+				createdAt: 1,
+			},
+			{
+				id: "canonical-assistant-1",
+				sessionId,
+				role: "assistant",
+				content: "Here is the essay.",
+				createdAt: 2,
+			},
+		];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalAfterFirstTurn;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") return { sessionId };
+					if (request?.action === "send") return await sendResponse.promise;
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		let sendTask: Promise<void> | undefined;
+		await act(async () => {
+			sendTask = current.sendPrompt("write an essay");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "Here is the essay.",
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		// The runtime drains the queue before it answers the blocking send:
+		// the next prompt's start event lands first.
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-how",
+					prompt: "how are you?",
+					attachmentCount: 0,
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(
+			current.messages.some(
+				(message) =>
+					message.role === "user" && message.content === "how are you?",
+			),
+		).toBe(true);
+
+		await act(async () => {
+			sendResponse.resolve({
+				ok: true,
+				result: { text: "Here is the essay.", finishReason: "completed" },
+			});
+			await sendTask;
+		});
+
+		// The queued turn is in flight: its request indicator depends on the
+		// session staying "running", and the late response must not settle
+		// the new turn's epoch either (the hub's "running" for it would then
+		// read as stale).
+		expect(current.status).toBe("running");
+		const statusHandler = handlerFor("chat_session_status");
+		await act(async () => {
+			statusHandler({ sessionId, status: "running" });
+		});
+		expect(current.status).toBe("running");
+
+		const userContents = current.messages
+			.filter((message) => message.role === "user")
+			.map((message) => message.content);
+		expect(userContents).toEqual(["write an essay", "how are you?"]);
+		// The previous turn's assistant text was already streamed into its own
+		// bubble; the late response must not append a second copy below the
+		// queued prompt.
+		expect(
+			current.messages.filter(
+				(message) =>
+					message.role === "assistant" &&
+					message.content === "Here is the essay.",
+			),
+		).toHaveLength(1);
+		expect(current.messages.at(-1)).toMatchObject({
+			id: "queued_user_queued-how",
+			role: "user",
+			content: "how are you?",
+		});
+	});
+
+	it("stamps live rows on the webview clock so a sidecar clock behind the browser cannot erase a thought duration", async () => {
+		const sessionId = "session-clock-skew";
+		const sendResponse = deferred<unknown>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") return { sessionId };
+					if (request?.action === "send") return await sendResponse.promise;
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			void current.sendPrompt("write an essay");
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const chatEventHandler = handlerFor("chat_event");
+		// The sidecar's clock trails the browser by 15s: its `ts` predates the
+		// optimistic user bubble that was appended on the browser clock.
+		const sidecarTs = Date.now() - 15_000;
+		await act(async () => {
+			chatEventHandler({
+				sessionId,
+				stream: "chat_reasoning",
+				chunk: JSON.stringify({ text: "Let me think.", redacted: false }),
+				ts: sidecarTs,
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId,
+				stream: "chat_text",
+				chunk: "Here is the essay.",
+				ts: sidecarTs + 1,
+				index: 2,
+			});
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 100));
+		});
+
+		const userBubble = current.messages.find(
+			(message) =>
+				message.role === "user" && message.content === "write an essay",
+		);
+		const assistant = current.messages.find(
+			(message) => message.role === "assistant" && message.reasoning,
+		);
+		expect(userBubble).toBeDefined();
+		expect(assistant).toBeDefined();
+		expect(assistant?.createdAt).toBeGreaterThanOrEqual(
+			userBubble?.createdAt ?? 0,
+		);
+		const previous = assistant
+			? buildPreviousTimestampMap(current.messages).get(assistant)
+			: undefined;
+		expect(
+			getThoughtDurationMilliseconds(previous, assistant?.createdAt ?? 0),
+		).not.toBeUndefined();
 	});
 
 	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
@@ -3787,6 +4145,63 @@ describe("useChatSession", () => {
 		// pointing users at Settings → Models would be misleading.
 		expect(errorMessage?.content).toContain("maximum context tokens");
 		expect(errorMessage?.content).not.toContain("Check your model connection");
+	});
+
+	it("points local-auth providers at their CLI for credential failures", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				provider: "claude-code",
+				model: "sonnet",
+			}));
+		});
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Failed to authenticate: OAuth session expired and could not be refreshed.",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		// Claude Code's login lives in the `claude` CLI; Settings → Models has
+		// nothing that could fix an expired session there.
+		expect(errorMessage?.content).toContain("OAuth session expired");
+		expect(errorMessage?.content).toContain(
+			"Sign in again with the `claude` CLI",
+		);
+		expect(errorMessage?.content).not.toContain("Settings → Models");
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {

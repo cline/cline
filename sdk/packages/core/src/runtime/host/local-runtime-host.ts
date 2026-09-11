@@ -2162,6 +2162,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId: session.sessionId,
 			source: session.source,
 			pid: process.pid,
+			// Seeded sessions (forks, checkpoint restores) materialize at start
+			// while idle; the service otherwise defaults the row to "running",
+			// and a later restore that reuses the id resumes from that stale
+			// manifest status and reports a turn that never existed.
+			status: session.status,
 			interactive: session.interactive,
 			provider: session.config.providerId,
 			model: session.config.modelId,

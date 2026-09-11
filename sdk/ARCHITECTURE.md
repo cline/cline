@@ -742,7 +742,9 @@ orchestrator used by core and hub layers.
    queued `cron_runs`. One-off: at most one run record per `(spec_id,
    revision)`, including failed runs so specs do not retry accidentally.
    Schedule: "one overdue catch-up on startup then advance" using
-   timezone-aware `getNextCronTime`.
+   timezone-aware `getNextCronTime`. New hub schedules persist the local IANA
+   timezone when none is provided. The desktop form sends its own local timezone;
+   explicit timezone choices and existing schedule timezones are preserved.
 6. **Event ingress** (`cron/events/cron-event-ingress.ts`): accepts already-normalized
    `AutomationEventEnvelope` values, persists them into `cron_event_log`,
    matches enabled event specs by `event_type` plus declarative filters,
@@ -751,11 +753,25 @@ orchestrator used by core and hub layers.
    declare `automationEvents` and submit normalized events through
    `ctx.automation.ingestEvent(...)`; sandboxed plugins forward those events
    through the core plugin event bridge.
+   Acceptance is one synchronous SQLite write transaction: the event log,
+   matching runs, debounce changes, materialization pointers, and final
+   processing status commit together. A failure rolls all of them back and
+   propagates to the caller, which must redeliver the event to retry. Other
+   connections cannot observe or claim partial fan-out. Committed events remain
+   deduplicated by event ID, including a retry after a lost response. Failures
+   are logged outside the transaction, not persisted as deduplication tombstones.
+
 7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),
+   dispatches new work independently of unfinished agent turns, and renews
+   locally active claims before polling expired work after system sleep. Startup
+   installs polling without waiting for the initial batch to finish. It also
    renews the run claim while execution is active, writes a markdown report
-   per run, and transactionally updates status. File specs can constrain
+   per run, and transactionally updates status. Optional scheduler telemetry records
+   run start/finish, trigger kind, attempt count, start delay, duration, and outcome
+   through the normal telemetry service. It excludes prompts, paths, and raw errors;
+   capture failures do not interrupt execution. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
    `plugins`), trigger source, and a notes directory that is injected into
    the system prompt. The automation runtime adapters explicitly persist
@@ -780,6 +796,21 @@ Programmatic hub schedules are stored as `cron_specs` with source
 claim/requeue/report flow as file-backed one-off, recurring, and
 event-driven specs. The hub schedule command surface remains a thin adapter;
 there is no separate schedules table, schedule store, or schedule runner.
+
+Runner claims enforce global and per-spec capacity inside the SQLite claim
+transaction, skipping saturated specs before choosing the next due run. This
+keeps multiple database connections from exceeding a schedule's parallelism
+and prevents a backlog of blocked siblings from starving other schedules.
+Each execution has a cancellation controller and a deadline covering request
+preparation, session startup, and the turn. Shutdown cancels and drains tracked
+executions with bounded session cleanup; interrupted runs are recorded as
+cancelled, not automatically replayed after possibly performing external work.
+Late startup responses are cleaned up without sending a turn or touching the
+closed store. Losing a lease cancels the old execution, and attaching its
+session requires the current claim token. Terminal status is persisted before
+writing the optional report, so a report filesystem failure cannot replay a
+completed turn. Report and cleanup failures are logged separately.
+
 
 ## Navigating the Codebase
 

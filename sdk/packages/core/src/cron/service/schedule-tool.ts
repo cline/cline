@@ -41,7 +41,14 @@ export const ScheduledTaskInputSchema = z.object({
 	prompt: z.string().min(1).optional(),
 	run_at: z.string().datetime({ offset: true }).optional(),
 	cron_pattern: z.string().min(1).optional(),
-	timezone: z.string().min(1).nullable().optional(),
+	timezone: z
+		.string()
+		.min(1)
+		.nullable()
+		.optional()
+		.describe(
+			"IANA timezone for recurring schedules. Omit unless the user explicitly requests a timezone; new schedules default to the local timezone. Updates preserve the existing timezone when omitted.",
+		),
 	enabled: z.boolean().optional(),
 	mode: z.enum(["act", "plan", "yolo"]).optional(),
 	system_prompt: z.string().nullable().optional(),

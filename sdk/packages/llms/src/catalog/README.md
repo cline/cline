@@ -8,6 +8,22 @@ generation scripts.
 This file documents the intended meaning of the token-limit fields and the
 boundary between catalog metadata and runtime request policy.
 
+## Per-model API Protocols
+
+Models.dev's model-level `provider.npm` is retained as `metadata.apiProtocol`
+for OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini.
+Providers opt into these model routes with `metadata.routing.modelApiProtocol`
+when they serve those protocols under a shared base URL. The selected adapter
+also owns request options, serialization, and stream parsing. Native providers
+and local CLI providers retain their own transports.
+
+OpenCode Go opts in and sends `x-opencode-session` from request metadata's
+`sessionId`, plus a Cline User-Agent. Direct gateway callers should supply a
+stable `sessionId` per conversation; ClineCore supplies its session identity.
+Go's Qwen entries without an upstream adapter declaration use Anthropic
+Messages, matching [Go's endpoint documentation](https://opencode.ai/docs/go/#endpoints).
+An explicit upstream declaration takes precedence over that narrow fallback.
+
 ## Audio Modalities
 
 Audio-capable entries retain models.dev's directional modality metadata:
@@ -150,10 +166,10 @@ scripts/generate-models.ts
 	+--> src/providers/provider-ids.generated.ts
 ```
 
-Use the package script when regenerating:
+From the repository root, regenerate and format the catalogs with:
 
 ```bash
-bun -F @cline/llms generate:models
+bun run build:models
 ```
 
 Catalog changes should usually include tests in `catalog-live.test.ts` that
@@ -186,3 +202,18 @@ and observable.
 - `../../scripts/generate-models.ts`: writes generated catalog output.
 - `../providers/ai-sdk.ts`: conditionally passes `maxOutputTokens` into AI SDK.
 - `../providers/gateway.ts`: resolves per-request/default `maxTokens`.
+
+### Offline Cline featured lists
+
+`bun run build:models` also captures the upstream recommended,
+free, and Cline Pass lists in `cline-recommended.generated.ts`. The SDK uses
+this snapshot when the live feed is unavailable, preserving feed order, tags,
+and descriptions and resolving names against the generated model catalog.
+Update these lists by running the generator; do not maintain separate model
+IDs in core. Generation requires both upstream sources to succeed so an
+outage cannot replace the bundled catalogs with partial data.
+
+All upstream fetching, normalization, and output rendering complete before any
+files are written. Unchanged files are skipped; generation logs distinguish
+updated files from unchanged files. The generator writes directly to the git
+checkout, where changes can be inspected and reverted if a write fails.

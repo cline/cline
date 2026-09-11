@@ -37,6 +37,7 @@ import {
 	collapseCompletedWork,
 	getThoughtDurationMilliseconds,
 	groupChatMessages,
+	isSystemSteeringMessage,
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
@@ -217,6 +218,14 @@ function ChatMessagesImpl({
 				collapseTrailingRun,
 			}),
 		[messages, collapseTrailingRun],
+	);
+	const isRunActive =
+		status === "starting" || status === "running" || status === "stopping";
+	const lastUserItemIndex = renderItems.findLastIndex(
+		(item) =>
+			item.type === "message" &&
+			item.message.role === "user" &&
+			!isSystemSteeringMessage(item.message),
 	);
 	// Mid-run the thinking indicator's replacement (the next tool or thinking
 	// row) joins the tight run group, so the indicator must sit at that same
@@ -559,6 +568,9 @@ function ChatMessagesImpl({
 										if (child.type === "tools") {
 											return (
 												<ToolMessageBlock
+													isRunActive={
+														isRunActive && itemIndex > lastUserItemIndex
+													}
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
 													messages={child.messages}
 													onExpandImage={handleExpandImage}

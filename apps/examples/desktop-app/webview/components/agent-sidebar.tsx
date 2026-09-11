@@ -12,6 +12,7 @@ import {
 	Filter,
 	FolderTree,
 	GitFork,
+	Import,
 	Loader2,
 	Mic,
 	PanelLeftOpen,
@@ -146,6 +147,7 @@ const SETTINGS_SECTION_ICONS = {
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
+	Import: Import,
 	Account: CircleUserRound,
 	Customize: Blocks,
 	Marketplace: Store,
@@ -915,12 +917,12 @@ export function AgentSidebar({
 								newTaskActive && "bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={openHome}
-							title="Start a new task"
+							title="Start a new session"
 							type="button"
 							variant="sidebarItem"
 						>
 							<Plus className="size-4 shrink-0" />
-							<span className="truncate">New</span>
+							<span className="truncate">Session</span>
 						</Button>
 						<Button
 							aria-label="Schedule"
@@ -1630,7 +1632,7 @@ function ThreadItem({
 						<div className="wrap-break-word text-sm font-medium">
 							{overviewTitle}
 						</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
+						<div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
