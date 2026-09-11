@@ -335,6 +335,50 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it.each([
+		false,
+		true,
+	])("shows expired cloud history as read-only (archive: %s)", async (hasHistory) => {
+		const history = hasHistory
+			? [
+					{
+						id: "saved",
+						sessionId: "expired-cloud",
+						role: "assistant",
+						content: "Saved reply",
+						createdAt: 1,
+					},
+				]
+			: [];
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "read_session_messages") return history;
+			if (command === "chat_session_command")
+				return { sessionId: "expired-cloud", status: "expired" };
+			return [];
+		});
+		await act(async () =>
+			current.hydrateSession({
+				sessionId: "expired-cloud",
+				origin: "cloud",
+				status: "completed",
+				repoUrl: "https://github.com/cline/test",
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		expect(current.isCloudSessionExpired).toBe(true);
+		expect(current.error).toContain("This cloud session has expired");
+		expect(current.error?.includes("no archived history")).toBe(!hasHistory);
+		expect(current.messages).toEqual(history);
+		invokeMock.mockClear();
+		await act(async () => {
+			expect(await current.sendPrompt("Test")).toBe(false);
+		});
+		expect(invokeMock).not.toHaveBeenCalled();
+		await act(async () => current.reset());
+		expect(current.isCloudSessionExpired).toBe(false);
+		expect(current.error).toBeNull();
+	});
+
 	it("allows cloud provisioning to outlive the default desktop command timeout", async () => {
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
