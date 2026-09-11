@@ -1,5 +1,9 @@
+import { type CoreSettingsItem, type CoreSettingsSnapshot, createCoreSettingsService } from "@cline/core"
+import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { SlashCommandInfo, SlashCommandsResponse } from "@shared/proto/cline/slash"
+import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { BASE_SLASH_COMMANDS } from "@/shared/slashCommands"
 import { Controller } from ".."
 
@@ -79,10 +83,80 @@ export async function getAvailableSlashCommands(controller: Controller, _request
 		}
 	}
 
+	// Add enabled skills so they surface in the slash-command autocomplete.
+	// Skills share the same custom section and CLI compatibility as workflows.
+	for (const skill of await listEnabledSkills(controller)) {
+		commands.push(
+			SlashCommandInfo.create({
+				name: skill.name,
+				description: skill.description || `Skill: ${skill.name}`,
+				section: "custom",
+				cliCompatible: true,
+			}),
+		)
+	}
+
 	return SlashCommandsResponse.create({ commands })
 }
 
 function fullPathToFileName(path: string): string {
 	// e.g. replace /path/to/workflow.md with workflow.md
 	return path.replace(/^.*[/\\]/, "")
+}
+
+export function filterEnabledSkillItems(input: {
+	skills: CoreSettingsItem[]
+	remoteConfigSkills: ReturnType<typeof parseRemoteSkillEntries>
+	remoteSkillsToggles: Record<string, boolean>
+}): CoreSettingsItem[] {
+	const candidates: CoreSettingsItem[] = []
+	const selectedByName = new Map<string, CoreSettingsItem>()
+
+	for (const skill of input.skills) {
+		if (skill.enabled === false) {
+			continue
+		}
+		candidates.push(skill)
+		selectedByName.set(skill.name, skill)
+	}
+
+	for (const remoteSkill of input.remoteConfigSkills) {
+		if (!remoteSkill.alwaysEnabled && input.remoteSkillsToggles[remoteSkill.name] === false) {
+			continue
+		}
+		const skill = {
+			id: `remote:${remoteSkill.name}`,
+			name: remoteSkill.name,
+			description: remoteSkill.description,
+			path: `remote:${remoteSkill.name}`,
+			kind: "skill",
+			source: "global",
+			enabled: true,
+		} satisfies CoreSettingsItem
+		candidates.push(skill)
+		selectedByName.set(skill.name, skill)
+	}
+
+	return candidates.filter((skill) => selectedByName.get(skill.name) === skill)
+}
+
+async function listEnabledSkills(controller: Controller): Promise<CoreSettingsItem[]> {
+	try {
+		const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
+		const primaryWorkspace = workspacePaths.paths[0]
+		const settingsSnapshot: CoreSettingsSnapshot = await createCoreSettingsService().list({
+			workspaceRoot: primaryWorkspace,
+		})
+		const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
+		const remoteSkillsToggles = controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+
+		return filterEnabledSkillItems({
+			skills: settingsSnapshot.skills,
+			remoteConfigSkills: parseRemoteSkillEntries(remoteConfigSettings.remoteGlobalSkills || []),
+			remoteSkillsToggles,
+		})
+	} catch (error) {
+		Logger.warn("getAvailableSlashCommands: failed to list skills for autocomplete", error)
+		return []
+	}
 }
