@@ -608,6 +608,26 @@ export const OpenAICompatibleProvider = ({
 					</div>
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+						<div style={{ flex: 1 }}>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.cacheReadsPrice)}
+								onChange={(value) => updateNumericModelOverride("cacheReadsPrice", "Cache Reads Price", value)}>
+								<span style={{ fontWeight: 500 }}>Cache Reads Price / 1M tokens</span>
+							</DebouncedTextField>
+							{modelFieldErrors.cacheReadsPrice && <div role="alert">{modelFieldErrors.cacheReadsPrice}</div>}
+						</div>
+
+						<div style={{ flex: 1 }}>
+							<DebouncedTextField
+								initialValue={formatOptionalModelNumber(openAiModelInfo?.cacheWritesPrice)}
+								onChange={(value) => updateNumericModelOverride("cacheWritesPrice", "Cache Writes Price", value)}>
+								<span style={{ fontWeight: 500 }}>Cache Writes Price / 1M tokens</span>
+							</DebouncedTextField>
+							{modelFieldErrors.cacheWritesPrice && <div role="alert">{modelFieldErrors.cacheWritesPrice}</div>}
+						</div>
+					</div>
+
+					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<div>
 							<DebouncedTextField
 								initialValue={formatOptionalModelNumber(openAiModelInfo?.temperature)}
@@ -654,7 +674,14 @@ export const OpenAICompatibleProvider = ({
 	)
 }
 
-type NumericModelOverrideKey = "contextWindow" | "maxTokens" | "inputPrice" | "outputPrice" | "temperature"
+type NumericModelOverrideKey =
+	| "contextWindow"
+	| "maxTokens"
+	| "inputPrice"
+	| "outputPrice"
+	| "cacheReadsPrice"
+	| "cacheWritesPrice"
+	| "temperature"
 
 type PendingModelSelection = { modelId: string | undefined; overrides: ProviderModelOverrides }
 
