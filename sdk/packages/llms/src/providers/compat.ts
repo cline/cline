@@ -70,6 +70,9 @@ function toGatewayModelDefinition(
 		capabilities: toGatewayModelCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
+			...(model.metadata?.apiProtocol
+				? { apiProtocol: model.metadata.apiProtocol }
+				: {}),
 			family: model.family,
 			pricing: model.pricing,
 			status: model.status,
