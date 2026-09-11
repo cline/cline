@@ -104,3 +104,33 @@ describe("getGitDiff", () => {
 		error!.message.should.equal("No changes in workspace for commit message")
 	})
 })
+
+// #13365: Collecting Changes ran git diff through exec with Node's 1MB
+// default maxBuffer. A >1MB diff killed the child with "stdout maxBuffer
+// length exceeded" before the 500-line truncation ever ran, so no commit
+// message could be generated for large staged changes.
+describe("getGitDiff with a diff larger than Node's default exec buffer", () => {
+	it("returns the truncated diff instead of failing with maxBuffer exceeded", async () => {
+		const dir = await mkdtemp(path.join(tmpdir(), "cline-maxbuffer-"))
+		const execAsync = promisify(exec)
+		try {
+			const git = (args: string) => execAsync(`git ${args}`, { cwd: dir })
+			await git("init -q")
+			await git('config user.email "t@example.com"')
+			await git('config user.name "T"')
+			// ~2.5MB of added lines: one long line, repeated. Comfortably past
+			// the 1MB default so the old wrapper failed deterministically.
+			const bigLine = "x".repeat(64)
+			await writeFile(path.join(dir, "big.txt"), `${(Array(40_000).fill(bigLine) as string[]).join("\n")}\n`)
+			await git("add big.txt")
+
+			const { stdout } = await getGitDiff(dir)
+			stdout.should.be.a.String()
+			// The diff is far larger than 1MB raw; the truncation keeps it to
+			// the configured line budget, so the result must be well under it.
+			stdout.length.should.be.below(1_000_000)
+		} finally {
+			await rm(dir, { recursive: true, force: true })
+		}
+	})
+})
