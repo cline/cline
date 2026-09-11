@@ -102,6 +102,7 @@ afterEach(() => {
 		throw new Error("createMockComposioClient is not configured for this test");
 	};
 	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
 	for (const path of cleanupPaths.splice(0)) {
 		rmSync(path, { recursive: true, force: true });
 	}
@@ -1634,11 +1635,14 @@ describe("disconnectComposioToolkit", () => {
 		});
 	});
 
-	it("a reconnect that finalizes during the disconnect's remote revocation survives", async () => {
+	it.each([
+		0, -1_000,
+	])("a reconnect that finalizes during the disconnect's remote revocation survives (clock delta %i)", async (clockDelta) => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
 		const dir = useTempDataDir();
-		process.env.COMPOSIO_API_KEY = "ck_reconnect_race";
+		process.env.COMPOSIO_API_KEY = `ck_reconnect_race_${clockDelta}`;
 		writeState(dir, {
-			apiKey: "ck_reconnect_race",
+			apiKey: `ck_reconnect_race_${clockDelta}`,
 			userId: "u_reconnect_race",
 			toolkits: {
 				github: {
@@ -1707,6 +1711,7 @@ describe("disconnectComposioToolkit", () => {
 		});
 		// While the disconnect awaits the old account's revocation, the user
 		// reconnects and the redirect-less finalize completes.
+		clock.mockReturnValue(10_000 + clockDelta);
 		const reconnect = await connectComposioToolkit("github");
 		expect(reconnect.alreadyConnected).toBe(true);
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
@@ -1833,11 +1838,14 @@ describe("disconnectComposioToolkit", () => {
 		expect(readStateFile(dir).cancelledAccountIds).toContain("ca_stale");
 	});
 
-	it("a disconnect started after a redirect-less connect wins over the finalize", async () => {
+	it.each([
+		0, -1_000,
+	])("a disconnect started after a redirect-less connect wins over the finalize (clock delta %i)", async (clockDelta) => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(10_000);
 		const dir = useTempDataDir();
-		process.env.COMPOSIO_API_KEY = "ck_disc_wins";
+		process.env.COMPOSIO_API_KEY = `ck_disc_wins_${clockDelta}`;
 		writeState(dir, {
-			apiKey: "ck_disc_wins",
+			apiKey: `ck_disc_wins_${clockDelta}`,
 			userId: "u_disc_wins",
 			toolkits: {
 				github: {
@@ -1886,6 +1894,7 @@ describe("disconnectComposioToolkit", () => {
 		});
 		// The user then clicks disconnect — the newer intent. It must win even
 		// though the connect finalizes afterward.
+		clock.mockReturnValue(10_000 + clockDelta);
 		const disconnected = await disconnectComposioToolkit("github");
 		expect(
 			disconnected.integrations.find((entry) => entry.toolkit === "github")

@@ -93,7 +93,7 @@ type PendingConnection = {
 	attemptId: string;
 	connectedAccountId: string;
 	redirectUrl?: string;
-	startedAt: number;
+	startedSequence: number;
 	/** The key/user the attempt was started under; finalization is dropped if
 	 * either changed while the browser flow was in flight. */
 	apiKey: string;
@@ -219,9 +219,12 @@ const pendingConnections = new Map<ComposioToolkitSlug, PendingConnection>();
  */
 const connectInitiationsInFlight = new Set<ComposioToolkitSlug>();
 const lastConnectionErrors = new Map<ComposioToolkitSlug, string>();
-/** When each toolkit was last disconnected, so state snapshots taken before
- * the disconnect cannot write it back. */
-const lastDisconnectedAt = new Map<ComposioToolkitSlug, number>();
+// A process-local sequence orders async operations even within the same
+// millisecond or when the wall clock moves backwards. It is only compared
+// with in-flight work in this process, so it does not need persistence.
+let operationSequence = 0;
+/** Prevent older state snapshots from restoring a disconnected toolkit. */
+const lastDisconnectSequence = new Map<ComposioToolkitSlug, number>();
 
 /** Usage-ranked toolkit catalog, cached per key since it changes rarely. */
 const CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -708,7 +711,7 @@ export async function getComposioStatus(options?: {
 	// Reconcile with Composio: connections can be revoked (or added) from the
 	// Composio dashboard without this app knowing.
 	try {
-		const refreshStartedAt = Date.now();
+		const refreshSequence = ++operationSequence;
 		const client = await getComposioClient(state.apiKey);
 		const accounts = await listAllConnectedAccounts(client, state.userId);
 		const cancelledIds = new Set(state.cancelledAccountIds ?? []);
@@ -782,7 +785,7 @@ export async function getComposioStatus(options?: {
 				!connectInitiationsInFlight.has(slug) &&
 				// The remote snapshot predates a local disconnect of this
 				// toolkit; writing it back would resurrect the connection.
-				(lastDisconnectedAt.get(slug) ?? 0) < refreshStartedAt
+				(lastDisconnectSequence.get(slug) ?? 0) < refreshSequence
 			) {
 				// A same-account re-fetch keeps the original connection metadata.
 				const sameAccount = Boolean(
@@ -831,7 +834,7 @@ export async function getComposioStatus(options?: {
 					) {
 						continue; // The slug changed mid-refresh; keep the newer state.
 					}
-					if ((lastDisconnectedAt.get(slug) ?? 0) >= refreshStartedAt) {
+					if ((lastDisconnectSequence.get(slug) ?? 0) >= refreshSequence) {
 						continue; // Disconnected mid-refresh.
 					}
 					if (
@@ -992,14 +995,10 @@ export async function connectComposioToolkit(
 	logger?: BasicLogger,
 	options?: { owner?: object },
 ): Promise<ComposioConnectResponse> {
-	// Anchor the disconnect race at function entry, BEFORE any await: a
-	// disconnect whose marker lands at or after this instant overlapped this
-	// attempt somewhere (including during the connection-initiation round
-	// trip) and must win at finalize time (see FinalizeGuard.startedAt).
-	// Disconnect sets its marker after its awaited remote deletion, i.e. at
-	// the latest point of its execution, so every overlapping interleaving
-	// yields marker >= startedAt.
-	const startedAt = Date.now();
+	// Record intent before any await. A later disconnect/cancel receives a
+	// larger sequence and wins; a later reconnect receives a larger sequence
+	// of its own and survives, regardless of wall-clock resolution or changes.
+	const startedSequence = ++operationSequence;
 	const state = readReconciledComposioState(logger);
 	if (!state.apiKey || !state.userId) {
 		throw new Error(
@@ -1037,12 +1036,16 @@ export async function connectComposioToolkit(
 			);
 		}
 		const redirectUrl = connectionRequest.redirectUrl?.trim() || undefined;
-		const guard = { apiKey: state.apiKey, userId: state.userId, startedAt };
+		const guard = {
+			apiKey: state.apiKey,
+			userId: state.userId,
+			startedSequence,
+		};
 		if (!redirectUrl) {
 			// No browser step needed (e.g. the account is already authorized on
 			// Composio's side) — finalize right away. There is no pending entry on
 			// this path, so the disconnect defense lives entirely in the guard's
-			// startedAt check inside finalizeToolkitConnection.
+			// startedSequence check inside finalizeToolkitConnection.
 			let persisted: boolean;
 			try {
 				persisted = await finalizeToolkitConnection(
@@ -1147,11 +1150,11 @@ export async function cancelComposioConnect(
 	}
 	// Record the cancel intent BEFORE any await, so a status refresh that
 	// snapshotted this account as ACTIVE and is mid-import drops it at its
-	// write-time check (lastDisconnectedAt >= refreshStartedAt). The tombstone
+	// write-time check (lastDisconnectSequence >= refreshSequence). The tombstone
 	// alone is not enough for that: a successful revocation prunes it before
-	// the refresh's write, so the timestamp is the durable "cancelled during
+	// the refresh's write, so the sequence is the durable "cancelled during
 	// this refresh" signal. Mirrors the disconnect entry marker.
-	lastDisconnectedAt.set(toolkit, Date.now());
+	lastDisconnectSequence.set(toolkit, ++operationSequence);
 	// Deleting the local marker alone is not enough: the OAuth tab may still
 	// be open, and completing it later would turn the remote account ACTIVE,
 	// where the next dashboard reconciliation would import it right back.
@@ -1231,13 +1234,13 @@ export async function disconnectComposioToolkit(
 ): Promise<ComposioStatusResponse> {
 	// Record the disconnect intent BEFORE any await, so a connect attempt
 	// that began earlier and finalizes while this disconnect is still
-	// awaiting its remote revocation is dropped at write time (its startedAt
-	// predates this marker; see FinalizeGuard.startedAt). Stamping at entry —
+	// awaiting its remote revocation is dropped at write time (its startedSequence
+	// predates this marker; see FinalizeGuard.startedSequence). Stamping at entry —
 	// rather than after the revocation — is the mirror of anchoring the
-	// connect's startedAt at entry: whichever action started later wins,
+	// connect's startedSequence at entry: whichever action started later wins,
 	// symmetrically. A connect that began AFTER this marker keeps a larger
-	// startedAt and is not dropped, so a genuinely newer reconnect survives.
-	lastDisconnectedAt.set(toolkit, Date.now());
+	// startedSequence and is not dropped, so a genuinely newer reconnect survives.
+	lastDisconnectSequence.set(toolkit, ++operationSequence);
 	const pending = pendingConnections.get(toolkit);
 	pendingConnections.delete(toolkit);
 	lastConnectionErrors.delete(toolkit);
@@ -1314,13 +1317,13 @@ export async function disconnectComposioToolkit(
 		const current = s.toolkits?.[toolkit];
 		// Remove only the account this disconnect actually revoked. A
 		// connection finalized while the awaited revocation above was in
-		// flight is the newer user intent (its startedAt is after this
+		// flight is the newer user intent (its startedSequence is after this
 		// disconnect's entry marker, so finalize was NOT dropped): it carries
 		// a different account id and its remote account was never touched —
 		// blindly deleting it here would leave that account authorized with no
 		// local record, for the next refresh to import as a resurrected
 		// connector. The entry-time marker is safe to keep either way: it
-		// predates any surviving newer connection's startedAt.
+		// predates any surviving newer connection's startedSequence.
 		if (
 			current &&
 			stored &&
@@ -1376,12 +1379,12 @@ type FinalizeGuard = {
 	/** The key/user the connection was initiated under. */
 	apiKey: string;
 	userId: string;
-	/** When the connection attempt began. A disconnect of this toolkit that
-	 * lands at or after this instant is the newer user intent: the finalize
+	/** The operation sequence at connection entry. A disconnect of this toolkit that
+	 * starts after this operation is the newer user intent: the finalize
 	 * result is dropped and its account revoked instead of written. This is
 	 * the only disconnect defense on the redirect-less path, which never has
 	 * a pending entry for the disconnect to clear. */
-	startedAt: number;
+	startedSequence: number;
 };
 
 /** An attempt whose result must not be persisted — superseded by a
@@ -1451,7 +1454,7 @@ async function finalizeToolkitConnection(
 		await abandonFinalizedConnection(connectedAccountId, guard.apiKey, logger);
 		return false;
 	}
-	if ((lastDisconnectedAt.get(toolkit) ?? 0) >= guard.startedAt) {
+	if ((lastDisconnectSequence.get(toolkit) ?? 0) >= guard.startedSequence) {
 		// The user disconnected this toolkit after the attempt began; writing
 		// the result now would resurrect the connector they removed.
 		logger?.log?.(
