@@ -42,13 +42,17 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     ```bash
     code cline
     ```
-3. Install [bun](https://bun.com)
-4. Install the necessary dependencies for the extension and webview-gui:
+3. Install [Bun 1.3.13](https://bun.com) and [Node.js 22 or later](https://nodejs.org/).
+4. Install the workspace dependencies and build the SDK packages from the repository root:
     ```bash
-    cd apps/vscode && bun run install:all && cd ../..
-    cd sdk && bun run build && cd ..
+    bun install
+    bun run build:sdk
     ```
 5. Generate Protocol Buffer files (required before first build):
+    ```bash
+    cd apps/vscode
+    bun run protos
+    ```
 6. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
@@ -62,7 +66,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
    - Run tests and checks
 3. Testing
     - Run `cd apps/vscode && bun run test` to run tests locally. 
-    - Before submitting PR, run `bun run format:fix` to format your code
+    - Before submitting a PR, run `cd apps/vscode && bun run format:fix` to format your code
 
 ### Extension
 
@@ -136,7 +140,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 2. **Code Quality**
 
     - Run `bun run lint` to check code style
-    - Run `bun run format` to automatically format code
+    - Run `bun run format` to check code formatting
     - All PRs must pass CI checks which include both linting and formatting
     - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
