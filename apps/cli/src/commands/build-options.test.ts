@@ -54,4 +54,24 @@ describe("CLI build options", () => {
 			}),
 		).toBeUndefined();
 	});
+
+	it("filters builds to one or more requested operating systems", () => {
+		const options = parseBuildOptions([
+			"--target-os",
+			"linux",
+			"--target-os",
+			"win32",
+		]);
+
+		expect(options.targetOs).toEqual(["linux", "win32"]);
+	});
+
+	it("rejects missing or unsupported target operating systems", () => {
+		expect(() => parseBuildOptions(["--target-os"])).toThrow(
+			"--target-os requires one of",
+		);
+		expect(() => parseBuildOptions(["--target-os", "android"])).toThrow(
+			"--target-os requires one of",
+		);
+	});
 });
