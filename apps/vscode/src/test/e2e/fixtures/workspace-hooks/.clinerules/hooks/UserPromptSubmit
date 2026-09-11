@@ -1,7 +1,15 @@
 #!/usr/bin/env node
-// E2E fixture hook: records where it ran and what workspace identity it was
-// given, so the test can assert workspace-scoped discovery and cwd selection.
+// E2E fixture hook: records where it ran, the workspace identity it was given,
+// and the prompt it received, and injects a distinctive fact the test asks the
+// mock model about — proving contextModification reaches the model request.
 const fs = require("fs")
 const input = JSON.parse(fs.readFileSync(0, "utf-8"))
-fs.writeFileSync("hook-ran.json", JSON.stringify({ cwd: process.cwd(), workspaceRoots: input.workspaceRoots }))
-console.log(JSON.stringify({ cancel: false }))
+fs.writeFileSync(
+	"hook-ran.json",
+	JSON.stringify({
+		cwd: process.cwd(),
+		workspaceRoots: input.workspaceRoots,
+		prompt: (input.userPromptSubmit && input.userPromptSubmit.prompt) || "",
+	}),
+)
+console.log(JSON.stringify({ cancel: false, contextModification: "HOOK_INJECTED_FACT: the codename is ZEBRA-7." }))

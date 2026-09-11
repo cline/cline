@@ -2282,6 +2282,140 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("injects beforeRun appendContext into the run's first model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				// The hook context lands after the run's input messages, so the
+				// model sees it on the very first request of the run.
+				const contextMessage = request.messages.at(-1);
+				expect(contextMessage?.role).toBe("user");
+				expect(contextMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: '<hook_context source="RunStart">\nrun-context\n</hook_context>',
+				});
+				const promptMessage = request.messages.at(-2);
+				expect(promptMessage?.role).toBe("user");
+				expect(promptMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: "Inject run context",
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: () => ({ appendContext: "run-context" }),
+			},
+		});
+
+		const result = await runtime.run("Inject run context");
+
+		expect(result.status).toBe("completed");
+		const hookContextMessage = result.messages.find(
+			(message) =>
+				message.role === "user" &&
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes('source="RunStart"'),
+				),
+		);
+		// Hidden from user-facing transcripts (live and replayed) while still
+		// sent to the model, like compaction summaries.
+		expect(hookContextMessage?.metadata).toMatchObject({
+			displayRole: "system",
+			userRunSpan: 0,
+		});
+	});
+
+	it("defers run-start context past a seeded trailing tool call", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				// The seeded assistant tool_use must stay adjacent to whatever
+				// follows it; no hook-context message may be inserted after it.
+				const lastMessage = request.messages.at(-1);
+				expect(lastMessage?.role).toBe("assistant");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			initialMessages: [
+				{
+					id: "u1",
+					role: "user",
+					content: [{ type: "text", text: "resume me" }],
+					createdAt: 1,
+				},
+				{
+					id: "a1",
+					role: "assistant",
+					content: [
+						{
+							type: "tool-call",
+							toolCallId: "dangling",
+							toolName: "echo",
+							input: {},
+						},
+					],
+					createdAt: 2,
+				},
+			],
+			hooks: {
+				beforeRun: () => ({ appendContext: "resume-context" }),
+			},
+		});
+
+		const result = await runtime.run("");
+
+		expect(result.status).toBe("completed");
+		expect(
+			result.messages.some((message) =>
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes("resume-context"),
+				),
+			),
+		).toBe(false);
+	});
+
+	it("does not inject context from a beforeRun hook that stops the run", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "unreachable" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: () => ({
+					stop: true,
+					reason: "blocked",
+					appendContext: "never-injected",
+				}),
+			},
+		});
+
+		const result = await runtime.run("Blocked run");
+
+		expect(result.status).not.toBe("completed");
+		expect(
+			result.messages.some((message) =>
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes("never-injected"),
+				),
+			),
+		).toBe(false);
+	});
+
 	it("sanitizes hook context markup against corrupting identity attributes", async () => {
 		const model = new ScriptedModel([
 			() => [
