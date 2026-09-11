@@ -139,7 +139,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(trackIntent).not.toHaveBeenCalled()
 	})
 
-	it("routes the /newtask alias to the condense RPC as well", async () => {
+	it("routes /newtask to a fresh task context instead of the condense RPC", async () => {
 		mockTurnState = { phase: "completed", seq: 7 }
 		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
 
@@ -147,11 +147,27 @@ describe("useMessageHandlers — send routing", () => {
 			await result.current.handleSendMessage("/newtask", [], [])
 		})
 
-		expect(condense).toHaveBeenCalledTimes(1)
-		expect(condense).toHaveBeenCalledWith(expect.objectContaining({ value: "compact" }))
+		// /newtask must NOT alias /compact: the condense RPC must not fire, and the
+		// current task is cleared (TaskService.clearTask) so a fresh context window opens.
+		expect(condense).not.toHaveBeenCalled()
+		expect(clearTask).toHaveBeenCalledTimes(1)
 		expect(newTask).not.toHaveBeenCalled()
 		expect(askResponse).not.toHaveBeenCalled()
 		expect(trackIntent).not.toHaveBeenCalled()
+	})
+
+	it("does not emit a compaction event when /newtask starts a fresh task", async () => {
+		mockTurnState = { phase: "completed", seq: 7 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.handleSendMessage("/newtask", [], [])
+		})
+
+		// Regression for #13157: /newtask compacted the context (same as /compact)
+		// instead of starting a fresh task context. No compaction event is allowed.
+		expect(condense).not.toHaveBeenCalled()
+		expect(clearTask).toHaveBeenCalledWith(expect.objectContaining({}))
 	})
 
 	it("does not intercept /compact when there is no active task (starts a new task instead)", async () => {
