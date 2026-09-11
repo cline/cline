@@ -414,6 +414,12 @@ export interface RuntimeHost {
 		listener: (event: CoreSessionEvent) => void,
 		options?: RuntimeHostSubscribeOptions,
 	): () => void;
+	/**
+	 * Whether this host currently holds a live-event subscription for the
+	 * session. Optional: only hosts that subscribe to sessions individually
+	 * (e.g. hub clients) have anything to report.
+	 */
+	hasSessionSubscription?(sessionId: string): boolean;
 }
 
 export type RuntimeHostMode = "auto" | "local" | "hub" | "remote";
