@@ -13,6 +13,7 @@ import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
 } from "../llms/provider-defaults";
+import { toProviderConfig } from "../llms/provider-settings";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -1595,6 +1596,112 @@ describe("saveLocalProviderSettings", () => {
 		});
 
 		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+	});
+});
+
+// ===========================================================================
+// regional API line routing
+// ===========================================================================
+
+const QWEN_CHINA_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const QWEN_INTERNATIONAL_BASE_URL =
+	"https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+
+describe("regional API line routing", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+	});
+
+	afterEach(() => cleanup());
+
+	async function listQwen() {
+		const { providers } = await listLocalProviders(manager);
+		const qwen = providers.find((provider) => provider.id === "qwen");
+		if (!qwen) throw new Error("qwen provider missing from catalog");
+		return qwen;
+	}
+
+	it("lists the api line endpoint instead of the provider default", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			apiLine: "international",
+		});
+
+		const qwen = await listQwen();
+		expect(qwen.baseUrl).toBe(QWEN_INTERNATIONAL_BASE_URL);
+		expect(qwen.configValues?.baseUrl).toBe(QWEN_INTERNATIONAL_BASE_URL);
+	});
+
+	it("falls back to the provider default when no api line is set", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+		});
+
+		const qwen = await listQwen();
+		expect(qwen.baseUrl).toBe(QWEN_CHINA_BASE_URL);
+	});
+
+	it("switching api line drops a previously pinned regional base url", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			baseUrl: QWEN_CHINA_BASE_URL,
+		});
+
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiLine: "international",
+		});
+
+		const settings = manager.getProviderSettings("qwen");
+		expect(settings).not.toHaveProperty("baseUrl");
+		expect(toProviderConfig(settings!).baseUrl).toBe(
+			QWEN_INTERNATIONAL_BASE_URL,
+		);
+	});
+
+	it("keeps a custom base url when the api line changes", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			baseUrl: "https://proxy.example.invalid/v1",
+		});
+
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiLine: "international",
+		});
+
+		expect(manager.getProviderSettings("qwen")?.baseUrl).toBe(
+			"https://proxy.example.invalid/v1",
+		);
+	});
+
+	it("leaves the base url alone for saves that do not touch the api line", () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			enabled: true,
+			apiKey: "key",
+			baseUrl: QWEN_CHINA_BASE_URL,
+		});
+
+		saveLocalProviderSettings(manager, {
+			providerId: "qwen",
+			apiKey: "rotated",
+		});
+
+		expect(manager.getProviderSettings("qwen")?.baseUrl).toBe(
+			QWEN_CHINA_BASE_URL,
+		);
 	});
 });
 

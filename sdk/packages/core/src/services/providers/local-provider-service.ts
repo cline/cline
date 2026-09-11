@@ -310,7 +310,56 @@ function toConfigPrimitive(
 	return undefined;
 }
 
+/**
+ * Mirror the base URL precedence `toProviderConfig` applies at request time:
+ * explicit base URL > regional API line endpoint > provider default. Listing
+ * has to resolve it the same way, otherwise the settings UI shows (and lets
+ * the user re-save) a different endpoint than the one requests actually use.
+ */
+function resolveEffectiveBaseUrl(
+	providerId: string,
+	settings: ProviderSettings | undefined,
+	info: { baseUrl?: string } | undefined,
+): string | undefined {
+	return (
+		settings?.baseUrl ??
+		LlmsModels.resolveProviderApiLineBaseUrl(providerId, settings?.apiLine) ??
+		info?.baseUrl
+	);
+}
+
+const PROVIDER_API_LINES = ["china", "international"] as const;
+
+function normalizeBaseUrlForCompare(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim().replace(/\/+$/, "");
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * True when the base URL is one Cline itself derives for the provider (its
+ * default endpoint or one of its regional API line endpoints), as opposed to
+ * a custom endpoint the user actually typed.
+ */
+function isDerivedProviderBaseUrl(
+	providerId: string,
+	baseUrl: unknown,
+): boolean {
+	const normalized = normalizeBaseUrlForCompare(baseUrl);
+	if (!normalized) return false;
+	const derived = [
+		LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.provider?.baseUrl,
+		...PROVIDER_API_LINES.map((apiLine) =>
+			LlmsModels.resolveProviderApiLineBaseUrl(providerId, apiLine),
+		),
+	];
+	return derived.some(
+		(candidate) => normalizeBaseUrlForCompare(candidate) === normalized,
+	);
+}
+
 function resolveConfigValues(
+	providerId: string,
 	fields: readonly ProviderConfigField[] | undefined,
 	settings: ProviderSettings | undefined,
 	info: { baseUrl?: string } | undefined,
@@ -320,8 +369,8 @@ function resolveConfigValues(
 	const values: Record<string, ProviderConfigFieldPrimitive> = {};
 	for (const field of fields) {
 		const persistedValue = toConfigPrimitive(
-			field.path === "baseUrl" && settings?.baseUrl === undefined
-				? info?.baseUrl
+			field.path === "baseUrl"
+				? resolveEffectiveBaseUrl(providerId, settings, info)
 				: getPathValue(settings, field.path),
 		);
 		const value = persistedValue ?? field.defaultValue;
@@ -801,7 +850,7 @@ export async function listLocalProviders(
 						oauthAccessTokenPresent: persistedSettings
 							? hasOAuthAccessToken(persistedSettings)
 							: undefined,
-						baseUrl: persistedSettings?.baseUrl ?? info?.baseUrl,
+						baseUrl: resolveEffectiveBaseUrl(id, persistedSettings, info),
 						defaultModelId: info?.defaultModelId,
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
@@ -811,6 +860,7 @@ export async function listLocalProviders(
 							"The base endpoint to use for provider requests.",
 						configFields,
 						configValues: resolveConfigValues(
+							id,
 							configFields,
 							persistedSettings,
 							info,
@@ -1076,6 +1126,20 @@ export function saveLocalProviderSettings(
 		"capabilities",
 	] as const) {
 		if (Object.hasOwn(request, key)) next[key] = request[key];
+	}
+
+	// A regional API line only reaches the request when no explicit base URL
+	// shadows it. Settings UIs seed the base URL field with the endpoint they
+	// display, so saving any field pins that endpoint and the next line switch
+	// would silently keep routing to the old region. Drop a base URL that is
+	// merely one of the provider's own derived endpoints; a genuinely custom
+	// one still wins.
+	if (
+		Object.hasOwn(request, "apiLine") &&
+		LlmsModels.isProviderApiLine(next.apiLine) &&
+		isDerivedProviderBaseUrl(providerId, next.baseUrl)
+	) {
+		delete next.baseUrl;
 	}
 
 	// Merged object fields
