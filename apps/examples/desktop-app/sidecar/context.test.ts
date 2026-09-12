@@ -453,6 +453,24 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
+	it("preserves the reflected transcript marker on queued lifecycle chunks", async () => {
+		const { serializeQueuedPromptStart } = await import("./context");
+		expect(
+			JSON.parse(
+				serializeQueuedPromptStart({
+					promptId: "q-1",
+					prompt: "Continue",
+					transcriptReflected: true,
+				}),
+			),
+		).toEqual({
+			promptId: "q-1",
+			prompt: "Continue",
+			attachmentCount: 0,
+			transcriptReflected: true,
+		});
+	});
+
 	it("announces a queued prompt start once when drain emits both queue events", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
