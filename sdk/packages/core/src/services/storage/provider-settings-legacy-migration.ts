@@ -182,6 +182,12 @@ const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
 const OPENAI_COMPATIBLE_PROVIDER_ID =
 	LlmsModels.BUILT_IN_PROVIDER.OPENAI_COMPATIBLE;
 const LEGACY_OPENAI_COMPATIBLE_CONTEXT_WINDOW = 128_000;
+// Request timeout (ms) that early CLI versions persisted into per-provider
+// settings when the user configured a provider. The runtime default was later
+// raised to 300_000 (see cline/cline#12829), but entries already carrying the
+// old 30s default kept winning because the legacy migration skips providers
+// that already exist (see cline/cline#13843).
+const STALE_LEGACY_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
@@ -493,6 +499,16 @@ function resolveKnownClineModel(
 		}
 	}
 	return undefined;
+}
+
+function readLegacyRequestTimeoutMs(
+	legacyGlobalState: LegacyGlobalState,
+): number | undefined {
+	return typeof legacyGlobalState.requestTimeoutMs === "number" &&
+		Number.isInteger(legacyGlobalState.requestTimeoutMs) &&
+		legacyGlobalState.requestTimeoutMs > 0
+		? legacyGlobalState.requestTimeoutMs
+		: undefined;
 }
 
 function buildLegacyProviderSettings(
@@ -906,6 +922,7 @@ export function migrateLegacyProviderSettings(
 	next.lastUsedProvider = existing.lastUsedProvider;
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
+	let refreshedTimeoutCount = 0;
 	const modelsPath = join(
 		dirname(options.providerSettingsManager.getFilePath()),
 		"models.json",
@@ -915,7 +932,31 @@ export function migrateLegacyProviderSettings(
 
 	for (const legacyProviderId of candidates) {
 		const providerId = resolveMigratedProviderId(legacyProviderId);
-		if (next.providers[providerId]) {
+		const existingEntry = next.providers[providerId];
+		if (existingEntry) {
+			// A provider entry that already exists was seeded by an earlier
+			// migration (or an early CLI version) and may still carry the
+			// old 30s request-timeout default that predates cline/cline#12829.
+			// The runtime reads the per-provider `timeout` (via
+			// ProviderConfig.timeoutMs), so a stale value here keeps winning
+			// over the user's current global requestTimeoutMs. Refresh it when
+			// it still equals the stale default and the legacy global state
+			// holds a newer explicit value (cline/cline#13843). Other fields
+			// are intentionally left untouched.
+			const legacyTimeout = readLegacyRequestTimeoutMs(globalState);
+			if (
+				existingEntry.settings.timeout ===
+					STALE_LEGACY_REQUEST_TIMEOUT_MS &&
+				legacyTimeout !== undefined &&
+				legacyTimeout !== STALE_LEGACY_REQUEST_TIMEOUT_MS
+			) {
+				existingEntry.settings = {
+					...existingEntry.settings,
+					timeout: legacyTimeout,
+				};
+				existingEntry.updatedAt = now;
+				refreshedTimeoutCount += 1;
+			}
 			continue;
 		}
 		// A provider selected only in the non-current mode must be read through
@@ -953,7 +994,11 @@ export function migrateLegacyProviderSettings(
 		}
 	}
 
-	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
+	if (
+		addedProviderCount === 0 &&
+		addedCustomProviderCount === 0 &&
+		refreshedTimeoutCount === 0
+	) {
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,
@@ -981,7 +1026,10 @@ export function migrateLegacyProviderSettings(
 	}
 
 	return {
-		migrated: addedProviderCount > 0 || addedCustomProviderCount > 0,
+		migrated:
+			addedProviderCount > 0 ||
+			addedCustomProviderCount > 0 ||
+			refreshedTimeoutCount > 0,
 		providerCount: Object.keys(next.providers).length,
 		lastUsedProvider: next.lastUsedProvider,
 	};
