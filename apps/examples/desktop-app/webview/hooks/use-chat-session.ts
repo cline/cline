@@ -2233,6 +2233,7 @@ export function useChatSession() {
 						return;
 					}
 					if (mappedStatus) {
+						authoritativeStatusRevisionRef.current += 1;
 						setStatus(mappedStatus);
 					}
 				};
@@ -2327,21 +2328,28 @@ export function useChatSession() {
 			polling = true;
 			try {
 				const pollStartedAt = Date.now();
-				const [historyMessages, record] = await Promise.all([
+				const statusRevision = authoritativeStatusRevisionRef.current;
+				const isCloudSession = config.executionTarget === "cloud";
+				const readMessages = () =>
 					desktopClient
 						.invoke<ChatMessage[]>("read_session_messages", {
 							sessionId,
 							maxMessages: MAX_MESSAGES,
 						})
-						.catch(() => null),
-					desktopClient
-						.invoke<{ status?: string } | null>("get_discovered_session", {
-							sessionId,
-						})
-						.catch(() => null),
+						.catch(() => null);
+				const recordPromise = desktopClient
+					.invoke<{ status?: string } | null>("get_discovered_session", {
+						sessionId,
+					})
+					.catch(() => null);
+				// Refresh cached cloud readiness before history can attach.
+				const [historyMessages, record] = await Promise.all([
+					isCloudSession ? recordPromise.then(readMessages) : readMessages(),
+					recordPromise,
 				]);
 				if (
 					cancelled ||
+					authoritativeStatusRevisionRef.current !== statusRevision ||
 					activeSessionIdRef.current !== sessionId ||
 					// The live stream resumed (or a local turn started) while
 					// the poll was in flight; live state is fresher than the
@@ -2376,11 +2384,26 @@ export function useChatSession() {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
-					const mappedStatus = mapSessionRecordStatus(
-						nextStatus as SessionHistoryStatus,
-					);
+					const mappedStatus = isCloudSession
+						? mapCloudRuntimeStatus(nextStatus)
+						: mapSessionRecordStatus(nextStatus as SessionHistoryStatus);
+					if (!mappedStatus) return;
+					// Sandbox readiness must not replace runtime activity or stop
+					// retries before a successful history read establishes attachment.
+					if (
+						isCloudSession &&
+						mappedStatus === "idle" &&
+						(historyMessages === null ||
+							(status !== "starting" &&
+								(nextStatus === "ready" || nextStatus === "active")))
+					) {
+						return;
+					}
 					if (abortedRef.current && mappedStatus === "running") {
 						return;
+					}
+					if (isCloudSession && nextStatus === "expired") {
+						setIsCloudSessionExpired(true);
 					}
 					authoritativeStatusRevisionRef.current += 1;
 					setStatus(mappedStatus);
@@ -2397,7 +2420,7 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [hydratedHistorySessionId, sessionId, status]);
+	}, [config.executionTarget, hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 

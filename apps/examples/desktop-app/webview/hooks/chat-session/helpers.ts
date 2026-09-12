@@ -191,6 +191,7 @@ export function mapCloudRuntimeStatus(
 			return "running";
 		case "idle":
 		case "ready":
+		case "active":
 			return "idle";
 		case "completed":
 		case "expired":

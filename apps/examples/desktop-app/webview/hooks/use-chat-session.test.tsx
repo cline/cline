@@ -1412,53 +1412,138 @@ describe("useChatSession", () => {
 		).toContain("build the feature");
 	});
 
-	it("hydrates the initial prompt from a provisioning attach", async () => {
+	it.each([
+		["ready", "ready", "idle"],
+		["active", "active", "idle"],
+		["retry", "ready", "idle"],
+		["retry-idle", "idle", "idle"],
+		["snapshot", "ready", "running"],
+		["failed", "failed", "failed"],
+		["expired", "expired", "completed"],
+	] as const)("recovers an attached provisioning cloud session: %s", async (outcome, readyStatus, expectedStatus) => {
+		let discoveryReads = 0;
+		let readyReads = 0;
+		let attachCalls = 0;
+		let discoveredStatus = "provisioning";
+		const transcript = [
+			{
+				id: "cloud-user",
+				sessionId: "cloud-transition",
+				role: "user",
+				content: "New remote turn",
+				createdAt: 1,
+			},
+			{
+				id: "cloud-answer",
+				sessionId: "cloud-transition",
+				role: "assistant",
+				content: "Ready",
+				createdAt: 2,
+			},
+		];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				if (command === "get_process_context")
+					return { cwd: "/workspace", workspaceRoot: "/workspace" };
+				if (command === "get_discovered_session") {
+					// Discovery must finish refreshing the cache before history can attach.
+					await Promise.resolve();
+					discoveryReads += 1;
+					discoveredStatus =
+						discoveryReads === 1 ? "provisioning" : readyStatus;
+					return { sessionId: "cloud-transition", status: discoveredStatus };
 				}
 				if (command === "read_session_messages") {
-					return [];
+					if (discoveredStatus === "provisioning") return [];
+					readyReads += 1;
+					if (
+						outcome === "failed" ||
+						outcome === "expired" ||
+						((outcome === "retry" || outcome === "retry-idle") &&
+							readyReads === 1)
+					) {
+						throw new Error("History temporarily unavailable");
+					}
+					if (outcome === "snapshot" && readyReads === 1) {
+						handlerFor("cloud_session_rehydrated")({
+							sessionId: "cloud-transition",
+							status: "running",
+							messages: transcript,
+						});
+					}
+					return transcript;
 				}
 				if (command === "chat_session_command") {
 					const request = args?.request as { action?: string } | undefined;
 					if (request?.action === "attach") {
+						attachCalls += 1;
 						return {
-							sessionId: "cloud-provisioning-test",
+							sessionId: "cloud-transition",
+							prompt: "Fix the provisioning flow",
 							status: "provisioning",
 							provider: "cline",
 							model: "test-model",
 							cwd: "/workspace",
 							workspaceRoot: "/workspace",
-							prompt: "Fix the provisioning flow",
 						};
 					}
+					throw new Error(`unexpected chat action: ${request?.action}`);
 				}
 				return [];
 			},
 		);
-
-		await act(async () => {
-			await current.hydrateSession({
-				sessionId: "cloud-provisioning-test",
-				origin: "cloud",
-				repoUrl: "https://github.com/cline/test",
-				status: "provisioning",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
-				startedAt: "2026-08-17T00:00:00.000Z",
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				await current.hydrateSession({
+					sessionId: "cloud-transition",
+					origin: "cloud",
+					repoUrl: "https://github.com/cline/test",
+					status: "provisioning",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+					startedAt: "2026-08-17T00:00:00.000Z",
+				});
 			});
-		});
-
-		expect(current.messages).toEqual([
-			expect.objectContaining({
-				role: "user",
-				content: "Fix the provisioning flow",
-			}),
-		]);
+			expect(current.messages).toEqual([
+				expect.objectContaining({
+					role: "user",
+					content: "Fix the provisioning flow",
+				}),
+			]);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+			expect(discoveryReads).toBe(1);
+			expect(current.status).toBe("starting");
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(3_100);
+			});
+			if (outcome === "retry" || outcome === "retry-idle") {
+				expect(current.status).toBe("starting");
+				await act(async () => {
+					await vi.advanceTimersByTimeAsync(3_100);
+				});
+			}
+			expect(attachCalls).toBe(1);
+			expect(current.status).toBe(expectedStatus);
+			if (outcome === "snapshot") {
+				await act(async () => {
+					await vi.advanceTimersByTimeAsync(3_100);
+				});
+				expect(current.status).toBe("running");
+			}
+			expect(current.isCloudSessionExpired).toBe(outcome === "expired");
+			if (outcome !== "failed" && outcome !== "expired") {
+				expect(current.messages).toContainEqual(
+					expect.objectContaining({ role: "assistant", content: "Ready" }),
+				);
+			}
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("replaces the first cloud prompt with its canonical snapshot copy", async () => {

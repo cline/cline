@@ -149,7 +149,8 @@ function ChatMessagesImpl({
 		};
 	}, [messages]);
 	const shouldShowErrorBanner =
-		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+		Boolean(error) &&
+		(Boolean(errorAction) || lastErrorMessage?.content !== error);
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&
@@ -774,7 +775,7 @@ function ChatMessagesImpl({
 						) : null}
 						{shouldShowErrorBanner ? (
 							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								<p>{error}</p>
+								{lastErrorMessage?.content !== error ? <p>{error}</p> : null}
 								{errorAction ? (
 									<Button
 										className="mt-2"

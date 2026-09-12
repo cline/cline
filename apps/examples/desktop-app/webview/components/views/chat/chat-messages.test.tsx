@@ -53,17 +53,31 @@ async function renderMessages(
 }
 
 describe("ChatMessages error action", () => {
-	it("runs the supplied action", async () => {
+	it("keeps the recovery action when the error is already in the transcript", async () => {
 		const onClick = vi.fn();
-		await renderMessages([], {
-			error: "Connect GitHub",
-			errorAction: { label: "Connect GitHub", onClick },
-		});
+		await renderMessages(
+			[
+				{
+					id: "github-error",
+					sessionId: "session-1",
+					role: "error",
+					content: "GitHub access expired",
+					createdAt: Date.now(),
+				},
+			],
+			{
+				error: "GitHub access expired",
+				errorAction: { label: "Connect GitHub", onClick },
+			},
+		);
 
 		const button = [...container.querySelectorAll("button")].find((candidate) =>
 			candidate.textContent?.includes("Connect GitHub"),
 		);
 		expect(button).toBeDefined();
+		expect(container.textContent?.match(/GitHub access expired/g)).toHaveLength(
+			1,
+		);
 		await act(async () => button?.click());
 		expect(onClick).toHaveBeenCalledOnce();
 	});
