@@ -86,8 +86,8 @@ describe("resolveCredentialFailureHint", () => {
 	});
 
 	it("points Cline at signing in again from Settings → Account", () => {
-		expect(resolveCredentialFailureHint("cline")).toMatch(
-			/Sign in again in Settings → Account/,
+		expect(resolveCredentialFailureHint("cline")).toBe(
+			"Sign in to Cline again in Settings → Account, then try again.",
 		);
 	});
 

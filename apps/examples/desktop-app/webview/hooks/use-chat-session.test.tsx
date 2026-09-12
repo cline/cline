@@ -2995,6 +2995,47 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("failed");
 	});
 
+	it("gives a fresh session that fails to start over credentials the same guidance and fix action", async () => {
+		// A fresh session applies the OAuth credentials in start, so the
+		// rejected refresh surfaces there as a thrown start RPC rather than as
+		// a failed turn.
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						throw new Error(
+							'OAuth credentials for provider "cline" are no longer valid. Re-run authentication for this provider.',
+						);
+					}
+				}
+				return [];
+			},
+		);
+
+		let taken: boolean | undefined;
+		await act(async () => {
+			taken = await current.sendPrompt("First prompt");
+		});
+
+		// The prompt goes back to the composer, and the transcript holds a
+		// single error explaining how to fix it.
+		expect(taken).toBe(false);
+		expect(current.messages.filter((m) => m.role === "user")).toHaveLength(0);
+		const errorMessages = current.messages.filter((m) => m.role === "error");
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain("no longer valid");
+		expect(errorMessages[0]?.content).toContain("Settings → Account");
+		expect(errorMessages[0]?.meta).toEqual({
+			reason: "credentials",
+			providerId: "cline",
+		});
+		expect(current.error).toBe(errorMessages[0]?.content);
+	});
+
 	it("does not give credential guidance for non-credential failures", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

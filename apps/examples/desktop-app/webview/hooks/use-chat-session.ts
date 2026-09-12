@@ -8,13 +8,14 @@ import {
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
+	credentialFailureMeta,
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
+	isCredentialFailure,
 	makeId,
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
-	resolveCredentialFailureAction,
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import type {
@@ -577,16 +578,36 @@ export function useChatSession() {
 	}, []);
 
 	const setErrorState = useCallback(
-		(msg: string, sid: string | null = null) => {
+		(msg: string, sid: string | null = null, meta?: ChatMessage["meta"]) => {
 			outstandingOptimisticUserIdsRef.current.clear();
 			rekeyedOptimisticIdByMessageIdRef.current = {};
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
-				sliceMessages([...prev, makeErrorChatMessage(sid, msg)]),
+				sliceMessages([...prev, makeErrorChatMessage(sid, msg, meta)]),
 			);
 		},
 		[],
+	);
+
+	// A session that fails to start over credentials (a fresh session hits the
+	// rejected OAuth refresh in start, not in the turn) gets the same guidance
+	// and fix action as a failed turn instead of the raw runtime message.
+	const reportSessionStartFailure = useCallback(
+		(err: unknown, sid: string | null) => {
+			const message = errorMessage(err);
+			const providerId = providerIdRef.current;
+			if (!isCredentialFailure(message)) {
+				setErrorState(message, sid);
+				return;
+			}
+			setErrorState(
+				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				sid,
+				credentialFailureMeta(providerId),
+			);
+		},
+		[setErrorState],
 	);
 
 	// Surfaces a failed turn in the transcript. Some turns (for example the
@@ -603,14 +624,8 @@ export function useChatSession() {
 		(sid: string, detail: string) => {
 			const description =
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
-			// Deliberately avoids matching a bare "token": provider failures like
-			// "maximum context tokens exceeded" or rate-limit messages are not
-			// credential problems and must not point users at Settings → Models.
 			const looksCredentialRelated =
-				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
-					description,
-				);
+				!description || isCredentialFailure(description);
 			const providerId = providerIdRef.current;
 			const content = [
 				description
@@ -620,10 +635,9 @@ export function useChatSession() {
 			]
 				.filter(Boolean)
 				.join(" ");
-			const meta: ChatMessage["meta"] =
-				looksCredentialRelated && resolveCredentialFailureAction(providerId)
-					? { reason: "credentials", providerId }
-					: undefined;
+			const meta = looksCredentialRelated
+				? credentialFailureMeta(providerId)
+				: undefined;
 			const shown = shownTurnFailureRef.current;
 			if (shown && shown.sid === sid && shown.epoch === turnEpochRef.current) {
 				if (!description || shown.hasDetail) {
@@ -2269,7 +2283,7 @@ export function useChatSession() {
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
 							);
 						}
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
 						return withdrawPrompt();
 					}
@@ -2288,7 +2302,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
 						return withdrawPrompt();
 					} finally {
@@ -2313,7 +2327,7 @@ export function useChatSession() {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
-						setErrorState(errorMessage(err));
+						reportSessionStartFailure(err, null);
 						finishPromptSubmission();
 						return withdrawPrompt();
 					} finally {
@@ -2813,6 +2827,7 @@ export function useChatSession() {
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
+			reportSessionStartFailure,
 			sessionId,
 			setErrorState,
 			startSession,

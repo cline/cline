@@ -2233,7 +2233,7 @@ describe("ChatMessages credential failures", () => {
 		sessionId: "session-1",
 		role: "error",
 		content:
-			"The run failed: cline requires re-authentication. Your Cline sign-in is no longer valid. Sign in again in Settings → Account, then try again.",
+			"The run failed: cline requires re-authentication. Sign in to Cline again in Settings → Account, then try again.",
 		createdAt: 2,
 		meta: { reason: "credentials", providerId: "cline" },
 	};

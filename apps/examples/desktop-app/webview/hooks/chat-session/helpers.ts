@@ -203,9 +203,21 @@ export function resolveCredentialFailureHint(providerId: string): string {
 		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
 	}
 	if (normalizeProviderId(providerId) === "cline") {
-		return "Your Cline sign-in is no longer valid. Sign in again in Settings → Account, then try again.";
+		return "Sign in to Cline again in Settings → Account, then try again.";
 	}
 	return "Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+}
+
+/**
+ * Whether a failure message describes a credential problem. Deliberately
+ * avoids matching a bare "token": provider failures like "maximum context
+ * tokens exceeded" or rate-limit messages are not credential problems and
+ * must not point users at their provider settings.
+ */
+export function isCredentialFailure(description: string): boolean {
+	return /unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
+		description,
+	);
 }
 
 /**
@@ -224,6 +236,15 @@ export function resolveCredentialFailureAction(
 	return normalizeProviderId(providerId) === "cline"
 		? { label: "Sign in to Cline", target: "account" }
 		: { label: "Open model settings", target: "models" };
+}
+
+/** Message meta that makes the chat render the credential fix action. */
+export function credentialFailureMeta(
+	providerId: string,
+): ChatMessage["meta"] | undefined {
+	return resolveCredentialFailureAction(providerId)
+		? { reason: "credentials", providerId }
+		: undefined;
 }
 
 function mapHistoryStatusToChatStatus(
