@@ -2174,15 +2174,13 @@ export class CloudSessionManager {
 				this.connections.delete(outerSessionId);
 				connection.disposed = true;
 				connection.unsubscribe();
-				await client.dispose().catch(() => undefined);
 				// Approvals stored during the failed setup hold resolve closures
-				// over this dead connection; drop them so a later user response
-				// cannot resurrect the disposed client.
-				for (const [requestId, pending] of this.ctx.pendingApprovals) {
-					if (pending.item.sessionId === outerSessionId) {
-						this.ctx.pendingApprovals.delete(requestId);
-					}
+				// over this dead connection. A disposed manager already cleared
+				// its state; a replacement may now own the shared approval entries.
+				if (!this.disposed) {
+					this.clearPendingApprovals(outerSessionId);
 				}
+				await client.dispose().catch(() => undefined);
 				throw error;
 			}
 		})().finally(() => {
@@ -2309,6 +2307,7 @@ export class CloudSessionManager {
 		connection: CloudConnection,
 		event: HubEventEnvelope,
 	): void {
+		if (this.disposed || connection.disposed) return;
 		if (
 			event.event === "session.attached" ||
 			event.event === "session.updated" ||
@@ -2371,7 +2370,7 @@ export class CloudSessionManager {
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
 			resolve: async (result) => {
-				if (connection.disposed) {
+				if (this.disposed || connection.disposed) {
 					// Commanding a disposed NodeHubClient would silently redial;
 					// make the user reopen the session instead.
 					throw new Error(
@@ -2379,6 +2378,11 @@ export class CloudSessionManager {
 					);
 				}
 				await this.ensureAttached(connection);
+				if (this.disposed || connection.disposed) {
+					throw new Error(
+						"This cloud session connection is closed; reopen the session to respond.",
+					);
+				}
 				await connection.client.command(
 					"approval.respond",
 					{
@@ -2394,6 +2398,15 @@ export class CloudSessionManager {
 
 	private removeApproval(outerSessionId: string, approvalId: string): void {
 		this.ctx.pendingApprovals.delete(`${outerSessionId}:${approvalId}`);
+		this.sendApprovalSnapshot(outerSessionId);
+	}
+
+	private clearPendingApprovals(outerSessionId: string): void {
+		for (const [requestId, pending] of this.ctx.pendingApprovals) {
+			if (pending.item.sessionId === outerSessionId) {
+				this.ctx.pendingApprovals.delete(requestId);
+			}
+		}
 		this.sendApprovalSnapshot(outerSessionId);
 	}
 
@@ -2428,12 +2441,7 @@ export class CloudSessionManager {
 		if (!innerSessionId) return;
 		connection.unsubscribe();
 		// Rebuild from the Hub's pending-approval replay, not stale local buttons.
-		for (const [requestId, pending] of this.ctx.pendingApprovals) {
-			if (pending.item.sessionId === outerSessionId) {
-				this.ctx.pendingApprovals.delete(requestId);
-			}
-		}
-		this.sendApprovalSnapshot(outerSessionId);
+		this.clearPendingApprovals(outerSessionId);
 		connection.unsubscribe = connection.client.subscribe(
 			(event) => this.handleEvent(outerSessionId, connection, event),
 			{ sessionId: innerSessionId },
@@ -2459,6 +2467,7 @@ export class CloudSessionManager {
 		}
 		connection.disposed = true;
 		connection.unsubscribe();
+		this.clearPendingApprovals(outerSessionId);
 		await connection.client.dispose();
 	}
 
