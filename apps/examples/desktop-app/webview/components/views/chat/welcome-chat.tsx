@@ -16,8 +16,6 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
-	type CloudBranchListOptions,
-	type CloudBranchListResult,
 	type CloudRepositoryListResult,
 	normalizeCloudRepositoryUrl,
 } from "@/lib/cloud-repositories";
@@ -62,8 +60,6 @@ export function WelcomeScreen({
 	onSwitchGitBranch,
 	executionTarget = "local",
 	repoUrl = "",
-	cloudBranch = "",
-	onExecutionTargetChange = noop,
 	onRepoUrlChange = noop,
 	onCloudBranchChange = noop,
 	cloudAgentsEnabled = false,
@@ -80,8 +76,6 @@ export function WelcomeScreen({
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	executionTarget?: "local" | "cloud";
 	repoUrl?: string;
-	cloudBranch?: string;
-	onExecutionTargetChange?: (target: "local" | "cloud") => void;
 	onRepoUrlChange?: (repoUrl: string) => void;
 	onCloudBranchChange?: (branch: string) => void;
 	cloudAgentsEnabled?: boolean;
@@ -128,31 +122,6 @@ export function WelcomeScreen({
 				"list_cloud_repositories",
 				{},
 			),
-		[],
-	);
-	const listCloudRepositories = useCallback(async () => {
-		// Keep stale-selection checks aligned with the latest account scope.
-		const requestId = ++cloudSetupRequestRef.current;
-		const result = await fetchCloudRepositories();
-		if (cloudSetupRequestRef.current === requestId) {
-			applyCloudSetupResult(result);
-		}
-		return result;
-	}, [applyCloudSetupResult, fetchCloudRepositories]);
-	const listCloudBranches = useCallback(
-		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
-			const result = await desktopClient.invoke<{
-				available?: boolean;
-				branches?: string[];
-				nextToken?: string;
-			}>("list_cloud_branches", { repositoryId, ...options });
-			return {
-				available: result.available !== false,
-				branches: Array.isArray(result.branches) ? result.branches : [],
-				nextToken:
-					typeof result.nextToken === "string" ? result.nextToken : undefined,
-			} satisfies CloudBranchListResult;
-		},
 		[],
 	);
 	const openExternalUrl = useCallback(async (url: string) => {
@@ -382,27 +351,13 @@ export function WelcomeScreen({
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
-									cloudBranch={cloudBranch}
-									cloudControlsHidden={showCloudOnboarding}
-									cloudEnabled={cloudAgentsEnabled}
 									currentBranch={gitBranch}
-									executionTarget={executionTarget}
-									onCloudBranchChange={onCloudBranchChange}
-									onListCloudBranches={listCloudBranches}
-									onListCloudRepositories={listCloudRepositories}
 									onListGitBranches={onListGitBranches}
-									onOpenExternalUrl={connectGitHub}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
-									onExecutionTargetChange={onExecutionTargetChange}
-									onRepoUrlChange={onRepoUrlChange}
-									onSignIn={signIn}
 									onSelectChat={selectChat}
 									onSwitchGitBranch={onSwitchGitBranch}
 									onSwitchWorkspace={switchWorkspace}
-									repoUrl={repoUrl}
-									signedIn={signedIn}
-									signingIn={signingIn}
 									workspaceRoot={workspaceRoot}
 									workspaces={workspaces}
 								/>
