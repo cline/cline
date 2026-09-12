@@ -202,7 +202,7 @@ export function resolveCredentialFailureHint(providerId: string): string {
 	if (cli) {
 		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
 	}
-	return "Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+	return "Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
 }
 
 function mapHistoryStatusToChatStatus(

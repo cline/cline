@@ -3009,7 +3009,7 @@ describe("useChatSession", () => {
 		expect(errorMessage?.content).toContain(
 			"Sign in again with the `claude` CLI",
 		);
-		expect(errorMessage?.content).not.toContain("Settings → Models");
+		expect(errorMessage?.content).not.toContain("Settings → API Providers");
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
