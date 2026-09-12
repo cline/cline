@@ -1,4 +1,4 @@
-import { HubTransportError } from "@cline/core";
+import { HubTransportError, type NodeHubClient } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -8,6 +8,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -86,7 +87,7 @@ class FakeHubClient {
 		command: string;
 		payload?: Record<string, unknown>;
 		sessionId?: string;
-		options?: { timeoutMs?: number | null };
+		options?: Parameters<NodeHubClient["command"]>[3];
 	}> = [];
 
 	constructor(private readonly hasExistingInner = true) {}
@@ -125,7 +126,7 @@ class FakeHubClient {
 		command: string,
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: Parameters<NodeHubClient["command"]>[3],
 	): Promise<{
 		ok: true;
 		payload?: Record<string, unknown>;
@@ -226,6 +227,305 @@ function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it("does not recover a send rejected by deleting its connection", async () => {
+		const hub = new FakeHubClient();
+		const started = Promise.withResolvers<void>();
+		const pendingSend = Promise.withResolvers<void>();
+		hub.commandHook = (command) => {
+			if (command === "session.send_input") {
+				started.resolve();
+				return pendingSend.promise;
+			}
+		};
+		let disposedAt = 0;
+		hub.dispose = async () => {
+			hub.disposed = true;
+			disposedAt = hub.commands.length;
+			pendingSend.reject(
+				new HubTransportError("hub_connection_closed", "disposed"),
+			);
+		};
+		const { manager, events } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => undefined,
+			} as unknown as CloudSessionApi,
+		});
+		await manager.attach("ses-outer");
+		const sending = manager
+			.send("ses-outer", "active prompt")
+			.catch((error: unknown) => error);
+		await started.promise;
+		events.length = 0;
+		await manager.delete("ses-outer");
+		expect(await sending).toBeInstanceOf(Error);
+		expect(hub.commands.slice(disposedAt)).toEqual([]);
+		expect(events).toEqual([
+			{
+				name: "tool_approval_state",
+				payload: { items: [], sessionId: "ses-outer" },
+			},
+		]);
+	});
+
+	it.each([
+		"session.attach",
+		"after attachment",
+		"session.get",
+		"session.messages",
+		"session.pending_prompts",
+		"message conversion",
+	])("stops hydration disposed during %s without later commands or events", async (stage) => {
+		const { manager, hub, events } = createFixture();
+		await manager.attach("ses-outer");
+		const started = Promise.withResolvers<void>();
+		const blocked = Promise.withResolvers<void>();
+		const block = async () => {
+			started.resolve();
+			await blocked.promise;
+		};
+		if (stage === "after attachment") {
+			const attach = manager["ensureAttached"].bind(manager);
+			Object.assign(manager, {
+				ensureAttached: async (connection: Parameters<typeof attach>[0]) => {
+					await attach(connection);
+					await block();
+				},
+			});
+		}
+		const conversion =
+			stage === "message conversion"
+				? vi
+						.spyOn(sessionMessages, "readSessionMessages")
+						.mockImplementationOnce(async () => {
+							await block();
+							return [];
+						})
+				: undefined;
+		hub.commandHook = (command) => (command === stage ? block() : undefined);
+		const reading = manager
+			.readMessages("ses-outer")
+			.catch((error: unknown) => error);
+		try {
+			await started.promise;
+			await manager.dispose();
+			const commandCount = hub.commands.length;
+			events.length = 0;
+			blocked.resolve();
+			expect(await reading).toBeInstanceOf(Error);
+			expect(hub.commands).toHaveLength(commandCount);
+			expect(events).toEqual([]);
+		} finally {
+			blocked.resolve();
+			conversion?.mockRestore();
+		}
+	});
+
+	it.each([
+		"abort",
+		"dispose",
+	] as const)("%s prevents waiting commands from dispatching without clobbering newer state", async (action) => {
+		const { manager, hub, ctx } = createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let waiting = 0;
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (
+				command === "session.send_input" &&
+				String(payload?.prompt).startsWith("cancel")
+			) {
+				waiting += 1;
+				await blocked;
+				options?.beforeDispatch?.();
+			}
+			return originalCommand(command, payload, sessionId, options);
+		};
+		const sends = ["cancel one", "cancel two"].map((prompt) =>
+			manager.send("ses-outer", prompt).catch((error: unknown) => error),
+		);
+		try {
+			await vi.waitFor(() => expect(waiting).toBe(2));
+			if (action === "abort") {
+				await manager.abort("ses-outer");
+				expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+					status: "aborted",
+					busy: false,
+				});
+				await manager.send("ses-outer", "new prompt");
+			} else {
+				const live = ctx.liveSessions.get("ses-outer")!;
+				await manager.dispose();
+				ctx.liveSessions.set("ses-outer", {
+					...live,
+					messages: [],
+					busy: true,
+					status: "running",
+				});
+			}
+			release();
+			for (const error of await Promise.all(sends))
+				expect(error).toBeInstanceOf(Error);
+			expect(
+				hub.commands.filter(
+					({ command, payload }) =>
+						command === "session.send_input" &&
+						String(payload?.prompt).startsWith("cancel"),
+				),
+			).toEqual([]);
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "running",
+				busy: true,
+			});
+			expect(
+				JSON.stringify(ctx.liveSessions.get("ses-outer")?.messages),
+			).not.toContain("cancel one");
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
+	it("waits for reconnect discovery to abort an already-dispatched run", async () => {
+		const { manager, hub, ctx } = createFixture();
+		await manager.list();
+		await manager.send("ses-outer", "already dispatched");
+		await hub.resolveHeaders?.();
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		hub.listedSessions = [{ sessionId: "inner-replacement", updatedAt: 30 }];
+		hub.sessionStatus = "running";
+		hub.commandHook = async (command) => {
+			if (command === "session.list") await blocked;
+		};
+		await hub.resolveHeaders?.();
+		let stopped = false;
+		const aborting = manager.abort("ses-outer").then(() => {
+			stopped = true;
+		});
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(stopped).toBe(false);
+			release();
+			await aborting;
+			expect(hub.commands).toContainEqual(
+				expect.objectContaining({
+					command: "run.abort",
+					sessionId: "inner-replacement",
+				}),
+			);
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "aborted",
+				busy: false,
+			});
+			expect(
+				hub.commands.some(({ command }) => command === "session.create"),
+			).toBe(false);
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"pending",
+		"replaced",
+		"same",
+	] as const)("revalidates the Stop target when reconnect discovery is %s at dispatch", async (discovery) => {
+		const { manager, hub, ctx } = createFixture();
+		await manager.list();
+		await manager.send("ses-outer", "running prompt");
+		await hub.resolveHeaders?.();
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const target = discovery === "same" ? "inner-1" : "inner-replacement";
+		let reconnect = true;
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "run.abort" && reconnect) {
+				reconnect = false;
+				hub.listedSessions = [{ sessionId: target, updatedAt: 30 }];
+				hub.sessionStatus = "running";
+				hub.subscriptionSessionIds.length = 0;
+				hub.commandHook = async (nextCommand) => {
+					if (nextCommand === "session.list" && discovery === "pending")
+						await blocked;
+				};
+				await hub.resolveHeaders?.();
+				if (discovery !== "pending") {
+					await vi.waitFor(() =>
+						expect(hub.subscriptionSessionIds).toContain(target),
+					);
+				}
+			}
+			options?.beforeDispatch?.();
+			return originalCommand(command, payload, sessionId, options);
+		};
+		try {
+			if (discovery !== "same") {
+				await expect(manager.abort("ses-outer")).rejects.toThrow(
+					"Please try Stop again",
+				);
+				expect(
+					hub.commands.some(({ command }) => command === "run.abort"),
+				).toBe(false);
+				expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+					status: "running",
+					busy: true,
+				});
+			}
+			release();
+			await expect(manager.abort("ses-outer")).resolves.toMatchObject({
+				ok: true,
+			});
+			expect(
+				hub.commands.filter(({ command }) => command === "run.abort"),
+			).toEqual([
+				expect.objectContaining({
+					sessionId: target,
+					payload: { sessionId: target },
+				}),
+			]);
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "aborted",
+				busy: false,
+			});
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
+	it("does not acknowledge Stop when reconnect discovery keeps failing", async () => {
+		const { manager, hub, ctx } = createFixture();
+		await manager.list();
+		await manager.send("ses-outer", "running prompt");
+		await hub.resolveHeaders?.();
+		hub.commandHook = (command) => {
+			if (command === "session.list") throw new Error("lookup unavailable");
+		};
+		await hub.resolveHeaders?.();
+		try {
+			await expect(manager.abort("ses-outer")).rejects.toThrow(
+				"lookup unavailable",
+			);
+			expect(ctx.liveSessions.get("ses-outer")?.status).not.toBe("aborted");
+			expect(hub.commands.some(({ command }) => command === "run.abort")).toBe(
+				false,
+			);
+		} finally {
+			await manager.dispose();
+		}
+	});
 	it.each([
 		"session.list",
 		"session.create",
@@ -317,40 +617,85 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 	});
 
-	it("ignores stale running snapshots after a terminal Hub event", async () => {
+	it.each([
+		["run.completed", "completed"],
+		["run.failed", "error"],
+		["run.aborted", "aborted"],
+	] as const)("ignores stale running snapshots after %s", async (event, status) => {
 		const { manager, ctx, events, hub } = createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
 		hub.events?.({
 			version: "v1",
-			event: "run.completed",
+			event,
 			eventId: "evt-done",
 			sequence: 2,
 			sessionId: "inner-1",
 		});
+		for (const sequence of [1, undefined, 3]) {
+			hub.events?.({
+				version: "v1",
+				event: "session.updated",
+				eventId: `evt-stale-${sequence}`,
+				sequence,
+				sessionId: "inner-1",
+				payload: { session: { status: "running" } },
+			});
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status,
+				busy: false,
+			});
+			expect(events.at(-1)?.name).toBe("chat_session_ended");
+		}
+	});
+
+	it.each([
+		"run.started",
+		"session.pending_prompt_submitted",
+		"session.attached",
+	] as const)("accepts a new turn after completion through %s", async (event) => {
+		const { manager, ctx, events, hub } = createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const envelope = { version: "v1" as const, sessionId: "inner-1" };
+		hub.events?.({ ...envelope, event: "run.completed", sequence: 1 });
+		const start = {
+			...envelope,
+			event,
+			sequence: 2,
+			payload:
+				event === "session.pending_prompt_submitted"
+					? { prompt: { id: "q-1", prompt: "Continue" } }
+					: event === "session.attached"
+						? { session: { status: "running" } }
+						: {},
+		};
+		hub.events?.(start);
+		expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+			status: "running",
+			busy: true,
+		});
+		expect(events).toContainEqual({
+			name: "chat_session_status",
+			payload: { sessionId: "ses-outer", status: "running" },
+		});
 		hub.events?.({
-			version: "v1",
+			...envelope,
 			event: "session.updated",
-			eventId: "evt-stale",
-			sequence: 1,
-			sessionId: "inner-1",
+			sequence: 3,
 			payload: { session: { status: "running" } },
 		});
-
-		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
-		expect(events.at(-1)?.name).toBe("chat_session_ended");
-
-		hub.events?.({
-			version: "v1",
-			event: "session.updated",
-			eventId: "evt-stale-unsequenced",
-			sessionId: "inner-1",
-			payload: { session: { status: "running" } },
-		});
-
-		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
-		expect(events.at(-1)?.name).toBe("chat_session_ended");
+		expect(ctx.liveSessions.get("ses-outer")?.busy).toBe(true);
+		if (event === "session.pending_prompt_submitted") {
+			hub.events?.({ ...envelope, event: "run.completed", sequence: 4 });
+			hub.events?.({ ...start, sequence: 5 });
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "completed",
+				busy: false,
+			});
+			expect(events.at(-1)?.name).toBe("chat_session_ended");
+		}
 	});
 
 	it("ignores newer child sessions when reconnecting to the cloud root", async () => {
@@ -937,7 +1282,7 @@ describe("CloudSessionManager Hub runtime", () => {
 			command: "session.send_input",
 			payload: { prompt: "Fix it", delivery: undefined },
 			sessionId: "inner-created",
-			options: { timeoutMs: null },
+			options: expect.objectContaining({ timeoutMs: null }),
 		});
 		expect(sent.sessionId).toBe("ses-outer");
 		expect(hub.commands.at(-2)).toMatchObject({
@@ -1142,6 +1487,65 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(discovered).toContainEqual(
 			expect.objectContaining({ sessionId: "ses-outer", status: "expired" }),
 		);
+	});
+
+	it("clears expired-session approvals while preserving other sessions", async () => {
+		const hub = new FakeHubClient();
+		let expired = false;
+		const { manager, ctx, events } = createFixture({
+			hub,
+			api: {
+				list: async () =>
+					expired
+						? [
+								{
+									...REMOTE_SESSION,
+									expiredAt: new Date(Date.now() - 60_000).toISOString(),
+								},
+							]
+						: [REMOTE_SESSION],
+			} as unknown as CloudSessionApi,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "approval.requested",
+			eventId: "evt-expiring-approval",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: {
+				approvalId: "approval-expiring",
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				inputJson: "{}",
+			},
+		});
+		ctx.pendingApprovals.set("ses-other:approval-other", {
+			item: {
+				requestId: "ses-other:approval-other",
+				sessionId: "ses-other",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-other",
+				toolName: "run_commands",
+			},
+			resolve: vi.fn(async () => {}),
+		});
+		const expiredApproval = ctx.pendingApprovals.get(
+			"ses-outer:approval-expiring",
+		);
+		expired = true;
+		await manager.listForDiscovery();
+		expect(expiredApproval).toBeDefined();
+		const lastState = events
+			.filter((event) => event.name === "tool_approval_state")
+			.at(-1);
+		expect(ctx.pendingApprovals.has("ses-other:approval-other")).toBe(true);
+		expect(ctx.pendingApprovals.has("ses-outer:approval-expiring")).toBe(false);
+		expect(lastState?.payload.items).toEqual([]);
+		await expect(
+			Promise.resolve(expiredApproval!.resolve({ approved: true })),
+		).rejects.toThrow(/closed/i);
 	});
 
 	it("drops authenticated cloud connections when account context changes", async () => {
@@ -1421,5 +1825,135 @@ describe("CloudSessionManager Hub runtime", () => {
 		await expect(manager.send("ses-org-a", "hello")).resolves.toMatchObject({
 			ok: true,
 		});
+	});
+
+	it("clears approvals when setup fails after replay", async () => {
+		const hub = new FakeHubClient();
+		hub.pendingApprovals = [
+			{
+				approvalId: "setup-approval",
+				toolCallId: "tool",
+				toolName: "run_commands",
+			},
+		];
+		const { manager, ctx, events } = createFixture({ hub });
+		hub.commandHook = async (command) => {
+			if (command === "session.attach") throw new Error("attach failed");
+		};
+		vi.spyOn(hub, "dispose").mockRejectedValue(new Error("dispose failed"));
+		await manager.list();
+		await expect(manager.attach("ses-outer")).rejects.toThrow("attach failed");
+		await Promise.resolve();
+		expect(ctx.pendingApprovals.has("ses-outer:setup-approval")).toBe(false);
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toEqual([]);
+	});
+
+	it("does not respond after disposal races an approval resolver", async () => {
+		const hub = new FakeHubClient();
+		const { manager, ctx } = createFixture({ hub });
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.events?.({
+			version: "v1",
+			event: "approval.requested",
+			eventId: "race",
+			timestamp: 1,
+			sessionId: "inner-1",
+			payload: {
+				approvalId: "race",
+				toolCallId: "tool",
+				toolName: "run_commands",
+				inputJson: "{}",
+			},
+		});
+		const pending = ctx.pendingApprovals.get("ses-outer:race");
+		expect(pending).toBeDefined();
+		const reached = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		hub.commandHook = async (command) => {
+			if (command === "session.attach") {
+				reached.resolve();
+				await release.promise;
+			}
+		};
+		const resolving = pending!.resolve({ approved: true });
+		await reached.promise;
+		await manager.dispose();
+		release.resolve();
+		await expect(resolving).rejects.toThrow(/closed|disposed/i);
+		expect(
+			hub.commands.some((item) => item.command === "approval.respond"),
+		).toBe(false);
+	});
+
+	it("preserves replacement approvals when initial setup finishes after disposal", async () => {
+		const hub = new FakeHubClient();
+		const { manager, ctx } = createFixture({ hub });
+		const reached = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		hub.commandHook = async (command) => {
+			if (command === "session.list") {
+				reached.resolve();
+				await release.promise;
+			}
+		};
+		const attaching = manager.attach("ses-outer");
+		await reached.promise;
+		await manager.dispose();
+		ctx.pendingApprovals.set("ses-outer:replacement", {
+			item: {
+				requestId: "ses-outer:replacement",
+				sessionId: "ses-outer",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool",
+				toolName: "run_commands",
+			},
+			resolve: vi.fn(async () => {}),
+		});
+		release.resolve();
+		await expect(attaching).rejects.toThrow(/disposed/i);
+		expect(ctx.pendingApprovals.has("ses-outer:replacement")).toBe(true);
+		expect(hub.events).toBeUndefined();
+	});
+
+	it("does not resurrect approvals from a buffered snapshot after disposal", async () => {
+		const hub = new FakeHubClient();
+		const { manager, ctx, events } = createFixture({ hub });
+		await manager.list();
+		await manager.attach("ses-outer");
+		const reached = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		hub.commandHook = async (command) => {
+			if (command === "session.messages") {
+				hub.events?.({
+					version: "v1",
+					event: "approval.requested",
+					eventId: "buffered",
+					timestamp: 1,
+					sessionId: "inner-1",
+					payload: {
+						approvalId: "buffered",
+						toolCallId: "tool",
+						toolName: "run_commands",
+						inputJson: "{}",
+					},
+				});
+				reached.resolve();
+				await release.promise;
+			}
+		};
+		const reading = manager.readMessages("ses-outer");
+		await reached.promise;
+		await manager.dispose();
+		release.resolve();
+		await reading.catch(() => undefined);
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1)
+				?.payload.items,
+		).toEqual([]);
 	});
 });

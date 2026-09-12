@@ -59,7 +59,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates,
 			},
 		);
@@ -79,7 +79,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates: new Map(),
 				preserveUnmatchedLive: true,
 			},
@@ -108,7 +108,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates,
 			},
 		);
@@ -127,11 +127,50 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map([["describe this", 1]]),
+				previousUserIds: new Set(["saved"]),
 				optimisticStates,
 			},
 		);
 		expect(second[0]?.images?.[0]?.data).toBe("AQID");
+	});
+
+	it("transfers images to a newly reflected repeated prompt", () => {
+		const optimisticStates = new Map([
+			["pending-new", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[
+				message("old-saved", "user", "Continue", 1),
+				message("new-saved", "user", "Continue", 3),
+			],
+			[
+				message("old-saved", "user", "Continue", 1),
+				{
+					...message("pending-new", "user", "Continue", 2),
+					images: [
+						{ id: "img", mediaType: "image/png" as const, data: "AQID" },
+					],
+				},
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserIds: new Set(["old-saved"]),
+				optimisticStates,
+			},
+		);
+		expect(
+			merged.filter(
+				(item) => item.role === "user" && item.content === "Continue",
+			),
+		).toHaveLength(2);
+		expect(optimisticStates).toEqual(new Map());
+		expect(merged.find((item) => item.id === "new-saved")?.images).toEqual(
+			expect.arrayContaining([expect.objectContaining({ data: "AQID" })]),
+		);
+		expect(
+			merged.find((item) => item.id === "old-saved")?.images,
+		).toBeUndefined();
 	});
 
 	it("keeps a failed optimistic prompt when the snapshot reflects it", () => {
@@ -144,7 +183,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates,
 			},
 		);
@@ -162,7 +201,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: false,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates,
 			},
 		);
@@ -188,7 +227,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map([["same prompt", 1]]),
+				previousUserIds: new Set(["saved-1"]),
 				optimisticStates,
 			},
 		);
@@ -221,7 +260,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates: new Map(),
 				preserveUnmatchedLive: false,
 			},
@@ -237,7 +276,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates: new Map(),
 			},
 		);
@@ -270,13 +309,87 @@ describe("mergeCloudSnapshotWithLive", () => {
 			{
 				sessionId: "ses-cloud",
 				transcriptKnown: true,
-				previousUserCounts: new Map(),
+				previousUserIds: new Set(),
 				optimisticStates: new Map(),
 				preserveUnmatchedLive: true,
 			},
 		);
 
 		expect(merged.map((message) => message.id)).toEqual(["saved-tool"]);
+	});
+
+	it("does not duplicate a prompt when capped history slides out its old copy", () => {
+		const hydrated = Array.from({ length: 799 }, (_, index) =>
+			message(`filler-${index}`, "user", `filler-${index}`, index + 1),
+		);
+		hydrated.push(message("canonical-new", "user", "Continue", 800));
+		const optimisticStates = new Map([
+			["optimistic-new", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			hydrated,
+			[
+				message("old", "user", "Continue", 1),
+				message("optimistic-new", "user", "Continue", 1001),
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserIds: new Set(["old"]),
+				optimisticStates,
+			},
+		);
+		expect(
+			merged.filter(
+				(item) => item.role === "user" && item.content === "Continue",
+			),
+		).toHaveLength(1);
+		expect(optimisticStates).toEqual(new Map());
+	});
+
+	it("retains an optimistic prompt when the canonical snapshot has no overlap", () => {
+		const optimisticStates = new Map([
+			["pending", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[message("canonical", "user", "saved prompt", 2)],
+			[message("pending", "user", "new prompt", 1)],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserIds: new Set(["old-baseline"]),
+				optimisticStates,
+			},
+		);
+		expect(merged.map((item) => item.id)).toEqual(
+			expect.arrayContaining(["canonical", "pending"]),
+		);
+		expect(merged).toHaveLength(2);
+		expect(optimisticStates.has("pending")).toBe(true);
+	});
+
+	it("does not consume a prompt when the canonical snapshot is unchanged", () => {
+		const optimisticStates = new Map([
+			["pending", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[message("saved", "user", "repeat", 2)],
+			[
+				message("saved", "user", "repeat", 2),
+				message("pending", "user", "repeat", 3),
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserIds: new Set(["saved"]),
+				optimisticStates,
+			},
+		);
+		expect(merged.map((item) => item.id)).toEqual(
+			expect.arrayContaining(["saved", "pending"]),
+		);
+		expect(merged).toHaveLength(2);
+		expect(optimisticStates.has("pending")).toBe(true);
 	});
 });
 
@@ -335,6 +448,150 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("accepts a running snapshot when a repeated prompt has a new canonical id", async () => {
+		const sessionId = "session-repeated-status";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "old-user",
+							sessionId,
+							role: "user",
+							content: "Continue",
+							createdAt: 1,
+						},
+					];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach")
+						return {
+							sessionId,
+							status: "completed",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.hydrateSession({
+				sessionId,
+				origin: "cloud",
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-09-01T00:00:00Z",
+			}),
+		);
+		await act(async () =>
+			handlerFor("cloud_session_rehydrated")({
+				sessionId,
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "new-user",
+						sessionId,
+						role: "user",
+						content: "Continue",
+						createdAt: 2,
+					},
+				],
+			}),
+		);
+		expect(current.status).toBe("running");
+	});
+	it.each([
+		["reset", "resolve"],
+		["reset", "reject"],
+		["start", "resolve"],
+		["start", "reject"],
+	] as const)("does not let stale hydration poison replacement state (%s, %s)", async (replacement, outcome) => {
+		const reached = deferred<void>();
+		const release = Promise.withResolvers<{
+			sessionId: string;
+			status: string;
+		}>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context")
+					return { cwd: "/workspace", workspaceRoot: "/workspace" };
+				if (command === "read_session_messages")
+					return [
+						{
+							id: "old",
+							sessionId: "old-cloud",
+							role: "assistant",
+							content: "old",
+						},
+					];
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "attach") {
+					reached.resolve();
+					return await release.promise;
+				}
+				if (request?.action === "start")
+					return {
+						sessionId: "new-cloud",
+						status: "running",
+						provider: "cline",
+						model: "test-model",
+						cwd: "/workspace",
+						workspaceRoot: "/workspace",
+					};
+				return { promptsInQueue: [] };
+			},
+		);
+		let hydration!: Promise<void>;
+		await act(async () => {
+			hydration = current.hydrateSession({
+				sessionId: "old-cloud",
+				origin: "cloud",
+				status: "running",
+				repoUrl: "https://github.com/cline/test",
+				startedAt: "2026-09-01T00:00:00Z",
+			});
+			await Promise.resolve();
+		});
+		await reached.promise;
+		if (replacement === "reset") {
+			await act(async () => current.reset());
+		} else {
+			await act(async () =>
+				current.start({
+					...current.config,
+					executionTarget: "cloud",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+				}),
+			);
+		}
+		const replacementState = {
+			sessionId: current.sessionId,
+			config: current.config,
+			messages: current.messages,
+			error: current.error,
+			expired: current.isCloudSessionExpired,
+		};
+		if (outcome === "resolve")
+			release.resolve({ sessionId: "old-cloud", status: "expired" });
+		else release.reject(new Error("old attach failed"));
+		await act(async () => hydration);
+		expect(current.sessionId).toBe(replacementState.sessionId);
+		expect(current.config).toEqual(replacementState.config);
+		expect(current.messages).toEqual(replacementState.messages);
+		expect(current.error).toBe(replacementState.error);
+		expect(current.isCloudSessionExpired).toBe(replacementState.expired);
+	});
 	it.each([
 		false,
 		true,
@@ -950,6 +1207,55 @@ describe("useChatSession", () => {
 		}
 
 		expect(current.status).toBe("completed");
+	});
+
+	it("locks an attached cloud session when discovery polling reports expired", async () => {
+		const sessionId = "session-expired-poll";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "read_session_messages") return [];
+				if (command === "get_discovered_session")
+					return { sessionId, status: "expired" };
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach")
+						return {
+							sessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+				}
+				return [];
+			},
+		);
+		vi.useFakeTimers();
+		try {
+			await act(async () =>
+				current.hydrateSession({
+					sessionId,
+					origin: "cloud",
+					status: "running",
+					provider: "cline",
+					model: "test-model",
+					cwd: "/workspace",
+					workspaceRoot: "/workspace",
+					startedAt: "2026-09-01T00:00:00Z",
+				}),
+			);
+			await act(async () => vi.advanceTimersByTimeAsync(3_100));
+		} finally {
+			vi.useRealTimers();
+		}
+		expect(current.isCloudSessionExpired).toBe(true);
+		expect(current.status).toBe("completed");
+		invokeMock.mockClear();
+		await act(async () =>
+			expect(await current.sendPrompt("do not send")).toBe(false),
+		);
+		expect(invokeMock).not.toHaveBeenCalled();
 	});
 
 	it("keeps the stale-stream poll inert while a local turn is in flight", async () => {

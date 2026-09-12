@@ -245,6 +245,7 @@ describe("useSessionHistory live status", () => {
 	it.each([
 		["running", "running"],
 		["ended", "completed"],
+		["expired", "completed"],
 	])("updates a known cloud session from %s events", async (status, expected) => {
 		await act(async () => {
 			root.render(<HookHarness />);
@@ -272,10 +273,45 @@ describe("useSessionHistory live status", () => {
 
 		expect(current.sessions[0]?.status).toBe(expected);
 		expect(current.threads[0]?.status).toBe(expected);
-		if (status === "ended") {
+		if (expected === "completed") {
 			await flush(1000);
 			expect(pendingLists).toHaveLength(2);
 		}
+	});
+});
+
+describe("useSessionHistory cloud scope", () => {
+	it("discards an old-scope response and fetches again after an account change", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			subscribers.get("cloud_sessions_changed")?.({});
+		});
+		await flush(51);
+		expect(pendingLists).toHaveLength(1);
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{ ...sessionRow("old-account"), origin: "cloud" },
+			]);
+		});
+		await flush();
+		expect(current.sessions).toEqual([]);
+		expect(current.threads).toEqual([]);
+		expect(pendingLists).toHaveLength(2);
+
+		await act(async () => {
+			pendingLists[1].resolve([
+				{ ...sessionRow("new-account"), origin: "cloud" },
+			]);
+		});
+		expect(current.sessions.map((session) => session.sessionId)).toEqual([
+			"new-account",
+		]);
+		expect(current.threads.map((thread) => thread.id)).toEqual(["new-account"]);
 	});
 });
 
@@ -326,12 +362,22 @@ describe("useSessionHistory initial load", () => {
 		expect(current.threads).toHaveLength(1);
 	});
 
-	it("stops fast retries when the hook unmounts mid-request", async () => {
+	it.each([
+		false,
+		true,
+	])("stops refreshes after unmount (scope changed: %s)", async (scopeChanged) => {
 		await act(async () => {
 			root.render(<HookHarness />);
 		});
 		await flush();
 		expect(pendingLists).toHaveLength(1);
+
+		if (scopeChanged) {
+			await act(async () => {
+				subscribers.get("cloud_sessions_changed")?.({});
+			});
+			await flush(51);
+		}
 
 		// Unmount while the initial request is still in flight, then fail it:
 		// the retry continuation must not re-arm the cleared refresh timer.
@@ -998,7 +1044,7 @@ describe("useSessionHistory background hydration", () => {
 			await Promise.resolve();
 		});
 
-		await flush(801);
+		await flush(1201);
 		const hydratedSessionIds = invokeMock.mock.calls
 			.filter(([command]) => command === "read_session_messages")
 			.map(([, args]) => args?.sessionId);
