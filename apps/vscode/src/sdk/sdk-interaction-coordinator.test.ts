@@ -1,7 +1,7 @@
 import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
-import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkInteractionCoordinator, TOOL_APPROVAL_TIMEOUT_MS } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { createTaskProxy } from "./task-proxy"
 import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, EDIT_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
@@ -443,6 +443,47 @@ describe("SdkInteractionCoordinator", () => {
 		await expect(approvalPromise).resolves.toEqual({ approved: false, reason: "Task cancelled" })
 		expect(recordDeniedToolApproval).toHaveBeenCalledWith("tool-call", "read_files", "Task cancelled")
 		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(false)
+	})
+
+	it("denies approval when posting it to the webview never settles", async () => {
+		vi.useFakeTimers()
+		try {
+			const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+			const recordDeniedToolApproval = vi.fn()
+			const setTurnPhase = vi.fn()
+			const coordinator = new SdkInteractionCoordinator({
+				messages: new SdkMessageCoordinator({ getTask: () => task }),
+				getSessionId: () => "session-123",
+				postStateToWebview: vi.fn(() => new Promise<void>(() => {})),
+				recordDeniedToolApproval,
+				setTurnPhase,
+			})
+
+			const approvalPromise = coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId: "tool-call",
+				toolName: "run_commands",
+				input: { command: "echo safe" },
+				policy: { autoApprove: false },
+			})
+
+			await vi.advanceTimersByTimeAsync(TOOL_APPROVAL_TIMEOUT_MS)
+
+			await expect(approvalPromise).resolves.toEqual({
+				approved: false,
+				reason: "Tool approval timed out after 5 minutes, so the tool was not executed.",
+			})
+			expect(recordDeniedToolApproval).toHaveBeenCalledWith(
+				"tool-call",
+				"run_commands",
+				"Tool approval timed out after 5 minutes, so the tool was not executed.",
+			)
+			expect(setTurnPhase).toHaveBeenLastCalledWith("streaming")
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
 	it("awaits onToolApprovalAsk before emitting the approval ask", async () => {

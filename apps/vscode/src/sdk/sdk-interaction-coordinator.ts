@@ -7,6 +7,10 @@ import { buildToolApprovalAskMessage } from "./message-translator"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import { buildToolApprovalDenialReason } from "./tool-approval-denial"
 
+export const TOOL_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000
+const TOOL_APPROVAL_TIMEOUT_REASON = "Tool approval timed out after 5 minutes, so the tool was not executed."
+const TOOL_APPROVAL_DELIVERY_FAILED_REASON = "The tool approval request could not be displayed, so the tool was not executed."
+
 export interface ToolApprovalRequest {
 	agentId: string
 	conversationId: string
@@ -52,6 +56,7 @@ export interface SdkInteractionCoordinatorOptions {
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
+	private pendingToolApprovalTimeout: ReturnType<typeof setTimeout> | undefined
 	private pendingToolApprovalMessage:
 		| {
 				toolCallId: string
@@ -118,16 +123,32 @@ export class SdkInteractionCoordinator {
 			payload: { sessionId: this.options.getSessionId(), status: "running" },
 		})
 		this.options.setTurnPhase?.("awaiting_approval", toolAskMessage.ts)
-		await this.options.postStateToWebview()
 
-		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+		const approval = new Promise<{ approved: boolean; reason?: string }>((resolve) => {
 			this.pendingToolApprovalResolve = resolve
 			this.pendingToolApprovalMessage = {
 				toolCallId: request.toolCallId,
 				messageTs: toolAskMessage.ts,
 				toolName: request.toolName,
 			}
+			this.pendingToolApprovalTimeout = setTimeout(() => {
+				Logger.warn(`[SdkController] Tool approval timed out: tool=${request.toolName}`)
+				if (this.denyPendingToolApproval(TOOL_APPROVAL_TIMEOUT_REASON)) {
+					this.options.setTurnPhase?.("streaming")
+				}
+			}, TOOL_APPROVAL_TIMEOUT_MS)
 		})
+
+		void Promise.resolve()
+			.then(() => this.options.postStateToWebview())
+			.catch((error) => {
+				Logger.warn(`[SdkController] Failed to display tool approval: ${error}`)
+				if (this.denyPendingToolApproval(TOOL_APPROVAL_DELIVERY_FAILED_REASON)) {
+					this.options.setTurnPhase?.("streaming")
+				}
+			})
+
+		return approval
 	}
 
 	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
@@ -177,6 +198,7 @@ export class SdkInteractionCoordinator {
 
 		this.pendingToolApprovalResolve = undefined
 		this.pendingToolApprovalMessage = undefined
+		this.clearPendingToolApprovalTimeout()
 
 		const approved = responseType === "yesButtonClicked"
 		Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
@@ -253,18 +275,34 @@ export class SdkInteractionCoordinator {
 		// use an empty answer so the lifecycle reason is not presented as user input.
 		resolveAsk?.("")
 
+		this.denyPendingToolApproval(reason)
+	}
+
+	private denyPendingToolApproval(reason: string): boolean {
+		const resolve = this.pendingToolApprovalResolve
+		if (!resolve) {
+			return false
+		}
+
 		const pendingMessage = this.pendingToolApprovalMessage
+		this.pendingToolApprovalResolve = undefined
 		this.pendingToolApprovalMessage = undefined
-		if (this.pendingToolApprovalResolve) {
-			// Record before resolving: the denial unblocks the core, which emits the
-			// tool's lifecycle events before the caller's abort lands. Unless the
-			// denial is already recorded, the translator renders those events as a
-			// second tool row next to the still-visible approval ask.
-			if (pendingMessage) {
-				this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, reason)
-			}
-			this.pendingToolApprovalResolve({ approved: false, reason })
-			this.pendingToolApprovalResolve = undefined
+		this.clearPendingToolApprovalTimeout()
+		// Record before resolving: the denial unblocks the core, which emits the
+		// tool's lifecycle events before the caller's abort lands. Unless the
+		// denial is already recorded, the translator renders those events as a
+		// second tool row next to the still-visible approval ask.
+		if (pendingMessage) {
+			this.options.recordDeniedToolApproval?.(pendingMessage.toolCallId, pendingMessage.toolName, reason)
+		}
+		resolve({ approved: false, reason })
+		return true
+	}
+
+	private clearPendingToolApprovalTimeout(): void {
+		if (this.pendingToolApprovalTimeout) {
+			clearTimeout(this.pendingToolApprovalTimeout)
+			this.pendingToolApprovalTimeout = undefined
 		}
 	}
 
