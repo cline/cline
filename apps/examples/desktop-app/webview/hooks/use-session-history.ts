@@ -629,6 +629,7 @@ export function useSessionHistory({
 	const scheduledRefreshAtRef = useRef<number | null>(null);
 	const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 	const refreshLimitRef = useRef(0);
+	const cloudScopeInvalidatedRef = useRef(false);
 	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
 	// Guards scheduleRefresh against continuations that settle after unmount
@@ -748,14 +749,20 @@ export function useSessionHistory({
 		// many sessions as we need now. "Load more" raises the limit and then
 		// awaits a refresh; sharing a request that captured the smaller limit
 		// would resolve without the larger batch ever being fetched.
+		// Account changes must also wait for a fresh request in the new scope.
 		while (refreshPromiseRef.current) {
 			const pending = refreshPromiseRef.current;
-			if (refreshLimitRef.current >= fetchLimitRef.current) {
+			if (
+				refreshLimitRef.current >= fetchLimitRef.current &&
+				!cloudScopeInvalidatedRef.current
+			) {
 				return pending;
 			}
 			await pending;
 		}
 
+		if (disposedRef.current) return false;
+		cloudScopeInvalidatedRef.current = false;
 		const refreshPromise = (async (): Promise<boolean> => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
@@ -764,6 +771,9 @@ export function useSessionHistory({
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
 					.catch(() => null);
+				// A scope change queues a fresh request after this one settles.
+				// Its old-account rows must not be applied in the meantime.
+				if (cloudScopeInvalidatedRef.current) return false;
 				// A rejected request is not an empty history. Treating it as one
 				// would blank the list (the merge below is keyed off the response)
 				// and mark the backend exhausted, hiding sessions that still exist
@@ -1252,6 +1262,7 @@ export function useSessionHistory({
 		const unsubscribeCloudScope = desktopClient.subscribe(
 			"cloud_sessions_changed",
 			() => {
+				cloudScopeInvalidatedRef.current = true;
 				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 			},
 		);
