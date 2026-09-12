@@ -14,6 +14,7 @@ import { runBasicCompaction } from "./basic-compaction";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "./compaction";
 import {
 	createTokenEstimator,
@@ -2230,6 +2231,97 @@ describe("createContextCompactionPrepareTurn", () => {
 				capabilities: ["vision"],
 			}),
 		);
+	});
+
+	it("refreshes imported-history summary connections before the first attempt and after cancellation", async () => {
+		const config = {
+			providerId: "openai",
+			modelId: "active-model",
+			providerConfig: {
+				providerId: "openai",
+				modelId: "active-model",
+				apiKey: "initial-key",
+				baseUrl: "https://initial.example/v1",
+			} as LlmsProviders.ProviderConfig,
+			compaction: { enabled: false },
+		};
+		const next = vi.fn();
+		const prepareTurn = createImportedHistoryCompactionPrepareTurn({
+			config,
+			importedFrom: "codex",
+			next,
+		});
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Earlier request" },
+			{ role: "assistant", content: "Earlier answer" },
+			{ role: "user", content: "Continue the imported task" },
+		];
+		const controller = new AbortController();
+		const context: Parameters<typeof prepareTurn>[0] = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: controller.signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "active-model",
+				provider: "openai",
+				info: { id: "active-model", maxInputTokens: 8192 },
+				settings: { maxInputTokens: 8192, maxOutputTokens: 128 },
+			},
+		};
+		config.providerConfig = {
+			...config.providerConfig,
+			apiKey: "first-key",
+			baseUrl: "https://first.example/v1",
+		};
+		createHandlerMock.mockImplementationOnce(() => {
+			controller.abort();
+			throw new Error("summary cancelled");
+		});
+		await expect(prepareTurn(context)).rejects.toThrow("summary cancelled");
+		expect(createHandlerMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				apiKey: "first-key",
+				baseUrl: "https://first.example/v1",
+				modelId: "active-model",
+			}),
+		);
+		config.providerConfig = {
+			...config.providerConfig,
+			modelId: "deferred-model",
+			apiKey: "retry-key",
+			baseUrl: "https://retry.example/v1",
+		};
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{
+						type: "text",
+						id: "summary-imported",
+						text: "Imported task summary",
+					},
+					{ type: "done", id: "summary-imported", success: true },
+				]),
+			),
+		});
+		const result = await prepareTurn({
+			...context,
+			abortSignal: new AbortController().signal,
+		});
+		expect(createHandlerMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				apiKey: "retry-key",
+				baseUrl: "https://retry.example/v1",
+				modelId: "active-model",
+			}),
+		);
+		expect(result?.messages[0].metadata?.kind).toBe("compaction_summary");
+		expect(next).not.toHaveBeenCalled();
 	});
 
 	it("uses the configured summarizer model for compaction", async () => {

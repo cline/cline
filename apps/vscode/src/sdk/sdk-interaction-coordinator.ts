@@ -17,6 +17,12 @@ export interface ToolApprovalRequest {
 	policy: { enabled?: boolean; autoApprove?: boolean }
 }
 
+export interface PendingInteraction {
+	readonly kind: "toolApproval" | "askQuestion"
+	/** Opaque identity of the promise that was pending when the response arrived. */
+	readonly identity: object
+}
+
 export interface SdkInteractionCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	getSessionId: () => string
@@ -68,14 +74,31 @@ export class SdkInteractionCoordinator {
 	 * A message typed while a tool approval is open is a queued follow-up, not
 	 * an approval decision, so it deliberately falls through to normal routing.
 	 */
-	getPendingInteractionToResolve(responseType: ClineAskResponse | undefined): "toolApproval" | "askQuestion" | undefined {
+	getPendingInteractionToResolve(responseType: ClineAskResponse | undefined): PendingInteraction | undefined {
 		if (this.pendingToolApprovalResolve && responseType !== "messageResponse") {
-			return "toolApproval"
+			return { kind: "toolApproval", identity: this.pendingToolApprovalResolve }
 		}
 		if (this.pendingAskResolve) {
-			return "askQuestion"
+			return { kind: "askQuestion", identity: this.pendingAskResolve }
 		}
 		return undefined
+	}
+
+	/** Resolve only the captured interaction; cancellation or replacement invalidates it. */
+	resolvePendingInteraction(
+		interaction: PendingInteraction,
+		prompt: string | undefined,
+		responseType: ClineAskResponse | undefined,
+		images?: string[],
+		files?: string[],
+	): boolean {
+		if (interaction.kind === "toolApproval") {
+			return (
+				interaction.identity === this.pendingToolApprovalResolve &&
+				this.resolvePendingToolApproval(prompt, responseType, images, files)
+			)
+		}
+		return interaction.identity === this.pendingAskResolve && this.resolvePendingAskQuestion(prompt)
 	}
 
 	/** Reassert the authoritative phase and anchor for a still-pending ask. */

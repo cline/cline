@@ -243,6 +243,64 @@ For native controls that should follow the selected theme:
 }
 ```
 
+## Switch
+
+Import `Switch` from `@cline/ui` after setting up the theme and
+`@cline/ui/components.css`.
+
+```tsx
+import { Switch } from "@cline/ui";
+
+<div className="flex items-center gap-2">
+  <Switch id="notifications" name="notifications" defaultChecked />
+  <label htmlFor="notifications">Enable notifications</label>
+</div>;
+
+// For application-owned state:
+<Switch
+  aria-label="Enable notifications"
+  checked={notificationsEnabled}
+  onCheckedChange={setNotificationsEnabled}
+/>;
+```
+
+Provide a visible label or an accessible name with `aria-label`. Keep the name
+stable when toggling; the native checked state communicates whether the switch
+is on. The control supports Space activation and label clicks.
+
+Native input props, including `disabled`, `required`, `form`, `name`, `value`,
+`onChange`, and accessible naming attributes, apply to the checkbox. Refs target
+`HTMLInputElement`. `className`, `style`, and `hidden` apply to the outer wrapper;
+`dir` applies to both the input and wrapper and supports RTL placement. Wrapper
+layout defaults use the CSS components layer, so Tailwind utilities such as
+`hidden`, `w-20`, and `h-10` can override them. Changing the wrapper dimensions
+changes the hit area; the visual track keeps its own size.
+
+Use `defaultChecked` for browser-owned state or `checked` with
+`onCheckedChange` for controlled state. If both callbacks are supplied,
+`onChange` runs first, then `onCheckedChange` receives the new boolean value.
+Uncontrolled switches follow native form reset behavior; controlled switches
+must be reset by their owner. Disabled switches, including those in disabled
+fieldsets, are excluded from form submission.
+
+The switch scales with the root font size and reserves a minimum 24px hit area
+on each axis by default.
+
+Checked tracks blend 80% `--primary` with 20% `--accent-8` and use
+`--primary-emphasis` on hover; keyboard focus uses `--ring`. Enabled thumbs
+remain white. The switch supports light/dark themes, system colors in
+forced-colors mode, and reduced motion.
+
+When migrating from the desktop's Radix wrapper, update button refs to
+`HTMLInputElement` and read the native `checked` property in tests instead of
+`aria-checked`. Continue using `checked` and `onCheckedChange` for controlled
+state. Radix's `asChild`, children, and `data-state`/`data-disabled` hooks are not
+provided. State selectors belong on the native input (`:checked`, `:disabled`,
+`:focus-visible`); wrapper classes cannot use input-only pseudo-classes or act
+as a checked `peer` for sibling labels. Use a visible label's `htmlFor` and the
+input's `id` for association. Space toggles the switch; Enter follows native
+checkbox behavior.
+
 ## Add the agent-chat components
 
 With the complete Tailwind theme, import the component styles afterward:

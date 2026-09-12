@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkFollowupCoordinator, type SdkFollowupCoordinatorOptions } from "./sdk-followup-coordinator"
+import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -43,11 +44,12 @@ describe("SdkFollowupCoordinator", () => {
 	it("applies pending provider settings before resolving a suspended tool approval", async () => {
 		const events: string[] = []
 		const { coordinator, options } = makeCoordinator()
-		options.interactions.getPendingInteractionToResolve.mockReturnValue("toolApproval")
+		const pending = { kind: "toolApproval", identity: {} }
+		options.interactions.getPendingInteractionToResolve.mockReturnValue(pending)
 		options.applyPendingProviderConnection.mockImplementation(async () => {
 			events.push("apply-provider")
 		})
-		options.interactions.resolvePendingToolApproval.mockImplementation(() => {
+		options.interactions.resolvePendingInteraction.mockImplementation(() => {
 			events.push("resolve-approval")
 			return true
 		})
@@ -55,17 +57,25 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("yes", undefined, undefined, "yesButtonClicked")
 
 		expect(events).toEqual(["apply-provider", "resolve-approval"])
+		expect(options.interactions.resolvePendingInteraction).toHaveBeenCalledWith(
+			pending,
+			"yes",
+			"yesButtonClicked",
+			undefined,
+			undefined,
+		)
 		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 	})
 
 	it("applies pending provider settings before resolving a suspended ask_question", async () => {
 		const events: string[] = []
 		const { coordinator, options } = makeCoordinator()
-		options.interactions.getPendingInteractionToResolve.mockReturnValue("askQuestion")
+		const pending = { kind: "askQuestion", identity: {} }
+		options.interactions.getPendingInteractionToResolve.mockReturnValue(pending)
 		options.applyPendingProviderConnection.mockImplementation(async () => {
 			events.push("apply-provider")
 		})
-		options.interactions.resolvePendingAskQuestion.mockImplementation(() => {
+		options.interactions.resolvePendingInteraction.mockImplementation(() => {
 			events.push("resolve-question")
 			return true
 		})
@@ -73,25 +83,33 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("answer")
 
 		expect(events).toEqual(["apply-provider", "resolve-question"])
+		expect(options.interactions.resolvePendingInteraction).toHaveBeenCalledWith(
+			pending,
+			"answer",
+			undefined,
+			undefined,
+			undefined,
+		)
 		expect(options.waitForPendingRebuilds).not.toHaveBeenCalled()
 	})
 
 	it("keeps a suspended interaction pending when the provider update fails", async () => {
 		const { coordinator, options } = makeCoordinator()
-		options.interactions.getPendingInteractionToResolve.mockReturnValue("toolApproval")
+		options.interactions.getPendingInteractionToResolve.mockReturnValue({ kind: "toolApproval", identity: {} })
 		options.applyPendingProviderConnection.mockRejectedValue(new Error("connection update failed"))
 
 		await expect(coordinator.askResponse("yes", undefined, undefined, "yesButtonClicked")).rejects.toThrow(
 			"connection update failed",
 		)
 		expect(options.interactions.resolvePendingToolApproval).not.toHaveBeenCalled()
+		expect(options.interactions.resolvePendingInteraction).not.toHaveBeenCalled()
 		expect(options.interactions.restorePendingInteractionTurnPhase).toHaveBeenCalledOnce()
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
 	it("restores a pending ask_question phase before rethrowing a provider update failure", async () => {
 		const { coordinator, options } = makeCoordinator()
-		options.interactions.getPendingInteractionToResolve.mockReturnValue("askQuestion")
+		options.interactions.getPendingInteractionToResolve.mockReturnValue({ kind: "askQuestion", identity: {} })
 		options.applyPendingProviderConnection.mockRejectedValue(new Error("connection update failed"))
 
 		await expect(coordinator.askResponse("answer")).rejects.toThrow("connection update failed")
@@ -99,6 +117,69 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.interactions.restorePendingInteractionTurnPhase).toHaveBeenCalledOnce()
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 		expect(options.interactions.resolvePendingAskQuestion).not.toHaveBeenCalled()
+		expect(options.interactions.resolvePendingInteraction).not.toHaveBeenCalled()
+	})
+
+	it.each([
+		["toolApproval", false],
+		["toolApproval", true],
+		["askQuestion", false],
+		["askQuestion", true],
+	] as const)("drops a cleared %s response after provider refresh (replacement: %s)", async (kind, replace) => {
+		const { options } = makeCoordinator()
+		const setTurnPhase = vi.fn()
+		const recordApprovedToolMessage = vi.fn()
+		const interactions = new SdkInteractionCoordinator({
+			messages: options.messages,
+			getSessionId: () => "session-123",
+			postStateToWebview: options.postStateToWebview,
+			setTurnPhase,
+			recordApprovedToolMessage,
+		})
+		const coordinator = new SdkFollowupCoordinator({ ...options, interactions })
+		const startInteraction = () =>
+			kind === "askQuestion"
+				? interactions.handleAskQuestion("Continue?", [], undefined)
+				: interactions.handleRequestToolApproval({
+						agentId: "agent",
+						conversationId: "conversation",
+						iteration: 1,
+						toolCallId: "same-tool-call",
+						toolName: "read_files",
+						input: { path: "README.md" },
+						policy: { autoApprove: false },
+					})
+		const original = startInteraction()
+		await vi.waitFor(() => expect(interactions.getPendingInteractionToResolve("yesButtonClicked")?.kind).toBe(kind))
+		let finishProviderUpdate!: () => void
+		options.applyPendingProviderConnection.mockReturnValueOnce(
+			new Promise<void>((resolve) => {
+				finishProviderUpdate = resolve
+			}),
+		)
+		const response = coordinator.askResponse("old answer", undefined, undefined, "yesButtonClicked")
+		expect(options.applyPendingProviderConnection).toHaveBeenCalledOnce()
+		interactions.clearPending("task changed")
+		await original
+		const replacement = replace ? startInteraction() : undefined
+		if (replace) {
+			await vi.waitFor(() => expect(interactions.getPendingInteractionToResolve("yesButtonClicked")?.kind).toBe(kind))
+		}
+		const current = interactions.getPendingInteractionToResolve("yesButtonClicked")
+		setTurnPhase.mockClear()
+		options.messages.appendAndEmit.mockClear()
+		finishProviderUpdate()
+		await response
+		expect(interactions.getPendingInteractionToResolve("yesButtonClicked")?.identity).toBe(current?.identity)
+		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
+		expect(setTurnPhase).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		if (replace) {
+			await coordinator.askResponse("new answer", undefined, undefined, "yesButtonClicked")
+			await expect(replacement).resolves.toEqual(kind === "askQuestion" ? "new answer" : { approved: true })
+		}
 	})
 
 	it("sends a follow-up to an idle active session", async () => {
@@ -942,6 +1023,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		} as unknown as StateManager,
 		interactions: {
 			getPendingInteractionToResolve: vi.fn(() => undefined),
+			resolvePendingInteraction: vi.fn(() => false),
 			restorePendingInteractionTurnPhase: vi.fn(() => undefined),
 			resolvePendingToolApproval: vi.fn(() => false),
 			resolvePendingAskQuestion: vi.fn(() => false),
@@ -986,6 +1068,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
 			getPendingInteractionToResolve: ReturnType<typeof vi.fn>
+			resolvePendingInteraction: ReturnType<typeof vi.fn>
 			restorePendingInteractionTurnPhase: ReturnType<typeof vi.fn>
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
 			resolvePendingAskQuestion: ReturnType<typeof vi.fn>

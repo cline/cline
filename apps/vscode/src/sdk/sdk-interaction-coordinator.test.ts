@@ -1,5 +1,5 @@
 import type { AgentEvent } from "@cline/shared"
-import { describe, expect, it, vi } from "vitest"
+import { assert, describe, expect, it, vi } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMessageCoordinator } from "./sdk-message-coordinator"
@@ -278,14 +278,72 @@ describe("SdkInteractionCoordinator", () => {
 		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
 
 		expect(coordinator.getPendingInteractionToResolve("messageResponse")).toBeUndefined()
-		expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")).toBe("toolApproval")
-		expect(coordinator.resolvePendingToolApproval(undefined, "yesButtonClicked")).toBe(true)
+		const approval = coordinator.getPendingInteractionToResolve("yesButtonClicked")
+		assert(approval)
+		expect(approval.kind).toBe("toolApproval")
+		expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.identity).toBe(approval.identity)
+		expect(coordinator.resolvePendingInteraction(approval, undefined, "yesButtonClicked")).toBe(true)
 		await approvalPromise
+		expect(coordinator.resolvePendingInteraction(approval, undefined, "yesButtonClicked")).toBe(false)
 
 		const answerPromise = coordinator.handleAskQuestion("Continue?", [], undefined)
-		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)).toBe("askQuestion"))
-		expect(coordinator.resolvePendingAskQuestion("yes")).toBe(true)
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve(undefined)?.kind).toBe("askQuestion"))
+		const question = coordinator.getPendingInteractionToResolve(undefined)
+		assert(question)
+		expect(coordinator.resolvePendingInteraction(question, "yes", undefined)).toBe(true)
 		await answerPromise
+		expect(coordinator.resolvePendingInteraction(question, "yes", undefined)).toBe(false)
+	})
+
+	it.each([
+		"toolApproval",
+		"askQuestion",
+	] as const)("invalidates captured %s responses after clearing or replacement", async (kind) => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const setTurnPhase = vi.fn()
+		const recordApprovedToolMessage = vi.fn()
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			setTurnPhase,
+			recordApprovedToolMessage,
+		})
+		const startInteraction = () =>
+			kind === "askQuestion"
+				? coordinator.handleAskQuestion("Continue?", [], undefined)
+				: coordinator.handleRequestToolApproval({
+						agentId: "agent",
+						conversationId: "conversation",
+						iteration: 1,
+						toolCallId: "same-tool-call",
+						toolName: "read_files",
+						input: { path: "README.md" },
+						policy: { autoApprove: false },
+					})
+		const original = startInteraction()
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.kind).toBe(kind))
+		const captured = coordinator.getPendingInteractionToResolve("yesButtonClicked")
+		assert(captured)
+		coordinator.clearPending("task changed")
+		await original
+		expect(coordinator.resolvePendingInteraction(captured, "old answer", "yesButtonClicked")).toBe(false)
+
+		// Even reused tool IDs or identical questions create a distinct pending promise.
+		const replacement = startInteraction()
+		await vi.waitFor(() => expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.kind).toBe(kind))
+		const current = coordinator.getPendingInteractionToResolve("yesButtonClicked")
+		assert(current)
+		expect(current.identity).not.toBe(captured.identity)
+		setTurnPhase.mockClear()
+		const messageCount = task.messageStateHandler.getClineMessages().length
+		expect(coordinator.resolvePendingInteraction(captured, "old answer", "yesButtonClicked")).toBe(false)
+		expect(coordinator.getPendingInteractionToResolve("yesButtonClicked")?.identity).toBe(current.identity)
+		expect(setTurnPhase).not.toHaveBeenCalled()
+		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(messageCount)
+		expect(coordinator.resolvePendingInteraction(current, "new answer", "yesButtonClicked")).toBe(true)
+		await expect(replacement).resolves.toEqual(kind === "askQuestion" ? "new answer" : { approved: true })
 	})
 
 	it("records generic no-button approval denials for UI suppression", async () => {

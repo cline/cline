@@ -93,11 +93,10 @@ export class SdkFollowupCoordinator {
 				}
 				throw error
 			}
-			if (pendingInteraction === "toolApproval") {
-				this.options.interactions.resolvePendingToolApproval(prompt, askResponse, images, files)
-			} else {
-				this.options.interactions.resolvePendingAskQuestion(prompt)
-			}
+			// Cancellation or task navigation may replace the ask while provider
+			// settings are applied. A stale response must not resume that new ask
+			// or fall through into normal follow-up routing.
+			this.options.interactions.resolvePendingInteraction(pendingInteraction, prompt, askResponse, images, files)
 			return
 		}
 

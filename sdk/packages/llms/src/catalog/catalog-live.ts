@@ -19,6 +19,7 @@ import {
 import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
+	provider?: { npm?: string };
 	name?: string;
 	tool_call?: boolean;
 	reasoning?: boolean;
@@ -319,6 +320,9 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const modalities = toModalities(model);
 	const operation = resolveCatalogModelOperation(model);
 	const operationModes = resolveCatalogModelOperationModes(modelId, model);
+	const apiProtocol = model.provider?.npm
+		? MODEL_API_PROTOCOLS[model.provider.npm]
+		: undefined;
 
 	return {
 		id: modelId,
@@ -342,8 +346,19 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		...(operation !== "language" ? { operation } : {}),
 		...(operationModes ? { operationModes } : {}),
 		...(modalities !== undefined ? { modalities } : {}),
+		...(apiProtocol ? { metadata: { apiProtocol } } : {}),
 	};
 }
+
+const MODEL_API_PROTOCOLS: Record<
+	string,
+	NonNullable<ModelInfo["metadata"]>["apiProtocol"]
+> = {
+	"@ai-sdk/openai": "openai-responses",
+	"@ai-sdk/openai-compatible": "openai-chat",
+	"@ai-sdk/anthropic": "anthropic",
+	"@ai-sdk/google": "gemini",
+};
 
 function isDeprecatedModel(model: ModelsDevModel): boolean {
 	return model.status === "deprecated";
@@ -364,6 +379,16 @@ export function normalizeModelsDevProviderModels(
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
 			const rawInfo = toModelInfo(modelId, model);
+			// Go documents Qwen's Messages endpoint, but some models.dev Qwen
+			// entries still omit provider.npm. Explicit upstream declarations win.
+			// https://opencode.ai/docs/go/#endpoints
+			if (
+				targetProviderId === "opencode-go" &&
+				/^qwen(?:\d|$)/.test(model.family ?? "") &&
+				!model.provider?.npm
+			) {
+				rawInfo.metadata = { ...rawInfo.metadata, apiProtocol: "anthropic" };
+			}
 			const modalities = normalizeBuiltinModelOperationModalities({
 				providerId: targetProviderId,
 				modelId,
@@ -515,6 +540,7 @@ export async function fetchModelsDevCatalog(
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
 	fetcher: typeof fetch = fetch,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
 	const [providerModels, clineRecommendedPayload] = await Promise.all([
@@ -527,6 +553,7 @@ export async function fetchLiveProviderModels(
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,
 				providerModels.openrouter ?? {},
+				options,
 			)
 		: {};
 

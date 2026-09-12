@@ -5,6 +5,7 @@ import {
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import {
 	CheckCircle2,
 	ChevronDown,
@@ -63,7 +64,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	Tooltip,
@@ -78,6 +78,8 @@ import {
 	loadProviderModelCatalog,
 	loadProviderModels,
 } from "@/lib/provider-model-catalog";
+import { preserveRoutineCron } from "@/lib/routine-schedule-cron";
+import { routineScheduleTimezone } from "@/lib/routine-schedule-timezone";
 import { cn } from "@/lib/utils";
 import {
 	CommandBadge,
@@ -1021,7 +1023,7 @@ export function RoutineSchedulesContent({
 			setCreateFormError("Choose a one-time date and time in the future.");
 			return;
 		}
-		const cronPattern =
+		const editedCronPattern =
 			createForm.scheduleType === "daily"
 				? buildCronPattern(
 						WEEKDAY_OPTIONS.map((option) => option.value),
@@ -1035,6 +1037,16 @@ export function RoutineSchedulesContent({
 							createForm.scheduleMinute,
 						)
 					: undefined;
+		const cronPattern =
+			editingSchedule &&
+			editingSchedule.cronPattern !== ONE_TIME_SCHEDULE_CRON_PATTERN
+				? preserveRoutineCron(
+						editingSchedule.cronPattern,
+						parseCronPattern(editingSchedule.cronPattern),
+						createForm,
+						editedCronPattern,
+					)
+				: editedCronPattern;
 		if (createForm.scheduleType === "weekly" && !cronPattern) {
 			setCreateFormError("Select at least one weekday.");
 			return;
@@ -1077,6 +1089,10 @@ export function RoutineSchedulesContent({
 					createForm.scheduleType === "once" ? "once" : "recurring",
 				run_at: runAt,
 				cron_pattern: cronPattern,
+				timezone: routineScheduleTimezone(
+					createForm.scheduleType,
+					editingSchedule,
+				),
 				prompt,
 				provider,
 				model,
@@ -1685,6 +1701,15 @@ export function RoutineSchedulesContent({
 
 						<div className="sm:col-span-2 space-y-3">
 							<Label>Schedule</Label>
+							{editingSchedule &&
+								editingSchedule.cronPattern !==
+									ONE_TIME_SCHEDULE_CRON_PATTERN && (
+									<p className="text-xs text-muted-foreground">
+										Current cron expression:{" "}
+										<code>{editingSchedule.cronPattern}</code>. Changing the
+										timing controls replaces this expression.
+									</p>
+								)}
 							<div className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-3">
 								<div className="min-w-32 flex-1 space-y-2">
 									<Label htmlFor="routine-schedule-type">Frequency</Label>

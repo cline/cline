@@ -16,6 +16,7 @@ sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
 ├── server.ts             # Bun HTTP server + WebSocket handlers
 ├── context.ts            # SidecarContext type and factory
+├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
@@ -81,6 +82,15 @@ The compiled sidecar also recognizes Core's Hub-daemon launch mode. This lets
 the desktop start the same detached Hub when no CLI process has started it yet.
 Startup discovery and locking ensure concurrent clients converge on one Hub.
 
+Every create, restart, fork, and restore also attaches the serializable Desktop
+`ExtensionContext.client` and current `ExtensionContext.user`. Core forwards
+that context across the Hub transport and scopes the daemon-owned telemetry
+service to the originating surface. This keeps lifecycle events centralized in
+Core while reporting Desktop dimensions (`cline_type: "desktop"`, `platform:
+"Cline Desktop"`, and the Desktop app version) and the current account and
+organization. The shared Hub telemetry singleton is never mutated per session,
+so concurrent CLI and Desktop tasks retain their own attribution.
+
 ### 2. Tool Approval — Client-Owned Promise Resolution
 
 The shared Hub routes approval requests back to the client that created the
@@ -133,6 +143,17 @@ The frontend `desktop-client.ts` connects directly to the sidecar WebSocket:
 - Same `invoke()` / `subscribe()` API
 
 ## Command Map
+
+The model picker first uses `list_provider_catalog`, which reads the bundled and
+registered models without network access. It then calls `list_provider_models`
+for the active provider, both on mount and when the provider changes. All built-in
+providers backed by the shared catalog refresh from the live feed (including
+OpenCode); concurrent requests share one fetch and reuse its ten-minute cache.
+Endpoint-owned lists such as Baseten, Hicap, Poolside, LiteLLM, Ollama, and LM Studio use their existing
+discovery endpoints instead. Catalog and public endpoint requests time out after
+five seconds, and the initial picker remains usable while a refresh is pending.
+The sidecar omits bundled `knownModels` from the discovery config so they cannot
+override live metadata; explicitly registered model overrides retain precedence.
 
 Supported commands:
 
