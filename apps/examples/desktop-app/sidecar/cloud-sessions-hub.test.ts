@@ -1,3 +1,4 @@
+import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -7,6 +8,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -225,6 +227,96 @@ function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it("does not recover a send rejected by deleting its connection", async () => {
+		const hub = new FakeHubClient();
+		const started = Promise.withResolvers<void>();
+		const pendingSend = Promise.withResolvers<void>();
+		hub.commandHook = (command) => {
+			if (command === "session.send_input") {
+				started.resolve();
+				return pendingSend.promise;
+			}
+		};
+		let disposedAt = 0;
+		hub.dispose = async () => {
+			hub.disposed = true;
+			disposedAt = hub.commands.length;
+			pendingSend.reject(
+				new HubTransportError("hub_connection_closed", "disposed"),
+			);
+		};
+		const { manager, events } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => undefined,
+			} as unknown as CloudSessionApi,
+		});
+		await manager.attach("ses-outer");
+		const sending = manager
+			.send("ses-outer", "active prompt")
+			.catch((error: unknown) => error);
+		await started.promise;
+		events.length = 0;
+		await manager.delete("ses-outer");
+		expect(await sending).toBeInstanceOf(Error);
+		expect(hub.commands.slice(disposedAt)).toEqual([]);
+		expect(events).toEqual([]);
+	});
+
+	it.each([
+		"session.attach",
+		"after attachment",
+		"session.get",
+		"session.messages",
+		"session.pending_prompts",
+		"message conversion",
+	])("stops hydration disposed during %s without later commands or events", async (stage) => {
+		const { manager, hub, events } = createFixture();
+		await manager.attach("ses-outer");
+		const started = Promise.withResolvers<void>();
+		const blocked = Promise.withResolvers<void>();
+		const block = async () => {
+			started.resolve();
+			await blocked.promise;
+		};
+		if (stage === "after attachment") {
+			const attach = manager["ensureAttached"].bind(manager);
+			Object.assign(manager, {
+				ensureAttached: async (connection: Parameters<typeof attach>[0]) => {
+					await attach(connection);
+					await block();
+				},
+			});
+		}
+		const conversion =
+			stage === "message conversion"
+				? vi
+						.spyOn(sessionMessages, "readSessionMessages")
+						.mockImplementationOnce(async () => {
+							await block();
+							return [];
+						})
+				: undefined;
+		hub.commandHook = (command) => (command === stage ? block() : undefined);
+		const reading = manager
+			.readMessages("ses-outer")
+			.catch((error: unknown) => error);
+		try {
+			await started.promise;
+			await manager.dispose();
+			const commandCount = hub.commands.length;
+			events.length = 0;
+			blocked.resolve();
+			expect(await reading).toBeInstanceOf(Error);
+			expect(hub.commands).toHaveLength(commandCount);
+			expect(events).toEqual([]);
+		} finally {
+			blocked.resolve();
+			conversion?.mockRestore();
+		}
+	});
+
 	it.each([
 		"session.list",
 		"session.create",
