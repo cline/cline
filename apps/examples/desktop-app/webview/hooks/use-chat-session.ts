@@ -240,7 +240,7 @@ export function mergeCloudSnapshotWithLive(
 	options: {
 		sessionId: string;
 		transcriptKnown: boolean;
-		previousUserCounts: Map<string, number>;
+		previousUserIds: Set<string>;
 		optimisticStates: Map<string, CloudOptimisticState>;
 		preserveUnmatchedLive?: boolean;
 		preserveLiveMessageIds?: Set<string>;
@@ -341,44 +341,28 @@ export function mergeCloudSnapshotWithLive(
 		liveOnly.push(message);
 	}
 
-	const currentUserCounts = userMessageCounts(hydrated);
-	const reflectedPromptBudget = new Map<string, number>();
+	// Canonical IDs survive the capped history window sliding forward.
 	const reflectedUserIndexes = new Map<string, number[]>();
 	for (const [index, message] of hydrated.entries()) {
-		if (message.role !== "user") continue;
+		if (message.role !== "user" || options.previousUserIds.has(message.id)) {
+			continue;
+		}
 		const content = comparableUserContent(message.content);
 		const indexes = reflectedUserIndexes.get(content) ?? [];
 		indexes.push(index);
 		reflectedUserIndexes.set(content, indexes);
 	}
-	for (const [content, count] of currentUserCounts) {
-		const previousCount = options.previousUserCounts.get(content) ?? 0;
-		reflectedPromptBudget.set(
-			content,
-			options.transcriptKnown ? Math.max(0, count - previousCount) : count,
-		);
-		if (options.transcriptKnown && previousCount > 0) {
-			reflectedUserIndexes.set(
-				content,
-				(reflectedUserIndexes.get(content) ?? []).slice(previousCount),
-			);
-		}
-	}
-	// Reconcile pending prompts by count delta; always retain failed bubbles.
+	// Consume one newly reflected occurrence per pending prompt; retain failures.
 	for (const message of optimistic) {
 		const optimisticState = options.optimisticStates.get(message.id);
 		const content = comparableUserContent(message.content);
-		const budget = reflectedPromptBudget.get(content) ?? 0;
+		const reflectedIndexes = reflectedUserIndexes.get(content);
 		if (
 			options.transcriptKnown &&
 			optimisticState?.state === "pending" &&
-			budget > 0
+			reflectedIndexes?.length
 		) {
-			reflectedPromptBudget.set(content, budget - 1);
-			mergeImagesIntoHydrated(
-				reflectedUserIndexes.get(content)?.shift(),
-				message,
-			);
+			mergeImagesIntoHydrated(reflectedIndexes.shift(), message);
 			options.optimisticStates.delete(message.id);
 			continue;
 		}
@@ -598,9 +582,7 @@ export function useChatSession() {
 		new Map(),
 	);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
-	const cloudTranscriptUserCountsRef = useRef<
-		Record<string, Map<string, number>>
-	>({});
+	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
 	// updater consumes the outstanding set on its first run, so StrictMode's
 	// double-invoked updater needs this memo to reach the same result on its
@@ -731,8 +713,8 @@ export function useChatSession() {
 			transcriptKnown?: boolean;
 			preserveLiveRouting?: boolean;
 		}) => {
-			const previousUserCounts =
-				cloudTranscriptUserCountsRef.current[options.sessionId] ?? new Map();
+			const previousUserIds =
+				cloudTranscriptUserIdsRef.current[options.sessionId] ?? new Set();
 			const transcriptKnown =
 				cloudTranscriptKnownRef.current[options.sessionId] === true;
 			const preservedMessageIds = options.preserveLiveRouting
@@ -747,7 +729,7 @@ export function useChatSession() {
 				const merged = mergeCloudSnapshotWithLive(options.messages, current, {
 					sessionId: options.sessionId,
 					transcriptKnown,
-					previousUserCounts,
+					previousUserIds,
 					optimisticStates: cloudOptimisticStatesRef.current,
 					preserveUnmatchedLive: options.preserveUnmatchedLive,
 					preserveLiveMessageIds: preservedMessageIds,
@@ -759,8 +741,11 @@ export function useChatSession() {
 				}
 				return merged;
 			});
-			cloudTranscriptUserCountsRef.current[options.sessionId] =
-				userMessageCounts(options.messages);
+			cloudTranscriptUserIdsRef.current[options.sessionId] = new Set(
+				options.messages
+					.filter((message) => message.role === "user")
+					.map((message) => message.id),
+			);
 			cloudTranscriptKnownRef.current[options.sessionId] =
 				options.transcriptKnown !== false;
 		},
@@ -2187,26 +2172,34 @@ export function useChatSession() {
 					const nextStatus = record.status?.trim();
 					// A locally submitted turn owns status and live routing until its RPC
 					// settles. A reconnect snapshot may describe the preceding turn.
-					const previousUserCounts =
-						cloudTranscriptUserCountsRef.current[targetSessionId] ?? new Map();
-					const snapshotUserCounts = userMessageCounts(rehydratedMessages);
-					const liveUserCounts = userMessageCounts(messagesRef.current);
-					const snapshotHasNewUserMessage = Array.from(snapshotUserCounts).some(
-						([content, count]) =>
-							count >
-							Math.max(
-								previousUserCounts.get(content) ?? 0,
-								liveUserCounts.get(content) ?? 0,
-							),
+					const previousUserIds =
+						cloudTranscriptUserIdsRef.current[targetSessionId] ?? new Set();
+					const snapshotNewUserCounts = userMessageCounts(
+						rehydratedMessages.filter(
+							(message) => !previousUserIds.has(message.id),
+						),
 					);
+					const liveNewUserCounts = userMessageCounts(
+						messagesRef.current.filter(
+							(message) => !previousUserIds.has(message.id),
+						),
+					);
+					const snapshotHasNewUserMessage = Array.from(
+						snapshotNewUserCounts,
+					).some(
+						([content, count]) => count > (liveNewUserCounts.get(content) ?? 0),
+					);
+					const reflectedPromptBudget = new Map(snapshotNewUserCounts);
 					const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
-						(message) =>
-							outstandingOptimisticUserIdsRef.current.has(message.id) &&
-							(snapshotUserCounts.get(comparableUserContent(message.content)) ??
-								0) <=
-								(previousUserCounts.get(
-									comparableUserContent(message.content),
-								) ?? 0),
+						(message) => {
+							if (!outstandingOptimisticUserIdsRef.current.has(message.id))
+								return false;
+							const content = comparableUserContent(message.content);
+							const count = reflectedPromptBudget.get(content) ?? 0;
+							if (count === 0) return true;
+							reflectedPromptBudget.set(content, count - 1);
+							return false;
+						},
 					);
 					const localSubmissionActive =
 						activePromptSubmissionsRef.current > 0 ||
@@ -2376,9 +2369,12 @@ export function useChatSession() {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
-					const mappedStatus = mapSessionRecordStatus(
-						nextStatus as SessionHistoryStatus,
-					);
+					const expiredCloudSession =
+						config.executionTarget === "cloud" && nextStatus === "expired";
+					if (expiredCloudSession) setIsCloudSessionExpired(true);
+					const mappedStatus = expiredCloudSession
+						? "completed"
+						: mapSessionRecordStatus(nextStatus as SessionHistoryStatus);
 					if (abortedRef.current && mappedStatus === "running") {
 						return;
 					}
@@ -2397,7 +2393,7 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [hydratedHistorySessionId, sessionId, status]);
+	}, [config.executionTarget, hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -2406,6 +2402,8 @@ export function useChatSession() {
 			validatedConfig: ChatSessionConfig,
 			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
 		): Promise<string> => {
+			hydrationRequestIdRef.current += 1;
+			setIsHydratingSession(false);
 			const payload = await postSession({
 				action: "start",
 				config: validatedConfig,
@@ -2420,7 +2418,7 @@ export function useChatSession() {
 				id !== validatedConfig.sessionId
 			) {
 				cloudTranscriptKnownRef.current[id] = true;
-				cloudTranscriptUserCountsRef.current[id] = new Map();
+				cloudTranscriptUserIdsRef.current[id] = new Set();
 			}
 			const workspaceRoot =
 				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
@@ -3450,6 +3448,7 @@ export function useChatSession() {
 	);
 
 	const reset = useCallback(async () => {
+		hydrationRequestIdRef.current += 1;
 		const activeSessionId = sessionId;
 		setSessionId(null);
 		setStatus("idle");
@@ -3484,7 +3483,7 @@ export function useChatSession() {
 		lastCoreErrorBySessionRef.current = {};
 		cloudOptimisticStatesRef.current.clear();
 		cloudTranscriptKnownRef.current = {};
-		cloudTranscriptUserCountsRef.current = {};
+		cloudTranscriptUserIdsRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setActivityLabel(null);
@@ -3630,6 +3629,7 @@ export function useChatSession() {
 						},
 					})
 					.catch((err) => {
+						if (hydrationRequestIdRef.current !== requestId) return undefined;
 						if (historyMessages.length === 0) {
 							throw err;
 						}
