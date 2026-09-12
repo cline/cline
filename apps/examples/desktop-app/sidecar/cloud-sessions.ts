@@ -1787,11 +1787,13 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub session was not initialized");
 		}
 		await this.ensureAttached(connection);
-		return await connection.client.command(
+		const reply = await connection.client.command(
 			command,
 			{ sessionId: innerSessionId, ...payload },
 			innerSessionId,
 		);
+		this.assertSessionActive(outerSessionId, connection);
+		return reply;
 	}
 
 	private applyQueueSnapshot(
