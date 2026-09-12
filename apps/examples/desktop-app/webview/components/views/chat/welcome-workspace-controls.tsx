@@ -282,7 +282,7 @@ function CloudBranchPicker({
 	const branchRef = useRef(branch);
 	const listRef = useRef<HTMLDivElement>(null);
 	const loadMoreRef = useRef<HTMLDivElement>(null);
-	const requestKeyRef = useRef("");
+	const requestKeyRef = useRef<symbol | null>(null);
 	branchRef.current = branch;
 	const reconcileBranch = useCallback(
 		(availableBranches: string[], complete: boolean) => {
@@ -306,7 +306,7 @@ function CloudBranchPicker({
 
 	useEffect(() => {
 		if (!repositoryId) return;
-		const requestKey = `${repositoryId}:${debouncedQuery}:${reloadKey}`;
+		const requestKey = Symbol(`${repositoryId}:${debouncedQuery}:${reloadKey}`);
 		requestKeyRef.current = requestKey;
 		let cancelled = false;
 		setStatus("loading");

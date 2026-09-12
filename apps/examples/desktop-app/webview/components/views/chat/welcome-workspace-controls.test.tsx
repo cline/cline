@@ -216,7 +216,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		["main", false, false],
 		["deleted", true, false],
 		["feature/keep", false, true],
-	] as const)("reconciles selection after all browse pages for %s (unavailable=%s)", async (selectedBranch, shouldFallback, unavailable) => {
+	] as const)("reconciles selection after all browse pages for %s (fallback=%s, unavailable=%s)", async (selectedBranch, shouldFallback, unavailable) => {
 		let intersectionCallback:
 			| ((entries: IntersectionObserverEntry[]) => void)
 			| undefined;
@@ -263,9 +263,15 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 				query: undefined,
 			}),
 		);
+		if (!unavailable)
+			await vi.waitFor(() =>
+				expect(
+					container.querySelector('[aria-label="Cloud branch"]')?.textContent,
+				).toContain("feature/keep"),
+			);
 		if (unavailable) {
+			await vi.waitFor(() => expect(container.textContent).toContain("Retry"));
 			expect(onCloudBranchChange).not.toHaveBeenCalled();
-			expect(container.textContent).toContain("Retry");
 		} else if (shouldFallback) {
 			await vi.waitFor(() =>
 				expect(onCloudBranchChange).toHaveBeenCalledWith("main"),
@@ -310,10 +316,13 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 				query: "feature",
 			}),
 		);
+		await vi.waitFor(() =>
+			expect(container.textContent).toContain("feature/result"),
+		);
 		expect(onCloudBranchChange).not.toHaveBeenCalled();
 	});
 
-	it("loads additional branch pages as the user scrolls", async () => {
+	it("ignores a pending page from an invalidated browse request", async () => {
 		let intersectionCallback:
 			| ((entries: IntersectionObserverEntry[]) => void)
 			| undefined;
@@ -327,46 +336,55 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 				disconnect() {}
 			},
 		);
+		let releaseStalePage: (() => void) | undefined;
 		const onListCloudBranches = vi.fn(
-			async (_repositoryId: number, options?: { cursor?: string }) =>
+			async (_id: number, options?: { cursor?: string }) =>
 				options?.cursor
-					? { available: true, branches: ["feature/cloud"], nextToken: "" }
-					: { available: true, branches: ["main"], nextToken: "2" },
+					? new Promise<{
+							available: boolean;
+							branches: string[];
+							nextToken?: string;
+						}>((resolve) => {
+							releaseStalePage = () =>
+								resolve({ available: true, branches: ["stale/page"] });
+						})
+					: { available: true, branches: ["old/first"], nextToken: "2" },
 		);
-		const props = renderControls({
-			executionTarget: "cloud",
-			onListCloudBranches,
-		});
-		await act(async () => {
-			button("Select repository").click();
-			await Promise.resolve();
-			await Promise.resolve();
-		});
-		await click(button("cline/cline"));
 		renderControls({
 			executionTarget: "cloud",
 			repoUrl: "https://github.com/cline/cline",
-			cloudBranch: "main",
-			onListCloudRepositories: props.onListCloudRepositories,
+			cloudBranch: "old/first",
 			onListCloudBranches,
 		});
 		await vi.waitFor(() =>
 			expect(onListCloudBranches).toHaveBeenCalledWith(42),
 		);
-		await click(button("main"));
+		await click(button("old/first"));
 		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
-		await act(async () => {
+		await act(async () =>
 			intersectionCallback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
-			]);
-		});
+			]),
+		);
+		await vi.waitFor(() => expect(releaseStalePage).toBeDefined());
 
+		const refreshedList = vi.fn(async () => ({
+			available: true,
+			branches: ["new/first"],
+			nextToken: "2",
+		}));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "old/first",
+			onListCloudBranches: refreshedList,
+		});
+		await vi.waitFor(() => expect(refreshedList).toHaveBeenCalled());
+		await act(async () => releaseStalePage?.());
 		await vi.waitFor(() =>
-			expect(onListCloudBranches).toHaveBeenCalledWith(42, { cursor: "2" }),
+			expect(container.textContent).toContain("new/first"),
 		);
-		await vi.waitFor(() =>
-			expect(container.textContent).toContain("feature/cloud"),
-		);
+		expect(container.textContent).not.toContain("stale/page");
 	});
 
 	it("recovers pagination when the search changes while a page fetch is in flight", async () => {

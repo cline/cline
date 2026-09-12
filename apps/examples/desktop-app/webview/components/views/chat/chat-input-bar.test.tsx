@@ -371,9 +371,6 @@ describe("ChatInputBar", () => {
 		expect(toastMock).toHaveBeenCalledWith(
 			expect.objectContaining({ title: "Unsupported cloud attachment" }),
 		);
-		expect(toastMock.mock.calls.at(-1)?.[0]?.description).not.toContain(
-			"Other files can still be attached",
-		);
 		Object.defineProperty(cloudInput, "files", {
 			configurable: true,
 			value: [text, svg],
@@ -416,6 +413,9 @@ describe("ChatInputBar", () => {
 			expect.objectContaining({
 				title: "This model doesn’t support image input",
 			}),
+		);
+		expect(toastMock.mock.calls.at(-1)?.[0]?.description).not.toContain(
+			"Other files can still be attached",
 		);
 	});
 
