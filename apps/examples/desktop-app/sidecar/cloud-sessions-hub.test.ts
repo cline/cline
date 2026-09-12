@@ -438,6 +438,62 @@ describe("CloudSessionManager Hub runtime", () => {
 		"pending",
 		"replaced",
 		"same",
+	] as const)("revalidates the prompt target when reconnect discovery is %s", async (discovery) => {
+		const { manager, hub, ctx } = createFixture();
+		await manager.attach("ses-outer");
+		await hub.resolveHeaders?.();
+		const blocked = Promise.withResolvers<void>();
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "session.send_input") {
+				const target = discovery === "same" ? "inner-1" : "inner-replacement";
+				hub.listedSessions = [{ sessionId: target, updatedAt: 30 }];
+				hub.subscriptionSessionIds.length = 0;
+				hub.commandHook = async (nextCommand) => {
+					if (nextCommand === "session.list" && discovery === "pending")
+						await blocked.promise;
+				};
+				await hub.resolveHeaders?.();
+				if (discovery !== "pending") {
+					await vi.waitFor(() =>
+						expect(hub.subscriptionSessionIds).toContain(target),
+					);
+				}
+				options?.beforeDispatch?.();
+			}
+			return originalCommand(command, payload, sessionId, options);
+		};
+		try {
+			const sending = manager.send("ses-outer", "new prompt");
+			if (discovery === "same") {
+				await expect(sending).resolves.toMatchObject({ ok: true });
+				expect(
+					hub.commands.filter(
+						({ command }) => command === "session.send_input",
+					),
+				).toEqual([expect.objectContaining({ sessionId: "inner-1" })]);
+			} else {
+				await expect(sending).rejects.toThrow(
+					"before the prompt could be sent",
+				);
+				expect(
+					hub.commands.some(({ command }) => command === "session.send_input"),
+				).toBe(false);
+				expect(
+					JSON.stringify(ctx.liveSessions.get("ses-outer")?.messages),
+				).not.toContain("new prompt");
+				expect(ctx.liveSessions.get("ses-outer")?.busy).toBe(false);
+			}
+		} finally {
+			blocked.resolve();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"pending",
+		"replaced",
+		"same",
 	] as const)("revalidates the Stop target when reconnect discovery is %s at dispatch", async (discovery) => {
 		const { manager, hub, ctx } = createFixture();
 		await manager.list();
