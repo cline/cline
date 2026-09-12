@@ -447,6 +447,11 @@ function emitQueuedPromptStart(
 			return;
 		}
 		session.lastQueuedPromptStartId = input.promptId;
+		session.busy = true;
+		if (session.status !== "running") {
+			session.status = "running";
+			sendEvent(ctx, "chat_session_status", { sessionId, status: "running" });
+		}
 	}
 	emitChunk(
 		ctx,
@@ -1093,7 +1098,6 @@ export function handleHubLiveEvent(
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
 			if (
 				event.event === "session.updated" &&
-				event.sequence === undefined &&
 				status === "running" &&
 				session.endedAt !== undefined &&
 				!session.busy
