@@ -51,11 +51,19 @@ const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
 const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
-const GITHUB_AUTH_SYSTEM_PROMPT =
-	"IMPORTANT: GitHub API authentication is handled automatically by the infrastructure. " +
-	"A secrets-proxy sidecar injects the necessary authentication credentials into all GitHub API requests. " +
-	"You do NOT need to set up, configure, or manage any authentication tokens, API keys, or credentials for GitHub API calls. " +
-	"Simply make your GitHub API calls normally — authentication will be injected transparently.";
+const CLOUD_SESSION_SYSTEM_PROMPT =
+	"GitHub authentication is provided by the infrastructure's egress proxy. " +
+	"The GitHub CLI (`gh`) is installed and already authenticated; prefer it for GitHub work. " +
+	"`git` push and pull are authenticated too. Do not configure credentials or run `gh auth login`.\n\n" +
+	"SAVE YOUR WORK: This sandbox may be torn down at any time; work not pushed to origin can be lost. " +
+	"For tasks that change files, reuse the task's existing feature branch when resuming, " +
+	"or create a dedicated feature branch from the selected checkout before editing. " +
+	"Do not commit directly to the default branch. Commit meaningful progress with clear messages, " +
+	"including work in progress, and push after each commit (`git push -u origin <branch>` for the first push). " +
+	"If a push is rejected, report that the work is not saved remotely. " +
+	"Do not force-push or amend already-pushed commits unless explicitly asked. " +
+	"Explicit user instructions about branches, commits, or pushing take precedence. " +
+	"Read-only tasks need no branch changes, commits, or pushes.";
 
 type FetchLike = (
 	input: string | URL | Request,
@@ -2191,7 +2199,7 @@ export class CloudSessionManager {
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				cwd: CLOUD_WORKSPACE_ROOT,
-				systemPrompt: GITHUB_AUTH_SYSTEM_PROMPT,
+				systemPrompt: CLOUD_SESSION_SYSTEM_PROMPT,
 				mode: "act",
 				enableTools: true,
 				...(typeof live?.config.thinking === "boolean"
