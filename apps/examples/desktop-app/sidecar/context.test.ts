@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { RuntimeCapabilities } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
+import { CloudSessionManager, type CloudSessionRecord } from "./cloud-sessions";
 import type { LiveSession, SidecarContext } from "./types";
 
 const createCoreMock = vi.hoisted(() => vi.fn());
@@ -57,6 +58,34 @@ function readEvents(ctx: SidecarContext): Array<{
 	return (send as ReturnType<typeof vi.fn>).mock.calls.map(([raw]) =>
 		JSON.parse(String(raw)),
 	);
+}
+
+function createSearchCloudManager(
+	ctx: SidecarContext,
+	list: () => Promise<CloudSessionRecord[]>,
+): CloudSessionManager {
+	return new CloudSessionManager(ctx, {
+		api: { list } as never,
+		apiBaseUrl: "https://api.example",
+		getAuthToken: async () => "token",
+	});
+}
+
+function cloudSearchRecord(
+	sessionId: string,
+	title: string,
+	createdAt = "2026-01-01T00:00:00.000Z",
+) {
+	return {
+		id: sessionId,
+		status: "ready",
+		title,
+		sandboxUrl: "",
+		repoContext: {},
+		metadata: {},
+		createdAt,
+		updatedAt: createdAt,
+	};
 }
 
 describe("Code sidecar runtime capabilities", () => {
@@ -232,6 +261,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const list = vi.fn(async () => []);
 		ctx.hubClient = { command } as never;
 		ctx.sessionManager = { list } as never;
+		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -268,12 +298,23 @@ describe("Code sidecar runtime capabilities", () => {
 				prompt: oversizedPrompt,
 				metadata: { title: oversizedPrompt },
 			},
+			{
+				sessionId: "out-of-scope",
+				startedAt: "2026-08-27T12:00:00.000Z",
+				workspaceRoot: "/other/workspace",
+				prompt: oversizedPrompt,
+				metadata: { title: oversizedPrompt },
+			},
 		]);
 		ctx.hubClient = { command } as never;
 		ctx.sessionManager = { list } as never;
+		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+			cloudSearchRecord("cloud-out-of-scope", "generate an image"),
+		]);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
+			workspaceRoot: "/workspace/project",
 		})) as Array<{ title: string; snippet: string }>;
 		expect(results).toEqual([
 			expect.objectContaining({
@@ -306,6 +347,7 @@ describe("Code sidecar runtime capabilities", () => {
 		]);
 		ctx.hubClient = { command } as never;
 		ctx.sessionManager = { list } as never;
+		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -341,6 +383,7 @@ describe("Code sidecar runtime capabilities", () => {
 			]);
 			ctx.hubClient = { command } as never;
 			ctx.sessionManager = { list } as never;
+			ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
 
 			const pending = handleCommand(ctx, "search_sessions", {
 				query: "generate",
@@ -359,6 +402,146 @@ describe("Code sidecar runtime capabilities", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("includes a cold cloud session in title search", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const list = vi.fn(async () => [
+			cloudSearchRecord("cloud-cold", "UNIQUE-CLOUD-TITLE"),
+		]);
+		ctx.hubClient = {
+			command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+		} as never;
+		ctx.sessionManager = { list: vi.fn(async () => []) } as never;
+		ctx.cloudSessionManager = createSearchCloudManager(ctx, list);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "UNIQUE-CLOUD-TITLE",
+		})) as Array<{ sessionId: string }>;
+
+		expect(results).toEqual([
+			expect.objectContaining({ sessionId: "cloud-cold" }),
+		]);
+	});
+
+	it("appends unique cloud hits after indexed local hits and applies the limit", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.hubClient = {
+			command: vi.fn(async () => ({
+				ok: true,
+				payload: {
+					hits: [
+						{
+							sessionId: "local-1",
+							documentId: "local-1:0",
+							role: "user",
+							title: "match",
+							snippet: "match",
+						},
+						{
+							sessionId: "shared",
+							documentId: "shared:0",
+							role: "user",
+							title: "match",
+							snippet: "match",
+						},
+						{
+							sessionId: "shared",
+							documentId: "shared:1",
+							role: "assistant",
+							title: "match",
+							snippet: "match again",
+						},
+					],
+				},
+			})),
+		} as never;
+		ctx.sessionManager = { list: vi.fn(async () => []) } as never;
+		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
+			cloudSearchRecord("shared", "match"),
+			cloudSearchRecord("cloud-2", "match second", "2026-01-03T00:00:00.000Z"),
+			cloudSearchRecord("cloud-3", "match third", "2026-01-02T00:00:00.000Z"),
+		]);
+
+		const results = (await handleCommand(ctx, "search_sessions", {
+			query: "match",
+			limit: 4,
+		})) as Array<{ sessionId: string; documentId: string }>;
+
+		expect(
+			results.map(({ sessionId, documentId }) => [sessionId, documentId]),
+		).toEqual([
+			["local-1", "local-1:0"],
+			["shared", "shared:0"],
+			["shared", "shared:1"],
+			["cloud-2", "cloud-2:metadata"],
+		]);
+	});
+
+	it("preserves local fallback results when cloud discovery times out", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handleCommand } = await import("./commands");
+			const { createSidecarContext } = await import("./context");
+			const ctx = createSidecarContext("/workspace/project");
+			ctx.hubClient = {
+				command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+			} as never;
+			ctx.sessionManager = {
+				list: vi.fn(async () => [
+					{
+						sessionId: "local-match",
+						workspaceRoot: "/workspace/project",
+						prompt: "local match",
+						metadata: { title: "local match" },
+					},
+				]),
+			} as never;
+			ctx.cloudSessionManager = createSearchCloudManager(
+				ctx,
+				async () => await new Promise<CloudSessionRecord[]>(() => {}),
+			);
+
+			const pending = handleCommand(ctx, "search_sessions", {
+				query: "local match",
+			}) as Promise<Array<{ sessionId: string }>>;
+			await vi.advanceTimersByTimeAsync(750);
+			await expect(pending).resolves.toEqual([
+				expect.objectContaining({ sessionId: "local-match" }),
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not append results from a manager replaced during search", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		let release!: (records: CloudSessionRecord[]) => void;
+		ctx.hubClient = {
+			command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+		} as never;
+		ctx.sessionManager = { list: vi.fn(async () => []) } as never;
+		ctx.cloudSessionManager = createSearchCloudManager(
+			ctx,
+			() =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		const pending = handleCommand(ctx, "search_sessions", {
+			query: "stale cloud",
+		}) as Promise<unknown[]>;
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		ctx.cloudSessionManager = null;
+		release([cloudSearchRecord("stale-cloud", "stale cloud")]);
+
+		await expect(pending).resolves.toEqual([]);
 	});
 
 	it("forwards raw hub tool updates to attached desktop sessions", async () => {
