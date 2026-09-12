@@ -187,6 +187,8 @@ async function renderVoiceComposer({
 	promptVersion = 0,
 	status = "idle",
 	readOnly = false,
+	executionTarget,
+	onAttachFiles = vi.fn(),
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -198,19 +200,22 @@ async function renderVoiceComposer({
 	promptVersion?: number;
 	status?: ChatSessionStatus;
 	readOnly?: boolean;
+	executionTarget?: "cloud" | "local";
+	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
 					readOnly={readOnly}
+					executionTarget={executionTarget}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
 					mode="act"
 					model={model}
 					onAbort={onAbort}
-					onAttachFiles={vi.fn()}
+					onAttachFiles={onAttachFiles}
 					onEditPromptInQueue={vi.fn()}
 					onListGitBranches={vi.fn(async () => ({
 						current: "main",
@@ -341,6 +346,77 @@ describe("ChatInputBar", () => {
 
 		await act(async () => stopButton?.click());
 		expect(onAbort).toHaveBeenCalledOnce();
+	});
+
+	it("filters unsupported cloud file selections while preserving local files", async () => {
+		const cloudAttach = vi.fn();
+		await renderVoiceComposer({
+			executionTarget: "cloud",
+			onAttachFiles: cloudAttach,
+		});
+		const cloudInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const png = new File(["png"], "capture.png", { type: "image/png" });
+		const pngByExtension = new File(["png"], "capture.jfif");
+		const text = new File(["text"], "notes.txt", { type: "text/plain" });
+		const svg = new File(["svg"], "diagram.svg", { type: "image/svg+xml" });
+		Object.defineProperty(cloudInput, "files", {
+			configurable: true,
+			value: [png, pngByExtension, text, svg],
+		});
+		await act(async () =>
+			cloudInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(cloudAttach).toHaveBeenCalledWith([png, pngByExtension]);
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({ title: "Unsupported cloud attachment" }),
+		);
+		expect(toastMock.mock.calls.at(-1)?.[0]?.description).not.toContain(
+			"Other files can still be attached",
+		);
+		Object.defineProperty(cloudInput, "files", {
+			configurable: true,
+			value: [text, svg],
+		});
+		await act(async () =>
+			cloudInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(cloudAttach).toHaveBeenCalledTimes(1);
+
+		const localAttach = vi.fn();
+		await renderVoiceComposer({ onAttachFiles: localAttach });
+		const localInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		Object.defineProperty(localInput, "files", {
+			configurable: true,
+			value: [text],
+		});
+		await act(async () =>
+			localInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(localAttach).toHaveBeenCalledWith([text]);
+	});
+
+	it("blocks cloud images for a model without vision support", async () => {
+		const onAttachFiles = vi.fn();
+		loadProviderModelsMock.mockResolvedValue([
+			{ id: "test-model", name: "Text only", inputModalities: ["text"] },
+		]);
+		await renderVoiceComposer({ executionTarget: "cloud", onAttachFiles });
+		await vi.waitFor(() => expect(loadProviderModelsMock).toHaveBeenCalled());
+		const input =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const png = new File(["png"], "capture.png", { type: "image/png" });
+		Object.defineProperty(input, "files", { configurable: true, value: [png] });
+		await act(async () =>
+			input?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(onAttachFiles).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "This model doesn’t support image input",
+			}),
+		);
 	});
 
 	it("builds slash commands from both workflows and skills", () => {

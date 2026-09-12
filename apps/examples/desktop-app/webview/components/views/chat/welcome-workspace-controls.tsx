@@ -284,6 +284,16 @@ function CloudBranchPicker({
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 	const requestKeyRef = useRef("");
 	branchRef.current = branch;
+	const reconcileBranch = useCallback(
+		(availableBranches: string[], complete: boolean) => {
+			if (availableBranches.length === 0) return;
+			const selected = branchRef.current;
+			if (selected && (!complete || availableBranches.includes(selected)))
+				return;
+			onBranchChange(preferredCloudBranch(availableBranches, defaultBranch));
+		},
+		[defaultBranch, onBranchChange],
+	);
 
 	useEffect(() => {
 		const timeout = window.setTimeout(
@@ -315,8 +325,8 @@ function CloudBranchPicker({
 				}
 				setBranches(result.branches);
 				setNextToken(result.nextToken ?? "");
-				if (!branchRef.current) {
-					onBranchChange(preferredCloudBranch(result.branches, defaultBranch));
+				if (!debouncedQuery) {
+					reconcileBranch(result.branches, !result.nextToken);
 				}
 				setStatus("idle");
 			})
@@ -333,12 +343,20 @@ function CloudBranchPicker({
 		defaultBranch,
 		onBranchChange,
 		onListBranches,
+		reconcileBranch,
 		reloadKey,
 		repositoryId,
 	]);
 
 	const loadMore = useCallback(async () => {
-		if (!repositoryId || !nextToken || loadingMore) return;
+		if (
+			!repositoryId ||
+			!nextToken ||
+			loadingMore ||
+			status !== "idle" ||
+			searchPending
+		)
+			return;
 		const requestKey = requestKeyRef.current;
 		setLoadingMore(true);
 		setLoadMoreError(false);
@@ -348,14 +366,30 @@ function CloudBranchPicker({
 				query: debouncedQuery || undefined,
 			});
 			if (requestKeyRef.current !== requestKey) return;
-			setBranches((current) => [...new Set([...current, ...result.branches])]);
+			if (!result.available) {
+				setLoadMoreError(true);
+				return;
+			}
+			const merged = [...new Set([...branches, ...result.branches])];
+			setBranches(merged);
 			setNextToken(result.nextToken ?? "");
+			if (!debouncedQuery && !result.nextToken) reconcileBranch(merged, true);
 		} catch {
 			if (requestKeyRef.current === requestKey) setLoadMoreError(true);
 		} finally {
 			setLoadingMore(false);
 		}
-	}, [debouncedQuery, loadingMore, nextToken, onListBranches, repositoryId]);
+	}, [
+		branches,
+		debouncedQuery,
+		loadingMore,
+		nextToken,
+		onListBranches,
+		reconcileBranch,
+		repositoryId,
+		searchPending,
+		status,
+	]);
 
 	useEffect(() => {
 		const root = listRef.current;
@@ -367,7 +401,8 @@ function CloudBranchPicker({
 			!nextToken ||
 			loadingMore ||
 			loadMoreError ||
-			searchPending
+			searchPending ||
+			status !== "idle"
 		) {
 			return;
 		}
@@ -379,7 +414,15 @@ function CloudBranchPicker({
 		);
 		observer.observe(target);
 		return () => observer.disconnect();
-	}, [loadMore, loadMoreError, loadingMore, nextToken, open, searchPending]);
+	}, [
+		loadMore,
+		loadMoreError,
+		loadingMore,
+		nextToken,
+		open,
+		searchPending,
+		status,
+	]);
 
 	return (
 		<div className="relative min-w-0">

@@ -191,6 +191,128 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		expect(button("main").disabled).toBe(false);
 	});
 
+	it("reconciles a stale selected default branch from a complete browse", async () => {
+		const onCloudBranchChange = vi.fn();
+		const onListCloudBranches = vi.fn(async () => ({
+			available: true,
+			branches: ["feature/only"],
+			nextToken: "",
+		}));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onCloudBranchChange,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		expect(onCloudBranchChange).toHaveBeenCalledWith("feature/only");
+	});
+
+	it.each([
+		["feature/keep", false, false],
+		["main", false, false],
+		["deleted", true, false],
+		["feature/keep", false, true],
+	] as const)("reconciles selection after all browse pages for %s (unavailable=%s)", async (selectedBranch, shouldFallback, unavailable) => {
+		let intersectionCallback:
+			| ((entries: IntersectionObserverEntry[]) => void)
+			| undefined;
+		vi.stubGlobal(
+			"IntersectionObserver",
+			class {
+				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+					intersectionCallback = callback;
+				}
+				observe() {}
+				disconnect() {}
+			},
+		);
+		const onCloudBranchChange = vi.fn();
+		const onListCloudBranches = vi.fn(
+			async (_id: number, options?: { cursor?: string }) =>
+				options?.cursor
+					? unavailable
+						? { available: false, branches: [], nextToken: "" }
+						: { available: true, branches: ["feature/keep"], nextToken: "" }
+					: { available: true, branches: ["main"], nextToken: "2" },
+		);
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: selectedBranch,
+			onCloudBranchChange,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		expect(onCloudBranchChange).not.toHaveBeenCalled();
+		await click(button(selectedBranch));
+		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await act(async () =>
+			intersectionCallback?.([
+				{ isIntersecting: true } as IntersectionObserverEntry,
+			]),
+		);
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42, {
+				cursor: "2",
+				query: undefined,
+			}),
+		);
+		if (unavailable) {
+			expect(onCloudBranchChange).not.toHaveBeenCalled();
+			expect(container.textContent).toContain("Retry");
+		} else if (shouldFallback) {
+			await vi.waitFor(() =>
+				expect(onCloudBranchChange).toHaveBeenCalledWith("main"),
+			);
+		} else {
+			expect(onCloudBranchChange).not.toHaveBeenCalled();
+		}
+	});
+
+	it("does not reconcile selection from a filtered branch search", async () => {
+		const onCloudBranchChange = vi.fn();
+		const onListCloudBranches = vi.fn(
+			async (_id: number, options?: { query?: string }) =>
+				options?.query
+					? { available: true, branches: ["feature/result"], nextToken: "" }
+					: { available: true, branches: ["main"], nextToken: "" },
+		);
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onCloudBranchChange,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		await click(button("main"));
+		const search = container.querySelector<HTMLInputElement>(
+			'input[placeholder="Search branches…"]',
+		);
+		await act(async () => {
+			const setter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setter?.call(search, "feature");
+			search?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42, {
+				query: "feature",
+			}),
+		);
+		expect(onCloudBranchChange).not.toHaveBeenCalled();
+	});
+
 	it("loads additional branch pages as the user scrolls", async () => {
 		let intersectionCallback:
 			| ((entries: IntersectionObserverEntry[]) => void)

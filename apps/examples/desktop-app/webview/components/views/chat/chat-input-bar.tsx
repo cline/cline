@@ -46,7 +46,10 @@ import {
 	buildModelPickerData,
 	type ModelPickerData,
 } from "@/lib/featured-models";
-import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -504,18 +507,41 @@ function ChatInputBarImpl({
 		toast({
 			title: "This model doesn’t support image input",
 			description:
-				"Choose a model that supports images or remove the images before sending. Other files can still be attached.",
+				"Choose a model that supports images or remove the images before sending." +
+				(executionTarget === "cloud"
+					? ""
+					: " Other files can still be attached."),
 		});
-	}, []);
+	}, [executionTarget]);
 	const handleAttachFiles = useCallback(
 		(files: File[]) => {
+			const supportedFiles =
+				executionTarget === "cloud"
+					? files.filter(
+							(file) =>
+								imageAttachmentMediaType(file) &&
+								!isUnsupportedImageAttachment(file),
+						)
+					: files;
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: "Unsupported cloud attachment",
+					description:
+						"Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files.",
+				});
+			}
 			const allowed = imagesUnsupported
-				? files.filter((file) => !imageAttachmentMediaType(file))
-				: files;
-			if (allowed.length !== files.length) reportUnsupportedImages();
+				? supportedFiles.filter((file) => !imageAttachmentMediaType(file))
+				: supportedFiles;
+			if (allowed.length !== supportedFiles.length) reportUnsupportedImages();
 			if (allowed.length > 0) onAttachFiles(allowed);
 		},
-		[imagesUnsupported, onAttachFiles, reportUnsupportedImages],
+		[
+			executionTarget,
+			imagesUnsupported,
+			onAttachFiles,
+			reportUnsupportedImages,
+		],
 	);
 	const unsupportedDraftImageCount = imagesUnsupported
 		? attachments.filter((attachment) => attachment.isImage).length
@@ -1522,9 +1548,11 @@ function ChatInputBarImpl({
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
 						}
 						title={
-							imagesUnsupported
-								? "Attach files (this model doesn’t support images)"
-								: "Attach files"
+							executionTarget === "cloud"
+								? "Attach images"
+								: imagesUnsupported
+									? "Attach files (this model doesn’t support images)"
+									: "Attach files"
 						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
