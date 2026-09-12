@@ -60,4 +60,25 @@ describe("resolveExistingFilePath", () => {
 
 		expect(resolveExistingFilePath(requested)).toBe(join(dir, onDisk));
 	});
+
+	it.each([
+		"\u202F",
+		"\u00A0",
+	])("resolves a curly apostrophe combined with Unicode space %j and decomposed accents", (space) => {
+		const dir = mkdtempSync(join(tmpdir(), "path-resolution-combined-"));
+		const onDisk = `Capture d’écran${space}2026-05-12.png`.normalize("NFD");
+		writeFileSync(join(dir, onDisk), "hello");
+		const requested = join(dir, "Capture d'écran 2026-05-12.png");
+
+		expect(resolveExistingFilePath(requested)).toBe(join(dir, onDisk));
+	});
+
+	it("prefers the exact filename when a normalized variant also exists", () => {
+		const dir = mkdtempSync(join(tmpdir(), "path-resolution-exact-priority-"));
+		const requested = join(dir, "Capture d'écran 2026-05-12.png");
+		writeFileSync(requested, "exact");
+		writeFileSync(join(dir, "Capture d’écran\u202F2026-05-12.png"), "variant");
+
+		expect(resolveExistingFilePath(requested)).toBe(requested);
+	});
 });
