@@ -1352,6 +1352,13 @@ export class CloudSessionManager {
 		const connection = await this.ensureConnection(outerSessionId, {
 			createInner: true,
 		});
+		const isCancelled = () =>
+			this.disposed ||
+			connection.disposed ||
+			this.sendAbortTokens.get(outerSessionId) !== abortToken;
+		const throwIfCancelled = () => {
+			if (isCancelled()) throw new Error("Cloud session prompt cancelled");
+		};
 		await connection.reconnectResolution;
 		await this.ensureAttached(connection);
 		await connection.reconnectResolution;
@@ -1364,13 +1371,7 @@ export class CloudSessionManager {
 		await this.updateModel(connection, modelId);
 		await connection.reconnectResolution;
 		// Stop also cancels sends still waiting for connection/attachment.
-		if (
-			this.disposed ||
-			connection.disposed ||
-			this.sendAbortTokens.get(outerSessionId) !== abortToken
-		) {
-			throw new Error("Cloud session prompt cancelled");
-		}
+		throwIfCancelled();
 		const innerSessionId = connection.innerSessionId;
 		if (!innerSessionId) {
 			throw new Error("Cloud Hub session was not initialized");
@@ -1424,9 +1425,10 @@ export class CloudSessionManager {
 					...(userImages?.length ? { attachments: { userImages } } : {}),
 				},
 				innerSessionId,
-				delivery === "queue"
-					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
-					: { timeoutMs: null },
+				{
+					timeoutMs: delivery === "queue" ? QUEUE_COMMAND_TIMEOUT_MS : null,
+					beforeDispatch: throwIfCancelled,
+				},
 			);
 			return {
 				sessionId: outerSessionId,
@@ -1435,6 +1437,11 @@ export class CloudSessionManager {
 				result: reply.payload?.result,
 			};
 		} catch (error) {
+			if (isCancelled()) {
+				removePendingMessage();
+				// Stop owns the status; a newer send may already own busy state.
+				throw error;
+			}
 			if (
 				isHubReconnectableTransportError(error) ||
 				isHubCommandTimeoutError(error, "session.send_input")
@@ -1695,14 +1702,33 @@ export class CloudSessionManager {
 			return { sessionId: outerSessionId, ok: true };
 		}
 		const connection = await this.ensureConnection(outerSessionId);
+		const throwIfDisposed = () => {
+			if (this.disposed || connection.disposed) {
+				throw new Error("Cloud session connection was disposed");
+			}
+		};
+		throwIfDisposed();
+		await connection.client.connect();
+		await connection.reconnectResolution;
+		throwIfDisposed();
+		// Reconnect clears the id and may swallow lookup errors for background
+		// retry. Stop must resolve it or surface the failure before acknowledging.
+		await this.resolveInnerSession(outerSessionId, connection);
 		if (connection.innerSessionId) {
 			await this.ensureAttached(connection);
+			await connection.reconnectResolution;
+			throwIfDisposed();
+			const innerSessionId = connection.innerSessionId;
+			if (!innerSessionId)
+				throw new Error("Cloud Hub session was not initialized");
 			await connection.client.command(
 				"run.abort",
-				{ sessionId: connection.innerSessionId },
-				connection.innerSessionId,
+				{ sessionId: innerSessionId },
+				innerSessionId,
+				{ beforeDispatch: throwIfDisposed },
 			);
 		}
+		throwIfDisposed();
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		if (live) {
 			live.busy = false;
