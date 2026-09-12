@@ -192,6 +192,35 @@ describe("CloudSessionManager state", () => {
 		expect(live.promptsInQueue).toBe(previous);
 	});
 
+	it("rejects a queue snapshot returned after its connection was disposed", async () => {
+		const { manager, connection, command, reply, replies, live } =
+			await createFixture();
+		manager["connections"].set("ses-outer", connection);
+		const blocked = Promise.withResolvers<void>();
+		const reached = Promise.withResolvers<void>();
+		const unregister = Promise.withResolvers<void>();
+		vi.mocked(connection.client.dispose).mockReturnValue(unregister.promise);
+		command.mockImplementationOnce(async (name) => {
+			reached.resolve();
+			await blocked.promise;
+			return reply(name);
+		});
+		replies["session.pending_prompts"] = {
+			prompts: [{ id: "q-1", prompt: "stale queued prompt" }],
+		};
+		const result = manager.pendingPrompts("ses-outer").catch((error) => error);
+		await reached.promise;
+		const disposing = manager["disposeConnection"]("ses-outer");
+		blocked.resolve();
+		const snapshot = await result;
+		unregister.resolve();
+		await disposing;
+		expect(snapshot).toMatchObject({
+			message: "Cloud session connection was disposed",
+		});
+		expect(live.promptsInQueue).toEqual([]);
+	});
+
 	it("queues one rerun when a second sync overlaps the active snapshot", async () => {
 		const { manager, command, reply } = await createFixture();
 		const blocked = Promise.withResolvers<void>();
