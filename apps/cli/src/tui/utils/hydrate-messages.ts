@@ -1,4 +1,8 @@
-import { type AgentMode, projectSessionMessagesForDisplay } from "@cline/core";
+import {
+	type AgentMode,
+	extractToolPayloadError,
+	projectSessionMessagesForDisplay,
+} from "@cline/core";
 import {
 	formatDisplayUserInput,
 	type GeneratedMedia,
@@ -180,9 +184,12 @@ export function hydrateSessionMessages(
 								| string
 								| Array<{ type: string; text?: string; path?: string }>,
 						);
+						// `is_error` is only set when the tool threw. Tools that
+						// report failure inside their payload leave it unset, so a
+						// replayed session would otherwise render them as successes.
 						const error = block.is_error
 							? stringifyToolError(block.content)
-							: undefined;
+							: extractToolPayloadError(block.content);
 						entry.result = error
 							? { outputSummary: "", rawOutput: undefined, error }
 							: {
