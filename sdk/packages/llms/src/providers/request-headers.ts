@@ -136,6 +136,12 @@ function buildOpenAICodexRequestHeaders(
 function resolveRequiredProviderHeaders(
 	input: ResolveProviderRequestHeadersInput,
 ): Record<string, string> | undefined {
+	if (input.providerId === "opencode-go") {
+		return {
+			"x-opencode-session": input.sessionId,
+			"User-Agent": `Cline/${trimNonEmpty(input.client?.version) ?? input.coreVersion}`,
+		};
+	}
 	return (
 		buildClineRequestHeaders(input) ?? buildOpenAICodexRequestHeaders(input)
 	);

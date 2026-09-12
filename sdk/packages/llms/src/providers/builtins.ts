@@ -583,6 +583,9 @@ function modelInfoToGateway(
 	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
 		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
 	}
+	if (info.metadata?.apiProtocol) {
+		metadata.apiProtocol = info.metadata.apiProtocol;
+	}
 	return {
 		id: info.id,
 		name: info.name ?? info.id,
@@ -760,6 +763,19 @@ const clinePass = createClineLikeSpec({
  */
 const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
+		id: "opencode-go",
+		docsUrl: "https://opencode.ai/docs/go/",
+		defaults: { headers: { "User-Agent": "Cline/SDK" } },
+		metadata: {
+			routing: { modelApiProtocol: true },
+			stickySession: {
+				transport: "header",
+				field: "x-opencode-session",
+				metadataKey: "sessionId",
+			},
+		},
+	},
+	{
 		id: "openai-compatible",
 		name: "OpenAI Compatible",
 		description: "OpenAI-compatible chat completions endpoint",
@@ -829,6 +845,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["SAMBANOVA_API_KEY"],
 		modelsProviderId: "sambanova",
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
+	},
+	{
+		id: "crusoe",
+		name: "Crusoe",
+		description: "Managed inference on renewable-powered GPU infrastructure",
+		family: "openai-compatible",
+		defaultModelId: "zai/GLM-5.2",
+		apiKeyEnv: ["CRUSOE_API_KEY"],
+		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
 		id: "litellm",
