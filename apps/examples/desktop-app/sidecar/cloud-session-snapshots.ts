@@ -283,15 +283,12 @@ export function reconcileBufferedCloudEvents(
 		const snapshotSegment = segment.filter((event) =>
 			beforeTranscript.has(event),
 		);
-		// An interrupted run can contain saved replies followed by unsaved output.
+		// A buffered run can contain saved replies followed by unsaved output.
 		const contentEnd = (kind: "assistant" | "reasoning") => {
 			if (!terminal) return -1;
-			const finished =
-				segment.at(-1)?.event === "run.completed"
-					? -1
-					: snapshotSegment.findLastIndex(
-							(event) => event.event === `${kind}.finished`,
-						);
+			const finished = snapshotSegment.findLastIndex(
+				(event) => event.event === `${kind}.finished`,
+			);
 			return finished >= 0 || segment.at(-1)?.event === "run.aborted"
 				? finished
 				: snapshotSegment.length - 1;

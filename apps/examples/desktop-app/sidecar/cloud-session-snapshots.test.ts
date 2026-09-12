@@ -239,6 +239,36 @@ describe("reconcileBufferedCloudEvents", () => {
 	});
 
 	it.each([
+		"assistant",
+		"reasoning",
+	] as const)("preserves %s output completed after the snapshot", (kind) => {
+		const key = kind === "assistant" ? "text" : "reasoning";
+		const saved = event(`${kind}.finished`, "saved", { [key]: "saved" });
+		const partial = event(`${kind}.delta`, "partial", { text: "new reply" });
+		const finished = event(`${kind}.finished`, "finished", {
+			[key]: "new reply",
+		});
+		const end = event("run.completed", "end");
+		expect(
+			reconcileBufferedCloudEvents(
+				[saved, partial, finished, end],
+				[
+					{
+						role: "assistant",
+						content: [
+							{
+								type: kind === "assistant" ? "text" : "thinking",
+								[kind === "assistant" ? "text" : "thinking"]: "saved",
+							},
+						],
+					},
+				],
+				{ messagesSnapshotEventCutoff: 2 },
+			),
+		).toEqual([partial, finished, end]);
+	});
+
+	it.each([
 		"run.completed",
 		"run.aborted",
 		"run.failed",
