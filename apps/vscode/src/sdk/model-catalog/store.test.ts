@@ -632,6 +632,39 @@ describe("createProviderConfigStore", () => {
 		expect(syncStoredProviderRegistration).not.toHaveBeenCalled()
 	})
 
+	it("lets an explicit vision opt-out strip images from the resolved capability list", async () => {
+		// The scalar and the array are two spellings of one claim, and the SDK
+		// runtime reads the array when it is present. Flipping only the scalar
+		// left `supportsImages: false` beside `capabilities: [..., "images"]`,
+		// so a text-only local model kept being handed image blocks (#13694).
+		mocks.setGeneratedModels("openai-compatible", {
+			"vision-model": {
+				name: "Vision Model",
+				contextWindow: 256_000,
+				supportsPromptCache: false,
+				supportsImages: true,
+				capabilities: ["tools", "images"],
+			},
+		})
+		mocks.setModelsFile({
+			version: 1,
+			providers: {
+				"openai-compatible": { models: { "vision-model": { supportsVision: false } } },
+			},
+		})
+		mocks.setApiConfiguration({ actModeOpenAiModelId: "vision-model" })
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		const selection = store.readSelection(providerId, "act")
+
+		expect(selection?.modelInfo.supportsImages).toBe(false)
+		expect(selection?.modelInfo.capabilities ?? []).not.toContain("images")
+		// Only the capability the user turned off moves.
+		expect(selection?.modelInfo.capabilities ?? []).toContain("tools")
+	})
+
 	it("migrates separate Plan and Act legacy custom models independently", async () => {
 		mocks.setApiConfiguration({
 			planActSeparateModelsSetting: true,

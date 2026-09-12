@@ -360,6 +360,30 @@ function writeModelOverrides(providerId: ProviderId, modelId: string, overrides:
 	syncStoredProviderRegistration(provider, state.providers[provider], nextProviderEntry)
 }
 
+/**
+ * Carry an explicit boolean into the capability array, which is the other
+ * spelling of the same claim. The array is what SDK checks read when it is
+ * present, so flipping only the scalar published two answers and let the wrong
+ * one win: `supportsImages: false` beside `capabilities: [..., "images"]`.
+ *
+ * An absent list stays absent. Checks fail open without one, and building a
+ * list here would make an override authoritative about every capability the
+ * user never mentioned.
+ */
+function withCapability(
+	capabilities: readonly string[] | undefined,
+	capability: string,
+	enabled: boolean,
+): readonly string[] | undefined {
+	if (capabilities === undefined) {
+		return undefined
+	}
+	if (capabilities.includes(capability) === enabled) {
+		return capabilities
+	}
+	return enabled ? [...capabilities, capability] : capabilities.filter((entry) => entry !== capability)
+}
+
 function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOverrides | undefined): ModelInfo {
 	if (!overrides) {
 		return modelInfo
@@ -394,8 +418,14 @@ function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOver
 			next.capabilities = [...new Set([...next.capabilities, ...overrides.capabilities])]
 		}
 	}
-	if (overrides.supportsVision !== undefined) next.supportsImages = overrides.supportsVision
-	if (overrides.supportsReasoning !== undefined) next.supportsReasoning = overrides.supportsReasoning
+	if (overrides.supportsVision !== undefined) {
+		next.supportsImages = overrides.supportsVision
+		next.capabilities = withCapability(next.capabilities, "images", overrides.supportsVision)
+	}
+	if (overrides.supportsReasoning !== undefined) {
+		next.supportsReasoning = overrides.supportsReasoning
+		next.capabilities = withCapability(next.capabilities, "reasoning", overrides.supportsReasoning)
+	}
 	return next
 }
 
