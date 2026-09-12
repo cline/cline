@@ -261,7 +261,12 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.delete("ses-outer");
 		expect(await sending).toBeInstanceOf(Error);
 		expect(hub.commands.slice(disposedAt)).toEqual([]);
-		expect(events).toEqual([]);
+		expect(events).toEqual([
+			{
+				name: "tool_approval_state",
+				payload: { items: [], sessionId: "ses-outer" },
+			},
+		]);
 	});
 
 	it.each([
