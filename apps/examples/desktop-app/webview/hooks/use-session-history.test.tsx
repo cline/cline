@@ -233,6 +233,7 @@ describe("useSessionHistory live status", () => {
 	it.each([
 		["running", "running"],
 		["ended", "completed"],
+		["expired", "completed"],
 	])("updates a known cloud session from %s events", async (status, expected) => {
 		await act(async () => {
 			root.render(<HookHarness />);
@@ -260,7 +261,7 @@ describe("useSessionHistory live status", () => {
 
 		expect(current.sessions[0]?.status).toBe(expected);
 		expect(current.threads[0]?.status).toBe(expected);
-		if (status === "ended") {
+		if (expected === "completed") {
 			await flush(1000);
 			expect(pendingLists).toHaveLength(2);
 		}
