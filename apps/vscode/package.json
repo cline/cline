@@ -512,7 +512,7 @@
 		"ignore": "^7.0.3",
 		"image-size": "^2.0.2",
 		"isbinaryfile": "^5.0.2",
-		"js-yaml": "^4.1.1",
+		"js-yaml": "^4.3.2",
 		"jschardet": "^3.1.4",
 		"json5": "^2.2.3",
 		"jwt-decode": "^4.0.0",

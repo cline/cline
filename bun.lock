@@ -415,7 +415,7 @@
         "ignore": "^7.0.3",
         "image-size": "^2.0.2",
         "isbinaryfile": "^5.0.2",
-        "js-yaml": "^4.1.1",
+        "js-yaml": "^4.3.2",
         "jschardet": "^3.1.4",
         "json5": "^2.2.3",
         "jwt-decode": "^4.0.0",
@@ -822,7 +822,7 @@
     "axios": "1.18.0",
     "diff": "8.0.4",
     "fast-uri": ">=3.1.4",
-    "js-yaml": "^4.1.1",
+    "js-yaml": ">=4.3.2 <5",
     "mermaid": "11.16.1",
     "protobufjs": "7.6.5",
     "serialize-javascript": ">=7.0.3",
@@ -3801,7 +3801,7 @@
 
     "js-tokens": ["js-tokens@10.0.0", "", {}, "sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q=="],
 
-    "js-yaml": ["js-yaml@4.3.1", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ=="],
+    "js-yaml": ["js-yaml@4.3.2", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA=="],
 
     "jschardet": ["jschardet@3.1.4", "", {}, "sha512-/kmVISmrwVwtyYU40iQUOp3SUPk2dhNCMsZBQX0R1/jZ8maaXJ/oZIzUOiyOqcgtLnETFKYChbJ5iDC/eWmFHg=="],
 
