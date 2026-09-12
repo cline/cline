@@ -35,6 +35,7 @@ import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
 import { isSafari } from "@/utils/platformUtils"
 import {
 	getMatchingSlashCommands,
+	getSlashCommandsQuery,
 	insertSlashCommand,
 	removeSlashCommand,
 	shouldShowSlashCommandsMenu,
@@ -219,12 +220,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			apiConfiguration,
 			openRouterModels,
 			platform,
-			localWorkflowToggles,
-			globalWorkflowToggles,
-			remoteWorkflowToggles,
-			remoteConfigSettings,
 			navigateToSettingsModelPicker,
 			mcpServers,
+			slashCommands,
+			refreshSlashCommands,
 		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -233,6 +232,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
 		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
+
+		// Re-fetch the host's skills/workflows each time the menu opens so a skill
+		// installed or toggled since the last open shows up (stale-while-revalidate:
+		// the cached list renders immediately and the refresh replaces it).
+		useEffect(() => {
+			if (showSlashCommandsMenu) {
+				void refreshSlashCommands()
+			}
+		}, [showSlashCommandsMenu, refreshSlashCommands])
+
+		// The refresh (or an MCP server update) can shrink the list under an open
+		// menu; keep the keyboard selection inside the new list so Enter/Tab never
+		// picks a row that no longer exists.
+		useEffect(() => {
+			if (!showSlashCommandsMenu) {
+				return
+			}
+			const count = getMatchingSlashCommands(slashCommandsQuery, slashCommands, mcpServers).length
+			setSelectedSlashCommandsIndex((prev) => (count === 0 ? 0 : Math.min(prev, count - 1)))
+		}, [showSlashCommandsMenu, slashCommandsQuery, slashCommands, mcpServers])
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -486,15 +505,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							// Get commands with workflow toggles
-							const allCommands = getMatchingSlashCommands(
-								slashCommandsQuery,
-								localWorkflowToggles,
-								globalWorkflowToggles,
-								remoteWorkflowToggles,
-								remoteConfigSettings?.remoteGlobalWorkflows,
-								mcpServers,
-							)
+							// Commands the menu currently offers, in display order
+							const allCommands = getMatchingSlashCommands(slashCommandsQuery, slashCommands, mcpServers)
 
 							if (allCommands.length === 0) {
 								return prevIndex
@@ -512,16 +524,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(
-							slashCommandsQuery,
-							localWorkflowToggles,
-							globalWorkflowToggles,
-							remoteWorkflowToggles,
-							remoteConfigSettings?.remoteGlobalWorkflows,
-							mcpServers,
-						)
-						if (commands.length > 0) {
-							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
+						const commands = getMatchingSlashCommands(slashCommandsQuery, slashCommands, mcpServers)
+						// The list may have been replaced since the index was set (async refresh).
+						const command = commands[selectedSlashCommandsIndex] ?? commands[commands.length - 1]
+						if (command) {
+							handleSlashCommandsSelect(command)
 						}
 						return
 					}
@@ -743,11 +750,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setShowContextMenu(showMenu)
 
 				if (showSlashCommandsMenu) {
-					// Find the slash nearest to cursor (before cursor position)
-					const beforeCursor = newValue.slice(0, newCursorPosition)
-					const slashIndex = beforeCursor.lastIndexOf("/")
-					const query = newValue.slice(slashIndex + 1, newCursorPosition)
-					setSlashCommandsQuery(query)
+					setSlashCommandsQuery(getSlashCommandsQuery(newValue, newCursorPosition))
 					setSelectedSlashCommandsIndex(0)
 				} else {
 					setSlashCommandsQuery("")
@@ -987,13 +990,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// Extract just the command name (without the slash)
 				const commandName = command.substring(1)
-				const isValidCommand = validateSlashCommand(
-					commandName,
-					localWorkflowToggles,
-					globalWorkflowToggles,
-					remoteWorkflowToggles,
-					remoteConfigSettings?.remoteGlobalWorkflows,
-				)
+				const isValidCommand = validateSlashCommand(commandName, slashCommands, mcpServers)
 
 				if (isValidCommand) {
 					hasHighlightedSlashCommand = true
@@ -1006,7 +1003,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
+		}, [slashCommands, mcpServers])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1431,14 +1428,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
-								globalWorkflowToggles={globalWorkflowToggles}
-								localWorkflowToggles={localWorkflowToggles}
 								mcpServers={mcpServers}
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
 								query={slashCommandsQuery}
-								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
-								remoteWorkflowToggles={remoteWorkflowToggles}
+								runtimeCommands={slashCommands}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 							/>

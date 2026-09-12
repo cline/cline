@@ -4,85 +4,40 @@ import { BASE_SLASH_COMMANDS } from "@/shared/slashCommands"
 import { Controller } from ".."
 
 /**
- * Returns all available slash commands for autocomplete.
+ * Returns all available slash commands for autocomplete: the built-in commands,
+ * then every skill and workflow the SDK runtime discovered — spelled exactly as
+ * the send path resolves them and already filtered by the user's toggles.
+ * Skills are listed before workflows so the menu can group them. MCP prompt
+ * commands are added webview-side from the live MCP server list.
  */
 export async function getAvailableSlashCommands(controller: Controller, _request: EmptyRequest): Promise<SlashCommandsResponse> {
-	const commands: SlashCommandInfo[] = []
+	const commands: SlashCommandInfo[] = BASE_SLASH_COMMANDS.map((cmd) =>
+		SlashCommandInfo.create({
+			name: cmd.name,
+			description: cmd.description,
+			section: "default",
+			cliCompatible: cmd.cliCompatible,
+			kind: "builtin",
+		}),
+	)
 
-	// Add built-in commands
-	for (const cmd of [...BASE_SLASH_COMMANDS]) {
-		commands.push(
-			SlashCommandInfo.create({
-				name: cmd.name,
-				description: cmd.description,
-				section: "default",
-				cliCompatible: cmd.cliCompatible,
-			}),
-		)
-	}
-
-	// Get workflow toggles from state
-	const localWorkflowToggles = controller.stateManager.getWorkspaceStateKey("workflowToggles") ?? {}
-	const globalWorkflowToggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles") ?? {}
-	const remoteWorkflowToggles = controller.stateManager.getGlobalStateKey("remoteWorkflowToggles") ?? {}
-	const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
-	const remoteWorkflows = remoteConfigSettings?.remoteGlobalWorkflows ?? []
-
-	// Track local workflow names to avoid duplicates from global
-	const localNames = new Set<string>()
-
-	// Add local workflows (enabled only)
-	for (const [path, enabled] of Object.entries(localWorkflowToggles)) {
-		if (enabled) {
-			const fileName = fullPathToFileName(path)
-			localNames.add(fileName)
-			commands.push(
-				SlashCommandInfo.create({
-					name: fileName,
-					description: `Custom workflow: ${fileName}`,
-					section: "custom",
-					cliCompatible: true,
-				}),
-			)
-		}
-	}
-
-	// Add global workflows (enabled only, skip if local exists with same name)
-	for (const [path, enabled] of Object.entries(globalWorkflowToggles)) {
-		if (enabled) {
-			const fileName = fullPathToFileName(path)
-			if (!localNames.has(fileName)) {
-				commands.push(
-					SlashCommandInfo.create({
-						name: fileName,
-						description: `Custom workflow: ${fileName}`,
-						section: "custom",
-						cliCompatible: true,
-					}),
-				)
+	const runtimeCommands = await controller.listRuntimeSlashCommands()
+	for (const kind of ["skill", "workflow"] as const) {
+		for (const command of runtimeCommands) {
+			if (command.kind !== kind) {
+				continue
 			}
-		}
-	}
-
-	// Add remote workflows that are enabled
-	for (const workflow of remoteWorkflows) {
-		const enabled = workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
-		if (enabled) {
 			commands.push(
 				SlashCommandInfo.create({
-					name: workflow.name,
-					description: `Remote workflow: ${workflow.name}`,
-					section: "custom",
+					name: command.name,
+					description: command.description ?? "",
+					section: kind === "skill" ? "skill" : "custom",
 					cliCompatible: true,
+					kind,
 				}),
 			)
 		}
 	}
 
 	return SlashCommandsResponse.create({ commands })
-}
-
-function fullPathToFileName(path: string): string {
-	// e.g. replace /path/to/workflow.md with workflow.md
-	return path.replace(/^.*[/\\]/, "")
 }

@@ -1,6 +1,26 @@
 import type { McpServer } from "@shared/mcp"
+import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { describe, expect, it } from "vitest"
-import { getMatchingSlashCommands, getMcpPromptCommands, slashCommandRegex, validateSlashCommand } from "../slash-commands"
+import {
+	getAllSlashCommands,
+	getMatchingSlashCommands,
+	getMcpPromptCommands,
+	getRuntimeSlashCommands,
+	getSlashCommandsQuery,
+	shouldShowSlashCommandsMenu,
+	slashCommandRegex,
+	validateSlashCommand,
+} from "../slash-commands"
+
+// Helper to create a host-served runtime command (what getAvailableSlashCommands returns)
+function runtimeCommand(overrides: Partial<SlashCommandInfo> & Pick<SlashCommandInfo, "name" | "kind">): SlashCommandInfo {
+	return {
+		description: "",
+		section: overrides.kind === "skill" ? "skill" : "custom",
+		cliCompatible: true,
+		...overrides,
+	}
+}
 
 // Helper to create a mock MCP server
 function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -64,6 +84,7 @@ describe("slash-commands", () => {
 					name: "mcp:my-server:summarize",
 					description: "Summarize text",
 					section: "mcp",
+					kind: "mcp-prompt",
 				},
 			])
 		})
@@ -164,25 +185,25 @@ describe("slash-commands", () => {
 		]
 
 		it("should include MCP commands in results when no query", () => {
-			const result = getMatchingSlashCommands("", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("", [], mcpServers)
 			const mcpCommands = result.filter((cmd) => cmd.section === "mcp")
 			expect(mcpCommands).toHaveLength(2)
 		})
 
 		it("should filter MCP commands by query prefix", () => {
-			const result = getMatchingSlashCommands("mcp:test", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("mcp:test", [], mcpServers)
 			const mcpCommands = result.filter((cmd) => cmd.section === "mcp")
 			expect(mcpCommands).toHaveLength(2)
 		})
 
 		it("should filter to specific MCP prompt", () => {
-			const result = getMatchingSlashCommands("mcp:test-server:sum", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("mcp:test-server:sum", [], mcpServers)
 			expect(result).toHaveLength(1)
 			expect(result[0].name).toBe("mcp:test-server:summarize")
 		})
 
 		it("should return empty for non-matching MCP query", () => {
-			const result = getMatchingSlashCommands("mcp:nonexistent", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("mcp:nonexistent", [], mcpServers)
 			expect(result).toHaveLength(0)
 		})
 	})
@@ -196,22 +217,22 @@ describe("slash-commands", () => {
 		]
 
 		it("should return full for exact MCP command match", () => {
-			const result = validateSlashCommand("mcp:server:prompt", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:server:prompt", [], mcpServers)
 			expect(result).toBe("full")
 		})
 
 		it("should return partial for partial MCP command match", () => {
-			const result = validateSlashCommand("mcp:server:pro", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:server:pro", [], mcpServers)
 			expect(result).toBe("partial")
 		})
 
 		it("should return partial for server prefix only", () => {
-			const result = validateSlashCommand("mcp:serv", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:serv", [], mcpServers)
 			expect(result).toBe("partial")
 		})
 
 		it("should return null for non-matching MCP command", () => {
-			const result = validateSlashCommand("mcp:unknown:cmd", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:unknown:cmd", [], mcpServers)
 			expect(result).toBe(null)
 		})
 	})
@@ -236,6 +257,84 @@ describe("slash-commands", () => {
 			const match = text.match(slashCommandRegex)
 			// Should not match because / is not preceded by whitespace or start
 			expect(match).toBeNull()
+		})
+	})
+
+	describe("runtime skills and workflows from the host", () => {
+		const runtime = [
+			runtimeCommand({ name: "aws-deploy", kind: "skill", description: "Deploy to AWS." }),
+			runtimeCommand({ name: "release", kind: "workflow" }),
+			runtimeCommand({ name: "compact", kind: "builtin", description: "host copy of a builtin" }),
+		]
+
+		it("converts host skills and workflows into menu entries and ignores host builtins", () => {
+			expect(getRuntimeSlashCommands(runtime)).toEqual([
+				{ name: "aws-deploy", description: "Deploy to AWS.", section: "skill", kind: "skill", cliCompatible: true },
+				{ name: "release", description: undefined, section: "custom", kind: "workflow", cliCompatible: true },
+			])
+		})
+
+		it("lists skills in the menu, between built-ins and workflows", () => {
+			const names = getMatchingSlashCommands("", runtime).map((cmd) => cmd.name)
+			const skillIndex = names.indexOf("aws-deploy")
+			expect(skillIndex).toBeGreaterThan(names.indexOf("compact"))
+			expect(skillIndex).toBeLessThan(names.indexOf("release"))
+			expect(getMatchingSlashCommands("", runtime).find((cmd) => cmd.name === "aws-deploy")?.section).toBe("skill")
+		})
+
+		it("filters skills by typed prefix, case-insensitively", () => {
+			expect(getMatchingSlashCommands("AWS", runtime).map((cmd) => cmd.name)).toEqual(["aws-deploy"])
+			expect(getMatchingSlashCommands("rel", runtime).map((cmd) => cmd.name)).toEqual(["release"])
+		})
+
+		it("validates a typed skill as full or partial so the input highlights it", () => {
+			expect(validateSlashCommand("aws-deploy", runtime)).toBe("full")
+			expect(validateSlashCommand("aws", runtime)).toBe("partial")
+			expect(validateSlashCommand("aws-deploy", [])).toBeNull()
+		})
+
+		it("lists a skill once when the host reports the same token from two scopes", () => {
+			// Mirrors the local/global dedupe case from #13890: a project and a global
+			// skill with the same name must not produce two menu rows.
+			const duplicated = [
+				runtimeCommand({ name: "aws-deploy", kind: "skill", description: "Project copy" }),
+				runtimeCommand({ name: "aws-deploy", kind: "skill", description: "Global copy" }),
+			]
+			const rows = getMatchingSlashCommands("aws", duplicated)
+			expect(rows).toHaveLength(1)
+			expect(rows[0].description).toBe("Project copy")
+		})
+
+		it("never lets a user command shadow a built-in or an MCP prompt shadow a skill", () => {
+			const shadowing = [runtimeCommand({ name: "compact", kind: "skill", description: "a skill named compact" })]
+			const mcpServers = [createMockMcpServer({ name: "s", prompts: [{ name: "p" }] })]
+			const skillLikeMcp = [
+				runtimeCommand({ name: "mcp:s:p", kind: "skill", description: "skill spelled like an MCP prompt" }),
+			]
+
+			const compact = getAllSlashCommands(shadowing).filter((cmd) => cmd.name === "compact")
+			expect(compact).toHaveLength(1)
+			expect(compact[0].section).toBe("default")
+
+			const mcp = getAllSlashCommands(skillLikeMcp, mcpServers).filter((cmd) => cmd.name === "mcp:s:p")
+			expect(mcp).toHaveLength(1)
+			expect(mcp[0].section).toBe("skill")
+		})
+	})
+
+	describe("shouldShowSlashCommandsMenu / getSlashCommandsQuery", () => {
+		it("opens for a command being typed and reports the typed prefix", () => {
+			expect(shouldShowSlashCommandsMenu("/aws", 4)).toBe(true)
+			expect(getSlashCommandsQuery("/aws", 4)).toBe("aws")
+			expect(shouldShowSlashCommandsMenu("run /aws", 8)).toBe(true)
+			expect(getSlashCommandsQuery("run /aws", 8)).toBe("aws")
+		})
+
+		it("stays closed for paths, completed commands, and second commands", () => {
+			expect(shouldShowSlashCommandsMenu("src/utils", 9)).toBe(false)
+			expect(shouldShowSlashCommandsMenu("/aws-deploy now", 15)).toBe(false)
+			expect(shouldShowSlashCommandsMenu("/aws-deploy then /rel", 21)).toBe(false)
+			expect(getSlashCommandsQuery("/aws-deploy now", 15)).toBe("")
 		})
 	})
 })

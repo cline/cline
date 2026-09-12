@@ -1,6 +1,12 @@
 import type { AvailableRuntimeCommand } from "@cline/core"
 import { describe, expect, it } from "vitest"
-import { buildDisabledWorkflowNames, expandSlashCommands } from "./slash-command-expansion"
+import {
+	buildDisabledSkillNames,
+	buildDisabledWorkflowNames,
+	expandSlashCommands,
+	isRuntimeCommandDisabled,
+	listSlashCommandsInText,
+} from "./slash-command-expansion"
 
 function workflow(name: string, instructions: string): AvailableRuntimeCommand {
 	return { id: name, name, instructions, kind: "workflow" }
@@ -277,5 +283,123 @@ describe("buildDisabledWorkflowNames", () => {
 			remoteToggles: { "org-standards": false },
 		})
 		expect(disabled).toEqual(new Set(["deploy", "hotfix", "org-standards"]))
+	})
+})
+
+describe("listSlashCommandsInText", () => {
+	const commands = [workflow("release", "Run the release workflow."), skill("debug", "Use the debugging skill.")]
+
+	it("lists every resolvable command in text order with its token offsets", () => {
+		const matches = listSlashCommandsInText("/release then /debug", commands)
+		expect(matches.map((match) => match.command.name)).toEqual(["release", "debug"])
+		expect(matches[0]).toMatchObject({ start: 0, end: 8 })
+		expect(matches[1]).toMatchObject({ start: 14, end: 20 })
+	})
+
+	it("includes skills, unlike expansion, so callers can see what the user invoked", () => {
+		expect(listSlashCommandsInText("/debug this", commands)[0]?.command.kind).toBe("skill")
+	})
+
+	it("skips unknown tokens, path segments, and disabled commands", () => {
+		expect(listSlashCommandsInText("/missing and /release/notes.txt", commands)).toEqual([])
+		expect(listSlashCommandsInText("/release", commands, { disabledWorkflowNames: new Set(["release"]) })).toEqual([])
+		expect(listSlashCommandsInText("/debug", commands, { disabledSkillNames: new Set(["debug"]) })).toEqual([])
+	})
+
+	it("accepts the legacy .md spelling and mid-message commands like expansion does", () => {
+		const matches = listSlashCommandsInText("please /release.md now", commands)
+		expect(matches).toHaveLength(1)
+		expect(matches[0]).toMatchObject({ start: 7, end: 18 })
+	})
+
+	it("returns nothing when there is no slash or no commands", () => {
+		expect(listSlashCommandsInText("plain text", commands)).toEqual([])
+		expect(listSlashCommandsInText("/release", [])).toEqual([])
+	})
+})
+
+describe("isRuntimeCommandDisabled", () => {
+	it("maps a normalized skill token back to its configured name through the record id", () => {
+		const command = skill("publish-ui", "Publish.")
+		command.id = "publish ui"
+		const options = {
+			skillRecords: [
+				{ id: "publish ui", name: "Publish UI", filePath: "/repo/.cline/remote-config/skills/publish-ui/SKILL.md" },
+			],
+			disabledSkillNames: new Set(["Publish UI"]),
+		}
+		expect(isRuntimeCommandDisabled(command, options)).toBe(true)
+		expect(isRuntimeCommandDisabled(skill("other", "x"), options)).toBe(false)
+	})
+
+	it("never disables builtin pseudo-skills", () => {
+		const builtin: AvailableRuntimeCommand = {
+			id: "builtin:deep-planning",
+			name: "deep-planning",
+			instructions: "",
+			kind: "skill",
+		}
+		expect(isRuntimeCommandDisabled(builtin, { disabledSkillNames: new Set(["deep-planning"]) })).toBe(false)
+	})
+})
+
+describe("buildDisabledSkillNames", () => {
+	it("disables remote skills whose name-keyed toggle is off", () => {
+		const disabled = buildDisabledSkillNames({
+			records: [
+				{ name: "org-deploy", filePath: "/repo/.cline/remote-config/skills/org-deploy/SKILL.md" },
+				{ name: "org-review", filePath: "/repo/.cline/remote-config/skills/org-review/SKILL.md" },
+				{ name: "org-default", filePath: "C:\\repo\\.cline\\remote-config\\skills\\org-default\\SKILL.md" },
+			],
+			remoteToggles: { "org-deploy": false, "org-review": true },
+		})
+		expect(disabled).toEqual(new Set(["org-deploy"]))
+	})
+
+	it("matches toggles keyed by the configured name against the sanitized directory name", () => {
+		const disabled = buildDisabledSkillNames({
+			records: [{ name: "org-standards", filePath: "/repo/.cline/remote-config/skills/org-standards/SKILL.md" }],
+			remoteToggles: { "Org Standards": false },
+		})
+		expect(disabled).toEqual(new Set(["org-standards"]))
+	})
+
+	it("honors a toggle keyed by the frontmatter name when it differs from the materialized entry name", () => {
+		// The dashboard entry is "Org Deploy" (directory org-deploy) but SKILL.md says
+		// name: deploy-prod; the Skills panel keys the toggle by the frontmatter name.
+		const disabled = buildDisabledSkillNames({
+			records: [{ name: "deploy-prod", filePath: "/repo/.cline/remote-config/skills/org-deploy/SKILL.md" }],
+			remoteToggles: { "deploy-prod": false },
+		})
+		expect(disabled).toEqual(new Set(["deploy-prod"]))
+	})
+
+	it("treats a lock on either identity as enabled", () => {
+		const disabled = buildDisabledSkillNames({
+			records: [{ name: "deploy-prod", filePath: "/repo/.cline/remote-config/skills/org-deploy/SKILL.md" }],
+			remoteToggles: { "deploy-prod": false },
+			remoteAlwaysEnabledNames: ["Org Deploy"],
+		})
+		expect(disabled).toEqual(new Set())
+	})
+
+	it("treats locked (alwaysEnabled) remote skills as enabled despite stale toggles", () => {
+		const disabled = buildDisabledSkillNames({
+			records: [{ name: "org-locked", filePath: "/repo/.cline/remote-config/skills/org-locked/SKILL.md" }],
+			remoteToggles: { "org-locked": false },
+			remoteAlwaysEnabledNames: ["Org Locked"],
+		})
+		expect(disabled).toEqual(new Set())
+	})
+
+	it("leaves local and global skills to their frontmatter, even when a toggle name matches", () => {
+		const disabled = buildDisabledSkillNames({
+			records: [
+				{ name: "debug", filePath: "/home/me/.cline/skills/debug/SKILL.md" },
+				{ name: "review", filePath: "/repo/.cline/skills/review/SKILL.md" },
+			],
+			remoteToggles: { debug: false, review: false },
+		})
+		expect(disabled).toEqual(new Set())
 	})
 })

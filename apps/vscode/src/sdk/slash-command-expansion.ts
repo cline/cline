@@ -1,12 +1,5 @@
 import type { AvailableRuntimeCommand } from "@cline/core"
-
-/**
- * Matches a slash-command token that is either at the start of the message or
- * preceded by whitespace, and followed by whitespace or end-of-string. Kept in
- * sync with the webview's `slashCommandRegex` (webview-ui/src/utils/slash-commands.ts)
- * so anything the chat input highlights/autocompletes as a command can be expanded.
- */
-const SLASH_COMMAND_TOKEN_REGEX = /(^|\s)(\/[a-zA-Z0-9_.:@-]+)(?=\s|$)/g
+import { createSlashCommandTokenRegex } from "@cline/shared"
 
 /**
  * File extensions the SDK's workflow discovery accepts (`MARKDOWN_EXTENSIONS`
@@ -89,6 +82,9 @@ export interface WorkflowRecordRef {
 	filePath: string
 }
 
+/** Discovered skill records (`listRecords("skill")`), same shape as workflows. */
+export type SkillRecordRef = WorkflowRecordRef
+
 export interface ExpandSlashCommandsOptions {
 	/**
 	 * Exact command names of workflows the user disabled via the Workflows
@@ -102,6 +98,14 @@ export interface ExpandSlashCommandsOptions {
 	 * whose frontmatter `name` differs from its filename.
 	 */
 	workflowRecords?: ReadonlyArray<WorkflowRecordRef>
+	/**
+	 * Exact command names of skills the user disabled via the Skills toggles,
+	 * from {@link buildDisabledSkillNames}. Disabled skills are treated as
+	 * unknown commands.
+	 */
+	disabledSkillNames?: ReadonlySet<string>
+	/** Discovered skill records, used to map commands back to their toggle state. */
+	skillRecords?: ReadonlyArray<SkillRecordRef>
 }
 
 /**
@@ -170,24 +174,7 @@ export function expandSlashCommands(
 	commands: readonly AvailableRuntimeCommand[],
 	options: ExpandSlashCommandsOptions = {},
 ): string {
-	if (!text.includes("/") || commands.length === 0) {
-		return text
-	}
-	const disabledWorkflowNames = options.disabledWorkflowNames ?? new Set()
-	const workflowRecords = options.workflowRecords ?? []
-	for (const match of text.matchAll(SLASH_COMMAND_TOKEN_REGEX)) {
-		const token = match[2]
-		const typedName = token.slice(1)
-		const command = findRuntimeCommand(commands, typedName, workflowRecords)
-		if (!command) {
-			continue
-		}
-		if (command.kind === "workflow") {
-			const configuredName = workflowRecords.find((record) => record.id === command.id)?.name ?? command.name
-			if (disabledWorkflowNames.has(configuredName)) {
-				continue
-			}
-		}
+	for (const { command, start, end } of listSlashCommandsInText(text, commands, options)) {
 		// Configured skills are not expanded into the prompt: the SDK session
 		// registers the `skills` tool, whose description requires the model to
 		// invoke it when the user references a slash command, so the
@@ -195,14 +182,78 @@ export function expandSlashCommands(
 		// typed command. Builtins (e.g. /deep-planning) are declared as kind
 		// "skill" but are not served by that tool, so they keep expanding —
 		// as do workflows.
-		if (command.kind === "skill" && !command.id.startsWith("builtin:")) {
+		if (command.kind === "skill" && !isBuiltinCommand(command)) {
 			continue
 		}
-		const start = (match.index ?? 0) + match[1].length
-		const end = start + token.length
 		return text.slice(0, start) + command.instructions + text.slice(end)
 	}
 	return text
+}
+
+/** Builtin pseudo-skills the extension declares itself (e.g. /deep-planning). */
+export function isBuiltinCommand(command: AvailableRuntimeCommand): boolean {
+	return command.id.startsWith("builtin:")
+}
+
+export interface SlashCommandMatch {
+	command: AvailableRuntimeCommand
+	/** Offset of the token's leading slash in the text. */
+	start: number
+	/** Offset just past the token. */
+	end: number
+}
+
+/**
+ * List every slash command in `text` that resolves to a known, enabled runtime
+ * command, in text order. Uses the token regex shared with the webview
+ * (`@cline/shared`), so anything the chat input highlights as a command is
+ * found here. Unknown tokens and commands the user disabled via toggles are
+ * skipped.
+ */
+export function listSlashCommandsInText(
+	text: string,
+	commands: readonly AvailableRuntimeCommand[],
+	options: ExpandSlashCommandsOptions = {},
+): SlashCommandMatch[] {
+	if (!text.includes("/") || commands.length === 0) {
+		return []
+	}
+	const workflowRecords = options.workflowRecords ?? []
+	const matches: SlashCommandMatch[] = []
+	for (const match of text.matchAll(createSlashCommandTokenRegex("g"))) {
+		const token = match[2]
+		const command = findRuntimeCommand(commands, token.slice(1), workflowRecords)
+		if (!command || isRuntimeCommandDisabled(command, options)) {
+			continue
+		}
+		const start = (match.index ?? 0) + match[1].length
+		matches.push({ command, start, end: start + token.length })
+	}
+	return matches
+}
+
+/**
+ * Whether the user disabled this command via the Workflows/Skills toggles.
+ * The disabled sets hold *configured* names (frontmatter `name` or file name),
+ * so the command is mapped back to its record by the stable id first; the
+ * normalized command name is the fallback for callers without records.
+ */
+export function isRuntimeCommandDisabled(
+	command: AvailableRuntimeCommand,
+	options: Pick<
+		ExpandSlashCommandsOptions,
+		"disabledWorkflowNames" | "workflowRecords" | "disabledSkillNames" | "skillRecords"
+	>,
+): boolean {
+	if (command.kind === "workflow") {
+		const configuredName = options.workflowRecords?.find((record) => record.id === command.id)?.name ?? command.name
+		return options.disabledWorkflowNames?.has(configuredName) ?? false
+	}
+	if (command.kind === "skill" && !isBuiltinCommand(command)) {
+		const configuredName = options.skillRecords?.find((record) => record.id === command.id)?.name ?? command.name
+		return options.disabledSkillNames?.has(configuredName) ?? false
+	}
+	return false
 }
 
 export interface BuildDisabledWorkflowNamesOptions {
@@ -280,3 +331,64 @@ export function buildDisabledWorkflowNames(options: BuildDisabledWorkflowNamesOp
 	}
 	return disabled
 }
+
+export interface BuildDisabledSkillNamesOptions {
+	/** Discovered skill records from `listRecords("skill")`. */
+	records: ReadonlyArray<SkillRecordRef>
+	/** `remoteSkillsToggles` (global state) — keyed by remote skill name. */
+	remoteToggles?: Record<string, boolean>
+	/** Names of remote skills the organization locks on (`alwaysEnabled`). */
+	remoteAlwaysEnabledNames?: Iterable<string>
+}
+
+/**
+ * Build the set of exact command names whose skills the user disabled via the
+ * Skills toggles.
+ *
+ * Local and global skills persist their toggle in SKILL.md frontmatter
+ * (`disabled`), which the SDK already honors when listing runtime commands, so
+ * only the enterprise/remote scope needs handling here: remote skills have no
+ * writable frontmatter, and the extension keeps their toggle in name-keyed
+ * `remoteSkillsToggles` instead. Mirrors the remote branch of
+ * {@link buildDisabledWorkflowNames}, with one twist: a remote skill has two
+ * identities. The materializer names its directory after the remote config
+ * *entry* name (`.cline/remote-config/skills/<sanitized entry name>/SKILL.md`),
+ * while the Skills panel (`parseRemoteSkillEntries`) keys the toggle by the
+ * SKILL.md *frontmatter* name, which is also the discovered record's name. The
+ * dashboard is supposed to keep the two in sync but drift is tolerated, so both
+ * keys are checked: a skill counts as disabled when a toggle for either is off,
+ * and as locked when the organization's `alwaysEnabled` list names either.
+ */
+export function buildDisabledSkillNames(options: BuildDisabledSkillNamesOptions): Set<string> {
+	const remoteToggles = new Map<string, boolean>()
+	for (const [name, enabled] of Object.entries(options.remoteToggles ?? {})) {
+		const key = sanitizeRemoteSegment(name)
+		remoteToggles.set(key, (remoteToggles.get(key) ?? false) || enabled)
+	}
+	const remoteAlwaysEnabled = new Set([...(options.remoteAlwaysEnabledNames ?? [])].map(sanitizeRemoteSegment))
+
+	const disabled = new Set<string>()
+	for (const record of options.records) {
+		if (!record.name || !REMOTE_CONFIG_PATH_REGEX.test(record.filePath)) {
+			continue
+		}
+		const skillDirectory = fileBasename(record.filePath.replace(/[/\\][^/\\]*$/, ""))
+		const keys = new Set([sanitizeRemoteSegment(record.name), sanitizeRemoteSegment(skillDirectory)])
+		const locked = [...keys].some((key) => remoteAlwaysEnabled.has(key))
+		const toggledOff = [...keys].some((key) => remoteToggles.get(key) === false)
+		if (!locked && toggledOff) {
+			disabled.add(record.name)
+		}
+	}
+	return disabled
+}
+
+/**
+ * The runtime commands a host resolves plus the toggle state governing them —
+ * the same object feeds both expansion and the autocomplete listing.
+ */
+export type RuntimeSlashCommandContext = {
+	commands: AvailableRuntimeCommand[]
+} & Required<
+	Pick<ExpandSlashCommandsOptions, "workflowRecords" | "skillRecords" | "disabledWorkflowNames" | "disabledSkillNames">
+>

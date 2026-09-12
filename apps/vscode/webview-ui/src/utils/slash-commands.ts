@@ -1,4 +1,13 @@
+import {
+	buildSlashCommandCatalog,
+	createSlashCommandTokenRegex,
+	detectSlashQuery,
+	matchSlashCommands,
+	SLASH_COMMAND_TOKEN_CHARS,
+	validateSlashCommandInput,
+} from "@cline/shared"
 import type { McpServer } from "@shared/mcp"
+import type { SlashCommandInfo } from "@shared/proto/cline/slash"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { BASE_SLASH_COMMANDS, type SlashCommand, VSCODE_ONLY_COMMANDS } from "../../../src/shared/slashCommands.ts"
 
@@ -7,67 +16,28 @@ export type { SlashCommand }
 const DEFAULT_SLASH_COMMANDS: SlashCommand[] =
 	PLATFORM_CONFIG.type === PlatformType.VSCODE ? [...BASE_SLASH_COMMANDS, ...VSCODE_ONLY_COMMANDS] : BASE_SLASH_COMMANDS
 
-function getWorkflowCommands(
-	localWorkflowToggles: Record<string, boolean>,
-	globalWorkflowToggles: Record<string, boolean>,
-	remoteWorkflowToggles?: Record<string, boolean>,
-	remoteWorkflows?: any[],
-): SlashCommand[] {
-	const { workflows: localWorkflows, nameSet: localWorkflowNames } = Object.entries(localWorkflowToggles)
-		.filter(([_, enabled]) => enabled)
-		.reduce(
-			(acc, [filePath, _]) => {
-				const fileName = filePath.replace(/^.*[/\\]/, "")
-
-				// Add to array of workflows
-				acc.workflows.push({
-					name: fileName,
-					section: "custom",
-				} as SlashCommand)
-
-				// Add to set of names
-				acc.nameSet.add(fileName)
-
-				return acc
-			},
-			{ workflows: [] as SlashCommand[], nameSet: new Set<string>() },
-		)
-
-	const globalWorkflows = Object.entries(globalWorkflowToggles)
-		.filter(([_, enabled]) => enabled)
-		.flatMap(([filePath, _]) => {
-			const fileName = filePath.replace(/^.*[/\\]/, "")
-
-			// skip if a local workflow with the same name exists
-			if (localWorkflowNames.has(fileName)) {
-				return []
-			}
-
-			return [
-				{
-					name: fileName,
-					section: "custom",
-				},
-			] as SlashCommand[]
-		})
-
-	// Add remote workflows that are enabled
-	const remoteWorkflowCommands: SlashCommand[] = []
-	if (remoteWorkflows && remoteWorkflowToggles) {
-		for (const workflow of remoteWorkflows) {
-			// Include if alwaysEnabled or if toggle is not explicitly false
-			const enabled = workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
-			if (enabled) {
-				remoteWorkflowCommands.push({
-					name: workflow.name,
-					section: "custom",
-				})
-			}
+/**
+ * Skills and workflows served by the extension host (`getAvailableSlashCommands`),
+ * converted to menu entries. The host already spelled each token the way the
+ * send path resolves it and applied the user's toggles, so nothing is renamed
+ * or filtered here. Built-ins in the host list are ignored: the webview owns
+ * its own (platform-specific) built-in list.
+ */
+export function getRuntimeSlashCommands(runtimeCommands: readonly SlashCommandInfo[] = []): SlashCommand[] {
+	const commands: SlashCommand[] = []
+	for (const command of runtimeCommands) {
+		if (command.kind !== "skill" && command.kind !== "workflow") {
+			continue
 		}
+		commands.push({
+			name: command.name,
+			description: command.description || undefined,
+			section: command.kind === "skill" ? "skill" : "custom",
+			kind: command.kind,
+			cliCompatible: command.cliCompatible,
+		})
 	}
-
-	const workflows = [...localWorkflows, ...globalWorkflows, ...remoteWorkflowCommands]
-	return workflows
+	return commands
 }
 
 /**
@@ -87,6 +57,7 @@ export function getMcpPromptCommands(mcpServers: McpServer[] = []): SlashCommand
 				name: `mcp:${server.name}:${prompt.name}`,
 				description: prompt.description || prompt.title || `MCP prompt from ${server.name}`,
 				section: "mcp",
+				kind: "mcp-prompt",
 			})
 		}
 	}
@@ -94,15 +65,35 @@ export function getMcpPromptCommands(mcpServers: McpServer[] = []): SlashCommand
 	return commands
 }
 
-// Regex for detecting slash commands in text
+/**
+ * Every command the menu can offer, in display order: built-ins, skills,
+ * workflows, then MCP prompts. Earlier groups win name collisions, so a user
+ * command can never shadow a built-in and a skill always beats a same-named
+ * MCP prompt (core already resolves skill/workflow collisions host-side).
+ */
+export function getAllSlashCommands(
+	runtimeCommands: readonly SlashCommandInfo[] = [],
+	mcpServers: McpServer[] = [],
+): SlashCommand[] {
+	const runtime = getRuntimeSlashCommands(runtimeCommands)
+	return buildSlashCommandCatalog([
+		DEFAULT_SLASH_COMMANDS,
+		runtime.filter((command) => command.section === "skill"),
+		runtime.filter((command) => command.section === "custom"),
+		getMcpPromptCommands(mcpServers),
+	])
+}
+
+// Regex for detecting slash commands in text, shared with the extension host's
+// expansion via @cline/shared so anything highlighted here is expandable there.
 // Must be at start of string OR preceded by whitespace to avoid matching URLs/paths
 // e.g., matches "/newtask" or "text /newtask" but not "http://example.com/newtask"
 // Note: Colons are allowed to support MCP prompt commands like /mcp:server:prompt
-export const slashCommandRegex = /(^|\s)(\/[a-zA-Z0-9_.:@-]+)(?=\s|$)/
-export const slashCommandRegexGlobal = new RegExp(slashCommandRegex.source, "g")
+export const slashCommandRegex = createSlashCommandTokenRegex()
+export const slashCommandRegexGlobal = createSlashCommandTokenRegex("g")
 // Regex for detecting a slash command at the end of text (for deletion)
 // Must be at start OR preceded by whitespace, captures the whole command including slash
-export const slashCommandDeleteRegex = /(^|\s)(\/[a-zA-Z0-9_.:@-]+)$/
+export const slashCommandDeleteRegex = new RegExp(String.raw`(^|\s)(\/${SLASH_COMMAND_TOKEN_CHARS}+)$`, "u")
 
 /**
  * Removes a slash command at the cursor position
@@ -133,42 +124,12 @@ export function removeSlashCommand(text: string, position: number): { newText: s
  * slash commands won't trigger suggestions since only one is processed per message.
  */
 export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number): boolean {
-	const beforeCursor = text.slice(0, cursorPosition)
+	return detectSlashQuery(text, cursorPosition) !== null
+}
 
-	// first check if there is a slash before the cursor
-	const slashIndex = beforeCursor.lastIndexOf("/")
-
-	if (slashIndex === -1) {
-		return false
-	}
-
-	// Check if slash is preceded by whitespace or is at the beginning
-	// This allows slash commands anywhere in the message, similar to @ mentions
-	const charBeforeSlash = slashIndex > 0 ? beforeCursor[slashIndex - 1] : null
-	if (charBeforeSlash !== null && !/\s/.test(charBeforeSlash)) {
-		return false
-	}
-
-	// potential partial or full command
-	const textAfterSlash = beforeCursor.slice(slashIndex + 1)
-
-	// don't show menu if there's whitespace after the slash but before the cursor
-	if (/\s/.test(textAfterSlash)) {
-		return false
-	}
-
-	// Only show suggestions for the FIRST slash command in the message.
-	// Check if there's already a valid slash command earlier in the text.
-	// A valid earlier slash command is one that: starts at beginning or after whitespace,
-	// and is followed by whitespace (meaning it's complete).
-	// Note: Colons are allowed to support MCP prompt commands like /mcp:server:prompt
-	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.:@-]+\s/
-	const textBeforeCurrentSlash = text.slice(0, slashIndex)
-	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
-		return false
-	}
-
-	return true
+/** The prefix typed after the slash the menu is open for (empty when the menu should be closed). */
+export function getSlashCommandsQuery(text: string, cursorPosition: number): string {
+	return detectSlashQuery(text, cursorPosition)?.query ?? ""
 }
 
 /**
@@ -176,27 +137,10 @@ export function shouldShowSlashCommandsMenu(text: string, cursorPosition: number
  */
 export function getMatchingSlashCommands(
 	query: string,
-	localWorkflowToggles: Record<string, boolean> = {},
-	globalWorkflowToggles: Record<string, boolean> = {},
-	remoteWorkflowToggles?: Record<string, boolean>,
-	remoteWorkflows?: any[],
+	runtimeCommands: readonly SlashCommandInfo[] = [],
 	mcpServers: McpServer[] = [],
 ): SlashCommand[] {
-	const workflowCommands = getWorkflowCommands(
-		localWorkflowToggles,
-		globalWorkflowToggles,
-		remoteWorkflowToggles,
-		remoteWorkflows,
-	)
-	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
-
-	if (!query) {
-		return allCommands
-	}
-
-	// filter commands that start with the query (case insensitive)
-	return allCommands.filter((cmd) => cmd.name.toLowerCase().startsWith(query.toLowerCase()))
+	return matchSlashCommands(getAllSlashCommands(runtimeCommands, mcpServers), query)
 }
 
 /**
@@ -228,37 +172,8 @@ export function insertSlashCommand(
  */
 export function validateSlashCommand(
 	command: string,
-	localWorkflowToggles: Record<string, boolean> = {},
-	globalWorkflowToggles: Record<string, boolean> = {},
-	remoteWorkflowToggles?: Record<string, boolean>,
-	remoteWorkflows?: any[],
+	runtimeCommands: readonly SlashCommandInfo[] = [],
 	mcpServers: McpServer[] = [],
 ): "full" | "partial" | null {
-	if (!command) {
-		return null
-	}
-
-	const workflowCommands = getWorkflowCommands(
-		localWorkflowToggles,
-		globalWorkflowToggles,
-		remoteWorkflowToggles,
-		remoteWorkflows,
-	)
-	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
-
-	// case insensitive matching
-	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())
-
-	if (exactMatch) {
-		return "full"
-	}
-
-	const partialMatch = allCommands.some((cmd) => cmd.name.toLowerCase().startsWith(command.toLowerCase()))
-
-	if (partialMatch) {
-		return "partial"
-	}
-
-	return null // no match
+	return validateSlashCommandInput(getAllSlashCommands(runtimeCommands, mcpServers), command)
 }
