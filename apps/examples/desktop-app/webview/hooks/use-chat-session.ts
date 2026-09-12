@@ -455,11 +455,16 @@ export function useChatSession() {
 	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// Counts user bubbles appended to the live transcript. A failure bubble
+	// stays the trailing one for its turn until the next user bubble lands;
+	// the turn epoch is not usable here because a retry queued while the
+	// failed send is still settling bumps it without adding a bubble.
+	const userBubbleCountRef = useRef(0);
 	// The failure bubble already shown for the current turn, so a second
 	// report of the same failure updates it instead of adding another.
 	const shownTurnFailureRef = useRef<{
 		sid: string;
-		epoch: number;
+		userBubbleCount: number;
 		id: string;
 		hasDetail: boolean;
 	} | null>(null);
@@ -639,7 +644,11 @@ export function useChatSession() {
 				? credentialFailureMeta(providerId)
 				: undefined;
 			const shown = shownTurnFailureRef.current;
-			if (shown && shown.sid === sid && shown.epoch === turnEpochRef.current) {
+			if (
+				shown &&
+				shown.sid === sid &&
+				shown.userBubbleCount === userBubbleCountRef.current
+			) {
 				if (!description || shown.hasDetail) {
 					return;
 				}
@@ -657,7 +666,7 @@ export function useChatSession() {
 			const message = makeErrorChatMessage(sid, content, meta);
 			shownTurnFailureRef.current = {
 				sid,
-				epoch: turnEpochRef.current,
+				userBubbleCount: userBubbleCountRef.current,
 				id: message.id,
 				hasDetail: Boolean(description),
 			};
@@ -1545,6 +1554,7 @@ export function useChatSession() {
 					return next;
 				});
 				if (userLabel || userImages.length > 0) {
+					userBubbleCountRef.current += 1;
 					// Computed outside the updater: makeId() inside would mint a
 					// different id on each StrictMode re-invocation.
 					const userMessageId = promptId
@@ -2235,6 +2245,7 @@ export function useChatSession() {
 
 			if (optimisticUserMessageId) {
 				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
+				userBubbleCountRef.current += 1;
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,

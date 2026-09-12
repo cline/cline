@@ -2995,6 +2995,96 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("failed");
 	});
 
+	it("keeps a single failure bubble when a retry is queued between the chat_done and RPC reports", async () => {
+		// The failed send is still settling (awaiting its history reads) when
+		// the user retries. That submission is forced onto the queue path,
+		// which bumps the turn epoch without adding a user bubble, so the
+		// late RPC report must still recognize the bubble already on screen.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send" && request.delivery === "queue") {
+						return {
+							ok: true,
+							queued: true,
+							promptsInQueue: [{ id: "queued-retry", prompt: "Retry" }],
+						};
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<boolean> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+		expect(resolveSend).toBeDefined();
+
+		const chatEventHandler = handlerFor("chat_event");
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.messages.filter((m) => m.role === "error")).toHaveLength(1);
+
+		await act(async () => {
+			await current.sendPrompt("Retry");
+		});
+		expect(current.promptsInQueue.map((item) => item.prompt)).toEqual([
+			"Retry",
+		]);
+
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "cline requires re-authentication.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain(
+			"cline requires re-authentication.",
+		);
+		expect(current.error).toBe(errorMessages[0]?.content);
+	});
+
 	it("gives a fresh session that fails to start over credentials the same guidance and fix action", async () => {
 		// A fresh session applies the OAuth credentials in start, so the
 		// rejected refresh surfaces there as a thrown start RPC rather than as
