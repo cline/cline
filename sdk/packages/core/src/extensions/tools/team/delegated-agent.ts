@@ -9,6 +9,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
+import type { ConnectionUpdate } from "../../../runtime/config/connection-update";
 import { SessionRuntime } from "../../../runtime/orchestration/session-runtime-orchestrator";
 import {
 	buildSubAgentSystemPrompt,
@@ -61,6 +62,10 @@ export interface DelegatedAgentRuntimeConfig
 export interface DelegatedAgentConfigProvider {
 	getRuntimeConfig(): DelegatedAgentRuntimeConfig;
 	getConnectionConfig(): DelegatedAgentConnectionConfig;
+	getConnectionSnapshot(): {
+		version: number;
+		config: DelegatedAgentConnectionConfig;
+	};
 	updateConnectionDefaults(
 		overrides: Partial<DelegatedAgentConnectionConfig>,
 	): void;
@@ -90,29 +95,36 @@ export function createDelegatedAgentConfigProvider(
 	initialConfig: DelegatedAgentRuntimeConfig,
 ): DelegatedAgentConfigProvider {
 	let runtimeConfig: DelegatedAgentRuntimeConfig = { ...initialConfig };
+	let connectionVersion = 0;
+	const getConnectionConfig = (): DelegatedAgentConnectionConfig => ({
+		providerId: runtimeConfig.providerId,
+		modelId: runtimeConfig.modelId,
+		apiKey: runtimeConfig.apiKey,
+		baseUrl: runtimeConfig.baseUrl,
+		headers: runtimeConfig.headers,
+		onAuthError: runtimeConfig.onAuthError,
+		providerConfig: runtimeConfig.providerConfig,
+		knownModels: runtimeConfig.knownModels,
+		thinking: runtimeConfig.thinking,
+		reasoningEffort: runtimeConfig.reasoningEffort,
+		thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
+		maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
+		temperature: runtimeConfig.temperature,
+	});
 
 	return {
 		getRuntimeConfig: () => runtimeConfig,
-		getConnectionConfig: () => ({
-			providerId: runtimeConfig.providerId,
-			modelId: runtimeConfig.modelId,
-			apiKey: runtimeConfig.apiKey,
-			baseUrl: runtimeConfig.baseUrl,
-			headers: runtimeConfig.headers,
-			onAuthError: runtimeConfig.onAuthError,
-			providerConfig: runtimeConfig.providerConfig,
-			knownModels: runtimeConfig.knownModels,
-			thinking: runtimeConfig.thinking,
-			reasoningEffort: runtimeConfig.reasoningEffort,
-			thinkingBudgetTokens: runtimeConfig.thinkingBudgetTokens,
-			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
-			temperature: runtimeConfig.temperature,
+		getConnectionConfig,
+		getConnectionSnapshot: () => ({
+			version: connectionVersion,
+			config: getConnectionConfig(),
 		}),
 		updateConnectionDefaults: (overrides) => {
 			runtimeConfig = {
 				...runtimeConfig,
 				...overrides,
 			};
+			connectionVersion += 1;
 		},
 	};
 }
@@ -150,7 +162,32 @@ export function createDelegatedAgent(
 	options: BuildDelegatedAgentConfigOptions,
 ): SessionRuntime {
 	const config = buildDelegatedAgentConfig(options);
-	const session = new SessionRuntime(config);
+	let appliedConnectionVersion =
+		options.configProvider.getConnectionSnapshot().version;
+	let session!: SessionRuntime;
+	const configuredBeforeModelRequest = config.beforeModelRequest;
+	config.beforeModelRequest = async () => {
+		await configuredBeforeModelRequest?.();
+		const snapshot = options.configProvider.getConnectionSnapshot();
+		if (snapshot.version === appliedConnectionVersion) {
+			return;
+		}
+		const connection = snapshot.config;
+		session.updateSuspendedConnection({
+			providerId: connection.providerId,
+			modelId: connection.modelId,
+			apiKey: connection.apiKey ?? "",
+			baseUrl: connection.baseUrl ?? null,
+			headers: connection.headers ?? {},
+			providerConfig:
+				connection.providerConfig as ConnectionUpdate["providerConfig"],
+			thinking: connection.thinking ?? null,
+			reasoningEffort: connection.reasoningEffort ?? null,
+			thinkingBudgetTokens: connection.thinkingBudgetTokens ?? null,
+		});
+		appliedConnectionVersion = snapshot.version;
+	};
+	session = new SessionRuntime(config);
 	if (config.onEvent) {
 		session.subscribeEvents(config.onEvent);
 	}

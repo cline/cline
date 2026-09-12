@@ -85,6 +85,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Resolve live connection settings immediately before agentic compaction. */
+	getProviderConfig?: () => ProviderConfig | undefined;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -276,7 +278,7 @@ export function createContextCompactionPrepareTurn(
 		return undefined;
 	}
 
-	const providerConfig =
+	const initialProviderConfig =
 		config.providerConfig ??
 		({
 			providerId: config.providerId,
@@ -291,6 +293,41 @@ export function createContextCompactionPrepareTurn(
 		: strategy;
 
 	return async (context) => {
+		const liveProviderConfig =
+			options.getProviderConfig?.() ?? initialProviderConfig;
+		// Connection edits may carry a model selected for the next turn. The
+		// sidecar must keep this turn's model, including its metadata and limits.
+		const matchingModelConfig = [
+			liveProviderConfig,
+			initialProviderConfig,
+		].find(
+			(candidate) =>
+				candidate.providerId === context.model.provider &&
+				candidate.modelId === context.model.id,
+		);
+		const modelInfo =
+			(context.model.settings ? context.model.info : undefined) ??
+			matchingModelConfig?.modelInfo ??
+			matchingModelConfig?.knownModels?.[context.model.id];
+		const modelSettings = context.model.settings ?? matchingModelConfig;
+		const connectionConfig =
+			liveProviderConfig.providerId === context.model.provider
+				? liveProviderConfig
+				: initialProviderConfig;
+		const providerConfig = {
+			...connectionConfig,
+			providerId: context.model.provider,
+			modelId: context.model.id,
+			modelInfo,
+			knownModels: {
+				...connectionConfig.knownModels,
+				...(modelInfo ? { [context.model.id]: modelInfo } : {}),
+			},
+			maxInputTokens: modelSettings?.maxInputTokens,
+			maxOutputTokens: modelSettings?.maxOutputTokens,
+			temperature: modelSettings?.temperature,
+			capabilities: modelSettings?.capabilities,
+		} as ProviderConfig;
 		const effectiveMode: CoreCompactionMode = context.overflowRecovery
 			? "overflow_recovery"
 			: mode;
@@ -671,7 +708,12 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 				preserveRecentTokens: 0,
 			},
 		},
-		{ mode: "manual" },
+		{
+			mode: "manual",
+			// The forced-policy copy above must not freeze connection settings
+			// before the first summary or a retry after cancellation.
+			getProviderConfig: () => input.config.providerConfig,
+		},
 	);
 	let pending = summarize !== undefined;
 	return async (context) => {

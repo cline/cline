@@ -55,6 +55,11 @@ export interface SdkSessionLifecycleOptions {
 	 */
 	consumeModeSwitchNotice?: (sessionId: string) => ModeSwitchNotice | null
 	onDidBecomeIdle?: () => void
+	/** Called synchronously when the active-session reference is removed. */
+	onDidEndActiveSession?: () => void
+	/** Brackets startup and replacement, including intervals with no installed session. */
+	onActiveSessionReplacementStarted?: (activeSession: ActiveSession | undefined) => void
+	onActiveSessionReplacementFinished?: (activeSession: ActiveSession | undefined) => void
 }
 
 export class SdkSessionLifecycle {
@@ -92,6 +97,9 @@ export class SdkSessionLifecycle {
 	private clearActiveSessionReference(): ActiveSession | undefined {
 		const activeSession = this.activeSession
 		this.activeSession = undefined
+		if (activeSession) {
+			this.options.onDidEndActiveSession?.()
+		}
 		return activeSession
 	}
 
@@ -144,41 +152,48 @@ export class SdkSessionLifecycle {
 	async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sdkHost: SdkSessionHost }> {
-		if (this.activeSession) {
-			await this.endActiveSession("startNewSession")
+		const replacedSession = this.activeSession
+		this.options.onActiveSessionReplacementStarted?.(replacedSession)
+
+		try {
+			if (this.activeSession) {
+				await this.endActiveSession("startNewSession")
+			}
+
+			// Same-id starts must wait for the previous session's stop to finish;
+			// see pendingStops. A fresh id cannot conflict, so it never waits.
+			const requestedSessionId = startInput.config?.sessionId?.trim()
+			if (requestedSessionId) {
+				await this.waitForPendingStop(requestedSessionId)
+			}
+
+			const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
+			const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
+
+			const sdkHost = await this.getOrCreateSharedHost()
+
+			const startResult = await sdkHost.start({
+				...startInput,
+				...(toolPolicies ? { toolPolicies } : {}),
+			})
+			this.activeSession = {
+				sessionId: startResult.sessionId,
+				startConfig: startInput.config
+					? {
+							providerId: startInput.config.providerId,
+							modelId: startInput.config.modelId,
+						}
+					: undefined,
+				sdkHost,
+				unsubscribe: () => {},
+				startResult,
+				isRunning: true,
+			}
+
+			return { startResult, sdkHost }
+		} finally {
+			this.options.onActiveSessionReplacementFinished?.(this.activeSession)
 		}
-
-		// Same-id starts must wait for the previous session's stop to finish;
-		// see pendingStops. A fresh id cannot conflict, so it never waits.
-		const requestedSessionId = startInput.config?.sessionId?.trim()
-		if (requestedSessionId) {
-			await this.waitForPendingStop(requestedSessionId)
-		}
-
-		const autoApprovalSettings = StateManager.get().getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
-
-		const sdkHost = await this.getOrCreateSharedHost()
-
-		const startResult = await sdkHost.start({
-			...startInput,
-			...(toolPolicies ? { toolPolicies } : {}),
-		})
-		this.activeSession = {
-			sessionId: startResult.sessionId,
-			startConfig: startInput.config
-				? {
-						providerId: startInput.config.providerId,
-						modelId: startInput.config.modelId,
-					}
-				: undefined,
-			sdkHost,
-			unsubscribe: () => {},
-			startResult,
-			isRunning: true,
-		}
-
-		return { startResult, sdkHost }
 	}
 
 	async replaceActiveSession(options: {
@@ -200,18 +215,23 @@ export class SdkSessionLifecycle {
 		}
 
 		const { sessionId: oldSessionId } = oldSession
+		this.options.onActiveSessionReplacementStarted?.(oldSession)
 
-		// No need to await the stop here: callers reuse oldSessionId in the
-		// startInput, and startNewSession waits on the pending stop for it.
-		await this.endActiveSession(options.disposeReason)
+		try {
+			// No need to await the stop here: callers reuse oldSessionId in the
+			// startInput, and startNewSession waits on the pending stop for it.
+			await this.endActiveSession(options.disposeReason)
 
-		const { startResult, sdkHost } = await this.startNewSession({
-			...options.startInput,
-			...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
-		})
-		this.setRunning(false)
+			const { startResult, sdkHost } = await this.startNewSession({
+				...options.startInput,
+				...(options.initialMessages ? { initialMessages: options.initialMessages } : {}),
+			})
+			this.setRunning(false)
 
-		return { oldSessionId, startResult, sdkHost }
+			return { oldSessionId, startResult, sdkHost }
+		} finally {
+			this.options.onActiveSessionReplacementFinished?.(this.activeSession)
+		}
 	}
 
 	async restoreActiveSession(input: RestoreInput): Promise<RestoreResult> {
@@ -220,33 +240,41 @@ export class SdkSessionLifecycle {
 			throw new Error("No active SDK session to restore")
 		}
 
-		const sourceSessionId = activeSession.sessionId
-		const restored = await activeSession.sdkHost.restore(input)
-		if (!restored.startResult || !restored.sessionId) {
+		this.options.onActiveSessionReplacementStarted?.(activeSession)
+		try {
+			const sourceSessionId = activeSession.sessionId
+			const restored = await activeSession.sdkHost.restore(input)
+			if (!restored.startResult || !restored.sessionId) {
+				return restored
+			}
+
+			this.activeSession = {
+				...activeSession,
+				sessionId: restored.sessionId,
+				startConfig: input.start?.config
+					? {
+							providerId: input.start.config.providerId,
+							modelId: input.start.config.modelId,
+						}
+					: activeSession.startConfig,
+				startResult: restored.startResult,
+				isRunning: false,
+			}
+
+			if (restored.sessionId !== sourceSessionId) {
+				const stopPromise = this.trackSessionStop(activeSession.sdkHost, sourceSessionId, "restoreActiveSession")
+				stopPromise.catch((error) => {
+					Logger.warn(
+						`[SdkController] Failed to stop source session after checkpoint restore: ${sourceSessionId}`,
+						error,
+					)
+				})
+			}
+
 			return restored
+		} finally {
+			this.options.onActiveSessionReplacementFinished?.(this.activeSession)
 		}
-
-		this.activeSession = {
-			...activeSession,
-			sessionId: restored.sessionId,
-			startConfig: input.start?.config
-				? {
-						providerId: input.start.config.providerId,
-						modelId: input.start.config.modelId,
-					}
-				: activeSession.startConfig,
-			startResult: restored.startResult,
-			isRunning: false,
-		}
-
-		if (restored.sessionId !== sourceSessionId) {
-			const stopPromise = this.trackSessionStop(activeSession.sdkHost, sourceSessionId, "restoreActiveSession")
-			stopPromise.catch((error) => {
-				Logger.warn(`[SdkController] Failed to stop source session after checkpoint restore: ${sourceSessionId}`, error)
-			})
-		}
-
-		return restored
 	}
 
 	async dispose(reason = "SdkSessionLifecycle.dispose"): Promise<void> {

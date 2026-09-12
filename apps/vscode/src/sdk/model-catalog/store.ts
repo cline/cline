@@ -28,6 +28,7 @@ import type {
 	ResolvedModelSelection,
 } from "./contracts"
 import { buildEffectiveProviderConfig } from "./effective-config"
+import { computeConfigFingerprint } from "./fingerprint"
 import { applyHostModelInfoOverrides } from "./host-overrides"
 import { fromSdkApiFormat, nonNegativeFiniteNumber, positiveFiniteNumber, toSdkApiFormat } from "./model-values"
 import { toSdkProviderId } from "./sdk-provider-id"
@@ -580,6 +581,31 @@ function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
 	return isRecord(settings) ? settings : {}
 }
 
+type ProviderReasoningSettings = NonNullable<ProviderConfigPatch["reasoning"]>
+
+function readProviderReasoningSettings(providerId: ProviderId): ProviderReasoningSettings | undefined {
+	const reasoning = getProviderSettings(providerId).reasoning
+	if (!isRecord(reasoning)) {
+		return undefined
+	}
+
+	const normalized: ProviderReasoningSettings = {
+		...(typeof reasoning.enabled === "boolean" ? { enabled: reasoning.enabled } : {}),
+		...(typeof reasoning.effort === "string" ? { effort: reasoning.effort } : {}),
+		...(typeof reasoning.budgetTokens === "number" ? { budgetTokens: reasoning.budgetTokens } : {}),
+	}
+	return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+function reasoningSettingsEqual(
+	left: ProviderReasoningSettings | undefined,
+	right: ProviderReasoningSettings | undefined,
+): boolean {
+	return (
+		left?.enabled === right?.enabled && left?.effort === right?.effort && Object.is(left?.budgetTokens, right?.budgetTokens)
+	)
+}
+
 function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord): void {
 	const provider = providerSettingsProviderId(providerId)
 	getProviderSettingsManager().saveProviderSettings({ ...next, provider }, { setLastUsed: false })
@@ -934,10 +960,28 @@ export function createProviderConfigStore(): ProviderConfigStore {
 
 		write(providerId: ProviderId, patch: ProviderConfigPatch): EffectiveProviderConfig {
 			const sanitizedPatch = sanitizeApiKeyPatch(patch)
+			if (Object.keys(sanitizedPatch).length === 0) {
+				return this.read(providerId)
+			}
+
+			const previousConfig = this.read(providerId)
+			const previousReasoning = "reasoning" in sanitizedPatch ? readProviderReasoningSettings(providerId) : undefined
 			writeStateFields(providerId, sanitizedPatch)
 			writeProviderSettingsFields(providerId, sanitizedPatch)
 			const config = this.read(providerId)
-			emit({ kind: "fields", providerId, config })
+			const reasoningChanged =
+				"reasoning" in sanitizedPatch &&
+				!reasoningSettingsEqual(previousReasoning, readProviderReasoningSettings(providerId))
+			// Reasoning is persisted alongside provider fields but is not part of
+			// EffectiveProviderConfig, so compare it separately. Suppress unchanged
+			// writes so active SDK sessions are not rebuilt; this also filters
+			// debounced settings inputs that fire once on mount.
+			if (
+				reasoningChanged ||
+				computeConfigFingerprint(providerId, previousConfig) !== computeConfigFingerprint(providerId, config)
+			) {
+				emit({ kind: "fields", providerId, config })
+			}
 			return config
 		},
 

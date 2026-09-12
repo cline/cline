@@ -80,6 +80,40 @@ describe("HubRuntimeHost", () => {
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
 	});
 
+	it("rejects the host-local pre-request callback", async () => {
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.startSession({
+				config: createConfig(),
+				localRuntime: { beforeModelRequest: vi.fn() },
+			}),
+		).rejects.toThrow(
+			"beforeModelRequest is only supported by the local runtime host",
+		);
+		expect(commandMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects the host-local pre-request callback during checkpoint restore", async () => {
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await expect(
+			host.restoreSession({
+				sessionId: "source-session",
+				checkpointRunCount: 1,
+				start: {
+					config: createConfig(),
+					localRuntime: { beforeModelRequest: vi.fn() },
+				},
+			}),
+		).rejects.toThrow(
+			"beforeModelRequest is only supported by the local runtime host",
+		);
+		expect(commandMock).not.toHaveBeenCalled();
+	});
+
 	it("does not auto-start a run during session creation", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		commandMock.mockResolvedValue({

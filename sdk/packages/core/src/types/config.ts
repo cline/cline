@@ -3,6 +3,7 @@ import type {
 	AgentConfig,
 	AgentHooks,
 	AgentMode,
+	AgentPrepareTurnContext,
 	AgentTool,
 	BasicLogger,
 	ConsecutiveMistakeLimitContext,
@@ -92,11 +93,7 @@ export interface CoreCompactionContext {
 	parentAgentId: string | null;
 	iteration: number;
 	messages: MessageWithMetadata[];
-	model: {
-		id: string;
-		provider: string;
-		info?: ModelInfo;
-	};
+	model: AgentPrepareTurnContext["model"];
 	mode: CoreCompactionMode;
 	budget: CoreCompactionBudget;
 	/**
@@ -265,6 +262,13 @@ export interface CoreSessionConfig
 	missionLogIntervalSteps?: number;
 	missionLogIntervalMs?: number;
 	hooks?: AgentHooks;
+	/**
+	 * Host-owned root-runtime callback invoked before request preparation.
+	 * This callback is local-runtime-only; hub and remote runtime hosts reject
+	 * it because functions cannot cross their transport boundary. Delegated
+	 * agents do not inherit it.
+	 */
+	beforeModelRequest?: AgentConfig["beforeModelRequest"];
 	hookErrorMode?: HookErrorMode;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

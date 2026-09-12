@@ -126,6 +126,64 @@ Design rules:
 6. `@cline/agents` runs the loop using `@cline/llms` handlers.
 7. `@cline/core` persists state, artifacts, and metadata.
 
+#### Mid-Run Connection Refresh
+
+Provider-field edits have two coordinated paths in the VS Code host:
+
+1. The normal idle-session rebuild remains authoritative for the complete
+   session configuration, including system-prompt and model metadata that
+   cannot be changed in place.
+2. While a turn is running, the host retains the latest connection-scoped
+   edit and uses a host-local root-runtime callback to apply it before request
+   preparation and recheck it immediately before the provider stream opens.
+   The second check rebases request options when an edit lands during slow
+   preparation or hooks. This includes provider-backed compaction and requests
+   that follow auto-approved tools, not only tools suspended for approval or
+   `ask_question`. Clearing a custom base URL carries an explicit reset marker,
+   so core rebuilds the provider config with its configured default instead of
+   treating an empty URL as that default. Delegated runtimes do not inherit the
+   root callback; shared versioned defaults and session-owned pre-request
+   boundaries refresh already-running subagents, while teammate updates queue
+   the same safe refresh on their existing `SessionRuntime`.
+   The callback is split into host-local bootstrap config; hub and remote
+   runtime hosts reject it instead of silently dropping a function at the JSON
+   transport boundary.
+3. The update travels through `ClineCore` and `LocalRuntimeHost` to
+   `SessionRuntime`. Connection and reasoning edits can replace the active
+   agent model without replacing conversation or tool state, but a changed
+   `providerId` or `modelId` is retained for the next fully rebuilt turn. The
+   active turn keeps its original tools, completion policy, system prompt,
+   tool metadata, `prepareTurn` model context, and result metadata. Host and
+   persisted state can record a deferred selection immediately; the dedicated
+   suspended-connection path updates its host projection only after the agent
+   accepts the in-place replacement.
+4. `AgentRuntime` owns the final safety boundary. Replacement is valid while
+   an interactive tool is suspended between requests or synchronously inside
+   the root pre-request callback; it is rejected during request preparation,
+   while a provider request is streaming, or when no run is active.
+5. The shared VS Code lifecycle brackets first startup, full-session
+   replacement, and checkpoint restore. A first start has no source session;
+   restore keeps its source reference installed while awaiting the host. The
+   provider coordinator retains field edits through both intervals and defers
+   connection application and rebuilds until installation finishes. It then
+   rebinds edits to the matching installed session for its next model request.
+   Nested replacement helpers share the bracket, and a failed restore releases
+   it while retaining the edit for the source session.
+   A response to a suspended approval or question captures that interaction's
+   promise identity before applying provider edits. Resolution checks the same
+   identity synchronously; cancellation or replacement discards the stale
+   response without answering a new ask or queuing it as a follow-up.
+6. Agentic compaction uses the provider/model captured by its turn context.
+   The prepare-turn callback receives a secret-free model-settings snapshot,
+   preserving metadata, token limits, temperature, and capabilities. Live
+   connection fields can refresh that model, but a model selected for the next
+   turn must not change the active turn's compaction handler. An explicit
+   summarizer-model override still applies within the compaction strategy.
+
+These invariants keep runtime safety owned by `agents`, stateful connection
+projection owned by `core`, and provider-watcher/rebuild coordination owned by
+the host.
+
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the

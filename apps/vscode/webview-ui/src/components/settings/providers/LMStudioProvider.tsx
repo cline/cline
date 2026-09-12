@@ -1,15 +1,17 @@
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
+import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { DropdownContainer } from "../common/ModelSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
 /**
  * Props for the LMStudioProvider component
@@ -43,6 +45,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
 	const [pendingSelectedModelId, setPendingSelectedModelId] = useState<string | undefined>(undefined)
+	const lmStudioModelsRequestRef = useRef(0)
 
 	const toLmStudioModelInfo = useCallback((model: LMStudioApiModel | undefined, modelId: string): ModelInfo => {
 		const contextWindow = model?.loaded_context_length ?? model?.max_context_length
@@ -75,6 +78,8 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		() => config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl ?? "http://localhost:1234",
 		[apiConfiguration?.lmStudioBaseUrl, config?.baseUrl],
 	)
+	const endpointRef = useRef(endpoint)
+	endpointRef.current = endpoint
 
 	const handleBaseUrlChange = useCallback(
 		(value: string) => {
@@ -114,24 +119,43 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	// the model control gains focus (no interval polling — the endpoint is
 	// user-configurable, see ENG-2344), so a server started after mount is
 	// still discovered.
-	const requestLmStudioModels = useCallback(async () => {
-		await ModelsServiceClient.getLmStudioModels({
-			value: endpoint,
-		})
-			.then((response) => {
-				if (response?.values) {
-					const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
-					setLmStudioModels(models)
-				}
-			})
-			.catch((error) => {
+	const requestLmStudioModels = useCallback(async (requestEndpoint: string) => {
+		const requestId = ++lmStudioModelsRequestRef.current
+		try {
+			const response = await ModelsServiceClient.getLmStudioModels({ value: requestEndpoint })
+			if (requestId !== lmStudioModelsRequestRef.current) {
+				return
+			}
+			if (response?.values) {
+				const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
+				setLmStudioModels(models)
+			}
+		} catch (error) {
+			if (requestId === lmStudioModelsRequestRef.current) {
 				console.error("Failed to parse LM Studio models:", error)
-			})
-	}, [endpoint])
+			}
+		}
+	}, [])
+	const refreshModelsAfterApiKeyWrite = useCallback(() => {
+		void requestLmStudioModels(endpointRef.current)
+	}, [requestLmStudioModels])
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		onApiKeyWriteSuccess: refreshModelsAfterApiKeyWrite,
+		providerName: "LM Studio",
+		write,
+	})
 
 	useEffect(() => {
-		requestLmStudioModels()
-	}, [requestLmStudioModels])
+		requestLmStudioModels(endpoint)
+	}, [endpoint, requestLmStudioModels])
+
+	useEffect(
+		() => () => {
+			lmStudioModelsRequestRef.current++
+		},
+		[],
+	)
 
 	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
 	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()
@@ -166,9 +190,21 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				placeholder="Default: http://localhost:1234"
 			/>
 
+			<ApiKeyField
+				helpText="Optional API key for authenticated LM Studio servers. Leave empty for local servers without authentication."
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
+				placeholder="Enter API Key (optional)..."
+				providerName="LM Studio"
+				required={false}
+			/>
+
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
-				<DropdownContainer className="dropdown-container" onFocusCapture={() => void requestLmStudioModels()} zIndex={10}>
+				<DropdownContainer
+					className="dropdown-container"
+					onFocusCapture={() => void requestLmStudioModels(endpoint)}
+					zIndex={10}>
 					<VSCodeDropdown
 						className="w-full mb-3"
 						onChange={(e: any) => {
@@ -186,7 +222,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 					</VSCodeDropdown>
 				</DropdownContainer>
 			) : (
-				<div onFocusCapture={() => void requestLmStudioModels()}>
+				<div onFocusCapture={() => void requestLmStudioModels(endpoint)}>
 					<DebouncedTextField
 						initialValue={displayedSelectedModelId || ""}
 						onChange={handleModelChange}

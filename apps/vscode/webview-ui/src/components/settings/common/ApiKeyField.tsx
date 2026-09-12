@@ -13,6 +13,7 @@ interface ApiKeyFieldProps {
 	placeholder?: string
 	helpText?: string
 	label?: string
+	required?: boolean
 }
 
 /**
@@ -26,6 +27,7 @@ export const ApiKeyField = ({
 	placeholder = "Enter API Key...",
 	helpText,
 	label = `${providerName} API Key`,
+	required = true,
 }: ApiKeyFieldProps) => {
 	const [localValue, setLocalValue] = useState(initialValue)
 	const isFocusedRef = useRef(false)
@@ -75,7 +77,7 @@ export const ApiKeyField = ({
 					setLocalValue((e.target as HTMLInputElement | null)?.value ?? "")
 				}}
 				placeholder={placeholder}
-				required={true}
+				required={required}
 				style={{ width: "100%" }}
 				type="password"
 				value={localValue}>

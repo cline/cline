@@ -93,6 +93,54 @@ function createAbortedResult(): AgentResult {
 }
 
 describe("AgentTeamsRuntime teammate lifecycle events", () => {
+	it("forwards complete connection updates to active teammates", () => {
+		const updateConnection = vi.fn();
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+				updateConnection,
+			};
+		});
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		runtime.spawnTeammate({
+			agentId: "python-poet",
+			config: {
+				providerId: "lmstudio",
+				modelId: "local-model",
+				systemPrompt: "Write concise Python-focused haiku",
+				tools: [],
+			},
+		});
+
+		runtime.updateTeammateConnections({
+			apiKey: "new-key",
+			baseUrl: null,
+			providerConfig: {
+				providerId: "lmstudio",
+				modelId: "local-model",
+				baseUrl: "http://localhost:1234/v1",
+			},
+		});
+
+		expect(updateConnection).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "new-key",
+				baseUrl: null,
+				providerConfig: expect.objectContaining({
+					baseUrl: "http://localhost:1234/v1",
+				}),
+			}),
+		);
+	});
+
 	it("spawns teammates with a 10 minute API timeout", () => {
 		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
 		createSessionRuntimeMock.mockImplementationOnce(function () {

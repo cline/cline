@@ -7,6 +7,7 @@ export interface SdkSessionConfigBuilderOptions {
 	stateManager: StateManager
 	emitHookMessage: HookMessageEmitter
 	onConsecutiveMistakeLimitReached?: CoreSessionConfig["onConsecutiveMistakeLimitReached"]
+	beforeModelRequest?: () => Promise<void>
 }
 
 /**
@@ -26,6 +27,7 @@ export class SdkSessionConfigBuilder {
 		}
 
 		config.hooks = buildAgentHooks(this.options.stateManager, this.options.emitHookMessage, input.cwd)
+		config.beforeModelRequest = this.options.beforeModelRequest
 
 		return config
 	}

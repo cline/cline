@@ -607,6 +607,13 @@ export interface AgentPrepareTurnContext {
 		id: string;
 		provider: string;
 		info?: ModelInfo;
+		/** Safe model-scoped snapshot; never includes connection credentials. */
+		settings?: {
+			maxInputTokens?: number;
+			maxOutputTokens?: number;
+			temperature?: number;
+			capabilities?: string[];
+		};
 	};
 	/**
 	 * Set when the previous model request was rejected as exceeding the
@@ -802,6 +809,12 @@ export interface AgentConfig {
 	 * Lifecycle hooks for observing or influencing agent execution.
 	 */
 	hooks?: AgentHooks;
+	/**
+	 * Host-owned callback invoked by the root runtime before request preparation.
+	 * It is intentionally not inherited by delegated agents because it may route
+	 * updates through a host session handle owned by the root runtime.
+	 */
+	beforeModelRequest?: () => void | Promise<void>;
 	/**
 	 * Optional parent agent ID for spawned/delegated runs.
 	 * Root agents should leave this undefined.
