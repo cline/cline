@@ -180,6 +180,7 @@ export function normalizeDiscoveredStatus(
 	const hasPrompt = Boolean(prompt?.trim());
 	if (
 		normalized === "ended" ||
+		normalized === "expired" ||
 		normalized.includes("complete") ||
 		normalized.includes("done")
 	) {
