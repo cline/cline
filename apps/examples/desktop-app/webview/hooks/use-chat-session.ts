@@ -2371,7 +2371,10 @@ export function useChatSession() {
 				if (nextStatus) {
 					const expiredCloudSession =
 						config.executionTarget === "cloud" && nextStatus === "expired";
-					if (expiredCloudSession) setIsCloudSessionExpired(true);
+					if (expiredCloudSession) {
+						setIsCloudSessionExpired(true);
+						setPromptsInQueue([]);
+					}
 					const mappedStatus = expiredCloudSession
 						? "completed"
 						: mapSessionRecordStatus(nextStatus as SessionHistoryStatus);
