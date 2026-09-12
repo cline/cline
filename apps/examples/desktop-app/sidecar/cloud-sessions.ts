@@ -1725,7 +1725,16 @@ export class CloudSessionManager {
 				"run.abort",
 				{ sessionId: innerSessionId },
 				innerSessionId,
-				{ beforeDispatch: throwIfDisposed },
+				{
+					beforeDispatch: () => {
+						throwIfDisposed();
+						if (connection.innerSessionId !== innerSessionId) {
+							throw new Error(
+								"The cloud session reconnected before Stop could be sent. Please try Stop again.",
+							);
+						}
+					},
+				},
 			);
 		}
 		throwIfDisposed();

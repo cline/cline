@@ -338,6 +338,77 @@ describe("CloudSessionManager Hub runtime", () => {
 		}
 	});
 
+	it.each([
+		"pending",
+		"replaced",
+		"same",
+	] as const)("revalidates the Stop target when reconnect discovery is %s at dispatch", async (discovery) => {
+		const { manager, hub, ctx } = createFixture();
+		await manager.list();
+		await manager.send("ses-outer", "running prompt");
+		await hub.resolveHeaders?.();
+		let release!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const target = discovery === "same" ? "inner-1" : "inner-replacement";
+		let reconnect = true;
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "run.abort" && reconnect) {
+				reconnect = false;
+				hub.listedSessions = [{ sessionId: target, updatedAt: 30 }];
+				hub.sessionStatus = "running";
+				hub.subscriptionSessionIds.length = 0;
+				hub.commandHook = async (nextCommand) => {
+					if (nextCommand === "session.list" && discovery === "pending")
+						await blocked;
+				};
+				await hub.resolveHeaders?.();
+				if (discovery !== "pending") {
+					await vi.waitFor(() =>
+						expect(hub.subscriptionSessionIds).toContain(target),
+					);
+				}
+			}
+			options?.beforeDispatch?.();
+			return originalCommand(command, payload, sessionId, options);
+		};
+		try {
+			if (discovery !== "same") {
+				await expect(manager.abort("ses-outer")).rejects.toThrow(
+					"Please try Stop again",
+				);
+				expect(
+					hub.commands.some(({ command }) => command === "run.abort"),
+				).toBe(false);
+				expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+					status: "running",
+					busy: true,
+				});
+			}
+			release();
+			await expect(manager.abort("ses-outer")).resolves.toMatchObject({
+				ok: true,
+			});
+			expect(
+				hub.commands.filter(({ command }) => command === "run.abort"),
+			).toEqual([
+				expect.objectContaining({
+					sessionId: target,
+					payload: { sessionId: target },
+				}),
+			]);
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "aborted",
+				busy: false,
+			});
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
 	it("does not acknowledge Stop when reconnect discovery keeps failing", async () => {
 		const { manager, hub, ctx } = createFixture();
 		await manager.list();
