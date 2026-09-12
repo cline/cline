@@ -1440,7 +1440,14 @@ export class CloudSessionManager {
 				innerSessionId,
 				{
 					timeoutMs: delivery === "queue" ? QUEUE_COMMAND_TIMEOUT_MS : null,
-					beforeDispatch: throwIfCancelled,
+					beforeDispatch: () => {
+						throwIfCancelled();
+						if (connection.innerSessionId !== innerSessionId) {
+							throw new Error(
+								"The cloud session reconnected before the prompt could be sent. Please try again.",
+							);
+						}
+					},
 				},
 			);
 			return {

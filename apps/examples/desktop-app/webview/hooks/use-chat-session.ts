@@ -2397,6 +2397,7 @@ export function useChatSession() {
 					}
 					if (isCloudSession && nextStatus === "expired") {
 						setIsCloudSessionExpired(true);
+						setPromptsInQueue([]);
 					}
 					authoritativeStatusRevisionRef.current += 1;
 					setStatus(mappedStatus);

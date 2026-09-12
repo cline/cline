@@ -1211,6 +1211,7 @@ describe("useChatSession", () => {
 
 	it("locks an attached cloud session when discovery polling reports expired", async () => {
 		const sessionId = "session-expired-poll";
+		const queued = [{ id: "queued", prompt: "next", steer: false }];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "read_session_messages") return [];
@@ -1245,12 +1246,17 @@ describe("useChatSession", () => {
 					startedAt: "2026-09-01T00:00:00Z",
 				}),
 			);
+			await act(async () => {
+				handlerFor("prompts_in_queue_state")({ sessionId, items: queued });
+			});
+			expect(current.promptsInQueue).toEqual(queued);
 			await act(async () => vi.advanceTimersByTimeAsync(3_100));
 		} finally {
 			vi.useRealTimers();
 		}
 		expect(current.isCloudSessionExpired).toBe(true);
 		expect(current.status).toBe("completed");
+		expect(current.promptsInQueue).toEqual([]);
 		invokeMock.mockClear();
 		await act(async () =>
 			expect(await current.sendPrompt("do not send")).toBe(false),
