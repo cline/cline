@@ -1,4 +1,4 @@
-import { HubTransportError } from "@cline/core";
+import { HubCommandError, HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -268,8 +268,9 @@ describe("CloudSessionManager state", () => {
 	});
 
 	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {
-		const { manager, command, replies } = await createFixture();
+		const { manager, command, replies, live } = await createFixture();
 		await manager.send("ses-outer", "yes");
+		live.busy = false;
 		replies["session.messages"] = {
 			messages: [
 				{ role: "user", content: '<user_input mode="act">yes</user_input>' },
@@ -281,27 +282,39 @@ describe("CloudSessionManager state", () => {
 		);
 	});
 
-	it("includes an in-flight prompt in a concurrent send's recovery baseline", async () => {
-		const { manager, command } = await createFixture();
+	it("does not confirm two queued sends from one matching recovered prompt", async () => {
+		const { manager, command, replies, reply } = await createFixture();
 		await manager.readMessages("ses-outer");
 		const blocked = Promise.withResolvers<void>();
 		const reached = Promise.withResolvers<void>();
-		command.mockImplementationOnce(async () => {
-			reached.resolve();
-			await blocked.promise;
-			return { version: "v1", ok: true, payload: {} };
+		let sends = 0;
+		command.mockImplementation(async (name) => {
+			if (name === "session.send_input") {
+				if (++sends === 2) reached.resolve();
+				await blocked.promise;
+				throw transportError();
+			}
+			return reply(name);
 		});
-		const first = manager.send("ses-outer", "same prompt");
+		const results = Promise.allSettled([
+			manager.send("ses-outer", "same prompt", "queue"),
+			manager.send("ses-outer", "same prompt", "queue"),
+		]);
 		await reached.promise;
-		command.mockRejectedValueOnce(transportError());
-		try {
-			await expect(manager.send("ses-outer", "same prompt")).rejects.toThrow(
-				/please send it again/,
-			);
-		} finally {
-			blocked.resolve();
-			await first;
+		// Only one command was accepted by the Hub; neither reply reached this client.
+		replies["session.pending_prompts"] = {
+			prompts: [{ id: "accepted", prompt: "same prompt", delivery: "queue" }],
+		};
+		blocked.resolve();
+		for (const result of await results) {
+			expect(result.status).toBe("rejected");
+			if (result.status === "rejected") {
+				expect(result.reason.message).toMatch(
+					/could not confirm.*before resending/,
+				);
+			}
 		}
+		expect(sends).toBe(2);
 	});
 
 	it("reattaches after a transport failure without retrying the prompt", async () => {
@@ -347,7 +360,7 @@ describe("CloudSessionManager state", () => {
 		).toHaveLength(1);
 	});
 
-	it("confirms a steer accepted in buffered recovery events", async () => {
+	it("keeps a lost steer reply uncertain even with matching recovery events", async () => {
 		const { manager, command, connection, reply } = await createFixture();
 		await manager.readMessages("ses-outer");
 		command
@@ -371,13 +384,16 @@ describe("CloudSessionManager state", () => {
 			.mockRejectedValueOnce(transportError());
 		await expect(
 			manager.send("ses-outer", "Steer accepted", "steer"),
-		).resolves.toMatchObject({ ok: true, recoveredAfterDisconnect: true });
+		).rejects.toThrow(/could not confirm.*before resending/);
 		expect(
 			command.mock.calls.filter(([name]) => name === "session.send_input"),
 		).toHaveLength(1);
 	});
 
-	it("confirms a queued prompt from the recovered queue snapshot", async () => {
+	it.each([
+		"transport",
+		"timeout",
+	])("keeps a queued %s failure uncertain despite a matching snapshot", async (failure) => {
 		const { manager, command, replies } = await createFixture();
 		await manager.readMessages("ses-outer");
 		replies["session.pending_prompts"] = {
@@ -390,14 +406,21 @@ describe("CloudSessionManager state", () => {
 				},
 			],
 		};
-		command.mockRejectedValueOnce(transportError());
+		command.mockRejectedValueOnce(
+			failure === "timeout"
+				? new HubCommandError(
+						"session.send_input",
+						"hub_command_timeout",
+						"timed out",
+					)
+				: transportError(),
+		);
 		await expect(
 			manager.send("ses-outer", "Queued during disconnect", "queue"),
-		).resolves.toMatchObject({
-			ok: true,
-			queued: true,
-			recoveredAfterDisconnect: true,
-		});
+		).rejects.toThrow(/could not confirm.*before resending/);
+		expect(
+			command.mock.calls.filter(([name]) => name === "session.send_input"),
+		).toHaveLength(1);
 	});
 
 	it("names the session from the first prompt and supports rename", async () => {

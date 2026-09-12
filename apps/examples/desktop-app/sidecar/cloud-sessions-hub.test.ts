@@ -1,3 +1,4 @@
+import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -7,6 +8,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -225,6 +227,96 @@ function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it("does not recover a send rejected by deleting its connection", async () => {
+		const hub = new FakeHubClient();
+		const started = Promise.withResolvers<void>();
+		const pendingSend = Promise.withResolvers<void>();
+		hub.commandHook = (command) => {
+			if (command === "session.send_input") {
+				started.resolve();
+				return pendingSend.promise;
+			}
+		};
+		let disposedAt = 0;
+		hub.dispose = async () => {
+			hub.disposed = true;
+			disposedAt = hub.commands.length;
+			pendingSend.reject(
+				new HubTransportError("hub_connection_closed", "disposed"),
+			);
+		};
+		const { manager, events } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => undefined,
+			} as unknown as CloudSessionApi,
+		});
+		await manager.attach("ses-outer");
+		const sending = manager
+			.send("ses-outer", "active prompt")
+			.catch((error: unknown) => error);
+		await started.promise;
+		events.length = 0;
+		await manager.delete("ses-outer");
+		expect(await sending).toBeInstanceOf(Error);
+		expect(hub.commands.slice(disposedAt)).toEqual([]);
+		expect(events).toEqual([]);
+	});
+
+	it.each([
+		"session.attach",
+		"after attachment",
+		"session.get",
+		"session.messages",
+		"session.pending_prompts",
+		"message conversion",
+	])("stops hydration disposed during %s without later commands or events", async (stage) => {
+		const { manager, hub, events } = createFixture();
+		await manager.attach("ses-outer");
+		const started = Promise.withResolvers<void>();
+		const blocked = Promise.withResolvers<void>();
+		const block = async () => {
+			started.resolve();
+			await blocked.promise;
+		};
+		if (stage === "after attachment") {
+			const attach = manager["ensureAttached"].bind(manager);
+			Object.assign(manager, {
+				ensureAttached: async (connection: Parameters<typeof attach>[0]) => {
+					await attach(connection);
+					await block();
+				},
+			});
+		}
+		const conversion =
+			stage === "message conversion"
+				? vi
+						.spyOn(sessionMessages, "readSessionMessages")
+						.mockImplementationOnce(async () => {
+							await block();
+							return [];
+						})
+				: undefined;
+		hub.commandHook = (command) => (command === stage ? block() : undefined);
+		const reading = manager
+			.readMessages("ses-outer")
+			.catch((error: unknown) => error);
+		try {
+			await started.promise;
+			await manager.dispose();
+			const commandCount = hub.commands.length;
+			events.length = 0;
+			blocked.resolve();
+			expect(await reading).toBeInstanceOf(Error);
+			expect(hub.commands).toHaveLength(commandCount);
+			expect(events).toEqual([]);
+		} finally {
+			blocked.resolve();
+			conversion?.mockRestore();
+		}
+	});
+
 	it.each([
 		"session.list",
 		"session.create",
@@ -316,40 +408,85 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 	});
 
-	it("ignores stale running snapshots after a terminal Hub event", async () => {
+	it.each([
+		["run.completed", "completed"],
+		["run.failed", "error"],
+		["run.aborted", "aborted"],
+	] as const)("ignores stale running snapshots after %s", async (event, status) => {
 		const { manager, ctx, events, hub } = createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
 		hub.events?.({
 			version: "v1",
-			event: "run.completed",
+			event,
 			eventId: "evt-done",
 			sequence: 2,
 			sessionId: "inner-1",
 		});
+		for (const sequence of [1, undefined, 3]) {
+			hub.events?.({
+				version: "v1",
+				event: "session.updated",
+				eventId: `evt-stale-${sequence}`,
+				sequence,
+				sessionId: "inner-1",
+				payload: { session: { status: "running" } },
+			});
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status,
+				busy: false,
+			});
+			expect(events.at(-1)?.name).toBe("chat_session_ended");
+		}
+	});
+
+	it.each([
+		"run.started",
+		"session.pending_prompt_submitted",
+		"session.attached",
+	] as const)("accepts a new turn after completion through %s", async (event) => {
+		const { manager, ctx, events, hub } = createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const envelope = { version: "v1" as const, sessionId: "inner-1" };
+		hub.events?.({ ...envelope, event: "run.completed", sequence: 1 });
+		const start = {
+			...envelope,
+			event,
+			sequence: 2,
+			payload:
+				event === "session.pending_prompt_submitted"
+					? { prompt: { id: "q-1", prompt: "Continue" } }
+					: event === "session.attached"
+						? { session: { status: "running" } }
+						: {},
+		};
+		hub.events?.(start);
+		expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+			status: "running",
+			busy: true,
+		});
+		expect(events).toContainEqual({
+			name: "chat_session_status",
+			payload: { sessionId: "ses-outer", status: "running" },
+		});
 		hub.events?.({
-			version: "v1",
+			...envelope,
 			event: "session.updated",
-			eventId: "evt-stale",
-			sequence: 1,
-			sessionId: "inner-1",
+			sequence: 3,
 			payload: { session: { status: "running" } },
 		});
-
-		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
-		expect(events.at(-1)?.name).toBe("chat_session_ended");
-
-		hub.events?.({
-			version: "v1",
-			event: "session.updated",
-			eventId: "evt-stale-unsequenced",
-			sessionId: "inner-1",
-			payload: { session: { status: "running" } },
-		});
-
-		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
-		expect(events.at(-1)?.name).toBe("chat_session_ended");
+		expect(ctx.liveSessions.get("ses-outer")?.busy).toBe(true);
+		if (event === "session.pending_prompt_submitted") {
+			hub.events?.({ ...envelope, event: "run.completed", sequence: 4 });
+			hub.events?.({ ...start, sequence: 5 });
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "completed",
+				busy: false,
+			});
+			expect(events.at(-1)?.name).toBe("chat_session_ended");
+		}
 	});
 
 	it("ignores newer child sessions when reconnecting to the cloud root", async () => {
