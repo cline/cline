@@ -2377,9 +2377,6 @@ export function useChatSession() {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
-					if (isCloudSession && nextStatus === "expired") {
-						setIsCloudSessionExpired(true);
-					}
 					const mappedStatus = isCloudSession
 						? mapCloudRuntimeStatus(nextStatus)
 						: mapSessionRecordStatus(nextStatus as SessionHistoryStatus);
