@@ -408,40 +408,85 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 	});
 
-	it("ignores stale running snapshots after a terminal Hub event", async () => {
+	it.each([
+		["run.completed", "completed"],
+		["run.failed", "error"],
+		["run.aborted", "aborted"],
+	] as const)("ignores stale running snapshots after %s", async (event, status) => {
 		const { manager, ctx, events, hub } = createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
 		hub.events?.({
 			version: "v1",
-			event: "run.completed",
+			event,
 			eventId: "evt-done",
 			sequence: 2,
 			sessionId: "inner-1",
 		});
+		for (const sequence of [1, undefined, 3]) {
+			hub.events?.({
+				version: "v1",
+				event: "session.updated",
+				eventId: `evt-stale-${sequence}`,
+				sequence,
+				sessionId: "inner-1",
+				payload: { session: { status: "running" } },
+			});
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status,
+				busy: false,
+			});
+			expect(events.at(-1)?.name).toBe("chat_session_ended");
+		}
+	});
+
+	it.each([
+		"run.started",
+		"session.pending_prompt_submitted",
+		"session.attached",
+	] as const)("accepts a new turn after completion through %s", async (event) => {
+		const { manager, ctx, events, hub } = createFixture();
+		await manager.list();
+		await manager.attach("ses-outer");
+		const envelope = { version: "v1" as const, sessionId: "inner-1" };
+		hub.events?.({ ...envelope, event: "run.completed", sequence: 1 });
+		const start = {
+			...envelope,
+			event,
+			sequence: 2,
+			payload:
+				event === "session.pending_prompt_submitted"
+					? { prompt: { id: "q-1", prompt: "Continue" } }
+					: event === "session.attached"
+						? { session: { status: "running" } }
+						: {},
+		};
+		hub.events?.(start);
+		expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+			status: "running",
+			busy: true,
+		});
+		expect(events).toContainEqual({
+			name: "chat_session_status",
+			payload: { sessionId: "ses-outer", status: "running" },
+		});
 		hub.events?.({
-			version: "v1",
+			...envelope,
 			event: "session.updated",
-			eventId: "evt-stale",
-			sequence: 1,
-			sessionId: "inner-1",
+			sequence: 3,
 			payload: { session: { status: "running" } },
 		});
-
-		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
-		expect(events.at(-1)?.name).toBe("chat_session_ended");
-
-		hub.events?.({
-			version: "v1",
-			event: "session.updated",
-			eventId: "evt-stale-unsequenced",
-			sessionId: "inner-1",
-			payload: { session: { status: "running" } },
-		});
-
-		expect(ctx.liveSessions.get("ses-outer")?.status).toBe("completed");
-		expect(events.at(-1)?.name).toBe("chat_session_ended");
+		expect(ctx.liveSessions.get("ses-outer")?.busy).toBe(true);
+		if (event === "session.pending_prompt_submitted") {
+			hub.events?.({ ...envelope, event: "run.completed", sequence: 4 });
+			hub.events?.({ ...start, sequence: 5 });
+			expect(ctx.liveSessions.get("ses-outer")).toMatchObject({
+				status: "completed",
+				busy: false,
+			});
+			expect(events.at(-1)?.name).toBe("chat_session_ended");
+		}
 	});
 
 	it("ignores newer child sessions when reconnecting to the cloud root", async () => {
