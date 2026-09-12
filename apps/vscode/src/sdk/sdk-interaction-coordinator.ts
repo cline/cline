@@ -39,9 +39,11 @@ export interface SdkInteractionCoordinatorOptions {
 	/**
 	 * Invoked for manually-approved tools after the auto-approve short-circuit, BEFORE the
 	 * ask message is emitted. Used to open the edit diff preview so the user decides while
-	 * looking at the actual change. Must not throw; failures fall back to a plain ask.
+	 * looking at the actual change. Return `"skip"` only when the edit is already known
+	 * to fail validation: the tool then runs to return its canonical error without asking
+	 * the user to approve a no-op. Other failures fall back to a plain ask.
 	 */
-	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<void>
+	onToolApprovalAsk?: (request: ToolApprovalRequest) => Promise<undefined | "skip">
 	/**
 	 * The task's working directory, used to relativize the absolute filesystem paths
 	 * shown in tool-approval asks (display only). Optional for tests.
@@ -101,7 +103,9 @@ export class SdkInteractionCoordinator {
 		// pre-execution point where the adapter has the full tool input (the SDK emits the
 		// tool's content events only after approval resolves).
 		try {
-			await this.options.onToolApprovalAsk?.(request)
+			if ((await this.options.onToolApprovalAsk?.(request)) === "skip") {
+				return { approved: true }
+			}
 		} catch (error) {
 			Logger.warn(`[SdkController] onToolApprovalAsk failed; showing plain approval ask: ${error}`)
 		}
