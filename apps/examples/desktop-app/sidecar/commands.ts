@@ -137,7 +137,10 @@ import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
-import { normalizeSessionTitle } from "./session-data/common";
+import {
+	compareSessionRecordsByStartedAtDesc,
+	normalizeSessionTitle,
+} from "./session-data/common";
 import {
 	discoverChatSessions,
 	mergeDiscoveredSessionLists,
@@ -1642,6 +1645,13 @@ export async function handleCommand(
 			typeof args?.workspaceRoot === "string"
 				? args.workspaceRoot.trim() || undefined
 				: undefined;
+		// Start now so cloud latency does not add to the local fallback deadline.
+		const cloudDiscovery = (async () => {
+			const manager = getCloudSessionManager(ctx);
+			const sessions = await manager.listForDiscovery({ timeoutMs: 750 });
+			return { manager, sessions };
+		})().catch(() => undefined);
+		let hits: JsonRecord[] = [];
 		if (ctx.hubClient) {
 			try {
 				const reply = await withSearchDeadline(
@@ -1657,7 +1667,7 @@ export async function handleCommand(
 					Array.isArray(reply.payload?.hits) &&
 					reply.payload.hits.length > 0
 				) {
-					return reply.payload.hits.slice(0, limit).map((hit) => ({
+					hits = reply.payload.hits.map((hit) => ({
 						...hit,
 						title: formatSessionSearchTitle(hit.title),
 						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
@@ -1668,11 +1678,34 @@ export async function handleCommand(
 			}
 		}
 
-		const sessions = await withSearchDeadline(
-			listSessionsFromSidecarManager(ctx, 500),
-			1_000,
-		).catch(() => []);
-		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+		if (hits.length === 0) {
+			const sessions = await withSearchDeadline(
+				listSessionsFromSidecarManager(ctx, 500),
+				1_000,
+			).catch(() => []);
+			hits = metadataSessionSearchHits(sessions, query);
+		}
+		hits = hits.filter(
+			(hit) => !workspaceRoot || hit.workspaceRoot === workspaceRoot,
+		);
+		const cloud = await cloudDiscovery;
+		// Account changes replace the manager; discard any in-flight old scope.
+		if (cloud && ctx.cloudSessionManager === cloud.manager) {
+			const seen = new Set(hits.map((hit) => hit.sessionId));
+			const cloudHits = metadataSessionSearchHits(cloud.sessions, query)
+				.filter((hit) => {
+					if (
+						(workspaceRoot && hit.workspaceRoot !== workspaceRoot) ||
+						seen.has(hit.sessionId)
+					)
+						return false;
+					seen.add(hit.sessionId);
+					return true;
+				})
+				.sort(compareSessionRecordsByStartedAtDesc);
+			hits.push(...cloudHits);
+		}
+		return hits.slice(0, limit);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
