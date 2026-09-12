@@ -10,6 +10,34 @@ vi.mock("@opentui/react", () => ({
 	useTerminalDimensions: () => ({ width: 80, height: 24 }),
 }));
 
+describe("Fast status", () => {
+	it.each([
+		false,
+		true,
+	])("shows Fast separately from thinking=%s", (thinking) => {
+		const config = {
+			providerId: "openai-codex",
+			modelId: "gpt-5.4",
+			thinking,
+			reasoningEffort: "high",
+		};
+		const name = thinking ? "gpt-5.4 (high)" : "gpt-5.4";
+		expect(resolveModelDisplayName(config)).toBe(`${name} [Fast: Off]`);
+		expect(
+			resolveModelDisplayName({ ...config, serviceTier: "priority" }),
+		).toBe(`${name} [Fast: On]`);
+	});
+	it("does not show the Codex Fast control for other providers", () => {
+		expect(
+			resolveModelDisplayName({
+				providerId: "anthropic",
+				modelId: "claude",
+				serviceTier: "priority",
+			}),
+		).toBe("claude");
+	});
+});
+
 describe("createContextBar", () => {
 	it("keeps a stable width while changing segment lengths", () => {
 		expect(createContextBar(0, 100)).toEqual({

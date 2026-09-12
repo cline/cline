@@ -396,6 +396,7 @@ function buildGatewayRequest(
 		messages: toGatewayRequestMessages(messages),
 		tools: toGatewayTools(tools),
 		maxTokens: config.maxOutputTokens,
+		serviceTier: config.serviceTier,
 		reasoning:
 			config.thinking !== undefined ||
 			config.reasoningEffort ||

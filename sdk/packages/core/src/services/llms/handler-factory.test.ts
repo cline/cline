@@ -39,6 +39,33 @@ describe("createAgentModelFromConfig", () => {
 		gatewayMock.createHandlerAsync.mockReset();
 	});
 
+	it.each([
+		undefined,
+		"priority",
+	] as const)("keeps serviceTier %s out of provider connection options", async (serviceTier) => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+		createAgentModelFromConfig(
+			{
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				systemPrompt: "",
+				tools: [],
+				serviceTier,
+				thinking: false,
+			},
+			undefined,
+		);
+		expect(gatewayMock.createGateway).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						options: undefined,
+					}),
+				],
+			}),
+		);
+	});
+
 	it("forwards effective telemetry into the gateway", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 		const logger = {

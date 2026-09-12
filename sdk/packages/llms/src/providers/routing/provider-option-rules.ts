@@ -164,6 +164,10 @@ const openAiCodexRule: ProviderOptionRule = {
 	build: (input) => {
 		const codexOptions = {
 			...input.compatibleOptions,
+			// Scheduling is independent of reasoning and scoped to Codex only.
+			...(input.request.serviceTier === "priority"
+				? { serviceTier: "priority" as const }
+				: {}),
 			instructions: input.request.systemPrompt,
 			store: false,
 			strictJsonSchema: false,

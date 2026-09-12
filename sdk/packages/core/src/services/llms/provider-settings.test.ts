@@ -2,6 +2,51 @@ import { describe, expect, it } from "vitest";
 import { safeParseSettings, toProviderConfig } from "./provider-settings";
 
 describe("provider settings", () => {
+	it.each([
+		undefined,
+		"priority",
+	] as const)("accepts serviceTier %s", (serviceTier) => {
+		const result = safeParseSettings({ provider: "openai-codex", serviceTier });
+		expect(result.success).toBe(true);
+		if (!result.success) throw result.error;
+		expect(result.data.serviceTier).toBe(serviceTier);
+		expect(toProviderConfig(result.data).serviceTier).toBe(serviceTier);
+	});
+
+	it.each([
+		"auto",
+		"default",
+		"flex",
+		"",
+		null,
+		true,
+		1,
+	])("rejects invalid serviceTier %s", (serviceTier) => {
+		expect(
+			safeParseSettings({ provider: "openai-codex", serviceTier }).success,
+		).toBe(false);
+	});
+
+	it.each([
+		undefined,
+		{ enabled: false, effort: "none" },
+		{ enabled: true, effort: "high", budgetTokens: 2048 },
+	] as const)("keeps service tier independent of reasoning %j", (reasoning) => {
+		const result = safeParseSettings({
+			provider: "openai-codex",
+			serviceTier: "priority",
+			reasoning,
+		});
+		if (!result.success) throw result.error;
+		const config = toProviderConfig(result.data);
+		const withoutTier = toProviderConfig({
+			...result.data,
+			serviceTier: undefined,
+		});
+		expect(config).toEqual({ ...withoutTier, serviceTier: "priority" });
+		expect(result.data.reasoning).toEqual(reasoning);
+	});
+
 	it("formats Cline OAuth access tokens for runtime API keys", () => {
 		const config = toProviderConfig({
 			provider: "cline",

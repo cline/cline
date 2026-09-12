@@ -538,6 +538,9 @@ export class SessionRuntime {
 		if (updates.headers !== undefined) next.headers = updates.headers;
 		if (updates.providerConfig !== undefined)
 			next.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "serviceTier")) {
+			next.serviceTier = updates.serviceTier ?? undefined;
+		}
 		if (Object.hasOwn(updates, "reasoningEffort")) {
 			next.reasoningEffort = updates.reasoningEffort ?? undefined;
 		}
