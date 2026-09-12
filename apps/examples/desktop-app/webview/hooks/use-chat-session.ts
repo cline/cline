@@ -590,7 +590,7 @@ export function useChatSession() {
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
 			// Deliberately avoids matching a bare "token": provider failures like
 			// "maximum context tokens exceeded" or rate-limit messages are not
-			// credential problems and must not point users at Settings → Models.
+			// credential problems and must not point users at Settings → API Providers.
 			const looksCredentialRelated =
 				!description ||
 				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
