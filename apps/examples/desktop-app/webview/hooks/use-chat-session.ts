@@ -14,6 +14,7 @@ import {
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
+	resolveCredentialFailureAction,
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import type {
@@ -118,6 +119,7 @@ function errorMessage(err: unknown): string {
 function makeErrorChatMessage(
 	sid: string | null,
 	content: string,
+	meta?: ChatMessage["meta"],
 ): ChatMessage {
 	return {
 		id: makeId("error"),
@@ -125,6 +127,7 @@ function makeErrorChatMessage(
 		role: "error",
 		content,
 		createdAt: Date.now(),
+		...(meta ? { meta } : {}),
 	};
 }
 
@@ -451,6 +454,14 @@ export function useChatSession() {
 	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// The failure bubble already shown for the current turn, so a second
+	// report of the same failure updates it instead of adding another.
+	const shownTurnFailureRef = useRef<{
+		sid: string;
+		epoch: number;
+		id: string;
+		hasDetail: boolean;
+	} | null>(null);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -582,8 +593,12 @@ export function useChatSession() {
 	// first prompt of a fresh session, which the runtime consumes from its
 	// queue) never resolve through the send() RPC, so without this the app
 	// fails silently: the user message sits alone with no response and no
-	// explanation. Skips appending when an error for this turn is already
-	// visible so the RPC path and the chat_done stream never double-report.
+	// explanation. The RPC path and the chat_done stream can both report the
+	// same failure, and chat_done often lands first with no detail (the hub's
+	// run.failed for a thrown send carries none); the later, detailed report
+	// then upgrades the bubble in place rather than adding a second one. The
+	// `error` state follows the bubble so the chat never also shows it as a
+	// banner.
 	const appendTurnFailureMessage = useCallback(
 		(sid: string, detail: string) => {
 			const description =
@@ -596,26 +611,43 @@ export function useChatSession() {
 				/unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
 					description,
 				);
+			const providerId = providerIdRef.current;
 			const content = [
 				description
 					? `The run failed: ${description}`
 					: "The run failed before a response was produced.",
-				looksCredentialRelated
-					? resolveCredentialFailureHint(providerIdRef.current)
-					: "",
+				looksCredentialRelated ? resolveCredentialFailureHint(providerId) : "",
 			]
 				.filter(Boolean)
 				.join(" ");
-			setMessages((prev) => {
-				const sessionMessages = prev.filter(
-					(message) => message.sessionId === sid,
-				);
-				const last = sessionMessages[sessionMessages.length - 1];
-				if (last?.role === "error") {
-					return prev;
+			const meta: ChatMessage["meta"] =
+				looksCredentialRelated && resolveCredentialFailureAction(providerId)
+					? { reason: "credentials", providerId }
+					: undefined;
+			const shown = shownTurnFailureRef.current;
+			if (shown && shown.sid === sid && shown.epoch === turnEpochRef.current) {
+				if (!description || shown.hasDetail) {
+					return;
 				}
-				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
-			});
+				shown.hasDetail = true;
+				setMessages((prev) =>
+					updateMessageById(prev, shown.id, (message) => ({
+						...message,
+						content,
+						meta,
+					})),
+				);
+				setError(content);
+				return;
+			}
+			const message = makeErrorChatMessage(sid, content, meta);
+			shownTurnFailureRef.current = {
+				sid,
+				epoch: turnEpochRef.current,
+				id: message.id,
+				hasDetail: Boolean(description),
+			};
+			setMessages((prev) => sliceMessages([...prev, message]));
 			setError(content);
 		},
 		[],
@@ -2985,6 +3017,7 @@ export function useChatSession() {
 		outstandingOptimisticUserIdsRef.current.clear();
 		rekeyedOptimisticIdByMessageIdRef.current = {};
 		lastCoreErrorBySessionRef.current = {};
+		shownTurnFailureRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setActivityLabel(null);
@@ -3051,6 +3084,7 @@ export function useChatSession() {
 				outstandingOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
+				shownTurnFailureRef.current = null;
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,

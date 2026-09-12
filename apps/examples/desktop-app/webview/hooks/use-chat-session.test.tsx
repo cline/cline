@@ -2898,6 +2898,103 @@ describe("useChatSession", () => {
 		expect(errorMessages[0]?.content).toContain("The run failed");
 	});
 
+	it("shows one failure bubble when chat_done lands without detail before the send RPC reports the error", async () => {
+		// The OAuth refresh throwing before the turn begins: the hub's
+		// run.failed (no text) reaches the webview as a detail-less chat_done,
+		// then the send RPC resolves with the actual error. This used to leave
+		// the detail-less bubble in place and surface the detailed copy as a
+		// second error banner underneath it.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<boolean> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+		expect(resolveSend).toBeDefined();
+
+		const chatEventHandler = handlerFor("chat_event");
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.messages.filter((m) => m.role === "error")).toHaveLength(1);
+		expect(current.error).toContain(
+			"The run failed before a response was produced.",
+		);
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "cline requires re-authentication.",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "cline requires re-authentication.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain(
+			"The run failed: cline requires re-authentication.",
+		);
+		expect(errorMessages[0]?.content).not.toContain(
+			"before a response was produced",
+		);
+		// The credential action points at the Cline account page.
+		expect(errorMessages[0]?.meta).toEqual({
+			reason: "credentials",
+			providerId: "cline",
+		});
+		// The banner-driving error state must match the bubble, or the chat
+		// renders the same failure twice.
+		expect(current.error).toBe(errorMessages[0]?.content);
+		expect(current.status).toBe("failed");
+	});
+
 	it("does not give credential guidance for non-credential failures", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
