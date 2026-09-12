@@ -1,11 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { decodeJwtPayload } from "@cline/shared";
+import { NodeHubClient } from "@cline/core";
+import { decodeJwtPayload, type HubEventEnvelope } from "@cline/shared";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
 	CloudRepositoryListResult,
 } from "../webview/lib/cloud-repositories";
+import { sendEvent } from "./context";
+import { resolveSessionListTitle } from "./session-data/common";
+import type {
+	JsonRecord,
+	LiveSession,
+	PromptInQueue,
+	SidecarContext,
+} from "./types";
 
+const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -32,11 +42,6 @@ export type CloudSessionRecord = {
 	createdAt: string;
 	updatedAt: string;
 };
-
-export type CloudProvisioningOutcome =
-	| { status: "provisioning" }
-	| { status: "ready"; sessionId: string }
-	| { status: "failed"; message: string };
 
 export function deriveCloudSessionTitle(prompt: string): string {
 	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
@@ -709,4 +714,464 @@ export class CloudSessionApi {
 		}
 		return payload.messages;
 	}
+}
+function isExpiredRecord(record: CloudSessionRecord): boolean {
+	const expiredAt = record.expiredAt
+		? Date.parse(record.expiredAt)
+		: Number.NaN;
+	return Number.isFinite(expiredAt) && expiredAt <= Date.now();
+}
+
+type CloudHubClient = Pick<
+	NodeHubClient,
+	"command" | "connect" | "dispose" | "getClientId" | "subscribe"
+>;
+
+type CloudRehydrationSnapshot = {
+	status: string;
+	messages: unknown[];
+	prompts?: PromptInQueue[];
+	submittedPrompts: PromptInQueue[];
+};
+
+type CloudConnection = {
+	remote: CloudSessionRecord;
+	client: CloudHubClient;
+	innerSessionId?: string;
+	rehydrationPromise?: Promise<CloudRehydrationSnapshot>;
+	rehydrationRerunRequested?: boolean;
+	bufferingEvents?: boolean;
+	bufferedEvents: HubEventEnvelope[];
+	rehydrationGeneration: number;
+	transcriptKnown: boolean;
+	seenEventIds: Set<string>;
+	seenEventIdOrder: string[];
+	/** Prevents concurrent sends from creating competing inner sessions. */
+	innerSessionCreation?: Promise<void>;
+	/** Set by disposeConnection; late timers and approval callbacks must not
+	 * command (and thereby resurrect) a disposed client. */
+	disposed?: boolean;
+	/** Rate-limits cloud_session_sync_failed to state transitions so a
+	 * reconnect loop cannot spam the UI on every attempt. */
+	syncFailureNotified?: boolean;
+	unsubscribe: () => void;
+};
+
+type CloudSessionManagerOptions = {
+	api: Pick<
+		CloudSessionApi,
+		| "create"
+		| "delete"
+		| "list"
+		| "status"
+		| "history"
+		| "updateTitle"
+		| "listRepositories"
+		| "listBranches"
+	>;
+	getAuthToken: () => Promise<string | undefined>;
+	apiBaseUrl: string;
+	getActiveOrganizationId?: (options?: {
+		fresh?: boolean;
+	}) => Promise<string | undefined>;
+	createHubClient?: (
+		options: ConstructorParameters<typeof NodeHubClient>[0],
+	) => CloudHubClient;
+};
+
+export function isCloudOuterSessionId(sessionId: string): boolean {
+	return sessionId.trim().startsWith("ses-");
+}
+
+function recordToLiveSession(record: CloudSessionRecord): LiveSession {
+	return {
+		config: {
+			executionTarget: "cloud",
+			provider: "cline",
+			providerId: "cline",
+			model: record.metadata.modelId ?? "",
+			modelId: record.metadata.modelId ?? "",
+			repoUrl: record.repoContext.repoUrl ?? "",
+			branch: record.repoContext.branch ?? "",
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		},
+		messages: [],
+		promptsInQueue: [],
+		// REST "active" means a proxy WebSocket is open, not that the agent is
+		// running. Hub attach/events provide the authoritative busy state.
+		busy: false,
+		startedAt: Date.parse(record.createdAt) || Date.now(),
+		// A future TTL is not an end time.
+		endedAt:
+			isExpiredRecord(record) && record.expiredAt
+				? Date.parse(record.expiredAt)
+				: undefined,
+		status: record.status,
+		attachedViaHub: true,
+	};
+}
+
+export function cloudSessionToDiscoveryRecord(
+	record: CloudSessionRecord,
+): JsonRecord {
+	return {
+		sessionId: record.id,
+		origin: "cloud",
+		executionTarget: "cloud",
+		status: record.status,
+		provider: "cline",
+		model: record.metadata.modelId ?? "",
+		cwd: CLOUD_WORKSPACE_ROOT,
+		workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		repoUrl: record.repoContext.repoUrl ?? "",
+		branch: record.repoContext.branch ?? "",
+		// updatedAt changes on every reconnect, so it is not a stable start time.
+		startedAt: record.createdAt,
+		endedAt: isExpiredRecord(record)
+			? (record.expiredAt ?? undefined)
+			: undefined,
+		updatedAt: record.updatedAt,
+		...(record.title?.trim() ? { title: record.title.trim() } : {}),
+		metadata: {
+			...(record.title?.trim() ? { title: record.title.trim() } : {}),
+			origin: "cloud",
+			repoUrl: record.repoContext.repoUrl ?? "",
+			git: {
+				url: record.repoContext.repoUrl ?? "",
+				branch: record.repoContext.branch ?? "",
+			},
+		},
+	};
+}
+export class CloudSessionManager {
+	private disposed = false;
+	private readonly connections = new Map<string, CloudConnection>();
+	private readonly connectionPromises = new Map<
+		string,
+		Promise<CloudConnection>
+	>();
+	private readonly knownSessions = new Map<string, CloudSessionRecord>();
+	private lastListedSessions: CloudSessionRecord[] = [];
+	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
+	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
+	private readonly deletingSessions = new Set<string>();
+	private readonly createHubClient: NonNullable<
+		CloudSessionManagerOptions["createHubClient"]
+	>;
+
+	constructor(
+		private readonly ctx: SidecarContext,
+		private readonly options: CloudSessionManagerOptions,
+	) {
+		this.createHubClient =
+			options.createHubClient ??
+			((clientOptions) => new NodeHubClient(clientOptions));
+	}
+
+	isCloudSession(sessionId: string): boolean {
+		return (
+			isCloudOuterSessionId(sessionId) ||
+			this.knownSessions.has(sessionId) ||
+			this.connections.has(sessionId) ||
+			this.ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud"
+		);
+	}
+
+	/** Returns a session this process already created or discovered without
+	 * making account/environment availability a prerequisite for opening it. */
+	getCachedDiscoveryRecord(sessionId: string): JsonRecord | undefined {
+		const record = this.knownSessions.get(sessionId);
+		return record ? cloudSessionToDiscoveryRecord(record) : undefined;
+	}
+
+	/** Revalidates a cached row by id when the active-scope list does not include it. */
+	async getCrossScopeDiscoveryRecord(
+		sessionId: string,
+	): Promise<JsonRecord | undefined> {
+		const cached = this.getCachedDiscoveryRecord(sessionId);
+		if (!cached) {
+			return undefined;
+		}
+		try {
+			const status = await this.options.api.status(sessionId);
+			const value = status.status?.trim();
+			return value ? { ...cached, status: value } : cached;
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				this.knownSessions.delete(sessionId);
+				return undefined;
+			}
+			// A scope/auth/network failure cannot prove the cached session is gone.
+			return cached;
+		}
+	}
+
+	async list(): Promise<CloudSessionRecord[]> {
+		const organizationId = await this.resolveActiveOrganizationId();
+		const listed = (await this.options.api.list(organizationId)).map(
+			(session) => this.preserveConnectedRuntimeModel(session),
+		);
+		// Keep canonical rows available while their status checks run.
+		this.lastListedSessions = listed;
+		for (const session of listed) {
+			this.knownSessions.set(session.id, session);
+		}
+		const scoped = await Promise.all(
+			listed.map(async (session) => {
+				if (session.status !== "provisioning") {
+					return session;
+				}
+				const result = await this.options.api
+					.status(session.id)
+					.catch(() => undefined);
+				const status = result?.status?.trim();
+				if (!status) return session;
+				return {
+					...session,
+					status,
+					metadata: {
+						...session.metadata,
+						...(result?.statusReason?.trim()
+							? { statusReason: result.statusReason.trim() }
+							: {}),
+					},
+				};
+			}),
+		);
+		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
+		for (const session of scoped) {
+			this.knownSessions.set(session.id, session);
+			const live = this.ctx.liveSessions.get(session.id);
+			if (
+				live?.status === "provisioning" &&
+				session.status !== "provisioning"
+			) {
+				live.status = session.status;
+			}
+			const connection = this.connections.get(session.id);
+			if (connection) {
+				connection.remote = session;
+			}
+			if (isExpiredRecord(session)) {
+				if (live) {
+					live.busy = false;
+					live.status = "expired";
+					live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
+				}
+				if (connection) {
+					// Expired sandboxes must stop reconnecting.
+					void this.disposeConnection(session.id).catch(() => undefined);
+				}
+			}
+		}
+		this.lastListedSessions = scoped;
+		return scoped;
+	}
+
+	private preserveConnectedRuntimeModel(
+		session: CloudSessionRecord,
+	): CloudSessionRecord {
+		const runtimeModel = this.connections
+			.get(session.id)
+			?.remote.metadata.modelId?.trim();
+		if (!runtimeModel || runtimeModel === session.metadata.modelId) {
+			return session;
+		}
+		return {
+			...session,
+			metadata: { ...session.metadata, modelId: runtimeModel },
+		};
+	}
+
+	private async resolveActiveOrganizationId(options?: {
+		fresh?: boolean;
+	}): Promise<string | undefined> {
+		return await this.options.getActiveOrganizationId?.(options);
+	}
+
+	async listRepositories(): Promise<CloudRepositoryListResult> {
+		return await this.options.api.listRepositories(
+			await this.resolveActiveOrganizationId(),
+		);
+	}
+
+	async listBranches(
+		repositoryId: number,
+		options: CloudBranchListOptions = {},
+	): Promise<CloudBranchListResult> {
+		return await this.options.api.listBranches(
+			repositoryId,
+			await this.resolveActiveOrganizationId(),
+			options,
+		);
+	}
+
+	async listForDiscovery(
+		options: { timeoutMs?: number } = {},
+	): Promise<JsonRecord[]> {
+		const refresh =
+			this.discoveryRefresh ??
+			this.list().finally(() => {
+				if (this.discoveryRefresh === refresh) {
+					this.discoveryRefresh = undefined;
+				}
+			});
+		this.discoveryRefresh = refresh;
+
+		let records = this.lastListedSessions;
+		if (options.timeoutMs === undefined) {
+			records = await refresh;
+		} else {
+			let timeout: ReturnType<typeof setTimeout> | undefined;
+			const result = await Promise.race([
+				refresh.then(
+					(value) => ({ value }),
+					(error) => {
+						this.ctx.logger?.error?.("Cloud session discovery failed", {
+							error,
+						});
+						return { value: this.lastListedSessions };
+					},
+				),
+				new Promise<{ value: CloudSessionRecord[] }>((resolve) => {
+					timeout = setTimeout(
+						() => resolve({ value: this.lastListedSessions }),
+						Math.max(0, options.timeoutMs ?? 0),
+					);
+				}),
+			]);
+			if (timeout) clearTimeout(timeout);
+			records = result.value;
+		}
+
+		const listed = records.map((record) => {
+			const projected = cloudSessionToDiscoveryRecord(record);
+			const live = this.ctx.liveSessions.get(record.id);
+			if (!live) {
+				return projected;
+			}
+			const title = live.title?.trim() || record.title?.trim();
+			return {
+				...projected,
+				status: live.status,
+				prompt: live.prompt,
+				endedAt:
+					live.endedAt !== undefined
+						? new Date(live.endedAt).toISOString()
+						: projected.endedAt,
+				metadata: {
+					...((projected.metadata ?? {}) as JsonRecord),
+					title: resolveSessionListTitle({
+						sessionId: record.id,
+						metadata: title ? { title } : undefined,
+						prompt: live.prompt,
+						messages: live.messages,
+					}),
+				},
+			};
+		});
+		return listed;
+	}
+
+	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
+		const key = input.requestId?.trim();
+		if (!key) return await this.createOnce(input);
+		const existing = this.createRequests.get(key);
+		if (existing) return await existing;
+		const creating = this.createOnce(input).finally(() => {
+			if (this.createRequests.get(key) === creating) {
+				this.createRequests.delete(key);
+			}
+		});
+		this.createRequests.set(key, creating);
+		return await creating;
+	}
+
+	private async createOnce(
+		input: CreateCloudSessionInput,
+	): Promise<JsonRecord> {
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
+		const organizationId =
+			input.organizationId ??
+			(await this.resolveActiveOrganizationId({ fresh: true }));
+		const created = await this.options.api.create({ ...input, organizationId });
+		if (!created?.sessionId?.trim()) {
+			throw new CloudSessionError(
+				"request_failed",
+				"The cloud session service returned an unexpected response; please try again.",
+			);
+		}
+		if (this.disposed) {
+			await this.deleteProvisionedSessionAfterDispose(
+				created.sessionId,
+				created.cleanupAuthToken,
+			);
+			throw new Error(
+				"Cline account changed while the cloud session was starting",
+			);
+		}
+		const record: CloudSessionRecord = {
+			id: created.sessionId,
+			status: created.status,
+			sandboxUrl: created.sandboxUrl,
+			repoContext: {
+				repoUrl: input.repoUrl,
+				...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
+			},
+			metadata: { modelId: input.modelId },
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		this.knownSessions.set(record.id, record);
+		const live = recordToLiveSession(record);
+		live.prompt = input.initialPrompt?.trim() || undefined;
+		// REST does not round-trip the client-side approval preference.
+		if (typeof input.autoApproveTools === "boolean") {
+			live.config.autoApproveTools = input.autoApproveTools;
+		}
+		if (typeof input.thinking === "boolean") {
+			live.config.thinking = input.thinking;
+		}
+		if (input.reasoningEffort) {
+			live.config.reasoningEffort = input.reasoningEffort;
+		}
+		this.ctx.liveSessions.set(record.id, live);
+		sendEvent(this.ctx, "chat_session_status", {
+			sessionId: record.id,
+			status: live.status,
+		});
+		return {
+			sessionId: record.id,
+			origin: "cloud",
+			executionTarget: "cloud",
+			status: record.status,
+			provider: "cline",
+			model: input.modelId,
+			repoUrl: input.repoUrl,
+			branch: input.branch ?? "",
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			...(live.prompt ? { prompt: live.prompt } : {}),
+		};
+	}
+
+	private async deleteProvisionedSessionAfterDispose(
+		outerSessionId: string,
+		authToken?: string,
+	): Promise<void> {
+		this.knownSessions.delete(outerSessionId);
+		this.ctx.liveSessions.delete(outerSessionId);
+		await this.options.api.delete(outerSessionId, authToken).catch((error) => {
+			this.ctx.logger?.log(
+				"Failed to clean up a cloud session created during an account change",
+				{ sessionId: outerSessionId, error },
+			);
+		});
+	}
+
+	private async disposeConnection(_outerSessionId: string): Promise<void> {}
 }
