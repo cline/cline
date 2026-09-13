@@ -193,7 +193,7 @@ export function resolveCredentialError(
 /**
  * Where to send the user after a credential-looking turn failure. Local-auth
  * providers (Claude Code, Codex CLI, OpenCode) borrow their login from a CLI
- * on this machine, so Settings → Models has nothing to fix — e.g. Claude
+ * on this machine, so Settings → API Providers has nothing to fix — e.g. Claude
  * Code's "OAuth session expired and could not be refreshed" needs a fresh
  * sign-in in the `claude` CLI itself.
  */
@@ -202,7 +202,7 @@ export function resolveCredentialFailureHint(providerId: string): string {
 	if (cli) {
 		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
 	}
-	return "Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+	return "Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
 }
 
 function mapHistoryStatusToChatStatus(

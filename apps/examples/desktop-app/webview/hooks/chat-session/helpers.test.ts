@@ -84,10 +84,10 @@ describe("resolveCredentialFailureHint", () => {
 		expect(resolveCredentialFailureHint("opencode")).toMatch(/`opencode` CLI/);
 	});
 
-	it("points everything else at Settings → Models", () => {
+	it("points everything else at Settings → API Providers", () => {
 		for (const providerId of ["anthropic", "cline", "openai-codex", ""]) {
 			expect(resolveCredentialFailureHint(providerId)).toMatch(
-				/Settings → Models/,
+				/Settings → API Providers/,
 			);
 		}
 	});
