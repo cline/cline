@@ -1,9 +1,11 @@
 import type {
 	AgentExtension,
 	AgentHooks,
+	AgentRuntimeEvent,
 	AgentTool,
 	AgentToolContext,
 	ConsecutiveMistakeLimitDecision,
+	HubAgentHookName,
 	HubClientCheckpointContribution,
 	HubClientCompactionContribution,
 	HubClientContribution,
@@ -13,6 +15,7 @@ import type {
 	JsonValue,
 } from "@cline/shared";
 import {
+	HUB_AGENT_HOOK_NAMES,
 	HUB_CHECKPOINT_CAPABILITY,
 	HUB_COMPACTION_CAPABILITY,
 	HUB_CUSTOM_TOOL_CAPABILITY_PREFIX,
@@ -20,6 +23,8 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isAgentRuntimeEventType,
+	isHubAgentHookName,
 	isHubToolExecutorName,
 } from "@cline/shared";
 
@@ -76,21 +81,11 @@ type UserInstructionSnapshot = {
 	runtimeCommands: AvailableRuntimeCommand[];
 };
 
-const HOOK_NAMES = [
-	"beforeRun",
-	"afterRun",
-	"beforeModel",
-	"afterModel",
-	"beforeTool",
-	"afterTool",
-	"onEvent",
-] as const satisfies readonly (keyof AgentHooks)[];
-
-type HubAgentHookName = (typeof HOOK_NAMES)[number];
-
 export function listHubAgentHookNames(hooks: AgentHooks | undefined): string[] {
 	if (!hooks) return [];
-	return HOOK_NAMES.filter((name) => typeof hooks[name] === "function");
+	return HUB_AGENT_HOOK_NAMES.filter(
+		(name) => typeof hooks[name] === "function",
+	);
 }
 
 function cloneRecord(
@@ -174,7 +169,25 @@ export function parseHubClientContributions(
 
 		if (kind === "hook") {
 			const name = typeof record.name === "string" ? record.name.trim() : "";
-			if (!name) continue;
+			if (!isHubAgentHookName(name)) continue;
+			if (name === "onEvent") {
+				if (
+					record.eventTypes !== undefined &&
+					(!Array.isArray(record.eventTypes) ||
+						!record.eventTypes.every(isAgentRuntimeEventType))
+				) {
+					continue;
+				}
+				seenCapabilities.add(capabilityName);
+				contributions.push({
+					kind: "hook",
+					capabilityName,
+					name,
+					...(record.eventTypes ? { eventTypes: [...record.eventTypes] } : {}),
+				});
+				continue;
+			}
+			if (record.eventTypes !== undefined) continue;
 			seenCapabilities.add(capabilityName);
 			contributions.push({ kind: "hook", capabilityName, name });
 			continue;
@@ -510,12 +523,29 @@ function createHookProxies(
 	requestCapability: RequestCapability,
 ): AgentHooks | undefined {
 	const available = new Map(contributions.map((item) => [item.name, item]));
-	const hooks: Partial<Record<HubAgentHookName, (ctx: unknown) => unknown>> =
-		{};
-	for (const name of HOOK_NAMES) {
+	const hooks: { onEvent?: AgentHooks["onEvent"] } & Partial<
+		Record<Exclude<HubAgentHookName, "onEvent">, (ctx: unknown) => unknown>
+	> = {};
+	for (const name of HUB_AGENT_HOOK_NAMES) {
 		const contribution = available.get(name);
 		if (!contribution) continue;
-		hooks[name] = async (ctx: unknown) => {
+		if (contribution.name === "onEvent") {
+			const eventTypes = contribution.eventTypes;
+			hooks.onEvent = async (event: AgentRuntimeEvent) => {
+				if (eventTypes && !eventTypes.includes(event.type)) {
+					return undefined;
+				}
+				await requestCapability(
+					sessionId,
+					contribution.capabilityName,
+					{ context: event },
+					targetClientId,
+				);
+			};
+			continue;
+		}
+		const lifecycleName = contribution.name;
+		hooks[lifecycleName] = async (ctx: unknown) => {
 			const response = await requestCapability(
 				sessionId,
 				contribution.capabilityName,

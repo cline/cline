@@ -1,12 +1,11 @@
 /**
  * Durable, cursor-addressed Hub event log.
  *
- * Every event the Hub publishes is appended here with a monotonically
- * increasing global sequence before it is fanned out to live sockets. A
- * client that reconnects can resume exactly where it left off by passing
- * `sinceSequence` on `stream.subscribe`: the adapter replays pages from this
- * log, then live-tails. Nothing about delivery depends on who was watching
- * when the event happened — disconnect never implies data loss.
+ * Durable Hub events are appended here with a monotonically increasing global
+ * sequence before they are fanned out to live sockets. Text and reasoning
+ * deltas are live-only because their corresponding finished events contain the
+ * complete content. A client that reconnects can resume durable delivery by
+ * passing `sinceSequence` on `stream.subscribe`.
  *
  * The log is a projection aid, not the source of truth for conversation
  * history (session messages remain canonical on disk); it is bounded by a
@@ -23,6 +22,10 @@ const DEFAULT_MAX_ROWS = 200_000;
 const DEFAULT_MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 /** Appended bytes between sweeps; the hourly timer alone can't keep up with bursts. */
 const PRUNE_EVERY_APPENDED_BYTES = 16 * 1024 * 1024;
+const LIVE_ONLY_EVENT_NAMES = new Set<HubEventEnvelope["event"]>([
+	"assistant.delta",
+	"reasoning.delta",
+]);
 
 export interface HubEventLogOptions {
 	/** Database file. Defaults to an owner-scoped `<data>/db/hub-events-*.db`; use ":memory:" in tests. */
@@ -68,9 +71,9 @@ export class HubEventLogStore {
 		this.retentionMs = options.retentionMs ?? DEFAULT_RETENTION_MS;
 		this.maxRows = options.maxRows ?? DEFAULT_MAX_ROWS;
 		this.maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES;
-		// Every streaming chunk lands here as an INSERT; WAL keeps those
-		// appends from serializing against replay reads, and the busy timeout
-		// matches the other SQLite stores instead of failing fast on contention.
+		// WAL keeps durable appends from serializing against replay reads, and the
+		// busy timeout matches the other SQLite stores instead of failing fast on
+		// contention.
 		this.db.exec("PRAGMA journal_mode = WAL;");
 		this.db.exec("PRAGMA busy_timeout = 5000;");
 		this.db.exec(`
@@ -94,7 +97,7 @@ export class HubEventLogStore {
 	 * live listeners and replaying clients observe identical frames.
 	 */
 	append(envelope: HubEventEnvelope): HubEventEnvelope {
-		if (this.closed) {
+		if (this.closed || LIVE_ONLY_EVENT_NAMES.has(envelope.event)) {
 			return envelope;
 		}
 		const createdAt = envelope.timestamp ?? Date.now();

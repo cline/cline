@@ -44,7 +44,7 @@ describe("HubEventLogStore", () => {
 	it("stamps a monotonically increasing global sequence", () => {
 		const log = new HubEventLogStore({ dbPath: ":memory:" });
 		const first = log.append(envelope("run.started", "s1"));
-		const second = log.append(envelope("assistant.delta", "s1"));
+		const second = log.append(envelope("assistant.finished", "s1"));
 		expect(first.sequence).toBe(1);
 		expect(second.sequence).toBe(2);
 		expect(log.lastSequence()).toBe(2);
@@ -54,15 +54,39 @@ describe("HubEventLogStore", () => {
 	it("replays events after a cursor, oldest first", () => {
 		const log = new HubEventLogStore({ dbPath: ":memory:" });
 		log.append(envelope("run.started", "s1"));
-		log.append(envelope("assistant.delta", "s1", { text: "a" }));
+		log.append(envelope("assistant.finished", "s1", { text: "a" }));
 		log.append(envelope("run.completed", "s1"));
 		const replay = log.listAfter(1, {}, 10);
 		expect(replay.map((event) => event.event)).toEqual([
-			"assistant.delta",
+			"assistant.finished",
 			"run.completed",
 		]);
 		expect(replay.map((event) => event.sequence)).toEqual([2, 3]);
 		expect(replay[0]?.payload).toEqual({ text: "a" });
+		log.close();
+	});
+
+	it("keeps streaming deltas live-only without consuming sequences", () => {
+		const log = new HubEventLogStore({ dbPath: ":memory:" });
+		const started = log.append(envelope("run.started", "s1"));
+		const assistantDelta = log.append(
+			envelope("assistant.delta", "s1", { text: "a" }),
+		);
+		const reasoningDelta = log.append(
+			envelope("reasoning.delta", "s1", { text: "thinking" }),
+		);
+		const finished = log.append(
+			envelope("reasoning.finished", "s1", { reasoning: "thinking" }),
+		);
+
+		expect(started.sequence).toBe(1);
+		expect(assistantDelta.sequence).toBeUndefined();
+		expect(reasoningDelta.sequence).toBeUndefined();
+		expect(finished.sequence).toBe(2);
+		expect(log.listAfter(0, {}, 10).map((event) => event.event)).toEqual([
+			"run.started",
+			"reasoning.finished",
+		]);
 		log.close();
 	});
 
@@ -82,7 +106,7 @@ describe("HubEventLogStore", () => {
 	it("bounds replay pages by limit", () => {
 		const log = new HubEventLogStore({ dbPath: ":memory:" });
 		for (let index = 0; index < 5; index += 1) {
-			log.append(envelope("assistant.delta", "s1"));
+			log.append(envelope("session.updated", "s1"));
 		}
 		expect(log.listAfter(0, {}, 2)).toHaveLength(2);
 		expect(log.listAfter(2, {}, 2).map((event) => event.sequence)).toEqual([
@@ -98,7 +122,7 @@ describe("HubEventLogStore", () => {
 			maxRows: 2,
 		});
 		log.append(envelope("run.started", "s1"));
-		log.append(envelope("assistant.delta", "s1"));
+		log.append(envelope("session.updated", "s1"));
 		log.append(envelope("run.completed", "s1"));
 		log.prune();
 		const rows = log.listAfter(0, {}, 10);

@@ -1,4 +1,8 @@
-import type { AgentHooks, HookEventPayload } from "@cline/core";
+import type {
+	AgentHooks,
+	AgentRuntimeEvent,
+	HookEventPayload,
+} from "@cline/core";
 import { closeInlineStreamIfNeeded } from "./events";
 import {
 	c,
@@ -327,29 +331,32 @@ export function createRuntimeHooks(options: {
 					},
 				);
 			},
-			onEvent: async (event) => {
-				if (event.type !== "message-added" || event.message.role !== "user") {
-					return;
-				}
-				await dispatchHookPayload(
-					{
-						...basePayload(baseContextFromSnapshot(event.snapshot), {
-							cwd,
-							workspaceRoot,
-						}),
-						hookName: "prompt_submit",
-						userPromptSubmit: {
-							prompt: textFromMessageContent(event.message.content),
-							attachments: [],
+			onEvent: Object.assign(
+				async (event: AgentRuntimeEvent) => {
+					if (event.type !== "message-added" || event.message.role !== "user") {
+						return;
+					}
+					await dispatchHookPayload(
+						{
+							...basePayload(baseContextFromSnapshot(event.snapshot), {
+								cwd,
+								workspaceRoot,
+							}),
+							hookName: "prompt_submit",
+							userPromptSubmit: {
+								prompt: textFromMessageContent(event.message.content),
+								attachments: [],
+							},
 						},
-					},
-					{
-						dispatchHookEvent: options.dispatchHookEvent,
-						isShuttingDown,
-						verbose,
-					},
-				);
-			},
+						{
+							dispatchHookEvent: options.dispatchHookEvent,
+							isShuttingDown,
+							verbose,
+						},
+					);
+				},
+				{ eventTypes: ["message-added"] as const },
+			),
 		},
 		shutdown: async () => {
 			shuttingDown = true;

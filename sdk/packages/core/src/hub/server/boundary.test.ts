@@ -22,6 +22,7 @@ import {
 	type HubTransportContext,
 } from "./handlers/context";
 import { projectSessionEvent } from "./handlers/session-event-projector";
+import { HubEventLogStore } from "./hub-event-log";
 
 describe("HubServerTransport boundaries", () => {
 	function createTransport(options: Record<string, unknown> = {}) {
@@ -1963,6 +1964,61 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
+	});
+
+	it("delivers reasoning deltas live without writing each chunk", async () => {
+		const transport = createTransport();
+		const eventLog = new HubEventLogStore({ dbPath: ":memory:" });
+		(
+			transport as unknown as {
+				eventLog: HubEventLogStore;
+			}
+		).eventLog = eventLog;
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		for (let index = 0; index < 100; index += 1) {
+			await projectSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "reasoning",
+						reasoning: "token",
+					},
+				},
+			});
+		}
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "reasoning",
+					reasoning: "token".repeat(100),
+				},
+			},
+		});
+
+		expect(events).toHaveLength(101);
+		expect(
+			events
+				.slice(0, -1)
+				.every(
+					(event) =>
+						event.event === "reasoning.delta" && event.sequence === undefined,
+				),
+		).toBe(true);
+		expect(events.at(-1)).toEqual(
+			expect.objectContaining({ event: "reasoning.finished", sequence: 1 }),
+		);
+		expect(eventLog.listAfter(0, {}, 10).map((event) => event.event)).toEqual([
+			"reasoning.finished",
+		]);
+		eventLog.close();
 	});
 
 	it("projects in-flight tool updates onto the hub stream", async () => {

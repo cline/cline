@@ -39,6 +39,8 @@ export type {
 	AgentResult,
 	AgentRunResult,
 	AgentRunStatus,
+	AgentRuntimeEvent,
+	AgentRuntimeOnEventHook,
 	AgentTool,
 	AgentToolContext,
 	AutomationEventEnvelope,

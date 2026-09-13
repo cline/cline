@@ -1,4 +1,8 @@
-import type { AgentMessage } from "./agent";
+import type {
+	AgentMessage,
+	AgentRuntimeEventType,
+	AgentRuntimeHooks,
+} from "./agent";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
 import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
@@ -786,6 +790,28 @@ export const HUB_MISTAKE_LIMIT_CAPABILITY = "mistake_limit.decide";
 export const HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY =
 	"user_instructions.snapshot";
 
+const HUB_AGENT_HOOK_NAME_MAP = {
+	beforeRun: true,
+	afterRun: true,
+	beforeModel: true,
+	afterModel: true,
+	beforeTool: true,
+	afterTool: true,
+	onEvent: true,
+} as const satisfies Record<keyof AgentRuntimeHooks, true>;
+
+export type HubAgentHookName = keyof typeof HUB_AGENT_HOOK_NAME_MAP;
+
+export const HUB_AGENT_HOOK_NAMES = Object.freeze(
+	Object.keys(HUB_AGENT_HOOK_NAME_MAP) as HubAgentHookName[],
+);
+
+const HUB_AGENT_HOOK_NAME_SET = new Set<string>(HUB_AGENT_HOOK_NAMES);
+
+export function isHubAgentHookName(value: unknown): value is HubAgentHookName {
+	return typeof value === "string" && HUB_AGENT_HOOK_NAME_SET.has(value);
+}
+
 export type HubClientContributionKind =
 	| "toolExecutor"
 	| "tool"
@@ -814,10 +840,26 @@ export interface HubClientToolContribution extends HubClientContributionBase {
 	lifecycle?: Record<string, JsonValue | undefined>;
 }
 
-export interface HubClientHookContribution extends HubClientContributionBase {
+interface HubClientHookContributionBase extends HubClientContributionBase {
 	kind: "hook";
-	name: string;
 }
+
+export interface HubClientEventHookContribution
+	extends HubClientHookContributionBase {
+	name: "onEvent";
+	/** Runtime event types accepted by this hook. Omit to receive every event. */
+	eventTypes?: AgentRuntimeEventType[];
+}
+
+export interface HubClientLifecycleHookContribution
+	extends HubClientHookContributionBase {
+	name: Exclude<HubAgentHookName, "onEvent">;
+	eventTypes?: never;
+}
+
+export type HubClientHookContribution =
+	| HubClientEventHookContribution
+	| HubClientLifecycleHookContribution;
 
 export interface HubClientCompactionContribution
 	extends HubClientContributionBase {

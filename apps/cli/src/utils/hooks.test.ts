@@ -135,6 +135,7 @@ describe("createRuntimeHooks", () => {
 		});
 
 		expect(runtimeHooks.hooks).toBeDefined();
+		expect(runtimeHooks.hooks?.onEvent?.eventTypes).toEqual(["message-added"]);
 		await emitRunStartAndPrompt(runtimeHooks.hooks!);
 
 		expect(dispatchHookEvent).toHaveBeenCalledTimes(2);

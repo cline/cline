@@ -4,6 +4,7 @@ import type { HubTransportContext } from "./handlers/context";
 import {
 	createHubClientContributionRuntime,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	parseHubClientContributions,
 } from "./hub-client-contributions";
 
 type ClientContributionRequest = Parameters<
@@ -266,6 +267,89 @@ describe("hub client runtime capabilities", () => {
 			},
 			"client-1",
 		);
+	});
+
+	it("filters high-volume runtime events before requesting a remote hook", async () => {
+		const request = vi.fn(async () => ({}));
+		const contributions = parseHubClientContributions([
+			{
+				kind: "hook",
+				name: "onEvent",
+				capabilityName: "hook.onEvent",
+				eventTypes: ["message-added"],
+			},
+		]);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions,
+			requestCapability: request,
+		});
+		const snapshot = {
+			agentId: "agent-1",
+			runId: "conv-1",
+			status: "running" as const,
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		};
+
+		await runtime.localRuntime.hooks?.onEvent?.({
+			type: "assistant-reasoning-delta",
+			snapshot,
+			iteration: 1,
+			text: "token",
+			accumulatedText: "large accumulated reasoning trace",
+		});
+		await runtime.localRuntime.hooks?.onEvent?.({
+			type: "message-added",
+			snapshot,
+			message: {
+				id: "msg-1",
+				role: "user",
+				content: [{ type: "text", text: "hello" }],
+				createdAt: 0,
+			},
+		});
+
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"hook.onEvent",
+			{
+				context: expect.objectContaining({ type: "message-added" }),
+			},
+			"client-1",
+		);
+	});
+
+	it("rejects invalid remote hook event filters", () => {
+		expect(
+			parseHubClientContributions([
+				{
+					kind: "hook",
+					name: "onEvent",
+					capabilityName: "hook.onEvent",
+					eventTypes: ["reasoning.delta"],
+				},
+			]),
+		).toEqual([]);
+		expect(
+			parseHubClientContributions([
+				{
+					kind: "hook",
+					name: "beforeRun",
+					capabilityName: "hook.beforeRun",
+					eventTypes: ["message-added"],
+				},
+			]),
+		).toEqual([]);
 	});
 
 	it("rebuilds user instruction services from a client snapshot", async () => {
