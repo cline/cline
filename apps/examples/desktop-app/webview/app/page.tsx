@@ -505,7 +505,7 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
 											}
 											onOpenAccountSettings={() =>
 												handleSettingsSectionChange("Account")

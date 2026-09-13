@@ -8,6 +8,11 @@ const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
+const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("./legacy-provider-credentials", () => ({
+	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
+}));
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -59,6 +64,7 @@ beforeEach(() => {
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
+	clearLegacyProviderCredentialsMock.mockReset();
 });
 
 describe("cline_account command auth states", () => {
@@ -382,6 +388,31 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 				organization_id: undefined,
 			}),
 		);
+	});
+
+	it("signs out of the shared cline entry and legacy secrets when cline-pass is disabled", async () => {
+		const { ctx } = createContext();
+		getProviderSettingsMock.mockReturnValue(undefined);
+		saveProviderSettingsMock.mockImplementation(
+			(_manager: unknown, request: { providerId: string }) => ({
+				providerId: request.providerId,
+				enabled: false,
+				settingsPath: "/tmp/settings.json",
+			}),
+		);
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline-pass",
+			enabled: false,
+		});
+
+		// Cline Pass stores its credentials under "cline", so both entries go,
+		// and the legacy secrets are cleared for the storage provider.
+		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual([
+			expect.objectContaining({ providerId: "cline-pass", enabled: false }),
+			{ providerId: "cline", enabled: false },
+		]);
+		expect(clearLegacyProviderCredentialsMock).toHaveBeenCalledWith("cline");
 	});
 
 	it("ignores settings writes for other providers", async () => {

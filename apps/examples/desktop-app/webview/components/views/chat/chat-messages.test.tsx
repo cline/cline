@@ -2284,11 +2284,11 @@ describe("ChatMessages credential failures", () => {
 
 		const buttons = [...container.querySelectorAll("button")].filter(
 			(button) =>
-				button.textContent === "Open model settings" ||
+				button.textContent === "Open API providers" ||
 				button.textContent === "Sign in to Cline",
 		);
 		expect(buttons.map((button) => button.textContent)).toEqual([
-			"Open model settings",
+			"Open API providers",
 		]);
 		await act(async () => buttons[0]?.click());
 		expect(onFixCredentials).toHaveBeenCalledWith("models");

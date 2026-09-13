@@ -91,10 +91,10 @@ describe("resolveCredentialFailureHint", () => {
 		);
 	});
 
-	it("points everything else at Settings → Models", () => {
+	it("points everything else at Settings → API Providers", () => {
 		for (const providerId of ["anthropic", "openai-codex", ""]) {
 			expect(resolveCredentialFailureHint(providerId)).toMatch(
-				/Settings → Models/,
+				/Settings → API Providers/,
 			);
 		}
 	});
@@ -111,7 +111,7 @@ describe("resolveCredentialFailureAction", () => {
 			target: "account",
 		});
 		expect(resolveCredentialFailureAction("anthropic")).toEqual({
-			label: "Open model settings",
+			label: "Open API providers",
 			target: "models",
 		});
 	});
