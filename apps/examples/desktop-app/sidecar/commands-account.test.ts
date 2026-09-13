@@ -139,6 +139,25 @@ describe("cline_account command auth states", () => {
 		expect(capture).not.toHaveBeenCalled();
 	});
 
+	it("reports signed out when the refresh token is rejected even though a stale access token is persisted", async () => {
+		// The stale token would only fail the account request with a 401,
+		// which rendered an error card whose Retry failed the same way.
+		const { ctx } = createContext();
+		const { OAuthReauthRequiredError } =
+			await vi.importActual<typeof import("@cline/core")>("@cline/core");
+		resolveProviderApiKeyMock.mockRejectedValue(
+			new OAuthReauthRequiredError("cline"),
+		);
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "persisted-token" },
+		});
+
+		const result = await runClineAccountCommand(ctx);
+
+		expect(isClineAccountNotAuthenticatedResult(result)).toBe(true);
+		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
+	});
+
 	it("reports one auth refresh soft-failure event when the refresh fails and no fallback token exists", async () => {
 		const { ctx, capture } = createContext();
 		const refreshError = new Error(

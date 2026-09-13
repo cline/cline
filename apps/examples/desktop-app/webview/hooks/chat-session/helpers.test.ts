@@ -3,6 +3,7 @@ import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
 	inferHydratedChatStatus,
 	resolveCredentialError,
+	resolveCredentialFailureAction,
 	resolveCredentialFailureHint,
 } from "./helpers";
 
@@ -84,12 +85,35 @@ describe("resolveCredentialFailureHint", () => {
 		expect(resolveCredentialFailureHint("opencode")).toMatch(/`opencode` CLI/);
 	});
 
+	it("points Cline at signing in again from Settings → Account", () => {
+		expect(resolveCredentialFailureHint("cline")).toBe(
+			"Sign in to Cline again in Settings → Account, then try again.",
+		);
+	});
+
 	it("points everything else at Settings → API Providers", () => {
-		for (const providerId of ["anthropic", "cline", "openai-codex", ""]) {
+		for (const providerId of ["anthropic", "openai-codex", ""]) {
 			expect(resolveCredentialFailureHint(providerId)).toMatch(
 				/Settings → API Providers/,
 			);
 		}
+	});
+});
+
+describe("resolveCredentialFailureAction", () => {
+	it("offers no in-app action for local-auth providers", () => {
+		expect(resolveCredentialFailureAction("claude-code")).toBeNull();
+	});
+
+	it("sends Cline to the Account page and other providers to Models", () => {
+		expect(resolveCredentialFailureAction("cline")).toEqual({
+			label: "Sign in to Cline",
+			target: "account",
+		});
+		expect(resolveCredentialFailureAction("anthropic")).toEqual({
+			label: "Open API providers",
+			target: "models",
+		});
 	});
 });
 

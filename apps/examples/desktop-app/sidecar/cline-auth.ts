@@ -1,6 +1,7 @@
 import {
 	captureAuthRefreshSoftFailure,
 	getProviderAuthHandler,
+	OAuthReauthRequiredError,
 	type ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
 } from "@cline/core";
@@ -38,6 +39,13 @@ export async function resolveFreshClineAuthToken(
 			errorName: refreshError.name,
 			errorCode: "desktop_refresh_failed_no_fallback_token",
 		});
+	}
+	// A rejected refresh token means the persisted access token is dead too.
+	// Handing it out would turn the signed-out state into an opaque request
+	// failure (an error card whose Retry fails the same way) instead of the
+	// sign-in prompt. Transient refresh failures still fall back to it.
+	if (refreshError instanceof OAuthReauthRequiredError) {
+		return undefined;
 	}
 	return persisted;
 }
