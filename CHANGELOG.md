@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.1.17]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Added
+
+- ClinePass is now surfaced across the app: a card on the account page describing what the plan covers, a hint in provider settings, and a banner on the home screen. Dismissed banners stay dismissed.
+
+### Fixed
+
+- Fixed the background Hub process ballooning in memory during long sessions. Session status updates broadcast a full copy of the conversation transcript to every connected client, so on a large task each status change shipped megabytes and could grow the process to tens of gigabytes. Snapshots now carry state only.
+- Hook scripts that fail to spawn no longer crash the extension's core process and take the running task down with them.
+- Fixed a chat render crash on malformed `api_req` payloads.
+- Cost estimates no longer appear in task history for subscription-billed tasks (ClinePass, ChatGPT via Codex, and Claude Code), matching the task header.
+- Pasted provider API keys are now stripped of the invisible characters clipboards smuggle in (newlines, zero-width spaces, BOM). A key corrupted that way was hidden by the masked field and rejected by the provider with a 401 indistinguishable from a genuinely wrong key. Credential rejections now say that the API key is the problem and point at its configuration, keeping the provider's raw response as a diagnostic tail.
+- Signing in to OpenAI Codex (ChatGPT subscription) now fails with a clear "port in use" error when callback port 1455 is occupied. Previously the button opened a browser to a flow whose callback could never arrive, and nothing else happened. OAuth redirect errors such as `access_denied` are surfaced instead of being reported as a missing authorization code.
+- A transient network failure while refreshing OpenAI Codex or OpenAI-compatible-account tokens no longer signs you out. Only a genuinely rejected refresh token now requires re-authentication.
+- Fixed tool calling being silently disabled for Dify, SAP AI Core, opencode, and Codex CLI models. Their catalog entries declare no capabilities, and the empty list was read as an authoritative denial that stripped every tool from the request.
+- Fixed images being dropped from file reads on models whose capability list is empty.
+- Restoring a checkpoint now refuses to run when commits were made after it, instead of silently knocking them off the branch where only the reflog could recover them. Chat-only restore is unaffected.
+- `apply_patch` now preserves a file's existing CRLF line endings.
+- Global rules are now also read from `~/Cline/Rules`, which is where the Rules tab writes them on WSL and headless installs whose Documents folder resolves to the home directory.
+- An enabled but unreachable remote (SSE or streamable HTTP) MCP server no longer stalls session startup; remote connects now have a 10 second budget.
+- Aborting a task now also cancels the delegated subagents and teammates it spawned, instead of leaving their work running.
+- Langfuse tracing now works in released builds. Detection identified the OpenTelemetry provider by class name, which minification renames, so tracing silently initialized as not ready in every published build while working in development.
+- Cline provider models are now read from the live catalog, so newly published models appear without an extension update.
+- Hook execution telemetry now fires; the task id was not threaded into hook runner creation, so those events were dropped.
+
+### Changed
+
+- Refreshed the built-in model catalog. Adds ten providers (Bothub, OpenReason, SenseNova (China), TokenGo, TokenRouter, Vancine, Volcengine Ark, Volcengine Ark Coding Plan, above.dev, and klokintegration.se) and updates model lists and pricing throughout. This is an unusually wide refresh: the resolved default model changes for 57 providers, most consequentially Anthropic, which now resolves to Claude Fable 5.1 instead of Claude Opus 5, with Amazon Bedrock, Vertex, OpenRouter, Vercel AI Gateway, Kilo Gateway, LLM Gateway, DevPass, DigitalOcean, CrossModel, Eden AI, and NanoGPT following. If you use a provider without pinning a model, expect a different default.
+- The message the model receives when you reject a tool call now names the rejected tool and reads as your decision rather than an error.
+
 ## [4.1.16]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.

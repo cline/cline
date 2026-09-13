@@ -2,6 +2,7 @@ import {
 	getCurrentContextSize,
 	type ManagedHubBuildMismatchEvent,
 	summarizeUsageFromMessages,
+	upgradeManagedHub,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { formatDisplayUserInput } from "@cline/shared";
@@ -40,7 +41,10 @@ import {
 	buildCommandPaletteItems,
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
-import { HubUpdateRequiredContent } from "./components/dialogs/hub-update-required";
+import {
+	HubOutdatedContent,
+	HubUpdateRequiredContent,
+} from "./components/dialogs/hub-update-required";
 import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
 import {
 	SKILLS_MARKETPLACE_ACTION,
@@ -586,17 +590,85 @@ function App(props: TuiProps) {
 		setHubBuildMismatch(null);
 		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
 		if (hubBuildMismatch.reason === "outdated_hub") {
-			// This CLI is already the newer build. The Hub is behind only because
-			// retiring it would kill the sessions it is serving, and it is
-			// replaced on its own at the next launch. Nothing is wrong, nothing is
-			// asked, and nothing the user can act on differs - so say nothing, the
-			// same conclusion the desktop surface reached.
-			//
-			// The classification still earns its keep here: it is what stops the
-			// update-and-restart prompt below from firing at someone who has
-			// nothing to update.
+			// This CLI is already the newer build; the Hub is behind only because
+			// retiring it would kill the sessions it is serving. Left alone it
+			// would stay behind for as long as those sessions run, so put the
+			// choice to the user: replace it now (interrupting that work), or
+			// keep it running and update later. This session itself is safe
+			// either way - a CLI that could not attach to the outdated Hub is
+			// running on the local backend.
+			const details = {
+				hubCoreVersion,
+				activeSessionCount: hubBuildMismatch.activeSessionCount,
+				participantClientCount: hubBuildMismatch.participantClientCount,
+			};
+			void dialog
+				.choice<boolean>({
+					content: (ctx: ChoiceContext<boolean>) => (
+						<HubOutdatedContent {...ctx} {...details} />
+					),
+				})
+				.then(async (update) => {
+					if (!update) {
+						// choice() resolves undefined on Esc; it does not reject.
+						showToast(
+							"The running Cline Hub stays on the older version. Run 'cline hub upgrade' once its sessions finish.",
+							"info",
+						);
+						refocusTextareaRef.current();
+						return;
+					}
+					showToast("Updating the Cline Hub…", "info");
+					try {
+						const result = await upgradeManagedHub({
+							force: true,
+							reason: "cline TUI hub update",
+						});
+						if (result.outcome === "still_busy") {
+							showToast(
+								"The Hub picked up new sessions before it could be replaced. Try again in a moment.",
+								"info",
+							);
+						} else {
+							showToast(
+								result.outcome === "replaced" || result.outcome === "started"
+									? "Cline Hub updated."
+									: "Cline Hub is already up to date.",
+								"success",
+							);
+						}
+					} catch (error) {
+						showToast(
+							error instanceof Error && error.message
+								? error.message
+								: "Updating the Cline Hub failed. Run 'cline doctor fix' and try again.",
+							"error",
+						);
+					}
+					refocusTextareaRef.current();
+				})
+				.catch(() => {
+					refocusTextareaRef.current();
+				});
 			return;
 		}
+		if (hubBuildMismatch.reason === "build_mismatch") {
+			// The Hub is newer but still speaks this CLI's protocol, so the
+			// session keeps working and parity is advisable rather than urgent.
+			// A modal mid-session is too heavy for advice; a toast (once per
+			// observed Hub build, the watcher dedupes) says what changed and
+			// how to catch up without stealing focus.
+			showToast(
+				`The shared Cline Hub was updated${
+					hubCoreVersion ? ` (core ${hubCoreVersion})` : ""
+				}. Run 'cline update' and restart when convenient.`,
+				"info",
+			);
+			return;
+		}
+		// unsupported_protocol: this CLI cannot speak the running Hub's
+		// protocol at all, so nothing hub-backed can work until it updates.
+		// That is worth a blocking prompt.
 		void dialog
 			.choice<boolean>({
 				content: (ctx: ChoiceContext<boolean>) => (

@@ -15,18 +15,32 @@ export function setPendingClinePassSubscribe(pending: boolean): void {
 	pendingClinePassSubscribe = pending
 }
 
+// Appends a dashboard path to the app base URL, preserving any path prefix in
+// the base (new URL(path, base) would drop it for leading-slash paths).
+function joinAppBaseUrl(appBaseUrl: string | undefined, path: string): string {
+	const baseUrl = appBaseUrl || DEFAULT_APP_BASE_URL
+	return `${baseUrl.replace(/\/+$/, "")}${path}`
+}
+
 // Opens the ClinePass subscription page once a pending signup is authenticated (guarded so it fires once).
 export function openClinePassSubscriptionIfPending(appBaseUrl: string | undefined): void {
 	if (!pendingClinePassSubscribe) {
 		return
 	}
 	pendingClinePassSubscribe = false
-	const baseUrl = appBaseUrl || DEFAULT_APP_BASE_URL
-	UiServiceClient.openUrl(StringRequest.create({ value: `${baseUrl}${CLINE_PASS_SUBSCRIBE_PATH}` })).catch((err) =>
+	UiServiceClient.openUrl(StringRequest.create({ value: joinAppBaseUrl(appBaseUrl, CLINE_PASS_SUBSCRIBE_PATH) })).catch((err) =>
 		console.error("Failed to open ClinePass subscription page:", err),
 	)
 }
 
 export function buildClinePassSubscriptionPageUrl(appBaseUrl: string | undefined): string {
-	return new URL(CLINE_PASS_USAGE_PATH, appBaseUrl || DEFAULT_APP_BASE_URL).toString()
+	// ClinePass always bills the personal account, so force the personal
+	// dashboard context for org-context users (matches EntitlementError and
+	// the CLI's subscription links).
+	return `${joinAppBaseUrl(appBaseUrl, CLINE_PASS_USAGE_PATH)}?personal=true`
+}
+
+// Signup/subscribe page for users who don't have a ClinePass subscription yet.
+export function buildClinePassSubscribeUrl(appBaseUrl: string | undefined): string {
+	return joinAppBaseUrl(appBaseUrl, CLINE_PASS_SUBSCRIBE_PATH)
 }

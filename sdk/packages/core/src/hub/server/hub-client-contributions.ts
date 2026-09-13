@@ -35,12 +35,14 @@ export {
 
 import type {
 	AvailableRuntimeCommand,
+	SkillConfig,
 	UserInstructionConfig,
 	UserInstructionConfigRecord,
 	UserInstructionConfigService,
 	UserInstructionConfigType,
 } from "../../extensions/config";
 import { normalizeRuntimeCommandName } from "../../extensions/config/runtime-commands";
+import { formatSkillInvocation } from "../../extensions/config/user-instruction-plugin";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	createSkillsTool,
@@ -309,19 +311,8 @@ function createSnapshotSkillsExecutor(
 				? `Skill "${skillName}" is ambiguous. Use one of: ${enabled.map((entry) => entry.id).join(", ")}`
 				: `Skill "${skillName}" not found.`;
 		}
-		const skill = enabled[0].skill as {
-			name: string;
-			description?: string;
-			instructions: string;
-		};
-		const trimmedArgs = args?.trim();
-		const argsTag = trimmedArgs
-			? `\n<command-args>${trimmedArgs}</command-args>`
-			: "";
-		const description = skill.description?.trim()
-			? `Description: ${skill.description.trim()}\n\n`
-			: "";
-		return `<command-name>${skill.name}</command-name>${argsTag}\n<command-instructions>\n${description}${skill.instructions}\n</command-instructions>`;
+		const skill = enabled[0].skill as SkillConfig;
+		return formatSkillInvocation(skill, args);
 	}) as SkillsExecutor;
 
 	Object.defineProperty(executor, "configuredSkills", {

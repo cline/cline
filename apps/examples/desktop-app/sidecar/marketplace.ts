@@ -714,6 +714,7 @@ function hasMatchingInventoryItem(
 	return items.some((item) => {
 		if (!item || typeof item !== "object") return false;
 		const record = item as JsonRecord;
+		if (record.agentPlugin === true) return false;
 		const values = [
 			typeof record.name === "string" ? record.name : undefined,
 			typeof record.id === "string" ? record.id : undefined,

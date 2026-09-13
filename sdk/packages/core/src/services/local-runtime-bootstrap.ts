@@ -16,6 +16,10 @@ import type {
 import { hasRuntimeConfigExtension } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
+	type AgentPluginPackageDiagnostic,
+	loadAgentPluginPackages,
+} from "../extensions/agent-plugin";
+import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
 } from "../extensions/plugin/plugin-config-loader";
@@ -41,6 +45,7 @@ import type {
 	ResolvedStartSessionInput,
 } from "../runtime/host/runtime-host";
 import type { RuntimeBuilderInput } from "../runtime/orchestration/session-runtime";
+import type { SessionHistoryOriginMetadata } from "../session/history-origin";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
@@ -49,9 +54,16 @@ import {
 	toProviderConfig,
 } from "../types/provider-settings";
 import { resolveWorkspacePath } from "./config";
-import { filterExtensionToolRegistrations } from "./global-settings";
+import {
+	filterExtensionToolRegistrations,
+	resolveDisabledAgentPluginNames,
+} from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
+import {
+	createClientScopedTelemetryService,
+	createScopedTelemetryService,
+} from "./telemetry/scoped-telemetry";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
 import type { GitWorkspaceState } from "./workspace/workspace-manifest";
 import { buildWorkspaceMetadataWithInfo } from "./workspace/workspace-manifest";
@@ -94,13 +106,24 @@ function logPluginDiagnostics(
 	}
 }
 
+function logAgentPluginDiagnostics(
+	diagnostics: ReadonlyArray<AgentPluginPackageDiagnostic>,
+	logger: BasicLogger | undefined,
+): void {
+	for (const item of diagnostics) {
+		const component = item.componentName ? ` (${item.componentName})` : "";
+		logger?.log(
+			`[agent-plugins] ${item.pluginName ?? item.pluginPath}${component}: ${item.message}`,
+			{ severity: item.level === "warning" ? "warn" : "error" },
+		);
+	}
+}
+
 /**
  * Recover client identity from the Cline request headers baked into the
- * session config. Hub-backed sessions do not transport `extensionContext`
- * (it is local-only), but the hub client resolves `X-CLIENT-TYPE` /
- * `X-CLIENT-VERSION` headers before `session.create`, so the daemon can
- * rebuild `extensionContext.client` from them and keep trace metadata
- * (Langfuse `clientName` / `clientVersion`) consistent with local runtimes.
+ * session config. Current Hub clients transport the serializable identity
+ * explicitly; these headers preserve attribution for older clients and other
+ * transport implementations that only forward the neutral session config.
  */
 function resolveClientContextFromHeaders(
 	headers: Record<string, string> | undefined,
@@ -220,6 +243,12 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	input: ResolvedStartSessionInput;
 	localRuntime?: LocalRuntimeStartOptions;
 	sessionId: string;
+	/**
+	 * How the session was initiated (user, automation, import, ...). Stamped
+	 * on every telemetry event the session emits so errors can be filtered by
+	 * provenance, e.g. transcripts imported from another agent.
+	 */
+	sessionOrigin?: SessionHistoryOriginMetadata;
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
 	defaultLogger?: BasicLogger;
@@ -268,6 +297,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const {
 		input,
 		sessionId,
+		sessionOrigin,
 		providerSettingsManager,
 		defaultTelemetry,
 		defaultLogger,
@@ -310,6 +340,30 @@ export async function prepareLocalRuntimeBootstrap(
 	const headerClientContext = configuredExtensionContext?.client
 		? undefined
 		: resolveClientContextFromHeaders(input.config.headers);
+	const clientContext =
+		configuredExtensionContext?.client ?? headerClientContext;
+	const configuredTelemetry =
+		configuredExtensionContext?.telemetry ?? localConfig?.telemetry;
+	// Hub-backed sessions execute inside a shared daemon and therefore inherit
+	// its process telemetry service. Scope that singleton to the serialized
+	// client identity without mutating it; local clients already carry their
+	// own telemetry instance and keep using it directly.
+	const clientTelemetry =
+		configuredTelemetry ??
+		(defaultTelemetry && clientContext
+			? createClientScopedTelemetryService(defaultTelemetry, {
+					client: clientContext,
+					source: input.source,
+					user: configuredExtensionContext?.user,
+				})
+			: defaultTelemetry);
+	const telemetry =
+		clientTelemetry && sessionOrigin
+			? createScopedTelemetryService(clientTelemetry, {
+					session_origin: sessionOrigin.mode,
+					session_origin_trigger: sessionOrigin.trigger,
+				})
+			: clientTelemetry;
 	const extensionContext: ExtensionContext = {
 		...(configuredExtensionContext ?? {}),
 		...(headerClientContext ? { client: headerClientContext } : {}),
@@ -325,14 +379,12 @@ export async function prepareLocalRuntimeBootstrap(
 			configuredExtensionContext?.logger ??
 			localConfig?.logger ??
 			defaultLogger,
-		telemetry:
-			configuredExtensionContext?.telemetry ??
-			localConfig?.telemetry ??
-			defaultTelemetry,
+		telemetry,
 	};
 	emitWorkspaceLifecycleTelemetry({
 		telemetry: extensionContext.telemetry,
 		rootPath: workspaceInfo.rootPath,
+		dedupeScope: extensionContext.client?.name ?? input.source,
 		workspaceInfo,
 		rootCount: 1,
 		vcsType,
@@ -394,6 +446,29 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
+	let loadedAgentPluginPackages:
+		| Awaited<ReturnType<typeof loadAgentPluginPackages>>
+		| undefined;
+	if (hasConfigExtension(configExtensions, "plugins")) {
+		try {
+			loadedAgentPluginPackages = await loadAgentPluginPackages({
+				pluginPaths: input.config.agentPluginPaths,
+				cwd: input.config.cwd,
+				disabledPluginNames: [...resolveDisabledAgentPluginNames()],
+			});
+			logAgentPluginDiagnostics(
+				loadedAgentPluginPackages.diagnostics,
+				extensionContext.logger,
+			);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			extensionContext.logger?.log(
+				`[agent-plugins] Package discovery failed; continuing without Agent Plugins: ${message}`,
+				{ severity: "error" },
+			);
+		}
+	}
+
 	const builtInExtensions = fileHookExtension ? [fileHookExtension] : undefined;
 	const extensions = mergeAgentExtensions(
 		builtInExtensions,
@@ -431,6 +506,7 @@ export async function prepareLocalRuntimeBootstrap(
 					sessionId,
 					logger: baseConfig.logger,
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
+					telemetry: baseConfig.telemetry,
 					readSessionMetadata,
 					writeSessionMetadata,
 				})
@@ -482,6 +558,8 @@ export async function prepareLocalRuntimeBootstrap(
 			onSubAgentEnd: subAgentLifecycleCallbacks?.onSubAgentEnd,
 			userInstructionService: userInstructionService,
 			pluginSkillDirectories,
+			agentPluginSkills: loadedAgentPluginPackages?.skills,
+			agentPluginMcpServers: loadedAgentPluginPackages?.mcpServers,
 			configExtensions: configExtensions,
 			toolExecutors: effectiveToolExecutors,
 			toolPolicies,

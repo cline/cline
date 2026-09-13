@@ -187,6 +187,7 @@ function emitChunk(
 		chunk,
 		ts,
 		index: nextIndex,
+		boot: ctx.bootId,
 	});
 }
 
@@ -344,6 +345,7 @@ function handleAgentEvent(
 					message: event.message,
 					noticeType: event.noticeType,
 					reason: event.reason,
+					metadata: event.metadata,
 				}),
 			);
 			break;
@@ -367,6 +369,7 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -401,7 +404,19 @@ function handleAgentEvent(
 			);
 			break;
 		}
-		case "iteration_start":
+		case "iteration_start": {
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				// Iterations restart at one for each user run. Keep the previous
+				// answer only within the run in which it was supplied.
+				if (event.iteration === 1 || !session.mistakeRecovery) {
+					session.mistakeRecovery = { latestIteration: event.iteration };
+				} else {
+					session.mistakeRecovery.latestIteration = event.iteration;
+				}
+			}
+			break;
+		}
 		case "iteration_end":
 			break;
 	}
@@ -411,10 +426,8 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
-// The runtime's queue drain emits a pending_prompts snapshot (head removed)
-// and a pending_prompt_submitted event for the same prompt back-to-back, and
-// both are translated here into chat_queued_prompt_start — dedupe by prompt
-// id or the UI renders the user message twice.
+// Dedupe by prompt id so a repeated pending_prompt_submitted for the same
+// prompt cannot render the user message twice.
 function emitQueuedPromptStart(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -475,20 +488,10 @@ export function handleCoreSessionEvent(
 					session,
 					mapped.map((item) => item.id),
 				);
-				const previous = session.promptsInQueue;
+				// A shrinking snapshot is not evidence that the head started
+				// running: the user may have deleted it or the queue may have been
+				// discarded. Only pending_prompt_submitted announces a start.
 				session.promptsInQueue = mapped;
-				if (
-					previous.length > mapped.length &&
-					previous[0] &&
-					previous[0].id !== mapped[0]?.id
-				) {
-					emitQueuedPromptStart(ctx, sessionId, session, {
-						promptId: previous[0].id,
-						prompt: previous[0].prompt,
-						attachmentCount: previous[0].attachmentCount ?? 0,
-						userImages: previous[0].userImages,
-					});
-				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;
@@ -520,6 +523,7 @@ export function handleCoreSessionEvent(
 		}
 		case "ended": {
 			const { sessionId, reason } = event.payload;
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Session ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -570,12 +574,14 @@ export function createSidecarContext(
 	observability: {
 		logger?: BasicLogger;
 		telemetry?: ITelemetryService;
+		telemetryUser?: SidecarContext["telemetryUser"];
 	} = {},
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -584,6 +590,7 @@ export function createSidecarContext(
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
+		telemetryUser: observability.telemetryUser,
 		unsubscribeSessionEvents: null,
 		hubBuildMismatch: null,
 	};
@@ -724,6 +731,28 @@ export function resolveSidecarAskQuestion(
 	return true;
 }
 
+/** Remove prompts before their session is stopped or replaced in the UI. */
+export function cancelSidecarMistakeQuestions(
+	ctx: SidecarContext,
+	sessionId: string,
+	reason: string,
+): void {
+	for (const pending of ctx.pendingQuestions?.values() ?? []) {
+		if (
+			pending.item.sessionId !== sessionId ||
+			pending.item.context?.agentId !== "desktop-mistake-limit"
+		)
+			continue;
+		ctx.pendingQuestions.delete(pending.item.requestId);
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+		sendEvent(ctx, "ask_question_cancelled", {
+			requestId: pending.item.requestId,
+			reason,
+		});
+	}
+}
+
 export function createSidecarRuntimeCapabilities(
 	ctx: SidecarContext,
 ): RuntimeCapabilities {
@@ -811,6 +840,10 @@ export function handleHubLiveEvent(
 		});
 		return;
 	}
+	if (event.event === "settings.changed") {
+		sendEvent(ctx, event.event, event.payload ?? {});
+		return;
+	}
 
 	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
 	if (!sessionId) {
@@ -818,6 +851,15 @@ export function handleHubLiveEvent(
 	}
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
+		return;
+	}
+	// The observer client and ClineCore's own hub client are separate sockets
+	// that both receive this session's events. This projection only exists for
+	// sessions ClineCore is not subscribed to (it subscribes as a side effect
+	// of start/send/pending_prompts and unsubscribes on stop); once it is,
+	// `handleCoreSessionEvent` carries everything below and a second copy here
+	// would double every delta, tool row, and status change.
+	if (ctx.sessionManager?.hasSessionSubscription(sessionId)) {
 		return;
 	}
 

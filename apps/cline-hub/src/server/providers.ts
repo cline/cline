@@ -85,7 +85,9 @@ export async function loadModels(
 	if (!provider) return;
 	const payload = await getLocalProviderModels(
 		provider,
-		providerSettingsManager.getProviderConfig(provider),
+		providerSettingsManager.getProviderConfig(provider, {
+			includeKnownModels: false,
+		}),
 	);
 	const models: WebviewProviderModel[] = payload.models
 		.filter((model) =>

@@ -119,7 +119,41 @@ describe("createVscodeRunCommandsTool", () => {
 		// A profile change takes effect at the next description read (the
 		// model-request boundary), without a session rebuild.
 		mocks.getGlobalSettingsKey.mockReturnValue("powershell-7")
-		expect(tool.description).toContain("Commands run through PowerShell")
+		expect(tool.description).toContain("Microsoft PowerShell (pwsh.exe)")
+		expect(tool.description).toContain("another pwsh.exe -Command invocation")
+
+		mocks.getGlobalSettingsKey.mockReturnValue("powershell-legacy")
+		expect(tool.description).toContain("Windows PowerShell (powershell.exe)")
+		expect(tool.description).toContain("another powershell.exe -Command invocation")
+	})
+
+	it("keeps the prompted PowerShell edition until the next model request", async () => {
+		Object.defineProperty(process, "platform", { value: "win32" })
+		mocks.existsSync.mockReturnValue(true)
+		mocks.getGlobalSettingsKey.mockReturnValue("powershell-legacy")
+		const manager = createFakeTerminalManager(createFakeTerminalProcess({ lines: ["ok"] }))
+		const getOrCreateTerminal = vi.spyOn(manager, "getOrCreateTerminal")
+		const tool = createVscodeRunCommandsTool({ cwd: "C:\\workspace", getTerminalManager: () => manager })
+		const legacyDescription = tool.description
+		expect(legacyDescription).toContain("Windows PowerShell (powershell.exe)")
+
+		mocks.getGlobalSettingsKey.mockReturnValue("powershell-7")
+		await tool.execute(
+			{ commands: ["Write-Output 'ok'"] },
+			{ agentId: "agent-1", conversationId: "conversation-1", iteration: 1 },
+		)
+		expect(getOrCreateTerminal).toHaveBeenLastCalledWith("C:\\workspace", "powershell-legacy")
+
+		const nextDescription = tool.description
+		expect(nextDescription).toContain("Microsoft PowerShell (pwsh.exe)")
+		expect(nextDescription).not.toBe(legacyDescription)
+		expect(tool.description).toBe(nextDescription)
+		manager.runCommand = () => createFakeTerminalProcess({ lines: ["ok"] })
+		await tool.execute(
+			{ commands: ["Write-Output 'ok'"] },
+			{ agentId: "agent-1", conversationId: "conversation-1", iteration: 2 },
+		)
+		expect(getOrCreateTerminal).toHaveBeenLastCalledWith("C:\\workspace", "powershell-7")
 	})
 })
 

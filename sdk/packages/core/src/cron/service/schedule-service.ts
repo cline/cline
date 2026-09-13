@@ -5,6 +5,7 @@ import {
 	type ChatStartSessionRequest,
 	type HubScheduleCreateInput,
 	type HubScheduleUpdateInput,
+	type ITelemetryService,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	type ScheduleExecutionRecord,
@@ -46,8 +47,20 @@ type HubScheduleTurnResult = {
 	}>;
 };
 
+export interface HubScheduleStartSessionOptions {
+	/**
+	 * Provenance the runner knows about the automation run that is starting
+	 * this session (schedule id/name, run id, run number). Handlers merge it
+	 * into the session metadata so clients can group runs by schedule.
+	 */
+	sessionMetadata?: Record<string, unknown>;
+}
+
 export interface HubScheduleRuntimeHandlers {
-	startSession(request: ChatStartSessionRequest): Promise<{
+	startSession(
+		request: ChatStartSessionRequest,
+		options?: HubScheduleStartSessionOptions,
+	): Promise<{
 		sessionId: string;
 		startResult?: ChatStartSessionArtifacts;
 	}>;
@@ -76,6 +89,7 @@ export interface HubScheduleServiceOptions {
 		payload: Record<string, unknown>,
 	) => void;
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 	dbPath?: string;
 	/**
 	 * Cron spec source/report location forwarded to the runner. Defaults to
@@ -225,6 +239,7 @@ export class HubScheduleService {
 			workspaceRoot: "",
 			specs: options.specs,
 			logger: options.logger,
+			telemetry: options.telemetry,
 			pollIntervalMs: options.pollIntervalMs,
 			claimLeaseSeconds: options.claimLeaseSeconds,
 			globalMaxConcurrency: options.globalMaxConcurrency,
@@ -251,16 +266,21 @@ export class HubScheduleService {
 	}
 
 	public createSchedule(input: HubScheduleCreateInput): ScheduleRecord {
+		const timezone =
+			input.cronPattern === ONE_TIME_SCHEDULE_CRON_PATTERN
+				? input.timezone
+				: input.timezone?.trim() ||
+					Intl.DateTimeFormat().resolvedOptions().timeZone;
 		this.validateScheduleTiming(
 			input.cronPattern,
-			input.timezone,
+			timezone,
 			input.metadata,
 			true,
 		);
 		if (!input.workspaceRoot?.trim()) {
 			throw new Error("workspaceRoot is required for schedules");
 		}
-		return specToSchedule(this.store.createHubSchedule(input));
+		return specToSchedule(this.store.createHubSchedule({ ...input, timezone }));
 	}
 
 	public getSchedule(scheduleId: string): ScheduleRecord | undefined {

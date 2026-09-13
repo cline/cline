@@ -58,7 +58,14 @@ describe("createBuiltinTools shell configuration", () => {
 			name: "executor shell",
 			options: { executorOptions: { bash: { shell: "powershell.exe" } } },
 			expectedShell: "powershell.exe",
-			expectedDescription: "Commands run through PowerShell",
+			expectedDescription:
+				"Commands run through Windows PowerShell (powershell.exe)",
+		},
+		{
+			name: "Microsoft PowerShell executable",
+			options: { shell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe" },
+			expectedShell: "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+			expectedDescription: "Commands run through Microsoft PowerShell",
 		},
 		{
 			name: "top-level shell precedence",

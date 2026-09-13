@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
-import { CustomizationSectionView } from "./extensions-view";
+import {
+	CustomizationSectionView,
+	invalidateExtensionInventoryCache,
+} from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 
 /**
@@ -19,12 +22,12 @@ import { McpServersContent } from "./mcp-view";
 type CustomizeTab = "skills" | "mcp" | "plugins" | "rules" | "hooks" | "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
-	{ id: "skills", label: "Skills" },
-	{ id: "mcp", label: "MCP" },
-	{ id: "plugins", label: "Plugins" },
-	{ id: "rules", label: "Rules" },
-	{ id: "hooks", label: "Hooks" },
 	{ id: "tools", label: "Tools" },
+	{ id: "plugins", label: "Plugins" },
+	{ id: "skills", label: "Skills" },
+	{ id: "rules", label: "Rules" },
+	{ id: "mcp", label: "MCP" },
+	{ id: "hooks", label: "Hooks" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -48,7 +51,7 @@ export function CustomizeView({
 }: {
 	onOpenMarketplace?: () => void;
 }) {
-	const [tab, setTab] = useState<CustomizeTab>("skills");
+	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
 
 	const refreshCounts = useCallback(async () => {
@@ -75,6 +78,15 @@ export function CustomizeView({
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshCounts]);
 
+	useEffect(
+		() =>
+			desktopClient.subscribe("settings.changed", () => {
+				invalidateExtensionInventoryCache();
+				void refreshCounts();
+			}),
+		[refreshCounts],
+	);
+
 	const handleInventoryChanged = useCallback(() => {
 		void refreshCounts();
 	}, [refreshCounts]);
@@ -95,7 +107,7 @@ export function CustomizeView({
 						</Button>
 					) : undefined
 				}
-				description="Extend what Cline can do and change how it works. Manage what's installed, or browse the marketplace for more options."
+				description="Extend what Cline can do and how it works. Explore the marketplace for more options."
 				title="Customize"
 			/>
 

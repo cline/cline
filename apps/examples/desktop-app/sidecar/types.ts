@@ -8,6 +8,7 @@ import type {
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
+import type { UserContext } from "@cline/shared";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -60,6 +61,11 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Iterations already in flight when the user supplied recovery guidance. */
+	mistakeRecovery?: {
+		latestIteration: number;
+		continuedThroughIteration?: number;
+	};
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
@@ -115,6 +121,12 @@ export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
+	/**
+	 * Identifies this sidecar process. `streamIndices` restarts whenever the
+	 * sidecar does, so the webview needs to tell "index 1 of a new process"
+	 * apart from a replay of the run it already rendered.
+	 */
+	bootId: string;
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
 	pendingQuestions: Map<string, PendingAskQuestion>;
@@ -123,6 +135,8 @@ export type SidecarContext = {
 	workspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	/** Analytics identity and explicit account state forwarded with each session. */
+	telemetryUser?: UserContext;
 	unsubscribeSessionEvents: (() => void) | null;
 	/**
 	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and

@@ -1,5 +1,6 @@
 import { type CoreConnectionMessage, CoreConnectionServiceClient } from "@generated/grpc-js/host/core_connection"
 import * as grpc from "@grpc/grpc-js"
+import { hostBridgeGrpcMetadata } from "@/hosts/external/host-bridge-auth"
 
 export interface CoreConnection {
 	close(): void
@@ -30,7 +31,10 @@ export function connectCoreStream(
 		"grpc.max_receive_message_length": 256 * 1024 * 1024,
 		"grpc.max_send_message_length": 256 * 1024 * 1024,
 	})
-	const stream = client.connect()
+	// The in-band hello already proves identity for this stream; the header keeps
+	// it uniform with every other bridge call so the host can authenticate at the
+	// transport boundary rather than per-service.
+	const stream = client.connect(hostBridgeGrpcMetadata())
 
 	return new Promise((resolve, reject) => {
 		let connected = false

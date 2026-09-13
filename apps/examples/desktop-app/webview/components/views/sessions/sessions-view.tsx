@@ -10,6 +10,7 @@ import {
 	Filter,
 	Folder,
 	GitFork,
+	Import,
 	Loader2,
 	MoreHorizontal,
 	Pencil,
@@ -19,6 +20,7 @@ import {
 	X,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -155,6 +157,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
@@ -237,6 +240,24 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	const canGoNext =
 		currentPage + 1 < pageCount ||
 		(history.mayHaveMoreSessions && !requiresCompleteHistory);
+
+	// Tokens and cost are not part of the discovery rows; the hook reads them
+	// from each transcript on demand, so tell it which rows are on screen.
+	// Paging (or a fresh batch of older sessions) changes the visible rows and
+	// the new page fills in the same way.
+	useEffect(() => {
+		history.requestUsage(visibleThreads.map((thread) => thread.id));
+	}, [history.requestUsage, visibleThreads]);
+	// Leaving the view releases its page, so running sessions on it stop being
+	// re-read while nobody is looking at them. Separate from the effect above
+	// on purpose: a per-change cleanup would clear and re-set the same ids and
+	// restart the hook's hydration each time a row filled in.
+	useEffect(
+		() => () => {
+			history.requestUsage([]);
+		},
+		[history.requestUsage],
+	);
 
 	// Snap back when a page disappears (filters changed, or "next" asked the
 	// backend for older sessions and there were none left).
@@ -333,6 +354,18 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							value={query}
 						/>
 					</div>
+					<Button
+						aria-label="Import sessions from other tools"
+						className="h-8 rounded-md px-2.5"
+						onClick={() => setImportDialogOpen(true)}
+						size="sm"
+						title="Import sessions from Claude Code, Codex, or opencode"
+						type="button"
+						variant="outline"
+					>
+						<Import className="size-4" />
+						Import
+					</Button>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -783,6 +816,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			<ImportSessionsDialog
+				onImported={() => void history.refreshSessions()}
+				onOpenChange={setImportDialogOpen}
+				open={importDialogOpen}
+			/>
 		</div>
 	);
 }
