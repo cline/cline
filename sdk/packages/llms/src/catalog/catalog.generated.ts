@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1788996592014,
+  version: 1789081881778,
   providers: {
   "302ai": {
     "gpt-6-astra": {
@@ -117381,6 +117381,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text"
         ]
+      },
+      "metadata": {
+        "apiProtocol": "openai-responses"
       }
     },
     "hy4-preview": {
@@ -117486,7 +117489,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.2
       },
       "releaseDate": "2026-08-26",
-      "family": "qwen"
+      "family": "qwen",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     },
     "deepseek-v4-flash-vision-exp": {
       "id": "deepseek-v4-flash-vision-exp",
@@ -117588,7 +117594,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-12",
-      "family": "grok"
+      "family": "grok",
+      "metadata": {
+        "apiProtocol": "openai-responses"
+      }
     },
     "muse-spark-1.2-contributor": {
       "id": "muse-spark-1.2-contributor",
@@ -117637,6 +117646,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "output": [
           "text"
         ]
+      },
+      "metadata": {
+        "apiProtocol": "openai-responses"
       }
     },
     "qwen3.8-max": {
@@ -117678,7 +117690,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 2.5
       },
       "releaseDate": "2026-08-03",
-      "family": "qwen3.8-max"
+      "family": "qwen3.8-max",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     },
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
@@ -117777,7 +117792,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.25
       },
       "releaseDate": "2026-07-09",
-      "family": "gpt-luna"
+      "family": "gpt-luna",
+      "metadata": {
+        "apiProtocol": "openai-responses"
+      }
     },
     "hy3": {
       "id": "hy3",
@@ -117921,7 +117939,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.5
       },
       "releaseDate": "2026-06-02",
-      "family": "qwen3.7-plus"
+      "family": "qwen3.7-plus",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     },
     "minimax-m3": {
       "id": "minimax-m3",
@@ -117949,7 +117970,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-31",
-      "family": "minimax-m3"
+      "family": "minimax-m3",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     },
     "qwen3.7-max": {
       "id": "qwen3.7-max",
@@ -117979,7 +118003,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 3.125
       },
       "releaseDate": "2026-05-21",
-      "family": "qwen3.7-max"
+      "family": "qwen3.7-max",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     },
     "deepseek-v4-pro": {
       "id": "deepseek-v4-pro",
@@ -118145,7 +118172,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.625
       },
       "releaseDate": "2026-04-02",
-      "family": "qwen3.6"
+      "family": "qwen3.6",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     },
     "minimax-m2.7": {
       "id": "minimax-m2.7",
@@ -118167,7 +118197,10 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-18",
-      "family": "minimax-m2.7"
+      "family": "minimax-m2.7",
+      "metadata": {
+        "apiProtocol": "anthropic"
+      }
     }
   },
   "openreason": {

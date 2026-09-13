@@ -2950,7 +2950,7 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		// "tokens" here is a context-window problem, not a credential problem;
-		// pointing users at Settings → Models would be misleading.
+		// pointing users at Settings → API Providers would be misleading.
 		expect(errorMessage?.content).toContain("maximum context tokens");
 		expect(errorMessage?.content).not.toContain("Check your model connection");
 	});
@@ -3003,13 +3003,13 @@ describe("useChatSession", () => {
 		const errorMessage = current.messages.find(
 			(message) => message.role === "error",
 		);
-		// Claude Code's login lives in the `claude` CLI; Settings → Models has
+		// Claude Code's login lives in the `claude` CLI; Settings → API Providers has
 		// nothing that could fix an expired session there.
 		expect(errorMessage?.content).toContain("OAuth session expired");
 		expect(errorMessage?.content).toContain(
 			"Sign in again with the `claude` CLI",
 		);
-		expect(errorMessage?.content).not.toContain("Settings → Models");
+		expect(errorMessage?.content).not.toContain("Settings → API Providers");
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
