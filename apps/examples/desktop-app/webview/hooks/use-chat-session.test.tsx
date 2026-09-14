@@ -4644,7 +4644,8 @@ describe("useChatSession", () => {
 		[true, "resolve", true, false],
 		[true, "reject", false, false],
 		[true, "reject", true, false],
-		[true, "reject", false, true],
+		[true, "reject", false, "same"],
+		[true, "reject", false, "other"],
 	] as const)("keeps failure ownership when retry starts=%s RPC=%s B-failure=%s queued-reject=%s", async (startRetry, rpcOutcome, testSecondFailure, queuedRpcReject) => {
 		// A retry may start before the first send's late RPC result arrives.
 		let resolveSend: ((value: unknown) => void) | undefined;
@@ -4755,8 +4756,8 @@ describe("useChatSession", () => {
 					sessionId: current.sessionId,
 					stream: "chat_queued_prompt_start",
 					chunk: JSON.stringify({
-						promptId: "queued-retry",
-						prompt: "Retry",
+						promptId: queuedRpcReject === "other" ? "other" : "queued-retry",
+						prompt: queuedRpcReject === "other" ? "Other prompt" : "Retry",
 						transcriptReflected: testSecondFailure,
 					}),
 					ts: Date.now(),
@@ -4764,11 +4765,19 @@ describe("useChatSession", () => {
 				});
 			});
 			expect(current.status).toBe("running");
+			if (queuedRpcReject === "other") {
+				expect(current.promptsInQueue.map((item) => item.prompt)).toEqual([
+					"Retry",
+				]);
+			}
 			if (queuedRpcReject) {
 				await act(async () => {
 					rejectQueuedSend?.(new Error("queued retry failed"));
 					await retryPromise;
 				});
+				if (queuedRpcReject === "other") {
+					expect(current.promptsInQueue).toEqual([]);
+				}
 			}
 			if (testSecondFailure) {
 				await act(async () => {
