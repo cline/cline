@@ -781,6 +781,8 @@ export interface AgentConfig {
 	 * Reasoning effort level
 	 */
 	reasoningEffort?: ReasoningEffort;
+	/** Optional priority processing, independent of reasoning. */
+	serviceTier?: "priority";
 	/**
 	 * Maximum tokens for thinking/reasoning
 	 */
@@ -958,6 +960,7 @@ export const AgentConfigSchema = z.object({
 		.optional(),
 	// Reasoning Settings
 	reasoningEffort: ReasoningEffortSchema.optional(),
+	serviceTier: z.literal("priority").optional(),
 	thinkingBudgetTokens: z.number().positive().optional(),
 	thinking: z.boolean().optional(),
 

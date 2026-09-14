@@ -146,6 +146,9 @@ export function buildModelOptions(
 	config: AgentConfig,
 ): Record<string, unknown> | undefined {
 	const options: Record<string, unknown> = {};
+	if (config.serviceTier !== undefined) {
+		options.serviceTier = config.serviceTier;
+	}
 	if (config.thinking !== undefined) {
 		options.thinking = config.thinking;
 	}
