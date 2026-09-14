@@ -1,4 +1,4 @@
-import { setRuleDisabledInFrontmatter } from "@core/context/instructions/user-instructions/cline-rules"
+import { resolveRuleWriteRoots, setRuleDisabledInFrontmatter } from "@core/context/instructions/user-instructions/cline-rules"
 import { getWorkspaceBasename } from "@core/workspace"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
 import { RuleScope, ToggleClineRules } from "@shared/proto/cline/file"
@@ -50,9 +50,16 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 
 	// The SDK rule loader reads the document's `disabled` frontmatter flag,
 	// whereas the legacy loader reads the extension's toggle state. Keep both
-	// representations in sync for file-backed global and workspace rules.
+	// representations in sync for file-backed global and workspace rules. The
+	// write is confined to rule documents under the scope's rules root; anything
+	// else keeps only the state toggle.
 	if (scope !== RuleScope.REMOTE) {
-		await setRuleDisabledInFrontmatter(rulePath, enabled)
+		try {
+			const allowedRoots = await resolveRuleWriteRoots(scope === RuleScope.GLOBAL ? "global" : "local")
+			await setRuleDisabledInFrontmatter(rulePath, enabled, allowedRoots)
+		} catch (error) {
+			Logger.warn(`toggleClineRule: could not persist frontmatter for ${rulePath}`, error)
+		}
 	}
 
 	// Track rule toggle telemetry with current task context
