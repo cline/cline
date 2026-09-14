@@ -42,7 +42,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
+import { type BedrockProviderConfig, bedrockProviderConfigFromSettings, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
@@ -51,7 +51,7 @@ import { parseProviderId } from "./model-catalog/provider-id"
 import { toSdkProviderId } from "./model-catalog/sdk-provider-id"
 import { createProviderConfigStore, resolveRuntimeModelSelection } from "./model-catalog/store"
 import { getProviderSettingsManager } from "./provider-migration"
-import { buildSapProviderConfig, type SapProviderConfig } from "./sap-config"
+import { buildSapProviderConfig, type SapProviderConfig, sapProviderConfigFromSettings } from "./sap-config"
 import type { SdkSessionHost } from "./session-host"
 
 // ---------------------------------------------------------------------------
@@ -866,6 +866,20 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				apiKey = lastUsed.apiKey
 				baseUrl = lastUsed.baseUrl
 				apiLine = isProviderApiLine(lastUsed.apiLine) ? lastUsed.apiLine : undefined
+				// The StateManager branch builds the structured cloud options from
+				// legacy state; a provider resolved here carries them in its stored
+				// settings instead. Derive them by data shape so keyless Bedrock,
+				// Vertex and SAP configurations reach the SDK gateway with their
+				// region, project and OAuth fields rather than failing on the right
+				// provider with the wrong endpoint.
+				bedrockProviderConfig = bedrockProviderConfigFromSettings(lastUsed)
+				if (lastUsed.gcp) {
+					vertexProviderConfig = { region: lastUsed.region ?? lastUsed.gcp.region, gcp: lastUsed.gcp }
+				}
+				sapProviderConfig = sapProviderConfigFromSettings(lastUsed)
+				if (providerId === "ollama") {
+					ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig ?? {}, modelId)
+				}
 				Logger.log(`[SessionFactory] Using SDK provider fallback: ${providerId}/${modelId}`)
 			}
 		} catch (error) {
