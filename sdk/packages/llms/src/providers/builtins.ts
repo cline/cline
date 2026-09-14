@@ -848,7 +848,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "api-route",
-		name: "API-Route",
+		name: "API Route",
 		description: "Aggregating gateway for Claude, OpenAI, DeepSeek, and Gemini models",
 		family: "openai-compatible",
 		defaultModelId: "claude-sonnet-4-5",
