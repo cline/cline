@@ -86,4 +86,20 @@ export interface BannerAction {
  * TODO: Backend would return a similar JSON structure in the future which we will replace this with.
  */
 
-export const BANNER_DATA: BannerCardData[] = []
+export const BANNER_DATA: BannerCardData[] = [
+	{
+		id: "desktop-app-launch-v1",
+		icon: "monitor",
+		title: "Introducing Cline Desktop",
+		description:
+			"A native app for working with open weights models. Use it with ClinePass and our free models, or bring your own key for any provider. Import tasks from Claude Code and Codex, schedule agent runs, browse the Marketplace, and talk to Cline with voice input. Now available for macOS and Windows (beta).",
+		actions: [
+			{
+				title: "Try Cline Desktop",
+				action: BannerActionType.Link,
+				arg: "https://cline.bot/desktop",
+			},
+		],
+		platforms: ["mac", "windows"],
+	},
+]
