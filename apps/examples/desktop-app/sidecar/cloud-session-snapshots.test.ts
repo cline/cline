@@ -53,11 +53,30 @@ describe("reconcileBufferedCloudEvents", () => {
 				baselineMessages: baseline,
 			}),
 		).toEqual([first]);
+		const toolResult = {
+			role: "user",
+			content: [
+				{ type: "tool_result", tool_use_id: "call-1", content: "done" },
+			],
+		};
+		expect(
+			reconcileBufferedCloudEvents([first], [...baseline, toolResult], {
+				baselineMessages: baseline,
+			}),
+		).toEqual([first]);
 		const snapshot = [
 			...baseline,
+			toolResult,
 			{
 				...baseline[0],
-				...(prompt ? { content: `<user_input>${prompt}</user_input>` } : {}),
+				...(prompt
+					? {
+							content: [
+								...toolResult.content,
+								{ type: "text", text: `<user_input>${prompt}</user_input>` },
+							],
+						}
+					: {}),
 			},
 		];
 		const completed = event("run.completed", "done");

@@ -786,10 +786,9 @@ type CloudConnection = {
 	rehydrationRerunRequested?: boolean;
 	bufferingEvents?: boolean;
 	bufferedEvents: HubEventEnvelope[];
-	rehydrationGeneration: number;
+	bufferedEventsDropped: number;
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
-	seenEventIdOrder: string[];
 	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
 	/** Set by disposeConnection; late timers and approval callbacks must not
@@ -962,6 +961,7 @@ export class CloudSessionManager {
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	private readonly provisioningControllers = new Map<string, AbortController>();
 	private readonly sendAbortTokens = new Map<string, symbol>();
+	private readonly automaticTitleWrites = new Map<string, Promise<void>>();
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1410,9 +1410,16 @@ export class CloudSessionManager {
 				if (live) {
 					live.title = title;
 				}
-				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
-					// Sidebar still shows the local title; REST retries on rename.
-				});
+				const write = this.options.api
+					.updateTitle?.(outerSessionId, title)
+					.then(() => {})
+					.catch(() => {})
+					.finally(() => {
+						if (this.automaticTitleWrites.get(outerSessionId) === write) {
+							this.automaticTitleWrites.delete(outerSessionId);
+						}
+					});
+				if (write) this.automaticTitleWrites.set(outerSessionId, write);
 			}
 		}
 		try {
@@ -1428,10 +1435,14 @@ export class CloudSessionManager {
 					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
 					: { timeoutMs: null },
 			);
+			const queued =
+				delivery === "queue" ||
+				(delivery !== "steer" && reply.payload?.result === undefined);
+			if (queued) removePendingMessage();
 			return {
 				sessionId: outerSessionId,
 				ok: true,
-				...(delivery === "queue" ? { queued: true } : {}),
+				...(queued ? { queued: true } : {}),
 				result: reply.payload?.result,
 			};
 		} catch (error) {
@@ -1562,7 +1573,7 @@ export class CloudSessionManager {
 		}
 		connection.bufferingEvents = true;
 		connection.bufferedEvents = [];
-		connection.rehydrationGeneration += 1;
+		connection.bufferedEventsDropped = 0;
 		try {
 			// command() waits for registration, including reconnect attempts.
 			await this.ensureAttached(connection);
@@ -1597,7 +1608,8 @@ export class CloudSessionManager {
 				throw new Error("Cloud Hub returned an invalid transcript snapshot");
 			}
 			const messages = messagesReply.payload.messages;
-			const messagesSnapshotEventCutoff = connection.bufferedEvents.length;
+			const messagesSnapshotEventCutoff =
+				connection.bufferedEventsDropped + connection.bufferedEvents.length;
 			const queueReply = await connection.client
 				.command(
 					"session.pending_prompts",
@@ -1606,13 +1618,14 @@ export class CloudSessionManager {
 				)
 				.catch(() => undefined);
 			this.assertSessionActive(outerSessionId, connection);
-			const queueSnapshotEventCutoff = connection.bufferedEvents.length;
+			const queueSnapshotEventCutoff =
+				connection.bufferedEventsDropped + connection.bufferedEvents.length;
 
 			if (live) {
 				const statusChanged = live.status !== status;
 				live.messages = messages;
 				live.status = status;
-				live.busy = status === "running" || status === "pending";
+				live.busy = status === "running";
 				if (statusChanged) {
 					if (
 						status === "completed" ||
@@ -1655,7 +1668,6 @@ export class CloudSessionManager {
 			sendEvent(this.ctx, "cloud_session_rehydrated", {
 				sessionId: outerSessionId,
 				status,
-				generation: connection.rehydrationGeneration,
 				transcriptKnown: true,
 				messages: displayMessages,
 			});
@@ -1663,8 +1675,14 @@ export class CloudSessionManager {
 			const submittedPrompts = submittedPromptsFromEvents(bufferedEvents);
 			const buffered = reconcileBufferedCloudEvents(bufferedEvents, messages, {
 				queueSnapshotApplied: queueSnapshotValid,
-				queueSnapshotEventCutoff,
-				messagesSnapshotEventCutoff,
+				queueSnapshotEventCutoff: Math.max(
+					0,
+					queueSnapshotEventCutoff - connection.bufferedEventsDropped,
+				),
+				messagesSnapshotEventCutoff: Math.max(
+					0,
+					messagesSnapshotEventCutoff - connection.bufferedEventsDropped,
+				),
 				baselineMessages,
 			});
 			connection.bufferedEvents = [];
@@ -1861,6 +1879,8 @@ export class CloudSessionManager {
 	}
 
 	async updateTitle(outerSessionId: string, title: string): Promise<void> {
+		await this.automaticTitleWrites.get(outerSessionId);
+		this.assertSessionActive(outerSessionId);
 		await this.options.api.updateTitle(outerSessionId, title);
 		const record = this.knownSessions.get(outerSessionId);
 		if (record) {
@@ -2144,10 +2164,9 @@ export class CloudSessionManager {
 				remote,
 				client,
 				bufferedEvents: [],
-				rehydrationGeneration: 0,
+				bufferedEventsDropped: 0,
 				transcriptKnown: false,
 				seenEventIds: new Set(),
-				seenEventIdOrder: [],
 				unsubscribe: () => {},
 			};
 			try {
@@ -2284,9 +2303,8 @@ export class CloudSessionManager {
 		) {
 			if (connection.seenEventIds.has(eventId)) return;
 			connection.seenEventIds.add(eventId);
-			connection.seenEventIdOrder.push(eventId);
-			while (connection.seenEventIdOrder.length > MAX_SEEN_EVENT_IDS) {
-				const removed = connection.seenEventIdOrder.shift();
+			while (connection.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+				const removed = connection.seenEventIds.values().next().value;
 				if (removed) connection.seenEventIds.delete(removed);
 			}
 		}
@@ -2294,6 +2312,7 @@ export class CloudSessionManager {
 			connection.bufferedEvents.push(event);
 			if (connection.bufferedEvents.length > MAX_BUFFERED_SYNC_EVENTS) {
 				connection.bufferedEvents.shift();
+				connection.bufferedEventsDropped += 1;
 				this.ctx.logger?.log("Cloud sync event buffer reached its limit", {
 					sessionId: outerSessionId,
 					severity: "warn",
