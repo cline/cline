@@ -435,3 +435,20 @@ export function isRetryableProviderError(error: unknown): boolean {
 
 	return isRetryableFromSignals(error);
 }
+
+/**
+ * Retryability as seen by the agent loop's turn-level retry, which must not
+ * stack on retries another layer already spent. The AI SDK owns request-start
+ * failures: it retries them itself with `retry-after`-aware backoff and, once
+ * exhausted, surfaces a `RetryError`. Re-running such a turn would multiply
+ * the SDK's attempts by the agent's, so a `RetryError` is terminal here even
+ * when its final attempt looks transient. Everything else (most importantly a
+ * provider error emitted mid-stream, which the SDK never retries) is judged by
+ * {@link isRetryableProviderError}.
+ */
+export function isRetryableBeyondSdkRetries(error: unknown): boolean {
+	if (RetryError.isInstance(error)) {
+		return false;
+	}
+	return isRetryableProviderError(error);
+}

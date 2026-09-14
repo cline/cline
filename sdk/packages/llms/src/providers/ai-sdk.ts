@@ -46,7 +46,7 @@ import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
 import {
 	classifyProviderError,
-	isRetryableProviderError,
+	isRetryableBeyondSdkRetries,
 } from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
@@ -1068,7 +1068,14 @@ function getNestedUsageValue(
  * with exponential backoff that honors `retry-after` headers. It never sees an
  * error the provider emits *mid-stream* (OpenRouter's "Provider returned error"
  * arrives as a stream part after a 200), so the agent loop keeps its own
- * turn-level retry for those; the two layers are complementary, not redundant.
+ * turn-level retry for those.
+ *
+ * Each failure class has exactly one retrying layer, so the counts never
+ * multiply: request-start failures belong to this setting (a `RetryError` is
+ * terminal for the turn-level retry, see `isRetryableBeyondSdkRetries`);
+ * pre-output socket deaths and empty responses belong to
+ * `withEmptyResponseRetry`, which never sees request-start rejections; and
+ * mid-stream provider errors belong to the turn-level retry alone.
  */
 const MODEL_REQUEST_MAX_RETRIES = 5;
 
@@ -1423,10 +1430,13 @@ interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
-	 * Whether the failure is transient and worth retrying, taken from the AI
-	 * SDK's typed `isRetryable` flag while the structured error is still in
-	 * hand. Forwarded as `errorRetryable` on the `finish` event because the
-	 * flattened message the agent loop receives cannot carry it.
+	 * Whether the agent loop's turn-level retry may re-run this turn, decided
+	 * while the structured error is still in hand and forwarded as
+	 * `errorRetryable` on the `finish` event (the flattened message the agent
+	 * loop receives cannot carry it). Transient by the AI SDK's own typed
+	 * `isRetryable` flag, except that a `RetryError` is terminal: the SDK
+	 * already spent its request-start retries, and the turn-level retry must
+	 * not multiply them.
 	 */
 	retryable: boolean;
 	/**
@@ -1441,7 +1451,7 @@ function captureStreamError(error: unknown): CapturedStreamError {
 	return {
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
-		retryable: isRetryableProviderError(error),
+		retryable: isRetryableBeyondSdkRetries(error),
 	};
 }
 

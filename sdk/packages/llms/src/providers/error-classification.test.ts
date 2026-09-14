@@ -7,6 +7,7 @@ import {
 import { describe, expect, it } from "vitest";
 import {
 	classifyProviderError,
+	isRetryableBeyondSdkRetries,
 	isRetryableProviderError,
 } from "./error-classification";
 
@@ -512,5 +513,42 @@ describe("isRetryableProviderError", () => {
 			});
 			expect(isRetryableProviderError(retryErrorEndingIn(last))).toBe(true);
 		});
+	});
+});
+
+describe("isRetryableBeyondSdkRetries", () => {
+	const apiCallError = (statusCode: number, message = "error") =>
+		new APICallError({
+			message,
+			url: "https://api.example.com/v1/chat/completions",
+			requestBodyValues: {},
+			statusCode,
+			responseBody: JSON.stringify({ error: { message } }),
+		});
+
+	it("treats a RetryError as terminal even when its final attempt was transient", () => {
+		const exhausted = new RetryError({
+			message: "Failed after 6 attempts",
+			reason: "maxRetriesExceeded",
+			errors: [apiCallError(429, "rate limited"), apiCallError(503)],
+		});
+		expect(isRetryableProviderError(exhausted)).toBe(true);
+		expect(isRetryableBeyondSdkRetries(exhausted)).toBe(false);
+	});
+
+	it("still retries a transient failure the SDK did not retry", () => {
+		expect(isRetryableBeyondSdkRetries(apiCallError(429, "rate limited"))).toBe(
+			true,
+		);
+		expect(isRetryableBeyondSdkRetries("Provider returned error")).toBe(true);
+	});
+
+	it("still refuses permanent failures", () => {
+		expect(
+			isRetryableBeyondSdkRetries(apiCallError(401, "Invalid API Key")),
+		).toBe(false);
+		expect(isRetryableBeyondSdkRetries("fetch failed: socket closed")).toBe(
+			false,
+		);
 	});
 });
