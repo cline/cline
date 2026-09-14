@@ -368,6 +368,83 @@ describe("CloudSessionManager state", () => {
 		expect(serverTitle).toBe("Renamed");
 	});
 
+	it.each([
+		false,
+		true,
+	])("skips automatic naming while a manual rename is pending (manual fails: %s)", async (manualFails) => {
+		const { manager, connection, live, updateTitle } = await createFixture();
+		const started = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let calls = 0;
+		let serverTitle = "";
+		updateTitle.mockImplementation(async (_sessionId, title) => {
+			calls += 1;
+			if (calls === 1) {
+				started.resolve();
+				await release.promise;
+				if (manualFails) throw new Error("manual title failed");
+			}
+			serverTitle = title;
+			return connection.remote;
+		});
+
+		const manual = manager
+			.updateTitle("ses-outer", "Renamed")
+			.catch((error: unknown) => error);
+		await started.promise;
+		await manager.send("ses-outer", "Derived title");
+		expect(updateTitle).toHaveBeenCalledTimes(1);
+		expect(live.title).toBeUndefined();
+		release.resolve();
+		const manualOutcome = await manual;
+		if (manualFails) {
+			expect(manualOutcome).toBeInstanceOf(Error);
+		} else {
+			expect(manualOutcome).toBeUndefined();
+		}
+		if (manualFails) {
+			await manager.updateTitle("ses-outer", "Renamed again");
+		}
+
+		expect(serverTitle).toBe(manualFails ? "Renamed again" : "Renamed");
+		expect(updateTitle).toHaveBeenCalledTimes(manualFails ? 2 : 1);
+	});
+
+	it.each([
+		false,
+		true,
+	])("orders overlapping manual renames (first fails: %s)", async (firstFails) => {
+		const { manager, connection, updateTitle } = await createFixture();
+		const started = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const savedTitles: string[] = [];
+		updateTitle.mockImplementation(async (_sessionId, title) => {
+			if (title === "First") {
+				started.resolve();
+				await release.promise;
+				if (firstFails) throw new Error("first rename failed");
+			}
+			savedTitles.push(title);
+			return connection.remote;
+		});
+
+		const first = manager
+			.updateTitle("ses-outer", "First")
+			.catch((error: unknown) => error);
+		await started.promise;
+		const second = manager.updateTitle("ses-outer", "Second");
+		try {
+			await Promise.resolve();
+			expect(updateTitle).toHaveBeenCalledTimes(1);
+		} finally {
+			release.resolve();
+		}
+		const [firstOutcome] = await Promise.all([first, second]);
+		if (firstFails) expect(firstOutcome).toBeInstanceOf(Error);
+		else expect(firstOutcome).toBeUndefined();
+		expect(savedTitles).toEqual(firstFails ? ["Second"] : ["First", "Second"]);
+	});
+
 	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {
 		const { manager, command, replies, live } = await createFixture();
 		replies["session.send_input"] = { result: {} };
