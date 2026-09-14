@@ -768,6 +768,7 @@ type CloudConnection = {
 	rehydrationRerunRequested?: boolean;
 	bufferingEvents?: boolean;
 	bufferedEvents: HubEventEnvelope[];
+	bufferedEventsDropped: number;
 	rehydrationGeneration: number;
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
@@ -1335,6 +1336,7 @@ export class CloudSessionManager {
 		}
 		connection.bufferingEvents = true;
 		connection.bufferedEvents = [];
+		connection.bufferedEventsDropped = 0;
 		connection.rehydrationGeneration += 1;
 		try {
 			// command() waits for registration, including reconnect attempts.
@@ -1367,7 +1369,8 @@ export class CloudSessionManager {
 				throw new Error("Cloud Hub returned an invalid transcript snapshot");
 			}
 			const messages = messagesReply.payload.messages;
-			const messagesSnapshotEventCutoff = connection.bufferedEvents.length;
+			const messagesSnapshotEventCutoff =
+				connection.bufferedEventsDropped + connection.bufferedEvents.length;
 			const queueReply = await connection.client
 				.command(
 					"session.pending_prompts",
@@ -1375,7 +1378,8 @@ export class CloudSessionManager {
 					innerSessionId,
 				)
 				.catch(() => undefined);
-			const queueSnapshotEventCutoff = connection.bufferedEvents.length;
+			const queueSnapshotEventCutoff =
+				connection.bufferedEventsDropped + connection.bufferedEvents.length;
 
 			if (live) {
 				const statusChanged = live.status !== status;
@@ -1430,8 +1434,14 @@ export class CloudSessionManager {
 			const submittedPrompts = submittedPromptsFromEvents(bufferedEvents);
 			const buffered = reconcileBufferedCloudEvents(bufferedEvents, messages, {
 				queueSnapshotApplied: queueSnapshotValid,
-				queueSnapshotEventCutoff,
-				messagesSnapshotEventCutoff,
+				queueSnapshotEventCutoff: Math.max(
+					0,
+					queueSnapshotEventCutoff - connection.bufferedEventsDropped,
+				),
+				messagesSnapshotEventCutoff: Math.max(
+					0,
+					messagesSnapshotEventCutoff - connection.bufferedEventsDropped,
+				),
 				baselineMessages,
 			});
 			connection.bufferedEvents = [];
@@ -1740,6 +1750,7 @@ export class CloudSessionManager {
 				remote,
 				client,
 				bufferedEvents: [],
+				bufferedEventsDropped: 0,
 				rehydrationGeneration: 0,
 				transcriptKnown: false,
 				seenEventIds: new Set(),
@@ -1822,6 +1833,7 @@ export class CloudSessionManager {
 			connection.bufferedEvents.push(event);
 			if (connection.bufferedEvents.length > MAX_BUFFERED_SYNC_EVENTS) {
 				connection.bufferedEvents.shift();
+				connection.bufferedEventsDropped += 1;
 				this.ctx.logger?.log("Cloud sync event buffer reached its limit", {
 					sessionId: outerSessionId,
 					severity: "warn",

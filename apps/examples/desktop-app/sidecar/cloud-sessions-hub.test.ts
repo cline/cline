@@ -387,6 +387,40 @@ describe("CloudSessionManager Hub runtime", () => {
 		).toBe(true);
 	});
 
+	it.each([
+		0, 2_000,
+	])("preserves post-snapshot output after buffering %s events", async (count) => {
+		const { manager, events, hub } = createFixture();
+		await manager.attach("ses-outer");
+		hub.messages = [{ role: "assistant", content: "OK" }];
+		const emit = (event: HubEventEnvelope["event"], payload = {}) =>
+			hub.events?.({ version: "v1", sessionId: "inner-1", event, payload });
+		hub.commandHook = (command) => {
+			if (command === "session.messages") {
+				for (let i = 0; i < count; i++)
+					emit("assistant.delta", { text: "old" });
+			}
+			if (command === "session.pending_prompts") {
+				emit("assistant.delta", { text: "OK" });
+				emit("assistant.finished", { text: "OK" });
+				emit("run.completed");
+			}
+		};
+		await hub.resolveHeaders?.();
+		await hub.resolveHeaders?.();
+		await vi.waitFor(() =>
+			expect(
+				events.some(({ name }) => name === "cloud_session_rehydrated"),
+			).toBe(true),
+		);
+		expect(
+			events.filter(
+				({ name, payload }) => name === "chat_event" && payload.chunk === "OK",
+			),
+		).toHaveLength(1);
+		await manager.dispose();
+	});
+
 	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
 		const hub = new FakeHubClient();
 		hub.commandHook = (command) => {
