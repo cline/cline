@@ -450,31 +450,67 @@ describe("isRetryableProviderError", () => {
 
 	describe("not retryable", () => {
 		it("does not retry a credential rejection (401)", () => {
-			expect(isRetryableProviderError(apiCallError(401, "Invalid API Key"))).toBe(
-				false,
-			);
+			expect(
+				isRetryableProviderError(apiCallError(401, "Invalid API Key")),
+			).toBe(false);
 		});
 
 		it("does not retry a context-window overflow (400)", () => {
 			expect(
 				isRetryableProviderError(
-					apiCallError(400, "This model's maximum context length is 40960 tokens"),
+					apiCallError(
+						400,
+						"This model's maximum context length is 40960 tokens",
+					),
 				),
 			).toBe(false);
 		});
 
 		it("does not retry other client errors (404)", () => {
-			expect(isRetryableProviderError(apiCallError(404, "model not found"))).toBe(
+			expect(
+				isRetryableProviderError(apiCallError(404, "model not found")),
+			).toBe(false);
+		});
+
+		it("does not retry a bare transport failure with no status", () => {
+			expect(isRetryableProviderError("fetch failed: socket closed")).toBe(
 				false,
 			);
 		});
 
-		it("does not retry a bare transport failure with no status", () => {
-			expect(isRetryableProviderError("fetch failed: socket closed")).toBe(false);
-		});
-
 		it("returns false for undefined", () => {
 			expect(isRetryableProviderError(undefined)).toBe(false);
+		});
+	});
+
+	describe("a RetryError is judged by its final attempt only", () => {
+		const retryErrorEndingIn = (last: Error) =>
+			new RetryError({
+				message: "Failed after 3 attempts",
+				reason: "maxRetriesExceeded",
+				errors: [apiCallError(429, "rate limited"), last],
+			});
+
+		it("does not let an earlier 429 make a final plain 400 retryable", () => {
+			const last = Object.assign(new Error("invalid request"), {
+				statusCode: 400,
+			});
+			expect(isRetryableProviderError(retryErrorEndingIn(last))).toBe(false);
+		});
+
+		it("does not let an earlier 429 make a final statusless transport failure retryable", () => {
+			expect(
+				isRetryableProviderError(
+					retryErrorEndingIn(new Error("connection reset by peer")),
+				),
+			).toBe(false);
+		});
+
+		it("still retries when the final attempt itself is a 5xx", () => {
+			const last = Object.assign(new Error("upstream unavailable"), {
+				statusCode: 503,
+			});
+			expect(isRetryableProviderError(retryErrorEndingIn(last))).toBe(true);
 		});
 	});
 });
