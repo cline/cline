@@ -1452,3 +1452,29 @@ describe("updateHistoryItem", () => {
 		expect(result[1].id).toBe("task-old")
 	})
 })
+
+// ---------------------------------------------------------------------------
+// SDK provider fallback
+// ---------------------------------------------------------------------------
+
+describe("buildSessionConfig SDK provider fallback", () => {
+	it("uses a keyless local provider from providers.json when state names no provider", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({} as any)
+		const keylessLocal = {
+			provider: "openai-compatible",
+			model: "qwen3-coder",
+			baseUrl: "http://127.0.0.1:8080/v1",
+		}
+		mocks.providerSettingsManager.getLastUsedProviderSettings.mockReturnValue(keylessLocal as any)
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) =>
+			providerId === "openai-compatible" ? (keylessLocal as any) : undefined,
+		)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		expect(config.modelId).toBe("qwen3-coder")
+		expect(config.baseUrl).toBe("http://127.0.0.1:8080/v1")
+		expect(config.apiKey).toBe("")
+	})
+})
