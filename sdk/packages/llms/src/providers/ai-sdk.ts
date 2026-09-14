@@ -1062,6 +1062,16 @@ function getNestedUsageValue(
 	return getNumericValue(current) ?? 0;
 }
 
+/**
+ * AI SDK request-level retries for each model call (the SDK default is 2). The
+ * SDK retries the *initial* request on transient failures — 429/5xx/network —
+ * with exponential backoff that honors `retry-after` headers. It never sees an
+ * error the provider emits *mid-stream* (OpenRouter's "Provider returned error"
+ * arrives as a stream part after a 200), so the agent loop keeps its own
+ * turn-level retry for those; the two layers are complementary, not redundant.
+ */
+const MODEL_REQUEST_MAX_RETRIES = 5;
+
 type UsagePath = readonly [string] | readonly [string, string];
 
 const REASONING_TOKEN_PATHS: UsagePath[] = [
@@ -2278,6 +2288,7 @@ function createAiSdkProvider(
 							...(useSystemOption ? { system: systemPrompt } : {}),
 							...(tools ? { tools } : {}),
 							abortSignal: request.signal,
+							maxRetries: MODEL_REQUEST_MAX_RETRIES,
 							experimental_repairToolCall: repairMalformedToolCall as never,
 							telemetry: {
 								...aiSdkTelemetry,
