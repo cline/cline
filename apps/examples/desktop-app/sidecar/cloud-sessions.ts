@@ -52,18 +52,14 @@ const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
 const CREATE_REQUEST_TITLE_PREFIX = "__cline_create_request__:";
 const CLOUD_SESSION_SYSTEM_PROMPT =
-	"GitHub authentication is provided by the infrastructure's egress proxy. " +
-	"The GitHub CLI (`gh`) is installed and already authenticated; prefer it for GitHub work. " +
-	"`git` push and pull are authenticated too. Do not configure credentials or run `gh auth login`.\n\n" +
-	"SAVE YOUR WORK: This sandbox may be torn down at any time; work not pushed to origin can be lost. " +
-	"For tasks that change files, reuse the task's existing feature branch when resuming, " +
-	"or create a dedicated feature branch from the selected checkout before editing. " +
-	"Do not commit directly to the default branch. Commit meaningful progress with clear messages, " +
-	"including work in progress, and push after each commit (`git push -u origin <branch>` for the first push). " +
-	"If a push is rejected, report that the work is not saved remotely. " +
-	"Do not force-push or amend already-pushed commits unless explicitly asked. " +
-	"Explicit user instructions about branches, commits, or pushing take precedence. " +
-	"Read-only tasks need no branch changes, commits, or pushes.";
+	"IMPORTANT: GitHub authentication is handled automatically by the infrastructure. " +
+	"An egress proxy transparently injects credentials into all GitHub traffic. " +
+	"You do NOT need to set up, configure, or manage any tokens, API keys, or credentials, " +
+	"and you must never run `gh auth login` or attempt to authenticate manually. " +
+	"The GitHub CLI (`gh`) is installed and already authenticated — prefer it for GitHub work " +
+	"(`gh pr create`, `gh pr diff`, `gh issue list`, `gh api`, ...). " +
+	"`git` push and pull are authenticated the same way. " +
+	"Simply run the commands normally — credentials are injected transparently.";
 
 type FetchLike = (
 	input: string | URL | Request,
