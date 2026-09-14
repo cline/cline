@@ -17,6 +17,7 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 
 type SessionSearchHit = {
+	environmentId?: string;
 	sessionId: string;
 	documentId: string;
 	ordinal: number;
@@ -36,7 +37,10 @@ export function SessionCommandBar({
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onOpenSession: (sessionId: string) => void | Promise<void>;
+	onOpenSession: (
+		sessionId: string,
+		environmentId?: string,
+	) => void | Promise<void>;
 }) {
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<SessionSearchHit[]>([]);
@@ -157,7 +161,7 @@ export function SessionCommandBar({
 								key={hit.documentId}
 								onSelect={() => {
 									onOpenChange(false);
-									void onOpenSession(hit.sessionId);
+									void onOpenSession(hit.sessionId, hit.environmentId);
 								}}
 								value={`${hit.documentId} ${hit.title} ${hit.snippet} ${hit.workspaceRoot}`}
 							>

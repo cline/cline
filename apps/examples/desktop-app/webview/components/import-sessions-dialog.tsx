@@ -55,7 +55,7 @@ type ImportSessionsDialogProps = {
  * anyone on the default model has no entry there.
  */
 function resumeTarget(): { provider: string; model: string } {
-	const { provider, model } = getInitialChatConfig();
+	const { provider, model } = getInitialChatConfig("local");
 	return { provider, model };
 }
 

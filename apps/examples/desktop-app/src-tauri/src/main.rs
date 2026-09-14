@@ -84,6 +84,7 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+    remote_helper_directory: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -478,6 +479,15 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         ));
     };
 
+    if std::env::var_os("CLINE_REMOTE_HELPER_DIRECTORY").is_none() {
+        if let Some(path) = context
+            .remote_helper_directory
+            .as_ref()
+            .filter(|path| path.is_dir())
+        {
+            command.env("CLINE_REMOTE_HELPER_DIRECTORY", path);
+        }
+    }
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -1213,16 +1223,23 @@ fn main() {
     let app_context = AppContext {
         launch_cwd,
         workspace_root,
+        remote_helper_directory: None,
     };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
-        .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
-        .setup(|app| {
+        .setup(move |app| {
+            let mut context = app_context.clone();
+            context.remote_helper_directory = app
+                .path()
+                .resource_dir()
+                .ok()
+                .map(|path| path.join("bin").join("remote-helpers"));
+            app.manage(context);
             if tauri::is_dev() {
                 if let (Some(window), Some(product_name)) = (
                     app.get_webview_window(MAIN_WINDOW_LABEL),

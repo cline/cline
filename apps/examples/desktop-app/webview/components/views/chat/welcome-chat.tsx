@@ -21,6 +21,7 @@ export function WelcomeScreen({
 	body,
 	composer,
 	notice,
+	environmentSelector,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -33,6 +34,7 @@ export function WelcomeScreen({
 	notice?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	environmentSelector?: ReactNode;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
@@ -136,7 +138,8 @@ export function WelcomeScreen({
 							<h1 className="sr-only">What would you like to build?</h1>
 							<AgentWelcomeHero />
 
-							<div className="mt-11 flex min-w-0 items-center">
+							<div className="mt-11 flex min-w-0 items-center gap-2">
+								{environmentSelector}
 								<WelcomeWorkspaceControls
 									currentBranch={gitBranch}
 									onListGitBranches={onListGitBranches}

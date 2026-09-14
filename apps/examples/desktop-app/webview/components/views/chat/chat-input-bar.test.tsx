@@ -13,6 +13,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
+	buildWorkspaceFileSearchKey,
 	ChatInputBar,
 } from "./chat-input-bar";
 
@@ -188,6 +189,7 @@ async function renderVoiceComposer({
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					environmentId="local"
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
@@ -308,6 +310,24 @@ describe("ChatInputBar", () => {
 		expect(onAbort).toHaveBeenCalledOnce();
 	});
 
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
@@ -347,6 +367,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -888,6 +909,7 @@ describe("ChatInputBar", () => {
 						}}
 					>
 						<ChatInputBar
+							environmentId="local"
 							attachments={[]}
 							gitBranch="main"
 							mode="act"
@@ -1070,6 +1092,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1157,6 +1180,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1301,6 +1325,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1400,6 +1425,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1512,6 +1538,7 @@ describe("ChatInputBar", () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1595,6 +1622,7 @@ describe("ChatInputBar", () => {
 			root.render(
 				<WorkspaceProvider value={workspaceValue}>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -1666,6 +1694,7 @@ describe("ChatInputBar", () => {
 				root.render(
 					<WorkspaceProvider value={workspaceValue}>
 						<ChatInputBar
+							environmentId="local"
 							attachments={[]}
 							gitBranch="main"
 							mode="act"
@@ -1856,7 +1885,7 @@ describe("ChatInputBar", () => {
 				// The app stays open, but this picker has to load live models again.
 				await act(async () => root.unmount());
 				root = createRoot(container);
-				const initial = getInitialChatConfig();
+				const initial = getInitialChatConfig("local");
 				expect(initial).toMatchObject({
 					provider: "cline-pass",
 					model: kimi.id,
@@ -2072,6 +2101,7 @@ describe("ChatInputBar", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
@@ -2209,6 +2239,7 @@ describe("ChatInputBar token ring", () => {
 					}}
 				>
 					<ChatInputBar
+						environmentId="local"
 						attachments={[]}
 						gitBranch="main"
 						mode="act"
