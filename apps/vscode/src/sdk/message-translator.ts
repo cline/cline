@@ -84,7 +84,7 @@ export interface TranslationResult {
 
 type NormalizedUsage = NonNullable<TranslationResult["usage"]>
 
-function normalizeUsageEvent(usageEvent: {
+export function normalizeUsageEvent(usageEvent: {
 	inputTokens?: number
 	outputTokens?: number
 	cacheReadTokens?: number
@@ -551,7 +551,7 @@ const FILESYSTEM_PATH_TOOLS: ReadonlySet<ClineSayTool["tool"]> = new Set([
  * display behavior that was lost in the SDK migration (the SDK works with
  * absolute paths). Display-only — executors receive the raw tool input.
  */
-function toDisplaySayTool(sayTool: ClineSayTool, cwd: string | undefined): ClineSayTool {
+export function toDisplaySayTool(sayTool: ClineSayTool, cwd: string | undefined): ClineSayTool {
 	if (!cwd || !FILESYSTEM_PATH_TOOLS.has(sayTool.tool)) {
 		return sayTool
 	}
@@ -651,7 +651,7 @@ function relativizePatchPaths(patch: string | undefined, cwd: string): string | 
  *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
  *   MCP tools (serverName__toolName)   → (handled before reaching sdkToolToClineSayTool — emitted as say="use_mcp_server")
  */
-function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
+export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
 	// Parse input if it's a string (some SDK tools pass stringified JSON)
 	const parsedInput = parseToolInput(input)
 
@@ -857,7 +857,7 @@ function parseToolInput(input: unknown): Record<string, unknown> | undefined {
  * but still present in persisted transcripts) and the SDK's built-in `submit_and_exit`
  * (DefaultToolNames.SUBMIT_AND_EXIT, lifecycle.completesRun=true).
  */
-function isCompletionTool(toolName: string): boolean {
+export function isCompletionTool(toolName: string): boolean {
 	return toolName === "submit_and_exit" || toolName === "attempt_completion"
 }
 
@@ -1265,7 +1265,7 @@ function finalizeDanglingCompaction(
 	messages.push(buildCompactionMessage({ status, mode: "auto" }, ts))
 }
 
-function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
+export function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): ClineMessage[] {
 	const messages: ClineMessage[] = []
 
 	switch (event.type) {

@@ -50,6 +50,8 @@ export function generateLegalV1Trace(
 	let nextTool = 1;
 	const openTools: string[] = [];
 	let terminated = false;
+	/** Deltas of the currently-open text block, joined for `accumulated`. */
+	const textDeltas: string[] = [];
 
 	const iterationStart = (): void => {
 		iterationOpen = lastEndedIteration + 1;
@@ -74,17 +76,23 @@ export function generateLegalV1Trace(
 			// Deltas are the most common real events — weight them.
 			moves.push(
 				(): void => {
+					const delta = rng.pick(TEXTS);
+					textDeltas.push(delta);
 					out.push({
 						type: "content_start",
 						contentType: "text",
-						text: rng.pick(TEXTS),
+						text: delta,
+						accumulated: textDeltas.join(""),
 					});
 				},
 				(): void => {
+					const delta = rng.pick(TEXTS);
+					textDeltas.push(delta);
 					out.push({
 						type: "content_start",
 						contentType: "text",
-						text: rng.pick(TEXTS),
+						text: delta,
+						accumulated: textDeltas.join(""),
 					});
 				},
 				(): void => {
@@ -96,6 +104,7 @@ export function generateLegalV1Trace(
 					});
 				},
 				(): void => {
+					textDeltas.length = 0;
 					out.push({
 						type: "content_end",
 						contentType: "text",

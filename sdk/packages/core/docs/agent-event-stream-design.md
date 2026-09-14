@@ -583,11 +583,52 @@ pending-prompt delivery windows (`pending_prompt_submitted` sets
 running BEFORE any turn frames exist), so the assembler's idle edge
 would fire between queued turns and let the scheduler rebuild
 mid-delivery; blocked until pending-prompts become frames (Phase 3d's
-scope). **Remaining (part 2):** the translator sinks port —
-MessageTranslatorState's parser fields delete, ClineMessage mapping
-becomes sink implementations, sub-agent suppression (P5's heuristic)
-becomes `onSubAgent → null` plus a SubagentStatusRow consumer, and
-the health monitor is replaced by the real sinks.
+scope).
+
+**Phase 3c part 2 status: implemented (first tranche, differential
+parity).** `apps/vscode/src/sdk/frame-message-bridge.ts` implements the
+assembler's consumer API and produces ClineMessages for the core
+agent-event surface: streaming text/reasoning rows (accumulated
+partials, authoritatively-final closes), generic tool rows (partial at
+open, final with the open's input at close, error rows), usage
+api_req_started rows, iteration markers, notices (internal ones
+suppressed, others info rows), and turn terminals with the completion
+retag. `SdkFrameStream`'s consumer is now the bridge (the monitor's
+diagnostics behavior moved onto it) — v1 remains the production
+ClineMessage source, so the bridge runs shadow-only: SdkFrameStream
+drains and discards its rows until the switchover PR. Parity is
+differential-locked (`frame-message-bridge.differential.test.ts`):
+generated traces plus handcrafted edges through both the v1 translator
+and frame→assemble→bridge must produce equal ClineMessages, including
+ts (both paths mint from identically-seeded counters). Three contract
+amendments came out of building it: (1) the completed outcome carries
+the v1 finish reason — v1 retags only on `done(reason:"completed")`
+exactly, and max_iterations/mistake_limit turns keep their plain text;
+(2) the assembler's text/reasoning sinks receive the close's final
+payload (the v1 final is producer-truth and can differ from the
+concatenated deltas); (3) the generator emits `accumulated` on text
+deltas, as the real adapter does. Two intended divergences are
+whitelisted in the differential with rationale: concurrent tool opens
+(v1 reuses one streamingToolTs — the partial rows collide in the
+message store; the bridge gives each tool block its own identity), and
+text/reasoning left open across an iteration boundary (v1's
+iteration_start reset() re-mints the streaming ts; the real adapter
+closes content within its iteration, so the shape is unmodeled in the
+tables — a framer note for the cleanup pass: force-close dangling
+text/reasoning at iteration notices, mirroring the reset, if the
+generator should model it). **Switchover checklist (each gated by its
+pinned v1 translator tests):** error-terminal rows
+(reshapeErrorForWebview + the api_req_failed pair); compaction
+dividers (parseCompactionNoticeMetadata/buildCompactionMessage are
+already exported for the bridge); tool-specific renderings —
+completion tools (say:"completion_result"), command tools
+(say:"command" + COMMAND_OUTPUT_STRING), MCP tools
+(use_mcp_server/mcp_server_response), read_files/apply_patch
+multi-file splits, ask_question suppression, spawn_agent aggregation
+(SubagentStatusRow consumer + onSubAgent), approval-coordinator
+interactions (approvedToolMessageTs upserts, denial suppression);
+then the flip — bridge output becomes the production ClineMessage
+source and the v1 switch deletes.
 
 **Phase 3d — history replay and reconnect.** Snapshot reconciliation
 in the assembler (diff against the live set), live-after-history dedup

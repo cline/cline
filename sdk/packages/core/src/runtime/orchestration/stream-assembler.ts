@@ -50,13 +50,15 @@ export interface StreamDiagnostic {
 export interface TextSink {
 	onDelta(text: string): void;
 	onAnnotation(annotation: unknown): void;
-	onClose(outcome: Outcome): void;
+	/** `final` is the close frame's authoritative text — it can differ
+	 * from the concatenated deltas (the v1 final is producer-truth). */
+	onClose(outcome: Outcome, final: { text: string }): void;
 }
 
 export interface ReasoningSink {
 	onDelta(reasoning: string): void;
 	onAnnotation(annotation: unknown): void;
-	onClose(outcome: Outcome): void;
+	onClose(outcome: Outcome, final: { reasoning: string }): void;
 }
 
 export interface ToolSink {
@@ -408,8 +410,18 @@ export class StreamAssembler {
 				frame.outcome,
 				frame.final ?? { type: "tool", input: block.start?.input },
 			);
+		} else if (block.kind === "text") {
+			const final =
+				frame.final !== undefined && frame.final.type === "text"
+					? frame.final
+					: { type: "text" as const, text: "" };
+			(block.sink as TextSink).onClose(frame.outcome, final);
 		} else {
-			(block.sink as TextSink).onClose(frame.outcome);
+			const final =
+				frame.final !== undefined && frame.final.type === "reasoning"
+					? frame.final
+					: { type: "reasoning" as const, reasoning: "" };
+			(block.sink as ReasoningSink).onClose(frame.outcome, final);
 		}
 	}
 
@@ -482,9 +494,17 @@ export class StreamAssembler {
 						{ kind: "interrupted" },
 						{ type: "tool", input: block.start?.input },
 					);
-			} else {
-					(block.sink as TextSink).onClose({ kind: "interrupted" });
-			}
+					} else if (block.kind === "text") {
+			(block.sink as TextSink).onClose(
+				{ kind: "interrupted" },
+				{ text: "" },
+			);
+					} else {
+			(block.sink as ReasoningSink).onClose(
+				{ kind: "interrupted" },
+				{ reasoning: "" },
+			);
+					}
 		}
 	}
 
