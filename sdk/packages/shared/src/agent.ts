@@ -313,6 +313,8 @@ export type AgentModelEvent =
 	| {
 			type: "finish";
 			reason: AgentModelFinishReason;
+			/** HTTP X-Request-ID of the surfaced response, not the provider's generation ID. */
+			requestId?: string;
 			error?: string;
 			errorClass?: ProviderErrorClass;
 			/**
@@ -358,6 +360,8 @@ export interface AgentAfterModelContext {
 	snapshot: AgentRuntimeStateSnapshot;
 	assistantMessage: AgentMessage;
 	finishReason: AgentModelFinishReason;
+	/** HTTP X-Request-ID when exposed by the model adapter; hidden retry IDs are not included. */
+	requestId?: string;
 }
 
 export interface AgentBeforeToolContext {

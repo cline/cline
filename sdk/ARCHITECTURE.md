@@ -71,6 +71,10 @@ Owns model/provider runtime concerns:
 Design rule:
 
 - provider-specific behavior should be isolated here, not spread across `core` or apps.
+- AI SDK response `X-Request-ID` metadata travels on the existing model `finish`
+  event into `afterModel.requestId`. It identifies the final surfaced step, not
+  every hidden HTTP retry. Hosts can use existing model hooks for background
+  observations without wrapping transports or adding a request callback API.
 
 ### `@cline/agents`
 

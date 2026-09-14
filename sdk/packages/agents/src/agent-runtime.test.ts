@@ -108,6 +108,28 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("passes the surfaced request ID to afterModel without carrying it into the next call", async () => {
+		const afterModel = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "first" },
+				{ type: "finish", reason: "stop", requestId: "backend-1" },
+			],
+			() => [
+				{ type: "text-delta", text: "second" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, hooks: { afterModel } });
+		await runtime.run("first");
+		await runtime.run("second");
+		expect(afterModel.mock.calls[0][0]).toMatchObject({
+			requestId: "backend-1",
+			finishReason: "stop",
+		});
+		expect(afterModel.mock.calls[1][0].requestId).toBeUndefined();
+	});
+
 	it("persists generated images in assistant message content", async () => {
 		const model = new ScriptedModel([
 			() => [
