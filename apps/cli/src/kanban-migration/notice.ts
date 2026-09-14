@@ -36,7 +36,7 @@ function getDesktopNotice(): CliMigrationNotice {
 	return {
 		id: DESKTOP_NOTICE_ID,
 		title: "Introducing Cline Desktop",
-		body: "A native app for working with open weights models. Use it with ClinePass and our free models, or bring your own key for any provider. Import tasks from Claude Code and Codex, schedule agent runs, browse the Marketplace for plugins, MCP servers, and skills, and talk to Cline with voice input. Now available for macOS and Windows (beta).",
+		body: "A native app for working with open weights models. Use it with ClinePass and our free models, or bring your own key for any provider. Import tasks from Claude Code and Codex, schedule agent runs, browse the Marketplace for plugins, MCP servers, and skills, and talk to Cline with voice input. Now available for macOS and Windows.",
 		url: DESKTOP_APP_URL,
 		openLabel: "Get Cline Desktop",
 	};
