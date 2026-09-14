@@ -956,14 +956,18 @@ export class CloudSessionManager {
 			if (connection) {
 				connection.remote = session;
 			}
-			if (isExpiredRecord(session)) {
+			const expired = isExpiredRecord(session);
+			if (expired || session.status === "failed") {
 				if (live) {
 					live.busy = false;
-					live.status = "expired";
-					live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
+					live.status = expired ? "expired" : "failed";
+					live.endedAt =
+						Date.parse(
+							expired ? (session.expiredAt ?? "") : session.updatedAt,
+						) || Date.now();
 				}
 				if (connection) {
-					// Expired sandboxes must stop reconnecting.
+					// Unavailable sandboxes must stop reconnecting.
 					void this.disposeConnection(session.id).catch(() => undefined);
 				}
 			}

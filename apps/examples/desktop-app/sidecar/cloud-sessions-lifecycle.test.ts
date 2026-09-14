@@ -139,7 +139,10 @@ describe("CloudSessionManager lifecycle", () => {
 		});
 	});
 
-	it("expires a live session without a Hub connection when its TTL elapses", async () => {
+	it.each([
+		"expired",
+		"failed",
+	] as const)("reconciles a %s session without a Hub connection", async (status) => {
 		const { ctx } = createContext();
 		const remote = { ...REMOTE_SESSION };
 		const manager = new CloudSessionManager(ctx, {
@@ -160,15 +163,21 @@ describe("CloudSessionManager lifecycle", () => {
 		});
 		expect((await manager.listForDiscovery())[0].status).toBe("ready");
 
-		remote.expiredAt = new Date(Date.now() - 1_000).toISOString();
+		const endedAt = new Date(Date.now() - 1_000).toISOString();
+		if (status === "expired") {
+			remote.expiredAt = endedAt;
+		} else {
+			remote.status = "failed";
+			remote.updatedAt = endedAt;
+		}
 		expect((await manager.listForDiscovery())[0]).toMatchObject({
-			status: "expired",
-			endedAt: remote.expiredAt,
+			status,
+			endedAt,
 		});
 		expect(ctx.liveSessions.get(remote.id)).toMatchObject({
-			status: "expired",
+			status,
 			busy: false,
-			endedAt: Date.parse(remote.expiredAt),
+			endedAt: Date.parse(endedAt),
 		});
 	});
 
@@ -228,6 +237,7 @@ describe("CloudSessionManager lifecycle", () => {
 					createCalls += 1;
 					return {
 						sessionId: `ses-created-${createCalls}`,
+						status: "provisioning",
 						sandboxUrl: "pod",
 					};
 				},
