@@ -55,14 +55,13 @@ describe("migration notice", () => {
 		);
 	});
 
-	it("does not show after the notice is marked as shown", () => {
+	it("does not show after every notice is marked as shown", () => {
 		const dataDir = createTempDataDir();
 
 		markClineCliMigrationNoticeShown(dataDir);
+		markClineCliMigrationNoticeShown(dataDir, "cline-cli-desktop-launch");
 
-		expect(
-			getClineCliMigrationNotice(dataDir, {}, { platform: "linux" }),
-		).toBeUndefined();
+		expect(getClineCliMigrationNotice(dataDir)).toBeUndefined();
 	});
 
 	it("shows the desktop launch notice once the ClinePass intro was shown", () => {
@@ -70,11 +69,7 @@ describe("migration notice", () => {
 
 		markClineCliMigrationNoticeShown(dataDir);
 
-		const notice = getClineCliMigrationNotice(
-			dataDir,
-			{},
-			{ platform: "darwin" },
-		);
+		const notice = getClineCliMigrationNotice(dataDir);
 		expect(notice?.id).toBe("cline-cli-desktop-launch");
 		expect(notice?.url).toBe("https://cline.bot/desktop");
 	});
@@ -82,19 +77,9 @@ describe("migration notice", () => {
 	it("shows only one notice per launch", () => {
 		const dataDir = createTempDataDir();
 
-		expect(
-			getClineCliMigrationNotice(dataDir, {}, { platform: "darwin" })?.id,
-		).toBe("cline-cli-cline-pass-intro");
-	});
-
-	it("does not show the desktop launch notice on unsupported platforms", () => {
-		const dataDir = createTempDataDir();
-
-		markClineCliMigrationNoticeShown(dataDir);
-
-		expect(
-			getClineCliMigrationNotice(dataDir, {}, { platform: "linux" }),
-		).toBeUndefined();
+		expect(getClineCliMigrationNotice(dataDir)?.id).toBe(
+			"cline-cli-cline-pass-intro",
+		);
 	});
 
 	it("marks the desktop launch notice as shown by id", () => {
@@ -106,9 +91,7 @@ describe("migration notice", () => {
 		const rawState = readFileSync(resolveCliNoticeStatePath(dataDir), "utf8");
 		expect(rawState).toContain('"cline-cli-cline-pass-intro": true');
 		expect(rawState).toContain('"cline-cli-desktop-launch": true');
-		expect(
-			getClineCliMigrationNotice(dataDir, {}, { platform: "win32" }),
-		).toBeUndefined();
+		expect(getClineCliMigrationNotice(dataDir)).toBeUndefined();
 	});
 
 	it("shows after the notice is marked as shown when forced", () => {
@@ -140,14 +123,7 @@ describe("migration notice", () => {
 			getClineCliMigrationNotice(
 				dataDir,
 				{},
-				{ activeProviderId: "cline-pass", platform: "linux" },
-			),
-		).toBeUndefined();
-		expect(
-			getClineCliMigrationNotice(
-				dataDir,
-				{},
-				{ activeProviderId: "cline-pass", platform: "darwin" },
+				{ activeProviderId: "cline-pass" },
 			)?.id,
 		).toBe("cline-cli-desktop-launch");
 	});
@@ -196,8 +172,8 @@ describe("migration notice", () => {
 
 		const rawState = readFileSync(resolveCliNoticeStatePath(dataDir), "utf8");
 		expect(rawState).toContain("cline-cli-cline-pass-intro");
-		expect(
-			getClineCliMigrationNotice(dataDir, {}, { platform: "linux" }),
-		).toBeUndefined();
+		expect(getClineCliMigrationNotice(dataDir)?.id).not.toBe(
+			"cline-cli-cline-pass-intro",
+		);
 	});
 });

@@ -9,10 +9,6 @@ const FORCE_NOTICE_ENV = "CLINE_FORCE_CLINE_PASS_NOTICE";
 // Historically named for the ClinePass promo; disables every startup notice.
 const DISABLE_NOTICE_ENV = "CLINE_DISABLE_CLINE_PASS_NOTICE";
 const DESKTOP_APP_URL = "https://cline.bot/desktop";
-const DESKTOP_APP_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set([
-	"darwin",
-	"win32",
-]);
 
 export interface CliMigrationNotice {
 	id: string;
@@ -24,7 +20,6 @@ export interface CliMigrationNotice {
 
 export interface CliMigrationNoticeOptions {
 	activeProviderId?: string;
-	platform?: NodeJS.Platform;
 }
 
 function getClinePassNotice(): CliMigrationNotice {
@@ -127,10 +122,7 @@ export function getClineCliMigrationNotice(
 	) {
 		return getClinePassNotice();
 	}
-	if (
-		DESKTOP_APP_PLATFORMS.has(options.platform ?? process.platform) &&
-		!noticeState.shown[DESKTOP_NOTICE_ID]
-	) {
+	if (!noticeState.shown[DESKTOP_NOTICE_ID]) {
 		return getDesktopNotice();
 	}
 	return undefined;

@@ -100,6 +100,5 @@ export const BANNER_DATA: BannerCardData[] = [
 				arg: "https://cline.bot/desktop",
 			},
 		],
-		platforms: ["mac", "windows"],
 	},
 ]
