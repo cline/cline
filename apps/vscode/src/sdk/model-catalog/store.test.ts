@@ -14,14 +14,16 @@ const mocks = vi.hoisted(() => {
 		version: 1,
 		providers: {},
 	}
-	const saveProviderSettings = vi.fn((settings: Record<string, unknown>, _options?: { setLastUsed?: boolean }) => {
-		const provider = settings.provider
-		if (typeof provider !== "string") {
-			throw new Error("provider is required")
-		}
-		providerSettingsById[provider] = { ...settings }
-		return { version: 1, providers: {} }
-	})
+	const saveProviderSettings = vi.fn(
+		(settings: Record<string, unknown>, _options?: { setLastUsed?: boolean; tokenSource?: string }) => {
+			const provider = settings.provider
+			if (typeof provider !== "string") {
+				throw new Error("provider is required")
+			}
+			providerSettingsById[provider] = { ...settings }
+			return { version: 1, providers: {} }
+		},
+	)
 
 	return {
 		reset(): void {
@@ -213,6 +215,33 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getApiConfiguration().mistralApiKey).toBeUndefined()
 		expect(mocks.getSavedProviderSettings("mistral")).toEqual({ provider: "mistral" })
 		expect(store.read(providerId).apiKey).toBeUndefined()
+	})
+
+	// Credential edits in the settings UI must leave the migration label behind.
+	// The SDK manager inherits the previous entry's tokenSource when the caller
+	// passes none, so a migrated Bedrock entry stayed "migration" after every
+	// later GUI save even once the user had re-entered the AWS profile by hand.
+	it("marks the entry as manual when a GUI patch touches credentials", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, { aws: { profile: "my-profile" } })
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({ aws: { profile: "my-profile" } })
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
+	it("keeps the inherited tokenSource when a GUI patch has no credential fields", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, { contextWindow: 200_000 })
+
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
 	})
 
 	// Changing the regional API line in the settings UI goes through
