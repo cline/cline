@@ -1821,6 +1821,34 @@ describe("ChatInputBar", () => {
 			).toEqual(selection);
 		});
 
+		it("keeps the live model name while the picker-open refresh is in flight", async () => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			await renderComposer({ model: kimi.id, provider: "cline-pass" });
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(kimi.name);
+			});
+			loadProviderModelCatalogMock.mockClear();
+			let resolveModels!: (models: ProviderModel[]) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve) => {
+					resolveModels = resolve;
+				}),
+			);
+
+			await act(async () => modelTrigger?.click());
+			// Only the live list is re-fetched; re-applying the bundled catalog
+			// (which lacks kimi) would flash the raw id in the trigger.
+			expect(modelTrigger?.textContent).toContain(kimi.name);
+			expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline-pass");
+			expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+			await act(async () => resolveModels([flash, kimi]));
+			expect(modelTrigger?.textContent).toContain(kimi.name);
+		});
+
 		it.each([
 			"catalog refresh",
 			"new chat",
