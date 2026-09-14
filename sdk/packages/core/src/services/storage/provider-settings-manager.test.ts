@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
+import { setSdkLogger } from "../../logging/early-logger";
 import { ProviderSettingsManager } from "./provider-settings-manager";
 
 describe("ProviderSettingsManager", () => {
@@ -741,6 +742,73 @@ describe("ProviderSettingsManager", () => {
 				Authorization: "Bearer token-value",
 				"X-Custom": "plain-value",
 			});
+		});
+	});
+
+	describe("providers.read diagnostics", () => {
+		afterEach(() => {
+			setSdkLogger(undefined);
+		});
+
+		function captureProviderReadLogs(): string[] {
+			const lines: string[] = [];
+			setSdkLogger({
+				debug: (message) => {
+					if (message.startsWith("providers.read ")) {
+						lines.push(message);
+					}
+				},
+				log: () => {},
+				error: () => {},
+			});
+			return lines;
+		}
+
+		function createTempManager(): ProviderSettingsManager {
+			const tempDir = mkdtempSync(
+				path.join(os.tmpdir(), "core-provider-settings-"),
+			);
+			tempDirs.push(tempDir);
+			return new ProviderSettingsManager({
+				filePath: path.join(tempDir, "provider-settings.json"),
+			});
+		}
+
+		it("logs providers.read once while the stored settings are unchanged", () => {
+			const lines = captureProviderReadLogs();
+			const manager = createTempManager();
+			manager.saveProviderSettings({
+				provider: "anthropic",
+				model: "claude-sonnet-4-6",
+				apiKey: "test-key",
+			});
+
+			for (let i = 0; i < 50; i++) {
+				manager.getProviderSettings("anthropic");
+			}
+
+			expect(lines).toHaveLength(1);
+		});
+
+		it("logs providers.read again when the logged summary changes", () => {
+			const lines = captureProviderReadLogs();
+			const manager = createTempManager();
+			manager.saveProviderSettings({
+				provider: "anthropic",
+				apiKey: "test-key",
+			});
+			manager.getProviderSettings("anthropic");
+			manager.getProviderSettings("anthropic");
+
+			manager.saveProviderSettings({
+				provider: "openai",
+				apiKey: "other-key",
+			});
+			manager.getProviderSettings("openai");
+			manager.getProviderSettings("openai");
+
+			expect(lines).toHaveLength(2);
+			expect(lines[1]).toContain("providers=[anthropic,openai]");
 		});
 	});
 });
