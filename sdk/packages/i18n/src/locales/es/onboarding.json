@@ -1,0 +1,86 @@
+{
+	"buttons": {
+		"back": "Atrás",
+		"continue": "Continuar",
+		"createAccount": "Crear mi cuenta",
+		"login": "Iniciar sesión en Cline"
+	},
+	"capabilities": {
+		"images": "Imágenes",
+		"promptCache": "Caché de prompts",
+		"tools": "Herramientas"
+	},
+	"changeLaterNote": "Puedes cambiar esto más tarde en la configuración",
+	"clinePassEmpty": {
+		"description": "Elige otra opción o inténtalo de nuevo más tarde.",
+		"title": "No hay modelos de ClinePass disponibles en este momento."
+	},
+	"completeSignInBrowser": "Completa el inicio de sesión en tu navegador. Continuaremos automáticamente cuando termines.",
+	"groups": {
+		"free": "Gratis",
+		"frontier": "Frontera",
+		"openSource": "Código abierto"
+	},
+	"learnMore": "Más información",
+	"modelItem": {
+		"contextLabel": "Contexto:",
+		"speedLabel": "Velocidad:",
+		"supportLabel": "Compatibilidad:"
+	},
+	"noSearchResults": "No se encontraron resultados para \"{{searchTerm}}\"",
+	"otherOptions": "otras opciones",
+	"price": {
+		"free": "Gratis",
+		"high": "$$$",
+		"low": "$",
+		"medium": "$$"
+	},
+	"searchModelPlaceholder": "Buscar modelo...",
+	"speed": {
+		"average": "Media",
+		"fast": "Rápida",
+		"instant": "Instantánea",
+		"slow": "Lenta"
+	},
+	"steps": {
+		"accountWait": {
+			"description": "Completa la creación de la cuenta en tu navegador. Luego vuelve aquí para terminar.",
+			"title": "¡Ya casi está!"
+		},
+		"byok": {
+			"title": "Configura tu proveedor"
+		},
+		"clinePass": {
+			"title": "Selecciona un modelo de ClinePass"
+		},
+		"free": {
+			"title": "Selecciona un modelo gratuito"
+		},
+		"power": {
+			"title": "Selecciona tu modelo"
+		},
+		"userType": {
+			"description": "Selecciona una opción para comenzar.",
+			"title": "¿Cómo usarás Cline?"
+		}
+	},
+	"userTypes": {
+		"byok": {
+			"description": "Usa Cline con el proveedor que prefieras",
+			"title": "Traer mi propia clave de API"
+		},
+		"clinePass": {
+			"description": "Plan de suscripción de bajo costo para el mejor modelo de pesos abiertos.",
+			"title": "ClinePass"
+		},
+		"free": {
+			"description": "Comienza sin costo alguno",
+			"title": "Totalmente gratis"
+		},
+		"power": {
+			"description": "Claude, GPT Codex, Gemini, etc.",
+			"title": "Modelo de frontera"
+		}
+	},
+	"waitingForSignIn": "Esperando el inicio de sesión..."
+}

@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import CodeAccordian from "../common/CodeAccordian"
 
 interface SearchResultsDisplayProps {
@@ -17,6 +18,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 	path,
 	filePattern,
 }) => {
+	const { t } = useTranslation()
 	const safeContent = content ?? ""
 	const safePath = path ?? ""
 
@@ -97,7 +99,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
 			<div
-				aria-label={isExpanded ? "Collapse search results" : "Expand search results"}
+				aria-label={isExpanded ? t("chat:searchResults.collapseAria") : t("chat:searchResults.expandAria")}
 				onClick={onToggleExpand}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
@@ -176,7 +178,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 										fontWeight: "500",
 										color: "var(--vscode-foreground)",
 									}}>
-									Workspace: {section.workspace}
+									{t("chat:searchResults.workspace", { name: section.workspace })}
 								</span>
 							</div>
 

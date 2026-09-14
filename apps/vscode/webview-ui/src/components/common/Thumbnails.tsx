@@ -1,6 +1,7 @@
 import { cn } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
 import React, { memo, useLayoutEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useWindowSize } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
 
@@ -26,6 +27,7 @@ const Thumbnails = ({
 	className,
 	imagesUnsupported = false,
 }: ThumbnailsProps) => {
+	const { t } = useTranslation()
 	const [hoveredIndex, setHoveredIndex] = useState<string | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const { width } = useWindowSize()
@@ -81,7 +83,7 @@ const Thumbnails = ({
 					onMouseLeave={() => setHoveredIndex(null)}
 					style={{ position: "relative" }}>
 					<img
-						alt={`Thumbnail image-${index + 1}`}
+						alt={t("ui:thumbnails.imageAlt", { number: index + 1 })}
 						onClick={() => handleImageClick(image)}
 						src={image}
 						style={{
@@ -108,7 +110,7 @@ const Thumbnails = ({
 								justifyContent: "center",
 								alignItems: "center",
 							}}
-							title="The selected model doesn't support images, so this image will be ignored.">
+							title={t("ui:thumbnails.imageUnsupportedTitle")}>
 							<span
 								className="codicon codicon-warning"
 								style={{ color: "var(--vscode-editor-background)", fontSize: 9, fontWeight: "bold" }}

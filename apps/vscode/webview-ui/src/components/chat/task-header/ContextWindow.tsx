@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Progress } from "@/components/ui/progress"
 import { SlashServiceClient } from "@/services/grpc-client"
@@ -28,33 +29,34 @@ interface ContextWindowProgressProps extends ContextWindowInfoProps {
 const ConfirmationDialog = memo<{
 	onConfirm: (e: React.MouseEvent) => void
 	onCancel: (e: React.MouseEvent) => void
-}>(({ onConfirm, onCancel }) => (
-	<div className="mt-2 flex flex-col gap-2 rounded-sm border border-border-panel bg-code p-2 text-sm">
-		<span className="font-semibold">Compact the current task?</span>
-		<span className="text-xs text-description">
-			Replaces the conversation history with a summary to free up context window space.
-		</span>
-		<span className="flex justify-end gap-1.5">
-			<VSCodeButton
-				appearance="secondary"
-				className="text-sm"
-				onClick={onCancel}
-				title="No, keep the task as is"
-				type="button">
-				Cancel
-			</VSCodeButton>
-			<VSCodeButton
-				appearance="primary"
-				autoFocus={true}
-				className="text-sm"
-				onClick={onConfirm}
-				title="Yes, compact the task"
-				type="button">
-				Compact
-			</VSCodeButton>
-		</span>
-	</div>
-))
+}>(({ onConfirm, onCancel }) => {
+	const { t } = useTranslation()
+	return (
+		<div className="mt-2 flex flex-col gap-2 rounded-sm border border-border-panel bg-code p-2 text-sm">
+			<span className="font-semibold">{t("taskHeader:compactConfirm.title")}</span>
+			<span className="text-xs text-description">{t("taskHeader:compactConfirm.description")}</span>
+			<span className="flex justify-end gap-1.5">
+				<VSCodeButton
+					appearance="secondary"
+					className="text-sm"
+					onClick={onCancel}
+					title={t("taskHeader:compactConfirm.cancelTitle")}
+					type="button">
+					{t("taskHeader:compactConfirm.cancel")}
+				</VSCodeButton>
+				<VSCodeButton
+					appearance="primary"
+					autoFocus={true}
+					className="text-sm"
+					onClick={onConfirm}
+					title={t("taskHeader:compactConfirm.confirmTitle")}
+					type="button">
+					{t("taskHeader:compactConfirm.confirm")}
+				</VSCodeButton>
+			</span>
+		</div>
+	)
+})
 ConfirmationDialog.displayName = "ConfirmationDialog"
 
 const ContextWindow: React.FC<ContextWindowProgressProps> = ({
@@ -67,6 +69,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	cacheWrites,
 	cacheReads,
 }) => {
+	const { t } = useTranslation()
 	const [isOpened, setIsOpened] = useState(false)
 	const [confirmationNeeded, setConfirmationNeeded] = useState(false)
 	const progressBarRef = useRef<HTMLDivElement>(null)
@@ -150,7 +153,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		<div className="flex flex-col mt-1.5" onMouseLeave={debounceCloseHover}>
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap">
-					<span className="cursor-pointer text-sm" title="Current tokens used in this request">
+					<span className="cursor-pointer text-sm" title={t("taskHeader:tooltips.tokensUsed")}>
 						{formatTokenNumber(tokenData.used)}
 					</span>
 					<div className="flex relative items-center gap-1 flex-1 w-full h-full" onMouseEnter={() => setIsOpened(true)}>
@@ -174,7 +177,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 									onFocus={handleFocus}
 									ref={progressBarRef}>
 									<Progress
-										aria-label="Context window usage progress"
+										aria-label={t("taskHeader:progressAria")}
 										color="success"
 										value={tokenData.percentage}
 									/>
@@ -183,7 +186,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 							</HoverCardTrigger>
 						</HoverCard>
 					</div>
-					<span className="cursor-pointer text-sm" title="Maximum context window size for this model">
+					<span className="cursor-pointer text-sm" title={t("taskHeader:tooltips.maxContextWindow")}>
 						{formatTokenNumber(tokenData.max)}
 					</span>
 				</div>

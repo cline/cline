@@ -1,6 +1,7 @@
 import type { Platform } from "@shared/ExtensionMessage"
 import type { WorkspaceRoot } from "@shared/multi-root/types"
 import { FolderIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 /**
@@ -73,6 +74,7 @@ const TaskWorkingDirectoryBadge: React.FC<{
 	workspaceRoots?: WorkspaceRoot[]
 	platform: Platform
 }> = ({ taskCwd, workspaceRoots, platform }) => {
+	const { t } = useTranslation()
 	if (!isTaskCwdOutsideWorkspace(taskCwd, workspaceRoots ?? [], platform)) {
 		return null
 	}
@@ -81,12 +83,11 @@ const TaskWorkingDirectoryBadge: React.FC<{
 	return (
 		<Tooltip>
 			<TooltipContent className="max-w-xs" side="bottom">
-				This task's working directory is {cwd}, which is outside the current workspace. Cline reads and edits files and
-				runs commands there.
+				{t("taskHeader:cwdBadge.outsideWorkspaceTooltip", { cwd })}
 			</TooltipContent>
 			<TooltipTrigger className="flex items-center min-w-0">
 				<div
-					aria-label={`Task working directory ${cwd} is outside the current workspace`}
+					aria-label={t("taskHeader:cwdBadge.outsideWorkspaceAria", { cwd })}
 					className="mx-1 px-1.5 py-0.25 rounded-full inline-flex items-center gap-1 min-w-0 max-w-32 border border-(--vscode-editorWarning-foreground)/60 text-(--vscode-editorWarning-foreground)"
 					id="task-cwd-badge">
 					<FolderIcon className="shrink-0" size={11} />

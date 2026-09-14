@@ -56,6 +56,13 @@
 				"../../sdk/packages/core/src/*",
 				"../../sdk/packages/core/src/*/index.ts"
 			],
+			"@cline/i18n": [
+				"../../sdk/packages/i18n/src/index.ts"
+			],
+			"@cline/i18n/*": [
+				"../../sdk/packages/i18n/src/*",
+				"../../sdk/packages/i18n/src/*/index.ts"
+			],
 			"@cline/llms": [
 				"../../sdk/packages/llms/src/index.ts"
 			],

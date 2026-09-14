@@ -1,7 +1,12 @@
 import type { UserOrganization } from "@shared/proto/index.cline"
 import { fireEvent, render, screen } from "@testing-library/react"
+import type { ReactElement } from "react"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { i18n } from "@/i18n"
 import { RemoteConfigToggle } from "./RemoteConfigToggle"
+
+const renderWithI18n = (ui: ReactElement) => render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>)
 
 const mocks = vi.hoisted(() => ({
 	updateSettings: vi.fn(),
@@ -46,14 +51,14 @@ describe("RemoteConfigToggle", () => {
 	})
 
 	it("hides the toggle when the active organization has no remote config", () => {
-		render(<RemoteConfigToggle activeOrganization={organization()} />)
+		renderWithI18n(<RemoteConfigToggle activeOrganization={organization()} />)
 
 		expect(screen.queryByRole("checkbox")).toBeNull()
 	})
 
 	it("shows the toggle for an admin when remote config is available", () => {
 		mocks.state.remoteConfigAvailable = true
-		render(<RemoteConfigToggle activeOrganization={organization()} />)
+		renderWithI18n(<RemoteConfigToggle activeOrganization={organization()} />)
 
 		expect(screen.getByRole("checkbox", { name: "Opt out of remote config" })).toBeDefined()
 	})
@@ -61,21 +66,21 @@ describe("RemoteConfigToggle", () => {
 	it("keeps the toggle available while opted out so the org can opt back in", () => {
 		mocks.state.remoteConfigAvailable = true
 		mocks.state.optOutOfRemoteConfig = true
-		render(<RemoteConfigToggle activeOrganization={organization()} />)
+		renderWithI18n(<RemoteConfigToggle activeOrganization={organization()} />)
 
 		expect(screen.getByRole("checkbox")).toBeChecked()
 	})
 
 	it("hides the toggle for members who cannot opt out", () => {
 		mocks.state.remoteConfigAvailable = true
-		render(<RemoteConfigToggle activeOrganization={organization(["member"])} />)
+		renderWithI18n(<RemoteConfigToggle activeOrganization={organization(["member"])} />)
 
 		expect(screen.queryByRole("checkbox")).toBeNull()
 	})
 
 	it("updates the opt-out setting", () => {
 		mocks.state.remoteConfigAvailable = true
-		render(<RemoteConfigToggle activeOrganization={organization()} />)
+		renderWithI18n(<RemoteConfigToggle activeOrganization={organization()} />)
 
 		fireEvent.click(screen.getByRole("checkbox"))
 

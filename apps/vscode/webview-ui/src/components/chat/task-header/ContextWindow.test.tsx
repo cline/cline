@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ButtonHTMLAttributes, PropsWithChildren } from "react"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { i18n } from "@/i18n"
 import ContextWindow from "./ContextWindow"
 
 const condense = vi.fn().mockResolvedValue(undefined)
@@ -58,12 +60,14 @@ describe("ContextWindow compact button", () => {
 		const onSendMessage = vi.fn()
 
 		render(
-			<ContextWindow
-				contextWindow={200_000}
-				lastApiReqTotalTokens={120_000}
-				onSendMessage={onSendMessage}
-				useAutoCondense={false}
-			/>,
+			<I18nextProvider i18n={i18n}>
+				<ContextWindow
+					contextWindow={200_000}
+					lastApiReqTotalTokens={120_000}
+					onSendMessage={onSendMessage}
+					useAutoCondense={false}
+				/>
+			</I18nextProvider>,
 		)
 
 		fireEvent.click(screen.getByRole("button", { name: /compact task/i }))

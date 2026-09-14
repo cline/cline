@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
@@ -27,6 +28,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	dynamicSearchResults = [],
 	isLoading = false,
 }) => {
+	const { t } = useTranslation()
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	// State to show delayed loading indicator
@@ -95,36 +97,41 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	// Shared label definitions for simple option types
 	const SIMPLE_OPTION_LABELS: Partial<Record<ContextMenuOptionType, string>> = {
-		[ContextMenuOptionType.Problems]: "Problems",
-		[ContextMenuOptionType.Terminal]: "Terminal",
-		[ContextMenuOptionType.URL]: "Paste URL to fetch contents",
-		[ContextMenuOptionType.NoResults]: "No results found",
+		[ContextMenuOptionType.Problems]: t("chat:contextMenu.problems"),
+		[ContextMenuOptionType.Terminal]: t("chat:contextMenu.terminal"),
+		[ContextMenuOptionType.URL]: t("chat:contextMenu.pasteUrl"),
+		[ContextMenuOptionType.NoResults]: t("chat:contextMenu.noResults"),
 	}
 
 	// Get accessible label for an option (used for screen readers and aria-label)
-	const getOptionLabel = useCallback((option: ContextMenuQueryItem): string => {
-		// Check simple labels first
-		const simpleLabel = SIMPLE_OPTION_LABELS[option.type]
-		if (simpleLabel) {
-			return simpleLabel
-		}
+	const getOptionLabel = useCallback(
+		(option: ContextMenuQueryItem): string => {
+			// Check simple labels first
+			const simpleLabel = SIMPLE_OPTION_LABELS[option.type]
+			if (simpleLabel) {
+				return simpleLabel
+			}
 
-		switch (option.type) {
-			case ContextMenuOptionType.Git:
-				if (option.value) {
-					return `${option.label}${option.description ? `, ${option.description}` : ""}`
-				}
-				return "Git Commits"
-			case ContextMenuOptionType.File:
-			case ContextMenuOptionType.Folder:
-				if (option.value) {
-					return option.label || option.value
-				}
-				return `Add ${option.type === ContextMenuOptionType.File ? "File" : "Folder"}`
-			default:
-				return option.label || option.value || ""
-		}
-	}, [])
+			switch (option.type) {
+				case ContextMenuOptionType.Git:
+					if (option.value) {
+						return `${option.label}${option.description ? `, ${option.description}` : ""}`
+					}
+					return t("chat:contextMenu.gitCommits")
+				case ContextMenuOptionType.File:
+				case ContextMenuOptionType.Folder:
+					if (option.value) {
+						return option.label || option.value
+					}
+					return option.type === ContextMenuOptionType.File
+						? t("chat:contextMenu.addFile")
+						: t("chat:contextMenu.addFolder")
+				default:
+					return option.label || option.value || ""
+			}
+		},
+		[t],
+	)
 
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
 		// Handle simple label types
@@ -156,7 +163,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						</div>
 					)
 				}
-				return <span>Git Commits</span>
+				return <span>{t("chat:contextMenu.gitCommits")}</span>
 			case ContextMenuOptionType.File:
 			case ContextMenuOptionType.Folder:
 				if (option.value) {
@@ -182,7 +189,13 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						</>
 					)
 				}
-				return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
+				return (
+					<span>
+						{option.type === ContextMenuOptionType.File
+							? t("chat:contextMenu.addFile")
+							: t("chat:contextMenu.addFolder")}
+					</span>
+				)
 			default:
 				return null
 		}
@@ -251,7 +264,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						? `context-menu-item-${selectedIndex}`
 						: undefined
 				}
-				aria-label="Context mentions"
+				aria-label={t("chat:contextMenu.label")}
 				ref={menuRef}
 				role="listbox"
 				style={{
@@ -276,7 +289,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							opacity: 0.7,
 						}}>
 						<i className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: "14px" }} />
-						<span>Searching...</span>
+						<span>{t("chat:contextMenu.searching")}</span>
 					</div>
 				)}
 				{filteredOptions.map((option, index) => {

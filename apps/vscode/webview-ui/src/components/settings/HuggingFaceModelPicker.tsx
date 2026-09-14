@@ -4,6 +4,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
@@ -20,6 +21,7 @@ interface HuggingFaceModelPickerProps {
 }
 
 const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, huggingFaceModels: dynamicModels, setHuggingFaceModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -177,7 +179,7 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 		<div className="w-full">
 			<div className="flex flex-col">
 				<label htmlFor="hf-model-search">
-					<span className="font-medium">Model</span>
+					<span className="font-medium">{t("settings:modelPicker.label")}</span>
 				</label>
 
 				<div className="relative w-full" ref={dropdownRef}>
@@ -191,12 +193,12 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 							setSelectedIndex(-1)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search models..."
+						placeholder={t("settings:modelPicker.searchShortPlaceholder")}
 						role="combobox"
 						value={searchTerm}>
 						{searchTerm && (
 							<div
-								aria-label="Clear search"
+								aria-label={t("settings:clearSearch")}
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									setSearchTerm("")

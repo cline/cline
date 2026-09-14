@@ -5,6 +5,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { useProviderModels } from "@/hooks/useProviderModels"
@@ -21,6 +22,7 @@ interface GroqModelPickerProps {
 }
 
 const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode }) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, groqModels: dynamicGroqModels, setGroqModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -203,7 +205,7 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 			</style>
 			<div className="flex flex-col">
 				<label htmlFor="model-search">
-					<span className="font-medium">Model</span>
+					<span className="font-medium">{t("settings:modelPicker.label")}</span>
 				</label>
 				<div className="relative w-full" ref={dropdownRef}>
 					<VSCodeTextField
@@ -214,7 +216,7 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder={t("settings:modelPicker.searchPlaceholder")}
 						role="combobox"
 						style={{
 							width: "100%",
@@ -224,7 +226,7 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 						value={searchTerm}>
 						{searchTerm && (
 							<div
-								aria-label="Clear search"
+								aria-label={t("settings:clearSearch")}
 								className="input-icon-button codicon codicon-close flex justify-center items-center h-full"
 								onClick={() => {
 									setSearchTerm("")
@@ -272,11 +274,15 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			) : (
 				<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
-					The extension automatically fetches the latest list of models available on{" "}
-					<VSCodeLink className="inline text-inherit" href="https://console.groq.com/docs/models">
-						Groq.
-					</VSCodeLink>
-					If you're unsure which model to choose, compare available models by context window, pricing, and capabilities.
+					<Trans
+						components={{
+							providerLink: (
+								<VSCodeLink className="inline text-inherit" href="https://console.groq.com/docs/models" />
+							),
+						}}
+						i18nKey="settings:modelPicker.autoFetchNote"
+						values={{ provider: "Groq" }}
+					/>
 				</p>
 			)}
 		</div>

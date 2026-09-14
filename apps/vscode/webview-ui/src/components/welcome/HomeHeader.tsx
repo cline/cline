@@ -1,4 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { useTranslation } from "react-i18next"
 import ClineLogoSanta from "@/assets/ClineLogoSanta"
 import ClineLogoVariable from "@/assets/ClineLogoVariable"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -9,6 +10,7 @@ interface HomeHeaderProps {
 }
 
 const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
+	const { t } = useTranslation()
 	const { environment } = useExtensionState()
 
 	const handleTakeATour = async () => {
@@ -21,7 +23,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 
 	const isDecember = new Date().getMonth() === 11 // 11 = December (0-indexed)
 	const LogoComponent = isDecember ? ClineLogoSanta : ClineLogoVariable
-	const headingText = "What can I do for you?"
+	const headingText = t("welcome:heading")
 
 	return (
 		<div className="flex flex-col items-center mb-5">
@@ -37,7 +39,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 						className="flex items-center gap-2 px-4 py-2 rounded-full border border-border-panel bg-white/2 hover:bg-list-background-hover transition-colors duration-150 ease-in-out text-code-foreground text-sm font-medium cursor-pointer"
 						onClick={handleTakeATour}
 						type="button">
-						Take a Tour
+						{t("welcome:takeATour")}
 						<span className="codicon codicon-play scale-90" />
 					</button>
 				</div>

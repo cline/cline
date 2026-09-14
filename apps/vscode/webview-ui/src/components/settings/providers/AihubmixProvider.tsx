@@ -2,6 +2,7 @@ import { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -23,6 +24,7 @@ interface AIhubmixProviderProps {
  * The AIhubmix provider configuration component
  */
 export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIhubmixProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("aihubmix", apiConfiguration, currentMode)
@@ -81,7 +83,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 	return (
 		<div>
 			<ApiKeyField
-				helpText="Now request 10% discount!"
+				helpText={t("providers:aihubmix.discountHelpText")}
 				initialValue={apiConfiguration?.aihubmixApiKey || ""}
 				onChange={(value) => handleFieldChange("aihubmixApiKey", value)}
 				providerName="AIhubmix"
@@ -91,7 +93,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("providers:shared.modelLabel")}
 						models={models}
 						onChange={(e) => {
 							const newModelId = e.target.value

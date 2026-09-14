@@ -1,6 +1,7 @@
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
 import type React from "react"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import Thumbnails from "@/components/common/Thumbnails"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -16,6 +17,7 @@ interface UserMessageProps {
 }
 
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
+	const { t } = useTranslation()
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
@@ -69,7 +71,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			setSavingMode(undefined)
 		} catch (error) {
 			console.error("Failed to edit and regenerate message:", error)
-			setErrorMessage(error instanceof Error ? error.message : "Failed to edit and regenerate message")
+			setErrorMessage(error instanceof Error ? error.message : t("chat:userMessage.editFailed"))
 			setSavingMode(undefined)
 		}
 	}
@@ -97,13 +99,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 				wordWrap: "break-word",
 			}}
 			tabIndex={messageTs && !isEditing ? 0 : undefined}
-			title={messageTs && !isEditing ? "Edit and regenerate from here" : undefined}>
+			title={messageTs && !isEditing ? t("chat:userMessage.editRegenerate") : undefined}>
 			{messageTs && !isEditing && (
 				<Tooltip>
-					<TooltipContent side="left">Edit and regenerate from here</TooltipContent>
+					<TooltipContent side="left">{t("chat:userMessage.editRegenerate")}</TooltipContent>
 					<TooltipTrigger asChild>
 						<button
-							aria-label="Edit and regenerate from this message"
+							aria-label={t("chat:userMessage.editRegenerateAria")}
 							className="absolute right-1.5 top-1.5 opacity-0 group-hover:opacity-80 hover:opacity-100 bg-transparent border-0 text-badge-foreground cursor-pointer p-1"
 							onClick={(event) => {
 								event.stopPropagation()
@@ -139,11 +141,11 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 							disabled={!!savingMode}
 							onClick={cancelEditing}
 							type="button">
-							Cancel
+							{t("chat:userMessage.cancel")}
 						</button>
 						<div className="flex items-center gap-1.5">
 							<Tooltip>
-								<TooltipContent side="top">Rewind conversation, keep current code edits</TooltipContent>
+								<TooltipContent side="top">{t("chat:userMessage.resetChatTooltip")}</TooltipContent>
 								<TooltipTrigger asChild>
 									<span className="inline-flex shrink-0">
 										<button
@@ -151,14 +153,16 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 											disabled={!!savingMode}
 											onClick={() => handleSave(false)}
 											type="button">
-											{savingMode === "chat" ? "Running..." : "Reset Chat"}
+											{savingMode === "chat"
+												? t("chat:userMessage.running")
+												: t("chat:userMessage.resetChat")}
 										</button>
 									</span>
 								</TooltipTrigger>
 							</Tooltip>
 							{canRestoreWorkspace && (
 								<Tooltip>
-									<TooltipContent side="top">Rewind conversation, reset code edits</TooltipContent>
+									<TooltipContent side="top">{t("chat:userMessage.resetCodeTooltip")}</TooltipContent>
 									<TooltipTrigger asChild>
 										<span className="inline-flex shrink-0">
 											<button
@@ -166,7 +170,9 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 												disabled={!!savingMode}
 												onClick={() => handleSave(true)}
 												type="button">
-												{savingMode === "workspace" ? "Restoring..." : "Reset Code"}
+												{savingMode === "workspace"
+													? t("chat:userMessage.restoring")
+													: t("chat:userMessage.resetCode")}
 											</button>
 										</span>
 									</TooltipTrigger>

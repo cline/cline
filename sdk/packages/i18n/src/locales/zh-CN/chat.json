@@ -1,0 +1,315 @@
+{
+	"browser": {
+		"actionLabel": "浏览器操作：",
+		"actions": {
+			"click": "点击 ({{coordinate}})",
+			"closeBrowser": "关闭浏览器",
+			"launch": "在 {{url}} 启动浏览器",
+			"scrollDown": "向下滚动",
+			"scrollUp": "向上滚动",
+			"type": "输入“{{text}}”"
+		},
+		"consoleLogs": "控制台日志",
+		"isUsingBrowser": "Cline 正在使用浏览器：",
+		"next": "下一步",
+		"noNewLogs": "（没有新日志）",
+		"previous": "上一步",
+		"screenshotAlt": "浏览器截图",
+		"sessionStarted": "浏览器会话已启动",
+		"stepOf": "第 {{current}} 步，共 {{total}} 步",
+		"wantsToUseBrowser": "Cline 想要使用浏览器："
+	},
+	"commandOutput": {
+		"approvalRequired": "模型判定此命令需要明确批准。",
+		"cancel": "取消",
+		"clickToOpen": "点击打开：{{path}}",
+		"status": {
+			"completed": "已完成",
+			"pending": "等待中",
+			"running": "运行中",
+			"skipped": "已跳过"
+		},
+		"stop": "停止",
+		"terminalCancelInfo": "此命令正在 VSCode 终端中运行。你可以在终端中使用 Ctrl+C 手动停止，或在设置中切换到后台执行模式，以便取消命令。"
+	},
+	"compaction": {
+		"autoCompacting": "正在自动压缩上下文",
+		"cancelled": "压缩已取消",
+		"compacted": "上下文已压缩",
+		"compactedManual": "上下文已压缩（手动）",
+		"compacting": "正在压缩上下文",
+		"failed": "压缩失败",
+		"messagesDelta": "{{before}} → {{after}} 条消息",
+		"skipped": "已跳过压缩",
+		"tokensDelta": "{{before}} → {{after}} 个令牌"
+	},
+	"completion": {
+		"completed": "已完成",
+		"copyPlanAria": "复制计划回复",
+		"copyResponseAria": "复制回复",
+		"plan": "计划",
+		"viewChanges": "查看更改"
+	},
+	"contextMenu": {
+		"addFile": "添加文件",
+		"addFolder": "添加文件夹",
+		"commit": "提交 {{hash}}",
+		"commitHashDescription": "Git 提交哈希",
+		"gitCommitDescription": "{{shortHash}}，作者 {{author}}，{{date}}",
+		"gitCommits": "Git 提交",
+		"gitCommitsDescription": "搜索仓库历史记录",
+		"label": "上下文提及",
+		"noResults": "未找到结果",
+		"pasteUrl": "粘贴 URL 以获取内容",
+		"problems": "问题",
+		"searching": "正在搜索...",
+		"terminal": "终端",
+		"workingChanges": "工作区更改",
+		"workingChangesDescription": "当前未提交的更改"
+	},
+	"diffEdit": {
+		"openFileTitle": "在编辑器中打开文件"
+	},
+	"errorBoundary": {
+		"errorPrefix": "错误：{{message}}",
+		"title": "显示此内容时出现问题",
+		"unknownError": "未知错误"
+	},
+	"errors": {
+		"auth": {
+			"clickRetryBelow": "（点击下方的“重试”）",
+			"loggedOut": "哎呀，你似乎已退出登录——点击下方登录",
+			"signIn": "登录 Cline"
+		},
+		"billing": {
+			"retryAfterSwitching": "切换后请重试请求。",
+			"switchToUsageBased": "切换到按用量计费",
+			"switchedToUsageBased": "已切换到按用量计费",
+			"switching": "正在切换..."
+		},
+		"clinePassLimit": {
+			"switchFailed": "切换提供商失败。请在 API 配置设置中选择 Cline 按用量计费。",
+			"switchPrompt": "要切换到按用量计费并使用 Cline 提供商重试吗？",
+			"title": "已达到 ClinePass 限额"
+		},
+		"clineignore": "Cline 尝试访问 <path>{{path}}</path>，但被 <fileCode>.clineignore</fileCode> 文件阻止。",
+		"creditLimit": {
+			"buyCredits": "购买额度",
+			"currentBalance": "当前余额：",
+			"defaultMessage": "你的额度已用完。",
+			"totalPromotions": "促销总额：",
+			"totalSpent": "总支出："
+		},
+		"diffError": "模型使用的搜索模式在文件中没有任何匹配。正在重试...",
+		"entitlement": {
+			"getClinePass": "获取 ClinePass",
+			"headline": "此模型需要 ClinePass 订阅。",
+			"subscribe": "订阅 ClinePass 以使用此模型，然后重试请求。"
+		},
+		"freeModelLimit": {
+			"limitBody": "你已达到此模型今日的免费使用限额。",
+			"limitReached": "已达到每日免费模型限额",
+			"switchFailed": "切换模型失败。请在 API 配置设置中选择 {{modelId}}。",
+			"switchPaid": "或切换到此模型的付费版本（{{modelId}}），按用量计费。",
+			"tryAgainIn": "请在 {{resetTime}} 后重试，或选择其他模型。",
+			"tryAgainLater": "请稍后重试，或选择其他模型。"
+		},
+		"freePromotionEnded": {
+			"body": "此模型的免费促销已结束，该模型不再可用。",
+			"selectAnother": "请选择其他模型以继续。",
+			"selectModel": "选择模型",
+			"title": "免费模型促销已结束"
+		},
+		"orgRestriction": {
+			"body": "组织账户无法使用 ClinePass 订阅。",
+			"switchFailed": "切换账户失败。请使用 /accounts 切换到你的个人账户。",
+			"switchToPersonal": "切换到个人账户",
+			"switchedToPersonal": "已切换到个人账户",
+			"title": "组织账户无法使用 ClinePass"
+		},
+		"powershellHelp": "你似乎遇到了 Windows PowerShell 问题，请参阅此<helpLink>故障排除指南</helpLink>。",
+		"requestId": "请求 ID：{{requestId}}",
+		"retryRequest": "重试请求",
+		"spendLimit": {
+			"limitReachedDaily": "已达到 ${{limit}} 的每日限额。",
+			"limitReachedMonthly": "已达到 ${{limit}} 的每月限额。",
+			"orgLimits": "限额由你的组织设置。",
+			"requestIncrease": "申请提高限额",
+			"requestSent": "申请已发送",
+			"resets": "重置时间：",
+			"sending": "正在发送…",
+			"usage": "用量",
+			"usageDaily": "每日用量",
+			"usageMonthly": "每月用量"
+		}
+	},
+	"featureTips": {
+		"label": "提示：",
+		"tips": {
+			"autoApprove": "为文件读取等只读工具启用自动批准，加快探索速度。",
+			"checkpoints": "Cline 会在更改后创建检查点——你随时可以恢复到之前的状态。",
+			"clinerules": "在项目根目录添加 .clinerules 文件，为 Cline 提供项目专属指令。",
+			"compact": "使用 /compact 压缩长对话，释放上下文窗口空间。",
+			"disableTips": "你可以在“设置 → 功能 → 功能提示”中关闭这些提示。",
+			"dragDrop": "你可以将图片拖放到聊天中，与 Cline 分享截图。",
+			"mcpServers": "设置 MCP 服务器，让 Cline 能访问外部工具和 API。",
+			"mentions": "在聊天输入框中使用 @ 添加文件、文件夹或 URL 作为任务上下文。",
+			"planMode": "切换到计划模式，在 Cline 采取行动前讨论并规划方案。",
+			"quote": "使用引用按钮选中 Cline 回复中的文本，并在你的回复中引用。"
+		}
+	},
+	"hook": {
+		"abort": "中止",
+		"exitCode": "（退出码：{{code}}）",
+		"label": "钩子：",
+		"status": {
+			"aborted": "已中止",
+			"completed": "已完成",
+			"failed": "失败",
+			"running": "运行中",
+			"unknown": "未知"
+		},
+		"timeoutError": "耗时超过 30 秒。请检查是否存在无限循环，或为网络请求添加超时。",
+		"unknownName": "未知",
+		"validationError": "钩子返回了无效的 JSON。详情请查看下方的错误信息。"
+	},
+	"newTask": {
+		"label": "任务"
+	},
+	"quote": {
+		"dismissAria": "关闭引用",
+		"quoteSelectionAria": "引用所选内容",
+		"quoteSelectionTitle": "在回复中引用所选内容"
+	},
+	"reportBug": {
+		"additionalContext": "其他上下文",
+		"apiRequestOutput": "相关 API 请求输出",
+		"clineVersion": "Cline 版本",
+		"operatingSystem": "操作系统",
+		"providerModel": "提供商/模型",
+		"stepsToReproduce": "复现步骤",
+		"systemInfo": "系统信息",
+		"title": "错误报告",
+		"whatHappened": "发生了什么？"
+	},
+	"requestStart": {
+		"analyzing": "正在分析 {{path}}/...",
+		"codebase": "代码库",
+		"exploring": "正在浏览 {{path}}/...",
+		"reading": "正在读取 {{path}}...",
+		"searchInPath": "{{path}} 中的“{{terms}}”",
+		"searchInPathWithPattern": "{{path}} 中的“{{terms}}”（{{pattern}}）",
+		"searching": "正在搜索 {{query}}..."
+	},
+	"row": {
+		"arguments": "参数",
+		"collapseSummary": "折叠摘要",
+		"condensingConversation": "Cline 正在压缩对话：",
+		"conditionalRulesApplied": "已应用条件规则：",
+		"error": "错误",
+		"expandSummary": "展开摘要",
+		"fetchedFromUrl": "Cline 已从此 URL 获取内容：",
+		"hasQuestion": "Cline 有一个问题：",
+		"havingTrouble": "Cline 遇到了困难...",
+		"isCreatingPatches": "Cline 正在创建补丁以编辑此文件：",
+		"listedFilesRecursive": "Cline 已递归查看此目录中的所有文件：",
+		"listedFilesTopLevel": "Cline 已查看此目录的顶层文件：",
+		"loadedSkill": "Cline 已加载技能：",
+		"loadingMcpDocumentation": "正在加载 MCP 文档",
+		"mcpNotification": "MCP 通知：",
+		"outsideWorkspace": "这在你的工作区之外",
+		"outsideWorkspaceFile": "此文件在你的工作区之外",
+		"searchExternal": "这是外部搜索",
+		"searchedWeb": "Cline 已在网络上搜索：",
+		"shellIntegration": {
+			"backgroundEnabled": "后台终端已启用",
+			"enableBackground": "启用后台终端（推荐）",
+			"issues": "Shell 集成问题",
+			"recommendBackground": "由于你多次遇到 Shell 集成问题，我们建议切换到后台终端模式以获得更好的可靠性。",
+			"stillHavingTrouble": "仍有问题？",
+			"troubleBody": "Cline 可能无法查看命令输出。请更新 VSCode（<code1>CMD/CTRL + Shift + P</code1> →“更新”），并确保使用受支持的 Shell：zsh、bash、fish 或 PowerShell（<code2>CMD/CTRL + Shift + P</code2> →“终端: 选择默认配置文件”）。",
+			"unavailable": "Shell 集成不可用"
+		},
+		"summaryLabel": "摘要：",
+		"urlExternal": "此 URL 为外部链接",
+		"viewedCodeDefinitions": "Cline 已查看此目录中使用的源代码定义名称：",
+		"wantsToAccessResource": "Cline 想要访问 <server>{{serverName}}</server> MCP 服务器上的资源：",
+		"wantsToCondense": "Cline 想要压缩你的对话：",
+		"wantsToCreateFile": "Cline 想要创建一个新文件：",
+		"wantsToCreateGithubIssue": "Cline 想要创建一个 Github Issue：",
+		"wantsToDeleteFile": "Cline 想要删除此文件：",
+		"wantsToEditFile": "Cline 想要编辑此文件：",
+		"wantsToExecuteCommand": "Cline 想要执行此命令：",
+		"wantsToFetchFromUrl": "Cline 想要从此 URL 获取内容：",
+		"wantsToListFilesRecursive": "Cline 想要递归查看此目录中的所有文件：",
+		"wantsToListFilesTopLevel": "Cline 想要查看此目录的顶层文件：",
+		"wantsToReadFile": "Cline 想要读取此文件：",
+		"wantsToSearchDirectory": "Cline 想要在此目录中搜索 <code>{{regex}}</code>：",
+		"wantsToSearchWeb": "Cline 想要在网络上搜索：",
+		"wantsToStartNewTask": "Cline 想要开始一个新任务：",
+		"wantsToUseTool": "Cline 想要使用 <server>{{serverName}}</server> MCP 服务器上的工具：",
+		"wantsToViewCodeDefinitions": "Cline 想要查看此目录中使用的源代码定义名称："
+	},
+	"searchResults": {
+		"collapseAria": "折叠搜索结果",
+		"expandAria": "展开搜索结果",
+		"workspace": "工作区：{{name}}"
+	},
+	"servers": {
+		"goToSettingsAria": "前往 MCP 服务器设置",
+		"hideAria": "隐藏 MCP 服务器",
+		"manageTooltip": "管理 MCP 服务器",
+		"showAria": "显示 MCP 服务器",
+		"title": "MCP 服务器"
+	},
+	"slashMenu": {
+		"defaultCommands": "默认命令",
+		"label": "斜杠命令",
+		"mcpPromptFrom": "来自 {{serverName}} 的 MCP 提示",
+		"mcpPrompts": "MCP 提示",
+		"noMatchingCommands": "未找到匹配的命令",
+		"workflowCommands": "工作流命令"
+	},
+	"subagent": {
+		"hideOutput": "隐藏输出",
+		"hideOutputAria": "隐藏子代理输出",
+		"showFullPromptAria": "显示完整的子代理提示词",
+		"showMore": "显示更多",
+		"showOutput": "显示输出",
+		"showOutputAria": "显示子代理输出",
+		"stats": "已调用 {{toolCalls}} 个工具 · {{tokens}} 个令牌 · {{cost}}",
+		"statusUnavailable": "子代理状态更新不可用。",
+		"wantsToUse_other": "Cline 想要使用子代理："
+	},
+	"textArea": {
+		"act": "执行",
+		"actModeTooltip": "在执行模式下，Cline 将立即完成任务",
+		"addContext": "添加上下文",
+		"addFilesImages": "添加文件和图片",
+		"dimensionError": "图片尺寸超过 7500px",
+		"hint": "输入 @ 添加上下文，输入 / 使用斜杠命令和工作流，按住 Shift 拖入文件/图片",
+		"openApiSettings": "打开 API 设置",
+		"placeholderMessage": "输入消息...",
+		"placeholderTask": "在此输入你的任务...",
+		"plan": "计划",
+		"planModeTooltip": "在计划模式下，Cline 将收集信息以制定计划",
+		"toggleShortcut": "使用 <kbd>{{keys}}</kbd> 切换",
+		"unsupportedFileError": "目前不支持图片以外的文件"
+	},
+	"thinking": {
+		"label": "思考",
+		"streaming": "思考中..."
+	},
+	"userMessage": {
+		"cancel": "取消",
+		"editFailed": "编辑并重新生成消息失败",
+		"editRegenerate": "从此处编辑并重新生成",
+		"editRegenerateAria": "从此消息编辑并重新生成",
+		"resetChat": "重置聊天",
+		"resetChatTooltip": "回退对话，保留当前代码编辑",
+		"resetCode": "重置代码",
+		"resetCodeTooltip": "回退对话，重置代码编辑",
+		"restoring": "正在恢复...",
+		"running": "正在运行..."
+	}
+}

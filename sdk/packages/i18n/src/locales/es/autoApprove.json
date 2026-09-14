@@ -1,0 +1,30 @@
+{
+	"actions": {
+		"editFiles": {
+			"label": "Editar archivos",
+			"shortName": "Editar"
+		},
+		"executeSafeCommands": {
+			"label": "Ejecutar comandos",
+			"shortName": "Comandos"
+		},
+		"readFiles": {
+			"label": "Leer archivos",
+			"shortName": "Leer"
+		},
+		"useBrowser": {
+			"label": "Obtener contenido web",
+			"shortName": "Web"
+		},
+		"useMcp": {
+			"label": "Usar servidores MCP",
+			"shortName": "MCP"
+		}
+	},
+	"closeSettingsAria": "Cerrar configuración de aprobación automática",
+	"description": "Permite que Cline realice estas acciones sin pedir aprobación.",
+	"docs": "Documentación",
+	"none": "Ninguna",
+	"openSettingsAria": "Abrir configuración de aprobación automática",
+	"title": "Aprobación automática:"
+}

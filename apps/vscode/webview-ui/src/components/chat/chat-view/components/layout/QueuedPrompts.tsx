@@ -1,6 +1,8 @@
 import type { QueuedPrompt } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
+import type { TFunction } from "i18next"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { TaskServiceClient } from "@/services/grpc-client"
 
 function truncatePrompt(prompt: string): string {
@@ -8,23 +10,23 @@ function truncatePrompt(prompt: string): string {
 	return trimmed.length > 96 ? `${trimmed.slice(0, 96)}...` : trimmed
 }
 
-function attachmentLabel(count: number): string | undefined {
+function attachmentLabel(count: number, t: TFunction): string | undefined {
 	if (count <= 0) {
 		return undefined
 	}
-	return count === 1 ? "1 attachment" : `${count} attachments`
+	return t("chatView:queuedPrompts.attachments", { count })
 }
 
-function queueSummary(items: QueuedPrompt[]): string {
+function queueSummary(items: QueuedPrompt[], t: TFunction): string {
 	const steerCount = items.filter((item) => item.delivery === "steer").length
 	const queueCount = items.length - steerCount
 	if (steerCount === 0) {
-		return items.length === 1 ? "Queued message" : `${items.length} queued messages`
+		return t("chatView:queuedPrompts.queuedMessages", { count: items.length })
 	}
 	if (queueCount === 0) {
-		return items.length === 1 ? "Steering message" : `${items.length} steering messages`
+		return t("chatView:queuedPrompts.steeringMessages", { count: items.length })
 	}
-	return `${queueCount} queued, ${steerCount} steering`
+	return t("chatView:queuedPrompts.mixedSummary", { queueCount, steerCount })
 }
 
 interface QueuedPromptsProps {
@@ -32,6 +34,7 @@ interface QueuedPromptsProps {
 }
 
 export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
+	const { t } = useTranslation()
 	const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set())
 
 	if (items.length === 0) {
@@ -57,11 +60,11 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 		<div className="mx-3 mt-2.5 mb-2.5 rounded-xs border border-editor-group-border bg-code/70 px-2.5 py-2 shadow-xs">
 			<div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-description">
 				<span aria-hidden="true" className="codicon codicon-clock text-[12px]" />
-				<span>{queueSummary(items)}</span>
+				<span>{queueSummary(items, t)}</span>
 			</div>
 			<div className="flex max-h-28 flex-col gap-1.5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
 				{items.map((item) => {
-					const attachments = attachmentLabel(item.attachmentCount)
+					const attachments = attachmentLabel(item.attachmentCount, t)
 					const isSteer = item.delivery === "steer"
 					const isCancelling = cancellingIds.has(item.id)
 					// The prompt text renders in spans whose line boxes are 5 spacing units tall
@@ -77,7 +80,7 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 							<span className="min-w-0 flex-1 break-words text-foreground">{truncatePrompt(item.prompt)}</span>
 							{isSteer && (
 								<span className="flex h-5 shrink-0 items-center rounded-[3px] border border-editor-group-border px-1.5 text-[10px] leading-none text-description">
-									Steer
+									{t("chatView:queuedPrompts.steer")}
 								</span>
 							)}
 							{attachments && (
@@ -86,11 +89,11 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 								</span>
 							)}
 							<button
-								aria-label="Cancel queued message"
+								aria-label={t("chatView:queuedPrompts.cancelQueued")}
 								className="-my-1.5 flex size-5 shrink-0 items-center justify-center rounded-[3px] text-description hover:bg-toolbar-hover-background hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
 								disabled={isCancelling}
 								onClick={() => cancelQueuedPrompt(item.id)}
-								title="Cancel queued message"
+								title={t("chatView:queuedPrompts.cancelQueued")}
 								type="button">
 								<span aria-hidden="true" className="codicon codicon-close text-[12px]" />
 							</button>

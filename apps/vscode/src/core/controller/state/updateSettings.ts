@@ -5,6 +5,7 @@ import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
+import { updateHostLocale } from "@/services/i18n"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
@@ -107,6 +108,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.preferredLanguage !== undefined) {
 			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
+		}
+
+		if (request.uiLanguage !== undefined) {
+			controller.stateManager.setGlobalState("uiLanguage", request.uiLanguage)
+			updateHostLocale(request.uiLanguage)
 		}
 
 		// Update terminal timeout setting

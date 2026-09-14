@@ -1,0 +1,13 @@
+{
+	"settingsMenu": {
+		"connected": "연결됨",
+		"connectionInfoTitle": "브라우저 연결 정보",
+		"disconnected": "연결 끊김",
+		"local": "로컬",
+		"remote": "원격",
+		"remoteHostLabel": "원격 호스트:",
+		"statusLabel": "상태:",
+		"title": "브라우저 연결",
+		"typeLabel": "유형:"
+	}
+}

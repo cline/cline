@@ -2,6 +2,7 @@ import { McpTool } from "@shared/mcp"
 import { ToggleToolAutoApproveRequest } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 
@@ -18,6 +19,7 @@ export const SHOW_MCP_PER_TOOL_AUTO_APPROVE = false
 
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
+	const { t } = useTranslation()
 
 	const { setMcpServers } = useExtensionState()
 
@@ -53,7 +55,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				onClick={(e) => e.stopPropagation()}
 				style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px" }}>
 				<div style={{ display: "flex", alignItems: "center", minWidth: 0, flex: "1 1 auto" }}>
-					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }}></span>
+					<span className="codicon codicon-symbol-method" style={{ marginRight: "6px", flexShrink: 0 }} />
 					<span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis" }}>{tool.name}</span>
 				</div>
 				{SHOW_MCP_PER_TOOL_AUTO_APPROVE && serverName && autoApprovalSettings.actions.useMcp && (
@@ -62,7 +64,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 						data-tool={tool.name}
 						onChange={handleAutoApproveChange}
 						style={{ fontSize: "11px" }}>
-						Auto-approve
+						{t("mcp:serverRow.autoApprove")}
 					</VSCodeCheckbox>
 				)}
 			</div>
@@ -95,7 +97,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 								fontSize: "11px",
 								textTransform: "uppercase",
 							}}>
-							Parameters
+							{t("mcp:serverRow.parameters")}
 						</div>
 						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(([paramName, schema]) => {
 							const isRequired =
@@ -133,7 +135,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 											overflowWrap: "break-word",
 											wordBreak: "break-word",
 										}}>
-										{schema.description || "No description"}
+										{schema.description || t("mcp:serverRow.noDescription")}
 									</span>
 								</div>
 							)

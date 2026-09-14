@@ -1,16 +1,18 @@
 import { languageOptions } from "@shared/Languages"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
 
 const PreferredLanguageSetting: React.FC = () => {
 	const { preferredLanguage } = useExtensionState()
+	const { t } = useTranslation("settings")
 
 	return (
 		<div>
 			<label className="block mb-1 text-base font-medium" htmlFor="preferred-language-dropdown">
-				Preferred Language
+				{t("preferredLanguage.label")}
 			</label>
 			<Select
 				onValueChange={(newLanguage) => updateSetting("preferredLanguage", newLanguage)}
@@ -26,7 +28,7 @@ const PreferredLanguageSetting: React.FC = () => {
 					))}
 				</SelectContent>
 			</Select>
-			<p className="text-sm text-description mt-1">The language that Cline should use for communication.</p>
+			<p className="text-sm text-description mt-1">{t("preferredLanguage.description")}</p>
 		</div>
 	)
 }

@@ -1,6 +1,8 @@
 import type { QueuedPrompt } from "@shared/ExtensionMessage"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { i18n } from "@/i18n"
 import { QueuedPrompts } from "./QueuedPrompts"
 
 const cancelQueuedPromptMock = vi.hoisted(() => vi.fn())
@@ -39,7 +41,11 @@ describe("QueuedPrompts", () => {
 	})
 
 	it("cancels a queued prompt from the row action", async () => {
-		render(<QueuedPrompts items={queuedPrompts} />)
+		render(
+			<I18nextProvider i18n={i18n}>
+				<QueuedPrompts items={queuedPrompts} />
+			</I18nextProvider>,
+		)
 
 		const cancelButtons = screen.getAllByRole("button", { name: "Cancel queued message" })
 		fireEvent.click(cancelButtons[0])
@@ -52,7 +58,11 @@ describe("QueuedPrompts", () => {
 	})
 
 	it("does not render an empty queue", () => {
-		const { container } = render(<QueuedPrompts items={[]} />)
+		const { container } = render(
+			<I18nextProvider i18n={i18n}>
+				<QueuedPrompts items={[]} />
+			</I18nextProvider>,
+		)
 
 		expect(container).toBeEmptyDOMElement()
 	})

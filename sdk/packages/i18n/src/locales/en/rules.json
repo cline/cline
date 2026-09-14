@@ -1,0 +1,90 @@
+{
+	"agentsTooltip": "Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists",
+	"allHooksCreated": "All hooks created",
+	"banners": {
+		"orgManagesRules": "Your organization manages some rules",
+		"orgManagesSkills": "Your organization manages some skills",
+		"orgManagesWorkflows": "Your organization manages some workflows",
+		"windowsHooks": "Hook toggling is not yet supported on Windows in this foundation PR. Hooks can be created, edited, and deleted, and execute whenever the hook file exists. Coming next: JSON-backed hook enabled/disabled state across platforms.",
+		"workflowsDeprecated": "Workflows are being deprecated. Use skills instead."
+	},
+	"createFile": "Create file",
+	"createSkill": "Create skill",
+	"customize": "Customize",
+	"deleteFile": "Delete {{type}} file",
+	"deleteHookFile": "Delete hook file",
+	"descriptions": {
+		"hooks": "Hooks allow you to execute custom scripts at specific points in Cline's execution lifecycle, enabling automation and integration with external tools.",
+		"rules": "Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to include context and preferences for your projects or globally for every conversation.",
+		"skills": "Skills are reusable instruction sets that Cline can activate on-demand. When a task matches a skill's description, Cline uses the <tool>use_skill</tool> tool to load the full instructions.",
+		"workflows": "Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks, such as deploying a service or submitting a PR. To invoke a workflow, type <cmd>/workflow-name</cmd> in the chat."
+	},
+	"docs": "Docs",
+	"editFile": "Edit {{type}} file",
+	"editHookFile": "Edit hook file",
+	"errors": {
+		"createSkillFailed": "Failed to create skill",
+		"invalidExtension": "Only .md, .txt, or no file extension allowed",
+		"invalidSkillName": "Skill name can only contain letters, numbers, dashes, and underscores",
+		"remoteConfigRefresh": "Could not refresh managed configuration: {{error}}",
+		"showingLastLoaded": "Showing the last loaded configuration."
+	},
+	"hideCustomize": "Hide Customize",
+	"hookSelectDescription": "Choose a hook type to create. Hooks execute at specific points in Cline's lifecycle. Available: {{hooks}}",
+	"hookToggleWindowsTitle": "Hook toggling is not yet supported on Windows in this foundation PR. Hooks execute when the hook file exists.",
+	"hookTypes": {
+		"postToolUse": "Executes after any tool is used",
+		"preCompact": "Executes before conversation compaction",
+		"preToolUse": "Executes before any tool is used",
+		"taskCancel": "Executes when a task is cancelled",
+		"taskComplete": "Executes when a task completes",
+		"taskResume": "Executes when a task is resumed",
+		"taskStart": "Executes when a new task begins",
+		"userPromptSubmit": "Executes when user submits a prompt"
+	},
+	"hooksToggleNote": "Toggle to enable/disable (chmod +x/-x).",
+	"hooksWindowsNote": "On Windows, hooks execute whenever the hook file exists.",
+	"learnMore": "Learn more",
+	"loadingManagedConfig": "Loading managed configuration…",
+	"newFile": "New file",
+	"newHookPlaceholder": "New hook...",
+	"newRulePlaceholder": "New rule file...",
+	"newSkillPlaceholder": "New skill...",
+	"newWorkflowPlaceholder": "New workflow file...",
+	"noRulesFound": "No rules found",
+	"noWorkflowsFound": "No workflows found",
+	"requiredRule": "This rule is required and cannot be disabled",
+	"ruleNameHint": "rule-name (.md, .txt, or no extension)",
+	"sections": {
+		"enterpriseRules": "Enterprise Rules",
+		"enterpriseSkills": "Enterprise Skills",
+		"enterpriseWorkflows": "Enterprise Workflows",
+		"globalHooks": "Global Hooks",
+		"globalRules": "Global Rules",
+		"globalSkills": "Global Skills",
+		"globalWorkflows": "Global Workflows",
+		"workspaceRules": "Workspace Rules",
+		"workspaceSkills": "Workspace Skills",
+		"workspaceWorkflows": "Workspace Workflows"
+	},
+	"selectHookType": "Select hook type to create",
+	"showCustomize": "Show Customize",
+	"skillNameHint": "skill-name (letters, numbers, dashes, underscores)",
+	"tabs": {
+		"hooks": "Hooks",
+		"rules": "Rules",
+		"skills": "Skills",
+		"workflows": "Workflows"
+	},
+	"types": {
+		"agents": "AGENTS.md rule",
+		"cline": "rule",
+		"cursor": "Cursor rule",
+		"skill": "skill",
+		"windsurf": "Windsurf rule",
+		"workflow": "workflow"
+	},
+	"viewFile": "View {{type}} file",
+	"viewFileReadonly": "View {{type}} file (read-only)",
+	"workflowNameHint": "workflow-name (.md, .txt, or no extension)"
+}

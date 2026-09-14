@@ -1,6 +1,7 @@
 import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
 import { PLATFORM_CONFIG } from "@/config/platform.config"
+import { i18n } from "@/i18n"
 
 export interface SearchResult {
 	path: string
@@ -124,8 +125,8 @@ export function getContextMenuOptions(
 	const workingChanges: ContextMenuQueryItem = {
 		type: ContextMenuOptionType.Git,
 		value: "git-changes",
-		label: "Working changes",
-		description: "Current uncommitted changes",
+		label: i18n.t("chat:contextMenu.workingChanges"),
+		description: i18n.t("chat:contextMenu.workingChangesDescription"),
 	}
 
 	const searchResultItems: ContextMenuQueryItem[] = dynamicSearchResults.map((result) => {
@@ -182,8 +183,8 @@ export function getContextMenuOptions(
 	if ("git".startsWith(lowerQuery)) {
 		suggestions.push({
 			type: ContextMenuOptionType.Git,
-			label: "Git Commits",
-			description: "Search repository history",
+			label: i18n.t("chat:contextMenu.gitCommits"),
+			description: i18n.t("chat:contextMenu.gitCommitsDescription"),
 		})
 	} else if ("git-changes".startsWith(lowerQuery)) {
 		suggestions.push(workingChanges)
@@ -207,8 +208,8 @@ export function getContextMenuOptions(
 			suggestions.push({
 				type: ContextMenuOptionType.Git,
 				value: lowerQuery,
-				label: `Commit ${lowerQuery}`,
-				description: "Git commit hash",
+				label: i18n.t("chat:contextMenu.commit", { hash: lowerQuery }),
+				description: i18n.t("chat:contextMenu.commitHashDescription"),
 			})
 		}
 	}

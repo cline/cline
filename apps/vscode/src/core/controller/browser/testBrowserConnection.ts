@@ -27,14 +27,13 @@ export async function testBrowserConnection(controller: Controller, request: Str
 						message: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
 						endpoint: result.endpoint || "",
 					})
-				} else {
-					return BrowserConnection.create({
-						success: false,
-						message:
-							"No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
-						endpoint: "",
-					})
 				}
+				return BrowserConnection.create({
+					success: false,
+					message:
+						"No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+					endpoint: "",
+				})
 			} catch (error) {
 				return BrowserConnection.create({
 					success: false,

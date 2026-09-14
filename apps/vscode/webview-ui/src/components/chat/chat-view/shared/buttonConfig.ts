@@ -20,7 +20,9 @@ export type ButtonActionType =
 export interface ButtonConfig {
 	sendingDisabled: boolean
 	enableButtons: boolean
+	/** i18n key for the primary button label, resolved with t() at the render site. */
 	primaryText?: string
+	/** i18n key for the secondary button label, resolved with t() at the render site. */
 	secondaryText?: string
 	primaryAction?: ButtonActionType
 	secondaryAction?: ButtonActionType
@@ -35,16 +37,16 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	api_req_failed: {
 		sendingDisabled: true,
 		enableButtons: true,
-		primaryText: "Retry",
-		secondaryText: "Start New Task",
+		primaryText: "chatView:buttons.retry",
+		secondaryText: "chatView:buttons.startNewTask",
 		primaryAction: "retry",
 		secondaryAction: "new_task",
 	},
 	mistake_limit_reached: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Proceed Anyways",
-		secondaryText: "Start New Task",
+		primaryText: "chatView:buttons.proceedAnyways",
+		secondaryText: "chatView:buttons.startNewTask",
 		primaryAction: "proceed",
 		secondaryAction: "new_task",
 	},
@@ -53,16 +55,16 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	tool_approve: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Approve",
-		secondaryText: "Reject",
+		primaryText: "chatView:buttons.approve",
+		secondaryText: "chatView:buttons.reject",
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
 	tool_save: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Save",
-		secondaryText: "Reject",
+		primaryText: "chatView:buttons.save",
+		secondaryText: "chatView:buttons.reject",
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
@@ -71,15 +73,15 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	command: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Run Command",
-		secondaryText: "Reject",
+		primaryText: "chatView:buttons.runCommand",
+		secondaryText: "chatView:buttons.reject",
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
 	command_output: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Proceed While Running",
+		primaryText: "chatView:buttons.proceedWhileRunning",
 		secondaryText: undefined,
 		primaryAction: "proceed",
 		secondaryAction: undefined,
@@ -89,24 +91,24 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	browser_action_launch: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Approve",
-		secondaryText: "Reject",
+		primaryText: "chatView:buttons.approve",
+		secondaryText: "chatView:buttons.reject",
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
 	use_mcp_server: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Approve",
-		secondaryText: "Reject",
+		primaryText: "chatView:buttons.approve",
+		secondaryText: "chatView:buttons.reject",
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
 	use_subagents: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Approve",
-		secondaryText: "Reject",
+		primaryText: "chatView:buttons.approve",
+		secondaryText: "chatView:buttons.reject",
 		primaryAction: "approve",
 		secondaryAction: "reject",
 	},
@@ -131,7 +133,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	completion_result: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Start New Task",
+		primaryText: "chatView:buttons.startNewTask",
 		secondaryText: undefined,
 		primaryAction: "new_task",
 		secondaryAction: undefined,
@@ -139,7 +141,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	resume_task: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Resume Task",
+		primaryText: "chatView:buttons.resumeTask",
 		secondaryText: undefined,
 		primaryAction: "proceed",
 		secondaryAction: undefined,
@@ -147,7 +149,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	resume_completed_task: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Start New Task",
+		primaryText: "chatView:buttons.startNewTask",
 		secondaryText: undefined,
 		primaryAction: "new_task",
 		secondaryAction: undefined,
@@ -155,7 +157,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	new_task: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Start New Task with Context",
+		primaryText: "chatView:buttons.startNewTaskWithContext",
 		secondaryText: undefined,
 		primaryAction: "new_task",
 		secondaryAction: undefined,
@@ -165,7 +167,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	condense: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Condense Conversation",
+		primaryText: "chatView:buttons.condenseConversation",
 		secondaryText: undefined,
 		primaryAction: "utility",
 		secondaryAction: undefined,
@@ -173,7 +175,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	report_bug: {
 		sendingDisabled: false,
 		enableButtons: true,
-		primaryText: "Report GitHub issue",
+		primaryText: "chatView:buttons.reportGithubIssue",
 		secondaryText: undefined,
 		primaryAction: "utility",
 		secondaryAction: undefined,
@@ -184,7 +186,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel",
+		secondaryText: "chatView:buttons.cancel",
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},
@@ -194,8 +196,8 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	foreground_command_running: {
 		sendingDisabled: true,
 		enableButtons: true,
-		primaryText: "Proceed While Running",
-		secondaryText: "Cancel",
+		primaryText: "chatView:buttons.proceedWhileRunning",
+		secondaryText: "chatView:buttons.cancel",
 		primaryAction: "proceed_while_running",
 		secondaryAction: "cancel",
 	},
@@ -213,7 +215,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: true,
 		enableButtons: true,
 		primaryText: undefined,
-		secondaryText: "Cancel",
+		secondaryText: "chatView:buttons.cancel",
 		primaryAction: undefined,
 		secondaryAction: "cancel",
 	},

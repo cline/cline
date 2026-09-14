@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { parseVsCodeLmModelSelector, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import type * as vscodemodels from "vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
@@ -16,6 +17,7 @@ interface VSCodeLmProviderProps {
 }
 
 export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
+	const { t } = useTranslation()
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
@@ -77,7 +79,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 				onFocusCapture={() => void requestVsCodeLmModels()}
 				zIndex={DROPDOWN_Z_INDEX - 2}>
 				<label htmlFor="vscode-lm-model">
-					<span style={{ fontWeight: 500 }}>Language Model</span>
+					<span style={{ fontWeight: 500 }}>{t("providers:vscodeLm.languageModelLabel")}</span>
 				</label>
 				{vsCodeLmModels.length > 0 ? (
 					<VSCodeDropdown
@@ -85,7 +87,7 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 						onChange={(e) => handleModelSelect((e.target as HTMLInputElement).value)}
 						style={{ width: "100%" }}
 						value={selectedModelId}>
-						<VSCodeOption value="">Select a model...</VSCodeOption>
+						<VSCodeOption value="">{t("providers:shared.selectModelPlaceholder")}</VSCodeOption>
 						{vsCodeLmModels.map((model) => {
 							const value = stringifyVsCodeLmModelSelector(model)
 							return (
@@ -102,17 +104,21 @@ export const VSCodeLmProvider = ({ currentMode }: VSCodeLmProviderProps) => {
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Uses models contributed by other extensions through the VS Code Language Model API. The most common source
-						is GitHub Copilot — install the{" "}
-						<a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot">Copilot extension</a> and
-						enable models in Copilot settings — but any extension that registers a language model provider will appear
-						here.{" "}
-						<VSCodeLink
-							onClick={() => void requestVsCodeLmModels()}
-							style={{ display: "inline", fontSize: "inherit" }}>
-							Refresh the model list
-						</VSCodeLink>{" "}
-						after enabling models.
+						<Trans
+							components={{
+								copilotLink: (
+									// biome-ignore lint/a11y/useAnchorContent: content is provided by Trans
+									<a href="https://marketplace.visualstudio.com/items?itemName=GitHub.copilot" />
+								),
+								refreshLink: (
+									<VSCodeLink
+										onClick={() => void requestVsCodeLmModels()}
+										style={{ display: "inline", fontSize: "inherit" }}
+									/>
+								),
+							}}
+							i18nKey="providers:vscodeLm.description"
+						/>
 					</p>
 				)}
 			</DropdownContainer>

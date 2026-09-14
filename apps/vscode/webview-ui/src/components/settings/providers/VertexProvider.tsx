@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { Trans, useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { fromProtobufProviderModelOverrides, type ProviderModelOverrides, useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -49,6 +50,7 @@ function withCustomModelDefaults(overrides?: ProviderModelOverrides): ProviderMo
  * The GCP Vertex AI provider configuration component
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { models: allVertexModels, defaultModelId, isLoading, isStale, error } = useProviderModels("vertex")
 	const { config, write, commitSelection } = useProviderConfig("vertex")
@@ -155,7 +157,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 	const updateNumericOverride = (key: NumericOverrideKey, label: string, value: string) => {
 		const parsed = Number(value)
 		if (!Number.isInteger(parsed) || parsed <= 0) {
-			setFieldErrors((current) => ({ ...current, [key]: `${label} must be a positive integer.` }))
+			setFieldErrors((current) => ({ ...current, [key]: t("providers:shared.mustBePositiveInteger", { label }) }))
 			return
 		}
 		setFieldErrors((current) => ({ ...current, [key]: undefined }))
@@ -209,10 +211,10 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					disabled={remoteConfigSettings?.vertexProjectId !== undefined}
 					initialValue={vertexProjectId}
 					onChange={handleProjectIdChange}
-					placeholder="Enter Project ID..."
+					placeholder={t("providers:vertex.projectIdPlaceholder")}
 					style={{ width: "100%" }}>
 					<div className="flex items-center gap-2 mb-1">
-						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
+						<span style={{ fontWeight: 500 }}>{t("providers:vertex.projectIdLabel")}</span>
 						{remoteConfigSettings?.vertexProjectId !== undefined && <LockIcon />}
 					</div>
 				</DebouncedTextField>
@@ -224,7 +226,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						className="flex items-center gap-2 mb-1"
 						style={{ opacity: remoteConfigSettings?.vertexRegion !== undefined ? 0.4 : 1 }}>
 						<label htmlFor="vertex-region-dropdown">
-							<span className="font-medium">Google Cloud Region</span>
+							<span className="font-medium">{t("providers:vertex.regionLabel")}</span>
 						</label>
 						{remoteConfigSettings?.vertexRegion !== undefined && <LockIcon />}
 					</div>
@@ -234,7 +236,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						onChange={(event) => handleRegionChange((event.target as HTMLSelectElement).value)}
 						style={{ width: "100%" }}
 						value={vertexRegion}>
-						<VSCodeOption value="">Select a region...</VSCodeOption>
+						<VSCodeOption value="">{t("providers:shared.selectRegionPlaceholder")}</VSCodeOption>
 						{REGIONS.map((region) => (
 							<VSCodeOption key={region} value={region}>
 								{region}
@@ -250,17 +252,23 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				To use Google Cloud Vertex AI, you need to
-				<VSCodeLink
-					href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
-					style={{ display: "inline", fontSize: "inherit" }}>
-					{"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"}
-				</VSCodeLink>{" "}
-				<VSCodeLink
-					href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
-					style={{ display: "inline", fontSize: "inherit" }}>
-					{"2) install the Google Cloud CLI › configure Application Default Credentials."}
-				</VSCodeLink>
+				<Trans
+					components={{
+						accountLink: (
+							<VSCodeLink
+								href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
+								style={{ display: "inline", fontSize: "inherit" }}
+							/>
+						),
+						cliLink: (
+							<VSCodeLink
+								href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
+								style={{ display: "inline", fontSize: "inherit" }}
+							/>
+						),
+					}}
+					i18nKey="providers:vertex.setupDescription"
+				/>
 			</p>
 
 			{showModelOptions && (
@@ -277,25 +285,29 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 
 					{isCustomModelSelected && customOverrides && (
 						<div className="flex flex-col gap-1">
-							<p className="m-0 text-sm text-description">
-								Adjust the custom model's capabilities if they differ from the defaults.
-							</p>
+							<p className="m-0 text-sm text-description">{t("providers:vertex.customModelNote")}</p>
 							<div className="flex gap-2">
 								<div style={{ flex: 1 }}>
 									<DebouncedTextField
 										initialValue={String(customOverrides.contextWindow ?? 200_000)}
 										onChange={(value) =>
-											updateNumericOverride("contextWindow", "Context Window Size", value)
+											updateNumericOverride(
+												"contextWindow",
+												t("providers:shared.contextWindowSizeLabel"),
+												value,
+											)
 										}>
-										<span className="font-medium">Context Window Size</span>
+										<span className="font-medium">{t("providers:shared.contextWindowSizeLabel")}</span>
 									</DebouncedTextField>
 									{fieldErrors.contextWindow && <div role="alert">{fieldErrors.contextWindow}</div>}
 								</div>
 								<div style={{ flex: 1 }}>
 									<DebouncedTextField
 										initialValue={String(customOverrides.maxTokens ?? 64_000)}
-										onChange={(value) => updateNumericOverride("maxTokens", "Max Output Tokens", value)}>
-										<span className="font-medium">Max Output Tokens</span>
+										onChange={(value) =>
+											updateNumericOverride("maxTokens", t("providers:shared.maxOutputTokensLabel"), value)
+										}>
+										<span className="font-medium">{t("providers:shared.maxOutputTokensLabel")}</span>
 									</DebouncedTextField>
 									{fieldErrors.maxTokens && <div role="alert">{fieldErrors.maxTokens}</div>}
 								</div>
@@ -305,7 +317,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 								onChange={(event) =>
 									updateCustomOverrides({ supportsVision: (event.target as HTMLInputElement).checked === true })
 								}>
-								Supports Images
+								{t("providers:shared.supportsImagesLabel")}
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
 								checked={customOverrides.supportsReasoning !== false}
@@ -314,7 +326,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 										supportsReasoning: (event.target as HTMLInputElement).checked === true,
 									})
 								}>
-								Supports Reasoning
+								{t("providers:vertex.supportsReasoningLabel")}
 							</VSCodeCheckbox>
 						</div>
 					)}
@@ -324,15 +336,15 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
 							currentMode={currentMode}
 							defaultEffort={adaptiveThinkingDefaultEffort}
-							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
+							description={t("providers:shared.adaptiveThinkingDescription")}
+							label={t("providers:shared.adaptiveThinkingLabel")}
 							onEffortChange={handleReasoningEffortChange}
 						/>
 					) : selectedModelInfo.supportsReasoning === true ? (
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="none"
-							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							description={t("providers:shared.extendedThinkingDescription")}
 							onEffortChange={handleReasoningEffortChange}
 						/>
 					) : null}

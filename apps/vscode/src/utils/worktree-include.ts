@@ -84,9 +84,8 @@ async function getAllFiles(dir: string, baseDir: string): Promise<string[]> {
 					// Skip .git directory
 					if (entry.name === ".git") return []
 					return getAllFiles(fullPath, baseDir)
-				} else {
-					return [relativePath]
 				}
+				return [relativePath]
 			}),
 		)
 

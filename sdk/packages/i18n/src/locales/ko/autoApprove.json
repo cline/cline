@@ -1,0 +1,30 @@
+{
+	"actions": {
+		"editFiles": {
+			"label": "파일 편집",
+			"shortName": "편집"
+		},
+		"executeSafeCommands": {
+			"label": "명령 실행",
+			"shortName": "명령"
+		},
+		"readFiles": {
+			"label": "파일 읽기",
+			"shortName": "읽기"
+		},
+		"useBrowser": {
+			"label": "웹 콘텐츠 가져오기",
+			"shortName": "웹 가져오기"
+		},
+		"useMcp": {
+			"label": "MCP 서버 사용",
+			"shortName": "MCP"
+		}
+	},
+	"closeSettingsAria": "자동 승인 설정 닫기",
+	"description": "승인 요청 없이 Cline이 이러한 작업을 수행하도록 허용합니다.",
+	"docs": "문서",
+	"none": "없음",
+	"openSettingsAria": "자동 승인 설정 열기",
+	"title": "자동 승인:"
+}

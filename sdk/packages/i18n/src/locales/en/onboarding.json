@@ -1,0 +1,86 @@
+{
+	"buttons": {
+		"back": "Back",
+		"continue": "Continue",
+		"createAccount": "Create my Account",
+		"login": "Login to Cline"
+	},
+	"capabilities": {
+		"images": "Images",
+		"promptCache": "Prompt Cache",
+		"tools": "Tools"
+	},
+	"changeLaterNote": "You can change this later in settings",
+	"clinePassEmpty": {
+		"description": "Please choose another option or try again later.",
+		"title": "No ClinePass models are available right now."
+	},
+	"completeSignInBrowser": "Complete sign in in your browser. We'll continue automatically once you're done.",
+	"groups": {
+		"free": "Free",
+		"frontier": "Frontier",
+		"openSource": "Open Source"
+	},
+	"learnMore": "Learn more",
+	"modelItem": {
+		"contextLabel": "Context:",
+		"speedLabel": "Speed:",
+		"supportLabel": "Support:"
+	},
+	"noSearchResults": "No result found for \"{{searchTerm}}\"",
+	"otherOptions": "other options",
+	"price": {
+		"free": "Free",
+		"high": "$$$",
+		"low": "$",
+		"medium": "$$"
+	},
+	"searchModelPlaceholder": "Search model...",
+	"speed": {
+		"average": "Average",
+		"fast": "Fast",
+		"instant": "Instant",
+		"slow": "Slow"
+	},
+	"steps": {
+		"accountWait": {
+			"description": "Complete account creation in your browser. Then come back here to finish up.",
+			"title": "Almost there!"
+		},
+		"byok": {
+			"title": "Configure your provider"
+		},
+		"clinePass": {
+			"title": "Select a ClinePass model"
+		},
+		"free": {
+			"title": "Select a free model"
+		},
+		"power": {
+			"title": "Select your model"
+		},
+		"userType": {
+			"description": "Select an option below to get started.",
+			"title": "How will you use Cline?"
+		}
+	},
+	"userTypes": {
+		"byok": {
+			"description": "Use Cline with your provider of choice",
+			"title": "Bring my own API key"
+		},
+		"clinePass": {
+			"description": "Low cost subscription plan for best open weights model.",
+			"title": "ClinePass"
+		},
+		"free": {
+			"description": "Get started at no cost",
+			"title": "Absolutely Free"
+		},
+		"power": {
+			"description": "Claude, GPT Codex, Gemini, etc.",
+			"title": "Frontier Model"
+		}
+	},
+	"waitingForSignIn": "Waiting for sign in..."
+}

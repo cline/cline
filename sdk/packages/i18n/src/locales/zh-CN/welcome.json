@@ -1,0 +1,25 @@
+{
+	"getStartedFree": "免费开始使用",
+	"greeting": "你好，我是 Cline",
+	"heading": "我能为你做些什么？",
+	"intro": "得益于 <sonnetLink>Claude 4.6 Sonnet</sonnetLink> 在智能体编程能力上的突破，加上可以创建和编辑文件、探索复杂项目、使用浏览器以及执行终端命令的工具 <aside>（当然，需要经过你的许可）</aside>，我可以完成各种各样的任务。我甚至可以通过 MCP 创建新工具，扩展自己的能力。",
+	"letsGo": "开始吧！",
+	"quickWins": {
+		"cliTool": {
+			"description": "开发一个强大的终端 CLI，自动完成一项有趣的任务",
+			"title": "打造 CLI 工具"
+		},
+		"heading": "与 Cline 一起<wins>[快速见效]</wins>",
+		"nextjsApp": {
+			"description": "使用 Next.js 和 Tailwind 创建一个精美的笔记应用",
+			"title": "构建 Next.js 应用"
+		},
+		"snakeGame": {
+			"description": "编写一个可在浏览器中运行的经典贪吃蛇游戏。",
+			"title": "开发小游戏"
+		}
+	},
+	"signUpDescription": "注册账号即可免费开始使用，或使用可访问 Claude Sonnet 等模型的 API 密钥。",
+	"takeATour": "快速导览",
+	"useOwnApiKey": "使用自己的 API 密钥"
+}

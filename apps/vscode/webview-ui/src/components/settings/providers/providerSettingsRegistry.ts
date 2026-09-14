@@ -55,11 +55,14 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	cerebras: {
 		signupUrl: "https://cloud.cerebras.ai/",
 	},
+	// baseUrlField label/placeholder values starting with "settings:" are i18n
+	// keys, resolved with t() at the render site (ApiOptions). Literal values
+	// (e.g. plain URL placeholders) are passed through unchanged.
 	gemini: {
 		signupUrl: "https://aistudio.google.com/apikey",
 		baseUrlField: {
-			label: "Use custom base URL",
-			placeholder: "Default: https://generativelanguage.googleapis.com",
+			label: "settings:baseUrl.labelCustom",
+			placeholder: "settings:providerRegistry.gemini.baseUrlPlaceholder",
 		},
 	},
 	huggingface: {
@@ -71,7 +74,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	minimax: {
 		signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
 		baseUrlField: {
-			label: "Base URL",
+			label: "settings:baseUrl.label",
 			placeholder: "https://api.minimax.io/anthropic",
 		},
 	},
@@ -89,7 +92,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		allowsCustomIds: true,
 		signupUrl: "https://api.together.ai/settings/api-keys",
 		baseUrlField: {
-			label: "Base URL",
+			label: "settings:baseUrl.label",
 			placeholder: "https://api.together.xyz/v1",
 		},
 	},

@@ -1,0 +1,90 @@
+{
+	"agentsTooltip": "최상위 AGENTS.md가 있는 경우 작업 영역의 모든 AGENTS.md 파일을 재귀적으로 검색합니다",
+	"allHooksCreated": "모든 훅이 생성되었습니다",
+	"banners": {
+		"orgManagesRules": "조직에서 일부 규칙을 관리하고 있습니다",
+		"orgManagesSkills": "조직에서 일부 스킬을 관리하고 있습니다",
+		"orgManagesWorkflows": "조직에서 일부 워크플로를 관리하고 있습니다",
+		"windowsHooks": "이 기반 PR에서는 Windows에서 훅 전환이 아직 지원되지 않습니다. 훅은 생성, 편집, 삭제할 수 있으며 훅 파일이 존재하면 항상 실행됩니다. 다음 예정: 모든 플랫폼에서 JSON 기반 훅 사용/사용 안 함 상태 지원.",
+		"workflowsDeprecated": "워크플로는 지원 중단될 예정입니다. 대신 스킬을 사용하세요."
+	},
+	"createFile": "파일 만들기",
+	"createSkill": "스킬 만들기",
+	"customize": "사용자 지정",
+	"deleteFile": "{{type}} 파일 삭제",
+	"deleteHookFile": "훅 파일 삭제",
+	"descriptions": {
+		"hooks": "훅을 사용하면 Cline 실행 수명 주기의 특정 시점에 사용자 지정 스크립트를 실행하여 자동화와 외부 도구 연동을 구현할 수 있습니다.",
+		"rules": "규칙을 사용하면 Cline에 시스템 수준의 지침을 제공할 수 있습니다. 프로젝트별로 또는 모든 대화에 전역으로 컨텍스트와 선호 사항을 지속적으로 포함하는 방법이라고 생각하면 됩니다.",
+		"skills": "스킬은 Cline이 필요할 때 활성화할 수 있는 재사용 가능한 지침 모음입니다. 작업이 스킬 설명과 일치하면 Cline이 <tool>use_skill</tool> 도구를 사용해 전체 지침을 불러옵니다.",
+		"workflows": "워크플로를 사용하면 서비스 배포나 PR 제출처럼 반복적인 작업을 안내하는 일련의 단계를 정의할 수 있습니다. 워크플로를 호출하려면 채팅에 <cmd>/workflow-name</cmd>을 입력하세요."
+	},
+	"docs": "문서",
+	"editFile": "{{type}} 파일 편집",
+	"editHookFile": "훅 파일 편집",
+	"errors": {
+		"createSkillFailed": "스킬을 만들지 못했습니다",
+		"invalidExtension": ".md, .txt 또는 확장자 없는 파일만 허용됩니다",
+		"invalidSkillName": "스킬 이름에는 문자, 숫자, 대시, 밑줄만 사용할 수 있습니다",
+		"remoteConfigRefresh": "관리형 구성을 새로 고치지 못했습니다: {{error}}",
+		"showingLastLoaded": "마지막으로 불러온 구성을 표시하고 있습니다."
+	},
+	"hideCustomize": "사용자 지정 숨기기",
+	"hookSelectDescription": "만들 훅 유형을 선택하세요. 훅은 Cline 수명 주기의 특정 시점에 실행됩니다. 사용 가능: {{hooks}}",
+	"hookToggleWindowsTitle": "이 기반 PR에서는 Windows에서 훅 전환이 아직 지원되지 않습니다. 훅 파일이 존재하면 훅이 실행됩니다.",
+	"hookTypes": {
+		"postToolUse": "도구 사용 후에 실행됩니다",
+		"preCompact": "대화 압축 전에 실행됩니다",
+		"preToolUse": "도구 사용 전에 실행됩니다",
+		"taskCancel": "작업이 취소될 때 실행됩니다",
+		"taskComplete": "작업이 완료될 때 실행됩니다",
+		"taskResume": "작업이 재개될 때 실행됩니다",
+		"taskStart": "새 작업이 시작될 때 실행됩니다",
+		"userPromptSubmit": "사용자가 프롬프트를 제출할 때 실행됩니다"
+	},
+	"hooksToggleNote": "전환하여 사용/사용 안 함(chmod +x/-x)을 설정합니다.",
+	"hooksWindowsNote": "Windows에서는 훅 파일이 존재하면 훅이 항상 실행됩니다.",
+	"learnMore": "자세히 알아보기",
+	"loadingManagedConfig": "관리형 구성 로드 중…",
+	"newFile": "새 파일",
+	"newHookPlaceholder": "새 훅...",
+	"newRulePlaceholder": "새 규칙 파일...",
+	"newSkillPlaceholder": "새 스킬...",
+	"newWorkflowPlaceholder": "새 워크플로 파일...",
+	"noRulesFound": "규칙이 없습니다",
+	"noWorkflowsFound": "워크플로가 없습니다",
+	"requiredRule": "이 규칙은 필수이므로 사용 해제할 수 없습니다",
+	"ruleNameHint": "규칙-이름 (.md, .txt 또는 확장자 없음)",
+	"sections": {
+		"enterpriseRules": "엔터프라이즈 규칙",
+		"enterpriseSkills": "엔터프라이즈 스킬",
+		"enterpriseWorkflows": "엔터프라이즈 워크플로",
+		"globalHooks": "전역 훅",
+		"globalRules": "전역 규칙",
+		"globalSkills": "전역 스킬",
+		"globalWorkflows": "전역 워크플로",
+		"workspaceRules": "작업 영역 규칙",
+		"workspaceSkills": "작업 영역 스킬",
+		"workspaceWorkflows": "작업 영역 워크플로"
+	},
+	"selectHookType": "만들 훅 유형 선택",
+	"showCustomize": "사용자 지정 표시",
+	"skillNameHint": "스킬-이름 (문자, 숫자, 대시, 밑줄)",
+	"tabs": {
+		"hooks": "훅",
+		"rules": "규칙",
+		"skills": "스킬",
+		"workflows": "워크플로"
+	},
+	"types": {
+		"agents": "AGENTS.md 규칙",
+		"cline": "규칙",
+		"cursor": "Cursor 규칙",
+		"skill": "스킬",
+		"windsurf": "Windsurf 규칙",
+		"workflow": "워크플로"
+	},
+	"viewFile": "{{type}} 파일 보기",
+	"viewFileReadonly": "{{type}} 파일 보기(읽기 전용)",
+	"workflowNameHint": "워크플로-이름 (.md, .txt 또는 확장자 없음)"
+}

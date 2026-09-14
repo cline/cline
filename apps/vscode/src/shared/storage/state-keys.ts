@@ -278,6 +278,7 @@ const USER_SETTINGS_FIELDS = {
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
+	uiLanguage: { default: "auto" as string },
 	mode: { default: "act" as Mode },
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },

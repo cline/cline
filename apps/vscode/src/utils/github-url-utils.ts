@@ -18,6 +18,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
+import { t } from "@/services/i18n"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal, writeTextToClipboard } from "@/utils/env"
 
@@ -118,16 +119,17 @@ export async function openUrlInBrowser(url: string): Promise<void> {
 			Logger.error(`Error with openExternal utility: ${openExternalError}`)
 
 			// Last fallback: Show a message with instructions
+			const copyAgainButton = t("url.copyAgainButton")
 			HostProvider.window
 				.showMessage({
 					type: ShowMessageType.INFORMATION,
-					message: "Couldn't open the URL automatically. It has been copied to your clipboard.",
+					message: t("url.openFailedCopied"),
 					options: {
-						items: ["Copy URL Again"],
+						items: [copyAgainButton],
 					},
 				})
 				.then((response) => {
-					if (response.selectedOption === "Copy URL Again") {
+					if (response.selectedOption === copyAgainButton) {
 						writeTextToClipboard(url)
 					}
 				})

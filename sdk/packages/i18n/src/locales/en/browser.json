@@ -1,0 +1,13 @@
+{
+	"settingsMenu": {
+		"connected": "Connected",
+		"connectionInfoTitle": "Browser connection info",
+		"disconnected": "Disconnected",
+		"local": "Local",
+		"remote": "Remote",
+		"remoteHostLabel": "Remote Host:",
+		"statusLabel": "Status:",
+		"title": "Browser Connection",
+		"typeLabel": "Type:"
+	}
+}

@@ -2,6 +2,7 @@ import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -78,6 +79,7 @@ interface McpResponseDisplayProps {
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const { mcpResponsesCollapsed, mcpDisplayMode } = useExtensionState() // Get setting from context
+	const { t } = useTranslation()
 	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
 
@@ -200,7 +202,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		if (error) {
 			return (
 				<>
-					<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "10px" }}>{error}</div>
+					{/* `error` holds an i18n key provided by processResponseUrls */}
+					<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "10px" }}>{t(error)}</div>
 					<UrlText>{responseText}</UrlText>
 				</>
 			)
@@ -229,7 +232,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						) : (
 							<ChevronRightIcon className="header-icon" size={16} />
 						)}
-						Response
+						{t("mcp:response.title")}
 					</div>
 					<DropdownContainer
 						style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
@@ -257,12 +260,12 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						) : (
 							<ChevronRightIcon className="header-icon" size={16} />
 						)}
-						Response (Error)
+						{t("mcp:response.titleError")}
 					</div>
 				</ResponseHeader>
 				{isExpanded && (
 					<div className="response-content">
-						<div style={{ color: "var(--vscode-errorForeground)" }}>Error parsing response:</div>
+						<div style={{ color: "var(--vscode-errorForeground)" }}>{t("mcp:response.parseError")}</div>
 						<UrlText>{responseText}</UrlText>
 					</div>
 				)}

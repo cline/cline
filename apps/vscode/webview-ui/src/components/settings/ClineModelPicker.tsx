@@ -9,6 +9,7 @@ import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
@@ -67,9 +68,12 @@ function normalizeModelId(modelId: string): string {
 	return modelId.trim().toLowerCase()
 }
 
+// Fallback label/description values are i18n keys (they start with "settings:")
+// and are resolved with t() at render time; server-provided tags/descriptions
+// are shown as-is.
 function toFeaturedModelCardEntry(
 	model: Pick<ClineRecommendedModel, "id" | "name" | "description" | "tags">,
-	fallbackLabel: string,
+	kind: "recommended" | "free",
 ): FeaturedModelCardEntry | null {
 	if (!model.id) {
 		return null
@@ -81,20 +85,27 @@ function toFeaturedModelCardEntry(
 	return {
 		id: model.id,
 		name: model.name,
-		description: model.description || (fallbackLabel === "FREE" ? "Free model" : "Recommended model"),
-		label: normalizedLabel || fallbackLabel,
+		description:
+			model.description ||
+			(kind === "free" ? "settings:modelPicker.freeModelDescription" : "settings:modelPicker.recommendedModelDescription"),
+		label: normalizedLabel || (kind === "free" ? "settings:modelPicker.freeBadge" : "settings:modelPicker.recommendedBadge"),
 	}
 }
 
 const RECOMMENDED_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.recommended
-	.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
+	.map((model) => toFeaturedModelCardEntry(model, "recommended"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
 const FREE_MODELS_FALLBACK: FeaturedModelCardEntry[] = CLINE_RECOMMENDED_MODELS_FALLBACK.free
-	.map((model) => toFeaturedModelCardEntry(model, "FREE"))
+	.map((model) => toFeaturedModelCardEntry(model, "free"))
 	.filter((model): model is FeaturedModelCardEntry => model !== null)
 
 const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMode, showProviderRouting, initialTab }) => {
+	const { t } = useTranslation()
+	// Featured-model entries may carry i18n keys as fallback text (see
+	// toFeaturedModelCardEntry); resolve them here without touching raw
+	// server-provided strings.
+	const trIfKey = (value: string) => (value.startsWith("settings:") ? t(value) : value)
 	const { handleModeFieldsChange, handleFieldChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models: catalogClineModels, defaultModelId: clineDefaultModelId } = useProviderModels("cline")
@@ -143,10 +154,10 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 				ClineRecommendedModelsResponse.fromJSON,
 			)
 			const recommended = (response.recommended ?? [])
-				.map((model) => toFeaturedModelCardEntry(model, "RECOMMENDED"))
+				.map((model) => toFeaturedModelCardEntry(model, "recommended"))
 				.filter((model): model is FeaturedModelCardEntry => model !== null)
 			const free = (response.free ?? [])
-				.map((model) => toFeaturedModelCardEntry(model, "FREE"))
+				.map((model) => toFeaturedModelCardEntry(model, "free"))
 				.filter((model): model is FeaturedModelCardEntry => model !== null)
 			setClineRecommendedModels(recommended)
 			setClineFreeModels(free)
@@ -425,16 +436,16 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>{t("settings:modelPicker.label")}</span>
 				</label>
 
 				{/* Tabs */}
 				<TabsContainer style={{ marginTop: 4 }}>
 					<Tab active={activeTab === "recommended"} onClick={() => setActiveTab("recommended")}>
-						Recommended
+						{t("settings:modelPicker.recommendedTab")}
 					</Tab>
 					<Tab active={activeTab === "free"} onClick={() => setActiveTab("free")}>
-						Free
+						{t("settings:modelPicker.freeTab")}
 					</Tab>
 				</TabsContainer>
 
@@ -443,11 +454,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					{activeTab === "recommended" &&
 						recommendedModels.map((model) => (
 							<FeaturedModelCard
-								description={model.description}
+								description={trIfKey(model.description)}
 								displayName={model.name || model.id}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
-								label={model.label}
+								label={trIfKey(model.label)}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)
@@ -457,11 +468,11 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 					{activeTab === "free" &&
 						freeModels.map((model) => (
 							<FeaturedModelCard
-								description={model.description}
+								description={trIfKey(model.description)}
 								displayName={model.name || model.id}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
-								label={model.label}
+								label={trIfKey(model.label)}
 								onClick={() => {
 									handleModelChange(model.id)
 									setIsDropdownVisible(false)
@@ -486,7 +497,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder={t("settings:modelPicker.searchPlaceholder")}
 						role="combobox"
 						style={{
 							width: "100%",
@@ -496,7 +507,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						value={searchTerm}>
 						{searchTerm && (
 							<button
-								aria-label="Clear search"
+								aria-label={t("settings:clearSearch")}
 								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									setSearchTerm("")
@@ -567,11 +578,9 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 							currentMode={currentMode}
 							defaultEffort={showAdaptiveThinkingEffort ? adaptiveThinkingDefaultEffort : "medium"}
 							description={
-								showAdaptiveThinkingEffort
-									? "Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-									: undefined
+								showAdaptiveThinkingEffort ? t("settings:reasoningEffort.adaptiveDescription") : undefined
 							}
-							label={showAdaptiveThinkingEffort ? "Adaptive Thinking" : undefined}
+							label={showAdaptiveThinkingEffort ? t("settings:reasoningEffort.adaptiveLabel") : undefined}
 							onEffortChange={(effort) => {
 								writeProviderConfig({
 									reasoning: {
@@ -599,7 +608,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest Cline model list.
+					{t("settings:modelPicker.clineAutoFetchNote")}
 				</p>
 			)}
 		</div>

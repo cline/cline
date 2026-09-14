@@ -45,6 +45,10 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string
+	/** The uiLanguage setting value: "auto" or a supported locale (e.g. "zh-CN"). */
+	uiLanguage?: string
+	/** The resolved locale the UI should render in ("auto" already resolved against the host language). */
+	uiLocale?: string
 	mode: Mode
 	clineMessages: ClineMessage[]
 	checkpointRestoreInput?: {

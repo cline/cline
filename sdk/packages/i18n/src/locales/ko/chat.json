@@ -1,0 +1,315 @@
+{
+	"browser": {
+		"actionLabel": "브라우저 동작:",
+		"actions": {
+			"click": "클릭 ({{coordinate}})",
+			"closeBrowser": "브라우저 닫기",
+			"launch": "{{url}}에서 브라우저 시작",
+			"scrollDown": "아래로 스크롤",
+			"scrollUp": "위로 스크롤",
+			"type": "\"{{text}}\" 입력"
+		},
+		"consoleLogs": "콘솔 로그",
+		"isUsingBrowser": "Cline이 브라우저를 사용하고 있습니다:",
+		"next": "다음",
+		"noNewLogs": "(새 로그 없음)",
+		"previous": "이전",
+		"screenshotAlt": "브라우저 스크린샷",
+		"sessionStarted": "브라우저 세션 시작됨",
+		"stepOf": "{{total}}단계 중 {{current}}단계",
+		"wantsToUseBrowser": "Cline이 브라우저를 사용하려고 합니다:"
+	},
+	"commandOutput": {
+		"approvalRequired": "모델이 이 명령에 명시적 승인이 필요하다고 판단했습니다.",
+		"cancel": "취소",
+		"clickToOpen": "클릭하여 열기: {{path}}",
+		"status": {
+			"completed": "완료됨",
+			"pending": "대기 중",
+			"running": "실행 중",
+			"skipped": "건너뜀"
+		},
+		"stop": "중지",
+		"terminalCancelInfo": "이 명령은 VSCode 터미널에서 실행 중입니다. 터미널에서 Ctrl+C로 직접 중지하거나, 설정에서 백그라운드 실행 모드로 전환하면 명령을 취소할 수 있습니다."
+	},
+	"compaction": {
+		"autoCompacting": "컨텍스트 자동 압축 중",
+		"cancelled": "압축 취소됨",
+		"compacted": "컨텍스트 압축됨",
+		"compactedManual": "컨텍스트 압축됨(수동)",
+		"compacting": "컨텍스트 압축 중",
+		"failed": "압축 실패",
+		"messagesDelta": "메시지 {{before}} → {{after}}개",
+		"skipped": "압축 건너뜀",
+		"tokensDelta": "토큰 {{before}} → {{after}}개"
+	},
+	"completion": {
+		"completed": "완료됨",
+		"copyPlanAria": "계획 응답 복사",
+		"copyResponseAria": "응답 복사",
+		"plan": "계획",
+		"viewChanges": "변경 사항 보기"
+	},
+	"contextMenu": {
+		"addFile": "파일 추가",
+		"addFolder": "폴더 추가",
+		"commit": "커밋 {{hash}}",
+		"commitHashDescription": "Git 커밋 해시",
+		"gitCommitDescription": "{{shortHash}} · {{author}} · {{date}}",
+		"gitCommits": "Git 커밋",
+		"gitCommitsDescription": "리포지토리 기록 검색",
+		"label": "컨텍스트 멘션",
+		"noResults": "결과가 없습니다",
+		"pasteUrl": "URL을 붙여넣어 콘텐츠 가져오기",
+		"problems": "문제",
+		"searching": "검색 중...",
+		"terminal": "터미널",
+		"workingChanges": "작업 중인 변경 사항",
+		"workingChangesDescription": "커밋되지 않은 현재 변경 사항"
+	},
+	"diffEdit": {
+		"openFileTitle": "편집기에서 파일 열기"
+	},
+	"errorBoundary": {
+		"errorPrefix": "오류: {{message}}",
+		"title": "이 콘텐츠를 표시하는 중 문제가 발생했습니다",
+		"unknownError": "알 수 없는 오류"
+	},
+	"errors": {
+		"auth": {
+			"clickRetryBelow": "(아래의 \"다시 시도\"를 클릭하세요)",
+			"loggedOut": "로그아웃된 것 같습니다. 아래를 클릭하여 로그인하세요",
+			"signIn": "Cline에 로그인"
+		},
+		"billing": {
+			"retryAfterSwitching": "전환 후 요청을 다시 시도하세요.",
+			"switchToUsageBased": "사용량 기반 결제로 전환",
+			"switchedToUsageBased": "사용량 기반 결제로 전환됨",
+			"switching": "전환 중..."
+		},
+		"clinePassLimit": {
+			"switchFailed": "공급자를 전환하지 못했습니다. API 구성 설정에서 Cline 사용량 결제를 선택하세요.",
+			"switchPrompt": "사용량 기반 결제로 전환하여 Cline 공급자로 다시 시도하시겠습니까?",
+			"title": "ClinePass 한도에 도달했습니다"
+		},
+		"clineignore": "Cline이 <path>{{path}}</path>에 접근하려 했지만 <fileCode>.clineignore</fileCode> 파일에 의해 차단되었습니다.",
+		"creditLimit": {
+			"buyCredits": "크레딧 구매",
+			"currentBalance": "현재 잔액:",
+			"defaultMessage": "크레딧을 모두 사용했습니다.",
+			"totalPromotions": "총 프로모션:",
+			"totalSpent": "총 사용액:"
+		},
+		"diffError": "모델이 파일에서 일치하는 항목이 없는 검색 패턴을 사용했습니다. 다시 시도 중...",
+		"entitlement": {
+			"getClinePass": "ClinePass 구독하기",
+			"headline": "이 모델을 사용하려면 ClinePass 구독이 필요합니다.",
+			"subscribe": "ClinePass를 구독한 후 요청을 다시 시도하세요."
+		},
+		"freeModelLimit": {
+			"limitBody": "이 모델의 오늘 무료 사용 한도에 도달했습니다.",
+			"limitReached": "일일 무료 모델 한도 도달",
+			"switchFailed": "모델을 전환하지 못했습니다. API 구성 설정에서 {{modelId}}를 선택하세요.",
+			"switchPaid": "또는 사용량 기반 결제로 이 모델의 유료 버전({{modelId}})으로 전환하세요.",
+			"tryAgainIn": "{{resetTime}} 후에 다시 시도하거나 다른 모델을 선택하세요.",
+			"tryAgainLater": "나중에 다시 시도하거나 다른 모델을 선택하세요."
+		},
+		"freePromotionEnded": {
+			"body": "이 모델의 무료 프로모션이 종료되어 더 이상 사용할 수 없습니다.",
+			"selectAnother": "계속하려면 다른 모델을 선택하세요.",
+			"selectModel": "모델 선택",
+			"title": "무료 모델 프로모션 종료"
+		},
+		"orgRestriction": {
+			"body": "조직 계정은 ClinePass 구독을 사용할 수 없습니다.",
+			"switchFailed": "계정을 전환하지 못했습니다. /accounts를 사용하여 개인 계정으로 전환하세요.",
+			"switchToPersonal": "개인 계정으로 전환",
+			"switchedToPersonal": "개인 계정으로 전환됨",
+			"title": "조직 계정은 ClinePass를 사용할 수 없습니다"
+		},
+		"powershellHelp": "Windows PowerShell 문제가 있는 것 같습니다. 이 <helpLink>문제 해결 가이드</helpLink>를 참조하세요.",
+		"requestId": "요청 ID: {{requestId}}",
+		"retryRequest": "요청 다시 시도",
+		"spendLimit": {
+			"limitReachedDaily": "일일 한도 ${{limit}}에 도달했습니다.",
+			"limitReachedMonthly": "월간 한도 ${{limit}}에 도달했습니다.",
+			"orgLimits": "조직에서 설정한 한도입니다.",
+			"requestIncrease": "한도 증액 요청",
+			"requestSent": "요청 전송됨",
+			"resets": "초기화:",
+			"sending": "전송 중…",
+			"usage": "사용량",
+			"usageDaily": "일일 사용량",
+			"usageMonthly": "월간 사용량"
+		}
+	},
+	"featureTips": {
+		"label": "팁:",
+		"tips": {
+			"autoApprove": "파일 읽기 같은 읽기 전용 도구에 자동 승인을 활성화하여 탐색 속도를 높이세요.",
+			"checkpoints": "Cline은 변경 후 체크포인트를 만듭니다. 언제든지 이전 상태로 복원할 수 있습니다.",
+			"clinerules": "프로젝트 루트에 .clinerules 파일을 추가하여 Cline에 프로젝트별 지침을 제공하세요.",
+			"compact": "/compact를 사용하여 긴 대화를 요약하고 컨텍스트 창 공간을 확보하세요.",
+			"disableTips": "설정 → 기능 → \"기능 팁\"에서 이 팁을 끌 수 있습니다.",
+			"dragDrop": "채팅에 이미지를 끌어다 놓아 Cline과 스크린샷을 공유할 수 있습니다.",
+			"mcpServers": "MCP 서버를 설정하여 Cline이 외부 도구와 API에 접근할 수 있게 하세요.",
+			"mentions": "채팅 입력창에서 @를 사용하여 파일, 폴더 또는 URL을 작업 컨텍스트로 추가하세요.",
+			"planMode": "계획 모드로 전환하여 Cline이 작업을 시작하기 전에 접근 방식을 논의하고 계획하세요.",
+			"quote": "인용 버튼을 사용하여 Cline의 응답에서 텍스트를 선택하고 답장에서 참조하세요."
+		}
+	},
+	"hook": {
+		"abort": "중단",
+		"exitCode": "(종료 코드: {{code}})",
+		"label": "훅:",
+		"status": {
+			"aborted": "중단됨",
+			"completed": "완료됨",
+			"failed": "실패",
+			"running": "실행 중",
+			"unknown": "알 수 없음"
+		},
+		"timeoutError": "30초 이상 걸렸습니다. 무한 루프가 있는지 확인하거나 네트워크 요청에 타임아웃을 추가하세요.",
+		"unknownName": "알 수 없음",
+		"validationError": "훅이 잘못된 JSON을 반환했습니다. 자세한 내용은 아래 오류 세부 정보를 확인하세요."
+	},
+	"newTask": {
+		"label": "작업"
+	},
+	"quote": {
+		"dismissAria": "인용 닫기",
+		"quoteSelectionAria": "선택 항목 인용",
+		"quoteSelectionTitle": "답장에서 선택 항목 인용"
+	},
+	"reportBug": {
+		"additionalContext": "추가 컨텍스트",
+		"apiRequestOutput": "관련 API 요청 출력",
+		"clineVersion": "Cline 버전",
+		"operatingSystem": "운영 체제",
+		"providerModel": "공급자/모델",
+		"stepsToReproduce": "재현 단계",
+		"systemInfo": "시스템 정보",
+		"title": "버그 신고",
+		"whatHappened": "무슨 일이 있었나요?"
+	},
+	"requestStart": {
+		"analyzing": "{{path}}/ 분석 중...",
+		"codebase": "코드베이스",
+		"exploring": "{{path}}/ 탐색 중...",
+		"reading": "{{path}} 읽는 중...",
+		"searchInPath": "{{path}}에서 \"{{terms}}\"",
+		"searchInPathWithPattern": "{{path}}에서 \"{{terms}}\" ({{pattern}})",
+		"searching": "{{query}} 검색 중..."
+	},
+	"row": {
+		"arguments": "인수",
+		"collapseSummary": "요약 접기",
+		"condensingConversation": "Cline이 대화를 요약하고 있습니다:",
+		"conditionalRulesApplied": "적용된 조건부 규칙:",
+		"error": "오류",
+		"expandSummary": "요약 펼치기",
+		"fetchedFromUrl": "Cline이 이 URL에서 콘텐츠를 가져왔습니다:",
+		"hasQuestion": "Cline이 질문이 있습니다:",
+		"havingTrouble": "Cline에 문제가 발생했습니다...",
+		"isCreatingPatches": "Cline이 이 파일을 편집하기 위해 패치를 만들고 있습니다:",
+		"listedFilesRecursive": "Cline이 이 디렉터리의 모든 파일을 재귀적으로 확인했습니다:",
+		"listedFilesTopLevel": "Cline이 이 디렉터리의 최상위 파일을 확인했습니다:",
+		"loadedSkill": "Cline이 스킬을 로드했습니다:",
+		"loadingMcpDocumentation": "MCP 문서 로드 중",
+		"mcpNotification": "MCP 알림:",
+		"outsideWorkspace": "작업 영역 외부에 있습니다",
+		"outsideWorkspaceFile": "이 파일은 작업 영역 외부에 있습니다",
+		"searchExternal": "외부 검색입니다",
+		"searchedWeb": "Cline이 웹에서 검색했습니다:",
+		"shellIntegration": {
+			"backgroundEnabled": "백그라운드 터미널 활성화됨",
+			"enableBackground": "백그라운드 터미널 활성화(권장)",
+			"issues": "셸 통합 문제",
+			"recommendBackground": "셸 통합 문제가 반복적으로 발생하고 있으므로, 더 안정적인 백그라운드 터미널 모드로 전환하는 것을 권장합니다.",
+			"stillHavingTrouble": "여전히 문제가 있나요?",
+			"troubleBody": "Cline이 명령 출력을 확인하지 못할 수 있습니다. VSCode를 업데이트하고(<code1>CMD/CTRL + Shift + P</code1> → \"Update\") 지원되는 셸(zsh, bash, fish 또는 PowerShell)을 사용하고 있는지 확인하세요(<code2>CMD/CTRL + Shift + P</code2> → \"터미널: 기본 프로필 선택\").",
+			"unavailable": "셸 통합을 사용할 수 없음"
+		},
+		"summaryLabel": "요약:",
+		"urlExternal": "외부 URL입니다",
+		"viewedCodeDefinitions": "Cline이 이 디렉터리에서 사용된 소스 코드 정의 이름을 확인했습니다:",
+		"wantsToAccessResource": "Cline이 <server>{{serverName}}</server> MCP 서버의 리소스에 접근하려고 합니다:",
+		"wantsToCondense": "Cline이 대화를 요약하려고 합니다:",
+		"wantsToCreateFile": "Cline이 새 파일을 만들려고 합니다:",
+		"wantsToCreateGithubIssue": "Cline이 Github 이슈를 만들려고 합니다:",
+		"wantsToDeleteFile": "Cline이 이 파일을 삭제하려고 합니다:",
+		"wantsToEditFile": "Cline이 이 파일을 편집하려고 합니다:",
+		"wantsToExecuteCommand": "Cline이 이 명령을 실행하려고 합니다:",
+		"wantsToFetchFromUrl": "Cline이 이 URL에서 콘텐츠를 가져오려고 합니다:",
+		"wantsToListFilesRecursive": "Cline이 이 디렉터리의 모든 파일을 재귀적으로 확인하려고 합니다:",
+		"wantsToListFilesTopLevel": "Cline이 이 디렉터리의 최상위 파일을 확인하려고 합니다:",
+		"wantsToReadFile": "Cline이 이 파일을 읽으려고 합니다:",
+		"wantsToSearchDirectory": "Cline이 이 디렉터리에서 <code>{{regex}}</code>를 검색하려고 합니다:",
+		"wantsToSearchWeb": "Cline이 웹에서 검색하려고 합니다:",
+		"wantsToStartNewTask": "Cline이 새 작업을 시작하려고 합니다:",
+		"wantsToUseTool": "Cline이 <server>{{serverName}}</server> MCP 서버의 도구를 사용하려고 합니다:",
+		"wantsToViewCodeDefinitions": "Cline이 이 디렉터리에서 사용된 소스 코드 정의 이름을 확인하려고 합니다:"
+	},
+	"searchResults": {
+		"collapseAria": "검색 결과 접기",
+		"expandAria": "검색 결과 펼치기",
+		"workspace": "작업 영역: {{name}}"
+	},
+	"servers": {
+		"goToSettingsAria": "MCP 서버 설정으로 이동",
+		"hideAria": "MCP 서버 숨기기",
+		"manageTooltip": "MCP 서버 관리",
+		"showAria": "MCP 서버 표시",
+		"title": "MCP 서버"
+	},
+	"slashMenu": {
+		"defaultCommands": "기본 명령",
+		"label": "슬래시 명령",
+		"mcpPromptFrom": "{{serverName}}의 MCP 프롬프트",
+		"mcpPrompts": "MCP 프롬프트",
+		"noMatchingCommands": "일치하는 명령이 없습니다",
+		"workflowCommands": "워크플로 명령"
+	},
+	"subagent": {
+		"hideOutput": "출력 숨기기",
+		"hideOutputAria": "하위 에이전트 출력 숨기기",
+		"showFullPromptAria": "하위 에이전트 프롬프트 전체 보기",
+		"showMore": "더 보기",
+		"showOutput": "출력 보기",
+		"showOutputAria": "하위 에이전트 출력 보기",
+		"stats": "도구 호출 {{toolCalls}}회 · 토큰 {{tokens}}개 · {{cost}}",
+		"statusUnavailable": "하위 에이전트 상태 업데이트를 사용할 수 없습니다.",
+		"wantsToUse_other": "Cline이 하위 에이전트를 사용하려고 합니다:"
+	},
+	"textArea": {
+		"act": "실행",
+		"actModeTooltip": "실행 모드에서는 Cline이 작업을 즉시 완료합니다",
+		"addContext": "컨텍스트 추가",
+		"addFilesImages": "파일 및 이미지 추가",
+		"dimensionError": "이미지 크기가 7500px를 초과합니다",
+		"hint": "@로 컨텍스트, /로 슬래시 명령 및 워크플로 사용, Shift를 누른 채 파일/이미지 끌어오기",
+		"openApiSettings": "API 설정 열기",
+		"placeholderMessage": "메시지를 입력하세요...",
+		"placeholderTask": "여기에 작업을 입력하세요...",
+		"plan": "계획",
+		"planModeTooltip": "계획 모드에서는 Cline이 정보를 수집하여 계획을 설계합니다",
+		"toggleShortcut": "<kbd>{{keys}}</kbd>로 전환",
+		"unsupportedFileError": "이미지 외의 파일은 현재 비활성화되어 있습니다"
+	},
+	"thinking": {
+		"label": "생각",
+		"streaming": "생각 중..."
+	},
+	"userMessage": {
+		"cancel": "취소",
+		"editFailed": "메시지를 편집하고 다시 생성하지 못했습니다",
+		"editRegenerate": "여기서부터 편집 후 다시 생성",
+		"editRegenerateAria": "이 메시지부터 편집 후 다시 생성",
+		"resetChat": "채팅 재설정",
+		"resetChatTooltip": "대화를 되돌리고 현재 코드 편집은 유지",
+		"resetCode": "코드 재설정",
+		"resetCodeTooltip": "대화를 되돌리고 코드 편집도 재설정",
+		"restoring": "복원 중...",
+		"running": "실행 중..."
+	}
+}

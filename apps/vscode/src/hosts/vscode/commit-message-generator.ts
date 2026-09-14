@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { buildApiHandler } from "@/sdk/sdk-api-handler"
+import { t } from "@/services/i18n"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { getGitDiff } from "@/utils/git"
@@ -90,7 +91,7 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `[Commit Generation Failed] ${errorMessage}`,
+			message: t("commitMessage.generationFailed", { error: errorMessage }),
 		})
 	}
 }
@@ -101,7 +102,7 @@ async function orchestrateWorkspaceCommitMsgGeneration(controller: Controller, r
 	if (reposWithChanges.length === 0) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.INFORMATION,
-			message: "No changes found in any workspace repositories",
+			message: t("commitMessage.noChanges"),
 		})
 		return
 	}
@@ -161,13 +162,13 @@ async function promptRepoSelection(repos: GitRepository[]): Promise<RepoSelectio
 	}))
 
 	repoItems.unshift({
-		label: "$(git-commit) Generate for all repositories with changes",
-		description: `Generate commit messages for ${repos.length} repositories`,
+		label: t("commitMessage.generateForAllLabel"),
+		description: t("commitMessage.generateForAllDescription", { count: repos.length }),
 		repo: null,
 	})
 
 	return await vscode.window.showQuickPick(repoItems, {
-		placeHolder: "Select repository for commit message generation",
+		placeHolder: t("commitMessage.selectRepoPlaceholder"),
 	})
 }
 
@@ -183,7 +184,7 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 	await vscode.window.withProgress(
 		{
 			location: vscode.ProgressLocation.SourceControl,
-			title: `Generating commit message for ${repoPath.split(path.sep).pop() || "repository"}...`,
+			title: t("commitMessage.generating", { repository: repoPath.split(path.sep).pop() || "repository" }),
 			cancellable: true,
 		},
 		() => performCommitMsgGeneration(controller, gitDiff, inputBox),
@@ -252,7 +253,7 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		const errorMessage = error instanceof Error ? error.message : String(error)
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Failed to generate commit message: ${errorMessage}`,
+			message: t("commitMessage.generateFailed", { error: errorMessage }),
 		})
 	} finally {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)

@@ -1,5 +1,6 @@
 import type { McpServer } from "@shared/mcp"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { i18n } from "@/i18n"
 import { BASE_SLASH_COMMANDS, type SlashCommand, VSCODE_ONLY_COMMANDS } from "../../../src/shared/slashCommands.ts"
 
 export type { SlashCommand }
@@ -85,7 +86,8 @@ export function getMcpPromptCommands(mcpServers: McpServer[] = []): SlashCommand
 		for (const prompt of server.prompts) {
 			commands.push({
 				name: `mcp:${server.name}:${prompt.name}`,
-				description: prompt.description || prompt.title || `MCP prompt from ${server.name}`,
+				description:
+					prompt.description || prompt.title || i18n.t("chat:slashMenu.mcpPromptFrom", { serverName: server.name }),
 				section: "mcp",
 			})
 		}

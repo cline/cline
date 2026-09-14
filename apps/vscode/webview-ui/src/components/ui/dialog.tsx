@@ -1,6 +1,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { cn } from "@/lib/utils"
 
@@ -32,26 +33,30 @@ interface DialogContentProps extends React.ComponentPropsWithoutRef<typeof Dialo
 }
 
 const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, DialogContentProps>(
-	({ className, children, hideClose = false, ...props }, ref) => (
-		<DialogPortal>
-			<DialogOverlay />
-			<DialogPrimitive.Content
-				className={cn(
-					"fixed left-[50%] top-[35%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-35%] gap-4 border border-input-placeholder/10 bg-background p-3 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg focus:outline-none",
-					className,
-				)}
-				ref={ref}
-				{...props}>
-				{children}
-				{!hideClose && (
-					<DialogPrimitive.Close className="absolute right-4 top-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground cursor-pointer">
-						<XIcon className="size-2" />
-						<span className="sr-only">Close</span>
-					</DialogPrimitive.Close>
-				)}
-			</DialogPrimitive.Content>
-		</DialogPortal>
-	),
+	({ className, children, hideClose = false, ...props }, ref) => {
+		const { t } = useTranslation()
+
+		return (
+			<DialogPortal>
+				<DialogOverlay />
+				<DialogPrimitive.Content
+					className={cn(
+						"fixed left-[50%] top-[35%] z-50 grid w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-35%] gap-4 border border-input-placeholder/10 bg-background p-3 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-lg focus:outline-none",
+						className,
+					)}
+					ref={ref}
+					{...props}>
+					{children}
+					{!hideClose && (
+						<DialogPrimitive.Close className="absolute right-4 top-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground cursor-pointer">
+							<XIcon className="size-2" />
+							<span className="sr-only">{t("ui:dialog.close")}</span>
+						</DialogPrimitive.Close>
+					)}
+				</DialogPrimitive.Content>
+			</DialogPortal>
+		)
+	},
 )
 DialogContent.displayName = DialogPrimitive.Content.displayName
 

@@ -1,5 +1,6 @@
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { Trans, useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
@@ -18,6 +19,7 @@ interface VercelAIGatewayProviderProps {
  * The Vercel AI Gateway provider configuration component
  */
 export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
+	const { t } = useTranslation()
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
@@ -27,10 +29,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				<DebouncedTextField
 					initialValue={apiConfiguration?.vercelAiGatewayApiKey || ""}
 					onChange={(value) => handleFieldChange("vercelAiGatewayApiKey", value)}
-					placeholder="Enter API Key..."
+					placeholder={t("providers:shared.enterApiKeyPlaceholder")}
 					style={{ width: "100%" }}
 					type="password">
-					<span style={{ fontWeight: 500 }}>Vercel AI Gateway API Key</span>
+					<span style={{ fontWeight: 500 }}>{t("providers:vercelAiGateway.apiKeyLabel")}</span>
 				</DebouncedTextField>
 				<p
 					style={{
@@ -38,16 +40,21 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 						marginTop: "5px",
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					This key is stored locally and only used to make API requests from this extension.
+					{t("providers:shared.apiKeyStoredLocally")}
 					{!apiConfiguration?.vercelAiGatewayApiKey && (
 						<>
 							{" "}
-							You can get a Vercel AI Gateway API key by{" "}
-							<VSCodeLink
-								href="https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"
-								style={{ display: "inline", fontSize: "inherit" }}>
-								signing up here.
-							</VSCodeLink>
+							<Trans
+								components={{
+									signupLink: (
+										<VSCodeLink
+											href="https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"
+											style={{ display: "inline", fontSize: "inherit" }}
+										/>
+									),
+								}}
+								i18nKey="providers:vercelAiGateway.getApiKeyNote"
+							/>
 						</>
 					)}
 				</p>

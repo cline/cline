@@ -1,6 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import type { ReactElement } from "react"
+import { I18nextProvider } from "react-i18next"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { i18n } from "@/i18n"
 import McpConfigurationView from "./McpConfigurationView"
+
+const renderWithI18n = (ui: ReactElement) => render(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>)
 
 const mocks = vi.hoisted(() => ({
 	getLatestMcpServers: vi.fn(),
@@ -47,7 +52,7 @@ describe("McpConfigurationView", () => {
 			blockPersonalRemoteMCPServers: false,
 		}
 
-		render(<McpConfigurationView onDone={vi.fn()} />)
+		renderWithI18n(<McpConfigurationView onDone={vi.fn()} />)
 
 		expect(screen.queryByRole("button", { name: "Marketplace" })).not.toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Remote Servers" })).toBeInTheDocument()
@@ -62,7 +67,7 @@ describe("McpConfigurationView", () => {
 			blockPersonalRemoteMCPServers: true,
 		}
 
-		render(<McpConfigurationView initialTab="addRemote" onDone={vi.fn()} />)
+		renderWithI18n(<McpConfigurationView initialTab="addRemote" onDone={vi.fn()} />)
 
 		expect(screen.queryByRole("button", { name: "Marketplace" })).not.toBeInTheDocument()
 		expect(screen.queryByRole("button", { name: "Remote Servers" })).not.toBeInTheDocument()

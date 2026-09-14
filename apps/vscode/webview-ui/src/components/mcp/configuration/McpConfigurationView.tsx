@@ -3,6 +3,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -17,6 +18,7 @@ type McpViewProps = {
 
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	const { remoteConfigSettings, setMcpServers, environment } = useExtensionState()
+	const { t } = useTranslation()
 	const showRemoteServers = remoteConfigSettings?.blockPersonalRemoteMCPServers !== true
 	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || "configure")
 
@@ -54,7 +56,7 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 				display: "flex",
 				flexDirection: "column",
 			}}>
-			<ViewHeader environment={environment} onDone={onDone} title="MCP Servers" />
+			<ViewHeader environment={environment} onDone={onDone} title={t("mcp:title")} />
 
 			<div style={{ flex: 1, overflow: "auto" }}>
 				{/* Tabs container */}
@@ -67,11 +69,11 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 					}}>
 					{showRemoteServers && (
 						<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
-							Remote Servers
+							{t("mcp:tabs.remoteServers")}
 						</TabButton>
 					)}
 					<TabButton isActive={activeTab === "configure"} onClick={() => handleTabChange("configure")}>
-						Configure
+						{t("mcp:tabs.configure")}
 					</TabButton>
 				</div>
 

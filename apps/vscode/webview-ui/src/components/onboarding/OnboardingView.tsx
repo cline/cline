@@ -4,6 +4,7 @@ import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from 
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -71,6 +72,13 @@ function getModelGroupKey(userType: ModelSelectionProps["userType"]): keyof Onbo
 	return userType === NEW_USER_TYPE.FREE ? "free" : "power"
 }
 
+// i18n keys for the non-ClinePass onboarding group headings.
+const GROUP_LABEL_KEYS: Record<string, string> = {
+	free: "onboarding:groups.free",
+	frontier: "onboarding:groups.frontier",
+	"open source": "onboarding:groups.openSource",
+}
+
 const ModelSelection = ({
 	userType,
 	selectedModelId,
@@ -80,6 +88,7 @@ const ModelSelection = ({
 	setSearchTerm,
 	onboardingModels,
 }: ModelSelectionProps) => {
+	const { t } = useTranslation()
 	const isClinePass = userType === NEW_USER_TYPE.CLINE_PASS
 	const modelGroups = onboardingModels[getModelGroupKey(userType)]
 	// ClinePass costs are covered by the subscription, so prices are hidden.
@@ -115,13 +124,17 @@ const ModelSelection = ({
 								{model.badge}
 							</Badge>
 						) : !hidePrice && model.info ? (
-							<Badge>{getPriceRange(model.info)}</Badge>
+							<Badge>{t(getPriceRange(model.info))}</Badge>
 						) : null}
 					</ItemTitle>
 					{isSelected && model.info && (
 						<ItemDescription>
-							<span className="text-foreground/70 text-sm">Support: </span>
-							<span className="text-foreground text-sm">{getCapabilities(model.info).join(", ")}</span>
+							<span className="text-foreground/70 text-sm">{t("onboarding:modelItem.supportLabel")} </span>
+							<span className="text-foreground text-sm">
+								{getCapabilities(model.info)
+									.map((capabilityKey) => t(capabilityKey))
+									.join(", ")}
+							</span>
 						</ItemDescription>
 					)}
 				</ItemHeader>
@@ -130,17 +143,17 @@ const ModelSelection = ({
 						<div className="flex flex-col gap-3">
 							<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center text-sm">
 								<ZapIcon />
-								<span>Speed: </span>
-								<span className="text-foreground/70">{getSpeedLabel(model.latency)}</span>
+								<span>{t("onboarding:modelItem.speedLabel")} </span>
+								<span className="text-foreground/70">{t(getSpeedLabel(model.latency))}</span>
 							</div>
 							{model.info && (
 								<div className="flex w-full justify-between">
 									<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center text-sm">
 										<ListIcon />
-										<span>Context: </span>
+										<span>{t("onboarding:modelItem.contextLabel")} </span>
 										<span className="text-foreground/70">{(model?.info.contextWindow || 0) / 1000}k</span>
 									</div>
-									{!hidePrice && <Badge>{getPriceRange(model.info)}</Badge>}
+									{!hidePrice && <Badge>{t(getPriceRange(model.info))}</Badge>}
 								</div>
 							)}
 						</div>
@@ -154,8 +167,8 @@ const ModelSelection = ({
 	if (isClinePass && modelGroups.length === 0) {
 		return (
 			<div className="flex w-full max-w-lg flex-col items-center justify-center my-8 px-2 text-center">
-				<p className="text-foreground text-sm m-0">No ClinePass models are available right now.</p>
-				<p className="text-foreground/70 text-sm mt-1">Please choose another option or try again later.</p>
+				<p className="text-foreground text-sm m-0">{t("onboarding:clinePassEmpty.title")}</p>
+				<p className="text-foreground/70 text-sm mt-1">{t("onboarding:clinePassEmpty.description")}</p>
 			</div>
 		)
 	}
@@ -172,7 +185,9 @@ const ModelSelection = ({
 									"text-sm font-bold text-foreground/70 mb-2",
 									isClinePassGroup ? "normal-case" : "uppercase",
 								)}>
-								{getOnboardingGroupDisplayName(group.group)}
+								{GROUP_LABEL_KEYS[group.group]
+									? t(GROUP_LABEL_KEYS[group.group])
+									: getOnboardingGroupDisplayName(group.group)}
 							</h4>
 							{group.models.map((model) => (
 								<ModelItem id={model.id} isSelected={selectedModelId === model.id} key={model.id} model={model} />
@@ -186,7 +201,7 @@ const ModelSelection = ({
 			{!isClinePass && (
 				<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
 					<div className="flex flex-col gap-3 mt-6" key="search-results">
-						<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">other options</h4>
+						<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">{t("onboarding:otherOptions")}</h4>
 						<Input
 							autoFocus={false}
 							className="focus-visible:border-button-background"
@@ -197,7 +212,7 @@ const ModelSelection = ({
 								setSearchTerm(e.target.value)
 							}}
 							onClick={() => onSelectModel("")}
-							placeholder="Search model..."
+							placeholder={t("onboarding:searchModelPlaceholder")}
 							type="search"
 							value={searchTerm}
 						/>
@@ -238,7 +253,9 @@ const ModelSelection = ({
 									return <ModelItem id={id} isSelected={isSelected} key={id} model={onboardingModel} />
 								})}
 							{searchTerm.length > 0 && searchedModels.length === 0 && (
-								<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
+								<p className="px-1 mt-1 text-sm text-foreground/70">
+									{t("onboarding:noSearchResults", { searchTerm })}
+								</p>
 							)}
 						</div>
 					</div>
@@ -254,50 +271,53 @@ type UserTypeSelectionProps = {
 	userTypeSelections: ReturnType<typeof getUserTypeSelections>
 }
 
-const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections }: UserTypeSelectionProps) => (
-	<div className="flex flex-col w-full items-center">
-		<div className="flex w-full max-w-lg flex-col gap-3 my-2">
-			{userTypeSelections.map((option) => {
-				const isSelected = userType === option.type
+const UserTypeSelectionStep = ({ userType, onSelectUserType, userTypeSelections }: UserTypeSelectionProps) => {
+	const { t } = useTranslation()
+	return (
+		<div className="flex flex-col w-full items-center">
+			<div className="flex w-full max-w-lg flex-col gap-3 my-2">
+				{userTypeSelections.map((option) => {
+					const isSelected = userType === option.type
 
-				return (
-					<Item
-						className={cn("cursor-pointer hover:cursor-pointer w-full", {
-							"bg-input-background/50 border border-input-foreground/30": isSelected,
-						})}
-						key={option.type}
-						onClick={() => onSelectUserType(option.type)}>
-						<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
-							{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
-						</ItemMedia>
-						<ItemContent className="w-full">
-							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>
-								{option.description}
-								{option.learnMoreUrl && (
-									<>
-										{" "}
-										<VSCodeLink
-											className="inline"
-											onClick={(e) => {
-												e.stopPropagation()
-												UiServiceClient.openUrl(
-													StringRequest.create({ value: option.learnMoreUrl }),
-												).catch((err) => console.error("Failed to open learn more link:", err))
-											}}
-											style={{ fontSize: "inherit" }}>
-											Learn more
-										</VSCodeLink>
-									</>
-								)}
-							</ItemDescription>
-						</ItemContent>
-					</Item>
-				)
-			})}
+					return (
+						<Item
+							className={cn("cursor-pointer hover:cursor-pointer w-full", {
+								"bg-input-background/50 border border-input-foreground/30": isSelected,
+							})}
+							key={option.type}
+							onClick={() => onSelectUserType(option.type)}>
+							<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
+								{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
+							</ItemMedia>
+							<ItemContent className="w-full">
+								<ItemTitle>{t(option.title)}</ItemTitle>
+								<ItemDescription>
+									{t(option.description)}
+									{option.learnMoreUrl && (
+										<>
+											{" "}
+											<VSCodeLink
+												className="inline"
+												onClick={(e) => {
+													e.stopPropagation()
+													UiServiceClient.openUrl(
+														StringRequest.create({ value: option.learnMoreUrl }),
+													).catch((err) => console.error("Failed to open learn more link:", err))
+												}}
+												style={{ fontSize: "inherit" }}>
+												{t("onboarding:learnMore")}
+											</VSCodeLink>
+										</>
+									)}
+								</ItemDescription>
+							</ItemContent>
+						</Item>
+					)
+				})}
+			</div>
 		</div>
-	</div>
-)
+	)
+}
 
 type OnboardingStepContentProps = {
 	step: number
@@ -354,6 +374,7 @@ const OnboardingStepContent = ({
 }
 
 const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
+	const { t } = useTranslation()
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 	const { models: clineModels } = useProviderModels("cline")
@@ -620,14 +641,14 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 		<div className="fixed inset-0 p-0 flex flex-col w-full">
 			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-4 items-center justify-center">
 				<ClineLogoWhite className="size-16 flex-shrink-0" />
-				<h2 className="text-lg font-semibold p-0 flex-shrink-0">{stepDisplayInfo.title}</h2>
+				<h2 className="text-lg font-semibold p-0 flex-shrink-0">{t(stepDisplayInfo.title)}</h2>
 				{stepNumber === 2 && (
 					<div className="flex w-full max-w-lg flex-col gap-6 my-4 items-center ">
 						<LoaderCircleIcon className="animate-spin" />
 					</div>
 				)}
 				{stepDisplayInfo.description && (
-					<p className="text-foreground text-sm text-center m-0 p-0 flex-shrink-0">{stepDisplayInfo.description}</p>
+					<p className="text-foreground text-sm text-center m-0 p-0 flex-shrink-0">{t(stepDisplayInfo.description)}</p>
 				)}
 
 				<div className="flex-1 w-full flex max-w-lg overflow-y-auto min-h-0">
@@ -661,20 +682,20 @@ const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: Onboard
 								onClick={() => handleFooterAction(btn.action)}
 								variant={btn.variant}>
 								{showSpinner && <LoaderCircleIcon className="mr-2 size-4 animate-spin" />}
-								{showSpinner ? "Waiting for sign in..." : btn.text}
+								{showSpinner ? t("onboarding:waitingForSignIn") : t(btn.text)}
 							</Button>
 						)
 					})}
 
 					{isActionLoading && stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground/70 text-pretty text-center">
-							Complete sign in in your browser. We'll continue automatically once you're done.
+							{t("onboarding:completeSignInBrowser")}
 						</div>
 					)}
 
 					{stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
-							<AlertCircleIcon className="shrink-0 size-2" /> You can change this later in settings
+							<AlertCircleIcon className="shrink-0 size-2" /> {t("onboarding:changeLaterNote")}
 						</div>
 					)}
 				</footer>

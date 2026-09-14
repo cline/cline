@@ -1,5 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
+import { i18n } from "@/i18n"
 import { buildToolsWithReasoning, getToolGroupSummaryFromParsedTools } from "./ToolGroupRenderer"
 
 const readToolMessage = (
@@ -54,6 +55,11 @@ describe("getToolGroupSummaryFromParsedTools", () => {
 			readToolMessage(2, "say", "src/a.ts", { start: 1, end: 20 }),
 		])
 
-		expect(getToolGroupSummaryFromParsedTools(tools.map((tool) => tool.parsedTool))).toBe("Cline read 1 file")
+		expect(
+			getToolGroupSummaryFromParsedTools(
+				tools.map((tool) => tool.parsedTool),
+				i18n.t,
+			),
+		).toBe("Cline read 1 file")
 	})
 })

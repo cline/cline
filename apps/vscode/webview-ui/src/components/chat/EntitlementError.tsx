@@ -1,6 +1,7 @@
 import { AskResponseRequest } from "@shared/proto/cline/task"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { TaskServiceClient } from "@/services/grpc-client"
@@ -30,6 +31,7 @@ function buildSubscribeUrl(appBaseUrl?: string): string | undefined {
 }
 
 const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
+	const { t } = useTranslation()
 	const { clineUser } = useClineAuth()
 	const subscribeUrl = buildSubscribeUrl(clineUser?.appBaseUrl)
 	const backendDetail = message && message !== HEADLINE ? message : undefined
@@ -37,10 +39,8 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 	return (
 		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)">
 			<div className="mb-3">
-				<div className="text-error mb-2">{HEADLINE}</div>
-				<div className="text-(--vscode-descriptionForeground) text-xs">
-					Subscribe to ClinePass to use this model, then retry your request.
-				</div>
+				<div className="text-error mb-2">{t("chat:errors.entitlement.headline")}</div>
+				<div className="text-(--vscode-descriptionForeground) text-xs">{t("chat:errors.entitlement.subscribe")}</div>
 				{backendDetail && (
 					<div className="text-(--vscode-descriptionForeground) text-xs mt-1 opacity-80 wrap-anywhere">
 						{backendDetail}
@@ -51,7 +51,7 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 			{subscribeUrl && (
 				<VSCodeButtonLink className="w-full mb-2" href={subscribeUrl}>
 					<span className="codicon codicon-rocket mr-[6px] text-[14px]" />
-					Get ClinePass
+					{t("chat:errors.entitlement.getClinePass")}
 				</VSCodeButtonLink>
 			)}
 
@@ -70,7 +70,7 @@ const EntitlementError: React.FC<EntitlementErrorProps> = ({ message }) => {
 					}
 				}}>
 				<span className="codicon codicon-refresh mr-1.5" />
-				Retry Request
+				{t("chat:errors.retryRequest")}
 			</VSCodeButton>
 		</div>
 	)

@@ -1,0 +1,318 @@
+{
+	"browser": {
+		"actionLabel": "Действие браузера:",
+		"actions": {
+			"click": "Клик ({{coordinate}})",
+			"closeBrowser": "Закрыть браузер",
+			"launch": "Запустить браузер по адресу {{url}}",
+			"scrollDown": "Прокрутить вниз",
+			"scrollUp": "Прокрутить вверх",
+			"type": "Ввести «{{text}}»"
+		},
+		"consoleLogs": "Журналы консоли",
+		"isUsingBrowser": "Cline использует браузер:",
+		"next": "Далее",
+		"noNewLogs": "(Новых журналов нет)",
+		"previous": "Назад",
+		"screenshotAlt": "Снимок экрана браузера",
+		"sessionStarted": "Сеанс браузера запущен",
+		"stepOf": "Шаг {{current}} из {{total}}",
+		"wantsToUseBrowser": "Cline хочет использовать браузер:"
+	},
+	"commandOutput": {
+		"approvalRequired": "Модель определила, что эта команда требует явного одобрения.",
+		"cancel": "отменить",
+		"clickToOpen": "Нажмите, чтобы открыть: {{path}}",
+		"status": {
+			"completed": "Завершено",
+			"pending": "Ожидание",
+			"running": "Выполняется",
+			"skipped": "Пропущено"
+		},
+		"stop": "остановить",
+		"terminalCancelInfo": "Эта команда выполняется в терминале VSCode. Вы можете остановить её вручную с помощью Ctrl+C в терминале или переключиться на режим фонового выполнения в настройках, чтобы команды можно было отменять."
+	},
+	"compaction": {
+		"autoCompacting": "Автоматическое сжатие контекста",
+		"cancelled": "Сжатие отменено",
+		"compacted": "Контекст сжат",
+		"compactedManual": "Контекст сжат (вручную)",
+		"compacting": "Сжатие контекста",
+		"failed": "Не удалось сжать контекст",
+		"messagesDelta": "{{before}} → {{after}} сообщений",
+		"skipped": "Сжатие пропущено",
+		"tokensDelta": "{{before}} → {{after}} токенов"
+	},
+	"completion": {
+		"completed": "Завершено",
+		"copyPlanAria": "Скопировать ответ с планом",
+		"copyResponseAria": "Скопировать ответ",
+		"plan": "План",
+		"viewChanges": "Просмотреть изменения"
+	},
+	"contextMenu": {
+		"addFile": "Добавить файл",
+		"addFolder": "Добавить папку",
+		"commit": "Коммит {{hash}}",
+		"commitHashDescription": "Хеш коммита Git",
+		"gitCommitDescription": "{{shortHash}}, автор {{author}}, {{date}}",
+		"gitCommits": "Коммиты Git",
+		"gitCommitsDescription": "Поиск по истории репозитория",
+		"label": "Упоминания контекста",
+		"noResults": "Ничего не найдено",
+		"pasteUrl": "Вставьте URL-адрес, чтобы получить содержимое",
+		"problems": "Проблемы",
+		"searching": "Поиск...",
+		"terminal": "Терминал",
+		"workingChanges": "Рабочие изменения",
+		"workingChangesDescription": "Текущие незафиксированные изменения"
+	},
+	"diffEdit": {
+		"openFileTitle": "Открыть файл в редакторе"
+	},
+	"errorBoundary": {
+		"errorPrefix": "Ошибка: {{message}}",
+		"title": "Не удалось отобразить это содержимое",
+		"unknownError": "Неизвестная ошибка"
+	},
+	"errors": {
+		"auth": {
+			"clickRetryBelow": "(Нажмите «Повторить» ниже)",
+			"loggedOut": "Похоже, вы вышли из аккаунта — нажмите ниже, чтобы войти",
+			"signIn": "Войти в Cline"
+		},
+		"billing": {
+			"retryAfterSwitching": "Повторите запрос после переключения.",
+			"switchToUsageBased": "Перейти на оплату по использованию",
+			"switchedToUsageBased": "Выполнен переход на оплату по использованию",
+			"switching": "Переключение..."
+		},
+		"clinePassLimit": {
+			"switchFailed": "Не удалось сменить поставщика. Выберите оплату по использованию Cline в настройках конфигурации API.",
+			"switchPrompt": "Перейти на оплату по использованию и повторить запрос с поставщиком Cline?",
+			"title": "Достигнут лимит ClinePass"
+		},
+		"clineignore": "Cline попытался получить доступ к <path>{{path}}</path>, но доступ заблокирован файлом <fileCode>.clineignore</fileCode>.",
+		"creditLimit": {
+			"buyCredits": "Купить кредиты",
+			"currentBalance": "Текущий баланс:",
+			"defaultMessage": "У вас закончились кредиты.",
+			"totalPromotions": "Всего бонусов:",
+			"totalSpent": "Всего потрачено:"
+		},
+		"diffError": "Модель использовала шаблоны поиска, которые не находят совпадений в файле. Повторная попытка...",
+		"entitlement": {
+			"getClinePass": "Получить ClinePass",
+			"headline": "Для этой модели требуется подписка ClinePass.",
+			"subscribe": "Оформите подписку ClinePass, чтобы использовать эту модель, затем повторите запрос."
+		},
+		"freeModelLimit": {
+			"limitBody": "Вы достигли сегодняшнего лимита бесплатного использования этой модели.",
+			"limitReached": "Достигнут дневной лимит бесплатной модели",
+			"switchFailed": "Не удалось сменить модель. Выберите {{modelId}} в настройках конфигурации API.",
+			"switchPaid": "Или перейдите на платную версию этой модели ({{modelId}}) с оплатой по использованию.",
+			"tryAgainIn": "Повторите попытку через {{resetTime}} или выберите другую модель.",
+			"tryAgainLater": "Повторите попытку позже или выберите другую модель."
+		},
+		"freePromotionEnded": {
+			"body": "Бесплатная акция для этой модели завершилась, и модель больше недоступна.",
+			"selectAnother": "Выберите другую модель, чтобы продолжить.",
+			"selectModel": "Выбрать модель",
+			"title": "Акция бесплатной модели завершилась"
+		},
+		"orgRestriction": {
+			"body": "Аккаунты организаций не могут использовать подписки ClinePass.",
+			"switchFailed": "Не удалось сменить аккаунт. Используйте /accounts, чтобы переключиться на личный аккаунт.",
+			"switchToPersonal": "Переключиться на личный аккаунт",
+			"switchedToPersonal": "Выполнено переключение на личный аккаунт",
+			"title": "Аккаунт организации не может использовать ClinePass"
+		},
+		"powershellHelp": "Похоже, у вас проблемы с Windows PowerShell. Ознакомьтесь с этим <helpLink>руководством по устранению неполадок</helpLink>.",
+		"requestId": "ID запроса: {{requestId}}",
+		"retryRequest": "Повторить запрос",
+		"spendLimit": {
+			"limitReachedDaily": "Достигнут дневной лимит в ${{limit}}.",
+			"limitReachedMonthly": "Достигнут месячный лимит в ${{limit}}.",
+			"orgLimits": "Лимиты установлены вашей организацией.",
+			"requestIncrease": "Запросить увеличение",
+			"requestSent": "Запрос отправлен",
+			"resets": "Сброс:",
+			"sending": "Отправка…",
+			"usage": "Использование",
+			"usageDaily": "Использование за день",
+			"usageMonthly": "Использование за месяц"
+		}
+	},
+	"featureTips": {
+		"label": "Совет:",
+		"tips": {
+			"autoApprove": "Включите автоодобрение для инструментов только для чтения, например чтения файлов, чтобы ускорить исследование.",
+			"checkpoints": "Cline создаёт контрольные точки после изменений — вы всегда можете вернуться к предыдущему состоянию.",
+			"clinerules": "Добавьте файл .clinerules в корень проекта, чтобы дать Cline инструкции для конкретного проекта.",
+			"compact": "Используйте /compact, чтобы сжать длинные разговоры и освободить место в контекстном окне.",
+			"disableTips": "Эти советы можно отключить: Настройки → Функции → «Советы по функциям».",
+			"dragDrop": "Вы можете перетаскивать изображения в чат, чтобы делиться скриншотами с Cline.",
+			"mcpServers": "Настройте серверы MCP, чтобы дать Cline доступ к внешним инструментам и API.",
+			"mentions": "Используйте @ в поле ввода чата, чтобы добавить файлы, папки или URL-адреса как контекст задачи.",
+			"planMode": "Переключитесь в режим плана, чтобы обсудить и спланировать подход, прежде чем Cline начнёт действовать.",
+			"quote": "Используйте кнопку цитирования, чтобы выделить текст из ответа Cline и сослаться на него в своём ответе."
+		}
+	},
+	"hook": {
+		"abort": "Прервать",
+		"exitCode": "(код выхода: {{code}})",
+		"label": "Хук:",
+		"status": {
+			"aborted": "Прервано",
+			"completed": "Завершено",
+			"failed": "Сбой",
+			"running": "Выполняется",
+			"unknown": "Неизвестно"
+		},
+		"timeoutError": "Выполнение заняло более 30 секунд. Проверьте наличие бесконечных циклов или добавьте тайм-ауты для сетевых запросов.",
+		"unknownName": "Неизвестно",
+		"validationError": "Хук вернул недопустимый JSON. Подробности см. в сведениях об ошибке ниже."
+	},
+	"newTask": {
+		"label": "Задача"
+	},
+	"quote": {
+		"dismissAria": "Убрать цитату",
+		"quoteSelectionAria": "Цитировать выделенное",
+		"quoteSelectionTitle": "Цитировать выделенное в ответе"
+	},
+	"reportBug": {
+		"additionalContext": "Дополнительный контекст",
+		"apiRequestOutput": "Соответствующий вывод запроса API",
+		"clineVersion": "Версия Cline",
+		"operatingSystem": "Операционная система",
+		"providerModel": "Поставщик/модель",
+		"stepsToReproduce": "Шаги воспроизведения",
+		"systemInfo": "Сведения о системе",
+		"title": "Отчёт об ошибке",
+		"whatHappened": "Что произошло?"
+	},
+	"requestStart": {
+		"analyzing": "Анализ {{path}}/...",
+		"codebase": "кодовой базе",
+		"exploring": "Просмотр {{path}}/...",
+		"reading": "Чтение {{path}}...",
+		"searchInPath": "«{{terms}}» в {{path}}",
+		"searchInPathWithPattern": "«{{terms}}» в {{path}} ({{pattern}})",
+		"searching": "Поиск {{query}}..."
+	},
+	"row": {
+		"arguments": "Аргументы",
+		"collapseSummary": "Свернуть сводку",
+		"condensingConversation": "Cline сжимает разговор:",
+		"conditionalRulesApplied": "Применены условные правила:",
+		"error": "Ошибка",
+		"expandSummary": "Развернуть сводку",
+		"fetchedFromUrl": "Cline получил содержимое по этому URL-адресу:",
+		"hasQuestion": "У Cline есть вопрос:",
+		"havingTrouble": "У Cline возникли трудности...",
+		"isCreatingPatches": "Cline создаёт патчи для редактирования этого файла:",
+		"listedFilesRecursive": "Cline рекурсивно просмотрел все файлы в этом каталоге:",
+		"listedFilesTopLevel": "Cline просмотрел файлы верхнего уровня в этом каталоге:",
+		"loadedSkill": "Cline загрузил навык:",
+		"loadingMcpDocumentation": "Загрузка документации MCP",
+		"mcpNotification": "Уведомление MCP:",
+		"outsideWorkspace": "Это вне вашей рабочей области",
+		"outsideWorkspaceFile": "Этот файл вне вашей рабочей области",
+		"searchExternal": "Это внешний поиск",
+		"searchedWeb": "Cline выполнил поиск в Интернете:",
+		"shellIntegration": {
+			"backgroundEnabled": "Фоновый терминал включён",
+			"enableBackground": "Включить фоновый терминал (рекомендуется)",
+			"issues": "Проблемы с интеграцией оболочки",
+			"recommendBackground": "Поскольку у вас неоднократно возникают проблемы с интеграцией оболочки, рекомендуем переключиться на режим фонового терминала для большей надёжности.",
+			"stillHavingTrouble": "Всё ещё есть проблемы?",
+			"troubleBody": "Cline может не видеть вывод команды. Обновите VSCode (<code1>CMD/CTRL + Shift + P</code1> → «Update») и убедитесь, что используется поддерживаемая оболочка: zsh, bash, fish или PowerShell (<code2>CMD/CTRL + Shift + P</code2> → «Терминал: выбрать профиль по умолчанию»).",
+			"unavailable": "Интеграция с оболочкой недоступна"
+		},
+		"summaryLabel": "Сводка:",
+		"urlExternal": "Это внешний URL-адрес",
+		"viewedCodeDefinitions": "Cline просмотрел имена определений исходного кода в этом каталоге:",
+		"wantsToAccessResource": "Cline хочет получить доступ к ресурсу на сервере MCP <server>{{serverName}}</server>:",
+		"wantsToCondense": "Cline хочет сжать ваш разговор:",
+		"wantsToCreateFile": "Cline хочет создать новый файл:",
+		"wantsToCreateGithubIssue": "Cline хочет создать задачу на Github:",
+		"wantsToDeleteFile": "Cline хочет удалить этот файл:",
+		"wantsToEditFile": "Cline хочет отредактировать этот файл:",
+		"wantsToExecuteCommand": "Cline хочет выполнить эту команду:",
+		"wantsToFetchFromUrl": "Cline хочет получить содержимое по этому URL-адресу:",
+		"wantsToListFilesRecursive": "Cline хочет рекурсивно просмотреть все файлы в этом каталоге:",
+		"wantsToListFilesTopLevel": "Cline хочет просмотреть файлы верхнего уровня в этом каталоге:",
+		"wantsToReadFile": "Cline хочет прочитать этот файл:",
+		"wantsToSearchDirectory": "Cline хочет выполнить поиск <code>{{regex}}</code> в этом каталоге:",
+		"wantsToSearchWeb": "Cline хочет выполнить поиск в Интернете:",
+		"wantsToStartNewTask": "Cline хочет начать новую задачу:",
+		"wantsToUseTool": "Cline хочет использовать инструмент на сервере MCP <server>{{serverName}}</server>:",
+		"wantsToViewCodeDefinitions": "Cline хочет просмотреть имена определений исходного кода в этом каталоге:"
+	},
+	"searchResults": {
+		"collapseAria": "Свернуть результаты поиска",
+		"expandAria": "Развернуть результаты поиска",
+		"workspace": "Рабочая область: {{name}}"
+	},
+	"servers": {
+		"goToSettingsAria": "Перейти к настройкам серверов MCP",
+		"hideAria": "Скрыть серверы MCP",
+		"manageTooltip": "Управление серверами MCP",
+		"showAria": "Показать серверы MCP",
+		"title": "Серверы MCP"
+	},
+	"slashMenu": {
+		"defaultCommands": "Стандартные команды",
+		"label": "Слэш-команды",
+		"mcpPromptFrom": "Промпт MCP с сервера {{serverName}}",
+		"mcpPrompts": "Промпты MCP",
+		"noMatchingCommands": "Совпадающие команды не найдены",
+		"workflowCommands": "Команды рабочих процессов"
+	},
+	"subagent": {
+		"hideOutput": "Скрыть вывод",
+		"hideOutputAria": "Скрыть вывод субагента",
+		"showFullPromptAria": "Показать полный промпт субагента",
+		"showMore": "Показать больше",
+		"showOutput": "Показать вывод",
+		"showOutputAria": "Показать вывод субагента",
+		"stats": "Вызовов инструментов: {{toolCalls}} · токенов: {{tokens}} · {{cost}}",
+		"statusUnavailable": "Обновление статуса субагента недоступно.",
+		"wantsToUse_few": "Cline хочет использовать субагентов:",
+		"wantsToUse_many": "Cline хочет использовать субагентов:",
+		"wantsToUse_one": "Cline хочет использовать субагента:",
+		"wantsToUse_other": "Cline хочет использовать субагентов:"
+	},
+	"textArea": {
+		"act": "Действие",
+		"actModeTooltip": "В режиме «Действие» Cline сразу выполнит задачу",
+		"addContext": "Добавить контекст",
+		"addFilesImages": "Добавить файлы и изображения",
+		"dimensionError": "Размеры изображения превышают 7500 пикселей",
+		"hint": "Введите @ для контекста, / для слэш-команд и рабочих процессов; удерживайте Shift, чтобы перетащить файлы/изображения",
+		"openApiSettings": "Открыть настройки API",
+		"placeholderMessage": "Введите сообщение...",
+		"placeholderTask": "Введите вашу задачу здесь...",
+		"plan": "План",
+		"planModeTooltip": "В режиме «План» Cline соберёт информацию, чтобы составить план",
+		"toggleShortcut": "Переключение: <kbd>{{keys}}</kbd>",
+		"unsupportedFileError": "Файлы, кроме изображений, сейчас отключены"
+	},
+	"thinking": {
+		"label": "Размышления",
+		"streaming": "Размышляю..."
+	},
+	"userMessage": {
+		"cancel": "Отмена",
+		"editFailed": "Не удалось отредактировать и повторно сгенерировать сообщение",
+		"editRegenerate": "Отредактировать и сгенерировать заново отсюда",
+		"editRegenerateAria": "Отредактировать и сгенерировать заново с этого сообщения",
+		"resetChat": "Сбросить чат",
+		"resetChatTooltip": "Откатить разговор, сохранив текущие правки кода",
+		"resetCode": "Сбросить код",
+		"resetCodeTooltip": "Откатить разговор и отменить правки кода",
+		"restoring": "Восстановление...",
+		"running": "Выполнение..."
+	}
+}
