@@ -3296,15 +3296,15 @@ export function useChatSession() {
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
 				if (settleAbortedSend()) return true;
+				if (optimisticQueuedPromptId) {
+					setPromptsInQueue((prev) =>
+						prev.filter((item) => item.id !== optimisticQueuedPromptId),
+					);
+				}
 				markCloudOptimisticFailed();
 				if (!failureOwnerCurrent()) {
 					replySuperseded = true;
 				} else {
-					if (optimisticQueuedPromptId) {
-						setPromptsInQueue((prev) =>
-							prev.filter((item) => item.id !== optimisticQueuedPromptId),
-						);
-					}
 					setErrorState(errorMessage(err), activeSessionId);
 				}
 			} finally {
