@@ -71,7 +71,10 @@ export class HubEventLogStore {
 		// Every streaming chunk lands here as an INSERT; WAL keeps those
 		// appends from serializing against replay reads, and the busy timeout
 		// matches the other SQLite stores instead of failing fast on contention.
+		// NORMAL drops the fsync per appended chunk (WAL still syncs at
+		// checkpoints); this replay aid survives a process crash either way.
 		this.db.exec("PRAGMA journal_mode = WAL;");
+		this.db.exec("PRAGMA synchronous = NORMAL;");
 		this.db.exec("PRAGMA busy_timeout = 5000;");
 		this.db.exec(`
 			CREATE TABLE IF NOT EXISTS hub_events (

@@ -1263,6 +1263,12 @@ function ChatInputBarImpl({
 								}
 							}}
 							onKeyDown={(e) => {
+								// While an IME (e.g. Chinese/Japanese) is composing, Enter
+								// commits the composition and arrows move between candidates,
+								// so leave those keys to the IME. WebKit can fire the committing
+								// Enter after compositionend with isComposing already false but
+								// the legacy keyCode 229, hence the second check.
+								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -1642,10 +1648,43 @@ const ModelSelector = memo(function ModelSelector({
 		readModelSelectionStorageFromWindow(),
 	);
 	const [mobileOpen, setMobileOpen] = useState(false);
-	// Bumped when the model picker opens so the load effect re-runs; the list
-	// is otherwise fetched once per provider and the Recommended/Free tiers
-	// would stay stale for the rest of the app session.
-	const [modelsRefresh, setModelsRefresh] = useState(0);
+	const applyProviderModels = useCallback(
+		(providerId: string, models: ProviderModel[]) => {
+			setProviderModels((current) => ({
+				...current,
+				[providerId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[providerId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setModelDetails((current) => ({
+				...current,
+				[providerId]: models,
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(providerId) ? current : [...current, providerId],
+			);
+		},
+		[],
+	);
+	// Re-fetch only the live list on picker open so the Recommended/Free tiers
+	// stay current. Re-running the full load would first re-apply the bundled
+	// catalog and briefly flash a stale name in the trigger.
+	const refreshActiveProviderModels = useCallback(() => {
+		if (!normalizedProvider) return;
+		loadProviderModels(normalizedProvider)
+			.then((models) => {
+				if (models.length === 0) return;
+				applyProviderModels(normalizedProvider, models);
+				setReasoningCapabilitySource("catalog");
+			})
+			.catch(() => {
+				// Keep the current list when the refresh fails.
+			});
+	}, [applyProviderModels, normalizedProvider]);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
@@ -1789,7 +1828,6 @@ const ModelSelector = memo(function ModelSelector({
 		resolvedProvider,
 	]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: modelsRefresh is the re-fetch trigger, not a value the effect reads
 	useEffect(() => {
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
@@ -1835,28 +1873,8 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
-				setProviderModels((current) => ({
-					...current,
-					[normalizedProvider]: modelIds,
-				}));
-				setProviderReasoningModels((current) => ({
-					...current,
-					[normalizedProvider]: reasoningModelIds,
-				}));
-				setModelDetails((current) => ({
-					...current,
-					[normalizedProvider]: models,
-				}));
+				applyProviderModels(normalizedProvider, models);
 				setReasoningCapabilitySource("catalog");
-				setEnabledProviderIds((current) =>
-					current.includes(normalizedProvider)
-						? current
-						: [...current, normalizedProvider],
-				);
 			} catch {
 				// Keep the catalog values when provider-specific loading fails.
 			}
@@ -1866,30 +1884,13 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider, modelsRefresh]);
+	}, [applyProviderModels, normalizedProvider]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
-			const normalizedId = normalizeProviderId(providerId);
-			setProviderModels((current) => ({
-				...current,
-				[normalizedId]: models.map((entry) => entry.id),
-			}));
-			setProviderReasoningModels((current) => ({
-				...current,
-				[normalizedId]: models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id),
-			}));
-			setModelDetails((current) => ({
-				...current,
-				[normalizedId]: models,
-			}));
-			setEnabledProviderIds((current) =>
-				current.includes(normalizedId) ? current : [...current, normalizedId],
-			);
+			applyProviderModels(normalizeProviderId(providerId), models);
 		});
-	}, []);
+	}, [applyProviderModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
@@ -2069,7 +2070,7 @@ const ModelSelector = memo(function ModelSelector({
 			className={triggerClassName}
 			disabled={isBusy || visibleModelPicker.options.length === 0}
 			emptyText="No models found."
-			onOpen={() => setModelsRefresh((count) => count + 1)}
+			onOpen={refreshActiveProviderModels}
 			onValueChange={(value) => {
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
