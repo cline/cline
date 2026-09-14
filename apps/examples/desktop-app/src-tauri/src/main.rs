@@ -693,16 +693,18 @@ async fn get_desktop_backend_endpoint(
     .map_err(|error| format!("desktop backend startup task failed: {error}"))??;
 
     // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
-    // see sidecar/shell-path.ts) plus session-manager init, whose duration
-    // varies by machine. Poll well past that combined worst case; the loop
-    // returns as soon as the ready line arrives, so only failure waits long.
+    // see sidecar/shell-path.ts) plus session-manager init, which on a cold
+    // start waits up to 20s for the shared hub daemon to boot (see
+    // HUB_STARTUP_TIMEOUT_MS in @cline/core). Poll past that combined worst
+    // case; the loop returns as soon as the ready line arrives, so only
+    // failure waits long.
     // While pending this only waits — respawning is ensure's job, and it
     // refuses to start a second sidecar while the first one is still alive.
     // A child that dies mid-poll makes this return an error rather than
     // respawn: the next ensure call — the health-check loop within 5 seconds,
     // or this command when the webview reconnects — replaces the dead child.
     // Async sleeps keep Tauri's window event loop responsive while pending.
-    for _ in 0..150 {
+    for _ in 0..300 {
         if let Some(endpoint) = backend_state
             .ws_endpoint
             .lock()
