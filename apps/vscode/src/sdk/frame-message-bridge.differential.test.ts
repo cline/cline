@@ -53,11 +53,9 @@ describe("FrameMessageBridge differential parity", () => {
 		const traces: AgentEvent[][] = []
 		for (let seed = 1; traces.length < 100; seed += 1) {
 			const events = generateLegalV1Trace(seed, { maxEvents: 40 })
-			// Terminal non-recoverable errors emit the not-yet-ported
-			// api_req_failed pair in v1 — excluded surface.
-			if (events.some((e) => e.type === "error" && e.recoverable !== true)) {
-				continue
-			}
+			// Terminal non-recoverable errors are now a ported surface — the
+			// framer preserves plain-object and Error message shapes, so the
+			// api_req_failed pair renders identically on both paths.
 			// Concurrently open tools: v1 reuses one streamingToolTs across
 			// them (their partial rows collide in the message store); the
 			// bridge gives each tool block its own identity — intended
@@ -271,6 +269,297 @@ describe("FrameMessageBridge differential parity (edges)", () => {
 			{ type: "iteration_start", iteration: 1 },
 			{ type: "content_end", contentType: "text", text: "   " },
 			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+})
+
+describe("FrameMessageBridge differential parity (tool renderings)", () => {
+	it("attempt_completion renders the green box and suppresses the retag", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{ type: "content_end", contentType: "text", text: "preamble" },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "attempt_completion",
+				input: { result: "All done." },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "attempt_completion" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("submit_and_exit uses the summary field", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "submit_and_exit",
+				input: { summary: "Resolved." },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "submit_and_exit" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("command tools render the running marker and completed output", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "run_commands",
+				input: { commands: ["ls -la"] },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "run_commands", output: "total 0" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("command tools render the error output", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "execute_command",
+				input: { commands: "make" },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "execute_command", error: "exit 2" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("MCP tools render use_mcp_server plus the response row", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "myserver__get_data",
+				input: { query: "x" },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "myserver__get_data", output: "data!" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("MCP tool errors render the response row with the error", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "myserver__get_data",
+				input: { query: "x" },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "myserver__get_data", error: "timeout" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("read_files multi-file split carries paths and line ranges", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "read_files",
+				input: {
+					files: [{ path: "/src/a.ts", start_line: 3, end_line: 9 }, { path: "/src/b.ts" }, { path: "/src/c.ts" }],
+				},
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "read_files" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("read_files single file falls through to the generic row", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "read_files",
+				input: { files: [{ path: "/src/a.ts" }] },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "read_files", output: "contents" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("apply_patch multi-file split renders one row per file", () => {
+		const patch = [
+			"*** Begin Patch",
+			"*** Update File: /a.ts",
+			"@@",
+			"-x",
+			"+y",
+			"*** Update File: /b.ts",
+			"@@",
+			"-1",
+			"+2",
+			"*** End Patch",
+		].join("\n")
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "apply_patch",
+				input: { patch },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "apply_patch", output: "ok" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("apply_patch error falls through to the generic error rows", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "apply_patch",
+				input: { patch: "*** Begin Patch\n*** Update File: /a.ts\n@@\n-x\n+y\n*** End Patch" },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "apply_patch", error: "conflict" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("ask_question is suppressed at open and close", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "c1",
+				toolName: "ask_question",
+				input: { question: "Continue?" },
+			},
+			{ type: "content_end", contentType: "tool", toolCallId: "c1", toolName: "ask_question" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+})
+
+describe("FrameMessageBridge differential parity (compaction and errors)", () => {
+	const compactionNotice = (phase: string, extra: Record<string, unknown> = {}) => ({
+		type: "notice" as const,
+		noticeType: "status" as const,
+		message: "auto-compacting",
+		metadata: { kind: "auto_compaction", phase, ...extra },
+	})
+
+	it("compaction started then completed updates the divider in place", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			compactionNotice("started"),
+			compactionNotice("completed", { tokensBefore: 100, tokensAfter: 50, messagesBefore: 10, messagesAfter: 4 }),
+			{ type: "content_end", contentType: "text", text: "done" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("compaction skipped finalizes the divider", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			compactionNotice("started"),
+			compactionNotice("skipped"),
+			{ type: "content_end", contentType: "text", text: "done" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("a dangling compaction divider finalizes as cancelled at done", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			compactionNotice("started"),
+			{ type: "content_end", contentType: "text", text: "partial" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("a dangling compaction divider finalizes as failed at a terminal error", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			compactionNotice("started"),
+			{ type: "error", error: { message: "provider down" } as unknown as Error, iteration: 1, recoverable: false },
+		])
+	})
+
+	it("a dangling compaction divider finalizes as cancelled at done(reason:error)", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			compactionNotice("started"),
+			{ type: "done", text: "", reason: "error", iterations: 1 },
+		])
+	})
+
+	it("terminal error renders the api_req_failed pair (plain-object error)", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "error",
+				error: { message: "API rate limit exceeded" } as unknown as Error,
+				iteration: 1,
+				recoverable: false,
+			},
+		])
+	})
+
+	it("terminal error renders the pair for Error instances", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{ type: "error", error: new Error("fatal"), iteration: 1, recoverable: false },
+		])
+	})
+
+	it("terminal error reshapes insufficient-credits JSON for the ErrorRow UI", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "error",
+				error: {
+					message: JSON.stringify({ error: { code: "insufficient_credits", message: "Out of credits" } }),
+				} as unknown as Error,
+				iteration: 1,
+				recoverable: false,
+			},
+		])
+	})
+
+	it("terminal error reshapes with provider, model, and error class context", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{
+				type: "error",
+				error: { message: "boom" } as unknown as Error,
+				errorClass: "auth",
+				iteration: 1,
+				recoverable: false,
+			},
+		])
+	})
+
+	it("done(reason:error) emits no rows", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{ type: "content_end", contentType: "text", text: "partial answer" },
+			{ type: "done", text: "", reason: "error", iterations: 1 },
 		])
 	})
 })

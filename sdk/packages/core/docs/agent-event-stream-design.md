@@ -616,19 +616,34 @@ iteration_start reset() re-mints the streaming ts; the real adapter
 closes content within its iteration, so the shape is unmodeled in the
 tables — a framer note for the cleanup pass: force-close dangling
 text/reasoning at iteration notices, mirroring the reset, if the
-generator should model it). **Switchover checklist (each gated by its
-pinned v1 translator tests):** error-terminal rows
-(reshapeErrorForWebview + the api_req_failed pair); compaction
-dividers (parseCompactionNoticeMetadata/buildCompactionMessage are
-already exported for the bridge); tool-specific renderings —
-completion tools (say:"completion_result"), command tools
-(say:"command" + COMMAND_OUTPUT_STRING), MCP tools
-(use_mcp_server/mcp_server_response), read_files/apply_patch
-multi-file splits, ask_question suppression, spawn_agent aggregation
-(SubagentStatusRow consumer + onSubAgent), approval-coordinator
-interactions (approvedToolMessageTs upserts, denial suppression);
-then the flip — bridge output becomes the production ClineMessage
-source and the v1 switch deletes.
+generator should model it).
+
+**Phase 3c part 2b status: implemented (second tranche — tool
+renderings, compaction, error terminals).** The bridge now ports the
+remaining pure-translation surfaces: tool-specific renderings
+(completion tools, command tools with the COMMAND_OUTPUT_STRING
+marker, MCP use_mcp_server/mcp_server_response, read_files/apply_patch
+multi-file splits with per-file rows and line ranges, ask_question
+suppression), compaction dividers (in-place ts from the started
+notice, finalized at the turn terminal — "failed" only for a terminal
+error event, "cancelled" otherwise), and terminal error rows
+(reshapeErrorForWebview + the api_req_started/ask:api_req_failed pair).
+Two further contract amendments came out of it: (4) the error outcome
+carries `via: "error" | "done"` — v1 treats terminal error events and
+done(reason:"error") differently (divider failed/cancelled, error rows
+or none), and the framer stamps which; (5) the framer preserves the
+message of plain-object errors (`{ message }` is type-legal v1 input —
+the pinned translator tests use it), not `String(error)`'s
+"[object Object]". With those, the generated-trace exclusion for
+terminal errors was lifted — the differential now covers error
+terminals in the random traces too. **Remaining checklist:** spawn_agent
+aggregation (SubagentStatusRow consumer; the bridge renders it
+generically until then), approval-coordinator interactions
+(approvedToolMessageTs upserts, denial suppression — annotation wiring
+at the flip), StreamError carrying Error instances' `code`/`status`
+properties (real provider errors may set them; the reshape reads them —
+a `details` follow-up), then the flip — bridge output becomes the
+production ClineMessage source and the v1 switch deletes.
 
 **Phase 3d — history replay and reconnect.** Snapshot reconciliation
 in the assembler (diff against the live set), live-after-history dedup

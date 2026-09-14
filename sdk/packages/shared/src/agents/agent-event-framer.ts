@@ -415,6 +415,7 @@ export class AgentEventFramer {
 				this.closeTurn(out, {
 					kind: "error",
 					error: toStreamError(event.error, event.errorClass),
+					via: "error",
 				});
 				break;
 			}
@@ -572,24 +573,36 @@ export class AgentEventFramer {
  */
 function toStreamError(
 	error: unknown,
-	providerErrorClass?: string,
+	providerErrorClass?: import("../agent").ProviderErrorClass,
 ): StreamError {
+	const message = toStreamErrorMessage(error);
 	if (error instanceof Error) {
 		return {
 			code: error.name || "Error",
-			message: error.message,
+			message,
 			...(providerErrorClass !== undefined ? { providerErrorClass } : {}),
 		};
 	}
 	return {
 		code: "Error",
-		message: String(error),
+		message,
 		...(providerErrorClass !== undefined ? { providerErrorClass } : {}),
 	};
 }
 
 function toStreamErrorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
+	if (error instanceof Error) {
+		return error.message;
+	}
+	// Plain-object errors ({ message }) are type-legal v1 input (the pinned
+	// translator tests use them); keep the message, not "[object Object]".
+	if (typeof error === "object" && error !== null && "message" in error) {
+		const message = (error as { message?: unknown }).message;
+		if (typeof message === "string") {
+			return message;
+		}
+	}
+	return String(error);
 }
 
 /**
@@ -617,6 +630,7 @@ function finishReasonToOutcome(
 					code: "run_failed",
 					message: event.text || "Run failed",
 				},
+				via: "done",
 			};
 		default: {
 			const _exhaustive: never = reason;
