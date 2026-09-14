@@ -163,9 +163,9 @@ describe("RemoteEnvironmentsContent", () => {
 			root.render(<RemoteEnvironmentsContent />);
 		});
 		await vi.waitFor(() => {
-			expect(buttonWithText("Test connection").disabled).toBe(false);
+			expect(buttonWithText("Test Connection").disabled).toBe(false);
 		});
-		await click(buttonWithText("Test connection"));
+		await click(buttonWithText("Test Connection"));
 
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("Permission denied (publickey)");
