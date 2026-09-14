@@ -144,7 +144,7 @@ describe("CloudSessionManager lifecycle", () => {
 		"failed",
 	] as const)("reconciles a %s session without a Hub connection", async (status) => {
 		const { ctx } = createContext();
-		const remote = { ...REMOTE_SESSION };
+		const remote: CloudSessionRecord = { ...REMOTE_SESSION };
 		const manager = new CloudSessionManager(ctx, {
 			api: {
 				create: async () => ({
@@ -168,7 +168,7 @@ describe("CloudSessionManager lifecycle", () => {
 			remote.expiredAt = endedAt;
 		} else {
 			remote.status = "failed";
-			remote.updatedAt = endedAt;
+			remote.lastActivityAt = endedAt;
 		}
 		expect((await manager.listForDiscovery())[0]).toMatchObject({
 			status,
@@ -179,6 +179,26 @@ describe("CloudSessionManager lifecycle", () => {
 			busy: false,
 			endedAt: Date.parse(endedAt),
 		});
+		if (status === "failed") {
+			remote.title = "Renamed after failure";
+			remote.updatedAt = new Date().toISOString();
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(endedAt);
+			const live = ctx.liveSessions.get(remote.id)!;
+			ctx.liveSessions.clear();
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(endedAt);
+
+			const hubEndedAt = Date.parse(endedAt) + 500;
+			live.endedAt = hubEndedAt;
+			ctx.liveSessions.set(remote.id, live);
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(
+				new Date(hubEndedAt).toISOString(),
+			);
+			ctx.liveSessions.clear();
+			delete remote.lastActivityAt;
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(
+				remote.createdAt,
+			);
+		}
 	});
 
 	it("single-flights repeated starts for the same client request", async () => {
