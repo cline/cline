@@ -1671,7 +1671,9 @@ const ModelSelector = memo(function ModelSelector({
 		if (!normalizedProvider) return;
 		loadProviderModels(normalizedProvider)
 			.then((models) => {
-				if (models.length > 0) applyProviderModels(normalizedProvider, models);
+				if (models.length === 0) return;
+				applyProviderModels(normalizedProvider, models);
+				setReasoningCapabilitySource("catalog");
 			})
 			.catch(() => {
 				// Keep the current list when the refresh fails.
