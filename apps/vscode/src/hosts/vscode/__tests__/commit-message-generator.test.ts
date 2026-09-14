@@ -11,9 +11,30 @@ const gitUtilsMock = () => ({ ...actualGitUtils, getGitDiff: getGitDiffStub })
 mock.module("@/utils/git", gitUtilsMock)
 mock.module("@utils/git", gitUtilsMock)
 
-import { getGitDiffStagedFirst } from "../commit-message-generator"
+import { buildCommitMessageSystemPrompt, getGitDiffStagedFirst } from "../commit-message-generator"
 
 describe("commit-message-generator", () => {
+	describe("buildCommitMessageSystemPrompt", () => {
+		it("returns the base prompt alone when there are no rules", () => {
+			const prompt = buildCommitMessageSystemPrompt("")
+			prompt.should.startWith("You are a helpful assistant that generates informative git commit messages")
+			prompt.should.not.containEql("# Rules")
+		})
+
+		it("treats a whitespace-only rules section as no rules", () => {
+			buildCommitMessageSystemPrompt("  \n\n ").should.equal(buildCommitMessageSystemPrompt(""))
+		})
+
+		it("appends the user's rules after the base prompt", () => {
+			const rules = "\n\n# Rules\n## commits\nUse conventional commits, imperative mood."
+			const prompt = buildCommitMessageSystemPrompt(rules)
+			prompt.should.startWith("You are a helpful assistant")
+			prompt.should.containEql("The user's rules follow.")
+			prompt.should.endWith(rules)
+			prompt.indexOf("# Rules").should.be.above(prompt.indexOf("The user's rules follow."))
+		})
+	})
+
 	describe("getGitDiffStagedFirst", () => {
 		beforeEach(() => {
 			getGitDiffStub.reset()
