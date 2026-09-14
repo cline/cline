@@ -426,10 +426,8 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
-// The runtime's queue drain emits a pending_prompts snapshot (head removed)
-// and a pending_prompt_submitted event for the same prompt back-to-back, and
-// both are translated here into chat_queued_prompt_start — dedupe by prompt
-// id or the UI renders the user message twice.
+// Dedupe by prompt id so a repeated pending_prompt_submitted for the same
+// prompt cannot render the user message twice.
 function emitQueuedPromptStart(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -490,20 +488,10 @@ export function handleCoreSessionEvent(
 					session,
 					mapped.map((item) => item.id),
 				);
-				const previous = session.promptsInQueue;
+				// A shrinking snapshot is not evidence that the head started
+				// running: the user may have deleted it or the queue may have been
+				// discarded. Only pending_prompt_submitted announces a start.
 				session.promptsInQueue = mapped;
-				if (
-					previous.length > mapped.length &&
-					previous[0] &&
-					previous[0].id !== mapped[0]?.id
-				) {
-					emitQueuedPromptStart(ctx, sessionId, session, {
-						promptId: previous[0].id,
-						prompt: previous[0].prompt,
-						attachmentCount: previous[0].attachmentCount ?? 0,
-						userImages: previous[0].userImages,
-					});
-				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;

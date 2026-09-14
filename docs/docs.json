@@ -105,6 +105,7 @@
 					{
 						"group": "Usage",
 						"pages": [
+							"usage/cline-desktop",
 							"usage/ide",
 							"usage/tui",
 							{
@@ -1016,6 +1017,10 @@
 		{
 			"source": "/provider-config/asksage",
 			"destination": "/provider-config/other-30-plus-providers#asksage"
+		},
+		{
+			"source": "/provider-config/avian",
+			"destination": "/provider-config/other-30-plus-providers#avian"
 		},
 		{
 			"source": "/provider-config/baseten",

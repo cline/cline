@@ -1,6 +1,8 @@
 export const FeatureFlag = {
 	/** Enables ClinePass provider/model list exposure in supported clients. */
 	CLINE_PASS: "ext-cline-pass",
+	/** Makes the Cloud sessions opt-in visible in the Cline Code desktop app. */
+	CODE_CLOUD_AGENTS: "code-cloud-agents",
 	/** Shows the GitHub integration step in the desktop app */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
@@ -64,6 +66,7 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 

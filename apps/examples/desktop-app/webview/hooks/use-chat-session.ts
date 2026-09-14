@@ -8,12 +8,15 @@ import {
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
+	credentialFailureMeta,
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
+	isCredentialFailure,
 	makeId,
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
+	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import type {
 	AgentChunkEvent,
@@ -42,6 +45,7 @@ import {
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -116,6 +120,7 @@ function errorMessage(err: unknown): string {
 function makeErrorChatMessage(
 	sid: string | null,
 	content: string,
+	meta?: ChatMessage["meta"],
 ): ChatMessage {
 	return {
 		id: makeId("error"),
@@ -123,6 +128,7 @@ function makeErrorChatMessage(
 		role: "error",
 		content,
 		createdAt: Date.now(),
+		...(meta ? { meta } : {}),
 	};
 }
 
@@ -419,6 +425,7 @@ export function useChatSession() {
 	const rekeyedOptimisticIdByMessageIdRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
+	const providerIdRef = useRef(config.provider);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -448,6 +455,19 @@ export function useChatSession() {
 	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// Counts user bubbles appended to the live transcript. A failure bubble
+	// stays the trailing one for its turn until the next user bubble lands;
+	// the turn epoch is not usable here because a retry queued while the
+	// failed send is still settling bumps it without adding a bubble.
+	const userBubbleCountRef = useRef(0);
+	// The failure bubble already shown for the current turn, so a second
+	// report of the same failure updates it instead of adding another.
+	const shownTurnFailureRef = useRef<{
+		sid: string;
+		userBubbleCount: number;
+		id: string;
+		hasDetail: boolean;
+	} | null>(null);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -477,6 +497,9 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		providerIdRef.current = config.provider;
+	}, [config.provider]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -560,56 +583,94 @@ export function useChatSession() {
 	}, []);
 
 	const setErrorState = useCallback(
-		(msg: string, sid: string | null = null) => {
+		(msg: string, sid: string | null = null, meta?: ChatMessage["meta"]) => {
 			outstandingOptimisticUserIdsRef.current.clear();
 			rekeyedOptimisticIdByMessageIdRef.current = {};
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
-				sliceMessages([...prev, makeErrorChatMessage(sid, msg)]),
+				sliceMessages([...prev, makeErrorChatMessage(sid, msg, meta)]),
 			);
 		},
 		[],
+	);
+
+	// A session that fails to start over credentials (a fresh session hits the
+	// rejected OAuth refresh in start, not in the turn) gets the same guidance
+	// and fix action as a failed turn instead of the raw runtime message.
+	const reportSessionStartFailure = useCallback(
+		(err: unknown, sid: string | null) => {
+			const message = errorMessage(err);
+			const providerId = providerIdRef.current;
+			if (!isCredentialFailure(message)) {
+				setErrorState(message, sid);
+				return;
+			}
+			setErrorState(
+				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				sid,
+				credentialFailureMeta(providerId),
+			);
+		},
+		[setErrorState],
 	);
 
 	// Surfaces a failed turn in the transcript. Some turns (for example the
 	// first prompt of a fresh session, which the runtime consumes from its
 	// queue) never resolve through the send() RPC, so without this the app
 	// fails silently: the user message sits alone with no response and no
-	// explanation. Skips appending when an error for this turn is already
-	// visible so the RPC path and the chat_done stream never double-report.
+	// explanation. The RPC path and the chat_done stream can both report the
+	// same failure, and chat_done often lands first with no detail (the hub's
+	// run.failed for a thrown send carries none); the later, detailed report
+	// then upgrades the bubble in place rather than adding a second one. The
+	// `error` state follows the bubble so the chat never also shows it as a
+	// banner.
 	const appendTurnFailureMessage = useCallback(
 		(sid: string, detail: string) => {
 			const description =
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
-			// Deliberately avoids matching a bare "token": provider failures like
-			// "maximum context tokens exceeded" or rate-limit messages are not
-			// credential problems and must not point users at Settings → Models.
 			const looksCredentialRelated =
-				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
-					description,
-				);
+				!description || isCredentialFailure(description);
+			const providerId = providerIdRef.current;
 			const content = [
 				description
 					? `The run failed: ${description}`
 					: "The run failed before a response was produced.",
-				looksCredentialRelated
-					? "Check your model connection in Settings → Models (or sign in with Cline), then try again."
-					: "",
+				looksCredentialRelated ? resolveCredentialFailureHint(providerId) : "",
 			]
 				.filter(Boolean)
 				.join(" ");
-			setMessages((prev) => {
-				const sessionMessages = prev.filter(
-					(message) => message.sessionId === sid,
-				);
-				const last = sessionMessages[sessionMessages.length - 1];
-				if (last?.role === "error") {
-					return prev;
+			const meta = looksCredentialRelated
+				? credentialFailureMeta(providerId)
+				: undefined;
+			const shown = shownTurnFailureRef.current;
+			if (
+				shown &&
+				shown.sid === sid &&
+				shown.userBubbleCount === userBubbleCountRef.current
+			) {
+				if (!description || shown.hasDetail) {
+					return;
 				}
-				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
-			});
+				shown.hasDetail = true;
+				setMessages((prev) =>
+					updateMessageById(prev, shown.id, (message) => ({
+						...message,
+						content,
+						meta,
+					})),
+				);
+				setError(content);
+				return;
+			}
+			const message = makeErrorChatMessage(sid, content, meta);
+			shownTurnFailureRef.current = {
+				sid,
+				userBubbleCount: userBubbleCountRef.current,
+				id: message.id,
+				hasDetail: Boolean(description),
+			};
+			setMessages((prev) => sliceMessages([...prev, message]));
 			setError(content);
 		},
 		[],
@@ -1493,6 +1554,7 @@ export function useChatSession() {
 					return next;
 				});
 				if (userLabel || userImages.length > 0) {
+					userBubbleCountRef.current += 1;
 					// Computed outside the updater: makeId() inside would mint a
 					// different id on each StrictMode re-invocation.
 					const userMessageId = promptId
@@ -2087,10 +2149,13 @@ export function useChatSession() {
 		],
 	);
 
+	// Resolves to false when the runtime never took the prompt (a failure
+	// before dispatch, or a provider switch / OAuth refresh that threw before
+	// the turn began) so the caller can hand the text back to the composer.
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []) => {
+		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
 			const trimmed = prompt.trim();
-			if (!trimmed && attachedFiles.length === 0) return;
+			if (!trimmed && attachedFiles.length === 0) return true;
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -2102,7 +2167,7 @@ export function useChatSession() {
 			const validation = validateConfig(config);
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
-				return;
+				return false;
 			}
 			const parsed = validation.parsed;
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
@@ -2144,7 +2209,7 @@ export function useChatSession() {
 				(error: unknown) => ({ ok: false as const, error }),
 			);
 			const attachedFileCount = attachedFiles.filter(
-				(file) => !file.type.startsWith("image/"),
+				(file) => !imageAttachmentMediaType(file),
 			).length;
 			const userLabel =
 				attachedFileCount > 0
@@ -2163,9 +2228,24 @@ export function useChatSession() {
 				: null;
 			const optimisticUserMessageId = shouldQueue ? null : makeId("user");
 			const plannedSessionId = activeSessionId ?? makeId("session");
+			// The prompt never reached the runtime: retract its optimistic bubble
+			// so the caller can hand the text back to the composer without the
+			// transcript showing it as sent.
+			const withdrawPrompt = () => {
+				if (optimisticUserMessageId) {
+					outstandingOptimisticUserIdsRef.current.delete(
+						optimisticUserMessageId,
+					);
+					setMessages((prev) =>
+						prev.filter((message) => message.id !== optimisticUserMessageId),
+					);
+				}
+				return false;
+			};
 
 			if (optimisticUserMessageId) {
 				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
+				userBubbleCountRef.current += 1;
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -2214,9 +2294,9 @@ export function useChatSession() {
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
 							);
 						}
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
-						return;
+						return withdrawPrompt();
 					}
 				} else if (
 					activeSessionId &&
@@ -2233,9 +2313,9 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
-						return;
+						return withdrawPrompt();
 					} finally {
 						if (sessionStartPromiseRef.current === startPromise) {
 							sessionStartPromiseRef.current = null;
@@ -2258,9 +2338,9 @@ export function useChatSession() {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
-						setErrorState(errorMessage(err));
+						reportSessionStartFailure(err, null);
 						finishPromptSubmission();
-						return;
+						return withdrawPrompt();
 					} finally {
 						if (sessionStartPromiseRef.current === startPromise) {
 							sessionStartPromiseRef.current = null;
@@ -2274,7 +2354,7 @@ export function useChatSession() {
 						activeSessionId,
 					);
 					finishPromptSubmission();
-					return;
+					return withdrawPrompt();
 				}
 				const serializedAttachments = serializedAttachmentsResult.attachments;
 				const hasAttachments =
@@ -2317,9 +2397,10 @@ export function useChatSession() {
 			}
 			if (!sendTask) {
 				finishPromptSubmission();
-				return;
+				return withdrawPrompt();
 			}
 			let abortedReconcileEpoch: number | undefined;
+			let promptTaken = true;
 			const settleAbortedSend = () => {
 				if (!abortedRef.current) return false;
 				if (
@@ -2335,7 +2416,7 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
-					if (settleAbortedSend()) return;
+					if (settleAbortedSend()) return true;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -2346,11 +2427,11 @@ export function useChatSession() {
 						// back to "running" — wedging the composer forever. The
 						// stream (chat_queued_prompt_start/chat_done and
 						// prompts_in_queue_state) is authoritative from here on.
-						return;
+						return true;
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
-					return;
+					return true;
 				}
 
 				// The runtime drains the queue before it answers a blocking send,
@@ -2366,7 +2447,7 @@ export function useChatSession() {
 
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				// On a failed run the runtime reports the error string in
 				// result.text — it is not assistant content and must not be
 				// rendered as an assistant bubble (canonical rehydration would
@@ -2668,7 +2749,7 @@ export function useChatSession() {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				// A queued prompt that already started its turn owns the status
 				// and the settled epoch from here: its start set "running", and
 				// its own completion settles it. Settling this turn on top of it
@@ -2694,6 +2775,14 @@ export function useChatSession() {
 						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus("failed");
 					}
+					// A run that fails mid-turn always carries `messages` (the
+					// user turn is persisted). The sidecar synthesizes a
+					// messages-less error result when the runtime threw before
+					// the turn began — e.g. the provider switch or OAuth refresh
+					// failed — so the prompt never entered the session.
+					if (!result.messages) {
+						promptTaken = withdrawPrompt();
+					}
 				} else if (result?.finishReason === "aborted") {
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
@@ -2709,7 +2798,7 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -2735,6 +2824,7 @@ export function useChatSession() {
 					finalizeSettledTurn(activeSessionId);
 				}
 			}
+			return promptTaken;
 		},
 		[
 			addMessage,
@@ -2748,6 +2838,7 @@ export function useChatSession() {
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
+			reportSessionStartFailure,
 			sessionId,
 			setErrorState,
 			startSession,
@@ -2952,6 +3043,7 @@ export function useChatSession() {
 		outstandingOptimisticUserIdsRef.current.clear();
 		rekeyedOptimisticIdByMessageIdRef.current = {};
 		lastCoreErrorBySessionRef.current = {};
+		shownTurnFailureRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setActivityLabel(null);
@@ -3018,6 +3110,7 @@ export function useChatSession() {
 				outstandingOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
+				shownTurnFailureRef.current = null;
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,

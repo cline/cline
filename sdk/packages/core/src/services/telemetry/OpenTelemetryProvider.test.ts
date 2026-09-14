@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BasicLogger } from "@cline/shared";
+import { isOtlpTraceRelayProvider } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { writeGlobalSettings } from "../global-settings";
 import {
@@ -127,8 +128,32 @@ describe("createOpenTelemetryTelemetryService", () => {
 		});
 
 		expect(provider.tracerProvider).not.toBeNull();
+		// Console-only tracing is not the collector relay and must not be
+		// marked as one.
+		expect(isOtlpTraceRelayProvider(provider.tracerProvider)).toBe(false);
 		const span = provider.getTracer("test").startSpan("verify.tracing");
 		span.end();
+		await provider.dispose();
+	});
+
+	it("marks an OTLP-exporting tracer provider as the collector relay", async () => {
+		const { provider } = createOpenTelemetryTelemetryService({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			enabled: true,
+			tracesExporter: "otlp",
+			otlpEndpoint: "http://localhost:4318",
+			serviceName: "cline-test",
+		});
+
+		expect(provider.tracerProvider).not.toBeNull();
+		expect(isOtlpTraceRelayProvider(provider.tracerProvider)).toBe(true);
 		await provider.dispose();
 	});
 

@@ -7,7 +7,7 @@
  * package supported by catalog-live.ts. Add an ID mapping in provider-keys.ts
  * when Cline's generated ID differs from the models.dev key, and ensure the ID
  * is not in MODELS_DEV_BLOCKED_PROVIDER_IDS. Then run:
- *   bun -F @cline/llms generate:models
+ *   bun run build:models
  *
  * Product/runtime-only providers belong in builtins.ts and are merged with
  * this catalog; they do not need to appear in this generated file.
