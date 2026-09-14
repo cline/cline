@@ -73,7 +73,7 @@
         "@opentui/react": "0.4.3",
         "tar-fs": ">=3.1.1",
         "tar": "^7.5.2",
-        "js-yaml": "^4.1.1",
+        "js-yaml": ">=4.3.2 <5",
         "serialize-javascript": ">=7.0.3",
         "protobufjs": "7.6.5",
         "mermaid": "11.16.1",
