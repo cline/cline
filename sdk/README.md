@@ -62,6 +62,7 @@ const agents = new Map<string, Agent>()
 
 async function handleMessage(threadId: string, message: string) {
   let agent = agents.get(threadId)
+  const isFirstMessage = !agent
   if (!agent) {
     agent = new Agent({
       providerId: "gemini",
@@ -72,9 +73,9 @@ async function handleMessage(threadId: string, message: string) {
     agents.set(threadId, agent)
   }
 
-  const result = agent.hasRun
-    ? await agent.continue(message)
-    : await agent.run(message)
+  const result = isFirstMessage
+    ? await agent.run(message)
+    : await agent.continue(message)
 
   return result.text
 }
