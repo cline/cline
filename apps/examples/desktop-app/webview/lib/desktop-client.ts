@@ -253,6 +253,7 @@ class DesktopClient {
 	private transportState: DesktopTransportState = "connecting";
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
+	private reconnectAttempts = 0;
 	private endpoint: string | null = null;
 	private recentErrorReports = new Map<string, number>();
 	private reportedErrorObjects = new WeakSet<object>();
@@ -418,13 +419,20 @@ class DesktopClient {
 		if (this.reconnectTimer) {
 			clearTimeout(this.reconnectTimer);
 		}
-		const attempt = Math.max(this.pending.size, 1);
+		this.reconnectAttempts += 1;
 		const delayMs = Math.min(
-			RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 4),
+			RECONNECT_BASE_DELAY_MS * 2 ** Math.min(this.reconnectAttempts, 4),
 			RECONNECT_MAX_DELAY_MS,
 		);
+		// Re-resolve the endpoint on every attempt: a sidecar the Tauri shell
+		// respawned listens on the same port but issues a new approval token,
+		// and one that was still booting only publishes its endpoint later.
+		this.endpoint = null;
+		resolvedEndpointCache = null;
 		this.reconnectTimer = setTimeout(() => {
-			void this.ensureConnected(true);
+			void this.ensureConnected(true).catch(() => {
+				// The failure path already scheduled the next attempt.
+			});
 		}, delayMs);
 	}
 
@@ -451,6 +459,7 @@ class DesktopClient {
 				this.socket = socket;
 				socket.onopen = () => {
 					this.hasConnectedOnce = true;
+					this.reconnectAttempts = 0;
 					this.transportError = null;
 					this.setTransportState("connected");
 					resolve();
@@ -487,6 +496,11 @@ class DesktopClient {
 				if (!this.hasConnectedOnce) {
 					this.setTransportState("unavailable");
 				}
+				// A failed connect usually means the sidecar is still booting
+				// (the Tauri endpoint command gives up after a fixed poll) or is
+				// being respawned by the shell's health check. Keep trying rather
+				// than parking the UI on "unavailable" until the app is relaunched.
+				this.scheduleReconnect();
 				throw error;
 			})
 			.finally(() => {
