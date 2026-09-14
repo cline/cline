@@ -56,6 +56,11 @@ export {
 	truncateCommandOutput,
 } from "./executors/output-limits";
 export {
+	EDITOR_INPUT_CHAR_LIMIT_MAX,
+	getEditorSizeAdvisory,
+	resolveEditorInputCharLimit,
+} from "./helpers";
+export {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	resolveToolRoutingConfig,
 	type ToolRoutingRule,

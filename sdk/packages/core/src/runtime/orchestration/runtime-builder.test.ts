@@ -474,6 +474,24 @@ Use the review guidance.`,
 		expect(names).toContain("search_codebase");
 	});
 
+	it("derives the editor payload guideline from the model output budget", async () => {
+		const defaultRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({}),
+		});
+		const defaultEditor = defaultRuntime.tools.find(
+			(tool) => tool.name === "editor",
+		);
+		expect(defaultEditor?.description).toContain("~6000 characters");
+
+		const roomyRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ maxTokensPerTurn: 32_000 }),
+		});
+		const roomyEditor = roomyRuntime.tools.find(
+			(tool) => tool.name === "editor",
+		);
+		expect(roomyEditor?.description).toContain("~48000 characters");
+	});
+
 	it("omits tools disabled by global settings from the advertised runtime tool list", async () => {
 		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-global-"));
 		const settingsPath = join(tempRoot, "global-settings.json");
