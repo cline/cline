@@ -302,6 +302,17 @@ describe("Cloud sessions sidecar wiring", () => {
 		await manager.list();
 		await manager.attach("ses-outer");
 		const image = "data:image/png;base64,aGVsbG8=";
+		const commandsBeforeInvalidPrompt = hub.commands.length;
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: "ses-outer",
+				prompt: "",
+				attachments: { userImages: ["", "   "] },
+				config: { executionTarget: "cloud" },
+			}),
+		).rejects.toThrow("prompt or image is required");
+		expect(hub.commands).toHaveLength(commandsBeforeInvalidPrompt);
 
 		await handleChatSessionCommand(ctx, {
 			action: "send",

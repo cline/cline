@@ -1889,7 +1889,10 @@ export async function handleChatSessionCommand(
 					);
 				}
 				const prompt = request.prompt?.trim() ?? "";
-				if (!prompt && !request.attachments?.userImages?.length) {
+				if (
+					!prompt &&
+					!request.attachments?.userImages?.some((image) => image.trim())
+				) {
 					throw new Error("prompt or image is required");
 				}
 				const modelId = String(
