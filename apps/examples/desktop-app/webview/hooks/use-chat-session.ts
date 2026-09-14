@@ -748,6 +748,7 @@ export function useChatSession(environmentId: string) {
 				turnEndReconcileTimerRef.current = null;
 				void desktopClient
 					.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
 						sessionId: sid,
 						maxMessages: MAX_MESSAGES,
 					})
@@ -776,7 +777,7 @@ export function useChatSession(environmentId: string) {
 					});
 			}, TURN_END_RECONCILE_DELAY_MS);
 		},
-		[applyCanonicalHistory],
+		[applyCanonicalHistory, environmentId],
 	);
 
 	useEffect(() => {
@@ -2036,12 +2037,14 @@ export function useChatSession(environmentId: string) {
 				const [historyMessages, record] = await Promise.all([
 					desktopClient
 						.invoke<ChatMessage[]>("read_session_messages", {
+							environmentId,
 							sessionId,
 							maxMessages: MAX_MESSAGES,
 						})
 						.catch(() => null),
 					desktopClient
 						.invoke<{ status?: string } | null>("get_discovered_session", {
+							environmentId,
 							sessionId,
 						})
 						.catch(() => null),
@@ -2103,7 +2106,7 @@ export function useChatSession(environmentId: string) {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [hydratedHistorySessionId, sessionId, status]);
+	}, [hydratedHistorySessionId, sessionId, status, environmentId]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -3064,6 +3067,7 @@ export function useChatSession(environmentId: string) {
 			const response = await desktopClient.invoke<{ detachedCount?: number }>(
 				"proceed_while_running",
 				{
+					environmentId,
 					sessionId: normalizedSessionId,
 					...(toolCallId ? { toolCallId } : {}),
 				},
@@ -3072,7 +3076,7 @@ export function useChatSession(environmentId: string) {
 				throw new Error("The command finished before it could be detached.");
 			}
 		},
-		[],
+		[environmentId],
 	);
 
 	const reset = useCallback(async () => {

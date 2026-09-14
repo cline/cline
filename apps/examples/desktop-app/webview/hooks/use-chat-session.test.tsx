@@ -532,12 +532,19 @@ describe("useChatSession", () => {
 			current.proceedWhileRunning(current.sessionId as string, "call-output"),
 		);
 		expect(invokeMock).toHaveBeenCalledWith("proceed_while_running", {
+			environmentId: "local",
 			sessionId: current.sessionId,
 			toolCallId: "call-output",
 		});
 	});
 
-	it("heals a running attached session with a dead event stream by polling history", async () => {
+	it.each([
+		"local",
+		"remote",
+	])("heals a running attached session in %s with a dead event stream by polling history", async (environmentId) => {
+		await act(async () =>
+			root.render(<HookHarness environmentId={environmentId} />),
+		);
 		// Scheduled runs can execute on a host whose live events never reach
 		// this client; the transcript must still settle without a remount.
 		const hydratedSessionId = "session-dead-stream";
@@ -549,6 +556,7 @@ describe("useChatSession", () => {
 					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 				}
 				if (command === "read_session_messages") {
+					expect(args?.environmentId).toBe(environmentId);
 					readCount += 1;
 					const base = [
 						{
@@ -573,6 +581,7 @@ describe("useChatSession", () => {
 							];
 				}
 				if (command === "get_discovered_session") {
+					expect(args?.environmentId).toBe(environmentId);
 					recordReads += 1;
 					// Still running on the first poll — the snapshot already
 					// ends on assistant narration, which must NOT read as
@@ -607,6 +616,7 @@ describe("useChatSession", () => {
 		try {
 			await act(async () => {
 				await current.hydrateSession({
+					environmentId,
 					sessionId: hydratedSessionId,
 					status: "running",
 					provider: "cline",
@@ -2423,6 +2433,7 @@ describe("useChatSession", () => {
 					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 				}
 				if (command === "read_session_messages") {
+					expect(args?.environmentId).toBe("local");
 					return canonicalMessages;
 				}
 				if (command === "chat_session_command") {
