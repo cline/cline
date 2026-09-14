@@ -8,6 +8,11 @@ const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
+const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("./legacy-provider-credentials", () => ({
+	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
+}));
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -61,6 +66,7 @@ beforeEach(() => {
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
+	clearLegacyProviderCredentialsMock.mockReset();
 });
 
 describe("provider settings cloud session lifecycle", () => {
@@ -205,6 +211,25 @@ describe("cline_account command auth states", () => {
 			"workos:persisted-token",
 		);
 		expect(capture).not.toHaveBeenCalled();
+	});
+
+	it("reports signed out when the refresh token is rejected even though a stale access token is persisted", async () => {
+		// The stale token would only fail the account request with a 401,
+		// which rendered an error card whose Retry failed the same way.
+		const { ctx } = createContext();
+		const { OAuthReauthRequiredError } =
+			await vi.importActual<typeof import("@cline/core")>("@cline/core");
+		resolveProviderApiKeyMock.mockRejectedValue(
+			new OAuthReauthRequiredError("cline"),
+		);
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "persisted-token" },
+		});
+
+		const result = await runClineAccountCommand(ctx);
+
+		expect(isClineAccountNotAuthenticatedResult(result)).toBe(true);
+		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
 	});
 
 	it("reports one auth refresh soft-failure event when the refresh fails and no fallback token exists", async () => {
@@ -437,6 +462,44 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 				organization_id: undefined,
 			}),
 		);
+	});
+
+	it("signs out of the shared cline entry and legacy secrets when cline-pass is disabled", async () => {
+		const { ctx } = createContext();
+		const dispose = vi.fn().mockResolvedValue(undefined);
+		ctx.cloudSessionManager = { dispose } as unknown as NonNullable<
+			SidecarContext["cloudSessionManager"]
+		>;
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "token", accountId: "acct-1" },
+		});
+		saveProviderSettingsMock.mockImplementation(
+			(_manager: unknown, request: { providerId: string }) => {
+				if (request.providerId === "cline") {
+					getProviderSettingsMock.mockReturnValue(undefined);
+				}
+				return {
+					providerId: request.providerId,
+					enabled: false,
+					settingsPath: "/tmp/settings.json",
+				};
+			},
+		);
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline-pass",
+			enabled: false,
+		});
+
+		// Cline Pass stores its credentials under "cline", so both entries go,
+		// and the legacy secrets are cleared for the storage provider.
+		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual([
+			expect.objectContaining({ providerId: "cline-pass", enabled: false }),
+			{ providerId: "cline", enabled: false },
+		]);
+		expect(clearLegacyProviderCredentialsMock).toHaveBeenCalledWith("cline");
+		expect(dispose).toHaveBeenCalledOnce();
+		expect(ctx.cloudSessionManager).toBeNull();
 	});
 
 	it("ignores settings writes for other providers", async () => {
