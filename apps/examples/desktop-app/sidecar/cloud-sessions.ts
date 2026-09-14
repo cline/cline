@@ -962,6 +962,7 @@ export class CloudSessionManager {
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	private readonly provisioningControllers = new Map<string, AbortController>();
 	private readonly sendAbortTokens = new Map<string, symbol>();
+	private readonly automaticTitleWrites = new Map<string, Promise<void>>();
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1403,9 +1404,16 @@ export class CloudSessionManager {
 				if (live) {
 					live.title = title;
 				}
-				void this.options.api.updateTitle?.(outerSessionId, title).catch(() => {
-					// Sidebar still shows the local title; REST retries on rename.
-				});
+				const write = this.options.api
+					.updateTitle?.(outerSessionId, title)
+					.then(() => {})
+					.catch(() => {})
+					.finally(() => {
+						if (this.automaticTitleWrites.get(outerSessionId) === write) {
+							this.automaticTitleWrites.delete(outerSessionId);
+						}
+					});
+				if (write) this.automaticTitleWrites.set(outerSessionId, write);
 			}
 		}
 		try {
@@ -1421,10 +1429,14 @@ export class CloudSessionManager {
 					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
 					: { timeoutMs: null },
 			);
+			const queued =
+				delivery === "queue" ||
+				(delivery !== "steer" && reply.payload?.result === undefined);
+			if (queued) removePendingMessage();
 			return {
 				sessionId: outerSessionId,
 				ok: true,
-				...(delivery === "queue" ? { queued: true } : {}),
+				...(queued ? { queued: true } : {}),
 				result: reply.payload?.result,
 			};
 		} catch (error) {
@@ -1854,6 +1866,8 @@ export class CloudSessionManager {
 	}
 
 	async updateTitle(outerSessionId: string, title: string): Promise<void> {
+		await this.automaticTitleWrites.get(outerSessionId);
+		this.assertSessionActive(outerSessionId);
 		await this.options.api.updateTitle(outerSessionId, title);
 		const record = this.knownSessions.get(outerSessionId);
 		if (record) {

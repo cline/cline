@@ -296,8 +296,82 @@ describe("CloudSessionManager state", () => {
 		);
 	});
 
+	it("reports a runtime-queued idle send and preserves an accepted message", async () => {
+		const { manager, connection, command, live, reply } = await createFixture();
+		connection.transcriptKnown = true;
+		const accepted = { role: "user" as const, content: "Run this next" };
+		command.mockImplementation(async (name) => {
+			if (name === "session.send_input") {
+				live.messages = [...live.messages, accepted];
+				live.busy = false;
+				live.status = "completed";
+			}
+			return reply(name);
+		});
+
+		const result = await manager.send("ses-outer", "Run this next");
+
+		expect(result).toMatchObject({ ok: true, queued: true });
+		expect(command).toHaveBeenCalledWith(
+			"session.send_input",
+			expect.objectContaining({ prompt: "Run this next", delivery: undefined }),
+			"inner-1",
+			expect.anything(),
+		);
+		expect(live.messages).toEqual([accepted]);
+		expect(live).toMatchObject({ busy: false, status: "completed" });
+	});
+
+	it("does not mark a send queued when runtime returns a normal result", async () => {
+		const { manager, connection, replies } = await createFixture();
+		connection.transcriptKnown = true;
+		replies["session.send_input"] = { result: { text: "done" } };
+
+		const result = await manager.send("ses-outer", "Run now");
+		expect(result).toMatchObject({ ok: true });
+		expect(result.queued).toBeUndefined();
+	});
+
+	it("keeps an explicit steer reply distinct from a queued successor", async () => {
+		const { manager, connection } = await createFixture();
+		connection.transcriptKnown = true;
+		const result = await manager.send("ses-outer", "Steer now", "steer");
+		expect(result.queued).toBeUndefined();
+	});
+
+	it.each([
+		false,
+		true,
+	])("does not let automatic title writing overwrite an explicit rename (auto fails: %s)", async (autoFails) => {
+		const { manager, connection, updateTitle } = await createFixture();
+		const started = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let serverTitle = "";
+		let calls = 0;
+		updateTitle.mockImplementation(async (_sessionId, title) => {
+			calls += 1;
+			if (calls === 1) {
+				started.resolve();
+				await release.promise;
+				if (autoFails) throw new Error("automatic title failed");
+			}
+			serverTitle = title;
+			return connection.remote;
+		});
+
+		const sending = manager.send("ses-outer", "Derived title");
+		await started.promise;
+		const renaming = manager.updateTitle("ses-outer", "Renamed");
+		expect(updateTitle).toHaveBeenCalledTimes(1);
+		release.resolve();
+		await Promise.all([sending, renaming]);
+
+		expect(serverTitle).toBe("Renamed");
+	});
+
 	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {
 		const { manager, command, replies, live } = await createFixture();
+		replies["session.send_input"] = { result: {} };
 		await manager.send("ses-outer", "yes");
 		live.busy = false;
 		replies["session.messages"] = {
