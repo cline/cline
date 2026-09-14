@@ -13,6 +13,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
+	buildWorkspaceFileSearchKey,
 	ChatInputBar,
 } from "./chat-input-bar";
 
@@ -306,6 +307,24 @@ describe("ChatInputBar", () => {
 
 		await act(async () => stopButton?.click());
 		expect(onAbort).toHaveBeenCalledOnce();
+	});
+
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
 	});
 
 	it("builds slash commands from both workflows and skills", () => {
@@ -889,6 +908,7 @@ describe("ChatInputBar", () => {
 					>
 						<ChatInputBar
 							attachments={[]}
+							environmentId="local"
 							gitBranch="main"
 							mode="act"
 							model="test-model"
@@ -1071,6 +1091,7 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -1158,6 +1179,7 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -2210,6 +2232,7 @@ describe("ChatInputBar token ring", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
