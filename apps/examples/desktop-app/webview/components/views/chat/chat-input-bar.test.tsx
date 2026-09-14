@@ -291,6 +291,40 @@ describe("ChatInputBar", () => {
 		expect(onSend).toHaveBeenCalledWith("What is this?");
 	});
 
+	it("does not send when Enter commits an IME composition", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend, prompt: "你好" });
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					isComposing: true,
+					bubbles: true,
+				}),
+			);
+		});
+		// WebKit fires the committing Enter after compositionend with
+		// isComposing false but keyCode 229.
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					keyCode: 229,
+					bubbles: true,
+				}),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("你好");
+	});
+
 	it("allows a parent session with a running child agent to be stopped", async () => {
 		const onAbort = vi.fn();
 		await renderVoiceComposer({
@@ -1557,8 +1591,12 @@ describe("ChatInputBar", () => {
 			'[aria-label^="Model:"]',
 		);
 		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(1);
 
 		await act(async () => modelTrigger?.click());
+		// Opening re-fetches so the tiers reflect the current feed.
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(2);
+		expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline");
 		const panel = document.querySelector('[role="dialog"]');
 		expect(panel?.textContent).toContain("Recommended");
 		expect(panel?.textContent).toContain("Free");
