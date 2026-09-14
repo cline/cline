@@ -57,6 +57,7 @@ import type {
 	SessionHistoryItem,
 	SessionHistoryStatus,
 } from "@/lib/session-history";
+import { eventEnvironmentId } from "@/lib/session-identity";
 import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
@@ -377,6 +378,13 @@ function dispatchCoreLog(chunk: string): void {
 // ---------------------------------------------------------------------------
 
 export function useChatSession(environmentId: string) {
+	const subscribeToEnvironment = useCallback(
+		(name: string, listener: (payload: unknown) => void) =>
+			desktopClient.subscribe(name, (payload) => {
+				if (eventEnvironmentId(payload) === environmentId) listener(payload);
+			}),
+		[environmentId],
+	);
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
@@ -1266,6 +1274,7 @@ export function useChatSession(environmentId: string) {
 
 		void desktopClient
 			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				environmentId,
 				sessionId: activeSessionId,
 			})
 			.then((pending) => {
@@ -1275,7 +1284,7 @@ export function useChatSession(environmentId: string) {
 			})
 			.catch(() => {});
 
-		const unsubscribe = desktopClient.subscribe(
+		const unsubscribe = subscribeToEnvironment(
 			"tool_approval_state",
 			(payload) => {
 				if (!payload || typeof payload !== "object") return;
@@ -1294,10 +1303,10 @@ export function useChatSession(environmentId: string) {
 			cancelled = true;
 			unsubscribe();
 		};
-	}, [environmentId, sessionId]);
+	}, [environmentId, sessionId, subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_requested", (payload) => {
+		return subscribeToEnvironment("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
 			if (
@@ -1315,10 +1324,10 @@ export function useChatSession(environmentId: string) {
 				return [...prev, item];
 			});
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_answered", (payload) => {
+		return subscribeToEnvironment("ask_question_answered", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const requestId = String(
 				(payload as { requestId?: unknown }).requestId ?? "",
@@ -1328,10 +1337,10 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_cancelled", (payload) => {
+		return subscribeToEnvironment("ask_question_cancelled", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const requestId = String(
 				(payload as { requestId?: unknown }).requestId ?? "",
@@ -1341,10 +1350,10 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("prompts_in_queue_state", (payload) => {
+		return subscribeToEnvironment("prompts_in_queue_state", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as {
 				sessionId?: string;
@@ -1353,7 +1362,7 @@ export function useChatSession(environmentId: string) {
 			if (record.sessionId !== activeSessionIdRef.current) return;
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	// ---- Incoming chunk handler ----
 
@@ -1877,7 +1886,7 @@ export function useChatSession(environmentId: string) {
 				setChatTransportError(desktopClient.getTransportError());
 			},
 		);
-		const unsubscribeEvents = desktopClient.subscribe(
+		const unsubscribeEvents = subscribeToEnvironment(
 			"chat_event",
 			(payload) => {
 				if (payload && typeof payload === "object") {
@@ -1889,10 +1898,10 @@ export function useChatSession(environmentId: string) {
 			unsubscribeTransport();
 			unsubscribeEvents();
 		};
-	}, [handleIncomingChunk]);
+	}, [handleIncomingChunk, subscribeToEnvironment]);
 
 	useEffect(() => {
-		const unsubscribeStatus = desktopClient.subscribe(
+		const unsubscribeStatus = subscribeToEnvironment(
 			"chat_session_status",
 			(payload) => {
 				if (!payload || typeof payload !== "object") {
@@ -1944,7 +1953,7 @@ export function useChatSession(environmentId: string) {
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
-		const unsubscribeEnded = desktopClient.subscribe(
+		const unsubscribeEnded = subscribeToEnvironment(
 			"chat_session_ended",
 			(payload) => {
 				if (!payload || typeof payload !== "object") {
@@ -1974,7 +1983,7 @@ export function useChatSession(environmentId: string) {
 			unsubscribeStatus();
 			unsubscribeEnded();
 		};
-	}, [clearLiveToolRefs, finalizeSettledTurn]);
+	}, [clearLiveToolRefs, finalizeSettledTurn, subscribeToEnvironment]);
 
 	// ---- Stale-stream fallback for attached sessions ----
 	// Scheduled/automation runs execute on a session host whose events are

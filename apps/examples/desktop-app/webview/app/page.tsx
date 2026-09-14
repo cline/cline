@@ -102,6 +102,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
@@ -503,9 +504,14 @@ export default function Home() {
 	);
 
 	const handleDeleteSession = useCallback(
-		(deletedSessionId: string, deletedThreadId?: string) => {
+		(
+			deletedSessionId: string,
+			deletedThreadId?: string,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
 			dispatchApp({
 				type: "delete-session",
+				environmentId,
 				deletedSessionId,
 				deletedThreadId,
 				fallbackThreadId: makeThreadId(),
@@ -516,8 +522,17 @@ export default function Home() {
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
-		(sessionId: string, metadata: SessionMetadata) => {
-			dispatchApp({ type: "update-session-metadata", sessionId, metadata });
+		(
+			sessionId: string,
+			metadata: SessionMetadata,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
+			dispatchApp({
+				type: "update-session-metadata",
+				sessionId,
+				metadata,
+				environmentId,
+			});
 		},
 		[],
 	);
@@ -534,13 +549,16 @@ export default function Home() {
 			if (!sessionId) {
 				return;
 			}
-			handleDeleteSession(sessionId);
+			handleDeleteSession(sessionId, undefined, eventEnvironmentId(payload));
 		});
 	}, [handleDeleteSession]);
 
-	const activeHistorySessionId =
-		threads.find((thread) => thread.id === activeThreadId)?.historySession
-			?.sessionId ?? null;
+	const activeHistorySession = threads.find(
+		(thread) => thread.id === activeThreadId,
+	)?.historySession;
+	const activeHistorySessionId = activeHistorySession
+		? sessionKey(activeHistorySession)
+		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
 	const handleHome = useCallback(() => {
@@ -602,7 +620,8 @@ export default function Home() {
 	}, []);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
-		onDeleteSession: handleDeleteSession,
+		onDeleteSession: (sessionId, environmentId) =>
+			handleDeleteSession(sessionId, undefined, environmentId),
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
@@ -615,8 +634,8 @@ export default function Home() {
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
-					(environmentId === undefined ||
-						session.environmentId === environmentId),
+					session.environmentId ===
+						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
 				handleOpenSession(cachedSession);
@@ -691,10 +710,19 @@ export default function Home() {
 			return undefined;
 		}
 		const title = sessionHistory.threads.find(
-			(thread) => thread.id === parentSessionId,
+			(thread) =>
+				thread.id ===
+				sessionKey({
+					sessionId: parentSessionId,
+					environmentId: activeThread.environmentId,
+				}),
 		)?.title;
 		return { sessionId: parentSessionId, title };
-	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
+	}, [
+		activeThread?.historySession?.parentSessionId,
+		activeThread?.environmentId,
+		sessionHistory.threads,
+	]);
 
 	return (
 		<AccountProvider>
@@ -775,9 +803,21 @@ export default function Home() {
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
 											}
-											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											onUpdateSessionMetadata={(sessionId, metadata) =>
+												handleUpdateSessionMetadata(
+													sessionId,
+													metadata,
+													activeThread.environmentId,
+												)
+											}
 											threadId={activeThread.id}
-											onDeleteSession={handleDeleteSession}
+											onDeleteSession={(sessionId, threadId) =>
+												handleDeleteSession(
+													sessionId,
+													threadId,
+													activeThread.environmentId,
+												)
+											}
 											onNewThread={handleNewThread}
 											onOpenSession={handleOpenSession}
 											onOpenSessionById={handleOpenSessionById}
@@ -1636,8 +1676,8 @@ function ChatThreadPane({
 			const deleted = await desktopClient.invoke<boolean>(
 				"delete_chat_session",
 				{
-					environmentId,
 					sessionId: activeSessionToDelete,
+					environmentId,
 				},
 			);
 			if (!deleted) {
@@ -1656,6 +1696,7 @@ function ChatThreadPane({
 				new CustomEvent("cline:session-deleted", {
 					detail: {
 						sessionId: activeSessionToDelete,
+						environmentId,
 					},
 				}),
 			);
@@ -1833,8 +1874,8 @@ function ChatThreadPane({
 			setRenamingSession(true);
 			try {
 				await desktopClient.invoke("update_chat_session_title", {
-					environmentId,
 					sessionId: activeSessionForTitle,
+					environmentId,
 					title: nextTitle,
 				});
 				const normalizedTitle = nextTitle.trim();
@@ -1847,6 +1888,7 @@ function ChatThreadPane({
 					new CustomEvent("cline:session-title-updated", {
 						detail: {
 							sessionId: activeSessionForTitle,
+							environmentId,
 							title: normalizedTitle,
 						},
 					}),

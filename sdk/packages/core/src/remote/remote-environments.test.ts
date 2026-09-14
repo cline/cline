@@ -333,6 +333,55 @@ describe("RemoteEnvironmentService", () => {
 		expect(service.getActive()).toBeUndefined();
 	});
 
+	it.each([
+		"reserve",
+		"spawn",
+		"ready",
+	])("cleans up the owned remote Hub when %s fails", async (stage) => {
+		const commands: string[] = [];
+		const tunnel = new FakeTunnel();
+		const fail = () => {
+			throw new Error("tunnel setup failed");
+		};
+		const service = createService({
+			runProcess: async (_executable, args) => {
+				const command = args.at(-1) ?? "";
+				commands.push(command);
+				if (command.includes("uname -s"))
+					return inspection("Linux", "aarch64", "/home/dev");
+				if (command.includes("--remote-hub-ensure"))
+					return success(
+						'{"url":"ws://127.0.0.1:25463/hub","authToken":"secret"}',
+					);
+				return success();
+			},
+			resolveHelperBinary: async () => "/helper",
+			fileReadable: async () => true,
+			hashFile: async () => "abcdef0123456789fedcba9876543210",
+			reservePort: async () => (stage === "reserve" ? fail() : 43117),
+			spawnTunnel: () => (stage === "spawn" ? fail() : tunnel),
+			waitForTunnel: async () => {
+				if (stage === "ready") fail();
+			},
+		});
+		const profile = await service.upsert({ name: "Remote", host: "remote" });
+		await expect(service.connect(profile.id)).rejects.toThrow(
+			"tunnel setup failed",
+		);
+		const ensure = commands.find((command) =>
+			command.includes("--remote-hub-ensure"),
+		);
+		const stop = commands.find((command) =>
+			command.includes("--remote-hub-stop"),
+		);
+		expect(stop).toBeDefined();
+		expect(stop?.split("'--discovery-path' ")[1]).toBe(
+			ensure?.split("'--discovery-path' ")[1],
+		);
+		expect(tunnel.killed).toBe(stage === "ready");
+		expect(service.getConnection(profile.id)).toBeUndefined();
+	});
+
 	it("bounds Hub shutdown before closing the SSH tunnel", async () => {
 		const tunnel = new FakeTunnel();
 		const requestHubShutdown = vi.fn(

@@ -14,6 +14,8 @@ function createDependencies(
 	return {
 		output,
 		dependencies: {
+			readHubDiscovery: vi.fn(async () => undefined),
+			requestHubShutdown: vi.fn(async () => true),
 			ensureDetachedHubServer: vi.fn(async () => ({
 				url: "ws://127.0.0.1:25463/hub",
 				authToken: "desktop-owner-token",
@@ -78,6 +80,39 @@ describe("remote helper entrypoint", () => {
 				dependencies,
 			),
 		).rejects.toThrow("--discovery-path is required");
+	});
+
+	it("stops only the explicitly owned Hub using its authentication token", async () => {
+		const discoveryPath = "/home/pi/.cline/data/remote/owned.json";
+		const { dependencies } = createDependencies({
+			readHubDiscovery: vi.fn(
+				async () =>
+					({
+						url: "ws://127.0.0.1:1234/hub",
+						authToken: "owner-token",
+					}) as Awaited<
+						ReturnType<RemoteHelperDependencies["readHubDiscovery"]>
+					>,
+			),
+		});
+		await expect(
+			runRemoteHelperEntrypoint(
+				["helper", "--remote-hub-stop", "--discovery-path", discoveryPath],
+				dependencies,
+			),
+		).resolves.toBe(true);
+		expect(dependencies.readHubDiscovery).toHaveBeenCalledWith(discoveryPath);
+		expect(dependencies.requestHubShutdown).toHaveBeenCalledWith(
+			"ws://127.0.0.1:1234/hub",
+			"owner-token",
+		);
+	});
+	it("refuses shutdown without an explicit discovery owner", async () => {
+		const { dependencies } = createDependencies();
+		await expect(
+			runRemoteHelperEntrypoint(["helper", "--remote-hub-stop"], dependencies),
+		).rejects.toThrow("--discovery-path is required");
+		expect(dependencies.readHubDiscovery).not.toHaveBeenCalled();
 	});
 
 	it("hosts the detached daemon when the one-shot sentinel is claimed", async () => {

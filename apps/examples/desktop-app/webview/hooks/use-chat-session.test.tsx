@@ -87,6 +87,29 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("ignores another environment's question for the same session", async () => {
+		invokeMock.mockImplementation(async (command: string) =>
+			command === "chat_session_command" ? { sessionId: "same-id" } : [],
+		);
+		await act(async () => current.start(current.config));
+		const handler = handlerFor("ask_question_requested");
+		const question = {
+			sessionId: "same-id",
+			requestId: "question-id",
+			question: "Which branch?",
+			options: [],
+			createdAt: new Date().toISOString(),
+		};
+		await act(async () => {
+			handler({ ...question, environmentId: "remote" });
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+		await act(async () => {
+			handler({ ...question, environmentId: "local" });
+		});
+		expect(current.pendingAskQuestions).toHaveLength(1);
+	});
+
 	it("restores an idle parent when aborting its child fails", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -2229,6 +2252,7 @@ describe("useChatSession", () => {
 			expect(current.pendingAskQuestions).toEqual([pendingQuestion]),
 		);
 		expect(invokeMock).toHaveBeenCalledWith("poll_ask_questions", {
+			environmentId: "local",
 			sessionId: hydratedSessionId,
 		});
 	});

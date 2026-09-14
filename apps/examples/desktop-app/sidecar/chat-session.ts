@@ -43,6 +43,7 @@ import {
 	cancelSidecarMistakeQuestions,
 	emitChunk,
 	findSessionRuntimeBinding,
+	getEnvironmentContext,
 	getSessionRuntimeBinding,
 	nowMs,
 	requestSidecarAskQuestion,
@@ -2033,5 +2034,19 @@ export async function handleChatSessionCommand(
 ): Promise<unknown> {
 	const handler = ACTION_HANDLERS[request.action];
 	if (!handler) throw new Error("unsupported action");
-	return handler(ctx, request);
+	const explicitEnvironment = readEnvironmentId(request.config);
+	const binding =
+		!explicitEnvironment && request.sessionId
+			? await findSessionRuntimeBinding(ctx, request.sessionId)
+			: undefined;
+	return handler(
+		getEnvironmentContext(
+			ctx,
+			explicitEnvironment ??
+				binding?.environmentId ??
+				ctx.activeEnvironmentId ??
+				"local",
+		),
+		request,
+	);
 }

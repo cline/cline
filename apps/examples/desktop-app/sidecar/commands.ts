@@ -97,6 +97,8 @@ import {
 	disconnectRemoteSessionRuntime,
 	ensureSharedHubClient,
 	findSessionRuntimeBinding,
+	getEnvironmentContext,
+	getEnvironmentContexts,
 	getRuntimeBinding,
 	resolveSidecarAskQuestion,
 	sendEventToClient,
@@ -649,7 +651,10 @@ async function listSessionsFromSidecarManager(
 				const record = item as unknown as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
 				if (!sessionId) continue;
-				ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+				getEnvironmentContext(
+					ctx,
+					binding.environmentId,
+				).sessionEnvironmentIds.set(sessionId, binding.environmentId);
 				const merged = mergePersistedSessionRecord(
 					sessionId,
 					record,
@@ -657,7 +662,7 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
-				byId.set(sessionId, {
+				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
 					remoteEnvironment:
@@ -677,47 +682,46 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
-			byId.set(session.sessionId, {
+			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
 			});
 		}
 	}
 
-	for (const [sessionId, session] of ctx.liveSessions.entries()) {
-		const existing = byId.get(sessionId);
-		byId.set(sessionId, {
-			...(existing ?? {}),
-			sessionId,
-			environmentId:
-				session.environmentId ??
-				ctx.sessionEnvironmentIds.get(sessionId) ??
-				LOCAL_ENVIRONMENT_ID,
-			status: session.status,
-			provider: session.config.provider ?? existing?.provider ?? "",
-			model: session.config.model ?? existing?.model ?? "",
-			cwd: session.config.cwd ?? existing?.cwd ?? "",
-			workspaceRoot:
-				session.config.workspaceRoot ??
-				existing?.workspaceRoot ??
-				existing?.cwd ??
-				"",
-			prompt: session.prompt ?? existing?.prompt,
-			startedAt:
-				existing?.startedAt ?? new Date(session.startedAt).toISOString(),
-			endedAt:
-				session.endedAt !== undefined
-					? new Date(session.endedAt).toISOString()
-					: existing?.endedAt,
-			metadata: {
-				...((existing?.metadata && typeof existing.metadata === "object"
-					? existing.metadata
-					: {}) as JsonRecord),
-				...(session.title ? { title: session.title } : {}),
-			},
-		});
+	for (const scoped of getEnvironmentContexts(ctx)) {
+		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
+			const existing = byId.get(key);
+			byId.set(key, {
+				...(existing ?? {}),
+				sessionId,
+				environmentId: scoped.activeEnvironmentId,
+				status: session.status,
+				provider: session.config.provider ?? existing?.provider ?? "",
+				model: session.config.model ?? existing?.model ?? "",
+				cwd: session.config.cwd ?? existing?.cwd ?? "",
+				workspaceRoot:
+					session.config.workspaceRoot ??
+					existing?.workspaceRoot ??
+					existing?.cwd ??
+					"",
+				prompt: session.prompt ?? existing?.prompt,
+				startedAt:
+					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
+				endedAt:
+					session.endedAt !== undefined
+						? new Date(session.endedAt).toISOString()
+						: existing?.endedAt,
+				metadata: {
+					...((existing?.metadata && typeof existing.metadata === "object"
+						? existing.metadata
+						: {}) as JsonRecord),
+					...(session.title ? { title: session.title } : {}),
+				},
+			});
+		}
 	}
-
 	return Array.from(byId.values())
 		.sort((left, right) => {
 			const leftTime = Date.parse(
@@ -853,6 +857,13 @@ async function listGitBranches(
 	return { current: current || undefined, branches };
 }
 
+const REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES = 256 * 1024;
+const REMOTE_FILE_SEARCH_SCRIPT =
+	"if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then " +
+	"git -c core.quotePath=false ls-files --cached --others --exclude-standard; " +
+	"else find . -type d '(' -name .git -o -name node_modules ')' -prune -o -type f -print; fi | " +
+	`head -c ${REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES}`;
+
 async function searchRemoteWorkspaceFiles(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
@@ -874,34 +885,13 @@ async function searchRemoteWorkspaceFiles(
 		typeof args?.limit === "number" && Number.isFinite(args.limit)
 			? Math.max(1, Math.min(50, Math.trunc(args.limit)))
 			: 10;
-	let output = "";
-	try {
-		output = (
-			await ctx.remoteEnvironments.run(binding.environmentId, {
-				command: "git",
-				args: ["ls-files", "--cached", "--others", "--exclude-standard"],
-				cwd: root,
-			})
-		).stdout;
-	} catch {
-		output = (
-			await ctx.remoteEnvironments.run(binding.environmentId, {
-				command: "find",
-				args: [
-					".",
-					"-type",
-					"f",
-					"-not",
-					"-path",
-					"./.git/*",
-					"-not",
-					"-path",
-					"./node_modules/*",
-				],
-				cwd: root,
-			})
-		).stdout;
-	}
+	const result = await ctx.remoteEnvironments.run(binding.environmentId, {
+		command: "sh",
+		args: ["-c", REMOTE_FILE_SEARCH_SCRIPT],
+		cwd: root,
+	});
+	// A byte cap can split a path. Discard the incomplete final record.
+	const output = result.stdout.slice(0, result.stdout.lastIndexOf("\n") + 1);
 	const rank = (path: string): number => {
 		if (!query) return 3;
 		const lower = path.toLowerCase();
@@ -1752,6 +1742,14 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	const explicitEnvironment = requestedEnvironmentId(args);
+	if (explicitEnvironment) {
+		ctx = getEnvironmentContext(ctx, explicitEnvironment);
+	} else if (typeof args?.sessionId === "string" && args.sessionId.trim()) {
+		const binding = await findSessionRuntimeBinding(ctx, args.sessionId.trim());
+		if (binding) ctx = getEnvironmentContext(ctx, binding.environmentId);
+	}
+
 	// ── SSH remote environments ──────────────────────────────────────
 	if (command === "list_remote_environments") {
 		const service = getRemoteEnvironmentService(ctx);

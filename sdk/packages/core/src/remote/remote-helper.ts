@@ -1,10 +1,14 @@
 import { homedir } from "node:os";
 import { claimHubDaemonProcess } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
+import { requestHubShutdown } from "../hub/client";
 import { ensureDetachedHubServer } from "../hub/daemon";
+import { readHubDiscovery } from "../hub/discovery";
 import { ensureLoginShellPath } from "./shell-path";
 
 export type RemoteHelperDependencies = {
+	readHubDiscovery: typeof readHubDiscovery;
+	requestHubShutdown: typeof requestHubShutdown;
 	ensureDetachedHubServer: typeof ensureDetachedHubServer;
 	claimHubDaemonProcess: typeof claimHubDaemonProcess;
 	loadHubDaemon: () => Promise<unknown>;
@@ -17,6 +21,8 @@ export type RemoteHelperDependencies = {
 };
 
 const defaultDependencies: RemoteHelperDependencies = {
+	readHubDiscovery,
+	requestHubShutdown,
 	ensureDetachedHubServer,
 	claimHubDaemonProcess,
 	loadHubDaemon: () => import("@cline/core/hub/daemon-entry"),
@@ -82,6 +88,17 @@ export async function runRemoteHelperEntrypoint(
 	argv = process.argv,
 	dependencies: RemoteHelperDependencies = defaultDependencies,
 ): Promise<boolean> {
+	if (argv.includes("--remote-hub-stop")) {
+		const discoveryPath = configureDedicatedDiscovery(argv, dependencies);
+		const hub = await dependencies.readHubDiscovery(discoveryPath);
+		if (
+			hub &&
+			!(await dependencies.requestHubShutdown(hub.url, hub.authToken))
+		) {
+			throw new Error("Remote Hub shutdown failed");
+		}
+		return true;
+	}
 	if (argv.includes("--remote-hub-ensure")) {
 		await runRemoteHubEnsure(argv, dependencies);
 		return true;

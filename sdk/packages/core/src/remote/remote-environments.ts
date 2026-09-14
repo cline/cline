@@ -315,6 +315,8 @@ export class RemoteEnvironmentService {
 		}
 
 		this.setStatus(id, "connecting", "Connecting to remote environment");
+		let bootstrap: { helper: string; discoveryPath: string } | undefined;
+		let pendingTunnel: RemoteTunnelProcess | undefined;
 		try {
 			const inspection = await this.inspectRemote(profile);
 			await this.validateDirectory(profile, inspection.home);
@@ -351,6 +353,7 @@ export class RemoteEnvironmentService {
 				inspection.home,
 				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}.json`,
 			);
+			bootstrap = { helper: remoteHelper, discoveryPath };
 			const ensureResult = await this.execRemote(profile, {
 				command: remoteHelper,
 				args: [
@@ -367,17 +370,13 @@ export class RemoteEnvironmentService {
 				this.sshPath,
 				this.buildTunnelArgs(profile, localPort, hub.port),
 			);
+			pendingTunnel = tunnel;
 
-			try {
-				await this.dependencies.waitForTunnel(
-					localPort,
-					tunnel,
-					this.tunnelTimeoutMs,
-				);
-			} catch (error) {
-				tunnel.kill("SIGTERM");
-				throw error;
-			}
+			await this.dependencies.waitForTunnel(
+				localPort,
+				tunnel,
+				this.tunnelTimeoutMs,
+			);
 
 			const connectedAt = this.dependencies.now().toISOString();
 			const connection: RemoteEnvironmentConnection = {
@@ -413,8 +412,35 @@ export class RemoteEnvironmentService {
 				}
 				previousManaged.tunnel.kill("SIGTERM");
 			}
+			bootstrap = undefined;
+			pendingTunnel = undefined;
 			return { ...connection, profile: { ...connection.profile } };
 		} catch (error) {
+			pendingTunnel?.kill("SIGTERM");
+			let cleanupError: unknown;
+			if (bootstrap) {
+				try {
+					// An independent SSH command works even when forwarding never opened.
+					await this.execRemote(profile, {
+						command: bootstrap.helper,
+						args: [
+							"--remote-hub-stop",
+							"--discovery-path",
+							bootstrap.discoveryPath,
+						],
+					});
+				} catch (failure) {
+					cleanupError = failure;
+				}
+			}
+			if (cleanupError) {
+				const failure = new Error(
+					`${errorMessage(error)}; remote Hub cleanup failed: ${errorMessage(cleanupError)}`,
+					{ cause: error },
+				);
+				this.setStatus(id, "error", failure.message);
+				throw failure;
+			}
 			this.setStatus(id, "error", errorMessage(error));
 			throw error;
 		}

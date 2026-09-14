@@ -607,6 +607,7 @@ describe("Code sidecar runtime capabilities", () => {
 			events.find((message) => message.event.name === "prompts_in_queue_state")
 				?.event.payload,
 		).toEqual({
+			environmentId: "local",
 			sessionId: "session-1",
 			items: [
 				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
@@ -772,7 +773,7 @@ describe("Code sidecar runtime capabilities", () => {
 			expect.objectContaining({
 				event: expect.objectContaining({
 					name: "ask_question_answered",
-					payload: { requestId },
+					payload: { requestId, environmentId: "local" },
 				}),
 			}),
 		);
@@ -1269,6 +1270,7 @@ describe("Code sidecar runtime capabilities", () => {
 				event: {
 					name: "task.created",
 					payload: {
+						environmentId: "local",
 						taskId: "task-1",
 						status: "pending_approval",
 					},
@@ -1297,6 +1299,7 @@ describe("Code sidecar runtime capabilities", () => {
 				event: {
 					name: "settings.changed",
 					payload: {
+						environmentId: "local",
 						types: ["plugins", "skills", "mcp"],
 					},
 				},

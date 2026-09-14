@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
 	mkdirSync,
 	mkdtempSync,
@@ -596,14 +597,14 @@ describe("remote environment command routing", () => {
 			if (input.command === "pwd") {
 				return { stdout: "/srv/code\n", stderr: "", exitCode: 0 };
 			}
-			if (input.command === "sh") {
+			if (input.command === "sh" && !input.args[1]?.includes("ls-files")) {
 				return {
 					stdout: "/srv/code/zeta\0/srv/code/project\0",
 					stderr: "",
 					exitCode: 0,
 				};
 			}
-			if (input.command === "git" && input.args[0] === "ls-files") {
+			if (input.command === "sh" && input.args[1]?.includes("ls-files")) {
 				return {
 					stdout: "src/remote.ts\nREADME.md\n",
 					stderr: "",
@@ -669,8 +670,8 @@ describe("remote environment command routing", () => {
 			}),
 		).resolves.toEqual(["src/remote.ts"]);
 		expect(fake.run).toHaveBeenCalledWith(profile.id, {
-			command: "git",
-			args: ["ls-files", "--cached", "--others", "--exclude-standard"],
+			command: "sh",
+			args: ["-c", expect.stringContaining("head -c 262144")],
 			cwd: "/srv/code/project",
 		});
 
@@ -688,6 +689,43 @@ describe("remote environment command routing", () => {
 			args: ["branch", "--show-current"],
 			cwd: "/srv/code/project",
 		});
+	});
+
+	it("bounds remote search output before transfer and drops a truncated filename", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const root = mkdtempSync(join(tmpdir(), "remote-search-limit-"));
+		try {
+			for (let i = 0; i < 2800; i++)
+				writeFileSync(join(root, `${i}-${"x".repeat(100)}.ts`), "");
+			const ctx = createSidecarContext(root);
+			const fake = createFakeService();
+			ctx.remoteEnvironments = fake.service;
+			ctx.runtimeBindings.set(
+				profile.id,
+				createExistingRemoteBinding(profile.id),
+			);
+			let transferredBytes = 0;
+			fake.run.mockImplementation(async (_id, input) => {
+				const stdout = execFileSync(input.command, input.args, {
+					cwd: input.cwd,
+					encoding: "utf8",
+				});
+				transferredBytes = Buffer.byteLength(stdout);
+				return { stdout, stderr: "", exitCode: 0 };
+			});
+			const result = (await handleCommand(ctx, "search_workspace_files", {
+				environmentId: profile.id,
+				workspaceRoot: root,
+				limit: 200,
+			})) as string[];
+			expect(transferredBytes).toBe(262144);
+			expect(result.length).toBeGreaterThan(0);
+			expect(result.length).toBeLessThanOrEqual(200);
+			expect(result.every((path) => path.endsWith(".ts"))).toBe(true);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("lists and bounds local workspace directories through the local binding", async () => {
@@ -734,6 +772,66 @@ describe("remote environment command routing", () => {
 		} finally {
 			rmSync(temporaryRoot, { recursive: true, force: true });
 		}
+	});
+
+	it("lists duplicate session IDs separately and rejects ambiguous routing", async () => {
+		const { handleCommand } = await import("./commands");
+		const {
+			createSidecarContext,
+			getEnvironmentContext,
+			findSessionRuntimeBinding,
+			emitChunk,
+		} = await import("./context");
+		const ctx = createSidecarContext("/local/project");
+		for (const environmentId of [profile.id, secondProfile.id]) {
+			const record = {
+				id: "same-id",
+				sessionId: "same-id",
+				status: "idle",
+				createdAt: "2026-09-14T00:00:00Z",
+			};
+			ctx.runtimeBindings.set(environmentId, {
+				...createExistingRemoteBinding(environmentId),
+				sessionManager: {
+					list: vi.fn(async () => [record]),
+					get: vi.fn(async () => record),
+				} as unknown as SessionRuntimeBinding["sessionManager"],
+			});
+		}
+		const sessions = (await handleCommand(
+			ctx,
+			"list_discovered_sessions",
+			{},
+		)) as Array<{ sessionId: string; environmentId: string }>;
+		expect(
+			sessions
+				.filter((session) => session.sessionId === "same-id")
+				.map((session) => session.environmentId)
+				.sort(),
+		).toEqual([profile.id, secondProfile.id]);
+		await expect(findSessionRuntimeBinding(ctx, "same-id")).rejects.toThrow(
+			"environmentId is required",
+		);
+		await expect(
+			findSessionRuntimeBinding(ctx, "same-id", secondProfile.id),
+		).resolves.toMatchObject({ environmentId: secondProfile.id });
+		const first = getEnvironmentContext(ctx, profile.id);
+		const second = getEnvironmentContext(ctx, secondProfile.id);
+		const send = attachEventRecorder(ctx);
+		emitChunk(first, "same-id", "chat_text", "first host");
+		emitChunk(second, "same-id", "chat_text", "second host");
+		expect(readEvent(send, 0).event.payload).toMatchObject({
+			sessionId: "same-id",
+			environmentId: profile.id,
+			index: 1,
+			chunk: "first host",
+		});
+		expect(readEvent(send, 1).event.payload).toMatchObject({
+			sessionId: "same-id",
+			environmentId: secondProfile.id,
+			index: 1,
+			chunk: "second host",
+		});
 	});
 
 	it("routes session reads, title updates, and deletes to the requested environment", async () => {
