@@ -318,6 +318,10 @@ export class RemoteEnvironmentService {
 		id: string,
 	): Promise<RemoteEnvironmentConnection> {
 		const profile = await this.requireProfile(id);
+		// upsert() rejects host/user/port changes via assertProfileUpdateAllowed,
+		// even while disconnected. A different destination needs a new profile,
+		// so editing this profile cannot redirect it while old cleanup is pending.
+		// Finish cleanup before starting another Hub; retries use the current SSH key.
 		await this.retryPendingCleanup(id);
 		const previousManaged = this.connections.get(id);
 		const current = previousManaged?.connection;
@@ -833,8 +837,10 @@ export class RemoteEnvironmentService {
 				await readFile(path, "utf8"),
 			);
 			if (profileId && cleanup.profile.id !== profileId) continue;
-			// Credentials may have changed since the tunnel failed. Only reuse them
-			// when the saved profile still refers to the same SSH destination.
+			// An identity-file edit is allowed while disconnected; destination edits
+			// are rejected by assertProfileUpdateAllowed. Use the current credentials
+			// for retries, but still verify the destination before reusing them from
+			// persisted state (the profile may have been removed or the file edited).
 			const profile = profiles.find(
 				(profile) =>
 					profile.id === cleanup.profile.id &&
