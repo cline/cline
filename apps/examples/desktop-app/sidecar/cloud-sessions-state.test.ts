@@ -70,6 +70,7 @@ async function createFixture() {
 			subscribe: () => vi.fn(),
 		},
 		bufferedEvents: [],
+		bufferedEventsDropped: 0,
 		rehydrationGeneration: 0,
 		transcriptKnown: false,
 		seenEventIds: new Set(),
