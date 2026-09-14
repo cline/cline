@@ -1264,6 +1264,18 @@ export function useSessionHistory({
 			"cloud_sessions_changed",
 			() => {
 				cloudScopeInvalidatedRef.current = true;
+				sessionsRef.current = sessionsRef.current.filter(
+					(session) => session.origin !== "cloud",
+				);
+				threadsRef.current = threadsRef.current.filter(
+					(thread) => thread.origin !== "cloud",
+				);
+				setSessions((current) =>
+					current.filter((session) => session.origin !== "cloud"),
+				);
+				setThreads((current) =>
+					current.filter((thread) => thread.origin !== "cloud"),
+				);
 				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS, { force: true });
 			},
 		);
