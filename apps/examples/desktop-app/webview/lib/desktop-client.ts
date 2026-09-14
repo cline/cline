@@ -33,7 +33,7 @@ async function tryTauriInvoke<T>(
 	}
 }
 
-/** Resolved once on first call; cached for subsequent calls. */
+/** Last resolved endpoint; refreshed whenever the transport (re)connects. */
 let resolvedEndpointCache: string | null = null;
 
 /**
@@ -341,6 +341,10 @@ class DesktopClient {
 		if (this.endpoint?.trim()) {
 			return this.endpoint;
 		}
+		// A respawned sidecar publishes a fresh endpoint (new approval token,
+		// possibly a different port), so every new connection asks the shell
+		// for the live one instead of retrying a stale URL forever.
+		resolvedEndpointCache = null;
 		const endpoint = await resolveDesktopBackendWsEndpoint();
 		this.endpoint = endpoint;
 		return this.endpoint;
@@ -465,6 +469,7 @@ class DesktopClient {
 					if (this.socket === socket) {
 						this.socket = null;
 					}
+					this.endpoint = null;
 					if (this.transportState !== "connected") {
 						reject(
 							new Error(`Desktop backend transport unavailable at ${endpoint}`),

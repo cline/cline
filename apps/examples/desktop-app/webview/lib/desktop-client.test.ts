@@ -272,6 +272,47 @@ describe("DesktopClient command deadlines", () => {
 		});
 	});
 
+	it("re-resolves the backend endpoint after a failed connection attempt", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const first = desktopClient.invoke("get_process_context");
+		await Promise.resolve();
+		await Promise.resolve();
+		const firstSocket = sockets.at(-1);
+		expect(firstSocket?.url).toBe("ws://127.0.0.1:3126/transport");
+		firstSocket?.close();
+		await expect(first).rejects.toThrow(
+			"Desktop backend transport unavailable at ws://127.0.0.1:3126/transport",
+		);
+
+		(window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__ =
+			"ws://127.0.0.1:49152/transport?approval_token=fresh";
+		const second = desktopClient.invoke<{ ok: boolean }>("get_process_context");
+		const secondSocket = await connectLatestSocket();
+		expect(secondSocket.url).toBe(
+			"ws://127.0.0.1:49152/transport?approval_token=fresh",
+		);
+		secondSocket.respond({ ok: true });
+		await expect(second).resolves.toEqual({ ok: true });
+	});
+
+	it("re-resolves the backend endpoint when reconnecting after a drop", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke<{ ok: boolean }>(
+			"get_process_context",
+		);
+		const socket = await connectLatestSocket();
+		socket.respond({ ok: true });
+		await expect(invocation).resolves.toEqual({ ok: true });
+
+		(window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__ =
+			"ws://127.0.0.1:49152/transport?approval_token=fresh";
+		socket.close();
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(sockets.at(-1)?.url).toBe(
+			"ws://127.0.0.1:49152/transport?approval_token=fresh",
+		);
+	});
+
 	it("does not report a transport closure with no pending requests", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const invocation = desktopClient.invoke<{ ok: boolean }>(
