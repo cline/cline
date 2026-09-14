@@ -322,13 +322,18 @@ export class MessageTranslatorState {
 		return this.streamingToolName
 	}
 
-	/** Clear streaming tool */
+	/** Clear streaming tool, returning its row ts (minted now if the tool never rendered a row). */
 	clearStreamingTool(): number {
 		const ts = this.streamingToolTs ?? this.nextTs()
+		this.discardStreamingTool()
+		return ts
+	}
+
+	/** Forget the active tool stream without minting — for tools that render through other rows (spawn_agent). */
+	discardStreamingTool(): void {
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
-		return ts
 	}
 
 	/** Whether attempt_completion tool was called in this turn */
@@ -870,6 +875,11 @@ export function getCompletionResultText(input: unknown): string {
 	return getStringField(parsed, "summary") ?? getStringField(parsed, "result") ?? ""
 }
 
+/** The task prompt of a spawn_agent input, shown in the use_subagents prompts row. */
+export function getSpawnAgentTaskPrompt(input: unknown): string {
+	return getStringField(parseToolInput(input), "task") ?? ""
+}
+
 /** A single file read request parsed from a read_files/read_file input */
 interface FileReadRequest {
 	path: string
@@ -1159,14 +1169,12 @@ export function buildToolApprovalAskMessage(toolName: string, input: unknown, ts
 	}
 
 	if (toolName === "spawn_agent") {
-		const parsedInput = parseToolInput(input)
-		const taskPrompt = getStringField(parsedInput, "task") ?? ""
 		return {
 			ts,
 			type: "ask",
 			ask: "use_subagents",
 			text: JSON.stringify({
-				prompts: [taskPrompt],
+				prompts: [getSpawnAgentTaskPrompt(input)],
 			} satisfies ClineAskUseSubagents),
 			partial: false,
 		}
@@ -1372,10 +1380,8 @@ export function translateAgentEvent(event: AgentEvent, state: MessageTranslatorS
 					// with running status. Multiple parallel spawn_agent calls in the
 					// same iteration are aggregated into a single status message.
 					if (toolName === "spawn_agent") {
-						const parsedInput = parseToolInput(input)
-						const taskPrompt = getStringField(parsedInput, "task") ?? ""
 						const callId = event.toolCallId ?? `spawn-${state.nextTs()}`
-						state.addSpawnAgent(callId, taskPrompt)
+						state.addSpawnAgent(callId, getSpawnAgentTaskPrompt(input))
 						if (approvedToolMessageTs !== undefined) {
 							state.setSpawnAgentPromptsTs(approvedToolMessageTs)
 						}
@@ -1393,8 +1399,8 @@ export function translateAgentEvent(event: AgentEvent, state: MessageTranslatorS
 							partial: true,
 						})
 
-						// Clear the generic streaming tool so it doesn't also emit say:"tool"
-						state.clearStreamingTool()
+						// Forget the generic streaming tool so it doesn't also emit say:"tool"
+						state.discardStreamingTool()
 						break
 					}
 

@@ -563,3 +563,111 @@ describe("FrameMessageBridge differential parity (compaction and errors)", () =>
 		])
 	})
 })
+
+describe("FrameMessageBridge differential parity (spawn_agent aggregation)", () => {
+	const spawnStart = (toolCallId: string, task: string): AgentEvent => ({
+		type: "content_start",
+		contentType: "tool",
+		toolCallId,
+		toolName: "spawn_agent",
+		input: { task },
+	})
+	const spawnProgress = (toolCallId: string, update: unknown): AgentEvent => ({
+		type: "content_update",
+		contentType: "tool",
+		toolCallId,
+		toolName: "spawn_agent",
+		update,
+	})
+	const spawnEnd = (toolCallId: string, extra: { output?: unknown; error?: string } = {}): AgentEvent => ({
+		type: "content_end",
+		contentType: "tool",
+		toolCallId,
+		toolName: "spawn_agent",
+		...extra,
+	})
+	const spawnOutput = (text: string, inputTokens: number, outputTokens: number) => ({
+		text,
+		iterations: 2,
+		finishReason: "completed",
+		usage: { inputTokens, outputTokens },
+	})
+
+	it("a single spawn renders prompts, running status, completed status, and usage", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			spawnStart("s1", "research the API"),
+			spawnProgress("s1", { toolCalls: 2, inputTokens: 100, outputTokens: 20, latestToolCall: "read_file" }),
+			spawnEnd("s1", { output: spawnOutput("found it", 300, 40) }),
+			{ type: "iteration_end", iteration: 1, hadToolCalls: true, toolCallCount: 1 },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("parallel spawns aggregate into one prompts row and one status row", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			spawnStart("s1", "task one"),
+			spawnStart("s2", "task two"),
+			spawnProgress("s2", { toolCalls: 1, contextTokens: 5000, contextWindow: 200000, contextUsagePercentage: 2.5 }),
+			spawnProgress("s1", { toolCalls: 3, totalCost: 0.02 }),
+			spawnEnd("s2", { output: spawnOutput("two done", 10, 5) }),
+			spawnProgress("s1", { toolCalls: 4 }),
+			spawnEnd("s1", { output: spawnOutput("one done", 20, 8) }),
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("a failed spawn marks the group failed once every spawn has closed", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			spawnStart("s1", "will fail"),
+			spawnStart("s2", "will pass"),
+			spawnEnd("s1", { error: "sub-agent crashed" }),
+			spawnEnd("s2", { output: spawnOutput("ok", 1, 1) }),
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("a spawn closing after the iteration boundary reports to the reset group", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			spawnStart("s1", "long task"),
+			{ type: "iteration_end", iteration: 1, hadToolCalls: true, toolCallCount: 1 },
+			{ type: "iteration_start", iteration: 2 },
+			spawnProgress("s1", { toolCalls: 9 }),
+			spawnEnd("s1", { output: spawnOutput("late", 1, 1) }),
+			{ type: "done", text: "", reason: "completed", iterations: 2 },
+		])
+	})
+
+	it("non-object progress and output payloads leave the entry unchanged", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			spawnStart("s1", "task"),
+			spawnProgress("s1", "plain string"),
+			spawnEnd("s1", { output: "not an object" }),
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+
+	it("an aborted turn leaves dangling spawns silent (W3)", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			spawnStart("s1", "task"),
+			spawnProgress("s1", { toolCalls: 1 }),
+			{ type: "done", text: "", reason: "aborted", iterations: 1 },
+		])
+	})
+
+	it("spawn_agent after text drops the completion retag like any tool", () => {
+		expectParity([
+			{ type: "iteration_start", iteration: 1 },
+			{ type: "content_end", contentType: "text", text: "delegating" },
+			spawnStart("s1", "task"),
+			spawnEnd("s1", { output: spawnOutput("done", 1, 1) }),
+			{ type: "content_end", contentType: "text", text: "summary" },
+			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+})

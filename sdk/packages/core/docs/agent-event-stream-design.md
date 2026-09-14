@@ -636,14 +636,35 @@ message of plain-object errors (`{ message }` is type-legal v1 input —
 the pinned translator tests use it), not `String(error)`'s
 "[object Object]". With those, the generated-trace exclusion for
 terminal errors was lifted — the differential now covers error
-terminals in the random traces too. **Remaining checklist:** spawn_agent
-aggregation (SubagentStatusRow consumer; the bridge renders it
-generically until then), approval-coordinator interactions
-(approvedToolMessageTs upserts, denial suppression — annotation wiring
-at the flip), StreamError carrying Error instances' `code`/`status`
-properties (real provider errors may set them; the reshape reads them —
-a `details` follow-up), then the flip — bridge output becomes the
-production ClineMessage source and the v1 switch deletes.
+terminals in the random traces too.
+
+**Phase 3c part 2c status: implemented (third tranche — spawn_agent
+aggregation).** The one translation surface whose state spans several
+tool blocks: parallel spawn_agent calls render as a single
+say:"use_subagents" prompts row and a single say:"subagent" status row
+(each replaced in place), plus say:"subagent_usage" once every spawn
+has closed. In the bridge this is `SpawnAgentGroup`, owned by the turn
+consumer and replaced at each `iteration_started` (v1's `reset()`
+clears its spawn registry); the group is the sole owner of the item
+list and of the two row identities, so the status and usage payloads
+cannot disagree with each other. Spawn sinks resolve the group at each
+callback rather than capturing it at open, so a block closing after
+the iteration boundary reports to the reset group exactly as v1's
+per-callId lookup does. Differential coverage is handcrafted (the
+generator emits only read_file): single and parallel spawns with
+progress, failure, the post-boundary close, non-object payloads, abort
+(W3 silence), and the retag-drop rule. One v1 fix fell out: v1's
+spawn_agent content_start discarded the generic tool stream via
+`clearStreamingTool()`, which mints a ts for a row it never emits; it
+now calls `discardStreamingTool()`, which does not mint. v1's
+suppression heuristic (`hasRunningSpawnAgents()`) is not ported — P5's
+`onSubAgent → null` is its structural replacement. **Remaining
+checklist:** approval-coordinator interactions (approvedToolMessageTs
+upserts, denial suppression — annotation wiring at the flip),
+StreamError carrying Error instances' `code`/`status` properties (real
+provider errors may set them; the reshape reads them — a `details`
+follow-up), then the flip — bridge output becomes the production
+ClineMessage source and the v1 switch deletes.
 
 **Phase 3d — history replay and reconnect.** Snapshot reconciliation
 in the assembler (diff against the live set), live-after-history dedup
