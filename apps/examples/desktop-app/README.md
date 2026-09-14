@@ -327,3 +327,5 @@ credentials, request headers, recorded audio, or transcript contents.
   The sidecar mints a short-lived transcription token; the long-lived gateway
   credential is never sent to the webview. Batch models such as
   `openai/whisper-1` continue to transcribe after recording stops.
+
+SSH requires an already-trusted host key. Before first connection, verify the server fingerprint through a trusted channel and enroll it with your SSH client. Unknown or changed keys are rejected.

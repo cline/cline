@@ -563,7 +563,8 @@ export function RemoteEnvironmentsContent() {
 								value={draft.identityFile ?? ""}
 							/>
 							<p className="text-xs text-muted-foreground">
-								Password sign-in is not supported.
+								Password sign-in is not supported. The host key must already be
+								trusted in your SSH known_hosts file.
 							</p>
 						</div>
 

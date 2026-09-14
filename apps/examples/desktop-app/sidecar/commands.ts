@@ -43,7 +43,6 @@ import {
 	probeMcpServerConnection,
 	RemoteEnvironmentService,
 	readGlobalSettings,
-	remoteHelperBinaryFilename,
 	resolveClineAccountTelemetryIdentity,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
@@ -139,6 +138,7 @@ import {
 } from "./paths";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
+import { resolveDesktopRemoteHelper } from "./remote-helper";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -281,36 +281,8 @@ function getRemoteEnvironmentService(
 	if (!ctx.remoteEnvironments) {
 		ctx.remoteEnvironments = new RemoteEnvironmentService({
 			dependencies: {
-				resolveHelperBinary: async (target) => {
-					if (process.env.CLINE_REMOTE_HELPER_BINARY)
-						return process.env.CLINE_REMOTE_HELPER_BINARY;
-					const filename = remoteHelperBinaryFilename(target);
-					return [
-						...(process.env.CLINE_REMOTE_HELPER_DIRECTORY
-							? [join(process.env.CLINE_REMOTE_HELPER_DIRECTORY, filename)]
-							: []),
-						join(dirname(process.execPath), "remote-helpers", filename),
-						join(
-							dirname(process.execPath),
-							"..",
-							"Resources",
-							"bin",
-							"remote-helpers",
-							filename,
-						),
-						join(process.cwd(), "src-tauri", "bin", "remote-helpers", filename),
-						join(
-							process.cwd(),
-							"apps",
-							"examples",
-							"desktop-app",
-							"src-tauri",
-							"bin",
-							"remote-helpers",
-							filename,
-						),
-					].find(existsSync);
-				},
+				resolveHelperBinary: async (target) =>
+					resolveDesktopRemoteHelper(target),
 			},
 			onStatusChange: (status) => {
 				broadcastEvent(ctx, "remote_environment_status", status);

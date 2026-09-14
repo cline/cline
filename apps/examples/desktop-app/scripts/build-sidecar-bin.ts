@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { $ } from "bun";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
@@ -82,7 +83,7 @@ const buildRemoteHelpers = async (): Promise<void> => {
 		await buildSidecar(
 			targetTriple,
 			`./src-tauri/bin/remote-helpers/cline-remote-helper-${targetTriple}`,
-			"../../../sdk/packages/core/dist/remote/remote-helper.js",
+			"../../../sdk/packages/core/dist/remote/remote-helper-entry.js",
 			true,
 		);
 	}
@@ -101,6 +102,10 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 };
 
 const main = async () => {
+	// All compiled helpers and the sidecar depend on fresh SDK package exports.
+	await $`bun run build:sdk`.cwd(
+		fileURLToPath(new URL("../../../../", import.meta.url)),
+	);
 	const targetTriple = await resolveTargetTriple();
 	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-helpers`;
 	if (targetTriple === "universal-apple-darwin") {

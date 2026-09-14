@@ -213,6 +213,7 @@ export default function Home() {
 	// provider setup step.
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
+	const environmentSelectionRevision = useRef(0);
 	const [activeRemoteEnvironment, setActiveRemoteEnvironment] =
 		useState<RemoteWorkspaceEnvironment | null>(null);
 	const [remoteEnvironmentProfiles, setRemoteEnvironmentProfiles] = useState<
@@ -278,10 +279,11 @@ export default function Home() {
 
 	useEffect(() => {
 		let cancelled = false;
+		const revision = environmentSelectionRevision.current;
 		desktopClient
 			.invoke<ProcessContext>("get_process_context")
 			.then((context) => {
-				if (!cancelled) {
+				if (!cancelled && revision === environmentSelectionRevision.current) {
 					const remoteEnvironment =
 						remoteWorkspaceEnvironmentFromContext(context);
 					setActiveRemoteEnvironment(remoteEnvironment);
@@ -353,6 +355,7 @@ export default function Home() {
 	}, []);
 	const handleSelectEnvironment = useCallback(
 		async (environmentId: string) => {
+			environmentSelectionRevision.current += 1;
 			try {
 				if (environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID) {
 					if (activeRemoteEnvironment) {
@@ -450,6 +453,7 @@ export default function Home() {
 					typeof event.environmentId === "string" &&
 					typeof event.homeDir === "string"
 				) {
+					environmentSelectionRevision.current += 1;
 					selectLocalDraftWhenChatVisibleRef.current = false;
 					setActiveRemoteEnvironment({
 						id: event.environmentId,
@@ -457,6 +461,7 @@ export default function Home() {
 					});
 				}
 				if (event.status === "disconnected") {
+					environmentSelectionRevision.current += 1;
 					completeRemoteDirectoryPicker(null);
 					setActiveRemoteEnvironment(null);
 					if (view === "chat") {
