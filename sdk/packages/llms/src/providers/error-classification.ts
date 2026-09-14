@@ -447,8 +447,15 @@ export function isRetryableProviderError(error: unknown): boolean {
  * {@link isRetryableProviderError}.
  */
 export function isRetryableBeyondSdkRetries(error: unknown): boolean {
-	if (RetryError.isInstance(error)) {
-		return false;
+	// Guarded like the other typed checks: `RetryError.isInstance` throws when
+	// the "ai" module is only partially available (tests mock it with a subset
+	// of exports), and the classifier below is the correct fallback then.
+	try {
+		if (RetryError.isInstance(error)) {
+			return false;
+		}
+	} catch {
+		// Fall through to the classifier.
 	}
 	return isRetryableProviderError(error);
 }
