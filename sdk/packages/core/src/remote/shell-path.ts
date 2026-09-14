@@ -146,6 +146,14 @@ export function resolveLoginShellPath(
 		});
 
 		let output = "";
+		let outputBytes = 0;
+		const killShell = () => {
+			try {
+				if (child.pid) process.kill(-child.pid, "SIGKILL");
+			} catch {
+				child.kill("SIGKILL");
+			}
+		};
 		let settled = false;
 		const settle = (value: string | undefined) => {
 			if (settled) {
@@ -153,6 +161,8 @@ export function resolveLoginShellPath(
 			}
 			settled = true;
 			clearTimeout(timeout);
+			child.stdout?.destroy();
+			killShell();
 			resolve(value);
 		};
 
@@ -168,6 +178,12 @@ export function resolveLoginShellPath(
 		}, timeoutMs);
 
 		child.stdout?.on("data", (data: Buffer) => {
+			if (settled) return;
+			outputBytes += data.length;
+			if (outputBytes > 64 * 1024) {
+				settle(undefined);
+				return;
+			}
 			output += data.toString("utf8");
 		});
 		child.on("error", () => settle(undefined));

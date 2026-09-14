@@ -6,9 +6,11 @@ import {
 	chmod,
 	mkdir,
 	open,
+	readdir,
 	readFile,
 	rename,
 	rm,
+	writeFile,
 } from "node:fs/promises";
 import { createConnection, createServer } from "node:net";
 import { homedir } from "node:os";
@@ -100,6 +102,8 @@ export interface RemoteTunnelProcess {
 export interface RemoteProcessOptions {
 	timeoutMs: number;
 	inputFile?: string;
+	/** Combined stdout/stderr limit; defaults to 8 MiB. */
+	maxOutputBytes?: number;
 }
 
 interface RemoteInspection extends RemoteHelperTarget {
@@ -149,7 +153,14 @@ interface ProfilesFile {
 	profiles: RemoteEnvironmentProfile[];
 }
 
+interface PendingHubCleanup {
+	profile: RemoteEnvironmentProfile;
+	helper: string;
+	discoveryPath: string;
+}
+
 interface ManagedConnection {
+	cleanup: PendingHubCleanup;
 	connection: RemoteEnvironmentConnection;
 	tunnel: RemoteTunnelProcess;
 }
@@ -307,6 +318,7 @@ export class RemoteEnvironmentService {
 		id: string,
 	): Promise<RemoteEnvironmentConnection> {
 		const profile = await this.requireProfile(id);
+		await this.retryPendingCleanup(id);
 		const previousManaged = this.connections.get(id);
 		const current = previousManaged?.connection;
 		if (current && profilesUseSameConnection(current.profile, profile)) {
@@ -351,7 +363,7 @@ export class RemoteEnvironmentService {
 
 			const discoveryPath = joinRemote(
 				inspection.home,
-				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}.json`,
+				`${REMOTE_DISCOVERY_DIRECTORY}/${this.ownerId}-${createHash("sha256").update(profile.id).digest("hex").slice(0, 16)}.json`,
 			);
 			bootstrap = { helper: remoteHelper, discoveryPath };
 			const ensureResult = await this.execRemote(profile, {
@@ -393,7 +405,11 @@ export class RemoteEnvironmentService {
 				localPort,
 				connectedAt,
 			};
-			const managed = { connection, tunnel };
+			const managed = {
+				connection,
+				tunnel,
+				cleanup: { profile, helper: remoteHelper, discoveryPath },
+			};
 			this.connections.set(id, managed);
 			this.activeProfileId = id;
 			this.setStatus(id, "connected", "Connected", inspection);
@@ -431,6 +447,7 @@ export class RemoteEnvironmentService {
 					});
 				} catch (failure) {
 					cleanupError = failure;
+					await this.persistPendingCleanup({ profile, ...bootstrap });
 				}
 			}
 			if (cleanupError) {
@@ -457,6 +474,7 @@ export class RemoteEnvironmentService {
 		}
 		const managed = this.connections.get(targetId);
 		if (!managed) {
+			await this.retryPendingCleanup(targetId);
 			if (this.activeProfileId === targetId) {
 				this.activeProfileId = undefined;
 			}
@@ -530,6 +548,7 @@ export class RemoteEnvironmentService {
 			for (const id of [...this.connections.keys()]) {
 				await this.disconnectProfile(id);
 			}
+			await this.retryPendingCleanup();
 		});
 	}
 
@@ -680,7 +699,7 @@ export class RemoteEnvironmentService {
 			"-o",
 			`ConnectTimeout=${this.connectTimeoutSeconds}`,
 			"-o",
-			"StrictHostKeyChecking=accept-new",
+			"StrictHostKeyChecking=yes",
 		];
 		if (profile.port) {
 			args.push("-p", String(profile.port));
@@ -765,8 +784,60 @@ export class RemoteEnvironmentService {
 		if (this.activeProfileId === id) {
 			this.activeProfileId = undefined;
 		}
+		// Persist before retrying: network loss can outlive this client process.
+		void this.withMutation(async () => {
+			await this.persistPendingCleanup(managed.cleanup);
+			await this.retryPendingCleanup(id);
+		}).catch((error) =>
+			this.setStatus(
+				id,
+				"error",
+				`${message}; remote Hub cleanup pending: ${errorMessage(error)}`,
+			),
+		);
 		const status = this.setStatus(id, "error", message);
 		this.onConnectionLost?.(status);
+	}
+
+	private async persistPendingCleanup(
+		cleanup: PendingHubCleanup,
+	): Promise<void> {
+		const directory = `${this.profilesPath}.cleanup`;
+		await mkdir(directory, { recursive: true, mode: 0o700 });
+		const key = createHash("sha256")
+			.update(cleanup.discoveryPath)
+			.digest("hex");
+		const path = join(directory, `${key}.json`);
+		const temporary = `${path}.${randomUUID()}.tmp`;
+		try {
+			await writeFile(temporary, JSON.stringify(cleanup), { mode: 0o600 });
+			await rename(temporary, path);
+		} finally {
+			await rm(temporary, { force: true });
+		}
+	}
+
+	private async retryPendingCleanup(profileId?: string): Promise<void> {
+		const directory = `${this.profilesPath}.cleanup`;
+		let files: string[];
+		try {
+			files = await readdir(directory);
+		} catch (error) {
+			if (isNodeError(error) && error.code === "ENOENT") return;
+			throw error;
+		}
+		for (const file of files.filter((file) => file.endsWith(".json"))) {
+			const path = join(directory, file);
+			const cleanup: PendingHubCleanup = JSON.parse(
+				await readFile(path, "utf8"),
+			);
+			if (profileId && cleanup.profile.id !== profileId) continue;
+			await this.execRemote(cleanup.profile, {
+				command: cleanup.helper,
+				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
+			});
+			await rm(path, { force: true });
+		}
 	}
 
 	private async readProfiles(): Promise<RemoteEnvironmentProfile[]> {
@@ -897,61 +968,107 @@ export async function runRemoteProcess(
 	args: string[],
 	options: RemoteProcessOptions,
 ): Promise<RemoteCommandResult> {
+	const maxOutputBytes = options.maxOutputBytes ?? 8 * 1024 * 1024;
+	if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1)
+		throw new Error("maxOutputBytes must be a positive integer");
 	return new Promise((resolve, reject) => {
 		const child = spawn(executable, args, {
 			stdio: [options.inputFile ? "pipe" : "ignore", "pipe", "pipe"],
+			detached: process.platform !== "win32",
 		});
 		const stdout: Buffer[] = [];
 		const stderr: Buffer[] = [];
+		let bytes = 0;
 		let settled = false;
-		const timer = setTimeout(() => {
-			child.kill("SIGTERM");
-			finish(new Error(`${executable} timed out after ${options.timeoutMs}ms`));
-		}, options.timeoutMs);
-
-		const finish = (error?: Error, exitCode?: number): void => {
-			if (settled) {
-				return;
+		let failure: Error | undefined;
+		let input: ReturnType<typeof createReadStream> | undefined;
+		let escalation: ReturnType<typeof setTimeout> | undefined;
+		let deadline: ReturnType<typeof setTimeout> | undefined;
+		const stopInput = () => {
+			input?.destroy();
+			child.stdin?.destroy();
+		};
+		const signalTree = (signal: NodeJS.Signals) => {
+			if (!child.pid) return;
+			if (process.platform === "win32") {
+				// taskkill includes ProxyCommand descendants; child.kill alone does not.
+				const killer = spawn(
+					"taskkill",
+					["/pid", String(child.pid), "/T", "/F"],
+					{ stdio: "ignore" },
+				);
+				killer.on("error", () => child.kill(signal));
+			} else {
+				try {
+					process.kill(-child.pid, signal);
+				} catch {
+					child.kill(signal);
+				}
 			}
+		};
+		const finish = (error?: Error, code?: number) => {
+			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
-			if (error) {
-				reject(error);
-				return;
-			}
-			resolve({
-				stdout: Buffer.concat(stdout).toString("utf8"),
-				stderr: Buffer.concat(stderr).toString("utf8"),
-				exitCode: exitCode ?? 1,
-			});
+			clearTimeout(escalation);
+			clearTimeout(deadline);
+			stopInput();
+			child.stdout?.destroy();
+			child.stderr?.destroy();
+			if (error) reject(error);
+			else
+				resolve({
+					stdout: Buffer.concat(stdout).toString("utf8"),
+					stderr: Buffer.concat(stderr).toString("utf8"),
+					exitCode: code ?? 1,
+				});
 		};
-
-		child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
-		child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
-		child.once("error", (error) => finish(error));
-		// `exit` can fire before stdout/stderr pipes are fully drained. This is
-		// especially visible with SSH ProxyCommand processes (for example gcloud
-		// IAP): an early proxy warning arrives before the remote helper's actual
-		// diagnostic. Settle on `close`, which Node emits after every stdio stream
-		// belonging to the child has closed.
-		child.once("close", (code, signal) => {
-			if (signal) {
-				finish(new Error(`${executable} exited from signal ${signal}`));
+		const terminate = (error: Error) => {
+			if (settled || failure) return;
+			failure = error;
+			stopInput();
+			signalTree("SIGTERM");
+			escalation = setTimeout(() => {
+				signalTree("SIGKILL");
+				// An inherited pipe must not keep cleanup waiting forever.
+				deadline = setTimeout(() => finish(failure), 500);
+			}, 500);
+		};
+		const timer = setTimeout(
+			() =>
+				terminate(
+					new Error(`${executable} timed out after ${options.timeoutMs}ms`),
+				),
+			options.timeoutMs,
+		);
+		const capture = (target: Buffer[], chunk: Buffer) => {
+			if (settled || failure) return;
+			bytes += chunk.length;
+			if (bytes > maxOutputBytes) {
+				terminate(
+					new Error(`${executable} output exceeded ${maxOutputBytes} bytes`),
+				);
 				return;
 			}
-			finish(undefined, code ?? 1);
-		});
-
+			target.push(chunk);
+		};
+		child.stdout?.on("data", (chunk: Buffer) => capture(stdout, chunk));
+		child.stderr?.on("data", (chunk: Buffer) => capture(stderr, chunk));
+		child.once("error", (error) => terminate(error));
+		// Drain late ProxyCommand diagnostics before resolving a successful command.
+		child.once("close", (code, signal) =>
+			finish(
+				failure ??
+					(signal
+						? new Error(`${executable} exited from signal ${signal}`)
+						: undefined),
+				code ?? 1,
+			),
+		);
 		if (options.inputFile && child.stdin) {
-			const input = createReadStream(options.inputFile);
-			child.stdin.once("error", (error) => {
-				child.kill("SIGTERM");
-				finish(error);
-			});
-			input.once("error", (error) => {
-				child.kill("SIGTERM");
-				finish(error);
-			});
+			input = createReadStream(options.inputFile);
+			child.stdin.once("error", terminate);
+			input.once("error", terminate);
 			input.pipe(child.stdin);
 		}
 	});

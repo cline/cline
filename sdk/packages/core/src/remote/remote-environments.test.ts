@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -100,6 +100,103 @@ describe("RemoteEnvironmentService", () => {
 		expect(result.stderr).toContain("remote helper failed");
 	});
 
+	it.each([
+		"stdout",
+		"stderr",
+	])("bounds captured %s and terminates a noisy process", async (stream) => {
+		await expect(
+			runRemoteProcess(
+				process.execPath,
+				[
+					"-e",
+					`process.on('SIGTERM', () => {}); setInterval(() => process.${stream}.write('x'.repeat(8192)), 1)`,
+				],
+				{ timeoutMs: 5000, maxOutputBytes: 16384 },
+			),
+		).rejects.toThrow("output exceeded 16384 bytes");
+	});
+	it("waits for SIGKILL when a timed-out process ignores SIGTERM", async () => {
+		const pidFile = join(testDirectory, "process.pid");
+		await expect(
+			runRemoteProcess(
+				process.execPath,
+				[
+					"-e",
+					`require('fs').writeFileSync(process.argv[1], String(process.pid)); process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)`,
+					pidFile,
+				],
+				{ timeoutMs: 500 },
+			),
+		).rejects.toThrow("timed out");
+		const pid = Number(await readFile(pidFile, "utf8"));
+		expect(() => process.kill(pid, 0)).toThrow();
+	});
+	it("cleans up when the upload input cannot be opened", async () => {
+		await expect(
+			runRemoteProcess(process.execPath, ["-e", "process.stdin.resume()"], {
+				timeoutMs: 5000,
+				inputFile: join(testDirectory, "missing"),
+			}),
+		).rejects.toThrow("ENOENT");
+	});
+
+	it("isolates same-account profiles and retries lost-Hub cleanup after restart", async () => {
+		const commands: string[] = [];
+		const tunnels: FakeTunnel[] = [];
+		let offline = false;
+		const dependencies: Partial<RemoteEnvironmentDependencies> = {
+			runProcess: async (_executable, args) => {
+				const command = args.at(-1) ?? "";
+				commands.push(command);
+				if (offline) throw new Error("Network unavailable");
+				if (command.includes("uname -s"))
+					return inspection("Linux", "x86_64", "/home/dev");
+				if (command.includes("--remote-hub-ensure"))
+					return success(
+						'{"url":"ws://127.0.0.1:25463/hub","authToken":"token"}',
+					);
+				return success();
+			},
+			resolveHelperBinary: async () => "/helper",
+			fileReadable: async () => true,
+			hashFile: async () => "0123456789abcdef",
+			reservePort: async () => 41000 + tunnels.length,
+			spawnTunnel: () => {
+				const tunnel = new FakeTunnel();
+				tunnels.push(tunnel);
+				return tunnel;
+			},
+			waitForTunnel: async () => undefined,
+		};
+		const service = createService(dependencies);
+		const first = await service.upsert({ name: "First", host: "same-account" });
+		const second = await service.upsert({
+			name: "Second",
+			host: "same-account",
+		});
+		await service.connect(first.id);
+		await service.connect(second.id);
+		const ensures = commands.filter((command) =>
+			command.includes("--remote-hub-ensure"),
+		);
+		expect(ensures).toHaveLength(2);
+		expect(ensures[0]).not.toBe(ensures[1]);
+		offline = true;
+		tunnels[0].emit("exit", 255, null);
+		await expect(service.dispose()).rejects.toThrow("Network unavailable");
+		expect(await readdir(`${profilesPath}.cleanup`)).toHaveLength(1);
+		offline = false;
+		const restarted = createService(dependencies);
+		await restarted.dispose();
+		expect(await readdir(`${profilesPath}.cleanup`)).toEqual([]);
+		const stop = commands
+			.filter((command) => command.includes("--remote-hub-stop"))
+			.at(-1);
+		expect(stop?.split("'--discovery-path' ")[1]).toBe(
+			ensures[0]?.split("'--discovery-path' ")[1],
+		);
+	});
+
 	it("persists profiles atomically with private permissions and updates in place", async () => {
 		const service = createService();
 		const created = await service.upsert({
@@ -178,7 +275,7 @@ describe("RemoteEnvironmentService", () => {
 				"-o",
 				"BatchMode=yes",
 				"ConnectTimeout=10",
-				"StrictHostKeyChecking=accept-new",
+				"StrictHostKeyChecking=yes",
 				"-p",
 				"2202",
 				"-i",
@@ -699,8 +796,8 @@ describe("RemoteEnvironmentService", () => {
 				state: "error",
 			}),
 		);
-		// The tunnel is already gone, so leave the dedicated owner record for a
-		// later reconnect instead of risking shutdown of an unrelated local Hub.
+		// Cleanup uses a fresh SSH connection, never the failed local tunnel.
+		await service.dispose();
 		expect(requestHubShutdown).not.toHaveBeenCalled();
 	});
 

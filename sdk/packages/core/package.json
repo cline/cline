@@ -35,6 +35,10 @@
 			"types": "./dist/services/feature-flags/posthog.d.ts",
 			"import": "./dist/services/feature-flags/posthog.js"
 		},
+		"./remote/helper-entry": {
+			"types": "./dist/remote/remote-helper-entry.d.ts",
+			"import": "./dist/remote/remote-helper-entry.js"
+		},
 		"./remote/helper": {
 			"types": "./dist/remote/remote-helper.d.ts",
 			"import": "./dist/remote/remote-helper.js"

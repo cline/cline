@@ -111,15 +111,3 @@ export async function runRemoteHelperEntrypoint(
 	}
 	return false;
 }
-
-if (import.meta.main) {
-	void (async () => {
-		if (!(await runRemoteHelperEntrypoint())) {
-			throw new Error("A remote helper command is required");
-		}
-	})().catch((error) => {
-		const message = error instanceof Error ? error.message : String(error);
-		process.stderr.write(`${message}\n`);
-		process.exitCode = 1;
-	});
-}

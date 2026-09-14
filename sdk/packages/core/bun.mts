@@ -51,7 +51,10 @@ const buildConfig = {
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
-		entrypoints: ["./src/remote/remote-helper.ts"],
+		entrypoints: [
+			"./src/remote/remote-helper.ts",
+			"./src/remote/remote-helper-entry.ts",
+		],
 		outdir: "./dist/remote",
 		...buildConfig,
 	},
