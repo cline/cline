@@ -961,7 +961,7 @@ export class CloudSessionManager {
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	private readonly provisioningControllers = new Map<string, AbortController>();
 	private readonly sendAbortTokens = new Map<string, symbol>();
-	private readonly automaticTitleWrites = new Map<string, Promise<void>>();
+	private readonly titleWrites = new Map<string, Promise<void>>();
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
@@ -1403,7 +1403,11 @@ export class CloudSessionManager {
 			live.prompt ||= prompt;
 		}
 		const record = this.knownSessions.get(outerSessionId);
-		if (record && !record.title?.trim()) {
+		if (
+			record &&
+			!record.title?.trim() &&
+			!this.titleWrites.has(outerSessionId)
+		) {
 			const title = deriveCloudSessionTitle(prompt);
 			if (title) {
 				record.title = title;
@@ -1415,11 +1419,11 @@ export class CloudSessionManager {
 					.then(() => {})
 					.catch(() => {})
 					.finally(() => {
-						if (this.automaticTitleWrites.get(outerSessionId) === write) {
-							this.automaticTitleWrites.delete(outerSessionId);
+						if (this.titleWrites.get(outerSessionId) === write) {
+							this.titleWrites.delete(outerSessionId);
 						}
 					});
-				if (write) this.automaticTitleWrites.set(outerSessionId, write);
+				if (write) this.titleWrites.set(outerSessionId, write);
 			}
 		}
 		try {
@@ -1879,16 +1883,27 @@ export class CloudSessionManager {
 	}
 
 	async updateTitle(outerSessionId: string, title: string): Promise<void> {
-		await this.automaticTitleWrites.get(outerSessionId);
-		this.assertSessionActive(outerSessionId);
-		await this.options.api.updateTitle(outerSessionId, title);
-		const record = this.knownSessions.get(outerSessionId);
-		if (record) {
-			record.title = title;
-		}
-		const live = this.ctx.liveSessions.get(outerSessionId);
-		if (live) {
-			live.title = title;
+		const previous = this.titleWrites.get(outerSessionId);
+		const write = (async () => {
+			await previous?.catch(() => {});
+			this.assertSessionActive(outerSessionId);
+			await this.options.api.updateTitle(outerSessionId, title);
+			const record = this.knownSessions.get(outerSessionId);
+			if (record) {
+				record.title = title;
+			}
+			const live = this.ctx.liveSessions.get(outerSessionId);
+			if (live) {
+				live.title = title;
+			}
+		})();
+		this.titleWrites.set(outerSessionId, write);
+		try {
+			await write;
+		} finally {
+			if (this.titleWrites.get(outerSessionId) === write) {
+				this.titleWrites.delete(outerSessionId);
+			}
 		}
 	}
 
