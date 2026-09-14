@@ -17,6 +17,8 @@ function createDependencies(
 		output,
 		dependencies: {
 			readHubDiscovery: vi.fn(async () => undefined),
+			clearHubDiscoveryIfOwned: vi.fn(async () => true),
+			probeProcess: vi.fn(),
 			requestHubShutdown: vi.fn(async () => true),
 			ensureDetachedHubServer: vi.fn(async () => ({
 				url: "ws://127.0.0.1:25463/hub",
@@ -125,6 +127,51 @@ describe("remote helper entrypoint", () => {
 			"owner-token",
 		);
 	});
+	it.each([
+		"dead",
+		"alive",
+		"denied",
+	])("handles %s Hub processes during cleanup", async (state) => {
+		const discoveryPath = "/home/pi/.cline/data/remote/owned.json";
+		const { dependencies } = createDependencies({
+			readHubDiscovery: vi.fn(
+				async () =>
+					({
+						hubId: "owned-hub",
+						pid: 1234,
+						url: "ws://127.0.0.1:1234/hub",
+						authToken: "owner-token",
+					}) as Awaited<
+						ReturnType<RemoteHelperDependencies["readHubDiscovery"]>
+					>,
+			),
+			probeProcess: vi.fn(() => {
+				if (state !== "alive")
+					throw Object.assign(new Error(state), {
+						code: state === "dead" ? "ESRCH" : "EPERM",
+					});
+			}),
+			requestHubShutdown: vi.fn(async () => {
+				throw new Error("Connection refused");
+			}),
+		});
+		const result = runRemoteHelperEntrypoint(
+			["helper", "--remote-hub-stop", "--discovery-path", discoveryPath],
+			dependencies,
+		);
+		if (state === "dead") {
+			await expect(result).resolves.toBe(true);
+			expect(dependencies.clearHubDiscoveryIfOwned).toHaveBeenCalledWith(
+				discoveryPath,
+				"owned-hub",
+			);
+			expect(dependencies.requestHubShutdown).not.toHaveBeenCalled();
+		} else {
+			await expect(result).rejects.toThrow("Connection refused");
+			expect(dependencies.clearHubDiscoveryIfOwned).not.toHaveBeenCalled();
+		}
+	});
+
 	it("refuses shutdown without an explicit discovery owner", async () => {
 		const { dependencies } = createDependencies();
 		await expect(
