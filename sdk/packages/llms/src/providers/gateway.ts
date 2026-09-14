@@ -26,6 +26,15 @@ import { isPositiveFiniteNumber } from "./utils";
 export type * from "@cline/shared";
 
 export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
+/**
+ * When a model advertises an output budget and the caller sets no explicit
+ * max-tokens, the synthesized default is this fraction of the model's budget
+ * instead of the flat DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS. This scales the
+ * per-request cap up for large-budget models (so a reasoning turn can finish
+ * before the limit) and down for models whose budget is below the flat default
+ * (so we never request more than the model can emit).
+ */
+export const DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION = 0.3;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
 
 function mergeRequestMetadata(
@@ -202,10 +211,21 @@ export function resolveGatewayRequestMaxTokens(input: {
 			? Math.floor(input.reasoningBudgetTokens) +
 				(input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS)
 			: 0;
-		const defaultMaxOutputTokens = Math.max(
-			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
-			reasoningFloor,
-		);
+		// Synthesized default cap: an explicit caller default wins; otherwise a
+		// fraction of the model's advertised output budget (see
+		// DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION); otherwise the flat default. A
+		// reasoning budget still lifts it, and the model/context caps below still
+		// clamp it.
+		const baseDefault =
+			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
+		const catalogDefault =
+			input.defaultMaxOutputTokens === undefined &&
+			isPositiveFiniteNumber(input.model.maxOutputTokens)
+				? Math.floor(
+						input.model.maxOutputTokens * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
+					)
+				: baseDefault;
+		const defaultMaxOutputTokens = Math.max(catalogDefault, reasoningFloor);
 		if (
 			isPositiveFiniteNumber(input.model.maxOutputTokens) ||
 			isPositiveFiniteNumber(input.model.contextWindow)
