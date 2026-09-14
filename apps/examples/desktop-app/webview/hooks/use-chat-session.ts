@@ -625,16 +625,14 @@ export function useChatSession() {
 	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
-	// Counts user bubbles appended to the live transcript. A failure bubble
-	// stays the trailing one for its turn until the next user bubble lands;
-	// the turn epoch is not usable here because a retry queued while the
-	// failed send is still settling bumps it without adding a bubble.
-	const userBubbleCountRef = useRef(0);
+	// Identifies the logical turn that owns a failure. Queue submission bumps
+	// the broader turn epoch, but this advances only when that queued turn starts.
+	const failureTurnGenerationRef = useRef(0);
 	// The failure bubble already shown for the current turn, so a second
 	// report of the same failure updates it instead of adding another.
 	const shownTurnFailureRef = useRef<{
 		sid: string;
-		userBubbleCount: number;
+		generation: number;
 		id: string;
 		hasDetail: boolean;
 	} | null>(null);
@@ -843,12 +841,24 @@ export function useChatSession() {
 	// `error` state follows the bubble so the chat never also shows it as a
 	// banner.
 	const appendTurnFailureMessage = useCallback(
-		(sid: string, detail: string) => {
+		(
+			sid: string,
+			detail: string,
+			ownedGeneration?: number,
+			ownedProviderId?: string,
+		) => {
+			const generation = ownedGeneration ?? failureTurnGenerationRef.current;
+			const isCurrentTurn =
+				sid === activeSessionIdRef.current &&
+				generation === failureTurnGenerationRef.current;
 			const description =
-				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
+				detail.trim() ||
+				(isCurrentTurn
+					? lastCoreErrorBySessionRef.current[sid]?.trim() || ""
+					: "");
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
-			const providerId = providerIdRef.current;
+			const providerId = ownedProviderId ?? providerIdRef.current;
 			const content = [
 				description
 					? `The run failed: ${description}`
@@ -861,11 +871,7 @@ export function useChatSession() {
 				? credentialFailureMeta(providerId)
 				: undefined;
 			const shown = shownTurnFailureRef.current;
-			if (
-				shown &&
-				shown.sid === sid &&
-				shown.userBubbleCount === userBubbleCountRef.current
-			) {
+			if (shown && shown.sid === sid && shown.generation === generation) {
 				if (!description || shown.hasDetail) {
 					return;
 				}
@@ -877,13 +883,14 @@ export function useChatSession() {
 						meta,
 					})),
 				);
-				setError(content);
+				if (isCurrentTurn) setError(content);
 				return;
 			}
+			if (!isCurrentTurn) return;
 			const message = makeErrorChatMessage(sid, content, meta);
 			shownTurnFailureRef.current = {
 				sid,
-				userBubbleCount: userBubbleCountRef.current,
+				generation,
 				id: message.id,
 				hasDetail: Boolean(description),
 			};
@@ -1716,6 +1723,7 @@ export function useChatSession() {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
+				failureTurnGenerationRef.current += 1;
 				setActivityLabel(null);
 				// A new turn starts now: an error remembered from an earlier turn
 				// must not be attributed to this one if it fails without detail.
@@ -1790,7 +1798,6 @@ export function useChatSession() {
 					!parsed.transcriptReflected &&
 					(userLabel || userImages.length > 0)
 				) {
-					userBubbleCountRef.current += 1;
 					// Computed outside the updater: makeId() inside would mint a
 					// different id on each StrictMode re-invocation.
 					const userMessageId = promptId
@@ -2685,7 +2692,7 @@ export function useChatSession() {
 						state: "pending",
 					});
 				}
-				userBubbleCountRef.current += 1;
+				failureTurnGenerationRef.current += 1;
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -2717,6 +2724,7 @@ export function useChatSession() {
 				]);
 			}
 
+			const failureGenerationAtSubmission = failureTurnGenerationRef.current;
 			let sendTask: ReturnType<typeof postSession> | null = null;
 			// The turn epoch at send-RPC dispatch time. chat_queued_prompt_start
 			// bumps the epoch when the runtime starts consuming a queued prompt,
@@ -2876,8 +2884,11 @@ export function useChatSession() {
 			let abortedReconcileEpoch: number | undefined;
 			let replySuperseded = false;
 			let promptTaken = true;
+			const failureOwnerCurrent = () =>
+				activeSessionIdRef.current === activeSessionId &&
+				failureGenerationAtSubmission === failureTurnGenerationRef.current;
 			const settleAbortedSend = () => {
-				if (!abortedRef.current) return false;
+				if (!abortedRef.current || !failureOwnerCurrent()) return false;
 				if (
 					authoritativeStatusRevisionRef.current ===
 					abortStatusRevisionRef.current
@@ -3272,6 +3283,8 @@ export function useChatSession() {
 					appendTurnFailureMessage(
 						activeSessionId,
 						runError || toolError?.trim() || "",
+						failureGenerationAtSubmission,
+						parsed.provider,
 					);
 					if (!newerTurnOwnsStatus) {
 						turnSettledEpochRef.current = turnEpochRef.current;
@@ -3301,15 +3314,21 @@ export function useChatSession() {
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
 				if (settleAbortedSend()) return true;
-				if (optimisticQueuedPromptId) {
-					setPromptsInQueue((prev) =>
-						prev.filter((item) => item.id !== optimisticQueuedPromptId),
-					);
-				}
 				markCloudOptimisticFailed();
-				setErrorState(errorMessage(err), activeSessionId);
+				if (!failureOwnerCurrent()) {
+					replySuperseded = true;
+				} else {
+					if (optimisticQueuedPromptId) {
+						setPromptsInQueue((prev) =>
+							prev.filter((item) => item.id !== optimisticQueuedPromptId),
+						);
+					}
+					setErrorState(errorMessage(err), activeSessionId);
+				}
 			} finally {
-				if (!replySuperseded) clearAbortFallbackTimeout();
+				if (!replySuperseded && failureOwnerCurrent()) {
+					clearAbortFallbackTimeout();
+				}
 				if (!shouldQueue) {
 					pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
 					// If a queued successor already started, these refs belong to it.
@@ -3859,7 +3878,7 @@ export function useChatSession() {
 	const steerPromptInQueue = useCallback(
 		async (promptId: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
+			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
 				return;
 			}
 			const payload = await postSession({
@@ -3871,13 +3890,13 @@ export function useChatSession() {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[isCloudSessionExpired, postSession],
 	);
 
 	const updatePromptInQueue = useCallback(
 		async (promptId: string, prompt: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
+			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
 				return;
 			}
 			const payload = await postSession({
@@ -3890,13 +3909,13 @@ export function useChatSession() {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[isCloudSessionExpired, postSession],
 	);
 
 	const removePromptInQueue = useCallback(
 		async (promptId: string): Promise<PromptInQueue | undefined> => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
+			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
 				return undefined;
 			}
 			const payload = await postSession({
@@ -3909,7 +3928,7 @@ export function useChatSession() {
 			);
 			return payload.prompt;
 		},
-		[postSession],
+		[isCloudSessionExpired, postSession],
 	);
 
 	const summary = useMemo(
@@ -3948,7 +3967,7 @@ export function useChatSession() {
 		error,
 		summary,
 		fileDiffs,
-		promptsInQueue,
+		promptsInQueue: isCloudSessionExpired ? [] : promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,

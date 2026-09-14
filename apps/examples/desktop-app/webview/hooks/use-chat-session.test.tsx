@@ -1257,7 +1257,17 @@ describe("useChatSession", () => {
 		expect(current.isCloudSessionExpired).toBe(true);
 		expect(current.status).toBe("completed");
 		expect(current.promptsInQueue).toEqual([]);
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({ sessionId, items: queued });
+		});
+		expect(current.promptsInQueue).toEqual([]);
 		invokeMock.mockClear();
+		await act(async () => {
+			await current.steerPromptInQueue("queued");
+			await current.updatePromptInQueue("queued", "changed");
+			await current.removePromptInQueue("queued");
+		});
+		expect(invokeMock).not.toHaveBeenCalled();
 		await act(async () =>
 			expect(await current.sendPrompt("do not send")).toBe(false),
 		);
@@ -4628,12 +4638,19 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("failed");
 	});
 
-	it("keeps a single failure bubble when a retry is queued between the chat_done and RPC reports", async () => {
-		// The failed send is still settling (awaiting its history reads) when
-		// the user retries. That submission is forced onto the queue path,
-		// which bumps the turn epoch without adding a user bubble, so the
-		// late RPC report must still recognize the bubble already on screen.
+	it.each([
+		[false, "resolve", false, false],
+		[true, "resolve", false, false],
+		[true, "resolve", true, false],
+		[true, "reject", false, false],
+		[true, "reject", true, false],
+		[true, "reject", false, true],
+	] as const)("keeps failure ownership when retry starts=%s RPC=%s B-failure=%s queued-reject=%s", async (startRetry, rpcOutcome, testSecondFailure, queuedRpcReject) => {
+		// A retry may start before the first send's late RPC result arrives.
 		let resolveSend: ((value: unknown) => void) | undefined;
+		let rejectSend: ((reason?: unknown) => void) | undefined;
+		let rejectQueuedSend: ((reason?: unknown) => void) | undefined;
+		let secondTurnError: string | null = null;
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -4651,6 +4668,11 @@ describe("useChatSession", () => {
 						return { sessionId: request.config?.sessionId };
 					}
 					if (request?.action === "send" && request.delivery === "queue") {
+						if (queuedRpcReject) {
+							return await new Promise((_resolve, reject) => {
+								rejectQueuedSend = reject;
+							});
+						}
 						return {
 							ok: true,
 							queued: true,
@@ -4658,8 +4680,9 @@ describe("useChatSession", () => {
 						};
 					}
 					if (request?.action === "send") {
-						return await new Promise((resolve) => {
+						return await new Promise((resolve, reject) => {
 							resolveSend = resolve;
+							rejectSend = reject;
 						});
 					}
 				}
@@ -4690,32 +4713,110 @@ describe("useChatSession", () => {
 		});
 		expect(current.messages.filter((m) => m.role === "error")).toHaveLength(1);
 
+		let retryPromise: Promise<boolean> | undefined;
 		await act(async () => {
-			await current.sendPrompt("Retry");
+			retryPromise = current.sendPrompt("Retry");
+			if (queuedRpcReject) await Promise.resolve();
 		});
 		expect(current.promptsInQueue.map((item) => item.prompt)).toEqual([
 			"Retry",
 		]);
+		if (startRetry) {
+			if (testSecondFailure) {
+				await act(async () => {
+					handlerFor("cloud_session_rehydrated")({
+						sessionId: current.sessionId,
+						status: "running",
+						transcriptKnown: true,
+						messages: [
+							{
+								id: "canonical-a",
+								sessionId: current.sessionId,
+								role: "user",
+								content: "First prompt",
+								createdAt: 1,
+							},
+							{
+								id: "canonical-b",
+								sessionId: current.sessionId,
+								role: "user",
+								content: "Retry",
+								createdAt: 2,
+							},
+						],
+					});
+				});
+				expect(
+					current.messages.some((message) => message.id === "canonical-b"),
+				).toBe(true);
+			}
+			await act(async () => {
+				chatEventHandler({
+					sessionId: current.sessionId,
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({
+						promptId: "queued-retry",
+						prompt: "Retry",
+						transcriptReflected: testSecondFailure,
+					}),
+					ts: Date.now(),
+					index: 3,
+				});
+			});
+			expect(current.status).toBe("running");
+			if (queuedRpcReject) {
+				await act(async () => {
+					rejectQueuedSend?.(new Error("queued retry failed"));
+					await retryPromise;
+				});
+			}
+			if (testSecondFailure) {
+				await act(async () => {
+					chatEventHandler({
+						sessionId: current.sessionId,
+						stream: "chat_done",
+						chunk: JSON.stringify({ reason: "error" }),
+						ts: Date.now(),
+						index: 4,
+					});
+				});
+				expect(
+					current.messages.filter((message) => message.role === "error"),
+				).toHaveLength(2);
+				secondTurnError = current.error;
+			}
+		}
 
 		await act(async () => {
-			resolveSend?.({
-				ok: true,
-				result: {
-					finishReason: "error",
-					text: "cline requires re-authentication.",
-				},
-			});
+			if (rpcOutcome === "resolve") {
+				resolveSend?.({
+					ok: true,
+					result: {
+						finishReason: "error",
+						text: "cline requires re-authentication.",
+					},
+				});
+			} else {
+				rejectSend?.(new Error("cline requires re-authentication."));
+			}
 			await sendPromise;
 		});
 
 		const errorMessages = current.messages.filter(
 			(message) => message.role === "error",
 		);
-		expect(errorMessages).toHaveLength(1);
-		expect(errorMessages[0]?.content).toContain(
-			"cline requires re-authentication.",
+		expect(errorMessages).toHaveLength(testSecondFailure ? 2 : 1);
+		if (rpcOutcome === "resolve" && !testSecondFailure) {
+			expect(errorMessages[0]?.content).toContain(
+				"cline requires re-authentication.",
+			);
+		}
+		expect(current.error).toBe(
+			testSecondFailure || startRetry
+				? secondTurnError
+				: errorMessages[0]?.content,
 		);
-		expect(current.error).toBe(errorMessages[0]?.content);
+		expect(current.status).toBe(testSecondFailure ? "failed" : "running");
 	});
 
 	it("gives a fresh session that fails to start over credentials the same guidance and fix action", async () => {
