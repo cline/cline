@@ -30,6 +30,7 @@ const thread: SessionThread = {
 
 const session: SessionHistoryItem = {
 	sessionId: thread.id,
+	environmentId: "local",
 	status: "completed",
 	provider: thread.provider,
 	model: thread.model,

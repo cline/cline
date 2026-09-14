@@ -78,6 +78,41 @@ afterEach(async () => {
 });
 
 describe("SessionCommandBar", () => {
+	it("opens a search result in its SSH environment", async () => {
+		const onOpenSession = vi.fn();
+		desktopMocks.invoke.mockResolvedValue([
+			{
+				sessionId: "ssh-session",
+				environmentId: "ssh-test",
+				documentId: "ssh-session:0",
+				ordinal: 0,
+				role: "user",
+				startedAt: "2026-09-14T00:00:00Z",
+				workspaceRoot: "/remote/project",
+				title: "Remote project",
+				snippet: "remote prompt",
+			},
+		]);
+		await act(async () =>
+			root.render(
+				<SessionCommandBar
+					open
+					onOpenChange={vi.fn()}
+					onOpenSession={onOpenSession}
+				/>,
+			),
+		);
+		await changeInput(
+			document.querySelector("input") as HTMLInputElement,
+			"remote",
+		);
+		await waitForDebounce();
+		await act(async () =>
+			document.querySelector<HTMLElement>("[cmdk-item]")?.click(),
+		);
+		expect(onOpenSession).toHaveBeenCalledWith("ssh-session", "ssh-test");
+	});
+
 	it("keeps typing responsive, ignores stale searches, and lazily renders bounded results", async () => {
 		const firstSearch = deferred<SearchHit[]>();
 		const secondSearch = deferred<SearchHit[]>();
