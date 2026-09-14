@@ -324,7 +324,9 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
-			// Tracks when the Cline panel becomes visible
+			// Tracks when the Cline panel becomes visible. `source` says which hook fired:
+			// "sidebar_resolved"/"sidebar_visible" are VS Code-only; "webview_initialized"
+			// fires from the webview's mount-time initializeWebview RPC on every host.
 			PANEL_OPENED: "ui.panel_opened",
 			// Tracks when the user explicitly starts a new task flow
 			NEW_TASK_CLICKED: "ui.new_task_clicked",
