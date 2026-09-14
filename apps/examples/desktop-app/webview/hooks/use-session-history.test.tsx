@@ -281,6 +281,57 @@ describe("useSessionHistory live status", () => {
 });
 
 describe("useSessionHistory cloud scope", () => {
+	it("clears old cloud rows immediately and preserves local history if refresh fails", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		const local = sessionRow("local-session");
+		await act(async () => {
+			pendingLists[0].resolve([
+				local,
+				{ ...sessionRow("old-account"), origin: "cloud" },
+			]);
+		});
+		const localSession = current.sessions.find(
+			(row) => row.sessionId === local.sessionId,
+		);
+		const localThread = current.threads.find(
+			(row) => row.id === local.sessionId,
+		);
+
+		await act(async () => {
+			subscribers.get("cloud_sessions_changed")?.({});
+			expect(current.getSessionByThreadId("old-account")).toBeUndefined();
+		});
+		expect(current.sessions).toEqual([localSession]);
+		expect(current.threads).toEqual([localThread]);
+
+		await flush(51);
+		await act(async () => {
+			pendingLists[1].reject(new Error("transport closed"));
+		});
+		expect(current.sessions).toEqual([localSession]);
+		expect(current.threads).toEqual([localThread]);
+
+		await act(async () => {
+			const refresh = current.refreshSessions();
+			pendingLists[2].resolve([
+				local,
+				{ ...sessionRow("new-account"), origin: "cloud" },
+			]);
+			await refresh;
+		});
+		expect(current.sessions.map((row) => row.sessionId).sort()).toEqual([
+			"local-session",
+			"new-account",
+		]);
+		expect(current.threads.map((row) => row.id).sort()).toEqual([
+			"local-session",
+			"new-account",
+		]);
+	});
+
 	it("discards an old-scope response and fetches again after an account change", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);
