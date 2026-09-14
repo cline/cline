@@ -3,11 +3,13 @@ import { claimHubDaemonProcess } from "@cline/shared";
 import { setHomeDirIfUnset } from "@cline/shared/storage";
 import { requestHubShutdown } from "../hub/client";
 import { ensureDetachedHubServer } from "../hub/daemon";
-import { readHubDiscovery } from "../hub/discovery";
+import { clearHubDiscoveryIfOwned, readHubDiscovery } from "../hub/discovery";
 import { ensureLoginShellPath } from "./shell-path";
 
 export type RemoteHelperDependencies = {
 	readHubDiscovery: typeof readHubDiscovery;
+	clearHubDiscoveryIfOwned: typeof clearHubDiscoveryIfOwned;
+	probeProcess: (pid: number) => void;
 	requestHubShutdown: typeof requestHubShutdown;
 	ensureDetachedHubServer: typeof ensureDetachedHubServer;
 	claimHubDaemonProcess: typeof claimHubDaemonProcess;
@@ -22,6 +24,10 @@ export type RemoteHelperDependencies = {
 
 const defaultDependencies: RemoteHelperDependencies = {
 	readHubDiscovery,
+	clearHubDiscoveryIfOwned,
+	probeProcess: (pid) => {
+		process.kill(pid, 0);
+	},
 	requestHubShutdown,
 	ensureDetachedHubServer,
 	claimHubDaemonProcess,
@@ -91,6 +97,24 @@ export async function runRemoteHelperEntrypoint(
 	if (argv.includes("--remote-hub-stop")) {
 		const discoveryPath = configureDedicatedDiscovery(argv, dependencies);
 		const hub = await dependencies.readHubDiscovery(discoveryPath);
+		// A crash or reboot can leave discovery pointing at a dead Hub. Only
+		// ESRCH proves the process is gone; permission/probe errors and live
+		// processes must still go through authenticated shutdown.
+		if (
+			hub &&
+			typeof hub.pid === "number" &&
+			Number.isInteger(hub.pid) &&
+			hub.pid > 0
+		) {
+			try {
+				dependencies.probeProcess(hub.pid);
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException)?.code === "ESRCH") {
+					await dependencies.clearHubDiscoveryIfOwned(discoveryPath, hub.hubId);
+					return true;
+				}
+			}
+		}
 		if (
 			hub &&
 			!(await dependencies.requestHubShutdown(hub.url, hub.authToken))
