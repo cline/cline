@@ -189,16 +189,29 @@ describe("RemoteEnvironmentService", () => {
 		).rejects.toThrow("ENOENT");
 	});
 
-	it("isolates same-account profiles and retries lost-Hub cleanup after restart", async () => {
+	it.each([
+		"connect",
+		"delete",
+	])("recovers lost-Hub cleanup with a deleted helper before %s", async (action) => {
 		const commands: string[] = [];
 		const tunnels: FakeTunnel[] = [];
 		let offline = false;
 		let requiredIdentity: string | undefined;
+		let helperMissing = false;
+		let uploads = 0;
 		const dependencies: Partial<RemoteEnvironmentDependencies> = {
-			runProcess: async (_executable, args) => {
+			runProcess: async (_executable, args, options) => {
 				const command = args.at(-1) ?? "";
 				commands.push(command);
 				if (offline) throw new Error("Network unavailable");
+				if (options.inputFile) {
+					uploads += 1;
+					helperMissing = false;
+				}
+				if (helperMissing && command.includes("'test' '-x'"))
+					return { stdout: "", stderr: "", exitCode: 1 };
+				if (helperMissing && command.includes("--remote-hub-stop"))
+					throw new Error("Helper missing");
 				if (requiredIdentity && !args.includes(requiredIdentity)) {
 					throw new Error("Obsolete SSH identity");
 				}
@@ -241,8 +254,11 @@ describe("RemoteEnvironmentService", () => {
 		offline = false;
 		const restarted = createService(dependencies);
 		requiredIdentity = "/keys/rotated";
+		helperMissing = true;
 		await restarted.upsert({ ...first, identityFile: requiredIdentity });
-		await restarted.connect(first.id);
+		if (action === "connect") await restarted.connect(first.id);
+		else expect(await restarted.delete(first.id)).toBe(true);
+		expect(uploads).toBe(1);
 		await restarted.dispose();
 		expect(await readdir(`${profilesPath}.cleanup`)).toEqual([]);
 		const stop = commands
