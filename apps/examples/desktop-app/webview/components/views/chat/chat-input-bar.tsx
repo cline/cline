@@ -1598,7 +1598,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
-/** Sentinel provider-picker row that opens Settings → Models instead of selecting. */
+/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
 const ModelSelector = memo(function ModelSelector({
@@ -1618,7 +1618,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
-	/** Opens Settings → Models; adds a "set up another provider" row when set. */
+	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
