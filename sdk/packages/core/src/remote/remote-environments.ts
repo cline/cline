@@ -826,13 +826,23 @@ export class RemoteEnvironmentService {
 			if (isNodeError(error) && error.code === "ENOENT") return;
 			throw error;
 		}
+		const profiles = await this.readProfiles();
 		for (const file of files.filter((file) => file.endsWith(".json"))) {
 			const path = join(directory, file);
 			const cleanup: PendingHubCleanup = JSON.parse(
 				await readFile(path, "utf8"),
 			);
 			if (profileId && cleanup.profile.id !== profileId) continue;
-			await this.execRemote(cleanup.profile, {
+			// Credentials may have changed since the tunnel failed. Only reuse them
+			// when the saved profile still refers to the same SSH destination.
+			const profile = profiles.find(
+				(profile) =>
+					profile.id === cleanup.profile.id &&
+					profile.host === cleanup.profile.host &&
+					profile.user === cleanup.profile.user &&
+					profile.port === cleanup.profile.port,
+			);
+			await this.execRemote(profile ?? cleanup.profile, {
 				command: cleanup.helper,
 				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
 			});

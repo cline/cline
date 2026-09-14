@@ -144,11 +144,15 @@ describe("RemoteEnvironmentService", () => {
 		const commands: string[] = [];
 		const tunnels: FakeTunnel[] = [];
 		let offline = false;
+		let requiredIdentity: string | undefined;
 		const dependencies: Partial<RemoteEnvironmentDependencies> = {
 			runProcess: async (_executable, args) => {
 				const command = args.at(-1) ?? "";
 				commands.push(command);
 				if (offline) throw new Error("Network unavailable");
+				if (requiredIdentity && !args.includes(requiredIdentity)) {
+					throw new Error("Obsolete SSH identity");
+				}
 				if (command.includes("uname -s"))
 					return inspection("Linux", "x86_64", "/home/dev");
 				if (command.includes("--remote-hub-ensure"))
@@ -187,6 +191,9 @@ describe("RemoteEnvironmentService", () => {
 		expect(await readdir(`${profilesPath}.cleanup`)).toHaveLength(1);
 		offline = false;
 		const restarted = createService(dependencies);
+		requiredIdentity = "/keys/rotated";
+		await restarted.upsert({ ...first, identityFile: requiredIdentity });
+		await restarted.connect(first.id);
 		await restarted.dispose();
 		expect(await readdir(`${profilesPath}.cleanup`)).toEqual([]);
 		const stop = commands
