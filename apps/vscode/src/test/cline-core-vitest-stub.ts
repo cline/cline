@@ -145,6 +145,12 @@ export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensio
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
 export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
+// Real rule rendering re-exported from the sdk source so standalone callers
+// (commit message generation) are tested against the same formatting the SDK
+// applies to a session's system prompt.
+export { formatRulesForSystemPrompt, isRuleEnabled } from "../../../../sdk/packages/core/src/runtime/safety/rules"
+export type { RuleConfig } from "../../../../sdk/packages/core/src/extensions/config/user-instruction-config-loader"
+export type { UserInstructionConfigService } from "../../../../sdk/packages/core/src/extensions/config/user-instruction-service"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.
