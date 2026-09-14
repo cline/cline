@@ -16,6 +16,13 @@
  *    `onSubAgent` returning null drops that subtree's frames silently
  *    (design P5 — structural pruning replaces the v1 timing heuristic).
  * 5. `onIdle` fires exactly once per transition to quiescence.
+ * 6. Annotations reach a block in frame order. Those sequenced before
+ *    the block's open (an approval decision precedes the tool start)
+ *    are held and handed to `onTool` together with the start, so the
+ *    consumer decides the block's rendering with the decision in hand
+ *    and never needs a side table keyed by block id. Held annotations
+ *    for a block that never opens are dropped, with a diagnostic, when
+ *    their turn closes.
  *
  * Address-keyed (Phase 3a): turns and blocks are keyed by full scope
  * address, so multiplexed agent streams — each minting their own
@@ -25,6 +32,7 @@
  * blocks/notices flow to that consumer.
  */
 import type {
+	AnnotationBody,
 	CloseFinal,
 	NoticeBody,
 	Outcome,
@@ -49,7 +57,7 @@ export interface StreamDiagnostic {
 
 export interface TextSink {
 	onDelta(text: string): void;
-	onAnnotation(annotation: unknown): void;
+	onAnnotation(annotation: AnnotationBody): void;
 	/** `final` is the close frame's authoritative text — it can differ
 	 * from the concatenated deltas (the v1 final is producer-truth). */
 	onClose(outcome: Outcome, final: { text: string }): void;
@@ -57,13 +65,13 @@ export interface TextSink {
 
 export interface ReasoningSink {
 	onDelta(reasoning: string): void;
-	onAnnotation(annotation: unknown): void;
+	onAnnotation(annotation: AnnotationBody): void;
 	onClose(outcome: Outcome, final: { reasoning: string }): void;
 }
 
 export interface ToolSink {
 	onProgress(update: unknown): void;
-	onAnnotation(annotation: unknown): void;
+	onAnnotation(annotation: AnnotationBody): void;
 	onClose(outcome: Outcome, final: CloseFinal): void;
 }
 
@@ -82,7 +90,9 @@ export interface MediaFinal {
 export interface TurnConsumer {
 	onText(start: TextStart): TextSink;
 	onReasoning(start: ReasoningStart): ReasoningSink;
-	onTool(start: ToolStart): ToolSink;
+	/** `annotations` are those sequenced before this open (rule 6),
+	 * oldest first; usually empty. */
+	onTool(start: ToolStart, annotations: readonly AnnotationBody[]): ToolSink;
 	onMedia(media: MediaFinal): void;
 	/** Null prunes the subtree — its frames are dropped, silently and
 	 * deliberately (design P5). */
@@ -126,6 +136,8 @@ export const DIAG_ANNOTATION_UNROUTED = "annotation-unrouted";
 export const DIAG_SNAPSHOT_UNROUTED = "snapshot-unrouted";
 export const DIAG_AFTER_SESSION_END = "after-session-end";
 export const DIAG_BLOCK_OPEN_WHILE_OPEN = "block-open-while-open";
+/** Annotations held for a block that never opened before its turn closed. */
+export const DIAG_ANNOTATION_NEVER_OPENED = "annotation-never-opened";
 
 const ROOT = "root";
 
@@ -140,6 +152,12 @@ export class StreamAssembler {
 	private readonly openBlocks = new Map<string, OpenBlock>();
 	/** pathKey -> sub-agent consumer; null = pruned subtree. */
 	private readonly subAgents = new Map<string, TurnConsumer | null>();
+	/** blockKey -> annotations sequenced before the block's open
+	 * (delivery rule 6). */
+	private readonly pendingAnnotations = new Map<
+		string,
+		Array<StreamFrame & { kind: "annotation" }>
+	>();
 
 	constructor(consumer: SessionConsumer) {
 		this.consumer = consumer;
@@ -245,13 +263,25 @@ export class StreamAssembler {
 				break;
 			}
 			case "annotation": {
-				const block =
-					blockKey !== undefined ? this.openBlocks.get(blockKey) : undefined;
+				if (blockKey === undefined) {
+					this.diagnose(DIAG_ANNOTATION_UNROUTED, frame);
+					break;
+				}
+				const block = this.openBlocks.get(blockKey);
 				if (block?.sink !== undefined) {
 					(block.sink as ToolSink).onAnnotation(frame);
-				} else {
-					this.diagnose(DIAG_ANNOTATION_UNROUTED, frame);
+					break;
 				}
+				const annotationTurn = this.openTurns.get(pathKey);
+				if (block === undefined && annotationTurn?.turnId === turnId) {
+					// Sequenced before the block's open (rule 6): hold it for
+					// delivery with the open.
+					const held = this.pendingAnnotations.get(blockKey) ?? [];
+					held.push(frame);
+					this.pendingAnnotations.set(blockKey, held);
+					break;
+				}
+				this.diagnose(DIAG_ANNOTATION_UNROUTED, frame);
 				break;
 			}
 			case "snapshot": {
@@ -363,10 +393,13 @@ export class StreamAssembler {
 				sink: consumer.onReasoning(frame.start),
 			});
 		} else if (frame.openKind === "tool") {
+			// Rule 6: annotations sequenced before this open travel with it.
+			const held = this.pendingAnnotations.get(blockKey) ?? [];
+			this.pendingAnnotations.delete(blockKey);
 			this.openBlocks.set(blockKey, {
 				kind: "tool",
 				blockKey,
-				sink: consumer.onTool(frame.start),
+				sink: consumer.onTool(frame.start, held),
 				start: frame.start,
 			});
 		} else {
@@ -481,6 +514,19 @@ export class StreamAssembler {
 
 	private closeBlocksOfTurn(pathKey: string, turnId: string): void {
 		const prefix = `${pathKey}/${turnId}/`;
+		for (const [blockKey, held] of [...this.pendingAnnotations.entries()]) {
+			if (!blockKey.startsWith(prefix)) {
+				continue;
+			}
+			this.pendingAnnotations.delete(blockKey);
+			for (const annotation of held) {
+				this.consumer.onDiagnostic({
+					code: DIAG_ANNOTATION_NEVER_OPENED,
+					detail: blockKey,
+					seq: annotation.seq,
+				});
+			}
+		}
 		for (const [blockKey, block] of [...this.openBlocks.entries()]) {
 			if (!blockKey.startsWith(prefix)) {
 				continue;

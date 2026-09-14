@@ -27,7 +27,7 @@
  */
 
 import type { SessionConsumer, StreamDiagnostic, ToolSink, TurnConsumer } from "@cline/core/frames"
-import type { CloseFinal, NoticeBody, Outcome, ToolStart, UsageBody } from "@cline/shared"
+import type { AnnotationBody, ApprovalAnnotation, CloseFinal, NoticeBody, Outcome, ToolStart, UsageBody } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
 	ClineApiReqInfo,
@@ -58,6 +58,7 @@ import {
 	splitApplyPatchByFile,
 	toDisplaySayTool,
 } from "./message-translator"
+import { isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 /** Retained diagnostics, newest last, bounded for a long session. */
 const MAX_RETAINED_DIAGNOSTICS = 100
@@ -165,7 +166,12 @@ class SpawnAgentGroup {
 
 	constructor(private readonly bridge: FrameMessageBridge) {}
 
-	register(blockId: string, prompt: string): void {
+	register(blockId: string, prompt: string, approvedTs: number | undefined): void {
+		// An approved spawn's prompts row IS its approval ask row (v1's
+		// setSpawnAgentPromptsTs): adopt that identity, even mid-group.
+		if (approvedTs !== undefined) {
+			this.promptsTs = approvedTs
+		}
 		this.entries.set(blockId, {
 			index: this.entries.size + 1,
 			prompt,
@@ -290,6 +296,26 @@ class SpawnAgentGroup {
 	}
 }
 
+/**
+ * A close carrying a denial decided outside this host's coordinator (no
+ * annotation reached the open). v1 recognizes these by the error text;
+ * the partial row from the open stays as-is and no error row follows.
+ */
+function isDenialClose(outcome: Outcome): boolean {
+	return outcome.kind === "error" && isKnownToolApprovalDenial(outcome.error.message)
+}
+
+/** The approval decision in effect at open: the last one sequenced wins. */
+function latestApproval(annotations: readonly AnnotationBody[]): ApprovalAnnotation | undefined {
+	for (let index = annotations.length - 1; index >= 0; index -= 1) {
+		const annotation = annotations[index]
+		if (annotation.ns === "approval") {
+			return annotation.body
+		}
+	}
+	return undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -357,13 +383,29 @@ class BridgeTurnConsumer implements TurnConsumer {
 		}
 	}
 
-	onTool(start: ToolStart): ToolSink {
+	onTool(start: ToolStart, annotations: readonly AnnotationBody[]): ToolSink {
 		// Tool activity after a text block means that text wasn't the
 		// turn-final response — drop the retag candidate (v1 rule).
 		this.turnFinalText = undefined
 		const toolName = start.toolName
 		const bridge = this.bridge
 		const cwd = bridge.deps.getCwd?.()
+
+		// The approval decision precedes the open (assembler rule 6). A
+		// denied tool was never executed: no row at open, none at close —
+		// the runtime's errored close only carries the denial back to the
+		// model. v1 also recognizes denials by their error text (denials
+		// decided outside this host's coordinator), so the close keeps
+		// that check for tools without an annotation.
+		const approval = latestApproval(annotations)
+		if (approval?.state === "denied") {
+			return { onProgress() {}, onAnnotation() {}, onClose() {} }
+		}
+		// An approved tool renders on its approval ask row: the first row
+		// identity this block mints is that row's ts, so the ask updates
+		// in place instead of gaining a sibling (v1's approvedToolMessageTs).
+		const approvedTs = approval?.state === "approved" ? approval.messageTs : undefined
+		const mintToolTs = (): number => approvedTs ?? bridge.deps.nextTs()
 
 		// ask_question (and ask_followup_question) is serviced by the
 		// interaction coordinator, which emits the proper ask:"followup"
@@ -380,7 +422,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 		if (toolName === "spawn_agent") {
 			const blockId = start.blockId
 			const turn = this
-			turn.spawnAgentGroup().register(blockId, getSpawnAgentTaskPrompt(start.input))
+			turn.spawnAgentGroup().register(blockId, getSpawnAgentTaskPrompt(start.input), approvedTs)
 			return {
 				onProgress(update: unknown): void {
 					turn.spawnAgentGroup().progress(blockId, update)
@@ -400,7 +442,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 			// non-partial finalize at close. attemptCompletionSeen makes the
 			// turn end in the "completed" phase rather than awaiting_followup.
 			this.attemptCompletionSeen = true
-			const ts = bridge.deps.nextTs()
+			const ts = mintToolTs()
 			bridge.push({
 				ts,
 				type: "say",
@@ -412,7 +454,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 				onProgress() {},
 				onAnnotation() {},
 				onClose(outcome: Outcome, final: CloseFinal): void {
-					if (outcome.kind === "interrupted" || final.type !== "tool") {
+					if (outcome.kind === "interrupted" || final.type !== "tool" || isDenialClose(outcome)) {
 						return
 					}
 					bridge.push({
@@ -429,7 +471,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 		// Command tools render as say:"command" with the output marker while
 		// running (ChatRow shows "executing" until the marker resolves).
 		if (toolName === "run_commands" || toolName === "execute_command") {
-			const ts = bridge.deps.nextTs()
+			const ts = mintToolTs()
 			bridge.push({
 				ts,
 				type: "say",
@@ -441,7 +483,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 				onProgress() {},
 				onAnnotation() {},
 				onClose(outcome: Outcome, final: CloseFinal): void {
-					if (outcome.kind === "interrupted" || final.type !== "tool") {
+					if (outcome.kind === "interrupted" || final.type !== "tool" || isDenialClose(outcome)) {
 						return
 					}
 					const input = final.input ?? start.input
@@ -464,7 +506,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 		// ClineAskUseMcpServer JSON, plus a response row at close.
 		const mcpInfo = parseMcpToolName(toolName)
 		if (mcpInfo) {
-			const ts = bridge.deps.nextTs()
+			const ts = mintToolTs()
 			bridge.push({
 				ts,
 				type: "say",
@@ -476,7 +518,7 @@ class BridgeTurnConsumer implements TurnConsumer {
 				onProgress() {},
 				onAnnotation() {},
 				onClose(outcome: Outcome, final: CloseFinal): void {
-					if (outcome.kind === "interrupted" || final.type !== "tool") {
+					if (outcome.kind === "interrupted" || final.type !== "tool" || isDenialClose(outcome)) {
 						return
 					}
 					const input = final.input ?? start.input
@@ -502,9 +544,8 @@ class BridgeTurnConsumer implements TurnConsumer {
 			}
 		}
 
-		// Generic tool row (spawn_agent renders generically until its
-		// dedicated aggregation port — see the design doc checklist).
-		const ts = bridge.deps.nextTs()
+		// Generic tool row.
+		const ts = mintToolTs()
 		bridge.push({
 			ts,
 			type: "say",
@@ -524,6 +565,9 @@ class BridgeTurnConsumer implements TurnConsumer {
 					return
 				}
 				if (final.type !== "tool") {
+					return
+				}
+				if (isDenialClose(outcome)) {
 					return
 				}
 				const input = final.input ?? start.input

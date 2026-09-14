@@ -22,7 +22,7 @@
 
 import type { CoreSessionEvent } from "@cline/core"
 import { projectSessionEvent, StreamAssembler } from "@cline/core/frames"
-import { type FrameSequencer, SessionFramer, type StreamFrame } from "@cline/shared"
+import { type ApprovalAnnotation, type FrameSequencer, SessionFramer, type StreamFrame } from "@cline/shared"
 import { FrameMessageBridge } from "./frame-message-bridge"
 import { MessageIdMinter } from "./message-id-minter"
 
@@ -61,6 +61,23 @@ export class SdkFrameStream {
 			const frames = this.framer.frameRoutedEvent(projected.agentPath, projected.event)
 			this.pushFrames(frames)
 		}
+	}
+
+	/**
+	 * Publish the user's approval decision for a root-agent tool call
+	 * (design: Annotations). Called by the coordinator callbacks at the
+	 * moment the decision is made — before the runtime emits the tool's
+	 * start, so the frame is sequenced ahead of the block's open and the
+	 * assembler hands it to the consumer with the open (rule 6).
+	 */
+	annotateToolApproval(toolCallId: string, body: ApprovalAnnotation): void {
+		this.pushFrames(
+			this.framer.annotateBlock(["root"], toolCallId, {
+				kind: "annotation",
+				ns: "approval",
+				body,
+			}),
+		)
 	}
 
 	/**

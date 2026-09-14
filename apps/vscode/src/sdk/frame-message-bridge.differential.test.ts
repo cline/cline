@@ -22,6 +22,7 @@ import { describe, expect, it } from "vitest"
 import { FrameMessageBridge } from "./frame-message-bridge"
 import { MessageIdMinter } from "./message-id-minter"
 import { MessageTranslatorState, translateAgentEvent } from "./message-translator"
+import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
 
 /** The v1 oracle: the production translator, unchanged. */
 function v1Messages(events: readonly AgentEvent[], mode: "plan" | "act" = "act"): ClineMessage[] {
@@ -668,6 +669,172 @@ describe("FrameMessageBridge differential parity (spawn_agent aggregation)", () 
 			spawnEnd("s1", { output: spawnOutput("done", 1, 1) }),
 			{ type: "content_end", contentType: "text", text: "summary" },
 			{ type: "done", text: "", reason: "completed", iterations: 1 },
+		])
+	})
+})
+
+/**
+ * Approval decisions are not v1 agent events: the coordinator hands them
+ * to each path out of band (v1: the translator state's side tables; v2:
+ * an annotation frame). A script interleaves both, applied to each path
+ * at the same point, and the messages must still be equal.
+ */
+type ApprovalStep =
+	| { agentEvent: AgentEvent }
+	| { approved: { toolCallId: string; messageTs: number } }
+	| { denied: { toolCallId: string; toolName: string; reason: string } }
+
+function v1ApprovalMessages(script: readonly ApprovalStep[]): ClineMessage[] {
+	const state = new MessageTranslatorState(new MessageIdMinter(), undefined, () => "act")
+	const out: ClineMessage[] = []
+	for (const step of script) {
+		if ("agentEvent" in step) {
+			out.push(...translateAgentEvent(step.agentEvent, state))
+		} else if ("approved" in step) {
+			state.recordApprovedToolMessageTs(step.approved.toolCallId, step.approved.messageTs)
+		} else {
+			state.recordDeniedToolApproval(step.denied.toolCallId, step.denied.toolName, step.denied.reason)
+		}
+	}
+	return out
+}
+
+function v2ApprovalMessages(script: readonly ApprovalStep[]): ClineMessage[] {
+	const minter = new MessageIdMinter()
+	const bridge = new FrameMessageBridge({ nextTs: () => minter.nextId(), getUiMode: () => "act" })
+	const assembler = new StreamAssembler(bridge)
+	const framer = new AgentEventFramer()
+	for (const step of script) {
+		if ("agentEvent" in step) {
+			assembler.pushAll(framer.frameEvent(step.agentEvent))
+		} else if ("approved" in step) {
+			assembler.pushAll(
+				framer.annotateBlock(step.approved.toolCallId, {
+					kind: "annotation",
+					ns: "approval",
+					body: { state: "approved", messageTs: step.approved.messageTs },
+				}),
+			)
+		} else {
+			assembler.pushAll(
+				framer.annotateBlock(step.denied.toolCallId, {
+					kind: "annotation",
+					ns: "approval",
+					body: { state: "denied", reason: step.denied.reason },
+				}),
+			)
+		}
+	}
+	return bridge.takeMessages()
+}
+
+function expectApprovalParity(script: readonly ApprovalStep[]): ClineMessage[] {
+	const v1 = v1ApprovalMessages(script)
+	const v2 = v2ApprovalMessages(script)
+	expect(v2).toEqual(v1)
+	return v2
+}
+
+describe("FrameMessageBridge differential parity (approval annotations)", () => {
+	const ev = (agentEvent: AgentEvent): ApprovalStep => ({ agentEvent })
+	const toolStart = (toolCallId: string, toolName: string, input: unknown): ApprovalStep =>
+		ev({ type: "content_start", contentType: "tool", toolCallId, toolName, input })
+	const toolEnd = (toolCallId: string, toolName: string, extra: { output?: unknown; error?: string } = {}): ApprovalStep =>
+		ev({ type: "content_end", contentType: "tool", toolCallId, toolName, ...extra })
+
+	it("an approved tool renders on its approval ask row instead of minting a new one", () => {
+		// The ask row's ts (900) is minted by the coordinator from the shared
+		// minter in production; here it is any id neither path would mint.
+		const messages = expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			{ approved: { toolCallId: "c1", messageTs: 900 } },
+			toolStart("c1", "read_file", { path: "/tmp/x" }),
+			toolEnd("c1", "read_file", { output: "ok" }),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
+		])
+		const toolRows = messages.filter((message) => message.say === "tool")
+		expect(toolRows.length).toBeGreaterThan(0)
+		expect(toolRows.every((message) => message.ts === 900)).toBe(true)
+	})
+
+	it("approved command, MCP, and completion tools adopt the ask row identity too", () => {
+		expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			{ approved: { toolCallId: "c1", messageTs: 901 } },
+			toolStart("c1", "run_commands", { commands: ["ls"] }),
+			toolEnd("c1", "run_commands", { output: "a\nb" }),
+			{ approved: { toolCallId: "c2", messageTs: 902 } },
+			toolStart("c2", "github__search", { q: "x" }),
+			toolEnd("c2", "github__search", { output: "hits" }),
+			{ approved: { toolCallId: "c3", messageTs: 903 } },
+			toolStart("c3", "attempt_completion", { result: "done" }),
+			toolEnd("c3", "attempt_completion"),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
+		])
+	})
+
+	it("an approved spawn_agent adopts the ask row as the prompts row", () => {
+		expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			{ approved: { toolCallId: "s1", messageTs: 910 } },
+			toolStart("s1", "spawn_agent", { task: "t1" }),
+			toolStart("s2", "spawn_agent", { task: "t2" }),
+			toolEnd("s2", "spawn_agent", { output: { text: "ok", usage: { inputTokens: 1, outputTokens: 1 } } }),
+			toolEnd("s1", "spawn_agent", { output: { text: "ok", usage: { inputTokens: 1, outputTokens: 1 } } }),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
+		])
+	})
+
+	it("a denied tool renders nothing at open or close, including the errored close", () => {
+		const messages = expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			{ denied: { toolCallId: "c1", toolName: "fetch_web_content", reason: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } },
+			toolStart("c1", "fetch_web_content", { requests: [] }),
+			toolEnd("c1", "fetch_web_content", { error: USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON }),
+			ev({ type: "content_end", contentType: "text", text: "understood" }),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
+		])
+		expect(messages.some((message) => message.say === "tool" || message.say === "error")).toBe(false)
+	})
+
+	it("a denied spawn_agent, command, and MCP tool render nothing", () => {
+		const messages = expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			{ denied: { toolCallId: "s1", toolName: "spawn_agent", reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON } },
+			toolStart("s1", "spawn_agent", { task: "t" }),
+			toolEnd("s1", "spawn_agent", { error: DEFAULT_TOOL_APPROVAL_DENIAL_REASON }),
+			{ denied: { toolCallId: "c2", toolName: "run_commands", reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON } },
+			toolStart("c2", "run_commands", { commands: ["rm"] }),
+			toolEnd("c2", "run_commands", { error: DEFAULT_TOOL_APPROVAL_DENIAL_REASON }),
+			{ denied: { toolCallId: "c3", toolName: "srv__tool", reason: DEFAULT_TOOL_APPROVAL_DENIAL_REASON } },
+			toolStart("c3", "srv__tool", { a: 1 }),
+			toolEnd("c3", "srv__tool", { error: DEFAULT_TOOL_APPROVAL_DENIAL_REASON }),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
+		])
+		expect(messages.filter((message) => message.say !== "api_req_started")).toEqual([])
+	})
+
+	it("a denial recognized only by its error text keeps the open's row and adds no error row", () => {
+		// No decision reached this host (e.g. an SDK-internal denial): v1
+		// matches the close's error text; the partial row from the open
+		// stays and nothing follows it.
+		expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			toolStart("c1", "read_file", { path: "/tmp/x" }),
+			toolEnd("c1", "read_file", { error: `{"error":"${DEFAULT_TOOL_APPROVAL_DENIAL_REASON}"}` }),
+			toolStart("c2", "run_commands", { commands: ["ls"] }),
+			toolEnd("c2", "run_commands", { error: DEFAULT_TOOL_APPROVAL_DENIAL_REASON }),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
+		])
+	})
+
+	it("a decision with no matching tool block leaves the rest of the turn unaffected", () => {
+		expectApprovalParity([
+			ev({ type: "iteration_start", iteration: 1 }),
+			{ approved: { toolCallId: "ghost", messageTs: 950 } },
+			toolStart("c1", "read_file", { path: "/tmp/x" }),
+			toolEnd("c1", "read_file", { output: "ok" }),
+			ev({ type: "done", text: "", reason: "completed", iterations: 1 }),
 		])
 	})
 })

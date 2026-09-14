@@ -353,6 +353,12 @@ scope, ordered by seq, published by coordinators other than the agent loop.
 - Storage is consumer-owned: sinks receive annotations via `onAnnotation`
   and keep what they render. Nothing is stored on shared objects; no
   WeakMaps.
+- An annotation may be sequenced before its block's open — the approval
+  decision is made before the runtime starts the tool. The assembler
+  holds such annotations and hands them to the block's factory method
+  with the start (`onTool(start, annotations)`), so the consumer chooses
+  the block's rendering with the decision in hand and never keeps a
+  table keyed by block id.
 
 ### Quiescence
 
@@ -658,13 +664,35 @@ spawn_agent content_start discarded the generic tool stream via
 `clearStreamingTool()`, which mints a ts for a row it never emits; it
 now calls `discardStreamingTool()`, which does not mint. v1's
 suppression heuristic (`hasRunningSpawnAgents()`) is not ported — P5's
-`onSubAgent → null` is its structural replacement. **Remaining
-checklist:** approval-coordinator interactions (approvedToolMessageTs
-upserts, denial suppression — annotation wiring at the flip),
-StreamError carrying Error instances' `code`/`status` properties (real
-provider errors may set them; the reshape reads them — a `details`
-follow-up), then the flip — bridge output becomes the production
-ClineMessage source and the v1 switch deletes.
+`onSubAgent → null` is its structural replacement.
+
+**Phase 3c part 2d status: implemented (approval annotations — the
+first annotation producer/consumer).** The user's approval decision
+reaches the bridge as an `annotation(ns:"approval")` frame addressed to
+the tool block (`ApprovalAnnotation`: `approved` with the ask row's
+`messageTs`, or `denied` with the reason), published by SdkController's
+coordinator callbacks through `SdkFrameStream.annotateToolApproval` —
+the same synchronous callbacks that fill v1's side tables, so the two
+paths cannot learn different decisions. The ordering fact the design
+had not spelled out: the runtime awaits approval BEFORE it emits the
+tool start, so the annotation is sequenced ahead of the block's open.
+Rather than make consumers hold a side table keyed by block id (the
+thing being deleted), the assembler holds pre-open annotations and
+hands them to `onTool` together with the start (delivery rule 6); the
+validator accepts block annotations before the open and after the
+close, requiring only a known turn. Held annotations for a block that
+never opens are reported (`annotation-never-opened`) when the turn
+closes. In the bridge an approved tool's first row identity is the ask
+row's ts (v1's `approvedToolMessageTs`; for spawn_agent, the prompts
+row), and a denied tool's sink is inert at open and close. Denials
+recognized only by error text (decided outside this host's coordinator)
+keep v1's string check at close. Differential coverage uses scripts
+that interleave events with decisions, applied to both paths at the
+same point. **Remaining checklist:** StreamError carrying Error
+instances' `code`/`status` properties (real provider errors may set
+them; the reshape reads them — a `details` follow-up), then the flip —
+bridge output becomes the production ClineMessage source and the v1
+switch, its side tables, and `hasRunningSpawnAgents()` delete.
 
 **Phase 3d — history replay and reconnect.** Snapshot reconciliation
 in the assembler (diff against the live set), live-after-history dedup
@@ -741,11 +769,15 @@ revertable without reverting its ancestors' behavior changes:
 | 4 | `dpc/event-stream-demux` | Phase 3a: multiplexed framing (SessionFramer, shared sequencer), address-keyed validator, tree-aware assembler with `onSubAgent` pruning, session-event projector. | 3 |
 | 5 | `dpc/event-stream-phase3b` | Phase 3b: ACP port (second frame consumer, differential-tested). | 4 |
 | 6 | `dpc/event-stream-phase3c-wiring` | Phase 3c part 1: producer envelope in SdkController — minter-backed frame stream, fence in the envelope, health monitor; `@cline/core/frames` subpath. | 5 |
-| 7 | `dpc/event-stream-phase3c-sinks` | Phase 3c part 2: VSCode translator sinks; P5 heuristic becomes `onSubAgent → null`; health monitor replaced by ClineMessage sinks. | 6 |
-| 8 | `dpc/event-stream-phase3d` | Phase 3d: history replay/reconnect, snapshot reconciliation. | 7 |
-| 9 | `dpc/event-stream-phase4a` | Desktop sidecar forwards frames verbatim (v1 re-encoding deletes). | 8 |
-| 10 | `dpc/event-stream-phase4b` | Desktop webview sinks (`use-chat-session`). | 9 |
-| 11 | `dpc/event-stream-phase5` | CI ratchet + deletion of superseded v1 consumer paths and the v1 reference renderer. | 10 |
+| 7 | `dpc/event-stream-phase3c-sinks` | Phase 3c part 2: VSCode translator sinks (text/reasoning/generic tools, usage, iteration markers); P5 heuristic becomes `onSubAgent → null`; health monitor replaced by ClineMessage sinks. | 6 |
+| 8 | `dpc/event-stream-phase3c-sinks-2` | Phase 3c part 2b: tool-specific renderings, compaction dividers, terminal error rows. | 7 |
+| 9 | `dpc/event-stream-phase3c-sinks-3` | Phase 3c part 2c: spawn_agent aggregation (`SpawnAgentGroup`). | 8 |
+| 10 | `dpc/event-stream-phase3c-approvals` | Phase 3c part 2d: approval decisions as annotation frames; assembler delivery rule 6. | 9 |
+| 11 | `dpc/event-stream-phase3c-flip` | Phase 3c part 3: StreamError `details`; bridge becomes the production ClineMessage source; v1 switch and side tables delete. | 10 |
+| 12 | `dpc/event-stream-phase3d` | Phase 3d: history replay/reconnect, snapshot reconciliation. | 11 |
+| 13 | `dpc/event-stream-phase4a` | Desktop sidecar forwards frames verbatim (v1 re-encoding deletes). | 12 |
+| 14 | `dpc/event-stream-phase4b` | Desktop webview sinks (`use-chat-session`). | 13 |
+| 15 | `dpc/event-stream-phase5` | CI ratchet + deletion of superseded v1 consumer paths and the v1 reference renderer. | 14 |
 
 Review stays manageable because PR 1 is additive-only (this PR), PRs 2-3
 are producer/plumbing with property tests doing the checking, and the
