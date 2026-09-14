@@ -150,6 +150,13 @@ describe("resolveLoginShellPath", () => {
 		).resolves.toBeUndefined();
 	});
 
+	it("bounds noisy shell output", async () => {
+		const shell = writeFakeShell(
+			"while :; do printf 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n'; done",
+		);
+		await expect(resolveLoginShellPath(shell)).resolves.toBeUndefined();
+	});
+
 	it("times out hung shells without rejecting", async () => {
 		const shell = writeFakeShell("sleep 60");
 		await expect(resolveLoginShellPath(shell, 200)).resolves.toBeUndefined();

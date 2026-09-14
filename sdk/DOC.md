@@ -6,8 +6,10 @@ profiles, connection testing, helper installation, authenticated loopback tunnel
 remote commands, status changes, and cleanup. It runs in the client's Node host;
 browser clients expose this API through their host transport. No desktop code is
 required. OpenSSH config aliases, identity files, and ssh-agent authentication are
-supported; connections use batch mode and accept new host keys, while rejecting
-changed keys.
+supported. Connections use batch mode and require an already-trusted host key in
+OpenSSH known_hosts (or `knownHostsPath`). Before first use, verify the server
+fingerprint through a trusted channel and enroll it using your SSH client. Unknown
+or changed keys are rejected before inspection, upload, or execution.
 
 ```ts
 import { ClineCore, RemoteEnvironmentService } from "@cline/core";
@@ -55,7 +57,7 @@ configuration variables are `CLINE_REMOTE_HELPER_BINARY`,
 `CLINE_SSH_KNOWN_HOSTS_FILE`.
 
 Clients package a matching self-contained helper using the
-`@cline/core/remote/helper` entrypoint, compiled with Bun for the remote OS and
+`@cline/core/remote/helper-entry` executable entrypoint, compiled with Bun for the remote OS and
 architecture. Use `remoteHelperBinaryFilename({ platform, arch })` for the
 filename (`cline-remote-helper-<target-triple>`). Linux and macOS on x64/arm64
 are supported. Helpers must include the same SDK build as the client; missing

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
 	type RemoteHelperDependencies,
@@ -37,6 +39,22 @@ function createDependencies(
 }
 
 describe("remote helper entrypoint", () => {
+	it("imports the built public helper without executing its CLI", () => {
+		const result = execFileSync(
+			process.execPath,
+			[
+				"--input-type=module",
+				"-e",
+				`const before = process.exitCode; const helper = await import('@cline/core/remote/helper'); if (process.exitCode !== before || typeof helper.runRemoteHelperEntrypoint !== 'function') throw new Error('Import side effect'); console.log('imported');`,
+			],
+			{
+				cwd: fileURLToPath(new URL("../../", import.meta.url)),
+				encoding: "utf8",
+			},
+		);
+		expect(result.trim()).toBe("imported");
+	});
+
 	it("starts only the explicitly owned desktop Hub discovery record", async () => {
 		const { dependencies, output } = createDependencies();
 		const discoveryPath = "/home/pi/.cline/data/remote/desktop-hub.json";
