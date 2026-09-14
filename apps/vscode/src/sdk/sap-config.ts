@@ -48,3 +48,18 @@ export function buildSapProviderConfig(config: ApiConfiguration, mode: Mode): Sa
 		...(Object.keys(sap).length > 0 ? { sap } : {}),
 	}
 }
+
+/**
+ * The same SAP subset, built from stored SDK provider settings (providers.json)
+ * for a session resolved through the providers.json fallback rather than
+ * legacy state.
+ */
+export function sapProviderConfigFromSettings(settings: ProviderSettings): SapProviderConfig | undefined {
+	if (!settings.sap) {
+		return undefined
+	}
+	return {
+		...(settings.baseUrl !== undefined ? { baseUrl: settings.baseUrl } : {}),
+		sap: settings.sap,
+	}
+}

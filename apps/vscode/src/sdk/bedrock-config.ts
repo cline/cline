@@ -12,6 +12,7 @@
 // credential chain with no region. This mirrors the structured aws block built
 // by the shared provider-settings legacy migration and the CLI.
 
+import type { ProviderSettings } from "@cline/core"
 import type { ProviderConfig } from "@cline/llms"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
@@ -82,5 +83,34 @@ export function buildBedrockProviderConfig(configuration: ApiConfiguration, mode
 		aws,
 		useCrossRegionInference: configuration.awsUseCrossRegionInference,
 		useGlobalInference: configuration.awsUseGlobalInference,
+	}
+}
+
+/**
+ * The same Bedrock subset, built from stored SDK provider settings
+ * (providers.json) for a session resolved through the providers.json fallback
+ * rather than legacy state. Mirrors @cline/core's toProviderConfig: in storage
+ * the region and cross-region flags live inside `aws`, while a ProviderConfig
+ * carries them at the top level.
+ */
+export function bedrockProviderConfigFromSettings(settings: ProviderSettings): BedrockProviderConfig | undefined {
+	const aws = settings.aws
+	if (!aws) {
+		return undefined
+	}
+	return {
+		region: settings.region ?? aws.region,
+		aws: {
+			accessKey: aws.accessKey,
+			secretKey: aws.secretKey,
+			sessionToken: aws.sessionToken,
+			authentication: aws.authentication,
+			profile: aws.profile,
+			usePromptCache: aws.usePromptCache,
+			endpoint: aws.endpoint,
+			customModelBaseId: aws.customModelBaseId,
+		},
+		useCrossRegionInference: aws.useCrossRegionInference,
+		useGlobalInference: aws.useGlobalInference,
 	}
 }
