@@ -146,6 +146,23 @@ class FakeHubClient {
 	async dispose(): Promise<void> {}
 }
 
+function createFixture({
+	hub = new FakeHubClient(),
+	api = { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+}: {
+	hub?: FakeHubClient;
+	api?: CloudSessionApi;
+} = {}) {
+	const { ctx, events } = createContext();
+	const manager = new CloudSessionManager(ctx, {
+		api,
+		apiBaseUrl: "https://api.example",
+		getAuthToken: async () => "workos:fresh",
+		createHubClient: () => hub as never,
+	});
+	return { ctx, events, hub, manager };
+}
+
 beforeAll(() => {
 	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 });
@@ -206,14 +223,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("treats a Hub pending session as an active desktop run", async () => {
-		const { ctx, events } = createContext();
-		const hub = new FakeHubClient();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
+		const { ctx, events, hub, manager } = createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
@@ -237,17 +247,12 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("updates the cloud model before sending", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
 		const remote = {
 			...REMOTE_SESSION,
 			metadata: { ...REMOTE_SESSION.metadata },
 		};
-		const manager = new CloudSessionManager(ctx, {
+		const { ctx, hub, manager } = createFixture({
 			api: { list: async () => [remote] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		ctx.cloudSessionManager = manager;
 		await manager.list();
@@ -290,14 +295,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("forwards cloud images and continues rejecting file attachments", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
+		const { ctx, hub, manager } = createFixture();
 		ctx.cloudSessionManager = manager;
 		await manager.list();
 		await manager.attach("ses-outer");
@@ -384,14 +382,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("bridges pending-prompt events and queue commands to the hub", async () => {
-		const { ctx, events } = createContext();
-		const hub = new FakeHubClient();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
+		const { ctx, events, hub, manager } = createFixture();
 		ctx.cloudSessionManager = manager;
 		await manager.list();
 		await manager.attach("ses-outer");
@@ -467,10 +458,9 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("passes branch and the user's approval policy through to the cloud session", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient(false);
 		let createBody: Record<string, unknown> | undefined;
-		const manager = new CloudSessionManager(ctx, {
+		const { ctx, hub, manager } = createFixture({
+			hub: new FakeHubClient(false),
 			api: {
 				list: async () => [],
 				create: async (input: Record<string, unknown>) => {
@@ -482,9 +472,6 @@ describe("Cloud sessions sidecar wiring", () => {
 					};
 				},
 			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		ctx.cloudSessionManager = manager;
 
@@ -517,8 +504,6 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("returns the real id immediately and sends only after readiness", async () => {
-		const { ctx, events } = createContext();
-		const hub = new FakeHubClient(false);
 		let finishProvisioning: (() => void) | undefined;
 		const waitUntilReady = vi.fn(
 			() =>
@@ -531,7 +516,8 @@ describe("Cloud sessions sidecar wiring", () => {
 			id: "ses-created",
 			status: "provisioning",
 		};
-		const manager = new CloudSessionManager(ctx, {
+		const { events, hub, manager } = createFixture({
+			hub: new FakeHubClient(false),
 			api: {
 				create: async () => ({
 					sessionId: session.id,
@@ -542,9 +528,6 @@ describe("Cloud sessions sidecar wiring", () => {
 				status: async () => ({ status: session.status }),
 				waitUntilReady,
 			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		const created = await manager.create({
 			modelId: "model",
@@ -588,9 +571,8 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("retains a failed real session and rejects its first send", async () => {
-		const { ctx, events } = createContext();
-		const hub = new FakeHubClient(false);
-		const manager = new CloudSessionManager(ctx, {
+		const { events, hub, manager } = createFixture({
+			hub: new FakeHubClient(false),
 			api: {
 				create: async () => ({
 					sessionId: "ses-created",
@@ -602,9 +584,6 @@ describe("Cloud sessions sidecar wiring", () => {
 					throw new CloudSessionError("session_failed", "clone failed");
 				},
 			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		await manager.create({
 			modelId: "model",
@@ -632,14 +611,7 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("surfaces run.failed errors as a visible error message", async () => {
-		const { ctx, events } = createContext();
-		const hub = new FakeHubClient();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
+		const { ctx, events, hub, manager } = createFixture();
 		ctx.cloudSessionManager = manager;
 		await manager.list();
 		await manager.attach("ses-outer");
@@ -670,11 +642,9 @@ describe("Cloud sessions sidecar wiring", () => {
 		"start",
 		"attach",
 	] as const)("%s attaches an existing outer id with a cold registry", async (action) => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient(true);
 		let creates = 0;
 		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
-		const manager = new CloudSessionManager(ctx, {
+		const { ctx, hub, manager } = createFixture({
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
 				create: async () => {
@@ -682,9 +652,6 @@ describe("Cloud sessions sidecar wiring", () => {
 					return { sessionId: "ses-unwanted", sandboxUrl: "pod" };
 				},
 			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		ctx.cloudSessionManager = manager;
 
@@ -711,10 +678,9 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("ignores a new client-planned id and provisions a canonical outer id", async () => {
-		const { ctx } = createContext();
-		const hub = new FakeHubClient(false);
 		let creates = 0;
-		const manager = new CloudSessionManager(ctx, {
+		const { ctx, manager } = createFixture({
+			hub: new FakeHubClient(false),
 			api: {
 				list: async () => [],
 				create: async () => {
@@ -722,9 +688,6 @@ describe("Cloud sessions sidecar wiring", () => {
 					return { sessionId: "ses-server", sandboxUrl: "pod" };
 				},
 			} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
 		});
 		ctx.cloudSessionManager = manager;
 
