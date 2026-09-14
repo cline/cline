@@ -2476,6 +2476,46 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("recovered");
 	});
 
+	it("explains a tool call cut off at the output-token limit and asks the model to split it", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "cut_off",
+					toolName: "echo",
+					inputText: '{"text":"a long file body that never gets its closing',
+				},
+				{ type: "finish", reason: "max-tokens" },
+			],
+			(request) => {
+				const toolResult = request.messages.at(-1)?.content[0];
+				expect(toolResult).toMatchObject({
+					type: "tool-result",
+					toolName: "echo",
+					isError: true,
+					output: {
+						error: expect.stringContaining(
+							"cut off when the response reached the output-token limit",
+						),
+					},
+				});
+				expect(
+					(toolResult as { output?: { error?: string } })?.output?.error,
+				).toContain("Split large edits");
+				return [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+	});
+
 	it("recovers when a model stream reports an invalid tool input error after a tool call", async () => {
 		const model = new ScriptedModel([
 			() => [

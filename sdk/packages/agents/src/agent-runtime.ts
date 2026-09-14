@@ -1438,8 +1438,7 @@ export class AgentRuntime {
 						// classifying the flattened message for models that do not carry
 						// it.
 						this.state.lastErrorRetryable =
-							event.errorRetryable ??
-							isRetryableProviderError(event.error);
+							event.errorRetryable ?? isRetryableProviderError(event.error);
 						this.state.lastErrorReported = event.errorReported === true;
 					}
 					break;
@@ -1462,6 +1461,13 @@ export class AgentRuntime {
 				continue;
 			}
 			const parsed = parseToolInput(assembly);
+			// A call whose JSON failed to parse on a "max-tokens" finish was cut off
+			// by the output limit, not malformed by the model. Say so, and say what
+			// to do: this is the one place the overrun is actually observed.
+			const parseError =
+				parsed.parseError && finishReason === "max-tokens"
+					? `Tool call ${assembly.toolName ?? assembly.toolCallId} was cut off when the response reached the output-token limit, so its arguments are incomplete. Split large edits or file contents across several smaller tool calls and retry.`
+					: parsed.parseError;
 			if (parsed.reason) {
 				invalidToolCalls.push({
 					toolCallId: assembly.toolCallId,
@@ -1475,9 +1481,9 @@ export class AgentRuntime {
 				toolCallId: assembly.toolCallId,
 				toolName: assembly.toolName,
 				input: parsed.input,
-				metadata: parsed.parseError
+				metadata: parseError
 					? mergeToolMetadata(assembly.metadata, {
-							inputParseError: parsed.parseError,
+							inputParseError: parseError,
 							rawInputText: assembly.inputText,
 						})
 					: assembly.metadata,
