@@ -105,6 +105,13 @@ export interface TelemetryMetadata {
 	os_version: string;
 	is_dev?: string;
 	is_remote_workspace?: boolean;
+	/**
+	 * Spawn-time facts reported by an out-of-process host (the JetBrains plugin): how many
+	 * cores this host window has spawned so far and why this one was started. Absent when the
+	 * host runs core in-process (VS Code).
+	 */
+	core_spawn_ordinal?: number;
+	core_spawn_reason?: string;
 }
 
 export interface ITelemetryService {

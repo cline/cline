@@ -228,6 +228,8 @@ export interface TelemetryMetadata {
 	os_type: string
 	os_version: string
 	is_dev?: string
+	core_spawn_ordinal?: number
+	core_spawn_reason?: string
 }
 
 export interface ITelemetryService {
