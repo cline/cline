@@ -1,6 +1,14 @@
-import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type {
+	GatewayResolvedProviderConfig,
+	GatewayStreamRequest,
+} from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createBedrockProviderModule, resolveBedrockModelId } from "./bedrock";
+import { buildAiSdkStreamConfig } from "../ai-sdk";
+import {
+	createBedrockProviderModule,
+	resolveBedrockModelId,
+	shouldOmitBedrockTemperature,
+} from "./bedrock";
 
 const createAmazonBedrockMock = vi.hoisted(() => vi.fn());
 const fromNodeProviderChainMock = vi.hoisted(() => vi.fn());
@@ -534,6 +542,125 @@ describe("resolveBedrockModelId", () => {
 		}
 	});
 });
+
+describe("buildStreamConfig temperature handling", () => {
+	// effectiveStreamConfig mirrors the production dispatch in ai-sdk.ts:
+	// vendor override wins, otherwise the shared default applies. Bedrock
+	// previously had no override, so these assertions fail on base with
+	// `temperature` present — the exact value Bedrock rejects.
+	function effectiveStreamConfig(
+		provider: Awaited<ReturnType<typeof createBedrockProviderModule>>,
+		request: GatewayStreamRequest,
+		context: ReturnType<typeof streamContext>,
+	) {
+		return (
+			provider.buildStreamConfig?.(request, context) ??
+			buildAiSdkStreamConfig(request, context)
+		);
+	}
+
+	it("omits temperature for catalog models without the temperature capability", async () => {
+		const provider = await createBedrockProviderModule(config({}));
+		for (const modelId of [
+			"anthropic.claude-sonnet-5",
+			"us.anthropic.claude-sonnet-5",
+			"eu.anthropic.claude-sonnet-5",
+			"anthropic.claude-opus-5",
+		]) {
+			const streamConfig = effectiveStreamConfig(
+				provider,
+				streamRequest({ temperature: 0.7 }),
+				streamContext(modelId),
+			);
+			expect(streamConfig).not.toHaveProperty("temperature");
+			expect(shouldOmitBedrockTemperature(modelId)).toBe(true);
+		}
+	});
+
+	it("omits temperature for application inference profile ARNs", async () => {
+		const profileArn =
+			"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/xyz";
+		const provider = await createBedrockProviderModule(config({}));
+		const streamConfig = effectiveStreamConfig(
+			provider,
+			streamRequest({ temperature: 0.7 }),
+			streamContext(profileArn),
+		);
+		expect(streamConfig).not.toHaveProperty("temperature");
+		expect(shouldOmitBedrockTemperature(profileArn)).toBe(true);
+	});
+
+	it("forwards explicit temperatures for models that accept it", async () => {
+		const provider = await createBedrockProviderModule(config({}));
+		for (const modelId of [
+			"anthropic.claude-sonnet-4-6",
+			"us.anthropic.claude-sonnet-4-6",
+			"anthropic.claude-haiku-4-5-20251001-v1:0",
+		]) {
+			const streamConfig = effectiveStreamConfig(
+				provider,
+				streamRequest({ temperature: 0.2 }),
+				streamContext(modelId),
+			);
+			expect(streamConfig).toHaveProperty("temperature", 0.2);
+			expect(shouldOmitBedrockTemperature(modelId)).toBe(false);
+		}
+	});
+
+	it("forwards temperatures on routes without rejection evidence", async () => {
+		const provider = await createBedrockProviderModule(config({}));
+		for (const modelId of [
+			"my-provisioned-model",
+			"arn:aws:bedrock:us-east-1:123456789012:provisioned-model/abc123",
+		]) {
+			const streamConfig = effectiveStreamConfig(
+				provider,
+				streamRequest({ temperature: 0.5 }),
+				streamContext(modelId),
+			);
+			expect(streamConfig).toHaveProperty("temperature", 0.5);
+			expect(shouldOmitBedrockTemperature(modelId)).toBe(false);
+		}
+	});
+
+	it("emits no temperature key when the caller sets none", async () => {
+		const provider = await createBedrockProviderModule(config({}));
+		const streamConfig = effectiveStreamConfig(
+			provider,
+			streamRequest({}),
+			streamContext("anthropic.claude-sonnet-4-6"),
+		);
+		expect(streamConfig).not.toHaveProperty("temperature");
+	});
+});
+
+function streamContext(modelId: string) {
+	return {
+		provider: {
+			id: "bedrock",
+			name: "AWS Bedrock",
+			defaultModelId: modelId,
+			models: [],
+		},
+		model: {
+			providerId: "bedrock",
+			id: modelId,
+			name: modelId,
+		},
+		config: config({}),
+	};
+}
+
+function streamRequest(
+	overrides: Partial<GatewayStreamRequest>,
+): GatewayStreamRequest {
+	return {
+		providerId: "bedrock",
+		modelId: "anthropic.claude-sonnet-5",
+		messages: [],
+		...overrides,
+	};
+}
 
 function config(
 	overrides: Partial<GatewayResolvedProviderConfig>,
