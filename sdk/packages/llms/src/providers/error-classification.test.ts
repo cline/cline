@@ -5,7 +5,10 @@ import {
 	TypeValidationError,
 } from "ai";
 import { describe, expect, it } from "vitest";
-import { classifyProviderError } from "./error-classification";
+import {
+	classifyProviderError,
+	isRetryableProviderError,
+} from "./error-classification";
 
 describe("classifyProviderError", () => {
 	describe("context_window_exceeded", () => {
@@ -397,6 +400,81 @@ describe("classifyProviderError", () => {
 				cause: overflowApiCallError(),
 			});
 			expect(classifyProviderError(error)).toBe("context_window_exceeded");
+		});
+	});
+});
+
+describe("isRetryableProviderError", () => {
+	const apiCallError = (statusCode: number, message = "error") =>
+		new APICallError({
+			message,
+			url: "https://api.example.com/v1/chat/completions",
+			requestBodyValues: {},
+			statusCode,
+			responseBody: JSON.stringify({ error: { message } }),
+		});
+
+	describe("retryable", () => {
+		it("retries a typed APICallError 429 via the SDK's isRetryable flag", () => {
+			expect(isRetryableProviderError(apiCallError(429, "rate limited"))).toBe(
+				true,
+			);
+		});
+
+		it("retries a typed APICallError 503", () => {
+			expect(isRetryableProviderError(apiCallError(503))).toBe(true);
+		});
+
+		it("unwraps a RetryError whose final attempt was a 429", () => {
+			const last = apiCallError(429, "rate limited");
+			const error = new RetryError({
+				message: "Failed after 3 attempts",
+				reason: "maxRetriesExceeded",
+				errors: [last],
+			});
+			expect(isRetryableProviderError(error)).toBe(true);
+		});
+
+		it("retries a gateway-forwarded 500 carried as a JSON message string", () => {
+			expect(
+				isRetryableProviderError(
+					JSON.stringify({ error: { message: "boom", code: 500 } }),
+				),
+			).toBe(true);
+		});
+
+		it("retries OpenRouter's bare mid-stream 'Provider returned error' string", () => {
+			expect(isRetryableProviderError("Provider returned error")).toBe(true);
+		});
+	});
+
+	describe("not retryable", () => {
+		it("does not retry a credential rejection (401)", () => {
+			expect(isRetryableProviderError(apiCallError(401, "Invalid API Key"))).toBe(
+				false,
+			);
+		});
+
+		it("does not retry a context-window overflow (400)", () => {
+			expect(
+				isRetryableProviderError(
+					apiCallError(400, "This model's maximum context length is 40960 tokens"),
+				),
+			).toBe(false);
+		});
+
+		it("does not retry other client errors (404)", () => {
+			expect(isRetryableProviderError(apiCallError(404, "model not found"))).toBe(
+				false,
+			);
+		});
+
+		it("does not retry a bare transport failure with no status", () => {
+			expect(isRetryableProviderError("fetch failed: socket closed")).toBe(false);
+		});
+
+		it("returns false for undefined", () => {
+			expect(isRetryableProviderError(undefined)).toBe(false);
 		});
 	});
 });

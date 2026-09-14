@@ -44,7 +44,10 @@ import {
 } from "ai";
 import { nanoid } from "nanoid";
 import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
-import { classifyProviderError } from "./error-classification";
+import {
+	classifyProviderError,
+	isRetryableProviderError,
+} from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
@@ -1410,6 +1413,13 @@ interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
+	 * Whether the failure is transient and worth retrying, taken from the AI
+	 * SDK's typed `isRetryable` flag while the structured error is still in
+	 * hand. Forwarded as `errorRetryable` on the `finish` event because the
+	 * flattened message the agent loop receives cannot carry it.
+	 */
+	retryable: boolean;
+	/**
 	 * This layer already recorded `sdk.error` telemetry for the failure.
 	 * Forwarded as `errorReported` on the `finish` event so the agent loop
 	 * does not report the same failure a second time.
@@ -1421,6 +1431,7 @@ function captureStreamError(error: unknown): CapturedStreamError {
 	return {
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
+		retryable: isRetryableProviderError(error),
 	};
 }
 
@@ -1939,6 +1950,7 @@ async function* emitAiSdkEvents(
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorRetryable: streamError?.retryable,
 		errorReported: streamError?.reported,
 	};
 }
@@ -2376,6 +2388,7 @@ function createAiSdkProvider(
 					reason: "error",
 					error: msg,
 					errorClass: captured.errorClass,
+					errorRetryable: captured.retryable,
 					errorReported: reported || captured.reported,
 				};
 			}

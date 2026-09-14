@@ -307,3 +307,111 @@ export function classifyProviderError(error: unknown): ProviderErrorClass {
 	}
 	return verdictFromSignals(signals);
 }
+
+/**
+ * HTTP statuses that are transient and retryable: request timeout / conflict /
+ * too-early, rate limiting, and the 5xx server-failure family (incl. the
+ * widely used 529 "overloaded"). This mirrors the AI SDK's own retry policy
+ * and is the fallback only for errors that are not typed AI SDK instances;
+ * typed errors defer to {@link APICallError.isRetryable}. Any other 4xx is the
+ * caller's own request being rejected and must not be retried.
+ */
+const RETRYABLE_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504, 529]);
+
+/**
+ * The sole message fallback. OpenRouter forwards an upstream failure mid-stream
+ * as a bare "Provider returned error" string with no HTTP status and no typed
+ * error to inspect, so there is nothing else to key on. Every other decision
+ * comes from the AI SDK's typed `isRetryable` flag or the HTTP status — not
+ * from matching free-form message text.
+ */
+const PROVIDER_RETURNED_ERROR_PATTERN = /provider returned error/i;
+
+/**
+ * Retryability taken from a real AI SDK error instance via its own typed
+ * `isRetryable` flag, rather than re-deriving it — the maintainable path that
+ * stays correct as the SDK evolves. Returns `undefined` when the error is not
+ * a recognized instance, so {@link isRetryableProviderError} falls back to the
+ * structural walk.
+ */
+function isRetryableTypedError(
+	error: unknown,
+	depth: number,
+): boolean | undefined {
+	if (depth > MAX_WALK_DEPTH) {
+		return undefined;
+	}
+	if (RetryError.isInstance(error)) {
+		// The SDK already retried and gave up; the final underlying error decides
+		// whether another attempt at our layer is worthwhile.
+		const last = error.lastError ?? error.errors[error.errors.length - 1];
+		return last == null ? undefined : isRetryableTypedError(last, depth + 1);
+	}
+	if (APICallError.isInstance(error)) {
+		return error.isRetryable === true;
+	}
+	if (AISDKError.isInstance(error)) {
+		return isRetryableTypedError(error.cause, depth + 1);
+	}
+	return undefined;
+}
+
+/**
+ * Decide whether a provider/API error is a transient failure worth retrying
+ * with backoff, as opposed to a permanent failure a retry cannot fix
+ * (credential rejections, context-window overflow, other client-side 4xx
+ * errors). Prefers the AI SDK's own typed `isRetryable` signal; for
+ * non-instances (already-flattened messages or gateway-forwarded JSON) it
+ * falls back to the HTTP status, and finally to the single documented
+ * "Provider returned error" provider quirk. Accepts either a raw structured
+ * error or a flattened message string.
+ */
+export function isRetryableProviderError(error: unknown): boolean {
+	// Prefer the AI SDK's own typed retryability signal.
+	try {
+		const typed = isRetryableTypedError(error, 0);
+		if (typed !== undefined) {
+			return typed;
+		}
+	} catch {
+		// Fall through to the structural walk.
+	}
+
+	const signals: ErrorSignals = {
+		messages: [],
+		statuses: new Set(),
+		codes: new Set(),
+	};
+	try {
+		collectSignals(error, signals, new Set(), 0);
+	} catch {
+		return false;
+	}
+
+	const statuses = [...signals.statuses];
+	// Never retry credential rejections or a definitive context-window overflow:
+	// the same request will fail again.
+	if (statuses.some((status) => AUTH_STATUSES.has(status))) {
+		return false;
+	}
+	if ([...signals.codes].some((code) => CONTEXT_WINDOW_CODES.has(code))) {
+		return false;
+	}
+	// A transient HTTP status (incl. any 5xx) is retryable.
+	if (
+		statuses.some(
+			(status) =>
+				RETRYABLE_STATUSES.has(status) || (status >= 500 && status <= 599),
+		)
+	) {
+		return true;
+	}
+	// Any other visible 4xx is a non-retryable client error.
+	if (statuses.some((status) => status >= 400 && status < 500)) {
+		return false;
+	}
+	// No typed error and no status: the one provider quirk we special-case.
+	return signals.messages.some((message) =>
+		PROVIDER_RETURNED_ERROR_PATTERN.test(message),
+	);
+}
