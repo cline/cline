@@ -242,8 +242,25 @@ export type ConsecutiveMistakeLimitDecision =
 	  };
 
 export interface LoopDetectionConfig {
+	/** Consecutive identical calls that trigger a soft warning. */
 	softThreshold: number;
+	/** Consecutive identical calls that trigger a hard stop. */
 	hardThreshold: number;
+	/**
+	 * Size of the rolling window used to catch interleaved loops — a small set
+	 * of distinct calls that cycle without being strictly consecutive (e.g.
+	 * write-file / delete-file / write-file …). Evaluated only once this many
+	 * calls have been seen. Defaults applied by the tracker.
+	 */
+	windowSize?: number;
+	/**
+	 * Soft warning when a full window contains at most this many *distinct*
+	 * calls. A productive edit / test cycle stays above it because its edit
+	 * arguments vary each turn.
+	 */
+	windowSoftDistinct?: number;
+	/** Hard stop when a full window contains at most this many distinct calls. */
+	windowHardDistinct?: number;
 }
 
 export interface AgentExecutionConfig {

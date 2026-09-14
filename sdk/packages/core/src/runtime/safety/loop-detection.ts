@@ -17,10 +17,22 @@ import type { LoopDetectionConfig } from "@cline/shared";
 // Pure helpers (verbatim port)
 // =============================================================================
 
+/**
+ * Rolling-window defaults for interleaved-loop detection. Once the window is
+ * full, few *distinct* calls means the agent is cycling through a tiny set of
+ * actions. Diversity (not raw repeat count) is the signal, so a productive
+ * edit / test loop — whose edits vary each turn — never trips it.
+ */
+const DEFAULT_WINDOW_SIZE = 12;
+const DEFAULT_WINDOW_SOFT_DISTINCT = 3;
+const DEFAULT_WINDOW_HARD_DISTINCT = 2;
+
 export interface LoopDetectionState {
 	lastToolName: string;
 	lastToolSignature: string;
 	consecutiveIdenticalCount: number;
+	/** Recent `toolName + signature` keys, most-recent last, capped at windowSize. */
+	recentKeys: string[];
 }
 
 export function createLoopDetectionState(): LoopDetectionState {
@@ -28,6 +40,7 @@ export function createLoopDetectionState(): LoopDetectionState {
 		lastToolName: "",
 		lastToolSignature: "",
 		consecutiveIdenticalCount: 0,
+		recentKeys: [],
 	};
 }
 
@@ -35,6 +48,7 @@ export function resetLoopDetectionState(state: LoopDetectionState): void {
 	state.lastToolName = "";
 	state.lastToolSignature = "";
 	state.consecutiveIdenticalCount = 0;
+	state.recentKeys = [];
 }
 
 function sortKeys(value: unknown): unknown {
@@ -61,6 +75,13 @@ export function toolCallSignature(input: unknown): string {
 export interface LoopCheckResult {
 	softWarning: boolean;
 	hardEscalation: boolean;
+	/** Length of the current run of strictly-consecutive identical calls. */
+	consecutiveCount: number;
+	/**
+	 * Distinct calls in the current rolling window once it is full; Infinity
+	 * until then (so the windowed check stays dormant while the window fills).
+	 */
+	windowDistinct: number;
 }
 
 export function checkRepeatedToolCall(
@@ -80,9 +101,38 @@ export function checkRepeatedToolCall(
 	state.lastToolName = toolName;
 	state.lastToolSignature = signature;
 
+	// Windowed repeat detection catches loops that interleave a small set of
+	// identical calls (e.g. write-file / delete-file / write-file …), which the
+	// consecutive counter above never sees because each call differs from the one
+	// immediately before it. Identity is name + arguments, so a productive
+	// edit / test cycle (whose edit arguments differ each turn) is not flagged.
+	const windowSize = config.windowSize ?? DEFAULT_WINDOW_SIZE;
+	const windowSoftDistinct =
+		config.windowSoftDistinct ?? DEFAULT_WINDOW_SOFT_DISTINCT;
+	const windowHardDistinct =
+		config.windowHardDistinct ?? DEFAULT_WINDOW_HARD_DISTINCT;
+	const key = `${toolName}\u0000${signature}`;
+	state.recentKeys.push(key);
+	if (state.recentKeys.length > windowSize) {
+		state.recentKeys.shift();
+	}
+	// Only judge diversity on a full window; a distinct count that low over a
+	// partial window would flag the opening of any run.
+	const windowDistinct =
+		state.recentKeys.length >= windowSize
+			? new Set(state.recentKeys).size
+			: Number.POSITIVE_INFINITY;
+
+	const consecutiveCount = state.consecutiveIdenticalCount;
 	return {
-		softWarning: state.consecutiveIdenticalCount === config.softThreshold,
-		hardEscalation: state.consecutiveIdenticalCount >= config.hardThreshold,
+		consecutiveCount,
+		windowDistinct,
+		softWarning:
+			consecutiveCount === config.softThreshold ||
+			windowDistinct <= windowSoftDistinct,
+		hardEscalation:
+			consecutiveCount >= config.hardThreshold ||
+			windowDistinct <= windowHardDistinct,
 	};
 }
 
@@ -113,6 +163,9 @@ export interface LoopDetectionCall {
 const DEFAULT_CONFIG: LoopDetectionConfig = {
 	softThreshold: 3,
 	hardThreshold: 5,
+	windowSize: DEFAULT_WINDOW_SIZE,
+	windowSoftDistinct: DEFAULT_WINDOW_SOFT_DISTINCT,
+	windowHardDistinct: DEFAULT_WINDOW_HARD_DISTINCT,
 };
 
 /**
@@ -130,6 +183,11 @@ export class LoopDetectionTracker {
 		this.config = {
 			softThreshold: config?.softThreshold ?? DEFAULT_CONFIG.softThreshold,
 			hardThreshold: config?.hardThreshold ?? DEFAULT_CONFIG.hardThreshold,
+			windowSize: config?.windowSize ?? DEFAULT_CONFIG.windowSize,
+			windowSoftDistinct:
+				config?.windowSoftDistinct ?? DEFAULT_CONFIG.windowSoftDistinct,
+			windowHardDistinct:
+				config?.windowHardDistinct ?? DEFAULT_CONFIG.windowHardDistinct,
 		};
 	}
 
@@ -144,13 +202,19 @@ export class LoopDetectionTracker {
 		if (result.hardEscalation) {
 			return {
 				kind: "hard",
-				message: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`,
+				message:
+					result.consecutiveCount >= this.config.hardThreshold
+						? `Detected ${result.consecutiveCount} consecutive identical calls to \`${call.name}\`; stopping to avoid a loop.`
+						: `Detected a repeating tool-call loop cycling through only ${result.windowDistinct} distinct actions; stopping to avoid a loop.`,
 			};
 		}
 		if (result.softWarning) {
 			return {
 				kind: "soft",
-				message: `Detected ${this.state.consecutiveIdenticalCount} consecutive identical calls to \`${call.name}\`; consider trying a different approach.`,
+				message:
+					result.consecutiveCount === this.config.softThreshold
+						? `Detected ${result.consecutiveCount} consecutive identical calls to \`${call.name}\`; consider trying a different approach.`
+						: `Detected a repeating tool-call loop cycling through only ${result.windowDistinct} distinct actions; consider trying a different approach.`,
 			};
 		}
 		return { kind: "ok" };
