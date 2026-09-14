@@ -1,7 +1,9 @@
+import * as childProcess from "node:child_process";
 import { EventEmitter } from "node:events";
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type RemoteCommandResult,
@@ -11,6 +13,11 @@ import {
 	type RemoteTunnelProcess,
 	runRemoteProcess,
 } from "./remote-environments";
+
+vi.mock("node:child_process", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:child_process")>();
+	return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 
 class FakeTunnel extends EventEmitter implements RemoteTunnelProcess {
 	public readonly pid = 4242;
@@ -59,6 +66,7 @@ describe("RemoteEnvironmentService", () => {
 	});
 
 	afterEach(async () => {
+		vi.restoreAllMocks();
 		await rm(testDirectory, { recursive: true, force: true });
 	});
 
@@ -82,23 +90,64 @@ describe("RemoteEnvironmentService", () => {
 		});
 	}
 
-	it("drains ProxyCommand output after SSH exits", async () => {
-		const lateDiagnosticProgram =
-			'const { spawn } = require("node:child_process");' +
-			'spawn(process.execPath, ["-e", "setTimeout(() => process.stderr.write(\\"remote helper failed\\\\n\\"), 40)"], { stdio: ["ignore", "ignore", 2] });' +
-			'process.stderr.write("gcloud NumPy warning\\n");' +
-			"process.exit(23);";
+	it("waits for stream close and captures diagnostics after process exit", async () => {
+		const child = Object.assign(new EventEmitter(), {
+			stdout: new PassThrough(),
+			stderr: new PassThrough(),
+			stdin: null,
+		});
+		vi.mocked(childProcess.spawn).mockReturnValueOnce(
+			child as unknown as childProcess.ChildProcess,
+		);
+		const result = runRemoteProcess("ssh", [], { timeoutMs: 2000 });
+		child.stderr.write("gcloud NumPy warning\n");
+		child.emit("exit", 23, null);
+		child.stderr.write("remote helper failed\n");
+		child.emit("close", 23, null);
+		await expect(result).resolves.toEqual({
+			exitCode: 23,
+			stdout: "",
+			stderr: "gcloud NumPy warning\nremote helper failed\n",
+		});
+	});
 
+	it("captures delayed stderr from a real subprocess", async () => {
 		const result = await runRemoteProcess(
 			process.execPath,
-			["-e", lateDiagnosticProgram],
-			{ timeoutMs: 2_000 },
+			[
+				"-e",
+				'process.stderr.write("early\\n"); setTimeout(() => { process.stderr.write("late\\n", () => { process.exitCode = 23; }); }, 40);',
+			],
+			{ timeoutMs: 5000 },
 		);
-
-		expect(result).toMatchObject({ exitCode: 23, stdout: "" });
-		expect(result.stderr).toContain("gcloud NumPy warning");
-		expect(result.stderr).toContain("remote helper failed");
+		expect(result).toEqual({
+			exitCode: 23,
+			stdout: "",
+			stderr: "early\nlate\n",
+		});
 	});
+
+	// Inherited descendant pipe handles in this fixture require POSIX.
+	it.skipIf(process.platform === "win32")(
+		"drains inherited ProxyCommand output after SSH exits",
+		async () => {
+			const lateDiagnosticProgram =
+				'const { spawn } = require("node:child_process");' +
+				'spawn(process.execPath, ["-e", "setTimeout(() => process.stderr.write(\\"remote helper failed\\\\n\\"), 40)"], { stdio: ["ignore", "ignore", 2] });' +
+				'process.stderr.write("gcloud NumPy warning\\n");' +
+				"process.exit(23);";
+
+			const result = await runRemoteProcess(
+				process.execPath,
+				["-e", lateDiagnosticProgram],
+				{ timeoutMs: 2_000 },
+			);
+
+			expect(result).toMatchObject({ exitCode: 23, stdout: "" });
+			expect(result.stderr).toContain("gcloud NumPy warning");
+			expect(result.stderr).toContain("remote helper failed");
+		},
+	);
 
 	it.each([
 		"stdout",
@@ -221,7 +270,10 @@ describe("RemoteEnvironmentService", () => {
 			createdAt: "2026-08-06T12:00:00.000Z",
 			updatedAt: "2026-08-06T12:00:00.000Z",
 		});
-		expect((await stat(profilesPath)).mode & 0o777).toBe(0o600);
+		// Windows exposes synthetic mode bits; file access is governed by ACLs.
+		if (process.platform !== "win32") {
+			expect((await stat(profilesPath)).mode & 0o777).toBe(0o600);
+		}
 
 		const stored = JSON.parse(await readFile(profilesPath, "utf8"));
 		expect(stored).toEqual({ version: 1, profiles: [created] });
