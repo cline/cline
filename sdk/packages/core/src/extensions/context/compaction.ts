@@ -50,6 +50,12 @@ export interface ContextPipelinePrepareTurnInput {
 	 * successful LLM request.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Actual provider-reported input tokens for the previous request this run,
+	 * used as a floor on the char-based estimate so dense content still triggers
+	 * compaction. See AgentPrepareTurnContext.previousRequestInputTokens.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -321,7 +327,20 @@ export function createContextCompactionPrepareTurn(
 			requestTriggerTokens,
 			requestOverheadTokens,
 		);
-		const shouldCompact = requestInputTokens >= requestTriggerTokens;
+		// The char-based estimate under-counts dense content (disassembly, image
+		// dumps), so also trigger on the provider's actual last-request input
+		// count when it is higher — otherwise the real context can grow past the
+		// window without ever crossing the estimated trigger.
+		const actualPreviousInputTokens =
+			typeof context.previousRequestInputTokens === "number" &&
+			context.previousRequestInputTokens > 0
+				? context.previousRequestInputTokens
+				: 0;
+		const effectiveInputTokens = Math.max(
+			requestInputTokens,
+			actualPreviousInputTokens,
+		);
+		const shouldCompact = effectiveInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode: effectiveMode,
 			strategy,

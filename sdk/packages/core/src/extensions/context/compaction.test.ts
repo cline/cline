@@ -1182,7 +1182,7 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
 		expect(codexConfig.thinking).toBe(false);
-		expect(anthropicConfig.maxOutputTokens).toBe(4_096);
+		expect(anthropicConfig.maxOutputTokens).toBe(8_192);
 	});
 
 	it("resolves the summarizer output budget from explicit config, else the default clamped by model metadata", () => {
@@ -1216,7 +1216,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelInfo: { id: "local-model", maxTokens: 64_000 },
 			} as LlmsProviders.ProviderConfig,
 		});
-		expect(notRaisedByModelInfo.maxOutputTokens).toBe(4_096);
+		expect(notRaisedByModelInfo.maxOutputTokens).toBe(8_192);
 
 		const clampedByKnownModels = resolveSummarizerConfig({
 			activeProviderConfig: {
@@ -1235,7 +1235,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelId: "local-model",
 			} as LlmsProviders.ProviderConfig,
 		});
-		expect(fromDefault.maxOutputTokens).toBe(4_096);
+		expect(fromDefault.maxOutputTokens).toBe(8_192);
 	});
 
 	it("clamps an explicit summarizer's default budget by its own model info but lets its explicit value win", () => {

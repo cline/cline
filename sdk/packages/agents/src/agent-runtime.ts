@@ -530,6 +530,8 @@ export class AgentRuntime {
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
 		lastErrorClass: undefined as ProviderErrorClass | undefined,
+		/** Provider-reported input tokens for the most recent request this run. */
+		lastRequestInputTokens: 0,
 		/**
 		 * Whether the last provider failure was transient and worth retrying,
 		 * carried from the model boundary via `errorRetryable` on the `finish`
@@ -746,6 +748,7 @@ export class AgentRuntime {
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
 		this.maxTokensRecoveryCount = 0;
+		this.state.lastRequestInputTokens = 0;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -1474,6 +1477,12 @@ export class AgentRuntime {
 					break;
 				}
 				case "usage": {
+					if (
+						typeof event.usage.inputTokens === "number" &&
+						event.usage.inputTokens > 0
+					) {
+						this.state.lastRequestInputTokens = event.usage.inputTokens;
+					}
 					await this.updateUsage(event.usage);
 					break;
 				}
@@ -1729,6 +1738,10 @@ export class AgentRuntime {
 			},
 			signal: request.signal,
 			overflowRecovery: overflowRecovery || undefined,
+			previousRequestInputTokens:
+				this.state.lastRequestInputTokens > 0
+					? this.state.lastRequestInputTokens
+					: undefined,
 			emitStatusNotice: (message, metadata) => {
 				void this.emit({
 					type: "status-notice",
