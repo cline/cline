@@ -902,6 +902,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// resolve a provider at all. If the user selected a provider but credentials
 	// are missing, keep that provider/model so the UI can surface the right auth
 	// state instead of silently switching to a previous provider.
+	//
+	// A keyless local endpoint (base URL + model) is a complete configuration,
+	// so the fallback must not require an API key — otherwise it is skipped and
+	// the session silently lands on the credentialed default provider.
 	if (!providerId) {
 		try {
 			const dataDir = resolveDataDir()
@@ -910,7 +914,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				isClinePassEnabled: true,
 			})
 
-			if (lastUsed?.provider && lastUsed?.apiKey) {
+			if (lastUsed?.provider) {
 				// providers.json stores SDK provider ids (e.g. `openai-compatible`);
 				// normalize to the legacy spelling used across this factory.
 				providerId = toLegacyApiProvider(lastUsed.provider)
