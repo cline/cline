@@ -5,9 +5,9 @@ import {
 	CircleAlert,
 	CloudCog,
 	Loader2,
+	Plug,
 	Plus,
 	RefreshCw,
-	Server,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -379,7 +379,7 @@ export function RemoteEnvironmentsContent() {
 					</Button>
 				}
 				icon={CloudCog}
-				title="Remote environments"
+				title="Remote Environments"
 				description="Manage your remote SSH hosts and their configurations."
 			/>
 
@@ -475,7 +475,7 @@ export function RemoteEnvironmentsContent() {
 								<Button
 									disabled={isBusy}
 									onClick={() => setDeleteTarget(draft)}
-									variant="destructive"
+									variant="ghost"
 									size="icon-lg"
 								>
 									<Trash2 />
@@ -574,18 +574,21 @@ export function RemoteEnvironmentsContent() {
 						<div className="rounded-lg border bg-muted/30 p-4">
 							<div className="mb-3 flex items-center justify-between gap-3">
 								<div className="flex items-center gap-2">
-									<Server className="size-4 text-muted-foreground" />
 									<p className="text-sm font-medium">Environment status</p>
 								</div>
 								<Button
 									disabled={isBusy}
 									onClick={() => void testProfile()}
-									variant="outline"
+									variant="secondary"
+									className="text-muted-foreground"
+									size="sm"
 								>
 									{busyAction?.action === "test" ? (
 										<Loader2 className="animate-spin" />
-									) : null}
-									Test connection
+									) : (
+										<Plug />
+									)}
+									Test Connection
 								</Button>
 							</div>
 							<div className="grid grid-cols-2 gap-x-5 gap-y-3 max-[620px]:grid-cols-1">
