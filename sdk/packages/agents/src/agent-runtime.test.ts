@@ -330,6 +330,39 @@ describe("AgentRuntime", () => {
 		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
 	});
 
+	it("nudges a reasoning-only turn instead of completing the run", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking... cut mid-wo" },
+				{ type: "finish", reason: "stop" },
+			],
+			() => [
+				{ type: "text-delta", text: "Here is the answer." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const turns: boolean[] = [];
+		const runtime = new AgentRuntime({ model });
+		runtime.subscribe((event) => {
+			if (event.type === "turn-finished") turns.push(event.emptyTurn === true);
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Here is the answer.");
+		expect(model.requests).toHaveLength(2);
+		expect(turns).toEqual([true, false]);
+		// user, reasoning-only assistant, nudge, answer
+		expect(result.messages.map((m) => m.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(result.messages[2]?.metadata).toMatchObject({ userRunSpan: 0 });
+	});
+
 	it("fails a turn that hits the model output token limit before completion", async () => {
 		const logger = {
 			debug: vi.fn(),
