@@ -1,3 +1,4 @@
+import type { CoreSpawnReason } from "@cline/shared"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
@@ -229,7 +230,7 @@ export interface TelemetryMetadata {
 	os_version: string
 	is_dev?: string
 	core_spawn_ordinal?: number
-	core_spawn_reason?: string
+	core_spawn_reason?: CoreSpawnReason
 }
 
 export interface ITelemetryService {

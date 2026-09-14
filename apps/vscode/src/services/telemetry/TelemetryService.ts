@@ -10,7 +10,7 @@ import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { getDeviceId, setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
-import { getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
+import { type CoreSpawnReason, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import {
 	getRolloutErrorProperties,
 	getRolloutTelemetryMetadata,
@@ -117,7 +117,7 @@ export type TelemetryMetadata = {
 	 * host runs core in-process (VS Code). See `core-spawn-metadata.ts`.
 	 */
 	core_spawn_ordinal?: number
-	core_spawn_reason?: string
+	core_spawn_reason?: CoreSpawnReason
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */

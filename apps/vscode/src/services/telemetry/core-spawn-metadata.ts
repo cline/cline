@@ -9,12 +9,12 @@
  * crash-restarted three times and a user with three project windows both look
  * like three `user.extension_activated` events.
  */
+import { CORE_SPAWN_REASONS, type CoreSpawnReason } from "@cline/shared"
+
 export const CORE_SPAWN_ORDINAL_ENV = "CLINE_CORE_SPAWN_ORDINAL"
 export const CORE_SPAWN_REASON_ENV = "CLINE_CORE_SPAWN_REASON"
 
-/** Why the host spawned this core. Keep in sync with the JetBrains plugin's `SpawnReason`. */
-export const CORE_SPAWN_REASONS = ["initial", "crash_restart", "rollout_fallback", "rollout_demotion", "user_restart"] as const
-export type CoreSpawnReason = (typeof CORE_SPAWN_REASONS)[number]
+export { CORE_SPAWN_REASONS, type CoreSpawnReason }
 
 export type CoreSpawnTelemetryMetadata = {
 	/** 1-based count of core processes this host window has spawned, including this one. */
