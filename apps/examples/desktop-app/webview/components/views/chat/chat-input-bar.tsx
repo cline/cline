@@ -1263,6 +1263,12 @@ function ChatInputBarImpl({
 								}
 							}}
 							onKeyDown={(e) => {
+								// While an IME (e.g. Chinese/Japanese) is composing, Enter
+								// commits the composition and arrows move between candidates,
+								// so leave those keys to the IME. WebKit can fire the committing
+								// Enter after compositionend with isComposing already false but
+								// the legacy keyCode 229, hence the second check.
+								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
