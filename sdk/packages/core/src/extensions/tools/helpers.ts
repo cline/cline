@@ -17,19 +17,68 @@ export function formatError(error: unknown): string {
 	return String(error);
 }
 
-export function getEditorSizeError(input: EditFileInput): string | null {
+/** Rough characters per output token, for turning a token budget into a payload size. */
+const EDITOR_CHARS_PER_OUTPUT_TOKEN = 3;
+/**
+ * Fraction of the output budget one editor payload may use, leaving headroom
+ * for the JSON envelope, reasoning, and other tool calls in the same turn.
+ */
+const EDITOR_INPUT_BUDGET_FRACTION = 0.5;
+/**
+ * Ceiling on the derived guideline: past this a single write stops being a
+ * "small, precise edit" no matter how large the budget.
+ */
+export const EDITOR_INPUT_CHAR_LIMIT_MAX = 48_000;
+
+/**
+ * Derive the advisory size for one editor `old_text` / `new_text` payload from
+ * the model's max output tokens. Small budgets keep the conservative
+ * INPUT_ARG_CHAR_LIMIT; larger budgets earn proportionally more room, capped at
+ * EDITOR_INPUT_CHAR_LIMIT_MAX. An unknown budget yields the default.
+ */
+export function resolveEditorInputCharLimit(
+	maxOutputTokens: number | undefined,
+): number {
 	if (
-		typeof input.old_text === "string" &&
-		input.old_text.length > INPUT_ARG_CHAR_LIMIT
+		typeof maxOutputTokens !== "number" ||
+		!Number.isFinite(maxOutputTokens) ||
+		maxOutputTokens <= 0
 	) {
-		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+		return INPUT_ARG_CHAR_LIMIT;
 	}
+	const derived = Math.floor(
+		maxOutputTokens *
+			EDITOR_CHARS_PER_OUTPUT_TOKEN *
+			EDITOR_INPUT_BUDGET_FRACTION,
+	);
+	return Math.min(
+		EDITOR_INPUT_CHAR_LIMIT_MAX,
+		Math.max(INPUT_ARG_CHAR_LIMIT, derived),
+	);
+}
 
-	if (input.new_text.length > INPUT_ARG_CHAR_LIMIT) {
-		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+/**
+ * Advisory attached to an editor result whose payload exceeded the guideline.
+ * The edit is still applied: input that reaches the tool parsed as complete
+ * JSON, so it was NOT cut off by the output limit (a truncated call fails
+ * parsing earlier and never runs). Rejecting it would only discard a successful
+ * write and force a re-emit. The note steers the model's future edits smaller.
+ */
+export function getEditorSizeAdvisory(
+	input: EditFileInput,
+	limit: number = INPUT_ARG_CHAR_LIMIT,
+): string | null {
+	const over: string[] = [];
+	if (typeof input.old_text === "string" && input.old_text.length > limit) {
+		over.push(`old_text was ${input.old_text.length} characters`);
 	}
-
-	return null;
+	if (input.new_text.length > limit) {
+		over.push(`new_text was ${input.new_text.length} characters`);
+	}
+	if (over.length === 0) {
+		return null;
+	}
+	return `Note: ${over.join(" and ")}, above the ~${limit}-character guideline for a single edit. The edit was applied. For larger changes, split the work across several editor calls (or use insert_line) so a response cut off at the output-token limit cannot leave a half-written file.`;
 }
 
 /**

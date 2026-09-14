@@ -352,6 +352,16 @@ export interface DefaultToolsConfig {
 	editorTimeoutMs?: number;
 
 	/**
+	 * Advisory size, in characters, for a single editor `old_text` / `new_text`
+	 * payload. Oversized payloads that arrive intact are still applied, with a
+	 * note steering future edits smaller; the guideline is also stated in the
+	 * tool description. The runtime builder derives a larger value for models
+	 * with a larger output budget (see resolveEditorInputCharLimit).
+	 * @default 6000 (INPUT_ARG_CHAR_LIMIT)
+	 */
+	editorInputCharLimit?: number;
+
+	/**
 	 * Timeout for skills operations in milliseconds
 	 * @default 15000
 	 */

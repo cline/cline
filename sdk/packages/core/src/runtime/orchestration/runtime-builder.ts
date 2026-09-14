@@ -30,6 +30,7 @@ import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	type RunCommandExecutionController,
+	resolveEditorInputCharLimit,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -149,6 +150,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
 	runCommandExecutionController?: RunCommandExecutionController,
+	editorInputCharLimit?: number,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -173,6 +175,8 @@ function createBuiltinToolsList(
 			// Autonomous (yolo) runs get a longer per-command budget: no one is
 			// waiting at a prompt and long builds/tests are routine.
 			...(mode === "yolo" ? { bashTimeoutMs: YOLO_BASH_TIMEOUT_MS } : {}),
+			// Editor payload guideline scaled to the model's output budget.
+			...(editorInputCharLimit !== undefined ? { editorInputCharLimit } : {}),
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
 			executors: {
@@ -585,6 +589,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					input.runCommandExecutionController,
+					resolveEditorInputCharLimit(
+						config.maxTokensPerTurn ??
+							config.knownModels?.[config.modelId]?.maxTokens,
+					),
 				),
 			);
 			const agentPluginMcpServers = pluginsEnabled
