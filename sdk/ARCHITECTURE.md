@@ -75,6 +75,10 @@ Design rule:
   event into `afterModel.requestId`. It identifies the final surfaced step, not
   every hidden HTTP retry. Hosts can use existing model hooks for background
   observations without wrapping transports or adding a request callback API.
+  VS Code Git observations belong to the open conversation, not the SDK runtime:
+  an `ended` event may leave the chat open after a failure. Startup cleanup handles
+  unopened observers; explicit host stop/disposal closes both normal and restored
+  observation windows.
 
 ### `@cline/agents`
 

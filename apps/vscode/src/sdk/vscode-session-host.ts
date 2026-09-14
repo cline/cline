@@ -214,8 +214,14 @@ export class VscodeSessionHost implements SdkSessionHost {
 					},
 					dispose: () => {
 						if (sessionId) {
-							gitTelemetry.get(sessionId)?.dispose()
-							gitTelemetry.delete(sessionId)
+							const observer = gitTelemetry.get(sessionId)
+							// Bootstrap cleanup also runs on SDK "ended", which need not
+							// close the chat. Once opened, stop()/dispose() owns this window,
+							// just like restored sessions. Still clean up failed starts.
+							if (observer && !observer.hasOpened) {
+								observer.dispose()
+								gitTelemetry.delete(sessionId)
+							}
 						}
 					},
 				}

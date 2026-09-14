@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { promisify } from "node:util"
@@ -379,14 +380,27 @@ describe("conversation Git telemetry", () => {
 		expect((events.at(-1)?.properties?.git as TelemetryProperties).head_sha).toBe(vscodeGit.head)
 	})
 
-	it("keeps worktrees distinct and emits no local path, even without the VS Code Git extension", async () => {
+	it("uses private keyed workspace IDs, stable across reopenings but distinct across worktrees and tasks", async () => {
 		vscodeGit.available = false
 		await commit()
 		const worktree = join(cwd, "other-worktree")
 		await git("worktree", "add", "--detach", worktree, "HEAD")
-		await observer().open()
+		const first = observer()
+		expect(first.hasOpened).toBe(false)
+		await first.open()
+		expect(first.hasOpened).toBe(true)
+		first.dispose()
 		await observer({ cwd: worktree }).open()
+		await observer().open()
+		await observer({ sessionId: "other-task" }).open()
 		expect(events[0].properties?.workspace_id).not.toBe(events[1].properties?.workspace_id)
+		expect(events[0].properties?.workspace_id).toBe(events[2].properties?.workspace_id)
+		expect(events[0].properties?.observation_window_id).not.toBe(events[2].properties?.observation_window_id)
+		expect(events[0].properties?.workspace_id).not.toBe(events[3].properties?.workspace_id)
+		const guessableDigest = createHash("sha256")
+			.update(`task-1\0${resolve(cwd)}`)
+			.digest("hex")
+		expect(events[0].properties?.workspace_id).not.toBe(guessableDigest)
 		expect(JSON.stringify(events)).not.toContain(cwd)
 	})
 })

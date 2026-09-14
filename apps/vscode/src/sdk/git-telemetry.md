@@ -27,8 +27,11 @@ not pass through these hooks. Early failure/cancellation may skip `afterModel`;
 then there is no model-call event, but run-end Git capture still applies.
 
 Observation stops when the host stops the session (switching tasks/new chat) or
-is disposed. Hiding the sidebar does not stop it. Git-extension unavailability
-only disables idle detection; boundary reads still work. Opening a repository
+is disposed. SDK `ended` alone does not close a chat: both normal and restored
+windows keep observing while that conversation remains open, including after a
+runtime failure. Bootstrap cleanup disposes only observers that never opened
+(e.g. failed starts). Hiding the sidebar does not stop observation. Git-extension
+unavailability only disables idle detection; boundary reads still work. Opening a repository
 later can attach the listener. Idle detection and shutdown delivery are best
 effort, not an exhaustive reflog. Commits can occur between observations.
 
@@ -38,7 +41,7 @@ effort, not an exhaustive reflog. Commits can occur between observations.
 | --- | --- |
 | `sessionId`, `ulid` | SDK session ID, the same opaque string sent as `X-Task-ID` |
 | `providerId` | `cline` or `cline-pass` |
-| `workspace_id` | SHA-256 of session ID + NUL + resolved starting directory; distinguishes worktrees without transmitting the path |
+| `workspace_id` | HMAC-SHA-256 of session ID + NUL + resolved starting directory, keyed with an unexported process-local random secret; distinguishes worktrees without allowing candidate-path confirmation from telemetry |
 | `observation_window_id` | Random ID per opening/rebuild; sequence numbers restart in each window |
 | `observation_sequence` | Increasing sequence assigned when a Git read starts; gaps are possible |
 | `observed_at` | Client UTC time when the Git read starts, not commit time |
@@ -54,17 +57,21 @@ effort, not an exhaustive reflog. Commits can occur between observations.
 | `git.remote_url` | Sanitized origin fetch URL, or first fetch remote if origin is absent |
 | `git.remote_state` | `ok`, `none`, `unsupported` (including local paths), or `unavailable` |
 
-The existing OTEL adapter flattens `git` into dotted attributes. These are log
-attributes, never metric labels; no new producer-side database columns are needed.
-The usual SDK identity/device metadata accompanies the event.
+`CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT` and the typed `captureGitSnapshot` helper
+own the event contract. The existing OTEL adapter flattens `git` into dotted
+attributes. These are log attributes, never metric labels; no new producer-side
+database columns are needed. The usual SDK identity/device metadata accompanies
+the event.
 
 Reads use the session's fixed starting directory, not the terminal's changing
 cwd. Each Git subprocess has a 1-second timeout and 1-MiB output limit. Failed or
 oversized status reads produce `unavailable`, never a stale SHA presented as fresh.
 Status and remote reads are not atomic. URL userinfo, query strings, and fragments
 are removed; local/unsupported remotes are omitted. No file names, contents, diffs,
-commit messages, absolute local paths, or Git stderr are logged. A task-scoped
-path digest is pseudonymous, not a secret or an access-control token.
+commit messages, absolute local paths, or Git stderr are logged. The workspace-ID
+key is neither persisted nor transmitted. IDs stay stable for a task/directory
+within an extension-host process and rotate on restart; do not use them to join
+workspaces across host restarts. These IDs are not access-control tokens.
 
 ## Future dataset integration (not implemented here)
 

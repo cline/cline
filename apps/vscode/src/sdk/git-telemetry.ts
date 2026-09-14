@@ -1,22 +1,19 @@
 import { execFile } from "node:child_process"
-import { createHash, randomUUID } from "node:crypto"
+import { createHmac, randomBytes, randomUUID } from "node:crypto"
 import { resolve } from "node:path"
 import { setImmediate } from "node:timers/promises"
 import { promisify } from "node:util"
-import type { ClineCoreStartInput, ITelemetryService, TelemetryProperties } from "@cline/core"
+import { type ClineCoreStartInput, captureGitSnapshot, type GitSnapshotProperties, type ITelemetryService } from "@cline/core"
 import type { AgentAfterModelContext, AgentRuntimeEvent, AgentRuntimeStateSnapshot } from "@cline/shared"
 import type { Disposable, Event, Uri } from "vscode"
 
 const execFileAsync = promisify(execFile)
 
-interface GitSnapshot {
-	state: "ok" | "unborn" | "non_git" | "unavailable"
-	head_sha?: string
-	branch?: string
-	dirty?: boolean
-	remote_url?: string
-	remote_state?: "ok" | "none" | "unsupported" | "unavailable"
-}
+// Never exported or persisted. A telemetry recipient cannot test candidate paths.
+// ponytail: IDs rotate on host restart; persist the key only if cross-restart identity is needed.
+const workspaceIdKey = randomBytes(32)
+type GitSnapshot = GitSnapshotProperties["git"]
+type GitRuntimeContext = Pick<GitSnapshotProperties, "runId" | "iteration" | "agentId">
 
 // Unlike prompt metadata, telemetry must also exclude query credentials and local remotes.
 export function sanitizeGitRemote(remote: string): string | undefined {
@@ -92,6 +89,7 @@ interface GitApi {
 /** One observation window for one task's fixed starting directory, never the shell's cwd. */
 export class VscodeGitTelemetry {
 	private disposed = false
+	private opened = false
 	private running = false
 	private agentId?: string
 	private sequence = 0
@@ -99,7 +97,7 @@ export class VscodeGitTelemetry {
 	private lastHeadSequence = 0
 	private lastRequestId?: string
 	private readonly pendingModels = new Map<string, ReturnType<VscodeGitTelemetry["snapshot"]>>()
-	private context: TelemetryProperties = {}
+	private context: GitRuntimeContext = {}
 	private readonly subscriptions: Disposable[] = []
 	private repositorySubscription?: Disposable
 	private readonly windowId = randomUUID()
@@ -110,7 +108,7 @@ export class VscodeGitTelemetry {
 		private readonly telemetry: ITelemetryService,
 	) {
 		// Task-scoped identity separates worktrees without exporting an absolute path.
-		this.workspaceId = createHash("sha256")
+		this.workspaceId = createHmac("sha256", workspaceIdKey)
 			.update(`${config.sessionId}\0${resolve(config.cwd)}`)
 			.digest("hex")
 	}
@@ -139,7 +137,12 @@ export class VscodeGitTelemetry {
 		}
 	}
 
+	get hasOpened(): boolean {
+		return this.opened
+	}
+
 	async open(): Promise<void> {
+		this.opened = true
 		await this.capture("chat_open")
 		if (!this.disposed) void this.watchGit()
 	}
@@ -148,7 +151,7 @@ export class VscodeGitTelemetry {
 		return !this.disposed && this.telemetry.isEnabled()
 	}
 
-	private async snapshot(runtimeContext: TelemetryProperties = this.context) {
+	private async snapshot(runtimeContext: GitRuntimeContext = this.context) {
 		if (!this.enabled()) return undefined
 		const sequence = ++this.sequence
 		const observedAt = new Date().toISOString()
@@ -165,27 +168,24 @@ export class VscodeGitTelemetry {
 
 	private emit(
 		snapshot: NonNullable<Awaited<ReturnType<VscodeGitTelemetry["snapshot"]>>>,
-		boundary: string,
-		extra: TelemetryProperties = {},
+		boundary: GitSnapshotProperties["boundary"],
+		extra: Pick<GitSnapshotProperties, "request_id" | "request_id_status" | "preceding_request_id"> = {},
 	) {
 		if (!this.enabled()) return
 		try {
-			this.telemetry.capture({
-				event: "task.git_snapshot",
-				properties: {
-					schema_version: 1,
-					sessionId: this.config.sessionId,
-					ulid: this.config.sessionId,
-					providerId: this.config.providerId,
-					workspace_id: this.workspaceId,
-					observation_window_id: this.windowId,
-					observation_sequence: snapshot.sequence,
-					observed_at: snapshot.observedAt,
-					boundary,
-					...snapshot.context,
-					git: { ...snapshot.git },
-					...extra,
-				},
+			captureGitSnapshot(this.telemetry, {
+				schema_version: 1,
+				sessionId: this.config.sessionId,
+				ulid: this.config.sessionId,
+				providerId: this.config.providerId,
+				workspace_id: this.workspaceId,
+				observation_window_id: this.windowId,
+				observation_sequence: snapshot.sequence,
+				observed_at: snapshot.observedAt,
+				boundary,
+				...snapshot.context,
+				git: snapshot.git,
+				...extra,
 			})
 		} catch {
 			// Telemetry must not interrupt inference or Git operations.

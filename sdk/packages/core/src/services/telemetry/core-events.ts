@@ -68,6 +68,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		CREATED: "task.created",
 		RESTARTED: "task.restarted",
 		COMPLETED: "task.completed",
+		GIT_SNAPSHOT: "task.git_snapshot",
 		CONVERSATION_TURN: "task.conversation_turn",
 		TOKEN_USAGE: "task.tokens",
 		MODE_SWITCH: "task.mode",
@@ -133,6 +134,40 @@ export {
 	type CaptureAgentUnexpectedReasoningTokensInput,
 	type CaptureTaskLifecycleEventInput,
 };
+
+export interface GitSnapshotProperties {
+	schema_version: 1;
+	sessionId: string;
+	ulid: string;
+	providerId: string;
+	workspace_id: string;
+	observation_window_id: string;
+	observation_sequence: number;
+	observed_at: string;
+	boundary: "chat_open" | "model_call" | "agent_yield" | "idle_head_changed";
+	runId?: string;
+	iteration?: number;
+	agentId?: string;
+	request_id?: string;
+	request_id_status?: "present" | "missing";
+	preceding_request_id?: string;
+	git: {
+		state: "ok" | "unborn" | "non_git" | "unavailable";
+		head_sha?: string;
+		branch?: string;
+		dirty?: boolean;
+		remote_url?: string;
+		remote_state?: "ok" | "none" | "unsupported" | "unavailable";
+	};
+}
+
+/** Ordinary telemetry: use a consent-aware service, never captureRequired. */
+export function captureGitSnapshot(
+	telemetry: ITelemetryService | undefined,
+	properties: GitSnapshotProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT, { ...properties });
+}
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
