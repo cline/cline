@@ -1,6 +1,11 @@
 import type { ApiConfiguration } from "@shared/api"
 import { describe, expect, it } from "vitest"
-import { buildBedrockProviderConfig, buildBedrockProviderSettings, resolveBedrockAuthentication } from "./bedrock-config"
+import {
+	buildBedrockProviderConfig,
+	buildBedrockProviderSettings,
+	resolveBedrockAuthentication,
+	resolveBedrockSettingsForSync,
+} from "./bedrock-config"
 
 describe("resolveBedrockAuthentication", () => {
 	it("maps the webview 'apikey' radio value straight through", () => {
@@ -177,5 +182,77 @@ describe("buildBedrockProviderSettings (providers.json persistence)", () => {
 		)
 		expect(settings.apiKey).toBeUndefined()
 		expect(settings.aws?.authentication).toBe("iam")
+	})
+})
+
+describe("resolveBedrockSettingsForSync", () => {
+	it("returns undefined when the state has no user-authored Bedrock auth", () => {
+		// Only a region is set: writing a bare `iam` entry over a working
+		// providers.json entry would break a configured setup, so the sync
+		// must stay off.
+		const result = resolveBedrockSettingsForSync(
+			{ awsRegion: "us-east-1" },
+			"us.anthropic.claude-haiku-4-5-20251001-v1:0",
+			"act",
+			{ provider: "bedrock", aws: { authentication: "profile", profile: "kept" } },
+		)
+
+		expect(result).toBeUndefined()
+	})
+
+	it("merges the state values over the stored entry and keeps unrelated fields", () => {
+		const result = resolveBedrockSettingsForSync(
+			{ awsAuthentication: "profile", awsProfile: "dev-profile", awsRegion: "eu-central-1" },
+			"us.anthropic.claude-haiku-4-5-20251001-v1:0",
+			"act",
+			{
+				provider: "bedrock",
+				reasoning: { enabled: false },
+				extras: { keep: true },
+				apiKey: "stale-bearer-token",
+			},
+		)
+
+		expect(result).toMatchObject({
+			provider: "bedrock",
+			model: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+			region: "eu-central-1",
+			aws: { authentication: "profile", profile: "dev-profile", region: "eu-central-1" },
+			reasoning: { enabled: false },
+			extras: { keep: true },
+		})
+		// A leftover bearer token must not sit next to SigV4 credentials.
+		expect(result).not.toHaveProperty("apiKey")
+	})
+
+	it("replaces the stored aws block instead of keeping stale credentials", () => {
+		const result = resolveBedrockSettingsForSync(
+			{ awsAuthentication: "profile", awsProfile: "dev-profile" },
+			"model-x",
+			"act",
+			{
+				provider: "bedrock",
+				aws: { authentication: "iam", accessKey: "AKIA-STALE", secretKey: "stale-secret" },
+			},
+		)
+
+		expect(result?.aws).toMatchObject({ authentication: "profile", profile: "dev-profile" })
+		expect(result?.aws?.accessKey).toBeUndefined()
+		expect(result?.aws?.secretKey).toBeUndefined()
+	})
+
+	it("keeps the bearer token while the user authenticates with an api key", () => {
+		const result = resolveBedrockSettingsForSync(
+			{ awsAuthentication: "apikey", awsBedrockApiKey: "bedrock-bearer-token", awsRegion: "us-west-2" },
+			"model-x",
+			"act",
+			{ provider: "bedrock" },
+		)
+
+		expect(result).toMatchObject({
+			apiKey: "bedrock-bearer-token",
+			region: "us-west-2",
+			aws: { authentication: "apikey" },
+		})
 	})
 })

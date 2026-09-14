@@ -126,3 +126,55 @@ export function buildBedrockProviderSettings(configuration: ApiConfiguration, mo
 		},
 	}
 }
+
+/**
+ * Whether the state carries Bedrock auth the user actually entered in the UI.
+ *
+ * The sync below must stay off when state is empty: writing a bare `iam` entry
+ * with no region over a working providers.json entry would break a configured
+ * setup, which is worse than leaving a stale entry alone.
+ */
+function hasAuthoredBedrockAuth(configuration: ApiConfiguration): boolean {
+	return Boolean(
+		trimToUndefined(configuration.awsBedrockApiKey) ||
+			trimToUndefined(configuration.awsAccessKey) ||
+			trimToUndefined(configuration.awsProfile) ||
+			configuration.awsUseProfile === true ||
+			configuration.awsAuthentication === "profile",
+	)
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+/**
+ * The Bedrock settings to write back into providers.json so the gateway
+ * registration (which reads only the stored entry) matches what the settings
+ * UI shows. Returns undefined when the user has authored no Bedrock auth, in
+ * which case the stored entry is left untouched.
+ *
+ * The stored entry is merged rather than replaced: it can also carry fields
+ * this module does not own (reasoning, extras, headers, ...). The `aws` block
+ * itself is replaced wholesale so stale credentials from an earlier
+ * migration cannot survive next to the values the user just entered.
+ */
+export function resolveBedrockSettingsForSync(
+	configuration: ApiConfiguration,
+	modelId: string,
+	mode: Mode,
+	existing: unknown,
+): ProviderSettings | undefined {
+	if (!hasAuthoredBedrockAuth(configuration)) {
+		return undefined
+	}
+	const derived = buildBedrockProviderSettings(configuration, modelId, mode)
+	const merged: Record<string, unknown> = { ...asRecord(existing), ...derived }
+	// Same rule as buildBedrockProviderSettings: only keep a bearer token when
+	// api-key auth is active, otherwise a leftover key would sit next to SigV4
+	// credentials.
+	if (derived.apiKey === undefined) {
+		delete merged.apiKey
+	}
+	return merged as ProviderSettings
+}
