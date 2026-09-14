@@ -194,7 +194,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		const hubClient = await ensureSharedHubClient(ctx);
-		expect(hubClient).toBe(ctx.hubClient);
+		expect(hubClient).toBeDefined();
 
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
@@ -230,8 +230,14 @@ describe("Code sidecar runtime capabilities", () => {
 		];
 		const command = vi.fn(async () => ({ ok: true, payload: { hits } }));
 		const list = vi.fn(async () => []);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -269,8 +275,14 @@ describe("Code sidecar runtime capabilities", () => {
 				metadata: { title: oversizedPrompt },
 			},
 		]);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -304,8 +316,14 @@ describe("Code sidecar runtime capabilities", () => {
 				metadata: { title: "generate an image of a puppy" },
 			},
 		]);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -339,8 +357,14 @@ describe("Code sidecar runtime capabilities", () => {
 					metadata: { title: "generate an image of a puppy" },
 				},
 			]);
-			ctx.hubClient = { command } as never;
-			ctx.sessionManager = { list } as never;
+			ctx.runtimeBindings.set("local", {
+				environmentId: "local",
+				kind: "local",
+				workspaceRoot: "/workspace/project",
+				hubClient: { command } as never,
+				sessionManager: { list } as never,
+				unsubscribeSessionEvents: () => {},
+			});
 
 			const pending = handleCommand(ctx, "search_sessions", {
 				query: "generate",
@@ -1348,9 +1372,11 @@ describe("Chat chunk pipe selection", () => {
 			status: "running",
 			attachedViaHub: true,
 		});
-		ctx.sessionManager = {
-			hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
-		} as never;
+		ctx.runtimeBindings.set("local", {
+			sessionManager: {
+				hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
+			},
+		} as never);
 		return ctx;
 	}
 

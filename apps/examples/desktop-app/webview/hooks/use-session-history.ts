@@ -19,6 +19,7 @@ import {
 	getSessionSource,
 	PINNED_METADATA_KEY,
 } from "@/lib/session-history";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 	status: string;
@@ -417,6 +418,7 @@ function areSessionsEquivalent(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),
 			) ||
+			a.environmentId !== b.environmentId ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -979,6 +981,7 @@ export function useSessionHistory({
 				usageLoadingRef.current.set(sessionId, session.status);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
+						environmentId: session.environmentId,
 						sessionId,
 						maxMessages: 1200,
 					})
@@ -988,6 +991,7 @@ export function useSessionHistory({
 							const events = await desktopClient.invoke<SessionHookEvent[]>(
 								"read_session_hooks",
 								{
+									environmentId: session.environmentId,
 									sessionId,
 									limit: 1200,
 								},
@@ -1330,6 +1334,7 @@ export function useSessionHistory({
 				titleLoadingRef.current.add(sessionId);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
+						environmentId: session.environmentId,
 						sessionId,
 						maxMessages: 80,
 					})
@@ -1415,11 +1420,13 @@ export function useSessionHistory({
 			}
 			setPendingAction({ sessionId: threadId, action: "rename" });
 			try {
+				const sourceSession = getSessionByThreadId(threadId);
 				await desktopClient.invoke("update_chat_session_title", {
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 					sessionId: threadId,
 					title: normalizedTitle,
 				});
-				const sourceSession = getSessionByThreadId(threadId);
 				const metadata = {
 					...(sourceSession?.metadata ?? {}),
 					title: normalizedTitle || undefined,
@@ -1474,11 +1481,13 @@ export function useSessionHistory({
 			// if the write fails rather than blocking the row on a round trip.
 			applyPinned(pinned);
 			try {
+				const sourceSession = getSessionByThreadId(threadId);
 				await desktopClient.invoke("update_chat_session_metadata", {
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 					sessionId: threadId,
 					metadata: { [PINNED_METADATA_KEY]: pinned ? true : null },
 				});
-				const sourceSession = getSessionByThreadId(threadId);
 				onUpdateSessionMetadata?.(threadId, {
 					...(sourceSession?.metadata ?? {}),
 					[PINNED_METADATA_KEY]: pinned || undefined,
@@ -1518,6 +1527,8 @@ export function useSessionHistory({
 						action: "fork",
 						sessionId: threadId,
 						config: {
+							environmentId:
+								sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 							provider: sourceSession?.provider || thread.provider,
 							model: sourceSession?.model || thread.model,
 							cwd: sourceSession?.cwd || sourceSession?.workspaceRoot || "",
@@ -1532,6 +1543,8 @@ export function useSessionHistory({
 				}
 				const forkedSession: SessionHistoryItem = {
 					sessionId: newSessionId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 					status: "completed",
 					provider: sourceSession?.provider || thread.provider,
 					model: sourceSession?.model || thread.model,
@@ -1568,11 +1581,14 @@ export function useSessionHistory({
 
 	const deleteThread = useCallback(
 		async (threadId: string) => {
+			const sourceSession = getSessionByThreadId(threadId);
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 					sessionId: threadId,
 				});
 				const deleted =
@@ -1607,7 +1623,7 @@ export function useSessionHistory({
 				setPendingAction(null);
 			}
 		},
-		[onDeleteSession],
+		[getSessionByThreadId, onDeleteSession],
 	);
 
 	const loadMoreSessions = useCallback(
