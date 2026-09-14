@@ -1,3 +1,4 @@
+import { isUserRunMessage } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import type { JsonRecord, PromptInQueue } from "./types";
 
@@ -83,6 +84,7 @@ export function countPromptOccurrences(
 				typeof message === "object" &&
 				!Array.isArray(message) &&
 				String((message as JsonRecord).role ?? "").toLowerCase() === "user" &&
+				(expected !== "" || isUserRunMessage(message as JsonRecord)) &&
 				normalizeUserPrompt(messageText(message)) === expected,
 		).length +
 		prompts.filter((item) => normalizeUserPrompt(item.prompt) === expected)

@@ -494,6 +494,65 @@ describe("CloudSessionManager Hub runtime", () => {
 		"pending",
 		"replaced",
 		"same",
+		"disposed",
+	] as const)("guards queue mutations when the connection is %s at dispatch", async (state) => {
+		const { manager, hub } = createFixture();
+		await manager.attach("ses-outer");
+		await hub.resolveHeaders?.();
+		const blocked = Promise.withResolvers<void>();
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "session.remove_pending_prompt") {
+				if (state === "disposed") {
+					await manager.dispose();
+				} else {
+					const target = state === "same" ? "inner-1" : "inner-replacement";
+					hub.listedSessions = [{ sessionId: target, updatedAt: 30 }];
+					hub.subscriptionSessionIds.length = 0;
+					hub.commandHook = async (nextCommand) => {
+						if (nextCommand === "session.list" && state === "pending")
+							await blocked.promise;
+					};
+					await hub.resolveHeaders?.();
+					if (state !== "pending") {
+						await vi.waitFor(() =>
+							expect(hub.subscriptionSessionIds).toContain(target),
+						);
+					}
+				}
+				options?.beforeDispatch?.();
+			}
+			const reply = await originalCommand(command, payload, sessionId, options);
+			return command === "session.remove_pending_prompt"
+				? { ...reply, payload: { removed: true, prompts: [] } }
+				: reply;
+		};
+		try {
+			const removing = manager.removePendingPrompt("ses-outer", "q-1");
+			if (state === "same") {
+				await expect(removing).resolves.toMatchObject({ removed: true });
+			} else {
+				await expect(removing).rejects.toThrow(
+					state === "disposed"
+						? "disposed"
+						: "before the queue request could be sent",
+				);
+			}
+			expect(
+				hub.commands.filter(
+					({ command }) => command === "session.remove_pending_prompt",
+				),
+			).toHaveLength(state === "same" ? 1 : 0);
+		} finally {
+			blocked.resolve();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"pending",
+		"replaced",
+		"same",
 	] as const)("revalidates the Stop target when reconnect discovery is %s at dispatch", async (discovery) => {
 		const { manager, hub, ctx } = createFixture();
 		await manager.list();
@@ -937,7 +996,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		await manager.dispose();
 	});
 
-	it("drops replayed Hub events by eventId", async () => {
+	it("deduplicates the latest 2,000 Hub event IDs and evicts oldest first", async () => {
 		const { manager, events, hub } = createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
@@ -958,6 +1017,28 @@ describe("CloudSessionManager Hub runtime", () => {
 				(item) => item.name === "chat_event" && item.payload.chunk === "once",
 			),
 		).toHaveLength(1);
+		for (let i = 1; i < 2_000; i++) {
+			hub.events?.({
+				...replayed,
+				eventId: `evt-${i}`,
+				payload: { text: "fill" },
+			});
+		}
+		hub.events?.(replayed);
+		expect(events.filter((item) => item.payload.chunk === "once")).toHaveLength(
+			1,
+		);
+
+		hub.events?.({ ...replayed, eventId: "evt-new", payload: { text: "new" } });
+		hub.events?.({ ...replayed, eventId: "evt-new", payload: { text: "new" } });
+		expect(events.filter((item) => item.payload.chunk === "new")).toHaveLength(
+			1,
+		);
+		hub.events?.(replayed);
+		expect(events.filter((item) => item.payload.chunk === "once")).toHaveLength(
+			2,
+		);
+		await manager.dispose();
 	});
 
 	it("resolves fresh bearer headers for each WebSocket connection attempt", async () => {
@@ -1054,6 +1135,40 @@ describe("CloudSessionManager Hub runtime", () => {
 				sessionId: "inner-replacement",
 			}),
 		);
+	});
+
+	it.each([
+		0, 2_000,
+	])("preserves post-snapshot output after buffering %s events", async (count) => {
+		const { manager, events, hub } = createFixture();
+		await manager.attach("ses-outer");
+		hub.messages = [{ role: "assistant", content: "OK" }];
+		const emit = (event: HubEventEnvelope["event"], payload = {}) =>
+			hub.events?.({ version: "v1", sessionId: "inner-1", event, payload });
+		hub.commandHook = (command) => {
+			if (command === "session.messages") {
+				for (let i = 0; i < count; i++)
+					emit("assistant.delta", { text: "old" });
+			}
+			if (command === "session.pending_prompts") {
+				emit("assistant.delta", { text: "OK" });
+				emit("assistant.finished", { text: "OK" });
+				emit("run.completed");
+			}
+		};
+		await hub.resolveHeaders?.();
+		await hub.resolveHeaders?.();
+		await vi.waitFor(() =>
+			expect(
+				events.some(({ name }) => name === "cloud_session_rehydrated"),
+			).toBe(true),
+		);
+		expect(
+			events.filter(
+				({ name, payload }) => name === "chat_event" && payload.chunk === "OK",
+			),
+		).toHaveLength(1);
+		await manager.dispose();
 	});
 
 	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
