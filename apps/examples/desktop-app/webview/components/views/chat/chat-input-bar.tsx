@@ -1642,6 +1642,10 @@ const ModelSelector = memo(function ModelSelector({
 		readModelSelectionStorageFromWindow(),
 	);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	// Bumped when the model picker opens so the load effect re-runs; the list
+	// is otherwise fetched once per provider and the Recommended/Free tiers
+	// would stay stale for the rest of the app session.
+	const [modelsRefresh, setModelsRefresh] = useState(0);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
@@ -1785,6 +1789,7 @@ const ModelSelector = memo(function ModelSelector({
 		resolvedProvider,
 	]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: modelsRefresh is the re-fetch trigger, not a value the effect reads
 	useEffect(() => {
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
@@ -1861,7 +1866,7 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [normalizedProvider, modelsRefresh]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
@@ -2064,6 +2069,7 @@ const ModelSelector = memo(function ModelSelector({
 			className={triggerClassName}
 			disabled={isBusy || visibleModelPicker.options.length === 0}
 			emptyText="No models found."
+			onOpen={() => setModelsRefresh((count) => count + 1)}
 			onValueChange={(value) => {
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);

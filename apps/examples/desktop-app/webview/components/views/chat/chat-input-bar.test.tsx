@@ -1557,8 +1557,12 @@ describe("ChatInputBar", () => {
 			'[aria-label^="Model:"]',
 		);
 		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(1);
 
 		await act(async () => modelTrigger?.click());
+		// Opening re-fetches so the tiers reflect the current feed.
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(2);
+		expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline");
 		const panel = document.querySelector('[role="dialog"]');
 		expect(panel?.textContent).toContain("Recommended");
 		expect(panel?.textContent).toContain("Free");
