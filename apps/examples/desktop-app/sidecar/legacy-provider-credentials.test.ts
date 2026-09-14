@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { clearLegacyCodexCredentials } from "./legacy-codex-credentials";
+import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 
-describe("clearLegacyCodexCredentials", () => {
+describe("clearLegacyProviderCredentials", () => {
 	const tempDirs: string[] = [];
 
 	afterEach(() => {
@@ -28,25 +28,45 @@ describe("clearLegacyCodexCredentials", () => {
 			}),
 		);
 
-		expect(clearLegacyCodexCredentials(dataDir)).toBe(true);
+		expect(clearLegacyProviderCredentials("openai-codex", dataDir)).toBe(true);
 		expect(JSON.parse(readFileSync(secretsPath, "utf8"))).toEqual({
 			openRouterApiKey: "sk-or-keep",
 		});
 	});
 
-	it("is a no-op when the file is missing or has no Codex credentials", () => {
+	it("removes both Cline account secrets from the legacy secrets file", () => {
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "desktop-legacy-"));
 		tempDirs.push(dataDir);
-		expect(clearLegacyCodexCredentials(dataDir)).toBe(false);
+		const secretsPath = path.join(dataDir, "secrets.json");
+		writeFileSync(
+			secretsPath,
+			JSON.stringify({
+				"cline:clineAccountId": JSON.stringify({ idToken: "t" }),
+				clineApiKey: "cline-key",
+				openRouterApiKey: "sk-or-keep",
+			}),
+		);
+
+		expect(clearLegacyProviderCredentials("cline", dataDir)).toBe(true);
+		expect(JSON.parse(readFileSync(secretsPath, "utf8"))).toEqual({
+			openRouterApiKey: "sk-or-keep",
+		});
+	});
+
+	it("is a no-op when the file is missing, has no matching credentials, or the provider is unknown", () => {
+		const dataDir = mkdtempSync(path.join(os.tmpdir(), "desktop-legacy-"));
+		tempDirs.push(dataDir);
+		expect(clearLegacyProviderCredentials("openai-codex", dataDir)).toBe(false);
 
 		const secretsPath = path.join(dataDir, "secrets.json");
 		writeFileSync(secretsPath, JSON.stringify({ apiKey: "keep" }));
-		expect(clearLegacyCodexCredentials(dataDir)).toBe(false);
+		expect(clearLegacyProviderCredentials("cline", dataDir)).toBe(false);
+		expect(clearLegacyProviderCredentials("anthropic", dataDir)).toBe(false);
 		expect(readFileSync(secretsPath, "utf8")).toBe(
 			JSON.stringify({ apiKey: "keep" }),
 		);
 
 		writeFileSync(secretsPath, "{not json");
-		expect(clearLegacyCodexCredentials(dataDir)).toBe(false);
+		expect(clearLegacyProviderCredentials("openai-codex", dataDir)).toBe(false);
 	});
 });
