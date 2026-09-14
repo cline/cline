@@ -94,6 +94,60 @@ function runtime() {
 }
 
 describe("SSH session credentials and history", () => {
+	it("seeds reopened SSH sessions before sending a follow-up", async () => {
+		const { ctx, manager, config } = runtime();
+		const history = [
+			{ role: "user", content: "Remember my project" },
+			{ role: "assistant", content: "I remember" },
+		];
+		manager.readMessages.mockResolvedValueOnce(history);
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, sessionId: "shared-id" },
+		});
+		expect(manager.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: history,
+				config: expect.objectContaining({ sessionId: "shared-id" }),
+			}),
+		);
+		expect(
+			getEnvironmentContext(ctx, "remote").liveSessions.get("shared-id")
+				?.messages,
+		).toEqual(history);
+		manager.send.mockResolvedValueOnce({
+			text: "done",
+			messages: [...history, { role: "user", content: "Continue" }],
+		} as never);
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: "shared-id",
+			prompt: "Continue",
+			config,
+		});
+		await vi.waitFor(() =>
+			expect(
+				getEnvironmentContext(ctx, "remote").liveSessions.get("shared-id")
+					?.messages,
+			).toEqual([...history, { role: "user", content: "Continue" }]),
+		);
+		expect(manager.start).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not start an empty replacement when remote history cannot be read", async () => {
+		const { ctx, manager, config } = runtime();
+		manager.readMessages.mockRejectedValueOnce(
+			new Error("History unavailable"),
+		);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "start",
+				config: { ...config, sessionId: "shared-id" },
+			}),
+		).rejects.toThrow("History unavailable");
+		expect(manager.start).not.toHaveBeenCalled();
+	});
+
 	it("uses refreshed tokens in both configs and refreshes again for the next send", async () => {
 		const { ctx, manager, config } = runtime();
 		await handleChatSessionCommand(ctx, { action: "start", config });
@@ -183,6 +237,12 @@ describe("SSH session credentials and history", () => {
 				action: "start",
 				config: { ...config, sessionId: "shared-id" },
 			});
+			expect(manager.readMessages).toHaveBeenCalledWith("shared-id");
+			expect(manager.start).toHaveBeenCalledWith(
+				expect.objectContaining({
+					initialMessages: [{ role: "user", content: "remote message" }],
+				}),
+			);
 			expect(JSON.stringify(manager.start.mock.calls)).not.toContain(
 				"private local message",
 			);

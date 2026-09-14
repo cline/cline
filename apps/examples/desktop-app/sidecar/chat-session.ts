@@ -983,8 +983,10 @@ async function handleStart(
 	const initialMessages =
 		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
 			? config.initialMessages
-			: requestedSessionId && binding.kind === "local"
-				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
+			: requestedSessionId
+				? binding.kind === "ssh"
+					? await manager.readMessages(requestedSessionId)
+					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
 	let startedSessionId = requestedSessionId;
