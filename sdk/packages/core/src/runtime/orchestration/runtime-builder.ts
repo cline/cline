@@ -36,6 +36,7 @@ import {
 	type ToolExecutors,
 	ToolPresets,
 	type ToolRoutingRule,
+	YOLO_BASH_TIMEOUT_MS,
 } from "../../extensions/tools";
 import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
 import {
@@ -162,9 +163,16 @@ function createBuiltinToolsList(
 			cwd,
 			telemetry,
 			executorOptions: {
-				bash: { executionController: runCommandExecutionController },
+				bash: {
+					executionController: runCommandExecutionController,
+					// Keep the executor's kill timer in step with the tool timer.
+					...(mode === "yolo" ? { timeoutMs: YOLO_BASH_TIMEOUT_MS } : {}),
+				},
 			},
 			...preset,
+			// Autonomous (yolo) runs get a longer per-command budget: no one is
+			// waiting at a prompt and long builds/tests are routine.
+			...(mode === "yolo" ? { bashTimeoutMs: YOLO_BASH_TIMEOUT_MS } : {}),
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
 			executors: {

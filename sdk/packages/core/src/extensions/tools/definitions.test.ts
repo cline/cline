@@ -1,5 +1,6 @@
 import type { AgentToolContext, ITelemetryService } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_BASH_TIMEOUT_MS } from "./constants";
 import {
 	buildRunCommandsDescription,
 	createDefaultTools,
@@ -562,6 +563,26 @@ describe("run_commands tool description", () => {
 			shell: "C:\\Windows\\System32\\cmd.exe",
 		});
 		expect(cmdTool.description).toContain("Commands run through cmd.exe");
+	});
+
+	it("defaults the run_commands timeout to 60 s and advertises it", () => {
+		const tool = createShellTool(async () => "ok", { shell: "/bin/bash" });
+		// createTool doubles the per-command budget for the whole call.
+		expect(tool.timeoutMs).toBe(2 * DEFAULT_BASH_TIMEOUT_MS);
+		expect(tool.description).toContain("stopped after ~60 s");
+	});
+
+	it("advertises a configured run_commands timeout in both shell flavors", () => {
+		const posix = createShellTool(async () => "ok", {
+			shell: "/bin/bash",
+			bashTimeoutMs: 120_000,
+		});
+		expect(posix.description).toContain("stopped after ~120 s");
+		const cmd = createShellTool(async () => "ok", {
+			shell: "C:\\Windows\\System32\\cmd.exe",
+			bashTimeoutMs: 120_000,
+		});
+		expect(cmd.description).toContain("stopped after ~120 s");
 	});
 
 	it("re-derives the description on each read when config.shell is a provider", () => {

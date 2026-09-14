@@ -321,8 +321,9 @@ export interface DefaultToolsConfig {
 	fileReadTimeoutMs?: number;
 
 	/**
-	 * Timeout for bash command execution in milliseconds
-	 * @default 30000
+	 * Timeout for bash command execution in milliseconds. The runtime builder
+	 * passes YOLO_BASH_TIMEOUT_MS (120000) in yolo mode.
+	 * @default 60000 (DEFAULT_BASH_TIMEOUT_MS)
 	 */
 	bashTimeoutMs?: number;
 

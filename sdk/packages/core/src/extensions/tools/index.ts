@@ -12,7 +12,12 @@ export {
 	type PlanModeCommandGuardOptions,
 } from "./command-guard-extension";
 // Constants
-export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
+export {
+	ALL_DEFAULT_TOOL_NAMES,
+	DEFAULT_BASH_TIMEOUT_MS,
+	DefaultToolNames,
+	YOLO_BASH_TIMEOUT_MS,
+} from "./constants";
 // AgentTool Definitions
 export {
 	createApplyPatchTool,

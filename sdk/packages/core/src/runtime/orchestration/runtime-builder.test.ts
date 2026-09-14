@@ -17,6 +17,10 @@ import {
 import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
+import {
+	DEFAULT_BASH_TIMEOUT_MS,
+	YOLO_BASH_TIMEOUT_MS,
+} from "../../extensions/tools";
 import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "../../extensions/tools/command-guard-extension";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
@@ -472,6 +476,26 @@ Use the review guidance.`,
 		expect(names).not.toContain("run_commands");
 		expect(names).not.toContain("read_files");
 		expect(names).toContain("search_codebase");
+	});
+
+	it("gives run_commands a 60 s budget by default and 120 s in yolo mode", async () => {
+		const actRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({}),
+		});
+		const actShell = actRuntime.tools.find(
+			(tool) => tool.name === "run_commands",
+		);
+		expect(actShell?.timeoutMs).toBe(2 * DEFAULT_BASH_TIMEOUT_MS);
+		expect(actShell?.description).toContain("stopped after ~60 s");
+
+		const yoloRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ mode: "yolo" }),
+		});
+		const yoloShell = yoloRuntime.tools.find(
+			(tool) => tool.name === "run_commands",
+		);
+		expect(yoloShell?.timeoutMs).toBe(2 * YOLO_BASH_TIMEOUT_MS);
+		expect(yoloShell?.description).toContain("stopped after ~120 s");
 	});
 
 	it("omits tools disabled by global settings from the advertised runtime tool list", async () => {

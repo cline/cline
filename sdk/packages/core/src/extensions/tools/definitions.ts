@@ -16,6 +16,7 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
+import { DEFAULT_BASH_TIMEOUT_MS } from "./constants";
 import { CommandExitError } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -428,8 +429,15 @@ const RUN_COMMANDS_SHARED_INSTRUCTIONS =
 export function buildRunCommandsDescription(
 	shell: string,
 	isWindows: boolean,
+	timeoutMs?: number,
 ): string {
 	const shellKind = getShellKind(shell);
+	// Advertise the per-command limit so the model plans background execution
+	// for long builds instead of discovering the cap by timing out.
+	const timeoutNote =
+		typeof timeoutMs === "number" && timeoutMs > 0
+			? `Each command is stopped after ~${Math.round(timeoutMs / 1000)} s. `
+			: "";
 	if (shellKind === "powershell" || shellKind === "cmd") {
 		const edition = getPowerShellEdition(shell);
 		const executable =
@@ -455,6 +463,7 @@ export function buildRunCommandsDescription(
 			`Commands run through ${shellName}; quote paths and arguments for ${shellName} and use ${sequencingOperator} to sequence commands. ` +
 			`Write commands directly; do not wrap them in another ${wrapper} invocation. ` +
 			"Only start another shell when you intentionally need a different shell or a separate process. " +
+			timeoutNote +
 			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 		);
 	}
@@ -471,6 +480,7 @@ export function buildRunCommandsDescription(
 		environmentNote +
 		"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
 		`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
+		timeoutNote +
 		"For long-running commands, run them in background and redirect output to a tmp file that you can read from later."
 	);
 }
@@ -496,7 +506,7 @@ export function createShellTool(
 		shell?: string | (() => string);
 	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const timeoutMs = config.bashTimeoutMs ?? DEFAULT_BASH_TIMEOUT_MS;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"
@@ -508,7 +518,8 @@ export function createShellTool(
 		typeof configShell === "function"
 			? configShell
 			: () => configShell ?? getDefaultShell(process.platform);
-	const describe = () => buildRunCommandsDescription(resolveShell(), isWindows);
+	const describe = () =>
+		buildRunCommandsDescription(resolveShell(), isWindows, timeoutMs);
 
 	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",

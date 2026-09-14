@@ -35,3 +35,21 @@ export const ALL_DEFAULT_TOOL_NAMES: DefaultToolName[] = [
 	DefaultToolNames.ASK,
 	DefaultToolNames.SUBMIT_AND_EXIT,
 ];
+
+/**
+ * Default per-command timeout for `run_commands`, shared by the tool layer and
+ * the shell executor's own kill timer so the two never disagree. Raised from
+ * 30 s: on build/install/test-heavy work a 30 s cap produced 126 command
+ * timeouts across 23 Terminal-Bench trials and pushed the model into
+ * sleep-and-poll loops. 60 s covers most compiles and test runs while still
+ * bounding a hung command in interactive use.
+ */
+export const DEFAULT_BASH_TIMEOUT_MS = 60_000;
+
+/**
+ * Per-command timeout for yolo (autonomous, non-interactive) mode, where no one
+ * is waiting at a prompt and long builds are routine. Matches OpenCode's
+ * default. Applied by the runtime builder to both the tool timer and the
+ * executor timer; an explicit `bashTimeoutMs` still wins.
+ */
+export const YOLO_BASH_TIMEOUT_MS = 120_000;

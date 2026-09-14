@@ -27,6 +27,7 @@ import {
 	type ProcessStartTokenProbeResult,
 	probeProcessStartTokenAsync,
 } from "../../../runtime/process-start-token";
+import { DEFAULT_BASH_TIMEOUT_MS } from "../constants";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
 import {
@@ -1080,7 +1081,7 @@ export function createShellExecutor(
 ): ShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
-		timeoutMs = 30000,
+		timeoutMs = DEFAULT_BASH_TIMEOUT_MS,
 		env = {},
 		combineOutput = true,
 		executionController,
