@@ -15,6 +15,7 @@ import type {
 import {
 	captureSdkError,
 	createSessionId,
+	HUB_AGENT_HOOK_NAMES,
 	HUB_CHECKPOINT_CAPABILITY,
 	HUB_COMPACTION_CAPABILITY,
 	HUB_CUSTOM_TOOL_CAPABILITY_PREFIX,
@@ -22,6 +23,7 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isAgentRuntimeEvent,
 	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
@@ -93,16 +95,6 @@ function toJsonRecord(
 		JsonValue | undefined
 	>;
 }
-
-const HUB_HOOK_NAMES = [
-	"beforeRun",
-	"afterRun",
-	"beforeModel",
-	"afterModel",
-	"beforeTool",
-	"afterTool",
-	"onEvent",
-] as const;
 
 function toJsonSerializable(
 	value: unknown,
@@ -304,10 +296,33 @@ function buildClientContributionRegistration(
 		);
 	}
 
-	const hooks = localRuntime?.hooks as Record<string, unknown> | undefined;
+	const hooks = localRuntime?.hooks;
 	if (hooks) {
-		for (const name of HUB_HOOK_NAMES) {
-			const hook = hooks[name];
+		for (const name of HUB_AGENT_HOOK_NAMES) {
+			if (name === "onEvent") {
+				const hook = hooks.onEvent;
+				if (typeof hook !== "function") continue;
+				addClientContribution(
+					registration,
+					{
+						kind: "hook",
+						name,
+						capabilityName: `${HUB_HOOK_CAPABILITY_PREFIX}${name}`,
+						...(hook.eventTypes ? { eventTypes: [...hook.eventTypes] } : {}),
+					},
+					async ({ payload }) => {
+						if (!isAgentRuntimeEvent(payload.context)) {
+							throw new TypeError(
+								"hook.onEvent received an invalid AgentRuntimeEvent payload.",
+							);
+						}
+						await hook(payload.context);
+						return {};
+					},
+				);
+				continue;
+			}
+			const hook = hooks[name] as unknown;
 			if (typeof hook !== "function") continue;
 			addClientContribution(
 				registration,

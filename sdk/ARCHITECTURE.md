@@ -153,6 +153,19 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Client-contributed `onEvent` hooks may declare the runtime event types they
+consume. The client includes this filter in its hook contribution, the Hub
+validates every event type against the shared `AgentRuntimeEvent` discriminants,
+and the runtime filters events before it creates a capability request. This
+keeps high-frequency text and reasoning deltas from serializing full session
+snapshots when a hook only handles `message-added`. Lifecycle hook contributions
+cannot carry an event filter. Omitting the filter preserves the existing
+behavior and forwards every runtime event. The durable Hub event log remains
+independent of this filter. `assistant.delta` and `reasoning.delta` are live-only
+events and do not consume replay sequences. Their `assistant.finished` and
+`reasoning.finished` events contain the complete content and remain durable.
+All other Hub events retain durability-before-delivery ordering.
+
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
 starts (one-shot or interactive) begin `running`, interactive starts without a

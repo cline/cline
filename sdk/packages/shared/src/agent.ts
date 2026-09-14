@@ -417,6 +417,15 @@ export interface AgentRunLifecycleContext {
 /**
  * 7-callback hook bag consumed by `AgentRuntime`.
  */
+export interface AgentRuntimeOnEventHook {
+	(event: AgentRuntimeEvent): void | Promise<void>;
+	/**
+	 * Optional event types consumed by this hook. Remote runtimes use this hint
+	 * to filter events before serializing the runtime snapshot for IPC.
+	 */
+	readonly eventTypes?: readonly AgentRuntimeEvent["type"][];
+}
+
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
@@ -445,7 +454,7 @@ export interface AgentRuntimeHooks {
 		| AgentAfterToolResult
 		| undefined
 		| Promise<AgentAfterToolResult | undefined>;
-	onEvent?: (event: AgentRuntimeEvent) => void | Promise<void>;
+	onEvent?: AgentRuntimeOnEventHook;
 }
 
 // =============================================================================
@@ -653,6 +662,152 @@ export type AgentRuntimeEvent =
 			/** Classification of the provider error that failed the run. */
 			errorClass?: ProviderErrorClass;
 	  };
+
+export type AgentRuntimeEventType = AgentRuntimeEvent["type"];
+
+const AGENT_RUNTIME_EVENT_TYPE_MAP = {
+	"run-started": true,
+	"message-added": true,
+	"turn-started": true,
+	"assistant-text-delta": true,
+	"assistant-reasoning-delta": true,
+	"assistant-media": true,
+	"assistant-message": true,
+	"tool-started": true,
+	"tool-updated": true,
+	"tool-finished": true,
+	"usage-updated": true,
+	"turn-finished": true,
+	"status-notice": true,
+	"run-finished": true,
+	"run-failed": true,
+} as const satisfies Record<AgentRuntimeEventType, true>;
+
+export const AGENT_RUNTIME_EVENT_TYPES = Object.freeze(
+	Object.keys(AGENT_RUNTIME_EVENT_TYPE_MAP) as AgentRuntimeEventType[],
+);
+
+const AGENT_RUNTIME_EVENT_TYPE_SET = new Set<string>(AGENT_RUNTIME_EVENT_TYPES);
+
+export function isAgentRuntimeEventType(
+	value: unknown,
+): value is AgentRuntimeEventType {
+	return typeof value === "string" && AGENT_RUNTIME_EVENT_TYPE_SET.has(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isAgentMessageValue(value: unknown): value is AgentMessage {
+	if (!isRecord(value)) return false;
+	return (
+		typeof value.id === "string" &&
+		(value.role === "user" ||
+			value.role === "assistant" ||
+			value.role === "tool") &&
+		Array.isArray(value.content) &&
+		typeof value.createdAt === "number"
+	);
+}
+
+function isAgentRuntimeSnapshotValue(
+	value: unknown,
+): value is AgentRuntimeStateSnapshot {
+	if (!isRecord(value) || !isRecord(value.usage)) return false;
+	return (
+		typeof value.agentId === "string" &&
+		(value.status === "idle" ||
+			value.status === "running" ||
+			value.status === "completed" ||
+			value.status === "aborted" ||
+			value.status === "failed") &&
+		typeof value.iteration === "number" &&
+		Array.isArray(value.messages) &&
+		value.messages.every(isAgentMessageValue) &&
+		Array.isArray(value.pendingToolCalls) &&
+		value.pendingToolCalls.every((item) => typeof item === "string") &&
+		typeof value.usage.inputTokens === "number" &&
+		typeof value.usage.outputTokens === "number" &&
+		typeof value.usage.cacheReadTokens === "number" &&
+		typeof value.usage.cacheWriteTokens === "number"
+	);
+}
+
+function isToolCallValue(value: unknown): value is AgentToolCallPart {
+	return (
+		isRecord(value) &&
+		value.type === "tool-call" &&
+		typeof value.toolCallId === "string" &&
+		typeof value.toolName === "string"
+	);
+}
+
+/** Validates an `AgentRuntimeEvent` received across a serialization boundary. */
+export function isAgentRuntimeEvent(
+	value: unknown,
+): value is AgentRuntimeEvent {
+	if (
+		!isRecord(value) ||
+		!isAgentRuntimeEventType(value.type) ||
+		!isAgentRuntimeSnapshotValue(value.snapshot)
+	) {
+		return false;
+	}
+	const hasIteration = typeof value.iteration === "number";
+	switch (value.type) {
+		case "run-started":
+			return true;
+		case "message-added":
+			return isAgentMessageValue(value.message);
+		case "turn-started":
+			return hasIteration;
+		case "assistant-text-delta":
+		case "assistant-reasoning-delta":
+			return (
+				hasIteration &&
+				typeof value.text === "string" &&
+				typeof value.accumulatedText === "string" &&
+				(value.redacted === undefined || typeof value.redacted === "boolean")
+			);
+		case "assistant-media":
+			return hasIteration && isRecord(value.media);
+		case "assistant-message":
+			return (
+				hasIteration &&
+				isAgentMessageValue(value.message) &&
+				typeof value.finishReason === "string"
+			);
+		case "tool-started":
+		case "tool-updated":
+			return hasIteration && isToolCallValue(value.toolCall);
+		case "tool-finished":
+			return (
+				hasIteration &&
+				isToolCallValue(value.toolCall) &&
+				isAgentMessageValue(value.message)
+			);
+		case "usage-updated":
+			return isRecord(value.usage);
+		case "turn-finished":
+			return hasIteration && typeof value.toolCallCount === "number";
+		case "status-notice":
+			return (
+				typeof value.message === "string" &&
+				(value.metadata === undefined || isRecord(value.metadata))
+			);
+		case "run-finished":
+			return isRecord(value.result);
+		case "run-failed":
+			return (
+				isRecord(value.error) &&
+				(value.errorClass === undefined ||
+					value.errorClass === "context_window_exceeded" ||
+					value.errorClass === "auth" ||
+					value.errorClass === "unknown")
+			);
+	}
+}
 
 // =============================================================================
 // Run result
