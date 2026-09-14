@@ -320,7 +320,6 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	onOpenVoiceInputSettings?: () => void;
 	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
@@ -359,7 +358,6 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
 	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
@@ -819,38 +817,30 @@ function ChatInputBarImpl({
 		[transcriptionTarget],
 	);
 
-	const handleSpeechInputError = useCallback(
-		(error: unknown) => {
-			// Microphone failures surface as DOMExceptions (getUserMedia) or
-			// capture-layer events; provider failures (credentials, transcription
-			// setup) as plain Errors, and are fixed in Settings → Voice.
-			const isMicrophoneError =
-				error instanceof DOMException || error instanceof Event;
-			const message =
-				error instanceof Error
-					? error.message
-					: "Check microphone permission and audio provider settings.";
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "error",
-				message: "Speech input failed in the webview",
-				timestamp: new Date().toISOString(),
-				metadata: { failure: message },
-			});
-			if (!isMicrophoneError && onOpenVoiceInputSettings) {
-				onOpenVoiceInputSettings();
-				return;
-			}
-			toast({
-				variant: "destructive",
-				title: "Speech input failed",
-				description: isMicrophoneError
-					? "Check the microphone permission for Cline and try again."
-					: message,
-			});
-		},
-		[onOpenVoiceInputSettings],
-	);
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -1608,7 +1598,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
-/** Sentinel provider-picker row that opens Settings → Models instead of selecting. */
+/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
 const ModelSelector = memo(function ModelSelector({
@@ -1628,7 +1618,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
-	/** Opens Settings → Models; adds a "set up another provider" row when set. */
+	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);

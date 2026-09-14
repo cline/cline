@@ -17,6 +17,8 @@ import {
 	UndoIcon,
 } from "lucide-react";
 import { memo } from "react";
+import { Button } from "@/components/ui/button";
+import { resolveCredentialFailureAction } from "@/hooks/chat-session/helpers";
 import type {
 	ChatMessage,
 	ChatMessageImage,
@@ -112,6 +114,7 @@ export const MessageBubble = memo(function MessageBubble({
 	forkError,
 	isLastAssistantMessage = false,
 	followsWorkingRows = false,
+	onFixCredentials,
 	reasoningContent,
 	reasoningRedacted,
 	thoughtDurationMilliseconds,
@@ -146,6 +149,9 @@ export const MessageBubble = memo(function MessageBubble({
 	/** Pulls the bubble closer to the working rows (tool calls/run summary)
 	 * directly above it, which it answers. */
 	followsWorkingRows?: boolean;
+	/** Opens the page where the credentials of a failed turn's provider can
+	 * be fixed (Settings → Account for Cline, Settings → API Providers otherwise). */
+	onFixCredentials?: (target: "account" | "models") => void;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
 	thoughtDurationMilliseconds?: number;
@@ -165,6 +171,13 @@ export const MessageBubble = memo(function MessageBubble({
 		message.role,
 		message.content,
 	);
+	const credentialAction =
+		isError &&
+		onFixCredentials &&
+		message.meta?.reason === "credentials" &&
+		message.meta.providerId
+			? resolveCredentialFailureAction(message.meta.providerId)
+			: null;
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&
 		!isStreaming &&
@@ -243,6 +256,19 @@ export const MessageBubble = memo(function MessageBubble({
 							content={displayContent}
 							streaming={isStreaming && message.role === "assistant"}
 						/>
+					</div>
+				) : null}
+
+				{credentialAction ? (
+					<div>
+						<Button
+							onClick={() => onFixCredentials?.(credentialAction.target)}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{credentialAction.label}
+						</Button>
 					</div>
 				) : null}
 			</MessageContent>
