@@ -79,10 +79,12 @@ async function startHubWebSocketServerWithBindRetry(
 
 function parseArgs(argv: string[]): {
 	cwd: string;
+	manageConnectors: boolean;
 	host?: string;
 	port?: number;
 	pathname?: string;
 } {
+	let manageConnectors = true;
 	let cwd = process.cwd();
 	let host: string | undefined;
 	let port: number | undefined;
@@ -91,6 +93,10 @@ function parseArgs(argv: string[]): {
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
 		const value = argv[index + 1];
+		if (arg === "--no-connectors") {
+			manageConnectors = false;
+			continue;
+		}
 		if (arg === "--cwd" && value) {
 			cwd = value;
 			index += 1;
@@ -115,7 +121,7 @@ function parseArgs(argv: string[]): {
 		}
 	}
 
-	return { cwd, host, port, pathname };
+	return { cwd, host, port, pathname, manageConnectors };
 }
 
 /**
@@ -275,10 +281,14 @@ async function main(): Promise<void> {
 
 	// Owns connector processes for this hub's lifetime: one instance per
 	// (channel, instanceId), reaping and backoff restarts when they die.
-	const supervisor = new ConnectorSupervisor({
-		cleanupInstance: (channel, instanceId) =>
-			cleanupConnectorInstanceViaCli(channel, instanceId),
-	});
+	// Dedicated SSH Hubs share account storage with the CLI Hub, but must not
+	// adopt its connectors, restart them, or accept connector start/stop commands.
+	const supervisor = options.manageConnectors
+		? new ConnectorSupervisor({
+				cleanupInstance: (channel, instanceId) =>
+					cleanupConnectorInstanceViaCli(channel, instanceId),
+			})
+		: undefined;
 	setActiveConnectorSupervisor(supervisor);
 
 	shutdownCoordinator = createHubDaemonShutdownCoordinator({
@@ -289,7 +299,7 @@ async function main(): Promise<void> {
 			// on purpose so a hub restart does not disconnect Slack/Telegram, and
 			// the next hub adopts them from their state files.
 			try {
-				supervisor.dispose();
+				supervisor?.dispose();
 			} catch (error) {
 				errors.push(error);
 			} finally {
@@ -342,8 +352,10 @@ async function main(): Promise<void> {
 		// Adopt first: connectors that outlived the previous hub have to be known
 		// before recovery runs, so they are restarted onto this hub's session
 		// instead of being started a second time alongside themselves.
-		supervisor.adoptRunningConnectors();
-		await reconnectDaemonConnectors();
+		if (supervisor) {
+			supervisor.adoptRunningConnectors();
+			await reconnectDaemonConnectors();
+		}
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);

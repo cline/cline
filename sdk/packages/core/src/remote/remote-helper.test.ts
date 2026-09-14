@@ -83,6 +83,7 @@ describe("remote helper entrypoint", () => {
 				port: 0,
 				pathname: "/hub",
 				allowPortFallback: true,
+				manageConnectors: false,
 			},
 		);
 		expect(JSON.parse(output.join(""))).toMatchObject({

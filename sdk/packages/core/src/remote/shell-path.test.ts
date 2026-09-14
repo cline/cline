@@ -1,6 +1,6 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	defaultShellFor,
@@ -11,6 +11,9 @@ import {
 	resolveLoginShellPath,
 	shellInvocation,
 } from "./shell-path";
+
+const isWindows = process.platform === "win32";
+const posixTest = it.skipIf(isWindows);
 
 const MARKER_START = "__CLINE_SIDECAR_PATH_START__";
 const MARKER_END = "__CLINE_SIDECAR_PATH_END__";
@@ -66,14 +69,21 @@ describe("mergePaths", () => {
 	it("puts shell entries first and keeps current-only entries", () => {
 		expect(
 			mergePaths(
-				"/opt/homebrew/bin:/usr/bin:/bin",
-				"/usr/bin:/bin:/custom/bin",
+				["/opt/homebrew/bin", "/usr/bin", "/bin"].join(delimiter),
+				["/usr/bin", "/bin", "/custom/bin"].join(delimiter),
 			),
-		).toBe("/opt/homebrew/bin:/usr/bin:/bin:/custom/bin");
+		).toBe(
+			["/opt/homebrew/bin", "/usr/bin", "/bin", "/custom/bin"].join(delimiter),
+		);
 	});
 
 	it("drops duplicate and empty entries", () => {
-		expect(mergePaths("/a::/b:/a", "/b:/c:")).toBe("/a:/b:/c");
+		expect(
+			mergePaths(
+				["/a", "", "/b", "/a"].join(delimiter),
+				["/b", "/c", ""].join(delimiter),
+			),
+		).toBe(["/a", "/b", "/c"].join(delimiter));
 	});
 });
 
@@ -85,7 +95,7 @@ describe("defaultShellFor", () => {
 });
 
 describe("loginShellFor", () => {
-	it("returns the passwd-database shell when one exists", () => {
+	posixTest("returns the passwd-database shell when one exists", () => {
 		// The test runner's uid has a passwd entry, so $SHELL must lose.
 		const shell = loginShellFor(process.platform, {
 			SHELL: "/env/should-not-win",
@@ -117,7 +127,8 @@ describe("shellInvocation", () => {
 	});
 });
 
-describe("resolveLoginShellPath", () => {
+// These integration fixtures execute real POSIX shell scripts.
+describe.skipIf(isWindows)("resolveLoginShellPath", () => {
 	it("captures PATH from the shell", async () => {
 		const shell = writeFakeShell();
 		await expect(resolveLoginShellPath(shell)).resolves.toBe(
@@ -175,7 +186,7 @@ describe("resolveLoginShellPath", () => {
 });
 
 describe("ensureLoginShellPath", () => {
-	it("merges the login shell PATH into env.PATH", async () => {
+	posixTest("merges the login shell PATH into env.PATH", async () => {
 		const shell = writeFakeShell();
 		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin:/bin" };
 		const result = await ensureLoginShellPath({
@@ -191,19 +202,22 @@ describe("ensureLoginShellPath", () => {
 		expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin:/bin");
 	});
 
-	it("falls back to the default shell when $SHELL can't resolve", async () => {
-		const fallbackShell = writeFakeShell();
-		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
-		const result = await ensureLoginShellPath({
-			platform: "darwin",
-			env,
-			userShell: "/nonexistent/shell",
-			fallbackShell,
-		});
-		expect(result.status).toBe("applied");
-		expect(result).toMatchObject({ shell: fallbackShell });
-		expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
-	});
+	posixTest(
+		"falls back to the default shell when $SHELL can't resolve",
+		async () => {
+			const fallbackShell = writeFakeShell();
+			const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
+			const result = await ensureLoginShellPath({
+				platform: "darwin",
+				env,
+				userShell: "/nonexistent/shell",
+				fallbackShell,
+			});
+			expect(result.status).toBe("applied");
+			expect(result).toMatchObject({ shell: fallbackShell });
+			expect(env.PATH).toBe("/opt/homebrew/bin:/usr/bin");
+		},
+	);
 
 	it("leaves PATH untouched when every shell fails", async () => {
 		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
@@ -221,6 +235,7 @@ describe("ensureLoginShellPath", () => {
 		const env: NodeJS.ProcessEnv = { PATH: "C:\\Windows" };
 		const result = await ensureLoginShellPath({ platform: "win32", env });
 		expect(result).toEqual({ status: "skipped", reason: "windows" });
+		expect(env.PATH).toBe("C:\\Windows");
 	});
 
 	it("skips when the escape hatch is set", async () => {
@@ -233,7 +248,7 @@ describe("ensureLoginShellPath", () => {
 		expect(env.PATH).toBe("/usr/bin");
 	});
 
-	it("never exposes the resolved PATH in its result", async () => {
+	posixTest("never exposes the resolved PATH in its result", async () => {
 		const shell = writeFakeShell();
 		const env: NodeJS.ProcessEnv = { PATH: "/usr/bin" };
 		const result = await ensureLoginShellPath({
@@ -244,7 +259,7 @@ describe("ensureLoginShellPath", () => {
 		expect(JSON.stringify(result)).not.toContain("/opt/homebrew/bin");
 	});
 
-	it("resolves against a real shell end to end", async () => {
+	posixTest("resolves against a real shell end to end", async () => {
 		const env: NodeJS.ProcessEnv = { PATH: "/bin" };
 		const result = await ensureLoginShellPath({
 			platform: "linux",

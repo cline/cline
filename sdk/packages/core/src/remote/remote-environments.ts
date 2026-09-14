@@ -336,34 +336,7 @@ export class RemoteEnvironmentService {
 		try {
 			const inspection = await this.inspectRemote(profile);
 			await this.validateDirectory(profile, inspection.home);
-			const localHelper =
-				await this.dependencies.resolveHelperBinary(inspection);
-			if (
-				!localHelper ||
-				!(await this.dependencies.fileReadable(localHelper))
-			) {
-				throw new Error(
-					`Remote target ${inspection.platform}/${inspection.arch} is unsupported in SSH: ` +
-						"no compatible remote helper binary is available. Build the matching core remote helper and set " +
-						"CLINE_REMOTE_HELPER_BINARY; network installers are intentionally not used.",
-				);
-			}
-
-			const hash = await this.dependencies.hashFile(localHelper);
-			const remoteDirectory = joinRemote(
-				inspection.home,
-				REMOTE_HELPER_DIRECTORY,
-			);
-			const remoteHelper = joinRemote(
-				remoteDirectory,
-				`cline-remote-helper-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
-			);
-			await this.installHelper(
-				profile,
-				localHelper,
-				remoteDirectory,
-				remoteHelper,
-			);
+			const remoteHelper = await this.ensureHelper(profile, inspection);
 
 			const discoveryPath = joinRemote(
 				inspection.home,
@@ -554,6 +527,37 @@ export class RemoteEnvironmentService {
 			}
 			await this.retryPendingCleanup();
 		});
+	}
+
+	private async ensureHelper(
+		profile: RemoteEnvironmentProfile,
+		inspection: RemoteInspection,
+	): Promise<string> {
+		const localHelper = await this.dependencies.resolveHelperBinary(inspection);
+		if (!localHelper || !(await this.dependencies.fileReadable(localHelper))) {
+			throw new Error(
+				`Remote target ${inspection.platform}/${inspection.arch} is unsupported in SSH: ` +
+					"no compatible remote helper binary is available. Build the matching core remote helper and set " +
+					"CLINE_REMOTE_HELPER_BINARY; network installers are intentionally not used.",
+			);
+		}
+
+		const hash = await this.dependencies.hashFile(localHelper);
+		const remoteDirectory = joinRemote(
+			inspection.home,
+			REMOTE_HELPER_DIRECTORY,
+		);
+		const remoteHelper = joinRemote(
+			remoteDirectory,
+			`cline-remote-helper-${inspection.platform}-${inspection.arch}-${hash.slice(0, 16)}`,
+		);
+		await this.installHelper(
+			profile,
+			localHelper,
+			remoteDirectory,
+			remoteHelper,
+		);
+		return remoteHelper;
 	}
 
 	private async installHelper(
@@ -848,8 +852,22 @@ export class RemoteEnvironmentService {
 					profile.user === cleanup.profile.user &&
 					profile.port === cleanup.profile.port,
 			);
-			await this.execRemote(profile ?? cleanup.profile, {
-				command: cleanup.helper,
+			const cleanupProfile = profile ?? cleanup.profile;
+			const available = await this.execRemoteAllowFailure(cleanupProfile, {
+				command: "test",
+				args: ["-x", cleanup.helper],
+			});
+			// Cache removal must not strand the durable cleanup record. Restore
+			// a compatible helper, still targeting the original owned discovery.
+			const helper =
+				available.exitCode === 0
+					? cleanup.helper
+					: await this.ensureHelper(
+							cleanupProfile,
+							await this.inspectRemote(cleanupProfile),
+						);
+			await this.execRemote(cleanupProfile, {
+				command: helper,
 				args: ["--remote-hub-stop", "--discovery-path", cleanup.discoveryPath],
 			});
 			await rm(path, { force: true });
