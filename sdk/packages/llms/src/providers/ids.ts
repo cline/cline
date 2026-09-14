@@ -47,6 +47,7 @@ export enum BUILT_IN_PROVIDER {
 	V0 = "v0",
 	AIHUBMIX = "aihubmix",
 	HICAP = "hicap",
+	MELIOUS = "melious",
 	NOUS_RESEARCH = "nousResearch",
 	HUAWEI_CLOUD_MAAS = "huawei-cloud-maas",
 	WANDB = "wandb",

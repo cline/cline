@@ -310,6 +310,22 @@ describe("built-in provider metadata", () => {
 		);
 	});
 
+	it("registers Melious as an EU-hosted OpenAI-compatible provider", async () => {
+		await expect(getProvider("melious")).resolves.toMatchObject({
+			id: "melious",
+			name: "Melious",
+			baseUrl: "https://api.melious.ai/v1",
+			defaultModelId: "glm-5.3",
+			client: "openai-compatible",
+		});
+		// Melious is not on models.dev, so the bundled catalog is just the
+		// default-model fallback; the real list is fetched from /v1/models with
+		// the user's key at runtime.
+		await expect(getModelsForProvider("melious")).resolves.toHaveProperty(
+			"glm-5.3",
+		);
+	});
+
 	it("merges generated provider specs with handwritten built-in overrides", async () => {
 		const generatedIds = new Set(
 			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),

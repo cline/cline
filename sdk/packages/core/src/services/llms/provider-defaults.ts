@@ -457,6 +457,106 @@ async function fetchHicapPrivateModels(
 	return models;
 }
 
+interface MeliousModelResponse {
+	id?: string;
+	_meta?: {
+		type?: string;
+		input_modalities?: string[];
+		context_length?: number | null;
+		max_output_tokens?: number | null;
+		reasoning_type?: string | null;
+		capabilities?: {
+			function_calling?: boolean;
+		};
+		pricing?: {
+			input_cost_per_million_eur?: number | string | null;
+			output_cost_per_million_eur?: number | string | null;
+		};
+	};
+}
+
+async function fetchMeliousPrivateModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const baseUrl =
+		normalizeBaseUrl(config.baseUrl) || "https://api.melious.ai/v1";
+	// `include_meta` returns context length, modalities, capability flags and
+	// per-million pricing alongside each id. Without it the response is bare ids.
+	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models?include_meta=true`;
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			accept: "application/json",
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`Melious model refresh failed: HTTP ${response.status}`);
+	}
+
+	const payload = (await response.json()) as { data?: MeliousModelResponse[] };
+	const entries = payload?.data ?? [];
+	const models: Record<string, ModelInfo> = {};
+	for (const model of entries) {
+		const id = model.id?.trim();
+		if (!id) {
+			continue;
+		}
+		const meta = model._meta;
+		// The catalog also serves embedding, image and transcription models; only
+		// chat models belong in a coding-agent picker.
+		if (meta?.type !== "chat") {
+			continue;
+		}
+
+		const capabilities: NonNullable<ModelInfo["capabilities"]> = ["streaming"];
+		includeCapability(
+			capabilities,
+			"tools",
+			Boolean(meta.capabilities?.function_calling),
+		);
+		includeCapability(
+			capabilities,
+			"images",
+			(meta.input_modalities ?? []).includes("image"),
+		);
+		includeCapability(
+			capabilities,
+			"reasoning",
+			Boolean(meta.reasoning_type) && meta.reasoning_type !== "non_reasoning",
+		);
+		// Prefix caching is transparent on every Melious chat model — there is no
+		// per-request cache_control to opt into, and hits bill at the cache rate.
+		includeCapability(capabilities, "prompt-cache", true);
+
+		const contextWindow = parseOptionalNumber(meta.context_length ?? undefined);
+		const pricing = {
+			input: parseOptionalNumber(
+				meta.pricing?.input_cost_per_million_eur ?? undefined,
+			),
+			output: parseOptionalNumber(
+				meta.pricing?.output_cost_per_million_eur ?? undefined,
+			),
+		};
+
+		models[id] = {
+			id,
+			name: id,
+			contextWindow,
+			maxInputTokens: contextWindow,
+			maxTokens: parseOptionalNumber(meta.max_output_tokens ?? undefined),
+			capabilities,
+			pricing:
+				pricing.input !== undefined || pricing.output !== undefined
+					? pricing
+					: undefined,
+			status: "active",
+		};
+	}
+	return models;
+}
+
 async function fetchPoolsidePrivateModels(
 	config: ProviderConfig,
 	token: string,
@@ -655,6 +755,7 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
+	melious: fetchMeliousPrivateModels,
 	poolside: fetchPoolsidePrivateModels,
 };
 
