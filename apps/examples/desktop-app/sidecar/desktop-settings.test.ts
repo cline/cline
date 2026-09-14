@@ -36,21 +36,16 @@ describe("desktop settings", () => {
 			cloudSessionsEnabled: true,
 		});
 		expect(readDesktopSettings()).toEqual({ cloudSessionsEnabled: true });
+		expect(resolveDesktopSettingsPath().endsWith("code-settings.json")).toBe(
+			true,
+		);
+		expect(
+			JSON.parse(readFileSync(resolveDesktopSettingsPath(), "utf8")),
+		).toMatchObject({ cloudSessionsEnabled: true });
 		expect(setCloudSessionsEnabled(false)).toEqual({
 			cloudSessionsEnabled: false,
 		});
 		expect(readDesktopSettings()).toEqual({ cloudSessionsEnabled: false });
-	});
-
-	it("writes into the desktop-owned settings file, not global-settings", () => {
-		setCloudSessionsEnabled(true);
-		const raw = JSON.parse(
-			readFileSync(resolveDesktopSettingsPath(), "utf8"),
-		) as Record<string, unknown>;
-		expect(resolveDesktopSettingsPath().endsWith("code-settings.json")).toBe(
-			true,
-		);
-		expect(raw.cloudSessionsEnabled).toBe(true);
 	});
 
 	it("treats malformed files and non-boolean values as off", () => {

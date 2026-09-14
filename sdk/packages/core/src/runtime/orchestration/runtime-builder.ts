@@ -50,7 +50,7 @@ import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configur
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
-	isOptInToolEnabledGlobally,
+	isModelToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -422,7 +422,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const modelTools: ModelTool[] = [];
 		if (
 			normalized.enableTools &&
-			isOptInToolEnabledGlobally("web_search") &&
+			normalized.mode !== "yolo" &&
+			isModelToolEnabledGlobally("web_search") &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"web_search",

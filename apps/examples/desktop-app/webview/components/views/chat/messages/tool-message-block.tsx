@@ -12,7 +12,7 @@ import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import Ansi from "ansi-to-react";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	type ChatMessage,
@@ -63,15 +63,20 @@ function ToolLabel({
 
 const ToolCallRow = memo(function ToolCallRow({
 	message,
+	isRunActive,
 	onExpandImage,
 	onProceedWhileRunning,
 }: {
 	message: ChatMessage;
+	isRunActive: boolean;
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
+	// A missing result can outlive its run. Only gate the running display;
+	// keep the message intact so a later result can still replace it.
+	const isRunning = inProgress && isRunActive;
 	const isCommand = summary.kind === "command";
 	// submit_and_exit carries the run's final answer (scheduled tasks end with
 	// it), so surface it expanded and rendered as markdown rather than leaving
@@ -105,34 +110,50 @@ const ToolCallRow = memo(function ToolCallRow({
 	const toolSessionId = message.sessionId;
 	const artifactVideos = toolSessionId
 		? (message.media ?? []).filter(
-				(media) => media.modality === "video" && media.source.type === "artifact",
+				(media) =>
+					media.modality === "video" && media.source.type === "artifact",
 			)
 		: [];
 	const artifactAudios = toolSessionId
 		? (message.media ?? []).filter(
-				(media) => media.modality === "audio" && media.source.type === "artifact",
+				(media) =>
+					media.modality === "audio" && media.source.type === "artifact",
 			)
 		: [];
 	const [artifactUrls, setArtifactUrls] = useState<Record<string, string>>({});
-	const artifactMedia = [...artifactVideos, ...artifactAudios];
-	const artifactIds = artifactMedia
-		.map((media) => media.id)
-		.join(",");
+	const artifactMedia = useMemo(
+		() =>
+			(message.media ?? []).filter(
+				(media) =>
+					(media.modality === "video" || media.modality === "audio") &&
+					media.source.type === "artifact",
+			),
+		[message.media],
+	);
 	useEffect(() => {
 		if (!toolSessionId) return;
 		for (const media of artifactMedia) {
 			if (media.source.type !== "artifact") continue;
-			void resolveSessionArtifactUrl(toolSessionId, media.source.artifactId).then(
-				(url) => setArtifactUrls((current) => ({ ...current, [media.id]: url })),
+			void resolveSessionArtifactUrl(
+				toolSessionId,
+				media.source.artifactId,
+			).then((url) =>
+				setArtifactUrls((current) => ({ ...current, [media.id]: url })),
 			);
 		}
-	}, [artifactIds, toolSessionId]);
+	}, [artifactMedia, toolSessionId]);
 	const mediaPlaceholderText = (summary.outputText ?? "")
-		.replace(/\[generated audio\]/gi, artifactUrls[artifactAudios[0]?.id ?? ""] ?? "[generated audio]")
-		.replace(/\[generated video\]/gi, artifactUrls[artifactVideos[0]?.id ?? ""] ?? "[generated video]");
+		.replace(
+			/\[generated audio\]/gi,
+			artifactUrls[artifactAudios[0]?.id ?? ""] ?? "[generated audio]",
+		)
+		.replace(
+			/\[generated video\]/gi,
+			artifactUrls[artifactVideos[0]?.id ?? ""] ?? "[generated video]",
+		);
 	const toolCallId = message.meta?.toolCallId;
 	const canProceed = Boolean(
-		inProgress &&
+		isRunning &&
 			isCommand &&
 			message.meta?.toolDetachable === true &&
 			toolSessionId &&
@@ -246,9 +267,9 @@ const ToolCallRow = memo(function ToolCallRow({
 							<Icon className="size-4" />
 						)
 					}
-					label={<ToolLabel isRunning={inProgress} parts={labelParts} />}
+					label={<ToolLabel isRunning={isRunning} parts={labelParts} />}
 					showDisclosureIcon={false}
-					status={hasError ? "error" : inProgress ? "running" : "success"}
+					status={hasError ? "error" : isRunning ? "running" : "success"}
 				/>
 				<ToolActivityContent presentation="rail">
 					{details.length > 0 ? (
@@ -350,7 +371,8 @@ const ToolCallRow = memo(function ToolCallRow({
 								audio: "w-full",
 								video: "max-h-96 max-w-full rounded-lg",
 								file: "text-sm underline",
-								unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+								unavailable:
+									"rounded-lg border border-border bg-muted p-3 text-sm",
 							}}
 							key={`${message.id}_tool_media_${index}`}
 							media={{
@@ -375,29 +397,31 @@ const ToolCallRow = memo(function ToolCallRow({
 				</div>
 			) : null}
 			{message.media?.filter(
-				(media) => !artifactVideos.includes(media) && !artifactAudios.includes(media),
+				(media) =>
+					!artifactVideos.includes(media) && !artifactAudios.includes(media),
 			).length ? (
 				<div className="ml-7 flex max-w-2xl flex-col gap-2">
 					{message.media
 						.filter(
 							(media) =>
-									!artifactVideos.includes(media) && !artifactAudios.includes(media),
+								!artifactVideos.includes(media) &&
+								!artifactAudios.includes(media),
 						)
 						.map((media) => (
-						<GeneratedMediaContent
-							classNames={{
-								image:
-									"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
-								audio: "w-full",
-								video: "max-h-96 max-w-full rounded-lg",
-								file: "text-sm underline",
-								unavailable:
-									"rounded-lg border border-border bg-muted p-3 text-sm",
-							}}
-							key={media.id}
-							media={media}
-						/>
-					))}
+							<GeneratedMediaContent
+								classNames={{
+									image:
+										"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+									audio: "w-full",
+									video: "max-h-96 max-w-full rounded-lg",
+									file: "text-sm underline",
+									unavailable:
+										"rounded-lg border border-border bg-muted p-3 text-sm",
+								}}
+								key={media.id}
+								media={media}
+							/>
+						))}
 				</div>
 			) : null}
 		</div>
@@ -457,10 +481,12 @@ function CommandOutputTerminal({
 export const ToolMessageBlock = memo(
 	function ToolMessageBlock({
 		messages,
+		isRunActive,
 		onExpandImage,
 		onProceedWhileRunning,
 	}: {
 		messages: ChatMessage[];
+		isRunActive: boolean;
 		onExpandImage?: (image: ChatMessageImage) => void;
 		onProceedWhileRunning?: ProceedWhileRunningHandler;
 	}) {
@@ -469,6 +495,7 @@ export const ToolMessageBlock = memo(
 			<div className="flex flex-col gap-1">
 				{messages.map((message) => (
 					<ToolCallRow
+						isRunActive={isRunActive}
 						key={message.id}
 						message={message}
 						onExpandImage={onExpandImage}
@@ -479,6 +506,7 @@ export const ToolMessageBlock = memo(
 		);
 	},
 	(prev, next) =>
+		prev.isRunActive === next.isRunActive &&
 		prev.messages.length === next.messages.length &&
 		prev.messages.every((message, index) => message === next.messages[index]) &&
 		prev.onExpandImage === next.onExpandImage &&

@@ -102,7 +102,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -169,6 +169,7 @@ export {
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	type GeneratedMedia,
 	type GeneratedMediaModality,
 	GeneratedMediaModalitySchema,
@@ -176,7 +177,6 @@ export {
 	type GeneratedMediaSource,
 	GeneratedMediaSourceSchema,
 	generatedMediaModalityFromMediaType,
-	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
@@ -303,6 +303,7 @@ export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
+	getPowerShellEdition,
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
@@ -572,7 +573,10 @@ export {
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,
+	isOtlpTraceRelayProvider,
+	markOtlpTraceRelayProvider,
 	normalizeSdkError,
+	OTLP_TRACE_RELAY_MARKER,
 	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
@@ -626,7 +630,6 @@ export {
 export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";
-export * from "./tools/settings";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 export { initVcr } from "./vcr";

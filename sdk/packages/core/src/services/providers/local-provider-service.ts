@@ -38,7 +38,11 @@ import {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
+import {
+	getLiveModelsCatalog,
+	isPrivateModelCatalogProvider,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
 import {
 	type ModelInfo,
 	type ProviderClient,
@@ -415,19 +419,20 @@ async function resolveProviderModelMap(
 		LlmsModels.getModelsForProvider(providerId),
 		LlmsModels.getModelOverridesForProvider(providerId),
 	]);
+	// All shared-catalog providers refresh when their model list is loaded.
+	// The catalog cache deduplicates concurrent loads across providers; the
+	// initial listLocalProviders snapshot remains entirely network-free.
+	// Endpoint-owned lists do not use the shared catalog.
+	const provider = await LlmsModels.getProvider(providerId);
 	const shouldLoadLiveCatalog =
-		providerId === CLINE_PROVIDER_ID ||
-		providerId === CLINE_PASS_PROVIDER_ID ||
-		options.loadLatest === true;
+		!isPrivateModelCatalogProvider(providerId) && !provider?.modelsSourceUrl;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !shouldLoadLiveCatalog) {
-		return registeredModels;
-	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: shouldLoadLiveCatalog,
+			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
+			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -1094,6 +1099,15 @@ export async function listLocalProviders(
 					featuredData,
 				);
 				const directSettings = state.providers[id]?.settings;
+				// Providers that store their credentials under another provider
+				// (ClinePass signs in as "cline") are enabled whenever that
+				// provider is: one Cline sign-in configures both, so both must
+				// show wherever `enabled` gates a picker.
+				const storageProviderId = getProviderAuthHandler(id)?.storageProviderId;
+				const sharedSettings =
+					storageProviderId && storageProviderId !== id
+						? state.providers[storageProviderId]?.settings
+						: undefined;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
@@ -1110,7 +1124,7 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(directSettings),
+						enabled: Boolean(directSettings ?? sharedSettings),
 						// Distinct from `enabled` (any persisted entry, which
 						// migrations and empty saves can create): true only when
 						// the saved settings hold real credentials or a usable
@@ -1232,12 +1246,19 @@ export async function getLocalProviderModels(
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
 		// picker gets Recommended/Free/Subscribed data without fetching and
-		// joining the feed itself. Cached; falls back to a bundled list, so
-		// a failure only means models without tier decoration.
+		// joining the feed itself. A miss only means models without tier
+		// decoration.
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			await getCachedClineRecommendedModels(
+				options?.loadLatest
+					? {
+							catalogLoader: () =>
+								getLiveModelsCatalog({ includeClineCloudModels: true }),
+						}
+					: undefined,
+			),
 		);
 	}
 	return { providerId: id, models };

@@ -165,8 +165,14 @@ vi.mock("./runtime/run-interactive", () => {
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./session/session", () => sessionMocks);
 vi.mock("@cline/core", async () => {
+	// Keep dispatch tests independent of the full SDK runtime import graph.
+	// Only persisted-settings behavior needs its real implementation here.
+	const { readGlobalSettings } = await vi.importActual<
+		typeof import("../../../sdk/packages/core/src/services/global-settings")
+	>("../../../sdk/packages/core/src/services/global-settings");
 	return {
-		...(await vi.importActual("@cline/core")),
+		readGlobalSettings,
+		setSdkLogger: vi.fn(),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({

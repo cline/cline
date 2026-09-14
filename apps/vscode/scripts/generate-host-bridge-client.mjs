@@ -102,8 +102,9 @@ import { asyncIteratorToCallbacks } from "@/standalone/utils"
 import * as niceGrpc from "@generated/nice-grpc/index"
 import { StreamingCallbacks } from "@hosts/host-provider-types"
 import * as proto from "@shared/proto/index"
-import { Channel, createClient } from "nice-grpc"
+import { Channel } from "nice-grpc"
 import { BaseGrpcClient } from "@/hosts/external/grpc-types"
+import { createHostBridgeClient } from "@/hosts/external/host-bridge-auth"
 
 ${imports.join("\n")}
 
@@ -166,7 +167,7 @@ export class ${serviceName}ClientImpl
 	implements ${serviceName}ClientInterface {
 
 	protected createClient(channel: Channel): niceGrpc.host.${serviceName}Client {
-		return createClient(niceGrpc.host.${serviceName}Definition, channel)
+		return createHostBridgeClient(niceGrpc.host.${serviceName}Definition, channel)
 	}
 
 ${methods}

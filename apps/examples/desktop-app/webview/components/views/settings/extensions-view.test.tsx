@@ -199,14 +199,14 @@ describe("CustomizationSectionView Generate media tool", () => {
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		});
 
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
 		const cardTrigger = container.querySelector<HTMLButtonElement>(
 			'button[aria-label="Configure generate_media"]',
 		);
 		expect(toggle).not.toBeNull();
-		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(toggle?.checked).toBe(false);
 		expect(toggle?.disabled).toBe(true);
 		expect(cardTrigger?.getAttribute("aria-expanded")).toBe("false");
 		expect(container.textContent).toContain("Setup required");
@@ -281,11 +281,11 @@ describe("CustomizationSectionView Generate media tool", () => {
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		});
 
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
 		expect(toggle?.disabled).toBe(false);
-		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(toggle?.checked).toBe(false);
 		expect(
 			container.querySelector('[aria-label="Image generation provider"]'),
 		).toBeNull();
@@ -297,7 +297,7 @@ describe("CustomizationSectionView Generate media tool", () => {
 			"set_tool_disabled",
 			{ names: ["generate_media"], disabled: false },
 		]);
-		expect(toggle?.getAttribute("data-state")).toBe("checked");
+		expect(toggle?.checked).toBe(true);
 		expect(
 			container.querySelector('[aria-label="Image generation provider"]'),
 		).toBeNull();
@@ -339,8 +339,8 @@ describe("CustomizationSectionView Generate media tool", () => {
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		});
 
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
 		expect(toggle?.disabled).toBe(true);
 		expect(container.textContent).toContain("Checking setup");
@@ -394,10 +394,10 @@ describe("CustomizationSectionView Generate media tool", () => {
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		});
 
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
-		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(toggle?.checked).toBe(false);
 		expect(toggle?.disabled).toBe(true);
 		expect(container.textContent).toContain("Setup required");
 	});
@@ -442,8 +442,8 @@ describe("CustomizationSectionView Generate media tool", () => {
 		await act(async () => {
 			await new Promise((resolve) => setTimeout(resolve, 10));
 		});
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
 
 		act(() => toggle?.click());
@@ -453,7 +453,7 @@ describe("CustomizationSectionView Generate media tool", () => {
 			await Promise.resolve();
 		});
 
-		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(toggle?.checked).toBe(false);
 		expect(container.textContent).toContain(
 			"tool toggle did not persist the requested enabled state",
 		);

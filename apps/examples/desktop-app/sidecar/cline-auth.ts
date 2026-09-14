@@ -1,16 +1,13 @@
 import {
 	captureAuthRefreshSoftFailure,
 	getProviderAuthHandler,
+	OAuthReauthRequiredError,
 	type ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
 } from "@cline/core";
 import type { SidecarContext } from "./types";
 
-// Cline access tokens expire between app launches, so account requests must
-// resolve through the refresh-aware OAuth manager instead of reading the
-// persisted token directly. A single shared instance keeps concurrent account
-// requests single-flight; the refresh token is single-use, so parallel
-// refreshes would invalidate each other.
+// Share the refresh-aware manager so single-use refresh tokens stay single-flight.
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
 export async function resolveFreshClineAuthToken(
@@ -27,20 +24,13 @@ export async function resolveFreshClineAuthToken(
 			return resolution.apiKey;
 		}
 	} catch (error) {
-		// Fall back to the persisted token; when one exists the account request
-		// surfaces the auth failure to the caller.
+		// A persisted token may still let the account request surface the failure.
 		refreshError = error instanceof Error ? error : new Error(String(error));
 	}
-	// The canonical handler applies the same formatting the refresh path uses:
-	// OAuth access tokens gain the `workos:` prefix core-platform expects,
-	// while raw API keys pass through untouched.
+	// Apply canonical OAuth-token formatting while preserving raw API keys.
 	const persisted = getProviderAuthHandler("cline")?.getApiKey(
 		manager.getProviderSettings("cline"),
 	);
-	// Never-signed-in resolves to undefined without a refresh attempt and is
-	// silent. A refresh failure with no persisted fallback means credentials
-	// existed but yielded nothing — that is the signal a real auth regression
-	// would show up as, so report exactly one event for it.
 	if (!persisted && refreshError && ctx) {
 		ctx.logger?.error?.("Cline auth token refresh failed with no fallback", {
 			error: refreshError,
@@ -49,6 +39,13 @@ export async function resolveFreshClineAuthToken(
 			errorName: refreshError.name,
 			errorCode: "desktop_refresh_failed_no_fallback_token",
 		});
+	}
+	// A rejected refresh token means the persisted access token is dead too.
+	// Handing it out would turn the signed-out state into an opaque request
+	// failure (an error card whose Retry fails the same way) instead of the
+	// sign-in prompt. Transient refresh failures still fall back to it.
+	if (refreshError instanceof OAuthReauthRequiredError) {
+		return undefined;
 	}
 	return persisted;
 }

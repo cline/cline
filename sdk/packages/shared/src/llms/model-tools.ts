@@ -1,7 +1,14 @@
 /** Provider-executed tools requested from the selected language model. */
 export const MODEL_TOOL_NAMES = ["web_search", "image_generation"] as const;
 
+export const CONFIGURABLE_MODEL_TOOL_NAMES = [
+	"web_search",
+	"generate_media",
+] as const;
+
 export type ModelToolName = (typeof MODEL_TOOL_NAMES)[number];
+export type ConfigurableModelToolName =
+	(typeof CONFIGURABLE_MODEL_TOOL_NAMES)[number];
 
 export interface WebSearchModelTool {
 	name: "web_search";
@@ -26,3 +33,11 @@ export interface ImageGenerationModelTool {
  * AgentTool, it has no local executor or approval lifecycle.
  */
 export type ModelTool = WebSearchModelTool | ImageGenerationModelTool;
+
+export interface ModelToolSetting {
+	enabled: boolean;
+}
+
+export type ModelToolSettings = Partial<
+	Record<ConfigurableModelToolName, ModelToolSetting>
+>;

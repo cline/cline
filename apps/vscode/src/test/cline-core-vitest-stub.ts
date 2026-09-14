@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
@@ -85,18 +85,19 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 	}
 }
 
-export type OptInToolName = "web_search" | "generate_media"
+export type ConfigurableModelToolName = "web_search" | "generate_media"
 
-export function isOptInToolEnabledGlobally(name: OptInToolName): boolean {
+export function isModelToolEnabledGlobally(name: ConfigurableModelToolName): boolean {
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH ?? ""
 	try {
-		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
-		return settings.tools?.[name]?.enabled === true
+		const settings = JSON.parse(readFileSync(filePath, "utf8"))
+		return settings.tools?.[name]?.enabled ?? (name === "web_search")
 	} catch {
-		return false
+		return name === "web_search" && !existsSync(filePath)
 	}
 }
 
-export function setOptInToolEnabledGlobally(name: OptInToolName, enabled: boolean): void {
+export function setModelToolEnabledGlobally(name: ConfigurableModelToolName, enabled: boolean): void {
 	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
 	if (filePath) {
 		let settings: { tools?: Record<string, { enabled: boolean }> } = {}

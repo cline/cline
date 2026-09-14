@@ -288,6 +288,7 @@ const USER_SETTINGS_FIELDS = {
 	openTelemetryEnabled: { default: true as boolean },
 	openTelemetryMetricsExporter: { default: undefined as string | undefined },
 	openTelemetryLogsExporter: { default: undefined as string | undefined },
+	openTelemetryTracesExporter: { default: undefined as string | undefined },
 	openTelemetryOtlpProtocol: { default: "http/json" as string | undefined },
 	openTelemetryOtlpEndpoint: { default: "http://localhost:4318" as string | undefined },
 	openTelemetryOtlpMetricsProtocol: { default: undefined as string | undefined },

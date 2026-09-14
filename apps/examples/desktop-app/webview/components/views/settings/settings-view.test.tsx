@@ -196,8 +196,8 @@ describe("SettingsView generate media configuration", () => {
 			await new Promise((resolve) => setTimeout(resolve, 20));
 		});
 
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
 		expect(toggle).not.toBeNull();
 		expect(toggle?.disabled).toBe(true);
@@ -217,13 +217,19 @@ describe("SettingsView generate media configuration", () => {
 			await Promise.resolve();
 		});
 
+		const saveButton = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.trim() === "Save");
+		expect(saveButton?.disabled).toBe(false);
+		await act(async () => saveButton?.click());
+
 		expect(invoke).toHaveBeenCalledWith("save_media_generation_settings", {
 			media_type: "image",
 			provider: "google",
 			model: "gemini-image",
 		});
 		expect(toggle?.disabled).toBe(false);
-		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(toggle?.checked).toBe(false);
 
 		await act(async () => {
 			toggle?.click();
@@ -232,7 +238,7 @@ describe("SettingsView generate media configuration", () => {
 			names: ["generate_media"],
 			disabled: false,
 		});
-		expect(toggle?.getAttribute("data-state")).toBe("checked");
+		expect(toggle?.checked).toBe(true);
 	});
 
 	it("keeps desktop-local media settings unavailable in remote sessions", async () => {
@@ -292,11 +298,11 @@ describe("SettingsView generate media configuration", () => {
 			await new Promise((resolve) => setTimeout(resolve, 20));
 		});
 
-		const toggle = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Toggle generate_media"]',
+		const toggle = container.querySelector<HTMLInputElement>(
+			'input[aria-label="Toggle generate_media"]',
 		);
 		expect(toggle?.disabled).toBe(true);
-		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+		expect(toggle?.checked).toBe(false);
 		expect(container.textContent).toContain("Local only");
 		expect(container.textContent).toContain(
 			"Customize settings shown here apply to Local sessions. Remote environments use customizations installed on that host.",

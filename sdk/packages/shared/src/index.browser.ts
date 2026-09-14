@@ -77,7 +77,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -144,6 +144,7 @@ export {
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	type GeneratedMedia,
 	type GeneratedMediaModality,
 	GeneratedMediaModalitySchema,
@@ -151,7 +152,6 @@ export {
 	type GeneratedMediaSource,
 	GeneratedMediaSourceSchema,
 	generatedMediaModalityFromMediaType,
-	GENERATED_MEDIA_OMITTED_PLACEHOLDER,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
@@ -544,7 +544,6 @@ export {
 export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";
-export * from "./tools/settings";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";

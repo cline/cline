@@ -32,13 +32,13 @@ type CustomizeTab =
 	| "tools";
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
-	{ id: "skills", label: "Skills" },
-	{ id: "mcp", label: "MCP" },
-	{ id: "plugins", label: "Plugins" },
-	{ id: "rules", label: "Rules" },
-	{ id: "hooks", label: "Hooks" },
 	{ id: "tools", label: "Tools" },
 	{ id: "integrations", label: "Connectors" },
+	{ id: "plugins", label: "Plugins" },
+	{ id: "skills", label: "Skills" },
+	{ id: "rules", label: "Rules" },
+	{ id: "mcp", label: "MCP" },
+	{ id: "hooks", label: "Hooks" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -66,7 +66,7 @@ export function CustomizeView({
 	localOnlyNotice?: string;
 	onOpenMarketplace?: () => void;
 }) {
-	const [tab, setTab] = useState<CustomizeTab>("skills");
+	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
 	// Connectors are an org-provisioned feature: the tab only exists when the
 	// sidecar has a managed Composio API key.
@@ -141,7 +141,7 @@ export function CustomizeView({
 						</Button>
 					) : undefined
 				}
-				description="Extend what Cline can do and change how it works. Manage what's installed, or browse the marketplace for more options."
+				description="Extend what Cline can do and how it works. Explore the marketplace for more options."
 				title="Customize"
 			/>
 			{localOnlyNotice ? (

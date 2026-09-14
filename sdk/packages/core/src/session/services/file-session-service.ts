@@ -125,12 +125,16 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
+		rootOnly?: boolean;
 	}): Promise<SessionRow[]> {
 		return Object.values(this.readIndex().sessions)
 			.filter((row) =>
 				options.parentSessionId !== undefined
 					? row.parentSessionId === options.parentSessionId
 					: true,
+			)
+			.filter((row) =>
+				options.rootOnly ? !row.isSubagent && !row.parentSessionId : true,
 			)
 			.filter((row) =>
 				options.status !== undefined ? row.status === options.status : true,

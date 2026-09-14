@@ -100,11 +100,43 @@ describe("FeatureFlagsService", () => {
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(2);
 	});
 
+	it("does not expose cached flags after the account context changes", async () => {
+		const service = new FeatureFlagsService({
+			provider: createProvider(),
+			context: { userId: "user-1" },
+		});
+		await service.poll();
+
+		service.setContext({ userId: "user-2" });
+
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
+		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
+	});
+
 	it("returns false or undefined before polling", () => {
 		const service = new FeatureFlagsService({ provider: createProvider() });
 
 		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
 		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
+	});
+
+	it("preserves the hydrated cache when the same account resolves and polling fails", async () => {
+		const service = new FeatureFlagsService({
+			provider: createProvider({
+				getAllFlagsAndPayloads: vi.fn().mockRejectedValue(new Error("offline")),
+			}),
+			cacheTtlMs: 0,
+		});
+		service.hydrateCache({
+			userId: "user-1",
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { [TEST_BOOLEAN_FLAG]: true } },
+		});
+
+		service.setContext({ userId: "user-1" });
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+		await expect(service.poll()).rejects.toThrow("offline");
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
 	});
 
 	it("hydrates from a persistent cache file before polling", () => {
@@ -223,6 +255,28 @@ describe("FeatureFlagsService", () => {
 		responses.push(() => Promise.reject(new Error("offline")));
 		await expect(service.poll()).rejects.toThrow("offline");
 
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
+	});
+
+	it("clears the old account cache when context changes during a new account poll", async () => {
+		const provider = createProvider();
+		const service = new FeatureFlagsService({
+			provider,
+			context: { userId: "user-a" },
+		});
+		await service.poll();
+		let rejectPoll!: (error: Error) => void;
+		vi.mocked(provider.getAllFlagsAndPayloads).mockImplementationOnce(
+			() =>
+				new Promise((_resolve, reject) => {
+					rejectPoll = reject;
+				}),
+		);
+		const polling = service.poll("user-b");
+		service.setContext({ userId: "user-b" });
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
+		rejectPoll(new Error("offline"));
+		await polling;
 		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
 	});
 
