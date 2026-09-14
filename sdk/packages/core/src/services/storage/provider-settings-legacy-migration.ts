@@ -14,6 +14,10 @@ import {
 	type StoredModelsFile,
 	writeModelsFileSync,
 } from "../providers/local-provider-registry";
+import {
+	resolveEffectiveLastUsedProviderId,
+	resolveStoredProviderSettings,
+} from "./provider-settings-last-used";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
 
 type LegacyMode = "plan" | "act";
@@ -860,8 +864,7 @@ function collectCandidateProviderIds(
 		trimNonEmpty(legacySecrets.sapAiCoreClientSecret) ||
 		trimNonEmpty(legacyGlobalState.sapAiCoreTokenUrl) ||
 		trimNonEmpty(legacyGlobalState.sapAiCoreBaseUrl) ||
-		trimNonEmpty(legacyGlobalState.sapAiResourceGroup) ||
-		legacyGlobalState.sapAiCoreUseOrchestrationMode !== undefined
+		trimNonEmpty(legacyGlobalState.sapAiResourceGroup)
 	) {
 		candidates.add("sapaicore");
 	}
@@ -969,11 +972,20 @@ export function migrateLegacyProviderSettings(
 	const migratedPreferredProvider = preferredProvider
 		? resolveMigratedProviderId(preferredProvider)
 		: undefined;
+	// An existing selection is only worth keeping while it still denotes a
+	// provider in the merged state. Copying it forward unchecked preserved a
+	// stale id on every run, and every consumer reads an unresolvable
+	// last-used provider as "none" and defaults to the Cline provider.
+	const preservedProvider =
+		existing.lastUsedProvider &&
+		resolveStoredProviderSettings(next, existing.lastUsedProvider)
+			? existing.lastUsedProvider
+			: undefined;
 	next.lastUsedProvider =
-		existing.lastUsedProvider ??
+		preservedProvider ??
 		(migratedPreferredProvider && next.providers[migratedPreferredProvider]
 			? migratedPreferredProvider
-			: Object.keys(next.providers)[0]);
+			: resolveEffectiveLastUsedProviderId(next));
 
 	options.providerSettingsManager.write(next);
 	if (addedCustomProviderCount > 0) {
