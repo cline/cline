@@ -505,7 +505,10 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
 											onThreadStarted={handleThreadStarted}
@@ -570,6 +573,7 @@ function ChatThreadPane({
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenAccountSettings,
 	parentSession,
 	onThreadStarted,
 }: {
@@ -591,6 +595,7 @@ function ChatThreadPane({
 	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	onThreadStarted?: (threadId: string) => void;
 }) {
@@ -1224,6 +1229,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -1632,6 +1647,7 @@ function ChatThreadPane({
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
 								onProceedWhileRunning={proceedWhileRunning}
+								onFixCredentials={handleFixCredentials}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
