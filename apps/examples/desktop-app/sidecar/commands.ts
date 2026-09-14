@@ -24,6 +24,7 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getProviderAuthHandler,
 	identifyAccount,
 	listHookConfigFiles,
 	listLocalProviders,
@@ -100,10 +101,7 @@ import {
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
-import {
-	clearLegacyCodexCredentials,
-	OPENAI_CODEX_PROVIDER_ID,
-} from "./legacy-codex-credentials";
+import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -2198,9 +2196,11 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
+		const storageProviderId =
+			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
 		const previous =
-			providerId === "cline"
-				? manager.getProviderSettings(providerId)
+			storageProviderId === "cline"
+				? manager.getProviderSettings(storageProviderId)
 				: undefined;
 		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
@@ -2209,8 +2209,23 @@ export async function handleCommand(
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
-		if (providerId === "cline") {
-			const current = manager.getProviderSettings(providerId);
+		if (!saved.enabled) {
+			// Cline Pass keeps its credentials under "cline", so removing only
+			// its own entry would leave the account signed in.
+			if (storageProviderId !== saved.providerId) {
+				saveLocalProviderSettings(manager, {
+					providerId: storageProviderId,
+					enabled: false,
+				});
+			}
+			// Removing a providers.json entry lets the legacy import restore it
+			// from the extension's secrets.json on the next command unless those
+			// credentials go too. A failed write throws so the webview reports
+			// the sign-out as failed and resyncs.
+			clearLegacyProviderCredentials(storageProviderId);
+		}
+		if (storageProviderId === "cline") {
+			const current = manager.getProviderSettings(storageProviderId);
 			// Ordinary provider preferences must not interrupt cloud sessions.
 			if (
 				previous?.apiKey !== current?.apiKey ||
@@ -2226,13 +2241,6 @@ export async function handleCommand(
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
 			syncAccountContextFromSettings(ctx, manager);
-		}
-		// Signing out of ChatGPT removes its providers.json entry; the legacy
-		// import would restore it from the extension's secrets.json on the next
-		// command unless those credentials go too. A failed write throws so
-		// the webview reports the sign-out as failed and resyncs.
-		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
-			clearLegacyCodexCredentials();
 		}
 		return saved;
 	}
