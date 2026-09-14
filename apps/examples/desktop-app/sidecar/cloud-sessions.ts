@@ -769,10 +769,8 @@ type CloudConnection = {
 	bufferingEvents?: boolean;
 	bufferedEvents: HubEventEnvelope[];
 	bufferedEventsDropped: number;
-	rehydrationGeneration: number;
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
-	seenEventIdOrder: string[];
 	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
 	/** Set by disposeConnection; late timers and approval callbacks must not
@@ -1337,7 +1335,6 @@ export class CloudSessionManager {
 		connection.bufferingEvents = true;
 		connection.bufferedEvents = [];
 		connection.bufferedEventsDropped = 0;
-		connection.rehydrationGeneration += 1;
 		try {
 			// command() waits for registration, including reconnect attempts.
 			await this.ensureAttached(connection);
@@ -1385,7 +1382,7 @@ export class CloudSessionManager {
 				const statusChanged = live.status !== status;
 				live.messages = messages;
 				live.status = status;
-				live.busy = status === "running" || status === "pending";
+				live.busy = status === "running";
 				if (statusChanged) {
 					if (
 						status === "completed" ||
@@ -1421,7 +1418,6 @@ export class CloudSessionManager {
 			sendEvent(this.ctx, "cloud_session_rehydrated", {
 				sessionId: outerSessionId,
 				status,
-				generation: connection.rehydrationGeneration,
 				transcriptKnown: true,
 				messages: await readSessionMessages(
 					this.ctx,
@@ -1751,10 +1747,8 @@ export class CloudSessionManager {
 				client,
 				bufferedEvents: [],
 				bufferedEventsDropped: 0,
-				rehydrationGeneration: 0,
 				transcriptKnown: false,
 				seenEventIds: new Set(),
-				seenEventIdOrder: [],
 				unsubscribe: () => {},
 			};
 			try {
@@ -1823,9 +1817,8 @@ export class CloudSessionManager {
 		) {
 			if (connection.seenEventIds.has(eventId)) return;
 			connection.seenEventIds.add(eventId);
-			connection.seenEventIdOrder.push(eventId);
-			while (connection.seenEventIdOrder.length > MAX_SEEN_EVENT_IDS) {
-				const removed = connection.seenEventIdOrder.shift();
+			while (connection.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
+				const removed = connection.seenEventIds.values().next().value;
 				if (removed) connection.seenEventIds.delete(removed);
 			}
 		}

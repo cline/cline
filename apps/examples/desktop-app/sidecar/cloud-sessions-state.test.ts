@@ -71,10 +71,8 @@ async function createFixture() {
 		},
 		bufferedEvents: [],
 		bufferedEventsDropped: 0,
-		rehydrationGeneration: 0,
 		transcriptKnown: false,
 		seenEventIds: new Set(),
-		seenEventIdOrder: [],
 		unsubscribe: vi.fn(),
 	};
 	const ensureAttached = vi.fn(async () => {});
