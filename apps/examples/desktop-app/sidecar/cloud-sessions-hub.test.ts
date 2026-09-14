@@ -494,6 +494,65 @@ describe("CloudSessionManager Hub runtime", () => {
 		"pending",
 		"replaced",
 		"same",
+		"disposed",
+	] as const)("guards queue mutations when the connection is %s at dispatch", async (state) => {
+		const { manager, hub } = createFixture();
+		await manager.attach("ses-outer");
+		await hub.resolveHeaders?.();
+		const blocked = Promise.withResolvers<void>();
+		const originalCommand = hub.command.bind(hub);
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "session.remove_pending_prompt") {
+				if (state === "disposed") {
+					await manager.dispose();
+				} else {
+					const target = state === "same" ? "inner-1" : "inner-replacement";
+					hub.listedSessions = [{ sessionId: target, updatedAt: 30 }];
+					hub.subscriptionSessionIds.length = 0;
+					hub.commandHook = async (nextCommand) => {
+						if (nextCommand === "session.list" && state === "pending")
+							await blocked.promise;
+					};
+					await hub.resolveHeaders?.();
+					if (state !== "pending") {
+						await vi.waitFor(() =>
+							expect(hub.subscriptionSessionIds).toContain(target),
+						);
+					}
+				}
+				options?.beforeDispatch?.();
+			}
+			const reply = await originalCommand(command, payload, sessionId, options);
+			return command === "session.remove_pending_prompt"
+				? { ...reply, payload: { removed: true, prompts: [] } }
+				: reply;
+		};
+		try {
+			const removing = manager.removePendingPrompt("ses-outer", "q-1");
+			if (state === "same") {
+				await expect(removing).resolves.toMatchObject({ removed: true });
+			} else {
+				await expect(removing).rejects.toThrow(
+					state === "disposed"
+						? "disposed"
+						: "before the queue request could be sent",
+				);
+			}
+			expect(
+				hub.commands.filter(
+					({ command }) => command === "session.remove_pending_prompt",
+				),
+			).toHaveLength(state === "same" ? 1 : 0);
+		} finally {
+			blocked.resolve();
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		"pending",
+		"replaced",
+		"same",
 	] as const)("revalidates the Stop target when reconnect discovery is %s at dispatch", async (discovery) => {
 		const { manager, hub, ctx } = createFixture();
 		await manager.list();

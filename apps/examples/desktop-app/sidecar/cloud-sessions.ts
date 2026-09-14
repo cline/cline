@@ -1839,11 +1839,24 @@ export class CloudSessionManager {
 		if (!innerSessionId) {
 			throw new Error("Cloud Hub session was not initialized");
 		}
+		await connection.client.connect();
+		await connection.reconnectResolution;
 		await this.ensureAttached(connection);
+		await connection.reconnectResolution;
 		const reply = await connection.client.command(
 			command,
 			{ sessionId: innerSessionId, ...payload },
 			innerSessionId,
+			{
+				beforeDispatch: () => {
+					this.assertSessionActive(outerSessionId, connection);
+					if (connection.innerSessionId !== innerSessionId) {
+						throw new Error(
+							"The cloud session reconnected before the queue request could be sent. Refresh the queue and try again.",
+						);
+					}
+				},
+			},
 		);
 		this.assertSessionActive(outerSessionId, connection);
 		return reply;
