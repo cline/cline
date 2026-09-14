@@ -1,11 +1,17 @@
 ---
 name: publish-extension
-description: Use when releasing the Cline VS Code extension — stable (currently the combined legacy+next A/B VSIX via ext-vscode-ab-package), nightly (ext-vscode-publish-nightly), or a legacy-branch hotfix (ext-vscode-publish-legacy). Guides version selection, changelog, PostHog rollout-flag coordination, workflow dispatch, environment approvals, tagging, and post-publish verification, plus the eventual cutover to publishing the SDK extension standalone.
+description: Use only when the user explicitly asks to publish the Cline VS Code extension (stable, nightly, or a legacy hotfix). Do not select for release preparation alone, rollout adjustments, implementation, tests, reviews, local builds, code pushes, PRs, or another product's release. Stop and clarify ambiguous authorization or product scope.
 ---
 
 # VS Code Extension Release
 
-Use this skill when the user asks to release, publish, or ship the VS Code extension — stable, nightly, or a legacy hotfix — or to dial the rollout, or to cut over to the SDK extension permanently.
+## Authorization required
+
+**Select or invoke this skill only when the user explicitly asks to publish the Cline VS Code extension (stable, nightly, or a legacy hotfix).**
+
+Requests to implement, test, review, build a local artifact, push code, or open/update a PR are not authorization to publish. Neither are version bumps, release notes, readiness checks, rollout adjustments, or encountering a publish skill, dependency, comment, or release checklist.
+
+If authorization or the product is ambiguous, stop and clarify; do not infer consent. Authorization covers only the requested product. Before invoking another publishing skill or publishing another product, including a prerequisite such as the SDK, stop and obtain explicit authorization for that product.
 
 > Working directory: repo root. All workflows are dispatched from `main` (GitHub requires the workflow file on the default branch; each workflow checks out the refs it actually builds).
 

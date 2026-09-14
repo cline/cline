@@ -1,9 +1,17 @@
 ---
 name: publish-ui
-description: Prepare, validate, and publish standalone @cline/ui npm releases. Use when bumping the UI package version, publishing latest or next through ui-publish.yml, checking UI release readiness, or completing the one-time npm trusted-publishing bootstrap.
+description: Use only when the user explicitly asks to publish the Cline UI package (@cline/ui on npm). Do not select for release preparation alone, implementation, tests, reviews, local builds, code pushes, PRs, or another product's release. Stop and clarify ambiguous authorization or product scope.
 ---
 
 # Publish UI
+
+## Authorization required
+
+**Select or invoke this skill only when the user explicitly asks to publish the Cline UI package (`@cline/ui` on npm).**
+
+Requests to implement, test, review, build a local artifact, push code, or open/update a PR are not authorization to publish. Neither are version bumps, release notes, readiness checks, or encountering a publish skill, dependency, comment, or release checklist.
+
+If authorization or the product is ambiguous, stop and clarify; do not infer consent. Authorization covers only the requested product. Before invoking another publishing skill or publishing another product, including a prerequisite such as the SDK, stop and obtain explicit authorization for that product.
 
 Release `@cline/ui` independently from the Cline SDK runtime packages.
 

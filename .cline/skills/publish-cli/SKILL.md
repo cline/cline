@@ -1,11 +1,17 @@
 ---
 name: publish-cli
-description: Use when preparing, tagging, and publishing an apps/cli npm release. Guides changelog drafting, apps/cli/package.json version bumps, cli-vX.Y.Z tags, local npm publishing, and the publish-cli GitHub workflow.
+description: Use only when the user explicitly asks to publish the Cline CLI (cline on npm). Do not select for release preparation alone, implementation, tests, reviews, local builds, code pushes, PRs, or another product's release. Stop and clarify ambiguous authorization or product scope.
 ---
 
 # CLI Release
 
-Use this skill when the user asks to release the CLI, publish `cline`, bump the CLI version, draft release notes, create a `cli-vX.Y.Z` tag, or trigger the CLI publish workflow.
+## Authorization required
+
+**Select or invoke this skill only when the user explicitly asks to publish the Cline CLI (`cline` on npm).**
+
+Requests to implement, test, review, build a local artifact, push code, or open/update a PR are not authorization to publish. Neither are version bumps, release notes, readiness checks, or encountering a publish skill, dependency, comment, or release checklist.
+
+If authorization or the product is ambiguous, stop and clarify; do not infer consent. Authorization covers only the requested product. Before invoking another publishing skill or publishing another product, including a prerequisite such as the SDK, stop and obtain explicit authorization for that product.
 
 The CLI is npm-only. Do not add alternate distribution channels. Windows binaries are Authenticode-signed automatically by the publish workflow via Azure Trusted Signing (see the `.github/actions/sign-windows-cli` composite action and "Windows code signing" in `apps/cli/DISTRIBUTION.md`); if the signing secrets are not configured the workflow warns and publishes unsigned binaries. Local publishes (`bun release cli`) do not sign — prefer the GitHub Actions publish path for releases users run on Windows.
 
