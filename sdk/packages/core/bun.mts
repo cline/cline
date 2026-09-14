@@ -54,6 +54,13 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		...buildConfig,
 	},
 	{
+		// Pure frame toolkit (assembler + projector) as a cheap subpath
+		// export for consumers and test harnesses.
+		entrypoints: ["./src/frames.ts"],
+		outdir: "./dist",
+		...buildConfig,
+	},
+	{
 		entrypoints: ["./src/hub/index.ts"],
 		outdir: "./dist/hub",
 		...buildConfig,

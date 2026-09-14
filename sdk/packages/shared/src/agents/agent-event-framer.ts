@@ -643,10 +643,17 @@ export class SessionFramer {
 	private readonly sequencer: FrameSequencer;
 	private readonly streams = new Map<string, AgentEventFramer>();
 
-	constructor(options: { startEpoch?: number } = {}) {
-		// Reuse the framer's internal sequencer through a root instance:
-		// one authority, owned here.
-		this.sequencer = new InternalFrameSequencer(options.startEpoch ?? 0);
+	constructor(options: {
+		startEpoch?: number;
+		/** External (epoch, seq) authority — e.g. the VSCode host's
+		 * MessageIdMinter, so frames and ClineMessages share one
+		 * counter (design: "one counter across all scopes"). When
+		 * provided, epoch changes go through the owner, not here. */
+		sequencer?: FrameSequencer;
+	} = {}) {
+		this.sequencer =
+			options.sequencer ??
+			new InternalFrameSequencer(options.startEpoch ?? 0);
 	}
 
 	/** Frame an event for the root agent (same as AgentEventFramer). */

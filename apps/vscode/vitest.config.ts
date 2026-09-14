@@ -42,6 +42,7 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			"@cline/core/frames": path.resolve(__dirname, "node_modules/@cline/core/dist/frames.js"),
 			"@cline/core": path.resolve(__dirname, "src/test/cline-core-vitest-stub.ts"),
 			"@cline/llms": path.resolve(__dirname, "node_modules/@cline/llms/dist/index.js"),
 			// Map @cline/shared subpath exports explicitly. The bare "@cline/shared"

@@ -34,6 +34,10 @@
 		"./services/feature-flags/posthog": {
 			"types": "./dist/services/feature-flags/posthog.d.ts",
 			"import": "./dist/services/feature-flags/posthog.js"
+		},
+		"./frames": {
+			"types": "./dist/frames.d.ts",
+			"import": "./dist/frames.js"
 		}
 	},
 	"scripts": {
