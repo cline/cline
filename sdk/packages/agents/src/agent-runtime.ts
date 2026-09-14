@@ -764,6 +764,9 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
+				// A fresh error slate per turn: nothing from a previous turn may leak
+				// into this turn's error classification or retry decision.
+				this.resetLastError();
 				const { message, finishReason } =
 					await this.generateAssistantMessageWithProviderRetry();
 				if (finishReason === "aborted") {
@@ -987,8 +990,9 @@ export class AgentRuntime {
 	 * error") is re-issued up to {@link PROVIDER_ERROR_MAX_RETRIES} times, with
 	 * exponential backoff between attempts, before the error is allowed to
 	 * propagate and end the run. Non-retryable errors (auth, context-window
-	 * overflow, other client errors) and any turn that already produced tool
-	 * calls are returned unchanged for the caller to handle, so this only adds
+	 * overflow, other client errors) and any attempt that already produced
+	 * visible output or provider tool activity are returned unchanged for the
+	 * caller to handle, so this only adds
 	 * resilience and never changes behavior for a turn that would otherwise
 	 * succeed. Context-window overflow recovery still runs inside each attempt.
 	 */
@@ -1007,6 +1011,9 @@ export class AgentRuntime {
 			}
 			attempt += 1;
 			const providerError = this.state.lastError;
+			// The failed attempt's error is captured for the notice above; clear it
+			// so the next attempt's finish event is judged on its own.
+			this.resetLastError();
 			const delayMs = Math.min(
 				PROVIDER_ERROR_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
 				PROVIDER_ERROR_RETRY_MAX_DELAY_MS,
@@ -1032,9 +1039,14 @@ export class AgentRuntime {
 
 	/**
 	 * True when a turn failed with a transient provider error that a retry
-	 * could plausibly recover. Excludes non-error turns, turns that produced
-	 * tool calls (retrying would discard partial work), and non-retryable
-	 * error classes (auth / context-window overflow).
+	 * could plausibly recover, and the failed attempt left nothing behind that
+	 * a second stream would duplicate or repeat:
+	 * - no content at all (text, reasoning, media, or local tool calls): those
+	 *   deltas were already emitted to the UI and there is no event to retract
+	 *   them, so re-streaming would show the output twice;
+	 * - no provider-executed tool activity (recorded in message metadata, not
+	 *   content): re-issuing the request could run those side effects again;
+	 * - not an auth or context-window failure, which the same request cannot fix.
 	 */
 	private isRetryableProviderErrorTurn(turn: {
 		message: AgentMessage;
@@ -1043,7 +1055,11 @@ export class AgentRuntime {
 		if (turn.finishReason !== "error") {
 			return false;
 		}
-		if (turn.message.content.some((part) => part.type === "tool-call")) {
+		if (turn.message.content.length > 0) {
+			return false;
+		}
+		const modelToolActivities = turn.message.metadata?.modelToolActivities;
+		if (Array.isArray(modelToolActivities) && modelToolActivities.length > 0) {
 			return false;
 		}
 		const errorClass = this.state.lastErrorClass;
@@ -1053,6 +1069,21 @@ export class AgentRuntime {
 		// Set from the model boundary's typed `isRetryable` flag when available,
 		// otherwise classified from the flattened message in the finish handler.
 		return this.state.lastErrorRetryable === true;
+	}
+
+	/**
+	 * Clear the last-error fields. Called at the start of every turn and before
+	 * every provider-error retry, so a `finish` event that omits `error` (allowed
+	 * by the public AgentModel contract) cannot inherit the class or retryability
+	 * of an earlier attempt. Deliberately not called inside overflow recovery,
+	 * whose "nothing to compact" error reports the first attempt's provider
+	 * message.
+	 */
+	private resetLastError(): void {
+		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
+		this.state.lastErrorReported = false;
 	}
 
 	/**
@@ -1438,8 +1469,7 @@ export class AgentRuntime {
 						// classifying the flattened message for models that do not carry
 						// it.
 						this.state.lastErrorRetryable =
-							event.errorRetryable ??
-							isRetryableProviderError(event.error);
+							event.errorRetryable ?? isRetryableProviderError(event.error);
 						this.state.lastErrorReported = event.errorReported === true;
 					}
 					break;
