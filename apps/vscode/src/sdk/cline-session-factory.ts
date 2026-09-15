@@ -316,6 +316,19 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	}
 }
 
+function withConfiguredReasoningCapability(modelInfo: SdkModelInfo, reasoningConfig: SessionReasoningConfig): SdkModelInfo {
+	const reasoningEnabled = reasoningConfig.thinking === true || reasoningConfig.reasoningEffort !== undefined
+	const capabilities = modelInfo.capabilities
+	if (!reasoningEnabled || capabilities === undefined || capabilities.includes("reasoning")) {
+		return modelInfo
+	}
+
+	return {
+		...modelInfo,
+		capabilities: [...capabilities, "reasoning"],
+	}
+}
+
 function resolveCommittedRuntimeModel(
 	providerId: string,
 	mode: Mode,
@@ -982,6 +995,16 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		}
 	} catch (error) {
 		Logger.warn(`[SessionFactory] Failed to resolve known models for provider=${sdkProviderId}:`, error)
+	}
+	if (sdkProviderId === "openai-compatible" && knownModels?.[modelId]) {
+		// OpenAI Compatible exposes reasoning at the provider level rather than
+		// through a per-model supportsReasoning field. Once the user enables an
+		// effort, reflect that explicit choice in the selected model's otherwise
+		// authoritative capability list so the SDK does not suppress reasoning.
+		knownModels = {
+			...knownModels,
+			[modelId]: withConfiguredReasoningCapability(knownModels[modelId], reasoningConfig),
+		}
 	}
 
 	// Always pass a providerConfig so the proxy/CA-aware fetch reaches the SDK
