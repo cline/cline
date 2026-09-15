@@ -19,6 +19,11 @@ const PORTABLE_REASONING_PROVIDERS = new Set([
 ]);
 
 const NON_PORTABLE_REASONING_PROVIDERS = new Set([
+	// Chutes serves open-weights models on vLLM, where the thinking switch is a
+	// `chat_template_kwargs` field read by each model's chat template. The
+	// portable option has no way to express that, and claiming it here would
+	// strip the request's reasoning intent before the Chutes rule can encode it.
+	"chutes",
 	"claude-code",
 	"dify",
 	"mistral",
