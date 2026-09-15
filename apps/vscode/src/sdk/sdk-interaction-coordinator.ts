@@ -17,6 +17,12 @@ export interface ToolApprovalRequest {
 	policy: { enabled?: boolean; autoApprove?: boolean }
 }
 
+export interface PendingInteraction {
+	readonly kind: "toolApproval" | "askQuestion"
+	/** Opaque identity of the promise that was pending when the response arrived. */
+	readonly identity: object
+}
+
 export interface SdkInteractionCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	getSessionId: () => string
@@ -51,6 +57,7 @@ export interface SdkInteractionCoordinatorOptions {
 
 export class SdkInteractionCoordinator {
 	private pendingAskResolve: ((answer: string) => void) | undefined
+	private pendingAskMessageTs: number | undefined
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 	private pendingToolApprovalMessage:
 		| {
@@ -61,6 +68,51 @@ export class SdkInteractionCoordinator {
 		| undefined
 
 	constructor(private readonly options: SdkInteractionCoordinatorOptions) {}
+
+	/**
+	 * Returns the suspended SDK interaction that this response would resume.
+	 * A message typed while a tool approval is open is a queued follow-up, not
+	 * an approval decision, so it deliberately falls through to normal routing.
+	 */
+	getPendingInteractionToResolve(responseType: ClineAskResponse | undefined): PendingInteraction | undefined {
+		if (this.pendingToolApprovalResolve && responseType !== "messageResponse") {
+			return { kind: "toolApproval", identity: this.pendingToolApprovalResolve }
+		}
+		if (this.pendingAskResolve) {
+			return { kind: "askQuestion", identity: this.pendingAskResolve }
+		}
+		return undefined
+	}
+
+	/** Resolve only the captured interaction; cancellation or replacement invalidates it. */
+	resolvePendingInteraction(
+		interaction: PendingInteraction,
+		prompt: string | undefined,
+		responseType: ClineAskResponse | undefined,
+		images?: string[],
+		files?: string[],
+	): boolean {
+		if (interaction.kind === "toolApproval") {
+			return (
+				interaction.identity === this.pendingToolApprovalResolve &&
+				this.resolvePendingToolApproval(prompt, responseType, images, files)
+			)
+		}
+		return interaction.identity === this.pendingAskResolve && this.resolvePendingAskQuestion(prompt)
+	}
+
+	/** Reassert the authoritative phase and anchor for a still-pending ask. */
+	restorePendingInteractionTurnPhase(): "toolApproval" | "askQuestion" | undefined {
+		if (this.pendingToolApprovalResolve) {
+			this.options.setTurnPhase?.("awaiting_approval", this.pendingToolApprovalMessage?.messageTs)
+			return "toolApproval"
+		}
+		if (this.pendingAskResolve) {
+			this.options.setTurnPhase?.("awaiting_followup", this.pendingAskMessageTs)
+			return "askQuestion"
+		}
+		return undefined
+	}
 
 	/**
 	 * CLI-parity mistake-limit handling: show an error row and stop the run
@@ -152,6 +204,7 @@ export class SdkInteractionCoordinator {
 
 		return new Promise<string>((resolve) => {
 			this.pendingAskResolve = resolve
+			this.pendingAskMessageTs = askMessage.ts
 		})
 	}
 
@@ -222,6 +275,7 @@ export class SdkInteractionCoordinator {
 
 		const resolve = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		this.pendingAskMessageTs = undefined
 		const responseText = prompt ?? ""
 		Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
 
@@ -248,6 +302,7 @@ export class SdkInteractionCoordinator {
 	clearPending(reason: string): void {
 		const resolveAsk = this.pendingAskResolve
 		this.pendingAskResolve = undefined
+		this.pendingAskMessageTs = undefined
 		// ask_question is awaiting this promise inside the outgoing agent run. Settle it
 		// before session teardown so the run can unwind instead of remaining suspended;
 		// use an empty answer so the lifecycle reason is not presented as user input.

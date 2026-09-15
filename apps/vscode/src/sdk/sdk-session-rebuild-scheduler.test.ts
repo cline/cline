@@ -17,6 +17,29 @@ describe("SdkSessionRebuildScheduler", () => {
 		expect(rebuild).toHaveBeenCalledOnce()
 	})
 
+	it("keeps settlement pending until a running session can drain queued rebuilds", async () => {
+		const activeSession = { isRunning: true }
+		const scheduler = makeScheduler(activeSession)
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+		let settled = false
+
+		scheduler.request("provider", rebuild)
+		const settlement = scheduler.waitUntilSettled().then(() => {
+			settled = true
+		})
+		await Promise.resolve()
+
+		expect(settled).toBe(false)
+		expect(rebuild).not.toHaveBeenCalled()
+
+		activeSession.isRunning = false
+		scheduler.sessionBecameIdle()
+		await settlement
+
+		expect(rebuild).toHaveBeenCalledOnce()
+		expect(settled).toBe(true)
+	})
+
 	it("coalesces repeated requests for the same reason", async () => {
 		const activeSession = { isRunning: true }
 		const scheduler = makeScheduler(activeSession)
@@ -33,13 +56,57 @@ describe("SdkSessionRebuildScheduler", () => {
 		expect(latest).toHaveBeenCalledOnce()
 	})
 
-	it("leaves pending work dormant when there is no active session", async () => {
-		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => undefined } })
+	it("discards pending work when settlement observes there is no active session", async () => {
+		let activeSession: { isRunning: boolean } | undefined
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => activeSession as never } })
 		const rebuild = vi.fn().mockResolvedValue(undefined)
 
 		scheduler.request("provider", rebuild)
-		await Promise.resolve()
+		await expect(scheduler.waitUntilSettled()).resolves.toBeUndefined()
+		activeSession = { isRunning: false }
+		scheduler.sessionBecameIdle()
+		await scheduler.waitUntilSettled()
 
+		expect(rebuild).not.toHaveBeenCalled()
+	})
+
+	it("settles a waiter when its pending rebuild is cancelled", async () => {
+		const activeSession = { isRunning: true }
+		const scheduler = makeScheduler(activeSession)
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+
+		scheduler.request("provider", rebuild)
+		const settlement = scheduler.waitUntilSettled()
+		await Promise.resolve()
+		scheduler.cancel("provider")
+
+		await settlement
+		expect(rebuild).not.toHaveBeenCalled()
+	})
+
+	it("settles and discards pending work when the active session disappears while waiting", async () => {
+		let activeSession: { isRunning: boolean } | undefined = { isRunning: true }
+		const scheduler = new SdkSessionRebuildScheduler({ sessions: { getActiveSession: () => activeSession as never } })
+		const rebuild = vi.fn().mockResolvedValue(undefined)
+		let settled = false
+
+		scheduler.request("provider", rebuild)
+		const settlement = scheduler.waitUntilSettled().then(() => {
+			settled = true
+		})
+		await Promise.resolve()
+		expect(settled).toBe(false)
+
+		activeSession = undefined
+		scheduler.activeSessionRemoved()
+		await settlement
+
+		expect(settled).toBe(true)
+		expect(rebuild).not.toHaveBeenCalled()
+
+		activeSession = { isRunning: false }
+		scheduler.sessionBecameIdle()
+		await scheduler.waitUntilSettled()
 		expect(rebuild).not.toHaveBeenCalled()
 	})
 
