@@ -65,16 +65,23 @@ describe("telemetryDefineArgs", () => {
 		expect(withKeys["process.env.ERROR_SERVICE_API_KEY"]).toBe('"ek"');
 	});
 
-	it("inlines the cloud-agents toggle only when set at build time", () => {
+	it("inlines cloud feature overrides only when set at build time", () => {
 		const withoutToggle = defineMap(telemetryDefineArgs({}));
 		expect(withoutToggle).not.toHaveProperty(
 			"process.env.CLINE_CODE_CLOUD_AGENTS",
 		);
+		expect(withoutToggle).not.toHaveProperty(
+			"process.env.CLINE_CODE_CLOUD_HANDOFF",
+		);
 
 		const withToggle = defineMap(
-			telemetryDefineArgs({ CLINE_CODE_CLOUD_AGENTS: "1" }),
+			telemetryDefineArgs({
+				CLINE_CODE_CLOUD_AGENTS: "1",
+				CLINE_CODE_CLOUD_HANDOFF: "1",
+			}),
 		);
 		expect(withToggle["process.env.CLINE_CODE_CLOUD_AGENTS"]).toBe('"1"');
+		expect(withToggle["process.env.CLINE_CODE_CLOUD_HANDOFF"]).toBe('"1"');
 	});
 
 	it("JSON-escapes values so headers with quotes survive the define", () => {

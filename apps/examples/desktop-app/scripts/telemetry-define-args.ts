@@ -16,7 +16,10 @@ const OPTIONAL_SECRET_ENV_VARS = [
 ] as const;
 
 /** Optional build-time overrides for packaged dogfood builds. */
-const OPTIONAL_FEATURE_ENV_VARS = ["CLINE_CODE_CLOUD_AGENTS"] as const;
+const OPTIONAL_FEATURE_ENV_VARS = [
+	"CLINE_CODE_CLOUD_AGENTS",
+	"CLINE_CODE_CLOUD_HANDOFF",
+] as const;
 
 /**
  * Every env var `getTelemetryBuildTimeConfig` reads
