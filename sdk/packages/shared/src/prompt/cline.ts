@@ -1,10 +1,7 @@
 import type { WorkspaceContext } from "../extensions/context";
 import { isClineProvider } from "../providers/utils";
 import type { WorkspaceInfo } from "../session/workspace";
-import {
-	DEFAULT_CLINE_SYSTEM_PROMPT,
-	YOLO_CLINE_SYSTEM_PROMPT,
-} from "./system";
+import { DEFAULT_CLINE_SYSTEM_PROMPTS } from "./system";
 
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 
@@ -185,7 +182,9 @@ export function buildClineSystemPrompt(
 	}
 
 	const basePrompt =
-		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
+		mode === "yolo"
+			? DEFAULT_CLINE_SYSTEM_PROMPTS.YOLO
+			: DEFAULT_CLINE_SYSTEM_PROMPTS.ACT;
 
 	// Mode semantics ride in the rules slot so every host emits them without
 	// composing its own copy. Order matches what the CLI historically built by

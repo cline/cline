@@ -844,8 +844,10 @@ export function createSubmitAndExitTool(
 		description:
 			"Submit the final answer and exit the conversation. " +
 			"For example, submit a summary of the investigation and confirm the issue is resolved. " +
-			"You should only submit once all necessary steps are completed. " +
-			"Make sure to verify your output matches the expected format, data types, and file locations specified. " +
+			"You should only submit once all necessary steps are completed AND you have verified the result by execution. " +
+			"Before calling this, re-read the task, then confirm from your own tool output that every required file exists at the specified path and that its contents match the expected format, data types, and values. " +
+			"If the task provides tests, run them and confirm they pass; if it does not, run your own solution end to end and read the output back as evidence. " +
+			"Do not submit on the assumption that your solution works — submit because you have observed evidence that it does. " +
 			"Provide a summary of the investigation and confirm the issue is resolved.",
 		inputSchema: zodToJsonSchema(SubmitInputSchema),
 		lifecycle: {
