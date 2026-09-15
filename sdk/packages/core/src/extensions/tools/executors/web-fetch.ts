@@ -48,6 +48,103 @@ export interface WebFetchExecutorOptions {
 }
 
 /**
+ * True for loopback, IPv4/IPv6 link-local (including 169.254 IMDS), and
+ * localhost. RFC1918 addresses are left allowed so internal docs hosts still work.
+ */
+function isBlockedFetchHostname(host: string): boolean {
+	const h = host
+		.trim()
+		.toLowerCase()
+		.replace(/^\[|\]$/g, "")
+		.replace(/%.*/, "")
+		.replace(/\.+$/, "");
+	if (h === "localhost" || h.endsWith(".localhost")) {
+		return true;
+	}
+
+	if (isBlockedIpv4Address(h) || isBlockedIpv4Address(ipv4FromMappedIpv6(h))) {
+		return true;
+	}
+
+	if (
+		h === "::" ||
+		h === "::1" ||
+		h === "0:0:0:0:0:0:0:0" ||
+		h === "0:0:0:0:0:0:0:1"
+	) {
+		return true;
+	}
+
+	if (h.includes(":")) {
+		const first = Number.parseInt(h.split(":")[0] ?? "", 16);
+		// fe80::/10 link-local
+		if (first >= 0xfe80 && first <= 0xfebf) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function ipv4FromMappedIpv6(host: string): string {
+	const dotted = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(host);
+	if (dotted?.[1]) {
+		return dotted[1];
+	}
+	const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
+	if (!hex?.[1] || !hex[2]) {
+		return "";
+	}
+	const hi = Number.parseInt(hex[1], 16);
+	const lo = Number.parseInt(hex[2], 16);
+	return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+}
+
+function isBlockedIpv4Address(host: string): boolean {
+	const parts = host.split(".");
+	if (parts.length !== 4) {
+		return false;
+	}
+	const octets = parts.map((part) => Number(part));
+	if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+		return false;
+	}
+	const [a, b] = octets;
+	if (a === 0 || a === 127) {
+		return true;
+	}
+	if (a === 169 && b === 254) {
+		return true;
+	}
+	return false;
+}
+
+function resolveAndAssertFetchUrl(raw: string, base?: string): string {
+	let parsed: URL;
+	try {
+		parsed = base ? new URL(raw, base) : new URL(raw);
+	} catch {
+		throw new Error(`Invalid URL: ${raw}`);
+	}
+
+	if (!["http:", "https:"].includes(parsed.protocol)) {
+		throw new Error(
+			`Invalid protocol: ${parsed.protocol}. Only http and https are supported.`,
+		);
+	}
+
+	if (isBlockedFetchHostname(parsed.hostname)) {
+		throw new Error(
+			`Blocked URL: ${parsed.href} targets a loopback, link-local, or cloud-metadata address.`,
+		);
+	}
+
+	return parsed.href;
+}
+
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
+
+/**
  * Extract text content from HTML
  * Simple implementation - strips tags and normalizes whitespace
  */
@@ -104,7 +201,7 @@ export function createWebFetchExecutor(
 		userAgent = "Mozilla/5.0 (compatible; AgentBot/1.0)",
 		headers = {},
 		followRedirects = true,
-		// maxRedirects is available in options but native fetch handles it automatically
+		maxRedirects = 5,
 	} = options;
 
 	return async (
@@ -112,20 +209,7 @@ export function createWebFetchExecutor(
 		prompt: string,
 		context: AgentToolContext,
 	): Promise<string> => {
-		// Validate URL
-		let parsedUrl: URL;
-		try {
-			parsedUrl = new URL(url);
-		} catch {
-			throw new Error(`Invalid URL: ${url}`);
-		}
-
-		// Only allow http and https
-		if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-			throw new Error(
-				`Invalid protocol: ${parsedUrl.protocol}. Only http and https are supported.`,
-			);
-		}
+		let currentUrl = resolveAndAssertFetchUrl(url);
 
 		// Create abort controller for timeout
 		const controller = new AbortController();
@@ -139,25 +223,54 @@ export function createWebFetchExecutor(
 		}
 
 		try {
-			const response = await fetch(url, {
-				method: "GET",
-				headers: {
-					"User-Agent": userAgent,
-					Accept:
-						"text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
-					"Accept-Language": "en-US,en;q=0.9",
-					...headers,
-				},
-				redirect: followRedirects ? "follow" : "manual",
-				signal: controller.signal,
-			});
+			const requestHeaders = {
+				"User-Agent": userAgent,
+				Accept:
+					"text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+				"Accept-Language": "en-US,en;q=0.9",
+				...headers,
+			};
+
+			let response: Response | undefined;
+			let redirectCount = 0;
+			while (true) {
+				response = await fetch(currentUrl, {
+					method: "GET",
+					headers: requestHeaders,
+					redirect: "manual",
+					signal: controller.signal,
+				});
+
+				if (!REDIRECT_STATUS.has(response.status)) {
+					break;
+				}
+
+				const location = response.headers.get("location");
+				void response.body?.cancel();
+
+				if (!followRedirects) {
+					clearTimeout(timeout);
+					return `Redirect to: ${location}`;
+				}
+
+				if (!location) {
+					throw new Error(
+						`HTTP ${response.status}: redirect with no Location header`,
+					);
+				}
+
+				if (redirectCount >= maxRedirects) {
+					throw new Error(`Too many redirects (limit ${maxRedirects})`);
+				}
+
+				currentUrl = resolveAndAssertFetchUrl(location, currentUrl);
+				redirectCount++;
+			}
 
 			clearTimeout(timeout);
 
-			// Check for redirect limit (if we're checking manually)
-			if (!followRedirects && response.status >= 300 && response.status < 400) {
-				const location = response.headers.get("location");
-				return `Redirect to: ${location}`;
+			if (!response) {
+				throw new Error("Fetch failed: no response");
 			}
 
 			// Check response status
