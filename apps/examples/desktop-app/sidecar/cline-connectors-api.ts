@@ -3,8 +3,13 @@ import { type BasicLogger, FeatureFlag } from "@cline/shared";
 import type { ComposioToolkitSlug } from "../webview/lib/composio-types";
 import {
 	type ClineAuthTelemetryContext,
+	getClineAccountId,
 	resolveConnectorsApiAuth,
 } from "./cline-auth";
+
+export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
+	accountId?: string;
+};
 
 /**
  * Client for the Cline API connectors proxy (`/api/v1/connectors/*`).
@@ -83,9 +88,13 @@ async function requestConnectorsApi<T>(
 	path: string,
 	options: {
 		body?: unknown;
-		ctx?: ClineAuthTelemetryContext;
+		ctx?: ConnectorsRequestContext;
 	} = {},
 ): Promise<T> {
+	const accountId = options.ctx?.accountId ?? getClineAccountId();
+	if (!accountId || getClineAccountId() !== accountId) {
+		throw new ConnectorsApiError("The signed-in Cline account changed.", 401);
+	}
 	const auth = await resolveConnectorsApiAuth(options.ctx);
 	if (!auth) {
 		throw new ConnectorsApiError(
@@ -102,6 +111,11 @@ async function requestConnectorsApi<T>(
 			"Composio connectors are not enabled for this account.",
 			403,
 		);
+	}
+	// Auth resolution and flag evaluation can yield while the user signs out
+	// or switches accounts. Never submit an old operation with the new token.
+	if (getClineAccountId() !== accountId || auth.accountId !== accountId) {
+		throw new ConnectorsApiError("The signed-in Cline account changed.", 401);
 	}
 	let response: Response;
 	try {
@@ -165,7 +179,7 @@ async function requestConnectorsApi<T>(
  * without a continuation token; request its maximum auth-config page size.
  */
 export async function fetchConnectableToolkits(
-	ctx?: ClineAuthTelemetryContext,
+	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorCatalogEntry[]> {
 	const response = await requestConnectorsApi<ConnectorCatalogEntry[]>(
 		"GET",
@@ -185,7 +199,7 @@ export async function fetchConnectableToolkits(
  */
 export async function initiateConnection(
 	toolkit: ComposioToolkitSlug,
-	ctx?: ClineAuthTelemetryContext,
+	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorInitiateResult> {
 	return await requestConnectorsApi<ConnectorInitiateResult>(
 		"POST",
@@ -202,8 +216,9 @@ export async function initiateConnection(
  * must reject the whole operation, never return a partial list.
  */
 export async function listConnections(
-	ctx?: ClineAuthTelemetryContext,
+	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorConnection[]> {
+	ctx = { ...ctx, accountId: ctx?.accountId ?? getClineAccountId() };
 	const connections: ConnectorConnection[] = [];
 	const seenCursors = new Set<string>();
 	let cursor = "";
@@ -228,7 +243,7 @@ export async function listConnections(
 
 async function requestConnectorPage<T>(
 	path: string,
-	ctx?: ClineAuthTelemetryContext,
+	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorPage<T>> {
 	const page = await requestConnectorsApi<ConnectorPage<T>>("GET", path, {
 		ctx,
@@ -253,7 +268,7 @@ async function requestConnectorPage<T>(
  */
 export async function deleteConnection(
 	connectedAccountId: string,
-	ctx?: ClineAuthTelemetryContext,
+	ctx?: ConnectorsRequestContext,
 ): Promise<void> {
 	await requestConnectorsApi<unknown>(
 		"DELETE",
@@ -269,7 +284,7 @@ export async function deleteConnection(
  */
 export async function listToolkitTools(
 	toolkit: ComposioToolkitSlug,
-	ctx?: ClineAuthTelemetryContext,
+	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorToolSchema[]> {
 	const response = await requestConnectorPage<ConnectorToolSchema>(
 		`/toolkits/${encodeURIComponent(toolkit)}/tools?limit=${TOOLKIT_TOOL_LIMIT}`,
@@ -294,7 +309,7 @@ export async function waitForConnectionActive(
 		pollIntervalMs?: number;
 		shouldContinue?: () => boolean;
 		logger?: BasicLogger;
-		ctx?: ClineAuthTelemetryContext;
+		ctx?: ConnectorsRequestContext;
 	},
 ): Promise<void> {
 	const pollIntervalMs = options.pollIntervalMs ?? CONNECTION_POLL_INTERVAL_MS;

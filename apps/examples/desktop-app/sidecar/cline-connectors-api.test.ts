@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * errors as `{"error": "..."}`. Mocks auth resolution and `fetch` directly —
  * one level below `composio.test.ts`, which mocks this module instead.
  */
+const identity = vi.hoisted(() => ({
+	accountId: "account-a" as string | undefined,
+}));
 const beta = vi.hoisted(() => ({ enabled: true }));
 vi.mock("@cline/core", async () => ({
 	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
@@ -13,7 +16,9 @@ vi.mock("@cline/core", async () => ({
 }));
 
 vi.mock("./cline-auth", () => ({
+	getClineAccountId: () => identity.accountId,
 	resolveConnectorsApiAuth: vi.fn(async () => ({
+		accountId: identity.accountId,
 		baseUrl: "https://core-api.staging.int.cline.bot",
 		token: "test-token",
 	})),
@@ -38,6 +43,7 @@ function mockFetchOnce(status: number, body: string | null) {
 }
 
 beforeEach(() => {
+	identity.accountId = "account-a";
 	beta.enabled = true;
 	vi.clearAllMocks();
 });
@@ -109,6 +115,26 @@ describe("Composio beta request gate", () => {
 });
 
 describe("connector router contract", () => {
+	it("refuses to revoke an old account's connection with a newly signed-in account", async () => {
+		identity.accountId = "account-b";
+		mockFetchOnce(204, null);
+		await expect(
+			deleteConnection("a-connection", { accountId: "account-a" }),
+		).rejects.toMatchObject({ status: 401 });
+		expect(global.fetch).not.toHaveBeenCalled();
+	});
+
+	it("does not combine connection pages from different accounts", async () => {
+		global.fetch = vi.fn(async () => {
+			identity.accountId = "account-b";
+			return Response.json({
+				success: true,
+				data: { items: [], nextToken: "next", total: 0 },
+			});
+		}) as unknown as typeof fetch;
+		await expect(listConnections()).rejects.toMatchObject({ status: 401 });
+		expect(global.fetch).toHaveBeenCalledOnce();
+	});
 	const account = {
 		id: "c1",
 		toolkit: { slug: "gmail" },

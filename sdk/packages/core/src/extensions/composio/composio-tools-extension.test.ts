@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -15,10 +15,12 @@ vi.mock("../../services/feature-flags/cline-account-feature-flags", () => ({
 
 const auth = vi.hoisted(() => ({
 	token: "cline_token_123" as string | undefined,
+	accountId: "account-a" as string | undefined,
 	baseUrl: "https://api.cline.bot",
 }));
 
 vi.mock("../../runtime/orchestration/runtime-oauth-token-manager", () => ({
+	OAuthReauthRequiredError: class extends Error {},
 	RuntimeOAuthTokenManager: class {
 		async resolveProviderApiKey() {
 			return auth.token ? { apiKey: auth.token } : null;
@@ -31,12 +33,15 @@ vi.mock("../../services/providers/local-provider-service", () => ({
 vi.mock("../../services/storage/provider-settings-manager", () => ({
 	ProviderSettingsManager: class {
 		getProviderSettings() {
-			return { baseUrl: auth.baseUrl };
+			return { baseUrl: auth.baseUrl, auth: { accountId: auth.accountId } };
 		}
 	},
 }));
 
-import { createComposioToolsExtension } from "./composio-tools-extension";
+import {
+	createComposioToolsExtension,
+	resolveComposioToolsStatePath,
+} from "./composio-tools-extension";
 
 type RegisteredTool = {
 	name: string;
@@ -50,12 +55,10 @@ const originalDataDir = process.env.CLINE_DATA_DIR;
 let tempDataDir: string;
 
 function writeState(state: unknown): void {
-	const settingsDir = join(tempDataDir, "settings");
+	const path = resolveComposioToolsStatePath(auth.accountId ?? "account-a");
+	const settingsDir = dirname(path);
 	mkdirSync(settingsDir, { recursive: true });
-	writeFileSync(
-		join(settingsDir, "composio.json"),
-		JSON.stringify(state, null, "\t"),
-	);
+	writeFileSync(path, JSON.stringify(state, null, "\t"));
 }
 
 async function setupTools(): Promise<RegisteredTool[]> {
@@ -78,6 +81,7 @@ beforeEach(() => {
 	tempDataDir = mkdtempSync(join(tmpdir(), "composio-ext-test-"));
 	process.env.CLINE_DATA_DIR = tempDataDir;
 	auth.token = "cline_token_123";
+	auth.accountId = "account-a";
 	auth.baseUrl = "https://api.cline.bot";
 });
 
@@ -92,6 +96,38 @@ afterEach(() => {
 });
 
 describe("createComposioToolsExtension", () => {
+	it("does not register another account's saved tools", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "a-gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		auth.accountId = "account-b";
+		expect(await setupTools()).toEqual([]);
+	});
+
+	it("rejects a running session's tools after switching accounts", async () => {
+		writeState({
+			toolkits: {
+				gmail: {
+					connectedAccountId: "a-gmail",
+					tools: [{ slug: "GMAIL_SEND_EMAIL" }],
+				},
+			},
+		});
+		const tools = await setupTools();
+		auth.accountId = "account-b";
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		expect(await tools[0].execute({})).toMatchObject({
+			successful: false,
+			error: expect.stringContaining("account changed"),
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
 	it("returns undefined when there is no connector state", async () => {
 		expect(await createComposioToolsExtension()).toBeUndefined();
 	});

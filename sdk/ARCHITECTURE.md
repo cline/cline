@@ -908,6 +908,21 @@ extension. Tool execution sends arguments and the optional version to
 currently exposes an array without a continuation token, so the sidecar requests
 the backend's maximum page size of 200 auth configs.
 
+Connector metadata and cancellation tombstones live in
+`settings/composio/<sha256-account-id>.json`. Each account has separate
+availability/catalog caches and pending operations. Async management requests
+retain their initiating account and refuse to send with another account's token.
+The core extension loads only the signed-in account's schemas and checks that
+identity again before registration and execution in an existing session.
+
+`RuntimeOAuthTokenManager` serializes credential reads, refreshes, and saves
+using a SQLite exclusive transaction keyed by provider settings path and storage
+provider ID. This coordinates the sidecar, hub, and other local processes; OS
+locks release on process exit. Waiters reread persisted credentials under the
+lock and reuse a token another process refreshed, including for forced refresh
+requests. A refresh result is discarded if sign-out or sign-in replaced the
+credentials while the request was in flight.
+
 ### SSH environments
 
 `core/src/remote` owns the reusable SSH environment service and standalone remote

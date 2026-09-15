@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentExtension, BasicLogger } from "@cline/shared";
@@ -7,7 +8,10 @@ import {
 	getClineEnvironmentConfig,
 } from "@cline/shared";
 import { resolveClineDataDir } from "@cline/shared/storage";
-import { RuntimeOAuthTokenManager } from "../../runtime/orchestration/runtime-oauth-token-manager";
+import {
+	OAuthReauthRequiredError,
+	RuntimeOAuthTokenManager,
+} from "../../runtime/orchestration/runtime-oauth-token-manager";
 import { isClineAccountFeatureEnabled } from "../../services/feature-flags/cline-account-feature-flags";
 import { resolveLocalClineAuthToken } from "../../services/providers/local-provider-service";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
@@ -18,7 +22,7 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  *
  * The management plane (connect/disconnect, reconciliation) lives in the
  * desktop app's sidecar and persists connection state plus fetched tool
- * schemas to `<cline-data>/settings/composio.json`. This extension is the
+ * schemas to `<cline-data>/settings/composio/<account-hash>.json`. This extension is the
  * consumption side: it reads that file at session start, registers one tool
  * per stored schema, and executes each tool through the **Cline API
  * connectors proxy** (`/api/v1/connectors/tools/{slug}/execute`) — the
@@ -33,10 +37,9 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  * the packaged desktop app — and gives CLI-hosted sessions the same tools.
  * Deleting the state file (or disconnecting every integration) turns the
  * tools off for new sessions; running sessions keep their frozen tool set,
- * but every execution rechecks the account beta flag.
+ * but every execution rechecks the account identity and beta flag.
  */
 
-const COMPOSIO_STATE_FILE_NAME = "composio.json";
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
 const CONNECTORS_API_PATH = "/api/v1/connectors";
 
@@ -55,13 +58,22 @@ type StoredComposioState = {
 	>;
 };
 
-export function resolveComposioToolsStatePath(): string {
-	return join(resolveClineDataDir(), "settings", COMPOSIO_STATE_FILE_NAME);
+export function resolveComposioToolsStatePath(accountId: string): string {
+	const key = createHash("sha256").update(accountId).digest("hex");
+	return join(resolveClineDataDir(), "settings", "composio", `${key}.json`);
 }
 
-function loadComposioState(): StoredComposioState | undefined {
+function getAccountId(): string | undefined {
+	return (
+		new ProviderSettingsManager()
+			.getProviderSettings("cline")
+			?.auth?.accountId?.trim() || undefined
+	);
+}
+
+function loadComposioState(accountId: string): StoredComposioState | undefined {
 	try {
-		const path = resolveComposioToolsStatePath();
+		const path = resolveComposioToolsStatePath(accountId);
 		if (!existsSync(path)) {
 			return undefined;
 		}
@@ -77,14 +89,14 @@ function loadComposioState(): StoredComposioState | undefined {
 /**
  * Resolves the Cline account bearer token and API base URL for the proxy.
  * Uses the refresh-aware OAuth manager (tokens expire between launches) and
- * falls back to the persisted token. One manager per process — the refresh
- * token is single-use.
+ * falls back to the persisted token on transient failures. Managers coordinate
+ * single-use refresh tokens through a lock shared across processes.
  */
 let sharedTokenManager: RuntimeOAuthTokenManager | undefined;
 
-async function resolveConnectorsAuth(): Promise<
-	{ baseUrl: string; token: string } | undefined
-> {
+async function resolveConnectorsAuth(
+	accountId: string,
+): Promise<{ baseUrl: string; token: string } | undefined> {
 	const manager = new ProviderSettingsManager();
 	let token: string | undefined;
 	try {
@@ -93,11 +105,12 @@ async function resolveConnectorsAuth(): Promise<
 			providerId: "cline",
 		});
 		token = resolution?.apiKey ?? undefined;
-	} catch {
+	} catch (error) {
+		if (error instanceof OAuthReauthRequiredError) return undefined;
 		// Fall back to the persisted token below.
 	}
 	token ??= resolveLocalClineAuthToken(manager.getProviderSettings("cline"));
-	if (!token) {
+	if (!token || getAccountId() !== accountId) {
 		return undefined;
 	}
 	const settings = manager.getProviderSettings("cline");
@@ -108,16 +121,24 @@ async function resolveConnectorsAuth(): Promise<
 }
 
 async function executeComposioTool(
+	accountId: string,
 	tool: StoredComposioTool,
 	input: unknown,
 ): Promise<unknown> {
+	if (getAccountId() !== accountId) {
+		return {
+			successful: false,
+			error:
+				"The Cline account changed. Start a new session to use connector tools.",
+		};
+	}
 	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
 		return {
 			successful: false,
 			error: "Composio connectors are not enabled for this account.",
 		};
 	}
-	const auth = await resolveConnectorsAuth();
+	const auth = await resolveConnectorsAuth(accountId);
 	if (!auth) {
 		return {
 			successful: false,
@@ -179,13 +200,16 @@ async function executeComposioTool(
 export async function createComposioToolsExtension(options?: {
 	logger?: BasicLogger;
 }): Promise<AgentExtension | undefined> {
-	const state = loadComposioState();
+	const accountId = getAccountId();
+	if (!accountId) return undefined;
+	const state = loadComposioState(accountId);
 	if (!state?.toolkits) {
 		return undefined;
 	}
 	if (!(await isClineAccountFeatureEnabled(FeatureFlag.CLINE_COMPOSIO_BETA))) {
 		return undefined;
 	}
+	if (getAccountId() !== accountId) return undefined;
 	const toolkits = Object.entries(state.toolkits).filter(
 		([, toolkit]) =>
 			toolkit?.connectedAccountId && (toolkit.tools?.length ?? 0) > 0,
@@ -197,6 +221,7 @@ export async function createComposioToolsExtension(options?: {
 		name: "composio-tools",
 		manifest: { capabilities: ["tools"] },
 		setup(api) {
+			if (getAccountId() !== accountId) return;
 			const registered = new Set<string>();
 			for (const [toolkitSlug, toolkitState] of toolkits) {
 				for (const tool of toolkitState?.tools ?? []) {
@@ -221,7 +246,8 @@ export async function createComposioToolsExtension(options?: {
 								// Composio tools can have side effects (send an email,
 								// open an issue); never auto-retry them.
 								retryable: false,
-								execute: (input: unknown) => executeComposioTool(tool, input),
+								execute: (input: unknown) =>
+									executeComposioTool(accountId, tool, input),
 							}),
 						);
 					} catch (error) {

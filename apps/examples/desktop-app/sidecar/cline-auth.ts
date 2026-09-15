@@ -11,8 +11,8 @@ import { getClineEnvironmentConfig } from "@cline/shared";
 /**
  * Shared Cline-account auth for the sidecar: one refresh-aware OAuth manager
  * for every caller (account requests, integrations, the connectors proxy).
- * The refresh token is single-use, so this singleton is load-bearing — two
- * managers racing a refresh would invalidate each other's tokens.
+ * The singleton coalesces local callers; RuntimeOAuthTokenManager also locks
+ * refresh/read/save across processes sharing the provider settings file.
  */
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
 
@@ -95,6 +95,7 @@ export function getClineApiBaseUrl(): string {
 }
 
 export type ConnectorsApiAuth = {
+	accountId: string;
 	baseUrl: string;
 	token: string;
 };
@@ -107,12 +108,14 @@ export type ConnectorsApiAuth = {
 export async function resolveConnectorsApiAuth(
 	ctx: ClineAuthTelemetryContext = {},
 ): Promise<ConnectorsApiAuth | undefined> {
+	const accountId = getClineAccountId();
+	if (!accountId) return undefined;
 	const token = await resolveFreshClineAuthToken(
 		new ProviderSettingsManager(),
 		ctx,
 	);
-	if (!token) {
+	if (!token || getClineAccountId() !== accountId) {
 		return undefined;
 	}
-	return { baseUrl: getClineApiBaseUrl(), token };
+	return { accountId, baseUrl: getClineApiBaseUrl(), token };
 }

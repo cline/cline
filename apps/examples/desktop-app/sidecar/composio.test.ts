@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	mkdirSync,
 	mkdtempSync,
@@ -15,6 +16,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * per test, so no network — and no Composio key — is involved. `ConnectorsApiError`
  * is kept real so status-code handling (401/403/404) is exercised faithfully.
  */
+const identity = vi.hoisted(() => ({
+	accountId: "account-a" as string | undefined,
+}));
+vi.mock("./cline-auth", async () => ({
+	...(await vi.importActual<typeof import("./cline-auth")>("./cline-auth")),
+	getClineAccountId: () => identity.accountId,
+}));
+
 const beta = vi.hoisted(() => ({ enabled: true }));
 vi.mock("@cline/core", async () => ({
 	...(await vi.importActual<typeof import("@cline/core")>("@cline/core")),
@@ -68,13 +77,22 @@ function useTempDataDir(): string {
 	return dir;
 }
 
-function writeState(dataDir: string, state: unknown): void {
-	const settingsDir = join(dataDir, "settings");
-	mkdirSync(settingsDir, { recursive: true });
-	writeFileSync(
-		join(settingsDir, "composio.json"),
-		JSON.stringify(state, null, "\t"),
+function statePath(
+	dataDir: string,
+	accountId = identity.accountId ?? "account-a",
+): string {
+	return join(
+		dataDir,
+		"settings",
+		"composio",
+		`${createHash("sha256").update(accountId).digest("hex")}.json`,
 	);
+}
+
+function writeState(dataDir: string, state: unknown): void {
+	const settingsDir = join(dataDir, "settings", "composio");
+	mkdirSync(settingsDir, { recursive: true });
+	writeFileSync(statePath(dataDir), JSON.stringify(state, null, "\t"));
 }
 
 function readStateFile(dataDir: string): {
@@ -84,9 +102,7 @@ function readStateFile(dataDir: string): {
 	>;
 	cancelledAccountIds?: string[];
 } {
-	return JSON.parse(
-		readFileSync(join(dataDir, "settings", "composio.json"), "utf8"),
-	);
+	return JSON.parse(readFileSync(statePath(dataDir), "utf8"));
 }
 
 /** Signed-in and entitled: the availability probe (listConnections) succeeds. */
@@ -95,6 +111,7 @@ function makeAvailable(connections: unknown[] = []): void {
 }
 
 beforeEach(() => {
+	identity.accountId = "account-a";
 	beta.enabled = true;
 	vi.clearAllMocks();
 	__resetComposioCachesForTesting();
@@ -124,6 +141,103 @@ describe("parseComposioToolkitSlug", () => {
 		expect(() => parseComposioToolkitSlug("bad slug!")).toThrow(
 			/Invalid Composio toolkit slug/,
 		);
+	});
+});
+
+describe("account isolation", () => {
+	it("does not reuse another account's state, availability, or catalog", async () => {
+		const dir = useTempDataDir();
+		writeState(dir, {
+			toolkits: {
+				github: {
+					connectedAccountId: "a-github",
+					tools: [{ slug: "GITHUB_LIST_ISSUES" }],
+				},
+			},
+		});
+		proxy.fetchConnectableToolkits.mockResolvedValue([
+			{ slug: "github", name: "A catalog" },
+		]);
+		expect(
+			(await getComposioStatus()).integrations.find(
+				(x) => x.toolkit === "github",
+			)?.status,
+		).toBe("connected");
+		expect((await listComposioToolkits()).toolkits[0].name).toBe("A catalog");
+		proxy.listConnections.mockClear();
+		identity.accountId = "account-b";
+		proxy.fetchConnectableToolkits.mockResolvedValue([
+			{ slug: "gmail", name: "B catalog" },
+		]);
+		expect(
+			(await getComposioStatus()).integrations.every(
+				(x) => x.status === "not_connected",
+			),
+		).toBe(true);
+		expect(proxy.listConnections).toHaveBeenCalled();
+		expect((await listComposioToolkits()).toolkits.map((x) => x.name)).toEqual([
+			"B catalog",
+		]);
+		identity.accountId = "account-a";
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"a-github",
+		);
+	});
+
+	it("discards metadata from a catalog request completed after switching accounts", async () => {
+		useTempDataDir();
+		let complete!: (items: unknown[]) => void;
+		proxy.fetchConnectableToolkits.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const request = listComposioToolkits();
+		await vi.waitFor(() => expect(complete).toBeTypeOf("function"));
+		identity.accountId = "account-b";
+		complete([{ slug: "github", name: "Private A catalog" }]);
+		expect((await request).toolkits).toEqual([]);
+	});
+
+	it("keeps an abandoned connection's tombstone under its original account", async () => {
+		const dir = useTempDataDir();
+		proxy.initiateConnection.mockResolvedValue({
+			connectedAccountId: "a-pending",
+		});
+		let complete!: (items: unknown[]) => void;
+		proxy.listToolkitTools.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					complete = resolve;
+				}),
+		);
+		const request = connectComposioToolkit("github");
+		await vi.waitFor(() => expect(complete).toBeTypeOf("function"));
+		identity.accountId = "account-b";
+		writeState(dir, {
+			toolkits: {
+				github: {
+					connectedAccountId: "b-github",
+					tools: [{ slug: "GITHUB_LIST_ISSUES" }],
+				},
+			},
+		});
+		proxy.deleteConnection.mockRejectedValue(
+			new ConnectorsApiError("account changed", 401),
+		);
+		complete([{ slug: "GITHUB_LIST_ISSUES" }]);
+		expect((await request).alreadyConnected).toBeUndefined();
+		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
+			"b-github",
+		);
+		expect(readStateFile(dir).cancelledAccountIds).toBeUndefined();
+		expect(proxy.deleteConnection).toHaveBeenCalledWith(
+			"a-pending",
+			expect.objectContaining({ accountId: "account-a" }),
+		);
+		identity.accountId = "account-a";
+		expect(readStateFile(dir).cancelledAccountIds).toContain("a-pending");
 	});
 });
 
