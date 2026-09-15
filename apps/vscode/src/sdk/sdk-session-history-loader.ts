@@ -2,14 +2,20 @@ import { Logger } from "@/shared/services/Logger"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 import type { SdkInitialMessages, SdkSessionHost } from "./session-host"
 
+/**
+ * Prefer the live in-memory conversation: the persisted transcript only catches
+ * up at assistant-message and turn boundaries, so a read during an in-flight or
+ * just-aborted turn would otherwise miss messages the UI already shows, or read
+ * an empty file entirely.
+ */
+export function readSessionMessagesPreferringLive(sessionHost: SdkSessionHost, sessionId: string): Promise<SdkInitialMessages> {
+	return sessionHost.readLiveMessages?.(sessionId) ?? sessionHost.readMessages(sessionId)
+}
+
 export class SdkSessionHistoryLoader {
 	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<SdkInitialMessages | undefined> {
 		try {
-			// Prefer the live in-memory conversation: the persisted transcript
-			// only catches up at turn boundaries, so a rebuild right after
-			// aborting a turn (e.g. a plan/act mode switch mid-approval) would
-			// otherwise read an empty file and drop the task context.
-			const sdkMessages = await (sessionHost.readLiveMessages?.(taskId) ?? sessionHost.readMessages(taskId))
+			const sdkMessages = await readSessionMessagesPreferringLive(sessionHost, taskId)
 			if (sdkMessages.length > 0) {
 				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(sdkMessages)
 				if (sanitizedMessages !== sdkMessages) {
