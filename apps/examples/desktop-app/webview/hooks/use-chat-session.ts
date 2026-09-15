@@ -2149,6 +2149,19 @@ export function useChatSession() {
 		],
 	);
 
+	const answerAskQuestion = useCallback(
+		async (requestId: string, answer: string) => {
+			await desktopClient.invoke("respond_ask_question", {
+				requestId,
+				answer,
+			});
+			setPendingAskQuestions((prev) =>
+				prev.filter((item) => item.requestId !== requestId),
+			);
+		},
+		[],
+	);
+
 	// Resolves to false when the runtime never took the prompt (a failure
 	// before dispatch, or a provider switch / OAuth refresh that threw before
 	// the turn began) so the caller can hand the text back to the composer.
@@ -2156,6 +2169,23 @@ export function useChatSession() {
 		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
+
+			// The agent is blocked on its question until it is answered, so a
+			// typed message is the answer rather than a follow-up prompt to
+			// queue behind it (which left the question card up indefinitely).
+			const pendingQuestion = pendingAskQuestions[0];
+			if (pendingQuestion && trimmed && attachedFiles.length === 0) {
+				try {
+					await answerAskQuestion(pendingQuestion.requestId, trimmed);
+					return true;
+				} catch (err) {
+					setErrorState(
+						errorMessage(err),
+						sessionId ?? activeSessionIdRef.current,
+					);
+					return false;
+				}
+			}
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -2828,6 +2858,7 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			answerAskQuestion,
 			appendTurnFailureMessage,
 			applyCanonicalHistory,
 			applyPromptsInQueue,
@@ -2837,6 +2868,7 @@ export function useChatSession() {
 			finalizeSettledTurn,
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
+			pendingAskQuestions,
 			refreshSessionDiffSummary,
 			reportSessionStartFailure,
 			sessionId,
@@ -2874,19 +2906,6 @@ export function useChatSession() {
 	const rejectToolApproval = useCallback(
 		(requestId: string) => respondToolApproval(requestId, false),
 		[respondToolApproval],
-	);
-
-	const answerAskQuestion = useCallback(
-		async (requestId: string, answer: string) => {
-			await desktopClient.invoke("respond_ask_question", {
-				requestId,
-				answer,
-			});
-			setPendingAskQuestions((prev) =>
-				prev.filter((item) => item.requestId !== requestId),
-			);
-		},
-		[],
 	);
 
 	const restoreCheckpoint = useCallback(
