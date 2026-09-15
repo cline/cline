@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	formatProviderOAuthApiKey,
 	getPersistedProviderApiKey,
@@ -10,12 +10,13 @@ import {
 	resolveProviderApiKeyFromSettings,
 } from "./provider-auth-registry";
 
-const { loginClineOAuth } = vi.hoisted(() => ({
+const { loginClineOAuth, getValidClineCredentials } = vi.hoisted(() => ({
 	loginClineOAuth: vi.fn(),
+	getValidClineCredentials: vi.fn(),
 }));
 
 vi.mock("./cline", () => ({
-	getValidClineCredentials: vi.fn(),
+	getValidClineCredentials,
 	loginClineOAuth,
 }));
 
@@ -283,5 +284,35 @@ describe("provider auth registry", () => {
 			accountId: "acct-stored",
 			metadata: { sessionStartedAtMs: 1_700_000_000_002 },
 		});
+	});
+});
+
+describe("Cline platform auth routing", () => {
+	afterEach(() => vi.unstubAllEnvs());
+	it.each([
+		"cline",
+		"cline-pass",
+	])("ignores %s inference settings for login and refresh", async (providerId) => {
+		vi.stubEnv("CLINE_API_BASE_URL", "https://platform.test");
+		const handler = getProviderAuthHandler(providerId);
+		if (!handler) throw new Error(`Missing auth handler: ${providerId}`);
+		const settings = {
+			provider: providerId,
+			baseUrl: "https://inference.test/api/v1",
+		};
+		await handler.login({
+			settings,
+			callbacks: { onAuth: vi.fn(), onPrompt: vi.fn() },
+		});
+		expect(loginClineOAuth).toHaveBeenLastCalledWith(
+			expect.objectContaining({ apiBaseUrl: "https://platform.test" }),
+		);
+		const credentials = { access: "access", refresh: "refresh", expires: 0 };
+		await handler.refresh({ settings, credentials, forceRefresh: true });
+		expect(getValidClineCredentials).toHaveBeenLastCalledWith(
+			credentials,
+			expect.objectContaining({ apiBaseUrl: "https://platform.test" }),
+			{ forceRefresh: true },
+		);
 	});
 });

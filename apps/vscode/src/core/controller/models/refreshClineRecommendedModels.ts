@@ -56,7 +56,7 @@ async function fetchAndCacheClineRecommendedModels(): Promise<ClineRecommendedMo
 	// extension's configured API base URL. On failure the SDK returns its own
 	// fallback list.
 	const result = await fetchClineRecommendedModels({
-		baseUrl: ClineEnv.config().apiBaseUrl,
+		apiBaseUrl: ClineEnv.config().apiBaseUrl,
 		fetchImpl: fetch,
 	})
 

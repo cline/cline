@@ -120,3 +120,14 @@ The package also exports storage and settings helpers such as:
 - Repo examples: [examples](https://github.com/cline/sdk/tree/main/examples), [apps/examples](https://github.com/cline/sdk/tree/main/apps/examples)
 - Workspace overview: [README.md](https://github.com/cline/cline/blob/main/README.md)
 - API and architecture references: [DOC.md](https://github.com/cline/cline/blob/main/DOC.md), [ARCHITECTURE.md](https://github.com/cline/cline/blob/main/ARCHITECTURE.md)
+
+## Cline platform API configuration
+
+Cline platform services use `getClineEnvironmentConfig().apiBaseUrl`, selected by
+`CLINE_ENVIRONMENT` / `CLINE_ENVIRONMENT_OVERRIDE` or overridden with
+`CLINE_API_BASE_URL`. Provider settings `baseUrl` configures the inference endpoint
+(e.g. `https://api.cline.bot/api/v1`) and does not configure platform services.
+
+`fetchClineRecommendedModels` and `getCachedClineRecommendedModels` accept an
+optional `apiBaseUrl` platform root (e.g. `https://api.cline.bot`) for hosts with
+separate environment configuration. These functions do not read provider settings.

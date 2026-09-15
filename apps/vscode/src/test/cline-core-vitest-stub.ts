@@ -492,7 +492,7 @@ export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
 }
 
 export async function fetchClineRecommendedModels(_options?: {
-	baseUrl?: string
+	apiBaseUrl?: string
 	fetchImpl?: typeof fetch
 }): Promise<ClineRecommendedModelsData> {
 	return { recommended: [], free: [] }
