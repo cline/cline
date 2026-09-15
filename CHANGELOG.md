@@ -2,7 +2,7 @@
 
 ## [4.1.18]
 
-This is the first release built solely from the SDK extension. Earlier 4.1.x releases shipped a combined package containing both the SDK extension and the previous one, with a rollout flag choosing between them per window; that migration is now complete, so the package contains only the SDK extension and is substantially smaller to download and install.
+Every window now runs the SDK extension: the rollout that let a flag choose between it and the previous extension per window is complete. This release still ships as the combined package while the standalone publishing path is finalized, so the download is unchanged in size; a smaller SDK-only package follows in a later release.
 
 ### Added
 
