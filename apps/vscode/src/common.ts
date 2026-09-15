@@ -33,8 +33,8 @@ import { arePathsEqual } from "./utils/path"
  */
 export async function initialize(storageContext: StorageContext): Promise<WebviewProvider> {
 	// Configure the shared Logging class to use HostProvider's output channels and debug logger
-	Logger.subscribe((msg: string) => HostProvider.get().logToChannel(msg)) // File system logging
-	Logger.subscribe((msg: string) => HostProvider.env.debugLog({ value: msg })) // Host debug logging
+	Logger.subscribe((level, msg) => HostProvider.get().logToChannel(`${new Date().toISOString()} ${level} ${msg}`)) // File system logging
+	Logger.subscribe((level, msg) => HostProvider.env.debugLog({ value: msg, level })) // Host debug logging
 
 	// Register the SDK early logger so diagnostic events from
 	// ProviderSettingsManager, RuntimeOAuthTokenManager, and Cline auth
