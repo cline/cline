@@ -131,41 +131,9 @@
         "vite": "^8.0.0",
       },
     },
-    "apps/examples/cli-agent": {
-      "name": "@cline/example-cli-agent",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/cline-core-cli-agent": {
-      "name": "@cline/example-cline-core-cli-agent",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/code-review-bot": {
-      "name": "@cline/example-code-review-bot",
-      "version": "0.0.0",
-      "dependencies": {
-        "@cline/sdk": "workspace:*",
-        "zod": "^4.3.6",
-      },
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
-    "apps/examples/desktop-app": {
+    "apps/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.25",
+      "version": "0.0.27",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
@@ -244,6 +212,38 @@
         "tw-animate-css": "1.3.3",
         "typescript": "5.7.3",
         "vitest": "^4.0.18",
+      },
+    },
+    "apps/examples/cli-agent": {
+      "name": "@cline/example-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/cline-core-cli-agent": {
+      "name": "@cline/example-cline-core-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "apps/examples/code-review-bot": {
+      "name": "@cline/example-code-review-bot",
+      "version": "0.0.0",
+      "dependencies": {
+        "@cline/sdk": "workspace:*",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
       },
     },
     "apps/examples/menubar": {
@@ -751,7 +751,7 @@
     },
     "sdk/packages/ui": {
       "name": "@cline/ui",
-      "version": "0.2.0-next.8",
+      "version": "0.2.0-next.9",
       "dependencies": {
         "@cline/shared": "workspace:*",
         "@radix-ui/react-slot": "1.2.4",
@@ -1087,7 +1087,7 @@
 
     "@cline/cline-hub-webview": ["@cline/cline-hub-webview@workspace:apps/cline-hub/src/webview"],
 
-    "@cline/code": ["@cline/code@workspace:apps/examples/desktop-app"],
+    "@cline/code": ["@cline/code@workspace:apps/desktop-app"],
 
     "@cline/core": ["@cline/core@workspace:sdk/packages/core"],
 
