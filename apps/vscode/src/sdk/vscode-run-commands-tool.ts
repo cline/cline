@@ -283,7 +283,7 @@ export async function executeForeground(
 		const terminalPromise = terminalManager.getOrCreateTerminal(cwd, terminalProfileId)
 		const startDetached = (terminalInfo: Awaited<typeof terminalPromise>, log: DetachedCommandLog): void => {
 			try {
-				const process = terminalManager.runCommand(terminalInfo, terminalCommand)
+				const process = terminalManager.runCommand(terminalInfo, terminalCommand, cwd)
 				log.attach(process)
 				void process.catch((error) => log.fail(error))
 				process.detach()
@@ -352,7 +352,7 @@ export async function executeForeground(
 		state.phase = "started"
 		const { terminalInfo } = firstOutcome
 
-		const process = terminalManager.runCommand(terminalInfo, terminalCommand)
+		const process = terminalManager.runCommand(terminalInfo, terminalCommand, cwd)
 		const outputLines: string[] = []
 		let droppedLines = 0
 
