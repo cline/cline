@@ -1,3 +1,4 @@
+import { LangfuseAttributesSpanProcessor } from "@cline/llms";
 import type {
 	BasicLogger,
 	ITelemetryService,
@@ -37,7 +38,6 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import { isTelemetryOptedOutGlobally } from "../global-settings";
 import { resolveCoreDistinctId } from "./distinct-id";
-import { LangfuseAttributesSpanProcessor } from "./LangfuseAttributesSpanProcessor";
 import {
 	OpenTelemetryAdapter,
 	type OpenTelemetryAdapterOptions,

@@ -1,6 +1,6 @@
 import { getPropagatedAttributesFromContext } from "@langfuse/core";
 import type { Context } from "@opentelemetry/api";
-import type { Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import type { Span, SpanProcessor } from "@opentelemetry/sdk-trace-node";
 
 /** Copies Langfuse context onto relay spans without creating an exporter. */
 export class LangfuseAttributesSpanProcessor implements SpanProcessor {

@@ -140,7 +140,12 @@ export {
 	type ClineWebSearchResult,
 	createCline,
 } from "./providers/vendors/cline";
-export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export { LangfuseAttributesSpanProcessor } from "./services/LangfuseAttributesSpanProcessor";
+export {
+	disposeLangfuseTelemetry,
+	type LangfuseTraceAttributes,
+	withLangfuseTraceAttributes,
+} from "./services/langfuse-telemetry";
 export {
 	type AudioTranscriptionRequest,
 	type AudioTranscriptionResult,

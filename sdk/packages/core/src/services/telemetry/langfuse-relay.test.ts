@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { propagateAttributes } from "@langfuse/core";
+import { withLangfuseTraceAttributes } from "@cline/llms";
 import { context, trace } from "@opentelemetry/api";
 import { expect, it } from "vitest";
 import { OpenTelemetryProvider } from "./OpenTelemetryProvider";
@@ -35,7 +35,8 @@ it("exports user/session attributes through OTLP and isolates concurrent session
 		const tracer = provider.getTracer("cline-provider-langfuse");
 		await Promise.all(
 			["a", "b"].map((id) =>
-				propagateAttributes(
+				withLangfuseTraceAttributes(
+					true,
 					{
 						userId: `user-${id}`,
 						sessionId: `session-${id}`,
@@ -54,9 +55,13 @@ it("exports user/session attributes through OTLP and isolates concurrent session
 			),
 		);
 		tracer.startSpan("outside-context").end();
-		await propagateAttributes({ userId: "unrelated-user" }, async () => {
-			provider.getTracer("unrelated").startSpan("unrelated").end();
-		});
+		await withLangfuseTraceAttributes(
+			true,
+			{ userId: "unrelated-user" },
+			async () => {
+				provider.getTracer("unrelated").startSpan("unrelated").end();
+			},
+		);
 		await provider.tracerProvider?.forceFlush();
 		expect(requests).toEqual(["/v1/traces"]);
 		expect(spans).toHaveLength(10);
