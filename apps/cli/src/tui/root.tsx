@@ -15,7 +15,10 @@ import {
 	useDialogState,
 } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
+import {
+	CLINE_PASS_NOTICE_ID,
+	shouldSuppressClineCliMigrationNoticeForActiveProvider,
+} from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";
 import {
 	isSameRepoStatus,
@@ -552,6 +555,7 @@ function App(props: TuiProps) {
 		if (initialNoticeShownRef.current) return;
 		if (appView !== "home") return;
 		if (
+			notice.id === CLINE_PASS_NOTICE_ID &&
 			shouldSuppressClineCliMigrationNoticeForActiveProvider(currentProviderId)
 		) {
 			initialNoticeShownRef.current = true;

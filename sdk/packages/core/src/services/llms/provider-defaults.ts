@@ -207,7 +207,11 @@ async function mergeKnownModels(
 		// Cline recommendations can use Vercel-style ids while the broader
 		// catalog includes OpenRouter aliases for the same models. Image-output
 		// models are temporarily unavailable through Cline's inference backend,
-		// so filter them only at the Cline catalog boundary.
+		// so filter them only at the Cline catalog boundary. buildClineModels
+		// applies the same restriction to the bundled catalog. User overrides are
+		// also subject to this filter — the backend rejects image output
+		// regardless of where the model was configured. Remove both filter call
+		// sites together when the backend gains image-output support.
 		return Llms.sortModelsByReleaseDate(
 			Llms.filterImageOutputModels({
 				...Llms.preferCanonicalModelIds(

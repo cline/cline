@@ -102,6 +102,10 @@ jobs:
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
               run: bun -F @cline/code test:sidecar
 
+            - name: Run Desktop Settings UI Tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
+              run: bun -F @cline/code test:settings-ui
+
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               timeout-minutes: 10

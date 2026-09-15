@@ -24,6 +24,7 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getProviderAuthHandler,
 	identifyAccount,
 	listHookConfigFiles,
 	listLocalProviders,
@@ -98,10 +99,7 @@ import {
 	identifyDesktopFeatureFlagsAccount,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
-import {
-	clearLegacyCodexCredentials,
-	OPENAI_CODEX_PROVIDER_ID,
-} from "./legacy-codex-credentials";
+import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -2109,19 +2107,30 @@ export async function handleCommand(
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		if (!saved.enabled) {
+			// Cline Pass keeps its credentials under "cline", so removing only
+			// its own entry would leave the account signed in.
+			const storageProviderId =
+				getProviderAuthHandler(saved.providerId)?.storageProviderId ??
+				saved.providerId;
+			if (storageProviderId !== saved.providerId) {
+				saveLocalProviderSettings(manager, {
+					providerId: storageProviderId,
+					enabled: false,
+				});
+			}
+			// Removing a providers.json entry lets the legacy import restore it
+			// from the extension's secrets.json on the next command unless those
+			// credentials go too. A failed write throws so the webview reports
+			// the sign-out as failed and resyncs.
+			clearLegacyProviderCredentials(storageProviderId);
+		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
 		// (see signOut in webview settings/account-view.tsx), so this is the
 		// authoritative signal — it fires the moment credentials are cleared
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
 			syncAccountContextFromSettings(ctx, manager);
-		}
-		// Signing out of ChatGPT removes its providers.json entry; the legacy
-		// import would restore it from the extension's secrets.json on the next
-		// command unless those credentials go too. A failed write throws so
-		// the webview reports the sign-out as failed and resyncs.
-		if (saved.providerId === OPENAI_CODEX_PROVIDER_ID && !saved.enabled) {
-			clearLegacyCodexCredentials();
 		}
 		return saved;
 	}
