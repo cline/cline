@@ -36,6 +36,12 @@ export interface HubDaemonTelemetry {
  */
 export function createHubDaemonTelemetry(): HubDaemonTelemetry {
 	const config = createClineTelemetryServiceConfig({
+		// Spans carry only the OTel resource, not per-event metadata, so the
+		// daemon needs its own service identity: it ships in the same binary
+		// as the CLI, and without this its traces would be indistinguishable
+		// from CLI-local ones (`service.name: cline`).
+		serviceName: "cline-hub-daemon",
+		serviceVersion: CORE_BUILD_VERSION,
 		metadata: {
 			extension_version: CORE_BUILD_VERSION,
 			// "hub", not "cli": daemon-hosted sessions can be triggered by the

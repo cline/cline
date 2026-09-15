@@ -102,7 +102,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	type FeatureFlag,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,
@@ -536,7 +536,10 @@ export {
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,
+	isOtlpTraceRelayProvider,
+	markOtlpTraceRelayProvider,
 	normalizeSdkError,
+	OTLP_TRACE_RELAY_MARKER,
 	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,

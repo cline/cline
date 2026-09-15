@@ -2940,6 +2940,234 @@ describe("useChatSession", () => {
 		}
 	});
 
+	it("shows one failure bubble when chat_done lands without detail before the send RPC reports the error", async () => {
+		// The OAuth refresh throwing before the turn begins: the hub's
+		// run.failed (no text) reaches the webview as a detail-less chat_done,
+		// then the send RPC resolves with the actual error. This used to leave
+		// the detail-less bubble in place and surface the detailed copy as a
+		// second error banner underneath it.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<boolean> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+		expect(resolveSend).toBeDefined();
+
+		const chatEventHandler = handlerFor("chat_event");
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.messages.filter((m) => m.role === "error")).toHaveLength(1);
+		expect(current.error).toContain(
+			"The run failed before a response was produced.",
+		);
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "cline requires re-authentication.",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "cline requires re-authentication.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain(
+			"The run failed: cline requires re-authentication.",
+		);
+		expect(errorMessages[0]?.content).not.toContain(
+			"before a response was produced",
+		);
+		// The credential action points at the Cline account page.
+		expect(errorMessages[0]?.meta).toEqual({
+			reason: "credentials",
+			providerId: "cline",
+		});
+		// The banner-driving error state must match the bubble, or the chat
+		// renders the same failure twice.
+		expect(current.error).toBe(errorMessages[0]?.content);
+		expect(current.status).toBe("failed");
+	});
+
+	it("keeps a single failure bubble when a retry is queued between the chat_done and RPC reports", async () => {
+		// The failed send is still settling (awaiting its history reads) when
+		// the user retries. That submission is forced onto the queue path,
+		// which bumps the turn epoch without adding a user bubble, so the
+		// late RPC report must still recognize the bubble already on screen.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send" && request.delivery === "queue") {
+						return {
+							ok: true,
+							queued: true,
+							promptsInQueue: [{ id: "queued-retry", prompt: "Retry" }],
+						};
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<boolean> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+		expect(resolveSend).toBeDefined();
+
+		const chatEventHandler = handlerFor("chat_event");
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.messages.filter((m) => m.role === "error")).toHaveLength(1);
+
+		await act(async () => {
+			await current.sendPrompt("Retry");
+		});
+		expect(current.promptsInQueue.map((item) => item.prompt)).toEqual([
+			"Retry",
+		]);
+
+		await act(async () => {
+			resolveSend?.({
+				ok: true,
+				result: {
+					finishReason: "error",
+					text: "cline requires re-authentication.",
+				},
+			});
+			await sendPromise;
+		});
+
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain(
+			"cline requires re-authentication.",
+		);
+		expect(current.error).toBe(errorMessages[0]?.content);
+	});
+
+	it("gives a fresh session that fails to start over credentials the same guidance and fix action", async () => {
+		// A fresh session applies the OAuth credentials in start, so the
+		// rejected refresh surfaces there as a thrown start RPC rather than as
+		// a failed turn.
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						throw new Error(
+							'OAuth credentials for provider "cline" are no longer valid. Re-run authentication for this provider.',
+						);
+					}
+				}
+				return [];
+			},
+		);
+
+		let taken: boolean | undefined;
+		await act(async () => {
+			taken = await current.sendPrompt("First prompt");
+		});
+
+		// The prompt goes back to the composer, and the transcript holds a
+		// single error explaining how to fix it.
+		expect(taken).toBe(false);
+		expect(current.messages.filter((m) => m.role === "user")).toHaveLength(0);
+		const errorMessages = current.messages.filter((m) => m.role === "error");
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain("no longer valid");
+		expect(errorMessages[0]?.content).toContain("Settings → Account");
+		expect(errorMessages[0]?.meta).toEqual({
+			reason: "credentials",
+			providerId: "cline",
+		});
+		expect(current.error).toBe(errorMessages[0]?.content);
+	});
+
 	it("does not give credential guidance for non-credential failures", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -2992,7 +3220,7 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		// "tokens" here is a context-window problem, not a credential problem;
-		// pointing users at Settings → Models would be misleading.
+		// pointing users at Settings → API Providers would be misleading.
 		expect(errorMessage?.content).toContain("maximum context tokens");
 		expect(errorMessage?.content).not.toContain("Check your model connection");
 	});
@@ -3045,13 +3273,13 @@ describe("useChatSession", () => {
 		const errorMessage = current.messages.find(
 			(message) => message.role === "error",
 		);
-		// Claude Code's login lives in the `claude` CLI; Settings → Models has
+		// Claude Code's login lives in the `claude` CLI; Settings → API Providers has
 		// nothing that could fix an expired session there.
 		expect(errorMessage?.content).toContain("OAuth session expired");
 		expect(errorMessage?.content).toContain(
 			"Sign in again with the `claude` CLI",
 		);
-		expect(errorMessage?.content).not.toContain("Settings → Models");
+		expect(errorMessage?.content).not.toContain("Settings → API Providers");
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {

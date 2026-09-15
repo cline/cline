@@ -8,12 +8,15 @@ import {
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
+	credentialFailureMeta,
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
+	isCredentialFailure,
 	makeId,
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
+	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import { canReplaceFailedTurn } from "@/hooks/chat-session/history-reconciliation";
 import type {
@@ -119,6 +122,7 @@ function errorMessage(err: unknown): string {
 function makeErrorChatMessage(
 	sid: string | null,
 	content: string,
+	meta?: ChatMessage["meta"],
 ): ChatMessage {
 	return {
 		id: makeId("error"),
@@ -126,6 +130,7 @@ function makeErrorChatMessage(
 		role: "error",
 		content,
 		createdAt: Date.now(),
+		...(meta ? { meta } : {}),
 	};
 }
 
@@ -452,6 +457,19 @@ export function useChatSession() {
 	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// Counts user bubbles appended to the live transcript. A failure bubble
+	// stays the trailing one for its turn until the next user bubble lands;
+	// the turn epoch is not usable here because a retry queued while the
+	// failed send is still settling bumps it without adding a bubble.
+	const userBubbleCountRef = useRef(0);
+	// The failure bubble already shown for the current turn, so a second
+	// report of the same failure updates it instead of adding another.
+	const shownTurnFailureRef = useRef<{
+		sid: string;
+		userBubbleCount: number;
+		id: string;
+		hasDetail: boolean;
+	} | null>(null);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -567,45 +585,88 @@ export function useChatSession() {
 	}, []);
 
 	const setErrorState = useCallback(
-		(msg: string, sid: string | null = null) => {
+		(msg: string, sid: string | null = null, meta?: ChatMessage["meta"]) => {
 			outstandingOptimisticUserIdsRef.current.clear();
 			rekeyedOptimisticIdByMessageIdRef.current = {};
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
-				sliceMessages([...prev, makeErrorChatMessage(sid, msg)]),
+				sliceMessages([...prev, makeErrorChatMessage(sid, msg, meta)]),
 			);
 		},
 		[],
+	);
+
+	// A session that fails to start over credentials (a fresh session hits the
+	// rejected OAuth refresh in start, not in the turn) gets the same guidance
+	// and fix action as a failed turn instead of the raw runtime message.
+	const reportSessionStartFailure = useCallback(
+		(err: unknown, sid: string | null) => {
+			const message = errorMessage(err);
+			const providerId = providerIdRef.current;
+			if (!isCredentialFailure(message)) {
+				setErrorState(message, sid);
+				return;
+			}
+			setErrorState(
+				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				sid,
+				credentialFailureMeta(providerId),
+			);
+		},
+		[setErrorState],
 	);
 
 	// Surfaces a failed turn in the transcript. Some turns (for example the
 	// first prompt of a fresh session, which the runtime consumes from its
 	// queue) never resolve through the send() RPC, so without this the app
 	// fails silently: the user message sits alone with no response and no
-	// explanation. Skips appending when an error for this turn is already
-	// visible so the RPC path and the chat_done stream never double-report.
+	// explanation. The RPC path and the chat_done stream can both report the
+	// same failure, and chat_done often lands first with no detail (the hub's
+	// run.failed for a thrown send carries none); the later, detailed report
+	// then upgrades the bubble in place rather than adding a second one. The
+	// `error` state follows the bubble so the chat never also shows it as a
+	// banner.
 	const appendTurnFailureMessage = useCallback(
 		(sid: string, detail: string) => {
 			const description =
 				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
-			const content = formatRunError(description, providerIdRef.current);
-			setMessages((prev) => {
-				const sessionMessages = prev.filter(
-					(message) => message.sessionId === sid,
-				);
-				const last = sessionMessages[sessionMessages.length - 1];
-				if (last?.role === "error") {
-					return prev;
+			const looksCredentialRelated =
+				!description || isCredentialFailure(description);
+			const providerId = providerIdRef.current;
+			const content = formatRunError(description, providerId);
+			const meta = {
+				providerId,
+				...(looksCredentialRelated ? credentialFailureMeta(providerId) : {}),
+			};
+			const shown = shownTurnFailureRef.current;
+			if (
+				shown &&
+				shown.sid === sid &&
+				shown.userBubbleCount === userBubbleCountRef.current
+			) {
+				if (!description || shown.hasDetail) {
+					return;
 				}
-				return sliceMessages([
-					...prev,
-					{
-						...makeErrorChatMessage(sid, content),
-						meta: { providerId: providerIdRef.current },
-					},
-				]);
-			});
+				shown.hasDetail = true;
+				setMessages((prev) =>
+					updateMessageById(prev, shown.id, (message) => ({
+						...message,
+						content,
+						meta,
+					})),
+				);
+				setError(content);
+				return;
+			}
+			const message = makeErrorChatMessage(sid, content, meta);
+			shownTurnFailureRef.current = {
+				sid,
+				userBubbleCount: userBubbleCountRef.current,
+				id: message.id,
+				hasDetail: Boolean(description),
+			};
+			setMessages((prev) => sliceMessages([...prev, message]));
 			setError(content);
 		},
 		[],
@@ -1479,6 +1540,7 @@ export function useChatSession() {
 					return next;
 				});
 				if (userLabel || userImages.length > 0) {
+					userBubbleCountRef.current += 1;
 					// Computed outside the updater: makeId() inside would mint a
 					// different id on each StrictMode re-invocation.
 					const userMessageId = promptId
@@ -2169,6 +2231,7 @@ export function useChatSession() {
 
 			if (optimisticUserMessageId) {
 				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
+				userBubbleCountRef.current += 1;
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -2217,7 +2280,7 @@ export function useChatSession() {
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
 							);
 						}
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
 						return withdrawPrompt();
 					}
@@ -2236,7 +2299,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
 						return withdrawPrompt();
 					} finally {
@@ -2261,7 +2324,7 @@ export function useChatSession() {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
-						setErrorState(errorMessage(err));
+						reportSessionStartFailure(err, null);
 						finishPromptSubmission();
 						return withdrawPrompt();
 					} finally {
@@ -2761,6 +2824,7 @@ export function useChatSession() {
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
+			reportSessionStartFailure,
 			sessionId,
 			setErrorState,
 			startSession,
@@ -2965,6 +3029,7 @@ export function useChatSession() {
 		outstandingOptimisticUserIdsRef.current.clear();
 		rekeyedOptimisticIdByMessageIdRef.current = {};
 		lastCoreErrorBySessionRef.current = {};
+		shownTurnFailureRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setActivityLabel(null);
@@ -3031,6 +3096,7 @@ export function useChatSession() {
 				outstandingOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
+				shownTurnFailureRef.current = null;
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,

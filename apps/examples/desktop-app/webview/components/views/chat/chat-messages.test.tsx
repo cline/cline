@@ -2245,12 +2245,80 @@ describe("persisted run errors", () => {
 		const fullError =
 			providerId === "claude-code"
 				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
-				: "The run failed: API key expired. Check your model connection in Settings → Models (or sign in with Cline), then try again.";
+				: "The run failed: API key expired. Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
 		await renderMessages(messages, { error: fullError, status: "failed" });
 		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
 		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
 		await renderMessages(messages, { error: null, status: "idle" });
 		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
 		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+	});
+});
+
+describe("ChatMessages credential failures", () => {
+	const failure: ChatMessage = {
+		id: "error-1",
+		sessionId: "session-1",
+		role: "error",
+		content:
+			"The run failed: cline requires re-authentication. Sign in to Cline again in Settings → Account, then try again.",
+		createdAt: 2,
+		meta: { reason: "credentials", providerId: "cline" },
+	};
+
+	it("offers a sign-in action inside the failure bubble and shows the failure once", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages([failure], {
+			error: failure.content,
+			onFixCredentials,
+			status: "failed",
+		});
+
+		const bubble = container.querySelector(
+			'.cline-chat-message[data-role="error"]',
+		);
+		expect(bubble?.textContent).toContain("cline requires re-authentication");
+		// The hook's error state mirrors the bubble, so no second banner.
+		expect(
+			container.textContent?.split("requires re-authentication"),
+		).toHaveLength(2);
+
+		const action = [...(bubble?.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Sign in to Cline",
+		);
+		expect(action).toBeDefined();
+		await act(async () => action?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("account");
+	});
+
+	it("points other providers at model settings and skips local-auth providers", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages(
+			[
+				{
+					...failure,
+					id: "error-anthropic",
+					meta: { reason: "credentials", providerId: "anthropic" },
+				},
+				{
+					...failure,
+					id: "error-claude-code",
+					createdAt: 3,
+					meta: { reason: "credentials", providerId: "claude-code" },
+				},
+			],
+			{ onFixCredentials, status: "failed" },
+		);
+
+		const buttons = [...container.querySelectorAll("button")].filter(
+			(button) =>
+				button.textContent === "Open API providers" ||
+				button.textContent === "Sign in to Cline",
+		);
+		expect(buttons.map((button) => button.textContent)).toEqual([
+			"Open API providers",
+		]);
+		await act(async () => buttons[0]?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });

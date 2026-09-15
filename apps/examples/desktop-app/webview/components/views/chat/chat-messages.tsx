@@ -85,6 +85,8 @@ type ChatMessagesProps = {
 		sessionId: string,
 		toolCallId?: string,
 	) => void | Promise<void>;
+	/** Opens the settings page that fixes a credential failure. */
+	onFixCredentials?: (target: "account" | "models") => void;
 };
 
 type AskQuestionRequestItem = {
@@ -119,6 +121,7 @@ function ChatMessagesImpl({
 	onEditMessage,
 	onForkSession,
 	onProceedWhileRunning,
+	onFixCredentials,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -688,6 +691,7 @@ function ChatMessagesImpl({
 											}
 											forkPending={forkingMessageId === message.id}
 											forkError={forkErrors[message.id]}
+											onFixCredentials={onFixCredentials}
 											{...getReasoningProps(reasoningMessages)}
 										/>
 									);

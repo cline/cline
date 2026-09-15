@@ -320,7 +320,6 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	onOpenVoiceInputSettings?: () => void;
 	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
@@ -359,7 +358,6 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
 	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
@@ -819,38 +817,30 @@ function ChatInputBarImpl({
 		[transcriptionTarget],
 	);
 
-	const handleSpeechInputError = useCallback(
-		(error: unknown) => {
-			// Microphone failures surface as DOMExceptions (getUserMedia) or
-			// capture-layer events; provider failures (credentials, transcription
-			// setup) as plain Errors, and are fixed in Settings → Voice.
-			const isMicrophoneError =
-				error instanceof DOMException || error instanceof Event;
-			const message =
-				error instanceof Error
-					? error.message
-					: "Check microphone permission and audio provider settings.";
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "error",
-				message: "Speech input failed in the webview",
-				timestamp: new Date().toISOString(),
-				metadata: { failure: message },
-			});
-			if (!isMicrophoneError && onOpenVoiceInputSettings) {
-				onOpenVoiceInputSettings();
-				return;
-			}
-			toast({
-				variant: "destructive",
-				title: "Speech input failed",
-				description: isMicrophoneError
-					? "Check the microphone permission for Cline and try again."
-					: message,
-			});
-		},
-		[onOpenVoiceInputSettings],
-	);
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -1273,6 +1263,12 @@ function ChatInputBarImpl({
 								}
 							}}
 							onKeyDown={(e) => {
+								// While an IME (e.g. Chinese/Japanese) is composing, Enter
+								// commits the composition and arrows move between candidates,
+								// so leave those keys to the IME. WebKit can fire the committing
+								// Enter after compositionend with isComposing already false but
+								// the legacy keyCode 229, hence the second check.
+								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -1608,7 +1604,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
-/** Sentinel provider-picker row that opens Settings → Models instead of selecting. */
+/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
 const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
 
 const ModelSelector = memo(function ModelSelector({
@@ -1628,7 +1624,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
 	onModelSupportsImagesChange: (supported: boolean | null) => void;
-	/** Opens Settings → Models; adds a "set up another provider" row when set. */
+	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
@@ -1652,6 +1648,43 @@ const ModelSelector = memo(function ModelSelector({
 		readModelSelectionStorageFromWindow(),
 	);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const applyProviderModels = useCallback(
+		(providerId: string, models: ProviderModel[]) => {
+			setProviderModels((current) => ({
+				...current,
+				[providerId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[providerId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setModelDetails((current) => ({
+				...current,
+				[providerId]: models,
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(providerId) ? current : [...current, providerId],
+			);
+		},
+		[],
+	);
+	// Re-fetch only the live list on picker open so the Recommended/Free tiers
+	// stay current. Re-running the full load would first re-apply the bundled
+	// catalog and briefly flash a stale name in the trigger.
+	const refreshActiveProviderModels = useCallback(() => {
+		if (!normalizedProvider) return;
+		loadProviderModels(normalizedProvider)
+			.then((models) => {
+				if (models.length === 0) return;
+				applyProviderModels(normalizedProvider, models);
+				setReasoningCapabilitySource("catalog");
+			})
+			.catch(() => {
+				// Keep the current list when the refresh fails.
+			});
+	}, [applyProviderModels, normalizedProvider]);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
@@ -1840,28 +1873,8 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
-				setProviderModels((current) => ({
-					...current,
-					[normalizedProvider]: modelIds,
-				}));
-				setProviderReasoningModels((current) => ({
-					...current,
-					[normalizedProvider]: reasoningModelIds,
-				}));
-				setModelDetails((current) => ({
-					...current,
-					[normalizedProvider]: models,
-				}));
+				applyProviderModels(normalizedProvider, models);
 				setReasoningCapabilitySource("catalog");
-				setEnabledProviderIds((current) =>
-					current.includes(normalizedProvider)
-						? current
-						: [...current, normalizedProvider],
-				);
 			} catch {
 				// Keep the catalog values when provider-specific loading fails.
 			}
@@ -1871,30 +1884,13 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [applyProviderModels, normalizedProvider]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
-			const normalizedId = normalizeProviderId(providerId);
-			setProviderModels((current) => ({
-				...current,
-				[normalizedId]: models.map((entry) => entry.id),
-			}));
-			setProviderReasoningModels((current) => ({
-				...current,
-				[normalizedId]: models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id),
-			}));
-			setModelDetails((current) => ({
-				...current,
-				[normalizedId]: models,
-			}));
-			setEnabledProviderIds((current) =>
-				current.includes(normalizedId) ? current : [...current, normalizedId],
-			);
+			applyProviderModels(normalizeProviderId(providerId), models);
 		});
-	}, []);
+	}, [applyProviderModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
@@ -2074,6 +2070,7 @@ const ModelSelector = memo(function ModelSelector({
 			className={triggerClassName}
 			disabled={isBusy || visibleModelPicker.options.length === 0}
 			emptyText="No models found."
+			onOpen={refreshActiveProviderModels}
 			onValueChange={(value) => {
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
