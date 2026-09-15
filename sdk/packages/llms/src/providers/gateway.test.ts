@@ -1500,6 +1500,7 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 				errorClass: "unknown",
+				errorRetryable: false,
 			},
 		]);
 	});
@@ -2333,6 +2334,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "OpenAI image generation tool returned no supported image output",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -2548,6 +2550,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Invalid API key",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -2763,6 +2766,7 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: "Invalid API key",
 				errorClass: "unknown",
+				errorRetryable: false,
 			},
 		]);
 	});
@@ -2803,6 +2807,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "prompt is too long: 213462 tokens > 200000 maximum",
 			errorClass: "context_window_exceeded",
+			errorRetryable: false,
 		});
 	});
 
@@ -2839,6 +2844,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Instructions are required",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 

@@ -21,10 +21,13 @@ const runtimeBuildId = resolveSdkRuntimeBuildId(
 
 // Keep declared runtime packages external so they are not duplicated inside each
 // bundled entrypoint and installed again from package.json.
-const external = Object.keys({
-	...(packageJson.dependencies ?? {}),
-	...(packageJson.peerDependencies ?? {}),
-});
+const external = [
+	"@cline/core/hub/daemon-entry",
+	...Object.keys({
+		...(packageJson.dependencies ?? {}),
+		...(packageJson.peerDependencies ?? {}),
+	}),
+];
 
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
@@ -47,6 +50,14 @@ const buildConfig = {
 } as const;
 
 const builds: Parameters<typeof Bun.build>[0][] = [
+	{
+		entrypoints: [
+			"./src/remote/remote-helper.ts",
+			"./src/remote/remote-helper-entry.ts",
+		],
+		outdir: "./dist/remote",
+		...buildConfig,
+	},
 	// Build main exports separately to avoid Bun bundler output path conflicts
 	{
 		entrypoints: ["./src/index.ts"],

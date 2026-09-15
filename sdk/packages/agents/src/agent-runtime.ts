@@ -2,6 +2,7 @@ import {
 	classifyProviderError,
 	createGateway,
 	type GatewayProviderSettings,
+	isRetryableProviderError,
 } from "@cline/llms";
 import type {
 	AgentAfterToolResult,
@@ -51,6 +52,22 @@ import { nanoid } from "nanoid";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
+
+/**
+ * How many times to retry a model turn that failed with a transient,
+ * provider-side error (rate limits, 5xx, network hiccups, OpenRouter's
+ * generic "Provider returned error"). The initial attempt is not counted, so
+ * a value of 3 means up to 4 total requests for one turn. Retrying only
+ * transient errors — and never auth, context-overflow, or other client errors
+ * (see {@link isRetryableProviderError}) — keeps well-behaved providers on
+ * their existing single-request path, so this does not change behavior for
+ * models whose endpoints do not throw transient errors.
+ */
+const PROVIDER_ERROR_MAX_RETRIES = 3;
+/** Base backoff before the first retry; doubled each subsequent attempt. */
+const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 1_000;
+/** Upper bound on any single backoff wait. */
+const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 15_000;
 
 /**
  * Terminal message when a context-window overflow cannot be recovered because
@@ -501,6 +518,14 @@ export class AgentRuntime {
 		lastError: undefined as string | undefined,
 		lastErrorClass: undefined as ProviderErrorClass | undefined,
 		/**
+		 * Whether the last provider failure was transient and worth retrying,
+		 * carried from the model boundary via `errorRetryable` on the `finish`
+		 * event (the AI SDK's typed `isRetryable` flag). Undefined when no such
+		 * signal was provided, in which case the agent loop classifies from the
+		 * flattened `lastError` message instead.
+		 */
+		lastErrorRetryable: undefined as boolean | undefined,
+		/**
 		 * Whether the model layer already recorded `sdk.error` telemetry for
 		 * `lastError` (from `errorReported` on the stream's `finish` event).
 		 * Custom `AgentModel` implementations that do not record their own
@@ -586,6 +611,7 @@ export class AgentRuntime {
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
 		this.state.lastErrorReported = false;
 		this.state.messages = cloneMessages(messages);
 		this.config = {
@@ -700,6 +726,7 @@ export class AgentRuntime {
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
 		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
@@ -737,8 +764,11 @@ export class AgentRuntime {
 					iteration: this.state.iteration,
 				});
 
+				// A fresh error slate per turn: nothing from a previous turn may leak
+				// into this turn's error classification or retry decision.
+				this.resetLastError();
 				const { message, finishReason } =
-					await this.generateAssistantMessageWithOverflowRecovery();
+					await this.generateAssistantMessageWithProviderRetry();
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
@@ -950,6 +980,132 @@ export class AgentRuntime {
 		for (const hook of this.hooks.afterRun) {
 			await hook({ snapshot: this.snapshot(), result });
 		}
+	}
+
+	/**
+	 * Run a model turn, retrying transient provider/API failures with backoff.
+	 *
+	 * A turn whose model stream fails with a retryable provider error (rate
+	 * limit, 5xx, network hiccup, or OpenRouter's generic "Provider returned
+	 * error") is re-issued up to {@link PROVIDER_ERROR_MAX_RETRIES} times, with
+	 * exponential backoff between attempts, before the error is allowed to
+	 * propagate and end the run. Non-retryable errors (auth, context-window
+	 * overflow, other client errors) and any attempt that already produced
+	 * visible output or provider tool activity are returned unchanged for the
+	 * caller to handle, so this only adds
+	 * resilience and never changes behavior for a turn that would otherwise
+	 * succeed. Context-window overflow recovery still runs inside each attempt.
+	 */
+	private async generateAssistantMessageWithProviderRetry(): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}> {
+		let attempt = 0;
+		for (;;) {
+			const turn = await this.generateAssistantMessageWithOverflowRecovery();
+			if (
+				attempt >= PROVIDER_ERROR_MAX_RETRIES ||
+				!this.isRetryableProviderErrorTurn(turn)
+			) {
+				return turn;
+			}
+			attempt += 1;
+			const providerError = this.state.lastError;
+			// The failed attempt's error is captured for the notice above; clear it
+			// so the next attempt's finish event is judged on its own.
+			this.resetLastError();
+			const delayMs = Math.min(
+				PROVIDER_ERROR_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+				PROVIDER_ERROR_RETRY_MAX_DELAY_MS,
+			);
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message: `provider error — retrying (attempt ${attempt}/${PROVIDER_ERROR_MAX_RETRIES})`,
+				metadata: {
+					kind: "provider_error_retry",
+					reason: "provider_error_retry",
+					phase: "started",
+					iteration: this.state.iteration,
+					attempt,
+					maxRetries: PROVIDER_ERROR_MAX_RETRIES,
+					delayMs,
+					providerError,
+				},
+			});
+			await this.abortableDelay(delayMs);
+		}
+	}
+
+	/**
+	 * True when a turn failed with a transient provider error that a retry
+	 * could plausibly recover, and the failed attempt left nothing behind that
+	 * a second stream would duplicate or repeat:
+	 * - no content at all (text, reasoning, media, or local tool calls): those
+	 *   deltas were already emitted to the UI and there is no event to retract
+	 *   them, so re-streaming would show the output twice;
+	 * - no provider-executed tool activity (recorded in message metadata, not
+	 *   content): re-issuing the request could run those side effects again;
+	 * - not an auth or context-window failure, which the same request cannot fix.
+	 */
+	private isRetryableProviderErrorTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (turn.finishReason !== "error") {
+			return false;
+		}
+		if (turn.message.content.length > 0) {
+			return false;
+		}
+		const modelToolActivities = turn.message.metadata?.modelToolActivities;
+		if (Array.isArray(modelToolActivities) && modelToolActivities.length > 0) {
+			return false;
+		}
+		const errorClass = this.state.lastErrorClass;
+		if (errorClass === "auth" || errorClass === "context_window_exceeded") {
+			return false;
+		}
+		// Set from the model boundary's typed `isRetryable` flag when available,
+		// otherwise classified from the flattened message in the finish handler.
+		return this.state.lastErrorRetryable === true;
+	}
+
+	/**
+	 * Clear the last-error fields. Called at the start of every turn and before
+	 * every provider-error retry, so a `finish` event that omits `error` (allowed
+	 * by the public AgentModel contract) cannot inherit the class or retryability
+	 * of an earlier attempt. Deliberately not called inside overflow recovery,
+	 * whose "nothing to compact" error reports the first attempt's provider
+	 * message.
+	 */
+	private resetLastError(): void {
+		this.state.lastError = undefined;
+		this.state.lastErrorClass = undefined;
+		this.state.lastErrorRetryable = undefined;
+		this.state.lastErrorReported = false;
+	}
+
+	/**
+	 * Sleep for `ms`, rejecting early with the abort error if the run is
+	 * aborted while waiting, so a retry backoff never blocks cancellation.
+	 */
+	private async abortableDelay(ms: number): Promise<void> {
+		this.throwIfAborted();
+		const signal = this.abortController?.signal;
+		await new Promise<void>((resolve, reject) => {
+			const onAbort = () => {
+				clearTimeout(timer);
+				reject(this.normalizeAbortError());
+			};
+			const timer = setTimeout(() => {
+				signal?.removeEventListener("abort", onAbort);
+				resolve();
+			}, ms);
+			if (signal) {
+				signal.addEventListener("abort", onAbort, { once: true });
+			}
+		});
 	}
 
 	/**
@@ -1309,6 +1465,11 @@ export class AgentRuntime {
 						// stays eligible for overflow recovery.
 						this.state.lastErrorClass =
 							event.errorClass ?? classifyProviderError(event.error);
+						// Prefer the boundary's typed `isRetryable` signal; fall back to
+						// classifying the flattened message for models that do not carry
+						// it.
+						this.state.lastErrorRetryable =
+							event.errorRetryable ?? isRetryableProviderError(event.error);
 						this.state.lastErrorReported = event.errorReported === true;
 					}
 					break;

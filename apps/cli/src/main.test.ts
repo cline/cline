@@ -793,6 +793,9 @@ describe("runCli lightweight command dispatch", () => {
 		const notice = {
 			id: "cline-cli-cline-pass-intro",
 			title: "Try ClinePass",
+			body: "ClinePass body",
+			url: "https://app.cline.bot/dashboard/subscription?personal=true",
+			openLabel: "Open ClinePass",
 		};
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(notice);
 		process.argv = ["bun", "src/index.ts"];
@@ -816,7 +819,7 @@ describe("runCli lightweight command dispatch", () => {
 		await options?.onInitialNoticeShown?.(notice);
 		expect(
 			migrationNoticeMocks.markClineCliMigrationNoticeShown,
-		).toHaveBeenCalledTimes(1);
+		).toHaveBeenCalledWith(undefined, notice.id);
 	});
 
 	it("passes the active ClinePass provider into the migration notice gate", async () => {
@@ -1177,6 +1180,9 @@ describe("runCli lightweight command dispatch", () => {
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue({
 			id: "cline-cli-cline-pass-intro",
 			title: "Try ClinePass",
+			body: "ClinePass body",
+			url: "https://app.cline.bot/dashboard/subscription?personal=true",
+			openLabel: "Open ClinePass",
 		});
 		process.argv = ["bun", "src/index.ts", "history"];
 
