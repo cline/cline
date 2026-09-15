@@ -3,6 +3,7 @@ import {
 	filterWorkspacePaths,
 	isAbsoluteFilePath,
 	isExcludedWorkspacePath,
+	isTaskWorktreePath,
 	looksLikeFolderPath,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
@@ -162,6 +163,20 @@ describe("workspace paths", () => {
 		expect(
 			isExcludedWorkspacePath("C:\\Users\\Saoud\\.cline\\worktrees\\abc"),
 		).toBe(true);
+	});
+
+	it("recognizes task worktrees created under .cline/worktrees", () => {
+		expect(
+			isTaskWorktreePath("/Users/beatrix/.cline/worktrees/5e0b3/sdk-wip"),
+		).toBe(true);
+		expect(
+			isTaskWorktreePath("C:\\Users\\Saoud\\.cline\\worktrees\\abc12\\app\\"),
+		).toBe(true);
+		expect(isTaskWorktreePath("/Users/beatrix/projects/sdk-wip")).toBe(false);
+		expect(
+			isTaskWorktreePath("/Users/beatrix/.cline/data/workspaces/chat"),
+		).toBe(false);
+		expect(isTaskWorktreePath("")).toBe(false);
 	});
 
 	it("excludes the SDK chat workspace from discovery and stored selections", () => {
