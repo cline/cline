@@ -740,15 +740,26 @@ export function useChatSession() {
 						...Object.values(liveToolMessageIdsRef.current),
 					])
 				: undefined;
+			// React may replay the updater; each pass needs the same optimistic ownership.
+			const optimisticStates = new Map(cloudOptimisticStatesRef.current);
 			setMessages((current) => {
+				const unmatchedOptimisticStates = new Map(optimisticStates);
 				const merged = mergeCloudSnapshotWithLive(options.messages, current, {
 					sessionId: options.sessionId,
 					transcriptKnown,
 					previousUserIds,
-					optimisticStates: cloudOptimisticStatesRef.current,
+					optimisticStates: unmatchedOptimisticStates,
 					preserveUnmatchedLive: options.preserveUnmatchedLive,
 					preserveLiveMessageIds: preservedMessageIds,
 				});
+				for (const [id, state] of optimisticStates) {
+					if (
+						!unmatchedOptimisticStates.has(id) &&
+						cloudOptimisticStatesRef.current.get(id) === state
+					) {
+						cloudOptimisticStatesRef.current.delete(id);
+					}
+				}
 				if (options.preserveLiveRouting) {
 					const liveToolState = deriveLiveToolState(merged);
 					liveToolMessageIdsRef.current = liveToolState.messageIds;
@@ -3325,9 +3336,11 @@ export function useChatSession() {
 				}
 				finishPromptSubmission();
 				if (
-					abortedReconcileEpoch !== undefined &&
 					activeSessionIdRef.current === activeSessionId &&
-					turnEpochRef.current === abortedReconcileEpoch
+					((abortedReconcileEpoch !== undefined &&
+						turnEpochRef.current === abortedReconcileEpoch) ||
+						(turnEpochRef.current !== turnEpochAtDispatch &&
+							turnEpochRef.current === turnSettledEpochRef.current))
 				) {
 					finalizeSettledTurn(activeSessionId);
 				}
