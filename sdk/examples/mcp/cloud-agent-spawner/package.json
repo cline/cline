@@ -1,0 +1,34 @@
+{
+	"name": "@cline/example-mcp-cloud-agent-spawner",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"bin": {
+		"cline-cloud-agent-mcp": "./build/cli.js"
+	},
+	"files": [
+		"build",
+		"README.md"
+	],
+	"exports": {
+		".": "./server.ts",
+		"./cloud-agent": "./cloud-agent.ts"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"start": "node build/cli.js",
+		"dev": "bun run server.ts",
+		"test": "bun test",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@cline/core": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"@modelcontextprotocol/sdk": "^1.30.0",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.14",
+		"typescript": "^5.7.3"
+	}
+}
