@@ -9,7 +9,10 @@ import {
 	getCachedClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "../llms/cline-recommended-models";
-import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
+import {
+	clearLiveModelsCatalogCache,
+	clearPrivateModelsCatalogCache,
+} from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -62,10 +65,118 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	clearPrivateModelsCatalogCache();
 	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+});
+
+describe("live provider model loading", () => {
+	it.each([
+		["baseten", "https://inference.baseten.co/v1/models"],
+		["hicap", "https://api.hicap.ai/v2/openai/models"],
+		["poolside", "https://private.example/v1/models"],
+	])("uses only endpoint discovery for %s", async (providerId, endpoint) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ data: [{ id: "deployment-model" }] }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const result = await getLocalProviderModels(providerId, {
+			providerId,
+			modelId: "deployment-model",
+			apiKey: "private-key",
+			baseUrl: "https://private.example/v1",
+		});
+		expect(result.models.some((model) => model.id === "deployment-model")).toBe(
+			true,
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledWith(endpoint, expect.any(Object));
+	});
+
+	it.each([
+		"baseten",
+		"hicap",
+		"poolside",
+		"litellm",
+	])("does not fetch public models for unconfigured %s", async (providerId) => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		await getLocalProviderModels(providerId);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("shares one live fetch across providers and reuses it on subsequent loads", async () => {
+		const providerIds = ["opencode", "opencode-go", "anthropic", "openai"];
+		const fetchMock = vi.fn(async (url: string) =>
+			Response.json(
+				url.includes("models.dev")
+					? Object.fromEntries(
+							providerIds.map((id) => [
+								id,
+								{
+									npm: "@ai-sdk/openai-compatible",
+									models: {
+										"live-only-model": { name: "Live model", tool_call: true },
+									},
+								},
+							]),
+						)
+					: {},
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const results = await Promise.all(
+			providerIds.map((id) =>
+				getLocalProviderModels(id === "openai" ? "openai-native" : id),
+			),
+		);
+		for (const result of results) {
+			expect(result.models).toContainEqual(
+				expect.objectContaining({ id: "live-only-model", name: "Live model" }),
+			);
+			expect(result.models.length).toBeGreaterThan(1);
+		}
+		await getLocalProviderModels("opencode");
+		expect(
+			fetchMock.mock.calls.filter(([url]) => url.includes("models.dev")),
+		).toHaveLength(1);
+		// One shared models.dev request plus the Cline recommendation feed.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps explicit model overrides above live metadata", async () => {
+		LlmsModels.registerModel("opencode", "live-model", {
+			id: "live-model",
+			name: "Custom name",
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					opencode: {
+						models: {
+							"live-model": { name: "Live name", tool_call: true },
+						},
+					},
+				}),
+			),
+		);
+		const result = await getLocalProviderModels("opencode");
+		expect(result.models.find((model) => model.id === "live-model")?.name).toBe(
+			"Custom name",
+		);
+	});
+
+	it("keeps the bundled catalog available when offline", async () => {
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+		const bundled = await LlmsModels.getModelsForProvider("opencode");
+		const result = await getLocalProviderModels("opencode");
+		expect(result.models.map((model) => model.id)).toEqual(
+			Object.keys(bundled).sort(),
+		);
+	});
 });
 
 describe("models registry parsing", () => {
@@ -554,6 +665,51 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			name: "Live Free Model (free)",
 			supportsReasoning: true,
 		});
+	});
+
+	it("adds live Cline Cloud models to the Cline provider", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(JSON.stringify({}), { status: 200 });
+			}
+
+			return new Response(
+				JSON.stringify({
+					free: [
+						{
+							id: "cline-free/live-free-model",
+							name: "Live Free Model",
+						},
+					],
+					clineCloud: [
+						{
+							id: "cline-cloud/claude-sonnet-4.6",
+							name: "Claude Sonnet 4.6",
+						},
+					],
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline", undefined, {
+			loadLatest: true,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-cloud/claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+			}),
+		);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-free/live-free-model",
+				featured: expect.objectContaining({ tier: "free" }),
+			}),
+		);
 	});
 
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
@@ -1904,6 +2060,47 @@ describe("listLocalProviders", () => {
 		});
 	});
 
+	it("enables ClinePass from a Cline sign-in that never wrote a ClinePass entry", async () => {
+		// Desktop onboarding signs in as "cline" only; the shared credentials
+		// make ClinePass usable, so it must surface as enabled without its own
+		// providers.json entry.
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(manager.read().providers["cline-pass"]).toBeUndefined();
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			configured: true,
+			oauthAccessTokenPresent: true,
+		});
+	});
+
+	it("keeps ClinePass disabled when Cline has no entry", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass?.enabled).toBe(false);
+	});
+
 	it("exposes model count", async () => {
 		await addLocalProvider(manager, {
 			providerId: "count-provider",
@@ -2152,6 +2349,7 @@ describe("refreshProviderModelsFromSource", () => {
 			"http://tailscale-host:11434/api/tags",
 			{
 				method: "GET",
+				signal: expect.any(AbortSignal),
 			},
 		);
 		const modelsState = await readModelsFile(

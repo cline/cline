@@ -355,6 +355,11 @@ export interface RestoreSessionResult {
 	checkpoint: CheckpointEntry;
 }
 
+export interface ListSessionsOptions {
+	/** Only root sessions: excludes subagent and team-task child rows. */
+	rootOnly?: boolean;
+}
+
 /**
  * RuntimeHost is the transport/runtime boundary for core session execution.
  * Callers must normalize broad local config into `RuntimeSessionConfig`
@@ -369,7 +374,10 @@ export interface RuntimeHost {
 	stopSession(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
 	getSession(sessionId: string): Promise<SessionRecord | undefined>;
-	listSessions(limit?: number): Promise<SessionRecord[]>;
+	listSessions(
+		limit?: number,
+		options?: ListSessionsOptions,
+	): Promise<SessionRecord[]>;
 	deleteSession(sessionId: string): Promise<boolean>;
 	updateSession(
 		sessionId: string,
@@ -406,6 +414,12 @@ export interface RuntimeHost {
 		listener: (event: CoreSessionEvent) => void,
 		options?: RuntimeHostSubscribeOptions,
 	): () => void;
+	/**
+	 * Whether this host currently holds a live-event subscription for the
+	 * session. Optional: only hosts that subscribe to sessions individually
+	 * (e.g. hub clients) have anything to report.
+	 */
+	hasSessionSubscription?(sessionId: string): boolean;
 }
 
 export type RuntimeHostMode = "auto" | "local" | "hub" | "remote";

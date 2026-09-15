@@ -851,7 +851,7 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             use objc2_app_kit::{NSApplication, NSImage};
             use objc2_foundation::NSString;
 
-            let result = (|| {
+            let result: Result<(), String> = (|| {
                 let mtm = MainThreadMarker::new().ok_or_else(|| {
                     "app icon update did not run on the main thread".to_string()
                 })?;

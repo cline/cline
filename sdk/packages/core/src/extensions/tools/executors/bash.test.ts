@@ -951,6 +951,24 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		);
 
 		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`unwraps a redundant nested ${shell} -Command instead of interpolating it`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				const nestedExe = shell === "powershell.exe" ? "powershell" : "pwsh";
+				const output = await executor(
+					`${nestedExe} -NoProfile -Command "'a.ps1','b.txt' | Where-Object { $_ -match '\\.ps1$' }"`,
+					process.cwd(),
+					ctx,
+				);
+				// Before the unwrap, the stdin bootstrap parsed this as outer
+				// PowerShell source and interpolated $_ away, so the nested shell
+				// received `{ -match '\.ps1$' }` and failed with a parse error
+				// instead of filtering the list (GitHub #13284).
+				expect(output.trim()).toBe("a.ps1");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
 			`reports a failed final native command through ${shell}`,
 			async () => {
 				const executor = createShellExecutor({ shell });
@@ -1053,17 +1071,22 @@ describe("createShellExecutor with inherited stdio", () => {
 			? "C:\\Program Files\\Git\\bin\\bash.exe"
 			: "/bin/bash";
 	const hasBashShell = existsSync(bashShell);
+	// The command budget only has to stay under Vitest's testTimeout; the
+	// exit-grace path settles ~1s after the shell exits regardless. A cold
+	// Git Bash start on the 2-core Windows runner can take several seconds,
+	// so a tight budget times out before the grace timer ever fires.
+	const commandTimeoutMs = 15_000;
 
 	it.runIf(hasBashShell)(
 		"completes when a background child keeps the stdio pipes open after the shell exits",
 		async () => {
 			const executor = createShellExecutor({
 				shell: bashShell,
-				timeoutMs: 5_000,
+				timeoutMs: commandTimeoutMs,
 			});
-			// sleep outlives the 5s timeout, so without exit-grace completion
+			// sleep outlives the timeout, so without exit-grace completion
 			// this command times out instead of returning the echo output.
-			const output = await executor("sleep 8 & echo done", process.cwd(), ctx);
+			const output = await executor("sleep 30 & echo done", process.cwd(), ctx);
 			expect(output).toContain("done");
 			expect(output).toContain("background processes still running");
 		},
@@ -1074,11 +1097,11 @@ describe("createShellExecutor with inherited stdio", () => {
 		async () => {
 			const executor = createShellExecutor({
 				shell: bashShell,
-				timeoutMs: 5_000,
+				timeoutMs: commandTimeoutMs,
 			});
 			let error: unknown;
 			try {
-				await executor("sleep 8 & echo oops; exit 3", process.cwd(), ctx);
+				await executor("sleep 30 & echo oops; exit 3", process.cwd(), ctx);
 			} catch (caught) {
 				error = caught;
 			}

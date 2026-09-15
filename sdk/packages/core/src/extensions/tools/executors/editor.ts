@@ -247,8 +247,13 @@ export function createEditorExecutor(
 			return createFile(filePath, input.new_text, encoding);
 		}
 		if (input.old_text == null) {
+			// Models that fill optional params with null hit this repeatedly and
+			// tend to re-send the identical call; spell out the recovery so the
+			// next call differs.
 			throw new Error(
-				"Parameter `old_text` is required when editing an existing file without `insert_line`",
+				`${filePath} already exists, but \`old_text\` was ${
+					input.old_text === null ? "null" : "omitted"
+				}. To edit an existing file, set \`old_text\` to the exact text in the file that \`new_text\` should replace (read the file first if needed). To insert instead, provide \`insert_line\`. Do not re-send this call unchanged.`,
 			);
 		}
 

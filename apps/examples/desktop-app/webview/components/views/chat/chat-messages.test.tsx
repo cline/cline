@@ -134,7 +134,7 @@ describe("ChatMessages tool disclosures", () => {
 			}),
 			createdAt: 1,
 		};
-		await renderMessages([pendingTool]);
+		await renderMessages([pendingTool], { status: "running" });
 
 		const pendingTitle = container.querySelector(
 			".cline-chat-tool-label > span",
@@ -160,6 +160,93 @@ describe("ChatMessages tool disclosures", () => {
 		expect(
 			completedTitle?.classList.contains("cline-chat-streaming-title"),
 		).toBe(false);
+	});
+
+	it.each([
+		"cancelled",
+		"failed",
+		"completed",
+		"idle",
+	] as const)("stops animating missing tool results when the run is %s, including on reopen", async (status) => {
+		const tool: ChatMessage = {
+			id: "unfinished",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "read_files", hookEventName: "tool_call_start" },
+		};
+		const snapshot = JSON.stringify(tool);
+		await renderMessages([tool], { status: "running" });
+		expect(
+			container.querySelector(".cline-chat-streaming-title"),
+		).not.toBeNull();
+		await renderMessages([tool], { status });
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		expect(JSON.stringify(tool)).toBe(snapshot);
+		await renderMessages(
+			[{ ...tool, meta: { ...tool.meta, hookEventName: "history_tool_use" } }],
+			{ status },
+		);
+		expect(container.querySelector(".cline-chat-streaming-title")).toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		// A later turn must not reactivate the old unfinished tool.
+		await renderMessages(
+			[
+				tool,
+				{
+					id: "next-turn",
+					sessionId: "session-1",
+					role: "user",
+					content: "Continue",
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+	});
+
+	it("keeps late results renderable after an inactive status", async () => {
+		const tool: ChatMessage = {
+			id: "late-result",
+			sessionId: "session-1",
+			role: "tool",
+			createdAt: 1,
+			content: JSON.stringify({
+				toolName: "custom_tool",
+				input: { paths: ["pending.ts"] },
+				result: null,
+			}),
+			meta: { toolName: "custom_tool", hookEventName: "history_tool_use" },
+		};
+		await renderMessages([tool], { status: "completed" });
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		await renderMessages([tool], { status: "running" });
+		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
+		await renderMessages(
+			[
+				{
+					...tool,
+					content: JSON.stringify({
+						toolName: "custom_tool",
+						input: { paths: ["pending.ts"] },
+						result: "Actual late result",
+					}),
+					meta: { ...tool.meta, hookEventName: "tool_call_end" },
+				},
+			],
+			{ status: "running" },
+		);
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		const trigger = container.querySelector("button.cline-chat-tool-trigger");
+		await act(async () => (trigger as HTMLButtonElement).click());
+		expect(container.textContent).toContain("Actual late result");
 	});
 
 	it("exposes and toggles expandable tool details", async () => {
@@ -2116,5 +2203,94 @@ describe("ChatMessages tool approvals", () => {
 
 		await act(async () => reject?.click());
 		expect(onReject).toHaveBeenCalledWith("req-1");
+	});
+
+	it("leads an imported transcript with a notice naming the source tool", async () => {
+		const messages: ChatMessage[] = [
+			{
+				id: "user-1",
+				sessionId: "session-1",
+				role: "user",
+				content: "imported prompt",
+				createdAt: 1,
+			},
+		];
+		await renderMessages(messages, { importedFromTool: "claude-code" });
+
+		const notice = container.querySelector("output");
+		expect(notice?.textContent).toContain("Imported from Claude Code");
+		expect(notice?.parentElement?.firstElementChild).toBe(notice);
+		expect(notice?.parentElement?.textContent).toContain("imported prompt");
+
+		await renderMessages(messages);
+		expect(container.querySelector("output")).toBeNull();
+	});
+});
+
+describe("ChatMessages credential failures", () => {
+	const failure: ChatMessage = {
+		id: "error-1",
+		sessionId: "session-1",
+		role: "error",
+		content:
+			"The run failed: cline requires re-authentication. Sign in to Cline again in Settings → Account, then try again.",
+		createdAt: 2,
+		meta: { reason: "credentials", providerId: "cline" },
+	};
+
+	it("offers a sign-in action inside the failure bubble and shows the failure once", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages([failure], {
+			error: failure.content,
+			onFixCredentials,
+			status: "failed",
+		});
+
+		const bubble = container.querySelector(
+			'.cline-chat-message[data-role="error"]',
+		);
+		expect(bubble?.textContent).toContain("cline requires re-authentication");
+		// The hook's error state mirrors the bubble, so no second banner.
+		expect(
+			container.textContent?.split("requires re-authentication"),
+		).toHaveLength(2);
+
+		const action = [...(bubble?.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Sign in to Cline",
+		);
+		expect(action).toBeDefined();
+		await act(async () => action?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("account");
+	});
+
+	it("points other providers at model settings and skips local-auth providers", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages(
+			[
+				{
+					...failure,
+					id: "error-anthropic",
+					meta: { reason: "credentials", providerId: "anthropic" },
+				},
+				{
+					...failure,
+					id: "error-claude-code",
+					createdAt: 3,
+					meta: { reason: "credentials", providerId: "claude-code" },
+				},
+			],
+			{ onFixCredentials, status: "failed" },
+		);
+
+		const buttons = [...container.querySelectorAll("button")].filter(
+			(button) =>
+				button.textContent === "Open API providers" ||
+				button.textContent === "Sign in to Cline",
+		);
+		expect(buttons.map((button) => button.textContent)).toEqual([
+			"Open API providers",
+		]);
+		await act(async () => buttons[0]?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });
