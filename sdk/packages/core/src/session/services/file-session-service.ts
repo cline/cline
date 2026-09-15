@@ -48,6 +48,14 @@ function atomicWriteJson(path: string, value: unknown): void {
 }
 
 class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
+	async recordAgentActivity(sessionId: string, at: number): Promise<void> {
+		const index = this.readIndex();
+		const row = index.sessions[sessionId];
+		if (!row) return;
+		row.lastAgentActivityAt = Math.max(row.lastAgentActivityAt ?? 0, at);
+		this.writeIndex(index);
+	}
+
 	constructor(
 		private readonly sessionsDirPath: string = resolveSessionDataDir(),
 	) {}
@@ -113,7 +121,11 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 	async upsertSession(row: SessionRow): Promise<void> {
 		const index = this.readIndex();
-		index.sessions[row.sessionId] = row;
+		index.sessions[row.sessionId] = {
+			...row,
+			lastAgentActivityAt:
+				index.sessions[row.sessionId]?.lastAgentActivityAt ?? null,
+		};
 		this.writeIndex(index);
 	}
 

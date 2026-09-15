@@ -223,6 +223,8 @@ export interface SessionRecord {
 	cwd?: string;
 	createdAt: number;
 	updatedAt: number;
+	/** Observed agent progress, including maintenance. Not a sandbox idle/deletion signal. */
+	lastAgentActivityAt?: number | null;
 	createdByClientId: string;
 	assignedSpokeId?: string;
 	status: HubRuntimeStatus;

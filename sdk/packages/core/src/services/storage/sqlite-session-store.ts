@@ -87,8 +87,9 @@ export class SqliteSessionStore implements SessionStore {
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				metadata_json, transcript_path, hook_path, messages_path, updated_at, last_agent_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				(SELECT last_agent_activity_at FROM sessions WHERE session_id = ?))`,
 			[
 				record.sessionId,
 				record.source,
@@ -118,6 +119,7 @@ export class SqliteSessionStore implements SessionStore {
 				record.hookPath ?? "",
 				record.messagesPath ?? null,
 				now,
+				record.sessionId,
 			],
 		);
 	}
@@ -194,7 +196,7 @@ export class SqliteSessionStore implements SessionStore {
 				provider, model, cwd, workspace_root, team_name,
 				enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent,
-				prompt, metadata_json, hook_path, messages_path, updated_at
+				prompt, metadata_json, hook_path, messages_path, updated_at, last_agent_activity_at
 			 FROM sessions WHERE session_id = ?`,
 			[sessionId],
 		);
@@ -242,6 +244,8 @@ export class SqliteSessionStore implements SessionStore {
 			hookPath: asOptionalString(row.hook_path),
 			messagesPath: asOptionalString(row.messages_path),
 			updatedAt: asOptionalString(row.updated_at) ?? nowIso(),
+			lastAgentActivityAt:
+				(row.last_agent_activity_at as number | null) ?? null,
 		};
 	}
 

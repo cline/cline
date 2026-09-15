@@ -31,6 +31,7 @@ export interface SessionRow {
 	hookPath?: string;
 	messagesPath?: string | null;
 	updatedAt: string;
+	lastAgentActivityAt?: number | null;
 }
 
 export interface CreateRootSessionInput {
@@ -127,7 +128,8 @@ export const SESSION_SELECT_COLUMNS = `
 	metadata_json  AS metadata,
 	hook_path       AS hookPath,
 	messages_path   AS messagesPath,
-	updated_at      AS updatedAt`;
+	updated_at      AS updatedAt,
+	last_agent_activity_at AS lastAgentActivityAt`;
 
 export function patchSqliteRow(raw: Record<string, unknown>): SessionRow {
 	raw.interactive = raw.interactive === 1;

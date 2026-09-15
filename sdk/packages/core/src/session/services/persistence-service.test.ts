@@ -30,6 +30,64 @@ describe("UnifiedSessionPersistenceService", () => {
 	const stores: Array<SqliteSessionStore> = [];
 	const sqliteIt = sqliteAvailable ? it : it.skip;
 
+	for (const backend of ["file", "sqlite"] as const) {
+		(backend === "sqlite" ? sqliteIt : it)(
+			`${backend}: activity survives reopen and row replacement without changing status or metadata`,
+			async () => {
+				const dir = mkdtempSync(join(tmpdir(), "agent-activity-"));
+				tempDirs.push(dir);
+				const store =
+					backend === "sqlite"
+						? new SqliteSessionStore({ sessionsDir: dir })
+						: undefined;
+				if (store) {
+					stores.push(store);
+					store.init();
+					store.run("ALTER TABLE sessions DROP COLUMN last_agent_activity_at");
+					store.close();
+				}
+				const open = () =>
+					store
+						? new CoreSessionService(store, { sessionArtifactsDir: dir })
+						: new FileSessionService(dir);
+				const service = open();
+				const input = {
+					sessionId: "activity-session",
+					source: SessionSource.CLI,
+					pid: process.pid,
+					interactive: true,
+					provider: "mock",
+					model: "mock",
+					cwd: dir,
+					workspaceRoot: dir,
+					enableTools: false,
+					enableSpawn: false,
+					enableTeams: false,
+				};
+				await service.createRootSessionWithArtifacts(input);
+				const original = (await service.listSessions())[0];
+				expect(original?.lastAgentActivityAt).toBeNull();
+				await service.recordAgentActivity(input.sessionId, 2_000);
+				await service.recordAgentActivity(input.sessionId, 1_000);
+				expect((await service.listSessions())[0]).toEqual({
+					...original,
+					lastAgentActivityAt: 2_000,
+				});
+				await service.updateSession({
+					sessionId: input.sessionId,
+					metadata: { title: "renamed" },
+				});
+				await service.createRootSessionWithArtifacts(input);
+				store?.close();
+				if (store)
+					expect(store.get(input.sessionId)?.lastAgentActivityAt).toBe(2_000);
+				expect((await open().listSessions())[0]?.lastAgentActivityAt).toBe(
+					2_000,
+				);
+			},
+		);
+	}
+
 	afterEach(() => {
 		for (const store of stores.splice(0)) {
 			store.close();

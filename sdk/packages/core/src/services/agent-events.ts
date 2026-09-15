@@ -188,6 +188,7 @@ export function handleAgentEvent(
 	overrides?: AgentTelemetryContextOverrides,
 ): void {
 	const { sessionId, config, liveSession, emit } = ctx;
+	liveSession?.activity?.observe(event);
 	const telemetry = config.telemetry;
 	const teamRuntime = liveSession?.runtime.teamRuntime;
 	const isPrimaryAgentEvent = overrides?.isPrimaryAgentEvent ?? true;

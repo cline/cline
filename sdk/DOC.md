@@ -1,4 +1,19 @@
 
+## Session activity
+
+Hub `session.get` and session-list records expose optional `lastAgentActivityAt`
+(Unix milliseconds, `null` when no qualifying activity has been recorded).
+An absent field means the runtime does not report this signal. Client attachment,
+polling, metadata edits, approval waiting, and synthetic heartbeats do not advance
+it. Actual model/tool progress does, including automatic maintenance and child
+events attributed to the session. Queued input alone does not count.
+
+It is **not** sandbox idle duration or permission to delete a sandbox. Silent
+long-running tools and detached processes produce no fresh timestamp without
+progress events. Other root sessions, including scheduled work, must be considered
+separately. Persistence is coalesced for up to 60 seconds and flushed on completion
+and shutdown; abrupt crashes can lose that window. No expiry behavior changes.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH

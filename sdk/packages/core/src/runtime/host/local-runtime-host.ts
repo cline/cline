@@ -111,6 +111,7 @@ import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
+import { SessionActivity } from "./local/session-activity";
 import {
 	type SessionBackend,
 	toActiveSessionRecord,
@@ -935,6 +936,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 			lastInteractiveTurnFinishReason: undefined,
 		};
 		activeSessionRef = active;
+		active.activity = new SessionActivity(
+			resumedArtifacts
+				? ((await this.getRow(sessionId))?.lastAgentActivityAt ?? null)
+				: null,
+			(at) => this.invokeOptional("recordAgentActivity", sessionId, at),
+			(error) =>
+				(active.config.logger ?? this.defaultLogger)?.error?.(
+					"Failed to persist agent activity",
+					{ sessionId, error },
+				),
+		);
 		if (
 			active.compactionState &&
 			!this.isCompactionStateForSession(
@@ -1279,7 +1291,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		options: ListSessionsOptions = {},
 	): Promise<SessionRecord[]> {
 		const rows = await this.listRows(limit, options);
-		const persisted = rows.map(toSessionRecord);
+		const persisted: SessionRecord[] = rows.map((row) => ({
+			...toSessionRecord(row),
+			lastAgentActivityAt:
+				this.sessions.get(row.sessionId)?.activity?.lastAgentActivityAt ??
+				row.lastAgentActivityAt ??
+				null,
+		}));
 		const seen = new Set(persisted.map((row) => row.sessionId));
 		for (const active of this.sessions.values()) {
 			if (seen.has(active.sessionId)) {
@@ -1784,6 +1802,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 			return result;
 		} finally {
+			await session.activity?.flush();
 			await this.refreshActiveSessionGitMetadata(session);
 		}
 	}
@@ -2375,6 +2394,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
+		await session.activity?.flush();
 		this.sessions.delete(session.sessionId);
 		this.emit({
 			type: "ended",
@@ -2452,6 +2472,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		} catch (error) {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
+		await session.activity?.flush();
 		this.sessions.delete(session.sessionId);
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];

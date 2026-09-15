@@ -219,6 +219,7 @@ export function toSessionRecord(row: SessionRow): SessionRecord {
 		metadata: row.metadata ?? undefined,
 		messagesPath: row.messagesPath ?? undefined,
 		updatedAt: row.updatedAt,
+		lastAgentActivityAt: row.lastAgentActivityAt ?? null,
 	};
 }
 

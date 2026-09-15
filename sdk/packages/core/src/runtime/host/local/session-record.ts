@@ -48,5 +48,6 @@ export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		metadata: session.sessionMetadata,
 		messagesPath: session.artifacts?.messagesPath,
 		updatedAt: session.updatedAt ?? session.endedAt ?? session.startedAt,
+		lastAgentActivityAt: session.activity?.lastAgentActivityAt ?? null,
 	};
 }

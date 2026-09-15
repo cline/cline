@@ -71,6 +71,31 @@ function agentDoneEvents(events: unknown[]) {
 }
 
 describe("HubRuntimeHost", () => {
+	it.each([
+		undefined,
+		null,
+		1_234,
+	])("preserves the Hub activity value %s, including older Hub absence", async (lastAgentActivityAt) => {
+		commandMock.mockResolvedValue({
+			ok: true,
+			payload: {
+				session: {
+					sessionId: "activity",
+					workspaceRoot: "/tmp/project",
+					createdAt: 0,
+					updatedAt: 0,
+					status: "idle",
+					lastAgentActivityAt,
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		expect((await host.getSession("activity"))?.lastAgentActivityAt).toBe(
+			lastAgentActivityAt,
+		);
+	});
+
 	afterEach(() => {
 		commandMock.mockReset();
 		subscribeMock.mockReset();

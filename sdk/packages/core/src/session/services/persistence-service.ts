@@ -41,6 +41,10 @@ export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 const OCC_MAX_RETRIES = 4;
 
 export class UnifiedSessionPersistenceService {
+	async recordAgentActivity(sessionId: string, at: number): Promise<void> {
+		await this.adapter.recordAgentActivity?.(sessionId, at);
+	}
+
 	private readonly manifestStore: SessionManifestStore;
 	private readonly teamChildren: TeamChildSessionManager;
 	private static readonly STALE_REASON = "failed_external_process_exit";

@@ -28,6 +28,7 @@ import {
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
+import { toHubSessionRecord } from "../../hub/server/hub-session-records";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import {
@@ -218,6 +219,93 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("reports live activity, flushes at turn end/shutdown, and restores it without client activity", async () => {
+		const dir = join(isolatedHomeDir, "activity-sessions");
+		let emit: AgentConfig["onEvent"];
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const agent = {
+			run: async () => {
+				emit?.({ type: "iteration_start", iteration: 1 });
+				expect(
+					(await manager.getSession("activity"))?.lastAgentActivityAt,
+				).toBe(1_000);
+				return createResult();
+			},
+			getMessages: () => [],
+			getAgentId: () => "root",
+			getConversationId: () => "conversation",
+			canStartRun: () => true,
+			shutdown: async () => {},
+			abort: () => {},
+			subscribeEvents: () => () => {},
+		};
+		const options = {
+			distinctId,
+			sessionService: new FileSessionService(dir),
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: async () => {} }),
+			} as never,
+			createAgent: (config: AgentConfig) => {
+				emit = config.onEvent;
+				return agent as never;
+			},
+		};
+		const manager = new RuntimeHostUnderTest(options);
+		const reader = new RuntimeHostUnderTest({
+			...options,
+			sessionService: new FileSessionService(dir),
+		});
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId: "activity", cwd: isolatedHomeDir }),
+					interactive: true,
+				}),
+			);
+			expect(
+				(await manager.getSession("activity"))?.lastAgentActivityAt,
+			).toBeNull();
+			await manager.runTurn({
+				sessionId: "activity",
+				prompt: "work without a viewer",
+			});
+			expect((await reader.getSession("activity"))?.lastAgentActivityAt).toBe(
+				1_000,
+			);
+			clock.mockReturnValue(2_000);
+			await manager.updateSession("activity", { title: "renamed" });
+			expect((await manager.getSession("activity"))?.lastAgentActivityAt).toBe(
+				1_000,
+			);
+			emit?.({
+				type: "content_update",
+				contentType: "tool",
+				agentId: "child",
+				update: "still working",
+			});
+			const live = (await manager.listSessions())[0];
+			expect(toHubSessionRecord(live).lastAgentActivityAt).toBe(2_000);
+			await manager.dispose();
+			expect((await reader.getSession("activity"))?.lastAgentActivityAt).toBe(
+				2_000,
+			);
+			await reader.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId: "activity", cwd: isolatedHomeDir }),
+					interactive: true,
+					initialMessages: [{ role: "user", content: "work without a viewer" }],
+				}),
+			);
+			expect((await reader.getSession("activity"))?.lastAgentActivityAt).toBe(
+				2_000,
+			);
+		} finally {
+			await manager.dispose();
+			await reader.dispose();
+			clock.mockRestore();
 		}
 	});
 

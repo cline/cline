@@ -1,5 +1,6 @@
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentFinishReason } from "@cline/shared";
+import type { SessionActivity } from "../runtime/host/local/session-activity";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { BuiltRuntime } from "../runtime/orchestration/session-runtime";
 import type { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
@@ -17,6 +18,7 @@ export type ActiveSession = {
 	source: SessionSource;
 	startedAt: string;
 	updatedAt: string;
+	activity?: SessionActivity;
 	status: SessionStatus;
 	endedAt?: string | null;
 	exitCode?: number | null;
@@ -110,6 +112,7 @@ export interface PersistedSessionUpdateInput {
 }
 
 export interface SessionPersistenceAdapter {
+	recordAgentActivity?(sessionId: string, at: number): Promise<void>;
 	ensureSessionsDir(): string;
 	upsertSession(row: SessionRow): Promise<void>;
 	getSession(sessionId: string): Promise<SessionRow | undefined>;

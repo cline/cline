@@ -38,4 +38,6 @@ export interface SessionRuntimeRecordShape extends SessionLineage {
 	hookPath?: string;
 	messagesPath?: string;
 	updatedAt: string;
+	/** Unix milliseconds of observed agent progress; null means no recorded activity. */
+	lastAgentActivityAt?: number | null;
 }

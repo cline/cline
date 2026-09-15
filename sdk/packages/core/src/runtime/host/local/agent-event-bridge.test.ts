@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@cline/shared";
+import { type AgentEvent, TeamMessageType } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { CoreSessionConfig } from "../../../types/config";
 import type { ActiveSession } from "../../../types/session";
@@ -6,6 +6,7 @@ import {
 	AgentEventBridge,
 	type AgentEventBridgeDeps,
 } from "./agent-event-bridge";
+import { SessionActivity } from "./session-activity";
 
 function createTelemetryStub() {
 	return {
@@ -54,7 +55,13 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 			emit: vi.fn(),
 			persistMessages: vi.fn(),
 		} as unknown as AgentEventBridgeDeps;
-		return { telemetry, config, sessions, bridge: new AgentEventBridge(deps) };
+		return {
+			telemetry,
+			config,
+			session,
+			sessions,
+			bridge: new AgentEventBridge(deps),
+		};
 	}
 
 	const toolEvent = {
@@ -62,6 +69,32 @@ describe("AgentEventBridge.dispatchAgentEvent", () => {
 		contentType: "tool",
 		toolName: "run_commands",
 	} as unknown as AgentEvent;
+
+	it("attributes root, spawned, and teammate progress to the same session", async () => {
+		const { config, session, bridge } = createDispatchFixture();
+		const activity = new SessionActivity(
+			null,
+			vi.fn().mockResolvedValue(undefined),
+			vi.fn(),
+		);
+		session.activity = activity;
+		const observe = vi.spyOn(activity, "observe");
+		const root = { type: "iteration_start", iteration: 1 } as const;
+		const child = { ...root, agentId: "child", parentAgentId: "agent-1" };
+		bridge.dispatchAgentEvent("session-1", config, root);
+		bridge.dispatchAgentEvent("session-1", config, child);
+		await bridge.handleTeamEvent("session-1", {
+			type: TeamMessageType.AgentEvent,
+			agentId: "teammate",
+			event: child,
+		});
+		expect(observe.mock.calls.map(([event]) => event)).toEqual([
+			root,
+			child,
+			child,
+		]);
+		await activity.flush();
+	});
 
 	function toolUsedProperties(
 		telemetry: ReturnType<typeof createTelemetryStub>,
