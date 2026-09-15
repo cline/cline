@@ -110,6 +110,8 @@ async function loadInteractiveRuntimeModule() {
 export function resolveConfigDirArg(argv: string[]): string | undefined {
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
+		// Commander treats everything after -- as positional arguments.
+		if (arg === "--") break;
 		if (arg === "--config") {
 			const value = argv[i + 1]?.trim();
 			return value ? value : undefined;
