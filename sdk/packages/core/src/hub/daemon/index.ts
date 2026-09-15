@@ -46,7 +46,17 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
+/**
+ * How long a caller waits for the daemon it just spawned to publish
+ * discovery. A cold start on a slow machine (a compiled Bun binary on an
+ * older Intel Mac, first launch with nothing in the disk cache, while the
+ * spawning app is itself still booting) can take well over 8s; the daemon is
+ * detached, so giving up early does not stop it - it only fails the caller,
+ * which then errors out and re-attaches to the same daemon on its next try.
+ * Kept below HUB_STARTUP_LOCK_MAX_AGE_MS so the startup lock held across
+ * this wait is never reclaimed as abandoned.
+ */
+const HUB_STARTUP_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
