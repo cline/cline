@@ -46,6 +46,12 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 
+export interface DetachedHubOptions extends HubEndpointOverrides {
+	allowPortFallback?: boolean;
+	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
+	manageConnectors?: boolean;
+}
+
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
@@ -363,7 +369,7 @@ function resolveDaemonEntryPath(): string {
 
 function resolveLaunchCommand(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides,
+	endpoint: DetachedHubOptions,
 ): {
 	launcher: string;
 	args: string[];
@@ -387,7 +393,13 @@ function resolveLaunchCommand(
 			];
 	return {
 		launcher: execPath,
-		args: [...entryArgs, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
+		args: [
+			...entryArgs,
+			"--cwd",
+			workspaceRoot,
+			...endpointArgs(endpoint),
+			...(endpoint.manageConnectors === false ? ["--no-connectors"] : []),
+		],
 		cwd: workspaceRoot,
 		env: {
 			...withResolvedClineBuildEnv(process.env),
@@ -411,7 +423,7 @@ function isTextFileBusyError(error: unknown): boolean {
 
 export function spawnDetachedHubServer(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
+	endpoint: DetachedHubOptions = {},
 ): void {
 	if (isHubDaemonProcess()) {
 		return;
@@ -438,7 +450,7 @@ export function spawnDetachedHubServer(
 
 export async function spawnDetachedHubServerWithRetry(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
+	endpoint: DetachedHubOptions = {},
 ): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
 		try {
@@ -456,7 +468,7 @@ export async function spawnDetachedHubServerWithRetry(
 
 export function prewarmDetachedHubServer(
 	workspaceRoot: string,
-	endpoint: HubEndpointOverrides & { allowPortFallback?: boolean } = {},
+	endpoint: DetachedHubOptions = {},
 ): void {
 	if (isHubDaemonProcess()) {
 		return;
@@ -474,9 +486,7 @@ export interface DetachedHubResolution {
 async function ensureDetachedHubServerLocked(
 	owner: HubOwnerContext,
 	workspaceRoot: string,
-	endpointOverrides: HubEndpointOverrides & {
-		allowPortFallback?: boolean;
-	} = {},
+	endpointOverrides: DetachedHubOptions = {},
 ): Promise<DetachedHubResolution> {
 	const hasExplicitEndpoint =
 		endpointOverrides.host !== undefined ||
@@ -654,7 +664,10 @@ async function ensureDetachedHubServerLocked(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
-	await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
+	await spawnDetachedHubServerWithRetry(workspaceRoot, {
+		...spawnEndpoint,
+		manageConnectors: endpointOverrides.manageConnectors,
+	});
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
@@ -717,9 +730,7 @@ async function ensureDetachedHubServerLocked(
 
 export async function ensureDetachedHubServer(
 	workspaceRoot: string,
-	endpointOverrides: HubEndpointOverrides & {
-		allowPortFallback?: boolean;
-	} = {},
+	endpointOverrides: DetachedHubOptions = {},
 ): Promise<DetachedHubResolution> {
 	const owner = resolveDefaultHubOwnerContext();
 	return await withHubStartupLock(owner.discoveryPath, async () =>
