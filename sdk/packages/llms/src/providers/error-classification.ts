@@ -307,3 +307,155 @@ export function classifyProviderError(error: unknown): ProviderErrorClass {
 	}
 	return verdictFromSignals(signals);
 }
+
+/**
+ * HTTP statuses that are transient and retryable: request timeout / conflict /
+ * too-early, rate limiting, and the 5xx server-failure family (incl. the
+ * widely used 529 "overloaded"). This mirrors the AI SDK's own retry policy
+ * and is the fallback only for errors that are not typed AI SDK instances;
+ * typed errors defer to {@link APICallError.isRetryable}. Any other 4xx is the
+ * caller's own request being rejected and must not be retried.
+ */
+const RETRYABLE_STATUSES = new Set([
+	408, 409, 425, 429, 500, 502, 503, 504, 529,
+]);
+
+/**
+ * The sole message fallback. OpenRouter forwards an upstream failure mid-stream
+ * as a bare "Provider returned error" string with no HTTP status and no typed
+ * error to inspect, so there is nothing else to key on. Every other decision
+ * comes from the AI SDK's typed `isRetryable` flag or the HTTP status — not
+ * from matching free-form message text.
+ */
+const PROVIDER_RETURNED_ERROR_PATTERN = /provider returned error/i;
+
+/**
+ * Retryability taken from a real AI SDK error instance via its own typed
+ * `isRetryable` flag, rather than re-deriving it — the maintainable path that
+ * stays correct as the SDK evolves. Returns `undefined` when the error is not
+ * a recognized instance, so {@link isRetryableProviderError} falls back to the
+ * structural walk.
+ */
+function isRetryableTypedError(
+	error: unknown,
+	depth: number,
+): boolean | undefined {
+	if (depth > MAX_WALK_DEPTH) {
+		return undefined;
+	}
+	if (RetryError.isInstance(error)) {
+		// The SDK already retried and gave up; only the final attempt decides
+		// whether another attempt at our layer is worthwhile. Earlier attempts
+		// were retried away (typically rate limits) and must not vote, so an
+		// unclassifiable final error is judged structurally on its own rather
+		// than by walking the whole wrapper.
+		const last = error.lastError ?? error.errors[error.errors.length - 1];
+		if (last == null) {
+			return undefined;
+		}
+		return (
+			isRetryableTypedError(last, depth + 1) ?? isRetryableFromSignals(last)
+		);
+	}
+	if (APICallError.isInstance(error)) {
+		return error.isRetryable === true;
+	}
+	if (AISDKError.isInstance(error)) {
+		return isRetryableTypedError(error.cause, depth + 1);
+	}
+	return undefined;
+}
+
+/**
+ * Structural retryability for a value that is not a typed AI SDK error: a
+ * flattened message, a gateway-forwarded JSON payload, or the final attempt
+ * inside a RetryError. HTTP status decides first; message text only for the
+ * one documented statusless provider quirk.
+ */
+function isRetryableFromSignals(value: unknown): boolean {
+	const signals: ErrorSignals = {
+		messages: [],
+		statuses: new Set(),
+		codes: new Set(),
+	};
+	try {
+		collectSignals(value, signals, new Set(), 0);
+	} catch {
+		return false;
+	}
+
+	const statuses = [...signals.statuses];
+	// Never retry credential rejections or a definitive context-window overflow:
+	// the same request will fail again.
+	if (statuses.some((status) => AUTH_STATUSES.has(status))) {
+		return false;
+	}
+	if ([...signals.codes].some((code) => CONTEXT_WINDOW_CODES.has(code))) {
+		return false;
+	}
+	// A transient HTTP status (incl. any 5xx) is retryable.
+	if (
+		statuses.some(
+			(status) =>
+				RETRYABLE_STATUSES.has(status) || (status >= 500 && status <= 599),
+		)
+	) {
+		return true;
+	}
+	// Any other visible 4xx is a non-retryable client error.
+	if (statuses.some((status) => status >= 400 && status < 500)) {
+		return false;
+	}
+	// No typed error and no status: the one provider quirk we special-case.
+	return signals.messages.some((message) =>
+		PROVIDER_RETURNED_ERROR_PATTERN.test(message),
+	);
+}
+
+/**
+ * Decide whether a provider/API error is a transient failure worth retrying
+ * with backoff, as opposed to a permanent failure a retry cannot fix
+ * (credential rejections, context-window overflow, other client-side 4xx
+ * errors). Prefers the AI SDK's own typed `isRetryable` signal; for
+ * non-instances (already-flattened messages or gateway-forwarded JSON) it
+ * falls back to the HTTP status, and finally to the single documented
+ * "Provider returned error" provider quirk. Accepts either a raw structured
+ * error or a flattened message string.
+ */
+export function isRetryableProviderError(error: unknown): boolean {
+	// Prefer the AI SDK's own typed retryability signal.
+	try {
+		const typed = isRetryableTypedError(error, 0);
+		if (typed !== undefined) {
+			return typed;
+		}
+	} catch {
+		// Fall through to the structural walk.
+	}
+
+	return isRetryableFromSignals(error);
+}
+
+/**
+ * Retryability as seen by the agent loop's turn-level retry, which must not
+ * stack on retries another layer already spent. The AI SDK owns request-start
+ * failures: it retries them itself with `retry-after`-aware backoff and, once
+ * exhausted, surfaces a `RetryError`. Re-running such a turn would multiply
+ * the SDK's attempts by the agent's, so a `RetryError` is terminal here even
+ * when its final attempt looks transient. Everything else (most importantly a
+ * provider error emitted mid-stream, which the SDK never retries) is judged by
+ * {@link isRetryableProviderError}.
+ */
+export function isRetryableBeyondSdkRetries(error: unknown): boolean {
+	// Guarded like the other typed checks: `RetryError.isInstance` throws when
+	// the "ai" module is only partially available (tests mock it with a subset
+	// of exports), and the classifier below is the correct fallback then.
+	try {
+		if (RetryError.isInstance(error)) {
+			return false;
+		}
+	} catch {
+		// Fall through to the classifier.
+	}
+	return isRetryableProviderError(error);
+}
