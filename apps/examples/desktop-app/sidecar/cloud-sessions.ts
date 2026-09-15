@@ -79,6 +79,7 @@ export type CloudSessionRecord = {
 		createRequestTitle?: string;
 	};
 	expiredAt?: string | null;
+	lastActivityAt?: string;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -908,7 +909,9 @@ export function cloudSessionToDiscoveryRecord(
 		startedAt: record.createdAt,
 		endedAt: isExpiredRecord(record)
 			? (record.expiredAt ?? undefined)
-			: undefined,
+			: record.status === "failed"
+				? (record.lastActivityAt ?? record.createdAt)
+				: undefined,
 		updatedAt: record.updatedAt,
 		...(record.title?.trim() ? { title: record.title.trim() } : {}),
 		metadata: {
@@ -1059,14 +1062,20 @@ export class CloudSessionManager {
 			if (connection) {
 				connection.remote = session;
 			}
-			if (isExpiredRecord(session)) {
+			const expired = isExpiredRecord(session);
+			if (expired || session.status === "failed") {
 				if (live) {
 					live.busy = false;
-					live.status = "expired";
-					live.endedAt = Date.parse(session.expiredAt ?? "") || Date.now();
+					live.status = expired ? "expired" : "failed";
+					live.endedAt = expired
+						? Date.parse(session.expiredAt ?? "") || Date.now()
+						: Math.max(
+								live.endedAt ?? 0,
+								Date.parse(session.lastActivityAt ?? session.createdAt) || 0,
+							) || undefined;
 				}
 				if (connection) {
-					// Expired sandboxes must stop reconnecting.
+					// Unavailable sandboxes must stop reconnecting.
 					void this.disposeConnection(session.id).catch(() => undefined);
 				}
 			}
