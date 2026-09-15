@@ -337,6 +337,7 @@ function CloudBranchPicker({
 			});
 		return () => {
 			cancelled = true;
+			requestKeyRef.current = null;
 		};
 	}, [
 		debouncedQuery,
