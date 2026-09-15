@@ -2196,6 +2196,54 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("answers a pending question with a typed message instead of queueing it", async () => {
+		const sessionId = "session-typed-answer";
+		const sendActions: string[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action) sendActions.push(request.action);
+					if (request?.action === "start") {
+						return { sessionId };
+					}
+				}
+				if (command === "respond_ask_question") return true;
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const pendingQuestion = {
+			requestId: "question-typed",
+			sessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		await act(async () => {
+			handlerFor("ask_question_requested")(pendingQuestion);
+		});
+		expect(current.pendingAskQuestions).toEqual([pendingQuestion]);
+
+		let promptTaken: boolean | undefined;
+		await act(async () => {
+			promptTaken = await current.sendPrompt("Use the release branch");
+		});
+
+		expect(promptTaken).toBe(true);
+		expect(invokeMock).toHaveBeenCalledWith("respond_ask_question", {
+			requestId: "question-typed",
+			answer: "Use the release branch",
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+		expect(sendActions).not.toContain("send");
+		expect(current.promptsInQueue).toEqual([]);
+	});
+
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
 		window.localStorage.setItem(
 			MODEL_SELECTION_STORAGE_KEY,
