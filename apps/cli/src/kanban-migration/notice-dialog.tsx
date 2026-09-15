@@ -64,7 +64,11 @@ export function MigrationNoticeContent(
 		<box flexDirection="column" paddingX={1} gap={1}>
 			<text fg={palette.act}>{notice.title}</text>
 			<box flexDirection="column">
-				<text selectable>{notice.body}</text>
+				{notice.body.split("\n").map((line) => (
+					<text key={line} selectable>
+						{line}
+					</text>
+				))}
 			</box>
 			<box flexDirection="row">
 				<text fg={palette.act} selectable>
