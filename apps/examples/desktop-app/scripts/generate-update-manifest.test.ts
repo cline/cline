@@ -31,6 +31,22 @@ const makePerArchArtifactDir = (): string => {
 	return dir;
 };
 
+// Mirrors how the Tauri bundler names Linux artifacts: `amd64` for the
+// AppImage and deb, and the RPM's own `x86_64` release token.
+const makeLinuxArtifactDir = (): string => {
+	const dir = mkdtempSync(path.join(tmpdir(), "update-manifest-"));
+	const artifacts = [
+		["Cline_0.1.0_amd64.AppImage.tar.gz", "sig-appimage"],
+		["Cline_0.1.0_amd64.deb", "sig-deb"],
+		["Cline-0.1.0-1.x86_64.rpm", "sig-rpm"],
+	] as const;
+	for (const [name, signature] of artifacts) {
+		writeFileSync(path.join(dir, name), "payload");
+		writeFileSync(path.join(dir, `${name}.sig`), `${signature}\n`);
+	}
+	return dir;
+};
+
 describe("buildUpdateManifest", () => {
 	test("maps a universal artifact to both darwin platform entries", () => {
 		const dir = makeUniversalArtifactDir();
@@ -119,6 +135,63 @@ describe("buildUpdateManifest", () => {
 		expect(Object.keys(manifest.platforms).sort()).toEqual([
 			"darwin-aarch64",
 			"darwin-x86_64",
+		]);
+	});
+
+	test("maps Linux packages to their installer-specific platform entries", () => {
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir: makeLinuxArtifactDir(),
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		const asset = (name: string) => ({
+			url: `https://github.com/cline/cline/releases/download/desktop-v0.1.0/${name}`,
+		});
+		// A Linux install asks for its own package's key, so a deb or rpm copy
+		// has to find an entry for the format it came from. The AppImage also
+		// owns the bare key, which is what the updater falls back to.
+		expect(manifest.platforms["linux-x86_64"]).toEqual({
+			...asset("Cline_0.1.0_amd64.AppImage.tar.gz"),
+			signature: "sig-appimage",
+		});
+		expect(manifest.platforms["linux-x86_64-appimage"]).toEqual({
+			...asset("Cline_0.1.0_amd64.AppImage.tar.gz"),
+			signature: "sig-appimage",
+		});
+		expect(manifest.platforms["linux-x86_64-deb"]).toEqual({
+			...asset("Cline_0.1.0_amd64.deb"),
+			signature: "sig-deb",
+		});
+		expect(manifest.platforms["linux-x86_64-rpm"]).toEqual({
+			...asset("Cline-0.1.0-1.x86_64.rpm"),
+			signature: "sig-rpm",
+		});
+		expect(Object.keys(manifest.platforms)).toHaveLength(4);
+	});
+
+	test("maps a Linux aarch64 artifact to the aarch64 platform keys", () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "update-manifest-"));
+		writeFileSync(path.join(dir, "Cline_0.1.0_aarch64.AppImage.tar.gz"), "tar");
+		writeFileSync(
+			path.join(dir, "Cline_0.1.0_aarch64.AppImage.tar.gz.sig"),
+			"sig-aarch64-appimage\n",
+		);
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"linux-aarch64",
+			"linux-aarch64-appimage",
 		]);
 	});
 

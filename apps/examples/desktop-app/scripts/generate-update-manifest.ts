@@ -43,6 +43,32 @@ const WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
 	arm64: ["windows-aarch64"],
 };
 
+// A Linux install asks for `linux-<arch>-<installer>` and falls back to the
+// bare `linux-<arch>`, where the installer is how that copy of the app was
+// packaged: appimage, deb, or rpm. Each package therefore claims its own key,
+// and the bare key stays on the AppImage, the one format the app replaces in
+// place. Tauri names x86_64 Linux artifacts `amd64`, except for RPM, which
+// uses `x86_64`.
+const LINUX_PLATFORM_KEYS_BY_ARCH_TOKEN: Record<string, string[]> = {
+	amd64: ["linux-x86_64"],
+	x86_64: ["linux-x86_64"],
+	aarch64: ["linux-aarch64"],
+};
+
+const linuxPlatformKeys = (fileName: string): string[] | undefined => {
+	for (const [token, keys] of Object.entries(
+		LINUX_PLATFORM_KEYS_BY_ARCH_TOKEN,
+	)) {
+		// Match the architecture as a whole token, so the `_amd64` in
+		// `Cline_0.0.27_amd64.deb` and the `.x86_64` in
+		// `Cline-0.0.27-1.x86_64.rpm` both count and no substring does.
+		if (new RegExp(`[._-]${token}[._-]`).test(fileName)) {
+			return keys;
+		}
+	}
+	return undefined;
+};
+
 const getArgValue = (args: string[], name: string): string | undefined => {
 	const index = args.indexOf(name);
 	if (index >= 0 && args[index + 1] && !args[index + 1].startsWith("--")) {
@@ -67,6 +93,16 @@ const platformKeysOfUpdaterArtifact = (
 			(candidate) => fileName.endsWith(`_${candidate}-setup.exe`),
 		);
 		return arch ? WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
+	}
+	if (fileName.endsWith(".AppImage.tar.gz")) {
+		const keys = linuxPlatformKeys(fileName);
+		return keys?.flatMap((key) => [key, `${key}-appimage`]);
+	}
+	if (fileName.endsWith(".deb")) {
+		return linuxPlatformKeys(fileName)?.map((key) => `${key}-deb`);
+	}
+	if (fileName.endsWith(".rpm")) {
+		return linuxPlatformKeys(fileName)?.map((key) => `${key}-rpm`);
 	}
 	return undefined;
 };
@@ -106,7 +142,7 @@ export const buildUpdateManifest = (options: {
 
 	if (Object.keys(platforms).length === 0) {
 		throw new Error(
-			`no updater artifacts (*.app.tar.gz or *-setup.exe with a known arch suffix) found in ${options.dir}`,
+			`no updater artifacts (*.app.tar.gz, *-setup.exe, *.AppImage.tar.gz, *.deb, or *.rpm with a known arch token) found in ${options.dir}`,
 		);
 	}
 
