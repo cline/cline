@@ -654,6 +654,7 @@
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
+        "@langfuse/core": "5.10.1",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/api-logs": "^0.214.0",

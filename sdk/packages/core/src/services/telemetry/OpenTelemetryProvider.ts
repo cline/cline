@@ -37,6 +37,7 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import { isTelemetryOptedOutGlobally } from "../global-settings";
 import { resolveCoreDistinctId } from "./distinct-id";
+import { LangfuseAttributesSpanProcessor } from "./LangfuseAttributesSpanProcessor";
 import {
 	OpenTelemetryAdapter,
 	type OpenTelemetryAdapterOptions,
@@ -312,7 +313,9 @@ export class OpenTelemetryProvider {
 
 		const tracerProvider = new NodeTracerProvider({
 			resource,
-			spanProcessors: processors,
+			spanProcessors: hasOtlpProcessor
+				? [new LangfuseAttributesSpanProcessor(), ...processors]
+				: processors,
 		});
 		if (hasOtlpProcessor) {
 			// Console-only tracing must not read as the collector relay
