@@ -281,6 +281,85 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		}
 	});
 
+	it("ignores a pending branch page after switching repositories", async () => {
+		let intersect: ((entries: IntersectionObserverEntry[]) => void) | undefined;
+		vi.stubGlobal(
+			"IntersectionObserver",
+			class {
+				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+					intersect = callback;
+				}
+				observe() {}
+				disconnect() {}
+			},
+		);
+		let releasePage: (() => void) | undefined;
+		const onCloudBranchChange = vi.fn();
+		const props = renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "deleted",
+			onCloudBranchChange,
+			onListCloudRepositories: vi.fn(async () => ({
+				connected: true,
+				connectUrl: "https://app.example/dashboard/integrations",
+				repositories: [
+					{
+						id: 42,
+						name: "cline",
+						fullName: "cline/cline",
+						url: "https://github.com/cline/cline",
+						defaultBranch: "main",
+					},
+					{
+						id: 43,
+						name: "other",
+						fullName: "cline/other",
+						url: "https://github.com/cline/other",
+						defaultBranch: "develop",
+					},
+				],
+			})),
+			onListCloudBranches: vi.fn(
+				async (id: number, options?: { cursor?: string }) => {
+					if (options?.cursor)
+						return new Promise<{ available: boolean; branches: string[] }>(
+							(resolve) => {
+								releasePage = () =>
+									resolve({ available: true, branches: ["feature/last"] });
+							},
+						);
+					return id === 42
+						? { available: true, branches: ["main"], nextToken: "2" }
+						: { available: true, branches: ["develop"] };
+				},
+			),
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+		await click(button("deleted"));
+		await act(async () =>
+			intersect?.([{ isIntersecting: true } as IntersectionObserverEntry]),
+		);
+		expect(releasePage).toBeDefined();
+		await click(button("cline/cline"));
+		await click(button("cline/other"));
+		renderControls({
+			...props,
+			repoUrl: "https://github.com/cline/other",
+			cloudBranch: "develop",
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+		expect(props.onListCloudBranches).toHaveBeenCalledWith(43);
+		expect(onCloudBranchChange).toHaveBeenLastCalledWith("develop");
+		onCloudBranchChange.mockClear();
+		await act(async () => releasePage?.());
+		expect(onCloudBranchChange).not.toHaveBeenCalled();
+	});
+
 	it("does not reconcile selection from a filtered branch search", async () => {
 		const onCloudBranchChange = vi.fn();
 		const onListCloudBranches = vi.fn(
