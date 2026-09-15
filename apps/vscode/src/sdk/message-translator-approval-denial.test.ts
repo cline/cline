@@ -2,7 +2,15 @@ import type { CoreSessionEvent } from "@cline/core"
 import type { AgentEvent } from "@cline/shared"
 import { describe, expect, it } from "vitest"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
-import { DEFAULT_TOOL_APPROVAL_DENIAL_REASON, USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON } from "./tool-approval-denial"
+import {
+	DEFAULT_TOOL_APPROVAL_DENIAL_REASON,
+	MESSAGE_EDIT_SUPERSEDED_DENIAL_REASON,
+	MODE_CHANGED_DENIAL_REASON,
+	TASK_CANCELLED_DENIAL_REASON,
+	TASK_CLEARED_DENIAL_REASON,
+	TASK_SWITCHED_DENIAL_REASON,
+	USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON,
+} from "./tool-approval-denial"
 
 describe("translateSessionEvent - user-message tool approval denial", () => {
 	it("suppresses tool lifecycle events for approval replies routed as user feedback", () => {
@@ -109,5 +117,47 @@ describe("translateSessionEvent - user-message tool approval denial", () => {
 
 		expect(result.messages).toHaveLength(0)
 		expect(result.turnComplete).toBe(false)
+	})
+})
+
+describe("translateSessionEvent - task lifecycle tool approval denial", () => {
+	const toolEndEvent = (error: string): CoreSessionEvent => ({
+		type: "agent_event",
+		payload: {
+			sessionId: "session-1",
+			event: {
+				type: "content_end",
+				contentType: "tool",
+				toolName: "editor",
+				toolCallId: "call-1",
+				error,
+			} as AgentEvent,
+		},
+	})
+
+	it.each([
+		["task cleared", TASK_CLEARED_DENIAL_REASON],
+		["task cancelled", TASK_CANCELLED_DENIAL_REASON],
+		["task switched", TASK_SWITCHED_DENIAL_REASON],
+		["mode changed", MODE_CHANGED_DENIAL_REASON],
+		["message edit superseded", MESSAGE_EDIT_SUPERSEDED_DENIAL_REASON],
+	])("suppresses a %s denial replayed without prior denial state", (_label, reason) => {
+		const state = new MessageTranslatorState()
+
+		const result = translateSessionEvent(toolEndEvent(JSON.stringify({ error: reason })), state)
+
+		expect(result.messages).toHaveLength(0)
+	})
+
+	it.each([
+		["a bare reason outside the persisted envelope", TASK_CLEARED_DENIAL_REASON],
+		["an envelope that merely contains a reason", `prefix ${JSON.stringify({ error: TASK_CLEARED_DENIAL_REASON })}`],
+		["an unrelated tool failure", JSON.stringify({ error: "ENOENT: no such file or directory" })],
+	])("still renders %s as a tool error row", (_label, error) => {
+		const state = new MessageTranslatorState()
+
+		const result = translateSessionEvent(toolEndEvent(error), state)
+
+		expect(result.messages.some((message) => message.say === "error" && message.text === error)).toBe(true)
 	})
 })
