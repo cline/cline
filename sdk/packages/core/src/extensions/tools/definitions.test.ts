@@ -479,16 +479,64 @@ describe("default apply_patch tool", () => {
 });
 
 describe("run_commands tool description", () => {
-	it("names PowerShell with ';' sequencing for PowerShell shells", () => {
-		const description = buildRunCommandsDescription("powershell", true);
-		expect(description).toContain("Commands run through PowerShell");
+	it.each([
+		"powershell",
+		"powershell.exe",
+		"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\PowerShell.EXE",
+	])("names Windows PowerShell and its redundant wrapper for %s", (shell) => {
+		const description = buildRunCommandsDescription(shell, true);
+		expect(description).toContain("Windows PowerShell (powershell.exe)");
+		expect(description).toContain(
+			"quote paths and arguments for powershell.exe",
+		);
+		expect(description).not.toContain(
+			"quote paths and arguments for Windows PowerShell",
+		);
+		expect(description).toContain(
+			"do not wrap them in another powershell.exe -Command invocation",
+		);
+		expect(description).not.toContain("PowerShell (pwsh.exe)");
 		expect(description).toContain("use ';' to sequence commands");
 		expect(description).toContain("in Windows environment");
+	});
+
+	it.each([
+		"pwsh",
+		"pwsh.exe",
+		"C:\\Program Files\\PowerShell\\7\\PWSH.EXE",
+	])("names PowerShell and its redundant wrapper for %s", (shell) => {
+		const description = buildRunCommandsDescription(shell, true);
+		expect(description).toContain("PowerShell (pwsh.exe)");
+		expect(description).toContain("quote paths and arguments for pwsh.exe");
+		expect(description).not.toContain(
+			"quote paths and arguments for PowerShell",
+		);
+		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
+		expect(description).toContain(
+			"do not wrap them in another pwsh.exe -Command invocation",
+		);
+		expect(description).toContain("use ';' to sequence commands");
+		expect(description).toContain(
+			"Only start another shell when you intentionally need a different shell or a separate process.",
+		);
+		expect(description).not.toContain("Windows PowerShell");
+	});
+
+	it("describes PowerShell on Unix without claiming a version or Windows host", () => {
+		const description = buildRunCommandsDescription("/usr/bin/pwsh", false);
+		expect(description).toContain("PowerShell (pwsh)");
+		expect(description).toContain("quote paths and arguments for pwsh");
+		expect(description).toContain("another pwsh -Command invocation");
+		expect(description).not.toContain("Windows");
+		expect(description).not.toMatch(/PowerShell (?:Core|\d)/);
 	});
 
 	it("names cmd.exe with '&&' sequencing for cmd shells", () => {
 		const description = buildRunCommandsDescription("cmd", true);
 		expect(description).toContain("Commands run through cmd.exe");
+		expect(description).toContain(
+			"do not wrap them in another cmd.exe /c invocation",
+		);
 		expect(description).toContain("use '&&' to sequence commands");
 		expect(description).not.toContain("PowerShell");
 	});
@@ -501,11 +549,14 @@ describe("run_commands tool description", () => {
 	});
 
 	it("notes the Windows host for POSIX shells on Windows only", () => {
-		const onWindows = buildRunCommandsDescription("posix", true);
+		const onWindows = buildRunCommandsDescription(
+			"C:\\Program Files\\Git\\bin\\bash.exe",
+			true,
+		);
 		expect(onWindows).toContain("POSIX (bash-compatible) shell on Windows");
 		expect(onWindows).not.toContain("PowerShell");
 
-		const onUnix = buildRunCommandsDescription("posix", false);
+		const onUnix = buildRunCommandsDescription("/bin/bash", false);
 		expect(onUnix).not.toContain("Windows");
 		expect(onUnix).toContain("grep/head/tail");
 	});
@@ -533,7 +584,19 @@ describe("run_commands tool description", () => {
 		expect(tool.description).not.toContain("PowerShell");
 
 		shell = "powershell.exe";
-		expect(tool.description).toContain("Commands run through PowerShell");
+		const windowsPowerShellDescription = tool.description;
+		expect(windowsPowerShellDescription).toContain(
+			"Windows PowerShell (powershell.exe)",
+		);
+		expect(tool.description).toBe(windowsPowerShellDescription);
+
+		shell = "pwsh.exe";
+		const powerShellDescription = tool.description;
+		const pwshExecutable = process.platform === "win32" ? "pwsh.exe" : "pwsh";
+		expect(powerShellDescription).toContain(`PowerShell (${pwshExecutable})`);
+		expect(powerShellDescription).not.toBe(windowsPowerShellDescription);
+		shell = "C:\\Program Files\\PowerShell\\7\\PWSH.EXE";
+		expect(tool.description).toBe(powerShellDescription);
 
 		// The property must survive the shallow copy the runtime performs when
 		// building AgentToolDefinitions for a model request.

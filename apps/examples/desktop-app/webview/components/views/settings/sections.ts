@@ -7,10 +7,11 @@
 
 const ALL_SETTINGS_SECTIONS = [
 	"General",
-	"Models",
+	"API Providers",
 	"Voice",
 	"Channels",
 	"Schedules",
+	"Import",
 	"Account",
 ] as const;
 

@@ -282,8 +282,18 @@ function CloudBranchPicker({
 	const branchRef = useRef(branch);
 	const listRef = useRef<HTMLDivElement>(null);
 	const loadMoreRef = useRef<HTMLDivElement>(null);
-	const requestKeyRef = useRef("");
+	const requestKeyRef = useRef<symbol | null>(null);
 	branchRef.current = branch;
+	const reconcileBranch = useCallback(
+		(availableBranches: string[], complete: boolean) => {
+			if (availableBranches.length === 0) return;
+			const selected = branchRef.current;
+			if (selected && (!complete || availableBranches.includes(selected)))
+				return;
+			onBranchChange(preferredCloudBranch(availableBranches, defaultBranch));
+		},
+		[defaultBranch, onBranchChange],
+	);
 
 	useEffect(() => {
 		const timeout = window.setTimeout(
@@ -296,7 +306,7 @@ function CloudBranchPicker({
 
 	useEffect(() => {
 		if (!repositoryId) return;
-		const requestKey = `${repositoryId}:${debouncedQuery}:${reloadKey}`;
+		const requestKey = Symbol(`${repositoryId}:${debouncedQuery}:${reloadKey}`);
 		requestKeyRef.current = requestKey;
 		let cancelled = false;
 		setStatus("loading");
@@ -315,8 +325,8 @@ function CloudBranchPicker({
 				}
 				setBranches(result.branches);
 				setNextToken(result.nextToken ?? "");
-				if (!branchRef.current) {
-					onBranchChange(preferredCloudBranch(result.branches, defaultBranch));
+				if (!debouncedQuery) {
+					reconcileBranch(result.branches, !result.nextToken);
 				}
 				setStatus("idle");
 			})
@@ -327,18 +337,27 @@ function CloudBranchPicker({
 			});
 		return () => {
 			cancelled = true;
+			requestKeyRef.current = null;
 		};
 	}, [
 		debouncedQuery,
 		defaultBranch,
 		onBranchChange,
 		onListBranches,
+		reconcileBranch,
 		reloadKey,
 		repositoryId,
 	]);
 
 	const loadMore = useCallback(async () => {
-		if (!repositoryId || !nextToken || loadingMore) return;
+		if (
+			!repositoryId ||
+			!nextToken ||
+			loadingMore ||
+			status !== "idle" ||
+			searchPending
+		)
+			return;
 		const requestKey = requestKeyRef.current;
 		setLoadingMore(true);
 		setLoadMoreError(false);
@@ -348,19 +367,30 @@ function CloudBranchPicker({
 				query: debouncedQuery || undefined,
 			});
 			if (requestKeyRef.current !== requestKey) return;
-			setBranches((current) => [...new Set([...current, ...result.branches])]);
+			if (!result.available) {
+				setLoadMoreError(true);
+				return;
+			}
+			const merged = [...new Set([...branches, ...result.branches])];
+			setBranches(merged);
 			setNextToken(result.nextToken ?? "");
+			if (!debouncedQuery && !result.nextToken) reconcileBranch(merged, true);
 		} catch {
 			if (requestKeyRef.current === requestKey) setLoadMoreError(true);
 		} finally {
-			// Reset unconditionally: only one page fetch can be in flight (the
-			// loadingMore guard above), so this always refers to that fetch. A
-			// key-guarded reset would leave loadingMore stuck true forever when
-			// the search query changes mid-fetch, permanently killing
-			// pagination for this picker.
 			setLoadingMore(false);
 		}
-	}, [debouncedQuery, loadingMore, nextToken, onListBranches, repositoryId]);
+	}, [
+		branches,
+		debouncedQuery,
+		loadingMore,
+		nextToken,
+		onListBranches,
+		reconcileBranch,
+		repositoryId,
+		searchPending,
+		status,
+	]);
 
 	useEffect(() => {
 		const root = listRef.current;
@@ -372,7 +402,8 @@ function CloudBranchPicker({
 			!nextToken ||
 			loadingMore ||
 			loadMoreError ||
-			searchPending
+			searchPending ||
+			status !== "idle"
 		) {
 			return;
 		}
@@ -384,7 +415,15 @@ function CloudBranchPicker({
 		);
 		observer.observe(target);
 		return () => observer.disconnect();
-	}, [loadMore, loadMoreError, loadingMore, nextToken, open, searchPending]);
+	}, [
+		loadMore,
+		loadMoreError,
+		loadingMore,
+		nextToken,
+		open,
+		searchPending,
+		status,
+	]);
 
 	return (
 		<div className="relative min-w-0">
@@ -943,10 +982,6 @@ export function WelcomeWorkspaceControls({
 	onSwitchGitBranch,
 }: {
 	cloudEnabled: boolean;
-	/**
-	 * Hides the repo/branch pickers and sign-in button while the cloud
-	 * onboarding panel owns those calls-to-action.
-	 */
 	cloudControlsHidden?: boolean;
 	executionTarget: "local" | "cloud";
 	repoUrl: string;
@@ -994,6 +1029,37 @@ export function WelcomeWorkspaceControls({
 		},
 		[repoUrl],
 	);
+	useEffect(() => {
+		if (repoUrl.trim()) return;
+		setCloudRepositoryId(undefined);
+		setCloudDefaultBranch("");
+	}, [repoUrl]);
+	useEffect(() => {
+		if (
+			executionTarget !== "cloud" ||
+			!signedIn ||
+			!repoUrl.trim() ||
+			cloudRepositoryId !== undefined
+		) {
+			return;
+		}
+		let cancelled = false;
+		void onListCloudRepositories()
+			.then((result) => {
+				if (!cancelled) handleCloudRepositoriesLoaded(result.repositories);
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		cloudRepositoryId,
+		executionTarget,
+		handleCloudRepositoriesLoaded,
+		onListCloudRepositories,
+		repoUrl,
+		signedIn,
+	]);
 
 	// Close whichever menu is open when clicking outside the control row.
 	useEffect(() => {

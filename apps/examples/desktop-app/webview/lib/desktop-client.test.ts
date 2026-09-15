@@ -66,6 +66,8 @@ class FakeWebSocket {
 }
 
 const sockets: FakeWebSocket[] = [];
+// First reconnect delay: RECONNECT_BASE_DELAY_MS * 2 ** 1.
+const RECONNECT_FIRST_DELAY_MS = 800;
 const originalWebSocket = globalThis.WebSocket;
 const originalFetch = globalThis.fetch;
 const fetchMock = vi.fn(async () => new Response(null, { status: 202 }));
@@ -361,6 +363,70 @@ describe("DesktopClient command deadlines", () => {
 				}
 			).pending.size,
 		).toBe(0);
+	});
+});
+
+describe("DesktopClient endpoint resolution", () => {
+	const tauriInvoke = vi.fn<(command: string) => Promise<string>>();
+
+	beforeEach(() => {
+		tauriInvoke.mockReset();
+		delete (window as unknown as Record<string, unknown>)
+			.__SIDECAR_WS_ENDPOINT__;
+		(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {};
+		vi.doMock("@tauri-apps/api/core", () => ({ invoke: tauriInvoke }));
+	});
+
+	afterEach(() => {
+		delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+		vi.doUnmock("@tauri-apps/api/core");
+	});
+
+	it("keeps retrying when the Tauri shell reports the backend endpoint is not ready yet", async () => {
+		tauriInvoke
+			.mockRejectedValueOnce(new Error("desktop backend endpoint not ready"))
+			.mockResolvedValue("ws://127.0.0.1:3126/transport?approval_token=fresh");
+		const { desktopClient } = await import("./desktop-client");
+		const states: string[] = [];
+		desktopClient.subscribeTransportState((state) => states.push(state));
+
+		await vi.waitFor(() => expect(states).toContain("unavailable"));
+		expect(desktopClient.getTransportError()).toContain(
+			"desktop backend endpoint not ready",
+		);
+		expect(sockets).toHaveLength(0);
+
+		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		expect(tauriInvoke).toHaveBeenCalledTimes(2);
+		expect(sockets[0]?.url).toBe(
+			"ws://127.0.0.1:3126/transport?approval_token=fresh",
+		);
+
+		sockets[0]?.open();
+		expect(desktopClient.getTransportState()).toBe("connected");
+		expect(desktopClient.getTransportError()).toBeNull();
+	});
+
+	it("re-resolves the endpoint when reconnecting after the transport drops", async () => {
+		tauriInvoke
+			.mockResolvedValueOnce("ws://127.0.0.1:3126/transport?approval_token=old")
+			.mockResolvedValueOnce(
+				"ws://127.0.0.1:3126/transport?approval_token=new",
+			);
+		const { desktopClient } = await import("./desktop-client");
+		desktopClient.subscribeTransportState(() => undefined);
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		sockets[0]?.open();
+
+		sockets[0]?.close();
+		expect(desktopClient.getTransportState()).toBe("reconnecting");
+		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
+		await vi.waitFor(() => expect(sockets).toHaveLength(2));
+		expect(tauriInvoke).toHaveBeenCalledTimes(2);
+		expect(sockets[1]?.url).toBe(
+			"ws://127.0.0.1:3126/transport?approval_token=new",
+		);
 	});
 });
 

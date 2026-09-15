@@ -24,6 +24,7 @@ import {
 	AgentQuickActions,
 	SearchCombobox,
 	SessionStatus,
+	Switch,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
@@ -74,6 +75,7 @@ if (
 	!SearchCombobox ||
 	!AgentQuickActions ||
 	!SessionStatus ||
+	!Switch ||
 	!Conversation ||
 	!Message ||
 	!css ||
@@ -208,6 +210,14 @@ async function verifyTailwindContract(
 		expectFragment(noPreflightCss, fragment, "no-Preflight Tailwind contract");
 	}
 	expectInlineHeroMasks(noPreflightCss, "no-Preflight Tailwind contract");
+	for (const output of [css, noPreflightCss]) {
+		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
+		expectFragment(
+			output,
+			".cline-ui-switch__input:checked",
+			"packed switch states",
+		);
+	}
 }
 
 const temporaryRoot = mkdtempSync(join(tmpdir(), "cline-ui-package-"));

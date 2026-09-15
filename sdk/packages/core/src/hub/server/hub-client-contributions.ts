@@ -1,6 +1,7 @@
 import type {
 	AgentExtension,
 	AgentHooks,
+	AgentRuntimeEvent,
 	AgentTool,
 	AgentToolContext,
 	ConsecutiveMistakeLimitDecision,
@@ -503,6 +504,17 @@ function createToolProxies(
 	}));
 }
 
+// Per-chunk stream events never leave the hub as hook traffic. A proxied
+// onEvent call serializes the full runtime snapshot, persists it as a
+// capability event, and blocks the agent loop on a client round trip, so
+// forwarding every streamed token turned a reasoning model's output rate into
+// hundreds of KB of IPC and SQLite writes per chunk (#14091).
+const STREAMING_EVENT_TYPES = new Set<AgentRuntimeEvent["type"]>([
+	"assistant-text-delta",
+	"assistant-reasoning-delta",
+	"tool-updated",
+]);
+
 function createHookProxies(
 	sessionId: string,
 	targetClientId: string,
@@ -516,6 +528,12 @@ function createHookProxies(
 		const contribution = available.get(name);
 		if (!contribution) continue;
 		hooks[name] = async (ctx: unknown) => {
+			if (
+				name === "onEvent" &&
+				STREAMING_EVENT_TYPES.has((ctx as AgentRuntimeEvent).type)
+			) {
+				return undefined;
+			}
 			const response = await requestCapability(
 				sessionId,
 				contribution.capabilityName,

@@ -105,6 +105,41 @@ describe("ProviderDetailContent models", () => {
 		});
 		expect(onUpdateModels).toHaveBeenCalledWith(["alpha", "beta", "gamma"]);
 	});
+
+	it.each([
+		false,
+		true,
+	])("saves boolean configuration fields through a named switch (checked=%s)", async (checked) => {
+		const onUpdate = vi.fn();
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					modelsError={null}
+					onBack={vi.fn()}
+					onLoadModels={vi.fn()}
+					onUpdate={onUpdate}
+					provider={{
+						...provider,
+						configFields: [
+							{ path: "keepAlive", label: "Keep alive", type: "boolean" },
+						],
+						configValues: { keepAlive: checked },
+					}}
+				/>,
+			);
+		});
+
+		const toggle = container.querySelector<HTMLInputElement>(
+			'[role="switch"][aria-label="Keep alive"]',
+		);
+		expect(toggle?.type).toBe("checkbox");
+		expect(toggle?.checked).toBe(checked);
+		await act(async () => toggle?.click());
+		expect(toggle?.checked).toBe(!checked);
+		expect(onUpdate).toHaveBeenCalledExactlyOnceWith({
+			configValues: { keepAlive: !checked },
+		});
+	});
 });
 
 const catalogProviders: Provider[] = [

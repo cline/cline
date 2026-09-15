@@ -17,6 +17,7 @@ export {
 	fetchModelsDevProviderModels,
 	filterImageOutputModels,
 	filterOpenAICodexModels,
+	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getAllProviders,
 	getGeneratedModelsForProvider,
 	getGeneratedProviderModels,
@@ -76,6 +77,7 @@ export {
 	getClineNotSubscribedMessage,
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	getGeneratedModelsForRuntimeProvider,
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
@@ -91,6 +93,7 @@ export {
 	isClinePassLimitMessage,
 	isProviderApiLine,
 	isRegisteredHandlerAsync,
+	isRetryableProviderError,
 	normalizeProviderId,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 	type ProviderApiLine,
@@ -105,6 +108,10 @@ export {
 } from "./providers/billing";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
+export {
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./providers/local-cli";
 export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,

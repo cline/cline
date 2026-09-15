@@ -33,10 +33,12 @@ const options = [
 describe("SearchCombobox", () => {
 	it("filters and selects an option", async () => {
 		const onValueChange = vi.fn();
+		const onOpen = vi.fn();
 		await act(async () =>
 			root.render(
 				<SearchCombobox
 					ariaLabel="Repository"
+					onOpen={onOpen}
 					onValueChange={onValueChange}
 					options={options}
 					value="cline"
@@ -46,7 +48,9 @@ describe("SearchCombobox", () => {
 
 		const trigger = container.querySelector("button");
 		expect(trigger?.getAttribute("aria-label")).toBe("Repository: cline/cline");
+		expect(onOpen).not.toHaveBeenCalled();
 		await act(async () => trigger?.click());
+		expect(onOpen).toHaveBeenCalledTimes(1);
 		const search = container.querySelector("input");
 		await act(async () => {
 			const setValue = Object.getOwnPropertyDescriptor(
@@ -170,7 +174,7 @@ describe("SearchCombobox", () => {
 		expect(onValueChange).not.toHaveBeenCalled();
 	});
 
-	it("renders section headers and badges, and flattens while searching", async () => {
+	it("renders section headers and badges, and keeps matching sections while searching", async () => {
 		const sectionedOptions = [
 			{
 				badge: "NEW",
@@ -221,7 +225,9 @@ describe("SearchCombobox", () => {
 			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 		const searchedPanel = container.querySelector('[role="dialog"]');
+		// Sections without matches drop out; the matching one keeps its header.
 		expect(searchedPanel?.textContent).not.toContain("Recommended");
+		expect(searchedPanel?.textContent).toContain("Free");
 		expect(searchedPanel?.textContent).toContain("DeepSeek V4 Flash");
 		// Options remain searchable by id, and label matches are highlighted.
 		expect(

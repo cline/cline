@@ -23,9 +23,6 @@ describe("parseCloudSessionError", () => {
 	});
 
 	it("drops connect URLs outside the Cline app origins", () => {
-		// The envelope is authenticated by string prefix only, so a pod-
-		// controlled error string can spoof it; an attacker-chosen URL must
-		// never become a trusted-looking Connect GitHub button.
 		for (const hostile of [
 			"https://attacker.example/github-oauth",
 			"https://app.cline.bot.evil.example/dashboard",

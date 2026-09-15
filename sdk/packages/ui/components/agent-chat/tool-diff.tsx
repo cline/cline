@@ -11,8 +11,9 @@
  */
 
 import { parseDiffFromFile } from "@pierre/diffs";
-import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
+import { FileDiff } from "@pierre/diffs/react";
 import {
+	type ComponentProps,
 	type CSSProperties,
 	useEffect,
 	useMemo,
@@ -20,7 +21,11 @@ import {
 	useState,
 } from "react";
 
-type DiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
+// Derived from the component rather than FileDiffProps: the props interface
+// gained a second required type parameter in @pierre/diffs 1.4 while the
+// component kept defaults for both, so naming the interface directly pins us
+// to one minor of an optional peer dependency declared as ^1.3.0.
+type DiffOptions = NonNullable<ComponentProps<typeof FileDiff>["options"]>;
 
 export type ToolFileDiffProps = {
 	/** File path; used for the header-less language inference. */
