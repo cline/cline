@@ -5,15 +5,21 @@ use objc2_foundation::{NSPoint, NSRect, NSSize};
 
 /// AppKit scales a runtime application icon to fill its Dock tile. Unlike
 /// bundled icons, our full-bleed PNG variants need their own transparent inset.
-/// Use the traditional macOS 824-point body on a 1024-point canvas as a starting
-/// grid, preserving the source artwork's aspect ratio and existing shadows.
-pub fn padded_app_icon(source: Retained<NSImage>) -> Retained<NSImage> {
+/// Preserve the source artwork's aspect ratio and existing shadows. Hologram's
+/// double border needs a slightly larger footprint to look balanced alongside
+/// solid-background icons in the Dock.
+pub fn padded_app_icon(source: Retained<NSImage>, icon: &str) -> Retained<NSImage> {
     let canvas = NSSize::new(512.0, 512.0);
     let source_size = source.size();
+    let body_fraction = if icon == "hologram" {
+        0.84
+    } else {
+        824.0 / 1024.0
+    };
     // A drawing-backed image lets AppKit render at the Dock's current scale;
     // changing NSImage.size alone would still stretch the artwork to the tile.
     let draw = RcBlock::new(move |bounds: NSRect| {
-        let scale = (bounds.size.width.min(bounds.size.height) * 824.0 / 1024.0)
+        let scale = (bounds.size.width.min(bounds.size.height) * body_fraction)
             / source_size.width.max(source_size.height).max(1.0);
         let size = NSSize::new(source_size.width * scale, source_size.height * scale);
         let rect = NSRect::new(
@@ -44,7 +50,7 @@ mod tests {
                 let source =
                     NSImage::initWithContentsOfFile(NSImage::alloc(), &NSString::from_str(&path))
                         .expect("bundled icon should load");
-                let padded = padded_app_icon(source);
+                let padded = padded_app_icon(source, icon);
                 padded.setSize(NSSize::new(canvas_size, canvas_size));
                 // Rasterize the actual AppKit drawing callback, after its local
                 // block and source handles have been dropped by the helper.
@@ -69,11 +75,19 @@ mod tests {
                 }
                 let body_width = (right - left) as f64 / width as f64;
                 let body_height = (bottom - top) as f64 / height as f64;
-                assert!((0.77..0.83).contains(&body_width), "{icon}: {body_width}");
-                assert!((0.77..0.83).contains(&body_height), "{icon}: {body_height}");
-                assert!(left > width / 12 && top > height / 12, "{icon}: inset");
+                let expected_body = if icon == "hologram" {
+                    0.83..0.85
+                } else {
+                    0.77..0.83
+                };
+                assert!(expected_body.contains(&body_width), "{icon}: {body_width}");
                 assert!(
-                    right < width * 11 / 12 && bottom < height * 11 / 12,
+                    expected_body.contains(&body_height),
+                    "{icon}: {body_height}"
+                );
+                assert!(left > width / 16 && top > height / 16, "{icon}: inset");
+                assert!(
+                    right < width * 15 / 16 && bottom < height * 15 / 16,
                     "{icon}: inset"
                 );
                 assert_eq!(bitmap.colorAtX_y(0, 0).unwrap().alphaComponent(), 0.0);

@@ -865,7 +865,7 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
                 .ok_or_else(|| {
                     format!("failed loading app icon image: {}", icon_path.display())
                 })?;
-                let image = macos_app_icon::padded_app_icon(image);
+                let image = macos_app_icon::padded_app_icon(image, &icon);
                 // SAFETY: called on the main thread with a valid, non-nil image.
                 unsafe { ns_app.setApplicationIconImage(Some(&image)) };
                 Ok(())
