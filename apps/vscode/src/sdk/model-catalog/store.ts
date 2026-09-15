@@ -588,8 +588,10 @@ function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsReco
 
 // Credential-bearing fields. A GUI patch that touches any of these means the
 // user (re-)entered the provider's auth by hand, so the entry is no longer
-// purely "migration"/"oauth" sourced.
-const CREDENTIAL_PATCH_KEYS = ["apiKey", "aws", "auth"] as const
+// purely "migration"/"oauth" sourced. Custom headers count too: for
+// OpenAI-compatible endpoints the credential often travels in a header
+// (Authorization, api-key) rather than the apiKey field.
+const CREDENTIAL_PATCH_KEYS = ["apiKey", "aws", "auth", "headers"] as const
 
 function patchTouchesCredentials(patch: ProviderConfigPatch): boolean {
 	return CREDENTIAL_PATCH_KEYS.some((key) => key in patch)
