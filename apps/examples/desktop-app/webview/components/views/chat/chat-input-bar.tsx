@@ -286,7 +286,16 @@ export type PromptDraft = {
 	value: string;
 };
 
+export function buildWorkspaceFileSearchKey(
+	environmentId: string,
+	workspaceRoot: string,
+	query: string,
+): string {
+	return JSON.stringify([environmentId, workspaceRoot, query]);
+}
+
 type ChatInputBarProps = {
+	environmentId: string;
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
@@ -331,6 +340,7 @@ type ChatInputBarProps = {
 };
 
 function ChatInputBarImpl({
+	environmentId,
 	variant = "conversation",
 	status,
 	hasRunningAgents = false,
@@ -910,7 +920,11 @@ function ChatInputBarImpl({
 			return;
 		}
 
-		const requestKey = `${workspaceRoot}::${activeMention.query}`;
+		const requestKey = buildWorkspaceFileSearchKey(
+			environmentId,
+			workspaceRoot,
+			activeMention.query,
+		);
 		if (mentionLastRequestKeyRef.current === requestKey) {
 			return;
 		}
@@ -932,6 +946,7 @@ function ChatInputBarImpl({
 				const results = await desktopClient.invoke<string[]>(
 					"search_workspace_files",
 					{
+						environmentId,
 						workspaceRoot,
 						query: activeMention.query,
 						limit: 10,
@@ -962,7 +977,13 @@ function ChatInputBarImpl({
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [activeMention, mentionOpen, workspaceRoot, mentionFiles.length]);
+	}, [
+		activeMention,
+		environmentId,
+		mentionOpen,
+		workspaceRoot,
+		mentionFiles.length,
+	]);
 
 	const insertMentionFile = useCallback(
 		(filePath: string) => {
