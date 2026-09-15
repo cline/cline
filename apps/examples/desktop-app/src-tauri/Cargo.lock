@@ -519,6 +519,7 @@ dependencies = [
 name = "cline-app"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "notify-rust",
  "objc2",
  "objc2-app-kit",
