@@ -1538,6 +1538,61 @@ describe("CloudSessionManager Hub runtime", () => {
 		]);
 	});
 
+	it("rejects a model update to a stale reconnect target and allows retry", async () => {
+		const { manager, hub } = createFixture({
+			api: {
+				list: async () => [structuredClone(REMOTE_SESSION)],
+			} as CloudSessionApi,
+		});
+		await manager.attach("ses-outer");
+		await hub.resolveHeaders?.();
+		const originalCommand = hub.command.bind(hub);
+		let reconnect = true;
+		hub.command = async (command, payload, sessionId, options) => {
+			if (command === "session.update_connection" && reconnect) {
+				reconnect = false;
+				hub.listedSessions = [
+					{ sessionId: "inner-1", updatedAt: 20 },
+					{ sessionId: "inner-replacement", updatedAt: 30 },
+				];
+				await hub.resolveHeaders?.();
+				await vi.waitFor(() =>
+					expect(hub.subscriptionSessionIds).toContain("inner-replacement"),
+				);
+			}
+			options?.beforeDispatch?.();
+			return originalCommand(command, payload, sessionId, options);
+		};
+		const selectedModel = "anthropic/claude-opus-4-1";
+		const mutations = () =>
+			hub.commands.filter(({ command }) =>
+				["session.update_connection", "session.send_input"].includes(command),
+			);
+		try {
+			await expect(
+				manager.send("ses-outer", "Continue", undefined, selectedModel),
+			).rejects.toThrow("before the model could be changed");
+			expect(mutations()).toEqual([]);
+			await manager.send("ses-outer", "Continue", undefined, selectedModel);
+			expect(mutations()).toEqual([
+				expect.objectContaining({
+					command: "session.update_connection",
+					sessionId: "inner-replacement",
+					payload: {
+						sessionId: "inner-replacement",
+						updates: { modelId: selectedModel },
+					},
+				}),
+				expect.objectContaining({
+					command: "session.send_input",
+					sessionId: "inner-replacement",
+				}),
+			]);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("uses the attach reply as the final model authority before sending", async () => {
 		const hub = new FakeHubClient();
 		const selectedModel = REMOTE_SESSION.metadata.modelId ?? "";

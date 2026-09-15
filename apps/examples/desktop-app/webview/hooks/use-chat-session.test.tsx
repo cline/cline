@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -5723,6 +5723,64 @@ describe("coerced-queue first turn vs stale send response", () => {
 		).toEqual([expect.objectContaining({ id: "saved-next-user" })]);
 	});
 
+	it.each([
+		false,
+		true,
+	])("finalizes a finished successor after late replies (queue reply last: %s)", async (queueReplyLast) => {
+		const sendResolvers = mockTransport({
+			deferredSendCount: queueReplyLast ? 2 : 1,
+		});
+		await act(async () =>
+			current.setConfig((previous) => ({
+				...previous,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			})),
+		);
+		const { sendPromise } = await dispatchPrompt("First turn");
+		const sid = current.sessionId;
+		const { sendPromise: queuedSendPromise } =
+			await dispatchPrompt("Next turn");
+		await act(async () => current.abort());
+		const handler = getChatEventHandler();
+		await act(async () => {
+			emitTurnEvents(handler, sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({ promptId: "next", prompt: "Next turn" }),
+					index: 1,
+				},
+				{ stream: "chat_text", chunk: "Next answer", index: 2 },
+			]);
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+		expect(current.activeAssistantMessageId).toBeTruthy();
+		await act(async () =>
+			handlerFor("chat_session_ended")({ sessionId: sid, reason: "completed" }),
+		);
+		expect(current.status).toBe("completed");
+		await act(async () => {
+			sendResolvers[0]?.({
+				sessionId: sid,
+				ok: true,
+				result: { text: "", finishReason: "aborted" },
+			});
+			await sendPromise;
+		});
+		await act(async () => {
+			if (queueReplyLast)
+				sendResolvers[1]?.({
+					sessionId: sid,
+					ok: true,
+					queued: true,
+					promptsInQueue: [],
+				});
+			await queuedSendPromise;
+		});
+		expect(current.activeAssistantMessageId).toBeNull();
+	});
+
 	it("ignores an aborted send reply after its queued successor starts streaming", async () => {
 		const sendResolvers = mockTransport();
 		const { sendPromise } = await dispatchPrompt("First turn");
@@ -6099,5 +6157,95 @@ describe("coerced-queue first turn vs stale send response", () => {
 			.join("");
 		expect(assistantText).toContain("kept");
 		expect(assistantText).not.toContain("replayed");
+	});
+});
+
+describe("cloud snapshot replay", () => {
+	it("retains a second identical prompt when React replays snapshot reconciliation", async () => {
+		subscribeMock.mockClear();
+		await act(async () =>
+			root.render(
+				<StrictMode>
+					<HookHarness />
+				</StrictMode>,
+			),
+		);
+		let sends = 0;
+		const second = deferred<unknown>();
+		const secondDispatched = deferred<void>();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context")
+					return { cwd: "/workspace", workspaceRoot: "/workspace" };
+				if (command === "read_session_messages")
+					throw new Error("history unavailable");
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string };
+					if (request.action === "start")
+						return {
+							sessionId: "ses-replay",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					if (request.action === "send") {
+						sends++;
+						if (sends === 1)
+							return {
+								ok: true,
+								result: { text: "Done", finishReason: "completed" },
+							};
+						secondDispatched.resolve();
+						return second.promise;
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.start({
+				...current.config,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		);
+		await act(async () => current.sendPrompt("Continue"));
+		expect(current.status).toBe("completed");
+		let pending!: Promise<boolean>;
+		await act(async () => {
+			pending = current.sendPrompt("Continue");
+			await secondDispatched.promise;
+		});
+		expect(sends).toBe(2);
+		expect(current.messages.filter((m) => m.role === "user")).toHaveLength(2);
+		const secondId = current.messages.filter((m) => m.role === "user")[1].id;
+		const handler = subscribeMock.mock.calls.findLast(
+			([name]) => name === "cloud_session_rehydrated",
+		)?.[1];
+		await act(async () =>
+			handler?.({
+				sessionId: "ses-replay",
+				status: "running",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "canonical-first",
+						sessionId: "ses-replay",
+						role: "user",
+						content: "Continue",
+						createdAt: 1,
+					},
+				],
+			}),
+		);
+		const users = current.messages.filter((m) => m.role === "user");
+		await act(async () => {
+			second.resolve({
+				ok: true,
+				result: { text: "Second done", finishReason: "completed" },
+			});
+			await pending;
+		});
+		expect(users.map((m) => m.id)).toEqual(["canonical-first", secondId]);
 	});
 });
