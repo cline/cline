@@ -15,7 +15,7 @@ import {
 	type InternalFeature,
 	isInternalFeatureEnabled as resolveInternalFeatureAccess,
 } from "@cline/shared";
-import { CORE_TELEMETRY_EVENTS } from "../..";
+import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

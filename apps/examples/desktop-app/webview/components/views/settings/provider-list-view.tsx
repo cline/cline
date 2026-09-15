@@ -1,5 +1,6 @@
 "use client";
 
+import { Switch } from "@cline/ui";
 import {
 	ArrowLeft,
 	Brain,
@@ -28,7 +29,6 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { openExternalUrl } from "@/lib/desktop-client";
 import {
@@ -444,6 +444,7 @@ function ConfigFieldRow({
 				<div className="flex items-center justify-end">
 					<span className="text-sm text-muted-foreground">{field.label}</span>
 					<Switch
+						aria-label={field.label}
 						checked={Boolean(value)}
 						onCheckedChange={(checked) => onCommit(checked)}
 					/>
