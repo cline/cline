@@ -398,17 +398,17 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	// Use the catalog's authored order, not release-date order. The cline-pass
-	// block mirrors the recommended-models endpoint, which lists the intended
-	// default subscription model first — the newest model is not necessarily a
-	// safe default.
+	// The generated list is release-date ordered and mixes tiers (cline-pass/*,
+	// cline-free/*, :free). Only a subscribed-tier model is a safe default;
+	// fall back to the first entry only when the catalog has none.
 	const generatedModelList = Object.keys(
 		getGeneratedModelsForProvider(providerId),
 	);
-	if (!generatedModelList.length) {
-		return "";
-	}
-	return generatedModelList[0];
+	return (
+		generatedModelList.find((id) => id.startsWith(`${providerId}/`)) ??
+		generatedModelList[0] ??
+		""
+	);
 }
 
 function pickAnthropicModel(match: (id: string) => boolean): ModelInfo {

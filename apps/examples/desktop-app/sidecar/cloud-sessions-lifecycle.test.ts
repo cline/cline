@@ -141,9 +141,12 @@ describe("CloudSessionManager lifecycle", () => {
 		});
 	});
 
-	it("expires a live session without a Hub connection when its TTL elapses", async () => {
+	it.each([
+		"expired",
+		"failed",
+	] as const)("reconciles a %s session without a Hub connection", async (status) => {
 		const { ctx } = createContext();
-		const remote = { ...REMOTE_SESSION };
+		const remote: CloudSessionRecord = { ...REMOTE_SESSION };
 		const manager = new CloudSessionManager(ctx, {
 			api: {
 				create: async () => ({
@@ -162,16 +165,42 @@ describe("CloudSessionManager lifecycle", () => {
 		});
 		expect((await manager.listForDiscovery())[0].status).toBe("ready");
 
-		remote.expiredAt = new Date(Date.now() - 1_000).toISOString();
+		const endedAt = new Date(Date.now() - 1_000).toISOString();
+		if (status === "expired") {
+			remote.expiredAt = endedAt;
+		} else {
+			remote.status = "failed";
+			remote.lastActivityAt = endedAt;
+		}
 		expect((await manager.listForDiscovery())[0]).toMatchObject({
-			status: "expired",
-			endedAt: remote.expiredAt,
+			status,
+			endedAt,
 		});
 		expect(ctx.liveSessions.get(remote.id)).toMatchObject({
-			status: "expired",
+			status,
 			busy: false,
-			endedAt: Date.parse(remote.expiredAt),
+			endedAt: Date.parse(endedAt),
 		});
+		if (status === "failed") {
+			remote.title = "Renamed after failure";
+			remote.updatedAt = new Date().toISOString();
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(endedAt);
+			const live = ctx.liveSessions.get(remote.id)!;
+			ctx.liveSessions.clear();
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(endedAt);
+
+			const hubEndedAt = Date.parse(endedAt) + 500;
+			live.endedAt = hubEndedAt;
+			ctx.liveSessions.set(remote.id, live);
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(
+				new Date(hubEndedAt).toISOString(),
+			);
+			ctx.liveSessions.clear();
+			delete remote.lastActivityAt;
+			expect((await manager.listForDiscovery())[0].endedAt).toBe(
+				remote.createdAt,
+			);
+		}
 	});
 
 	it("single-flights repeated starts for the same client request", async () => {
@@ -230,6 +259,7 @@ describe("CloudSessionManager lifecycle", () => {
 					createCalls += 1;
 					return {
 						sessionId: `ses-created-${createCalls}`,
+						status: "provisioning",
 						sandboxUrl: "pod",
 					};
 				},
