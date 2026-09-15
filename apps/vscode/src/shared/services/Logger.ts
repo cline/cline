@@ -24,7 +24,13 @@ export class Logger {
 	}
 
 	static error(message: string, ...args: any[]) {
-		Logger.#output("ERROR", message, undefined, args)
+		const [firstArg, ...remainingArgs] = args
+		Logger.#output(
+			"ERROR",
+			message,
+			firstArg instanceof Error ? firstArg : undefined,
+			firstArg instanceof Error ? remainingArgs : args,
+		)
 	}
 
 	static warn(message: string, ...args: any[]) {
