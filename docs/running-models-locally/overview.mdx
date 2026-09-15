@@ -76,10 +76,22 @@ Run Cline with local inference on your machine.
     3. Keep Base URL as `http://localhost:1234`
     4. Select your model from the dropdown
 
-    ### 6) Troubleshooting
+    ### 6) Server authentication
+    LM Studio can require a token under **Developer → Server Settings → Require Authentication**.
+    The VS Code LM Studio provider settings currently have no API key field (tracked in [#9668](https://github.com/cline/cline/issues/9668)).
+    Until that lands, use one of these:
+
+    1. **CLI / SDK:** set `LMSTUDIO_API_KEY` to the token from LM Studio. The SDK already reads that env var for the `lmstudio` provider.
+    2. **VS Code workaround:** switch the provider to **OpenAI Compatible**, set Base URL to `http://localhost:1234/v1`, paste the LM Studio token as the API key, and enter the model id manually.
+    3. **Local-only machines:** turn **Require Authentication** off in LM Studio if you do not need the token.
+
+    Do not put the token in chat, rules files, or screenshots.
+
+    ### 7) Troubleshooting
     - Ensure LM Studio server is running
     - Ensure a model is loaded
     - If connection fails, verify `http://localhost:1234`
+    - If requests fail with auth / 401 errors, use the workarounds in **Server authentication**
   </Tab>
 
   <Tab title="Atomic Chat">
