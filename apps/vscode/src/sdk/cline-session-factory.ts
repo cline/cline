@@ -548,7 +548,23 @@ export function resolveModelId(providerId: string, mode: Mode, config: ApiConfig
 	const modelFields = PROVIDER_MODEL_ID_MAP[providerId]
 	if (modelFields) {
 		const field = mode === "plan" ? modelFields.plan : modelFields.act
-		return (config[field] as string | undefined)?.trim() || undefined
+		const fromState = (config[field] as string | undefined)?.trim()
+		if (fromState) {
+			return fromState
+		}
+		// The SDK settings store (providers.json) holds the model id for
+		// providers configured through the new provider UI (e.g.
+		// openai-compatible) while the legacy mode slot stays empty. Fall
+		// back to the committed model before the caller substitutes a
+		// catalog default (mirrors the providers.json fallback in
+		// resolveBaseUrl).
+		try {
+			const settings = getProviderSettingsManager().getProviderSettings(providerSettingsProviderId(providerId))
+			return settings?.model?.trim() || undefined
+		} catch (error) {
+			Logger.warn(`[SessionFactory] Failed to read committed model for provider=${providerId}:`, error)
+			return undefined
+		}
 	}
 
 	// Fallback to generic mode model ID fields only for providers without a
