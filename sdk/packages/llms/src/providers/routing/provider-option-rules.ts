@@ -2,6 +2,7 @@ import { isClineProvider } from "@cline/shared";
 import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import {
 	getModelReasoningControls,
+	isBedrockOpenAiModelId,
 	isDeepSeekFamily,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
@@ -10,6 +11,7 @@ import {
 	providerReasoningRouteMatches,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
+import { toBedrockOpenAiReasoningEffort } from "./bedrock-reasoning";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
 import {
 	buildNativeGlmThinkingProviderOptionsPatch,
@@ -317,6 +319,31 @@ const fireworksReasoningRule: ProviderOptionRule = {
 	},
 };
 
+const bedrockOpenAiReasoningEffortRule: ProviderOptionRule = {
+	id: "provider.bedrock.openai-reasoning-effort",
+	phase: "provider-reasoning",
+	description:
+		"OpenAI models on Bedrock take reasoning_effort in additionalModelRequestFields; the AI SDK adapter only recognises bare `openai.` ids and emits reasoningConfig for inference-profile prefixed ones, which they reject.",
+	applies: (input) =>
+		input.request.providerId === "bedrock" &&
+		isBedrockOpenAiModelId(input.request.modelId) &&
+		input.request.reasoning?.enabled !== false &&
+		input.request.reasoning?.effort !== undefined,
+	suppresses: { genericThinking: true },
+	build: (input) => {
+		const effort = input.request.reasoning?.effort;
+		return effort
+			? {
+					bedrock: {
+						additionalModelRequestFields: {
+							reasoning_effort: toBedrockOpenAiReasoningEffort(effort),
+						},
+					},
+				}
+			: undefined;
+	},
+};
+
 const togetherReasoningToggleRule: ProviderOptionRule = {
 	id: "provider.together.toggle",
 	phase: "provider-reasoning",
@@ -530,6 +557,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	miniMaxThinkingRule,
 	routedGlmReasoningRule,
 	togetherReasoningToggleRule,
+	bedrockOpenAiReasoningEffortRule,
 ];
 
 export function matchProviderOptionRules(
