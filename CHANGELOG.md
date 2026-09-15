@@ -2,8 +2,6 @@
 
 ## [4.1.18]
 
-Every window now runs the SDK extension: the rollout that let a flag choose between it and the previous extension per window is complete. This release still ships as the combined package while the standalone publishing path is finalized, so the download is unchanged in size; a smaller SDK-only package follows in a later release.
-
 ### Added
 
 - Images attached to a model that cannot read them are now flagged instead of silently discarded. Thumbnails get a warning badge and the composer explains that the images will be ignored, with a button to switch to an image-capable model. Previously the thumbnail looked normal and the image was replaced with a text placeholder just before the request, so there was no way to tell it had been dropped. Model info and the attachment picker also report image support accurately for models that declare text-only input without listing capabilities.
