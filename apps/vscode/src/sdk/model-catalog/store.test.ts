@@ -233,6 +233,24 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
 	})
 
+	it("marks the entry as manual when a GUI patch edits custom headers", async () => {
+		// OpenAI-compatible endpoints often carry the credential in a header
+		// rather than apiKey, so a header edit is a credential edit.
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			"openai-compatible": { provider: "openai-compatible", baseUrl: "https://llm.example.com/v1" },
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, { headers: { Authorization: "Bearer manual-token" } })
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			headers: { Authorization: "Bearer manual-token" },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
 	it("keeps the inherited tokenSource when a GUI patch has no credential fields", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
