@@ -3,6 +3,7 @@ export type SessionHistoryStatus =
 	| "completed"
 	| "failed"
 	| "cancelled"
+	| "provisioning"
 	| "idle";
 
 export type SessionMetadata = {
@@ -43,6 +44,8 @@ export const PINNED_METADATA_KEY = "pinned";
 
 export interface SessionHistoryItem {
 	sessionId: string;
+	origin?: "local" | "cloud";
+	repoUrl?: string;
 	source?: string;
 	status: SessionHistoryStatus;
 	provider: string;
@@ -54,6 +57,7 @@ export interface SessionHistoryItem {
 	prompt?: string;
 	startedAt: string;
 	endedAt?: string;
+	lastActivityAt?: string;
 	metadata?: SessionMetadata;
 }
 

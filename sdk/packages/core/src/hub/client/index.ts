@@ -34,6 +34,12 @@ type PendingReply = {
 	reject: (error: unknown) => void;
 };
 
+type HubCommandOptions = {
+	timeoutMs?: number | null;
+	/** Synchronous local guard, checked after connection before each dispatch. */
+	beforeDispatch?: () => void;
+};
+
 type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
@@ -463,9 +469,9 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				if (!this.closedByClient && this.hasActiveSubscriptions()) {
-					this.scheduleReconnect();
-				}
+			}
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
 			}
 			throw error;
 		}
@@ -658,7 +664,7 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
 		const canRecoverTransport =
@@ -683,12 +689,13 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
 		}
+		options?.beforeDispatch?.();
 		const requestId = createSessionId("hubreq_");
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
