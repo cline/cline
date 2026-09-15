@@ -13,7 +13,10 @@ export interface StartSessionResult {
 	sessionId: string
 }
 
-export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+export {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/output-limits"
 
 export interface StoredModelEntry {
 	id?: string
@@ -107,10 +110,6 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 		} catch {}
 		writeFileSync(filePath, JSON.stringify({ ...settings, tools: { ...settings.tools, [name]: { enabled } } }))
 	}
-}
-
-export function truncateCommandOutput(output: string): string {
-	return output
 }
 
 export class CommandExitError extends Error {
