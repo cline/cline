@@ -4077,6 +4077,17 @@ describe("tool display paths are relativized to the cwd", () => {
 		expect(parseTool(message.text).path).toBe("src/index.ts")
 	})
 
+	it("renders cmd-aliased run_commands entries as the command, not [object Object]", () => {
+		const message = buildToolApprovalAskMessage("run_commands", { commands: [{ cmd: "git status --short" }] }, 1, CWD)
+		expect(message.text).toBe("git status --short")
+		expect(message.text).not.toContain("[object Object]")
+	})
+
+	it("keeps argv when previewing a cmd-aliased run_commands entry", () => {
+		const message = buildToolApprovalAskMessage("run_commands", { commands: [{ cmd: "node", args: ["--version"] }] }, 1, CWD)
+		expect(message.text).toBe("node --version")
+	})
+
 	it("reconstructs hook status chips from injected hook context and keeps the completion retag", () => {
 		const messages: SdkMessage[] = [
 			{ role: "user", content: '<user_input mode="act">read the readme</user_input>' } as SdkMessage,
