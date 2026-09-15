@@ -6,7 +6,7 @@
  * of truth for the channel: it is baked into package.json/tauri.conf.json at
  * build time and reported by the sidecar's get_process_context, which works
  * in both the Tauri shell and web dev mode (where no Tauri API exists).
- * See apps/examples/desktop-app/EXPERIMENTAL.md for the channel model.
+ * See apps/desktop-app/EXPERIMENTAL.md for the channel model.
  */
 
 export const STABLE_PRODUCT_NAME = "Cline";

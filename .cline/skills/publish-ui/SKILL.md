@@ -37,7 +37,7 @@ git status --short --branch
 node -p "require('./sdk/packages/ui/package.json').version"
 npm view @cline/ui dist-tags versions --json
 git log --oneline --no-merges -- \
-  sdk/packages/ui apps/examples/desktop-app/webview/components/views/chat \
+  sdk/packages/ui apps/desktop-app/webview/components/views/chat \
   .github/workflows/ui-publish.yml
 ```
 

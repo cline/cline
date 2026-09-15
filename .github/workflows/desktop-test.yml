@@ -6,22 +6,22 @@ on:
       - main
       - desktop-experimental
     paths:
-      - "apps/examples/desktop-app/package.json"
-      - "apps/examples/desktop-app/scripts/dmg-background.ts"
-      - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
-      - "apps/examples/desktop-app/src-tauri/dmg/background.png"
-      - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
+      - "apps/desktop-app/package.json"
+      - "apps/desktop-app/scripts/dmg-background.ts"
+      - "apps/desktop-app/scripts/dmg-background.test.ts"
+      - "apps/desktop-app/src-tauri/dmg/background.png"
+      - "apps/desktop-app/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
   pull_request:
     branches:
       - main
       - desktop-experimental
     paths:
-      - "apps/examples/desktop-app/package.json"
-      - "apps/examples/desktop-app/scripts/dmg-background.ts"
-      - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
-      - "apps/examples/desktop-app/src-tauri/dmg/background.png"
-      - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
+      - "apps/desktop-app/package.json"
+      - "apps/desktop-app/scripts/dmg-background.ts"
+      - "apps/desktop-app/scripts/dmg-background.test.ts"
+      - "apps/desktop-app/src-tauri/dmg/background.png"
+      - "apps/desktop-app/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
   workflow_dispatch:
 
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

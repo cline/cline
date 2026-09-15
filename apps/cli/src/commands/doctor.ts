@@ -263,8 +263,8 @@ function listStaleHubPids(currentHubPids: number[]): number[] {
 
 function listStaleSidecarPids(): number[] {
 	const patterns = [
-		"/apps/examples/desktop-app/sidecar/index.ts",
-		"/apps/examples/desktop-app/dist/sidecar/index.js",
+		"/apps/desktop-app/sidecar/index.ts",
+		"/apps/desktop-app/dist/sidecar/index.js",
 		// Keep the pre-example-reorg paths so `doctor --fix` can still clean up
 		// stale sidecars that were launched from older checkouts.
 		"/apps/code/sidecar/index.ts",

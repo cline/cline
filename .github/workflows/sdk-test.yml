@@ -6,13 +6,13 @@ on:
             - main
         paths:
             - "sdk/**"
-            - "apps/examples/desktop-app/**"
+            - "apps/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_dispatch:
     pull_request:
         paths:
             - "sdk/**"
-            - "apps/examples/desktop-app/**"
+            - "apps/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_call:
 

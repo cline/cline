@@ -18,7 +18,7 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 ### Apps
 
 - `apps/cli`: CLI host and local hub management
-- `apps/examples/desktop-app`: Tauri + Next.js desktop app example
+- `apps/desktop-app`: Tauri + Next.js Desktop app
 - `apps/examples/vscode`: VS Code extension example
 - `apps/examples/menubar`: hub notification menubar example
 - `examples`: plugin, hook, and cron automation examples (customizations upon Cline SDK)

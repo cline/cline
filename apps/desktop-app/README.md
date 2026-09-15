@@ -4,7 +4,7 @@ Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspectin
 
 ## Dev Commands
 
-From `apps/examples/desktop-app/`:
+From `apps/desktop-app/`:
 
 - `bun run dev:headless` - Next.js UI (`http://localhost:3125`) and sidecar backend with a fresh shared approval credential
 - `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)

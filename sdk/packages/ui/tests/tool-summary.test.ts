@@ -102,7 +102,7 @@ describe("read_files summaries", () => {
 
 	it("shortens long paths in details but keeps basenames in labels", () => {
 		const longPath =
-			"apps/examples/desktop-app/webview/components/views/chat/chat-messages.tsx";
+			"apps/desktop-app/webview/components/views/chat/chat-messages.tsx";
 		const summary = buildToolSummary({
 			toolName: "read_files",
 			input: { file_paths: [longPath] },
