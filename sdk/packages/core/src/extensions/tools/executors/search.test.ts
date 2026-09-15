@@ -13,6 +13,99 @@ const ctx: AgentToolContext = {
 };
 
 describe("createSearchExecutor", () => {
+	it("finds .NET source, project, and resource files in the fallback scan", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		const files = [
+			"Widget.cs",
+			"Module.vb",
+			"Component.razor",
+			"Page.cshtml",
+			"App.sln",
+			"App.slnx",
+			"App.csproj",
+			"App.vbproj",
+			"Directory.Build.props",
+			"Directory.Build.targets",
+			"View.xaml",
+			"View.axaml",
+			"Resources.resx",
+			"Site.master",
+			"Page.aspx",
+			"Control.ascx",
+			"Handler.ashx",
+			"Global.asax",
+			"Service.svc",
+			"App.config",
+			"App.settings",
+			"Profile.pubxml",
+			"Uppercase.CS",
+			"README.md",
+		];
+
+		try {
+			await Promise.all(
+				files.map((file) =>
+					fs.writeFile(path.join(dir, file), "IsCollapsible", "utf-8"),
+				),
+			);
+			// Lookahead is unsupported by ripgrep, forcing the fallback scan.
+			const result = await createSearchExecutor()(
+				"(?=IsCollapsible)IsCollapsible",
+				dir,
+				ctx,
+			);
+			expect(result).toContain(`Found ${files.length} results for pattern`);
+			for (const file of files) {
+				expect(result).toContain(`${file}:1:1`);
+			}
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("excludes Visual Studio metadata and build output from the fallback scan", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		try {
+			await fs.writeFile(path.join(dir, "Widget.cs"), "IsCollapsible", "utf-8");
+			for (const folder of [".vs", "bin", "obj"]) {
+				await fs.mkdir(path.join(dir, folder));
+				await fs.writeFile(
+					path.join(dir, folder, "Generated.cs"),
+					"IsCollapsible",
+					"utf-8",
+				);
+			}
+			const result = await createSearchExecutor()(
+				"(?=IsCollapsible)IsCollapsible",
+				dir,
+				ctx,
+			);
+			expect(result).toContain("Found 1 result for pattern");
+			expect(result).toContain("Widget.cs:1:1");
+			expect(result).not.toContain("Generated.cs");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("preserves explicit extension filters in the fallback scan", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		try {
+			await fs.writeFile(path.join(dir, "Widget.cs"), "IsCollapsible", "utf-8");
+			await fs.writeFile(path.join(dir, "README.md"), "IsCollapsible", "utf-8");
+			const result = await createSearchExecutor({ includeExtensions: ["md"] })(
+				"(?=IsCollapsible)IsCollapsible",
+				dir,
+				ctx,
+			);
+			expect(result).toContain("Found 1 result for pattern");
+			expect(result).toContain("README.md:1:1");
+			expect(result).not.toContain("Widget.cs");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("middle-truncates oversized search output with recovery guidance", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
 		const filePath = path.join(dir, "large.ts");
