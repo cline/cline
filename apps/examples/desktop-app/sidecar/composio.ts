@@ -68,7 +68,7 @@ type StoredComposioTool = {
 	name?: string;
 	description?: string;
 	version?: string;
-	inputParameters?: Record<string, unknown>;
+	input_parameters?: Record<string, unknown>;
 };
 
 type StoredComposioToolkit = {
@@ -155,7 +155,7 @@ function toStoredTool(raw: {
 	name?: string;
 	description?: string;
 	version?: string;
-	inputParameters?: unknown;
+	input_parameters?: unknown;
 }): StoredComposioTool | undefined {
 	if (!raw?.slug) {
 		return undefined;
@@ -172,7 +172,7 @@ function toStoredTool(raw: {
 			typeof raw.version === "string" && raw.version.trim()
 				? raw.version.trim()
 				: undefined,
-		inputParameters: parseToolInputParameters(raw.inputParameters),
+		input_parameters: parseToolInputParameters(raw.input_parameters),
 	};
 }
 
@@ -547,7 +547,7 @@ export async function getComposioStatus(options?: {
 				}
 				continue;
 			}
-			if (account.status === "ACTIVE" && !account.isDisabled) {
+			if (account.status === "ACTIVE" && !account.is_disabled) {
 				activeByToolkit.set(account.toolkit.slug.toLowerCase(), account.id);
 			}
 		}
@@ -574,7 +574,7 @@ export async function getComposioStatus(options?: {
 				// reported as installed — its account is abandoned/revoked.
 				removals.push(slug);
 			} else if (stored && !remoteAccountId) {
-				// The proxy list is authoritative (server-side pagination to
+				// The proxy list is authoritative (client-side pagination to
 				// completion), so absence means revoked remotely.
 				removals.push(slug);
 			} else if (

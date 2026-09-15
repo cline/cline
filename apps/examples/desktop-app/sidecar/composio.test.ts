@@ -181,6 +181,40 @@ describe("availability gating (proxy entitlement)", () => {
 });
 
 describe("getComposioStatus", () => {
+	it("does not import disabled ACTIVE accounts", async () => {
+		useTempDataDir();
+		makeAvailable([
+			{
+				id: "ca_disabled",
+				toolkit: { slug: "gmail" },
+				status: "ACTIVE",
+				is_disabled: true,
+			},
+		]);
+		const status = await getComposioStatus({ refresh: true });
+		expect(
+			status.integrations.find((entry) => entry.toolkit === "gmail")?.status,
+		).toBe("not_connected");
+		expect(proxy.listToolkitTools).not.toHaveBeenCalled();
+	});
+
+	it("preserves stored connectors when the complete remote list cannot be fetched", async () => {
+		const dir = useTempDataDir();
+		const stored = {
+			toolkits: {
+				github: {
+					connectedAccountId: "ca_1",
+					tools: [{ slug: "GITHUB_LIST_ISSUES" }],
+				},
+			},
+		};
+		writeState(dir, stored);
+		proxy.listConnections.mockRejectedValue(
+			new ConnectorsApiError("later page failed", 502),
+		);
+		await getComposioStatus({ refresh: true });
+		expect(readStateFile(dir).toolkits).toEqual(stored.toolkits);
+	});
 	it("reports the recommended set as disconnected when signed in with nothing connected", async () => {
 		useTempDataDir();
 		makeAvailable();
@@ -326,12 +360,22 @@ describe("connectComposioToolkit", () => {
 			connectedAccountId: "ca_direct",
 			// no redirectUrl → already authorized
 		});
-		proxy.listToolkitTools.mockResolvedValue([{ slug: "GITHUB_LIST_ISSUES" }]);
+		const input_parameters = {
+			type: "object",
+			properties: { repo: { type: "string" } },
+			required: ["repo"],
+		};
+		proxy.listToolkitTools.mockResolvedValue([
+			{ slug: "GITHUB_LIST_ISSUES", version: "v1", input_parameters },
+		]);
 		const result = await connectComposioToolkit("github");
 		expect(result.alreadyConnected).toBe(true);
 		expect(readStateFile(dir).toolkits?.github?.connectedAccountId).toBe(
 			"ca_direct",
 		);
+		expect(readStateFile(dir).toolkits?.github?.tools).toEqual([
+			{ slug: "GITHUB_LIST_ISSUES", version: "v1", input_parameters },
+		]);
 	});
 
 	it("overlapping connects are single-flight: only one initiate call is made", async () => {

@@ -145,7 +145,7 @@ describe("createComposioToolsExtension", () => {
 						{
 							slug: "GMAIL_SEND_EMAIL",
 							description: "Send an email.",
-							inputParameters: {
+							input_parameters: {
 								type: "object",
 								properties: { to: { type: "string" } },
 								required: ["to"],
@@ -179,7 +179,7 @@ describe("createComposioToolsExtension", () => {
 					tools: [
 						{
 							slug: "GITHUB_BROKEN_TOOL",
-							inputParameters: {
+							input_parameters: {
 								allOf: [{ type: "string" }, { type: "number" }],
 							},
 						},
@@ -218,7 +218,7 @@ describe("createComposioToolsExtension", () => {
 			{ method: string; headers: Record<string, string>; body: string },
 		];
 		expect(url).toBe(
-			"https://api.cline.bot/v1/connectors/composio/tools/GMAIL_SEND_EMAIL/execute",
+			"https://api.cline.bot/api/v1/connectors/tools/GMAIL_SEND_EMAIL/execute",
 		);
 		expect(init.method).toBe("POST");
 		expect(init.headers.authorization).toBe("Bearer cline_token_123");
@@ -254,7 +254,9 @@ describe("createComposioToolsExtension", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it("returns structured errors on HTTP failures instead of throwing", async () => {
+	it.each([
+		401, 403, 502,
+	])("returns structured errors on HTTP %i instead of throwing", async (status) => {
 		writeState({
 			toolkits: {
 				github: {
@@ -267,9 +269,15 @@ describe("createComposioToolsExtension", () => {
 			"fetch",
 			vi.fn(
 				async () =>
-					new Response(JSON.stringify({ message: "connection expired" }), {
-						status: 401,
-					}),
+					new Response(
+						JSON.stringify({
+							success: false,
+							error: "connector request failed",
+						}),
+						{
+							status,
+						},
+					),
 			),
 		);
 		const tools = await setupTools();
@@ -278,7 +286,7 @@ describe("createComposioToolsExtension", () => {
 			error: string;
 		};
 		expect(result.successful).toBe(false);
-		expect(result.error).toContain("HTTP 401");
+		expect(result.error).toContain(`HTTP ${status}`);
 		expect(result.error).toContain("GITHUB_CREATE_AN_ISSUE");
 	});
 

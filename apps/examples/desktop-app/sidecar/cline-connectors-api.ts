@@ -7,7 +7,7 @@ import {
 } from "./cline-auth";
 
 /**
- * Client for the Cline API connectors proxy (`/v1/connectors/composio/*`).
+ * Client for the Cline API connectors proxy (`/api/v1/connectors/*`).
  *
  * The proxy holds the Composio project API key server-side and derives the
  * Composio `user_id` from the authenticated Cline account on every call —
@@ -23,7 +23,9 @@ import {
  * HTTP status on failure; a missing sign-in surfaces as status 401.
  */
 
-const CONNECTORS_API_PATH = "/v1/connectors/composio";
+const CONNECTORS_API_PATH = "/api/v1/connectors";
+const CONNECTION_PAGE_SIZE = 200;
+const TOOLKIT_TOOL_LIMIT = 20;
 
 /** How often the connect waiter polls the caller's connections while the
  * user finishes the OAuth flow in their browser. */
@@ -52,7 +54,7 @@ export type ConnectorConnection = {
 	id: string;
 	toolkit: { slug: string };
 	status: string;
-	isDisabled?: boolean;
+	is_disabled?: boolean;
 };
 
 export type ConnectorInitiateResult = {
@@ -67,7 +69,13 @@ export type ConnectorToolSchema = {
 	name?: string;
 	description?: string;
 	version?: string;
-	inputParameters?: unknown;
+	input_parameters?: unknown;
+};
+
+type ConnectorPage<T> = {
+	items: T[];
+	nextToken: string;
+	total: number;
 };
 
 async function requestConnectorsApi<T>(
@@ -134,7 +142,11 @@ async function requestConnectorsApi<T>(
 			`Cline API returned HTTP ${response.status} for ${method} ${path}`;
 		throw new ConnectorsApiError(message, response.status);
 	}
-	// The live backend wraps success bodies as `{"data": ..., "success": true}`.
+	if (method === "DELETE" && response.status === 204) {
+		return undefined as T;
+	}
+	// Management routes return lib.Response<T>; execution relays the provider
+	// body directly and is handled by the core tool extension instead.
 	if (
 		typeof parsed === "object" &&
 		parsed !== null &&
@@ -143,30 +155,33 @@ async function requestConnectorsApi<T>(
 	) {
 		return (parsed as { data: T }).data;
 	}
-	return parsed as T;
+	throw new ConnectorsApiError(
+		`Invalid connectors response for ${method} ${path}`,
+	);
 }
 
 /**
- * `GET /v1/connectors/composio/toolkits` — the connectable catalog,
- * usage-ranked. Backend contract: server filters to toolkits a Connect can
- * finish (Composio-managed credentials or a project auth config) and caches
- * upstream for ~1h; entitlement (internal accounts / rollout cohort) is
- * enforced server-side on every route.
+ * Toolkits with an enabled project auth config. The backend returns an array
+ * without a continuation token; request its maximum auth-config page size.
  */
 export async function fetchConnectableToolkits(
 	ctx?: ClineAuthTelemetryContext,
 ): Promise<ConnectorCatalogEntry[]> {
-	const response = await requestConnectorsApi<{
-		toolkits?: ConnectorCatalogEntry[];
-	}>("GET", "/toolkits", { ctx });
-	return response.toolkits ?? [];
+	const response = await requestConnectorsApi<ConnectorCatalogEntry[]>(
+		"GET",
+		"/toolkits?limit=200",
+		{ ctx },
+	);
+	if (!Array.isArray(response)) {
+		throw new ConnectorsApiError("Invalid connectors toolkit catalog.");
+	}
+	return response;
 }
 
 /**
- * `POST /v1/connectors/composio/connections` — initiate an OAuth connection.
- * Backend contract: prefer the org's custom auth config for the toolkit,
- * else the Composio-managed link flow; `user_id` is derived server-side from
- * the authenticated account, never accepted from the client.
+ * `POST /api/v1/connectors/connections` — initiate an OAuth connection.
+ * The server selects an enabled project auth config and derives `user_id`
+ * from the authenticated account, never accepting it from the client.
  */
 export async function initiateConnection(
 	toolkit: ComposioToolkitSlug,
@@ -180,22 +195,56 @@ export async function initiateConnection(
 }
 
 /**
- * `GET /v1/connectors/composio/connections` — the caller's connected
+ * `GET /api/v1/connectors/connections` — the caller's connected
  * accounts only. Backend contract: the server scopes to the caller's derived
- * user_id and follows Composio pagination to completion, so this list is
- * authoritative — reconciliation may treat absence as "revoked remotely".
+ * user_id. Fetch every page before returning: reconciliation treats absence
+ * from this complete list as "revoked remotely". Failed or malformed pages
+ * must reject the whole operation, never return a partial list.
  */
 export async function listConnections(
 	ctx?: ClineAuthTelemetryContext,
 ): Promise<ConnectorConnection[]> {
-	const response = await requestConnectorsApi<{
-		connections?: ConnectorConnection[];
-	}>("GET", "/connections", { ctx });
-	return response.connections ?? [];
+	const connections: ConnectorConnection[] = [];
+	const seenCursors = new Set<string>();
+	let cursor = "";
+	do {
+		const query = new URLSearchParams({ limit: String(CONNECTION_PAGE_SIZE) });
+		if (cursor) query.set("cursor", cursor);
+		const page = await requestConnectorPage<ConnectorConnection>(
+			`/connections?${query}`,
+			ctx,
+		);
+		connections.push(...page.items);
+		cursor = page.nextToken;
+		if (cursor && seenCursors.has(cursor)) {
+			throw new ConnectorsApiError(
+				"Connectors pagination returned a repeated cursor.",
+			);
+		}
+		seenCursors.add(cursor);
+	} while (cursor);
+	return connections;
+}
+
+async function requestConnectorPage<T>(
+	path: string,
+	ctx?: ClineAuthTelemetryContext,
+): Promise<ConnectorPage<T>> {
+	const page = await requestConnectorsApi<ConnectorPage<T>>("GET", path, {
+		ctx,
+	});
+	if (
+		!page ||
+		!Array.isArray(page.items) ||
+		typeof page.nextToken !== "string"
+	) {
+		throw new ConnectorsApiError(`Invalid connectors page for ${path}`);
+	}
+	return page;
 }
 
 /**
- * `DELETE /v1/connectors/composio/connections/{id}` — delete AND revoke.
+ * `DELETE /api/v1/connectors/connections/{id}` — delete AND revoke.
  * Backend contract: ownership-checked against the caller's derived user_id,
  * then deleted with `revoke_on_delete=true` so the upstream OAuth grant (the
  * actual Gmail/Calendar/GitHub token) is revoked, not just the Composio
@@ -214,18 +263,19 @@ export async function deleteConnection(
 }
 
 /**
- * `GET /v1/connectors/composio/toolkits/{slug}/tools` — the toolkit's tool
- * schemas (server caps at 20, Composio importance order), fetched at connect
- * time and persisted locally for session-bootstrap registration.
+ * `GET /api/v1/connectors/toolkits/{slug}/tools` — the toolkit's tool
+ * schemas in provider importance order. Request the first 20 for local
+ * materialization so large toolkits do not flood the session's tool set.
  */
 export async function listToolkitTools(
 	toolkit: ComposioToolkitSlug,
 	ctx?: ClineAuthTelemetryContext,
 ): Promise<ConnectorToolSchema[]> {
-	const response = await requestConnectorsApi<{
-		tools?: ConnectorToolSchema[];
-	}>("GET", `/toolkits/${encodeURIComponent(toolkit)}/tools`, { ctx });
-	return response.tools ?? [];
+	const response = await requestConnectorPage<ConnectorToolSchema>(
+		`/toolkits/${encodeURIComponent(toolkit)}/tools?limit=${TOOLKIT_TOOL_LIMIT}`,
+		ctx,
+	);
+	return response.items.slice(0, TOOLKIT_TOOL_LIMIT);
 }
 
 /**
@@ -261,7 +311,7 @@ export async function waitForConnectionActive(
 			if (
 				connection &&
 				connection.status === "ACTIVE" &&
-				!connection.isDisabled
+				!connection.is_disabled
 			) {
 				return;
 			}

@@ -21,7 +21,7 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
  * schemas to `<cline-data>/settings/composio.json`. This extension is the
  * consumption side: it reads that file at session start, registers one tool
  * per stored schema, and executes each tool through the **Cline API
- * connectors proxy** (`/v1/connectors/composio/tools/{slug}/execute`) — the
+ * connectors proxy** (`/api/v1/connectors/tools/{slug}/execute`) — the
  * proxy holds the Composio key server-side and derives the Composio user_id
  * from the authenticated Cline account, so no Composio key ever reaches this
  * process. Execution therefore requires a signed-in Cline account; a
@@ -38,14 +38,14 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
 
 const COMPOSIO_STATE_FILE_NAME = "composio.json";
 const COMPOSIO_TOOL_TIMEOUT_MS = 120_000;
-const CONNECTORS_API_PATH = "/v1/connectors/composio";
+const CONNECTORS_API_PATH = "/api/v1/connectors";
 
 type StoredComposioTool = {
 	slug: string;
 	name?: string;
 	description?: string;
 	version?: string;
-	inputParameters?: Record<string, unknown>;
+	input_parameters?: Record<string, unknown>;
 };
 
 type StoredComposioState = {
@@ -213,7 +213,7 @@ export async function createComposioToolsExtension(options?: {
 							createTool({
 								name: toolName,
 								description: `${tool.description || tool.name || tool.slug} (${toolkitSlug} account connected via Composio)`,
-								inputSchema: (tool.inputParameters ?? {
+								inputSchema: (tool.input_parameters ?? {
 									type: "object",
 									properties: {},
 								}) as never,

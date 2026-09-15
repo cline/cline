@@ -23,12 +23,15 @@ import {
 	type ConnectorsApiError,
 	deleteConnection,
 	fetchConnectableToolkits,
+	initiateConnection,
 	listConnections,
+	listToolkitTools,
+	waitForConnectionActive,
 } from "./cline-connectors-api";
 
 const originalFetch = global.fetch;
 
-function mockFetchOnce(status: number, body: string) {
+function mockFetchOnce(status: number, body: string | null) {
 	global.fetch = vi.fn(
 		async () => new Response(body, { status }),
 	) as unknown as typeof fetch;
@@ -49,9 +52,9 @@ describe("requestConnectorsApi envelope handling", () => {
 			200,
 			JSON.stringify({
 				data: {
-					connections: [
-						{ id: "c1", toolkit: { slug: "gmail" }, status: "ACTIVE" },
-					],
+					items: [{ id: "c1", toolkit: { slug: "gmail" }, status: "ACTIVE" }],
+					nextToken: "",
+					total: 1,
 				},
 				success: true,
 			}),
@@ -63,16 +66,13 @@ describe("requestConnectorsApi envelope handling", () => {
 	});
 
 	it("unwraps an empty data payload", async () => {
-		mockFetchOnce(
-			200,
-			JSON.stringify({ data: { toolkits: [] }, success: true }),
-		);
+		mockFetchOnce(200, JSON.stringify({ data: [], success: true }));
 		const toolkits = await fetchConnectableToolkits();
 		expect(toolkits).toEqual([]);
 	});
 
 	it("treats a response with no body as an empty success (e.g. DELETE)", async () => {
-		mockFetchOnce(200, "");
+		mockFetchOnce(204, null);
 		await expect(deleteConnection("acct-1")).resolves.toBeUndefined();
 	});
 
@@ -102,8 +102,143 @@ describe("Composio beta request gate", () => {
 
 	it("allows revoking existing connections after beta access is removed", async () => {
 		beta.enabled = false;
-		mockFetchOnce(200, "");
+		mockFetchOnce(204, null);
 		await expect(deleteConnection("acct-1")).resolves.toBeUndefined();
 		expect(global.fetch).toHaveBeenCalledOnce();
+	});
+});
+
+describe("connector router contract", () => {
+	const account = {
+		id: "c1",
+		toolkit: { slug: "gmail" },
+		status: "ACTIVE",
+		is_disabled: false,
+	};
+
+	function page(items: unknown[], nextToken = "") {
+		return Response.json({
+			success: true,
+			data: { items, nextToken, total: items.length },
+		});
+	}
+
+	it("loads every connection page using encoded cursors and bearer authentication", async () => {
+		const second = { ...account, id: "c2" };
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(page([account], "next/+="))
+			.mockResolvedValueOnce(page([second]));
+		global.fetch = fetchMock as unknown as typeof fetch;
+		expect(await listConnections()).toEqual([account, second]);
+		expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200",
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections?limit=200&cursor=next%2F%2B%3D",
+		]);
+		expect(fetchMock.mock.calls[0][1]).toMatchObject({
+			method: "GET",
+			headers: { authorization: "Bearer test-token" },
+		});
+	});
+
+	it("rejects a failed later page instead of returning partial connection state", async () => {
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce(page([account], "next"))
+			.mockResolvedValueOnce(
+				Response.json(
+					{ success: false, error: "upstream failed" },
+					{ status: 502 },
+				),
+			) as unknown as typeof fetch;
+		await expect(listConnections()).rejects.toMatchObject({
+			status: 502,
+			message: "upstream failed",
+		});
+	});
+
+	it.each([
+		{ success: true, data: {} },
+		{ success: true, data: { items: [], nextToken: null } },
+		{ success: false, data: { items: [], nextToken: "" } },
+		{ items: [], nextToken: "" },
+	])("rejects malformed pages rather than interpreting them as revoked accounts: %j", async (body) => {
+		mockFetchOnce(200, JSON.stringify(body));
+		await expect(listConnections()).rejects.toThrow(/Invalid connectors/);
+	});
+
+	it("rejects cyclic pagination", async () => {
+		global.fetch = vi.fn(async () =>
+			page([account], "same"),
+		) as unknown as typeof fetch;
+		await expect(listConnections()).rejects.toThrow(/repeated cursor/);
+		expect(global.fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("reads the catalog directly from the data array", async () => {
+		const catalog = [{ slug: "gmail", name: "Gmail", toolsCount: 50 }];
+		mockFetchOnce(200, JSON.stringify({ success: true, data: catalog }));
+		expect(await fetchConnectableToolkits()).toEqual(catalog);
+		expect(global.fetch).toHaveBeenCalledWith(
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits?limit=200",
+			expect.objectContaining({ method: "GET" }),
+		);
+	});
+
+	it("initiates OAuth with only the toolkit in the request body", async () => {
+		const result = {
+			connectedAccountId: "c1",
+			redirectUrl: "https://connect.example/c1",
+		};
+		mockFetchOnce(200, JSON.stringify({ success: true, data: result }));
+		expect(await initiateConnection("gmail")).toEqual(result);
+		expect(global.fetch).toHaveBeenCalledWith(
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections",
+			expect.objectContaining({
+				method: "POST",
+				body: JSON.stringify({ toolkit: "gmail" }),
+			}),
+		);
+	});
+
+	it("requests the first 20 schemas and preserves input_parameters and version", async () => {
+		const tools = Array.from({ length: 20 }, (_, i) => ({
+			slug: `GMAIL_TOOL_${i}`,
+			version: "v1",
+			input_parameters: {
+				type: "object",
+				properties: { to: { type: "string" } },
+				required: ["to"],
+			},
+		}));
+		global.fetch = vi.fn(async () =>
+			page(tools, "more-tools"),
+		) as unknown as typeof fetch;
+		expect(await listToolkitTools("gmail")).toEqual(tools);
+		expect(global.fetch).toHaveBeenCalledExactlyOnceWith(
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits/gmail/tools?limit=20",
+			expect.objectContaining({ method: "GET" }),
+		);
+	});
+
+	it("keeps polling while an ACTIVE connection is disabled", async () => {
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce(page([{ ...account, is_disabled: true }]))
+			.mockResolvedValueOnce(page([account])) as unknown as typeof fetch;
+		await waitForConnectionActive("c1", {
+			timeoutMs: 1_000,
+			pollIntervalMs: 1,
+		});
+		expect(global.fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("deletes an encoded connection ID and accepts HTTP 204", async () => {
+		mockFetchOnce(204, null);
+		await deleteConnection("account/id");
+		expect(global.fetch).toHaveBeenCalledWith(
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/connections/account%2Fid",
+			expect.objectContaining({ method: "DELETE" }),
+		);
 	});
 });

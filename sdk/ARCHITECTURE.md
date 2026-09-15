@@ -897,6 +897,17 @@ enable tools. Existing sessions recheck access before each tool execution.
 Disconnect/cancel cleanup remains available after access is removed. The Cline
 API proxy must enforce the same flag server-side for authenticated requests.
 
+The connector client uses `/api/v1/connectors`. Management responses use the
+Cline `{ success, data }` envelope; connection and tool pages contain
+`items`, `nextToken`, and `total`. The sidecar follows all connection pages
+before reconciling local state, and rejects incomplete or malformed lists.
+Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
+per toolkit and persists `input_parameters` and the pinned version for the core
+extension. Tool execution sends arguments and the optional version to
+`/tools/{slug}/execute` and retains the provider response body. The catalog
+currently exposes an array without a continuation token, so the sidecar requests
+the backend's maximum page size of 200 auth configs.
+
 ### SSH environments
 
 `core/src/remote` owns the reusable SSH environment service and standalone remote
