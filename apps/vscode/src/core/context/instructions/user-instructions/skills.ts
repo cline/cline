@@ -3,10 +3,9 @@ import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
-import * as yaml from "js-yaml"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
-import { parseYamlFrontmatter } from "./frontmatter"
+import { parseYamlFrontmatter, updateUserInstructionMarkdownDisabledState } from "./frontmatter"
 
 /**
  * Update the `disabled` frontmatter flag of a SKILL.md document.
@@ -26,38 +25,7 @@ import { parseYamlFrontmatter } from "./frontmatter"
  * frontmatter (nothing to clear).
  */
 export function updateSkillMarkdownDisabledState(content: string, enabled: boolean): string {
-	const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(content)
-
-	if (!hadFrontmatter && enabled) {
-		return content
-	}
-
-	// parseYamlFrontmatter fails open on malformed YAML: it returns data={} and
-	// body=<full original content> (frontmatter block included). Serializing here
-	// would prepend a second `---` block and corrupt the file, so leave it
-	// untouched and let the user fix the frontmatter.
-	if (parseError) {
-		return content
-	}
-
-	if (enabled) {
-		delete data.disabled
-		if (data.enabled === false) {
-			delete data.enabled
-		}
-		if (Object.keys(data).length === 0) {
-			return body
-		}
-		return serializeSkillFrontmatter(data, body)
-	}
-
-	data.disabled = true
-	return serializeSkillFrontmatter(data, body)
-}
-
-function serializeSkillFrontmatter(data: Record<string, unknown>, body: string): string {
-	const yamlText = yaml.dump(data, { schema: yaml.JSON_SCHEMA }).trimEnd()
-	return `---\n${yamlText}\n---\n${body}`
+	return updateUserInstructionMarkdownDisabledState(content, enabled)
 }
 
 /**
