@@ -12,7 +12,59 @@ const ctx: AgentToolContext = {
 	iteration: 1,
 };
 
+async function writeDependencyDirFixture(dir: string): Promise<void> {
+	const files: Record<string, string> = {
+		"src/app.ts": "const needle = 1;\n",
+		"vendor/pkg/dep.go": "// needle in vendored dep\n",
+		"node_modules/pkg/index.js": "// needle in node_modules\n",
+		"bin/Debug/app.cs": "// needle in bin\n",
+		"obj/Debug/app.cs": "// needle in obj\n",
+	};
+	for (const [relativePath, content] of Object.entries(files)) {
+		const filePath = path.join(dir, relativePath);
+		await fs.mkdir(path.dirname(filePath), { recursive: true });
+		await fs.writeFile(filePath, content, "utf-8");
+	}
+}
+
 describe("createSearchExecutor", () => {
+	it("excludes dependency directories by default even without a .gitignore", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		await writeDependencyDirFixture(dir);
+
+		try {
+			const search = createSearchExecutor();
+			const result = await search("needle", dir, ctx);
+
+			expect(result).toContain("src/app.ts");
+			expect(result).not.toContain("vendor/");
+			expect(result).not.toContain("node_modules/");
+			expect(result).not.toContain("bin/");
+			expect(result).not.toContain("obj/");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("excludes dependency directories in the non-ripgrep fallback path", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
+		await writeDependencyDirFixture(dir);
+
+		try {
+			const search = createSearchExecutor();
+			// Lookahead is unsupported by ripgrep, forcing the fallback scan.
+			const result = await search("(?=needle)", dir, ctx);
+
+			expect(result).toContain("src/app.ts");
+			expect(result).not.toContain("vendor/");
+			expect(result).not.toContain("node_modules/");
+			expect(result).not.toContain("bin/");
+			expect(result).not.toContain("obj/");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
 	it("middle-truncates oversized search output with recovery guidance", async () => {
 		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-search-"));
 		const filePath = path.join(dir, "large.ts");
