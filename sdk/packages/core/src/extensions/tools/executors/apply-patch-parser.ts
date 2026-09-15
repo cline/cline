@@ -315,33 +315,59 @@ function calculateSimilarity(str1: string, str2: string): number {
 	if (longer.length === 0) {
 		return 1;
 	}
-	const editDistance = levenshteinDistance(shorter, longer);
+
+	const MAX_LENGTH = 5000;
+	let longerToCompare = longer;
+	let shorterToCompare = shorter;
+	let wasTruncated = false;
+
+	if (longerToCompare.length > MAX_LENGTH) {
+		wasTruncated = true;
+		longerToCompare = longerToCompare.slice(0, MAX_LENGTH);
+		shorterToCompare = shorterToCompare.slice(0, MAX_LENGTH);
+	}
+
+	const editDistance = levenshteinDistance(shorterToCompare, longerToCompare);
+
+	if (wasTruncated) {
+		const tailLonger = longer.length - MAX_LENGTH;
+		const tailShorter = Math.max(0, shorter.length - MAX_LENGTH);
+		const tailDiff = Math.abs(tailLonger - tailShorter);
+		const totalEstimatedEdits = editDistance + tailDiff;
+		return Math.max(0, (longer.length - totalEstimatedEdits) / longer.length);
+	}
+
 	return (longer.length - editDistance) / longer.length;
 }
 
 function levenshteinDistance(str1: string, str2: string): number {
-	const rows = str2.length + 1;
 	const cols = str1.length + 1;
-	const matrix = new Array<number>(rows * cols).fill(0);
-	const at = (r: number, c: number): number => matrix[r * cols + c] ?? 0;
-	const set = (r: number, c: number, value: number): void => {
-		matrix[r * cols + c] = value;
-	};
+	let prevRow = new Array<number>(cols);
+	let currRow = new Array<number>(cols);
 
-	for (let i = 0; i <= str2.length; i++) set(i, 0, i);
-	for (let j = 0; j <= str1.length; j++) set(0, j, j);
-
-	for (let i = 1; i <= str2.length; i++) {
-		for (let j = 1; j <= str1.length; j++) {
-			if (str2[i - 1] === str1[j - 1]) {
-				set(i, j, at(i - 1, j - 1));
-			} else {
-				set(i, j, 1 + Math.min(at(i - 1, j - 1), at(i, j - 1), at(i - 1, j)));
-			}
-		}
+	for (let j = 0; j <= str1.length; j++) {
+		prevRow[j] = j;
 	}
 
-	return at(str2.length, str1.length);
+	for (let i = 1; i <= str2.length; i++) {
+		currRow[0] = i;
+		for (let j = 1; j <= str1.length; j++) {
+			if (str2[i - 1] === str1[j - 1]) {
+				currRow[j] = prevRow[j - 1];
+			} else {
+				currRow[j] = 1 + Math.min(
+					prevRow[j - 1], // substitution
+					prevRow[j],     // deletion
+					currRow[j - 1]  // insertion
+				);
+			}
+		}
+		const temp = prevRow;
+		prevRow = currRow;
+		currRow = temp;
+	}
+
+	return prevRow[str1.length];
 }
 
 function findContext(
