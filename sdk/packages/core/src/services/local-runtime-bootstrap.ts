@@ -15,6 +15,7 @@ import type {
 } from "@cline/shared";
 import {
 	buildClineSystemPrompt,
+	hardenWindowsExecutableLookup,
 	hasRuntimeConfigExtension,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
@@ -318,6 +319,10 @@ export interface LocalRuntimeBootstrap {
 export async function prepareLocalRuntimeBootstrap(
 	options: PrepareLocalRuntimeBootstrapOptions,
 ): Promise<LocalRuntimeBootstrap> {
+	// Every host builds its runtime here before anything spawns into the
+	// workspace (workspace metadata, the file index, the shell), so this is
+	// the one place that also covers embedders that skip the app entry points.
+	hardenWindowsExecutableLookup();
 	const {
 		input,
 		sessionId,

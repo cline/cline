@@ -1,6 +1,7 @@
 import { execFile, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { windowsPowerShellExecutable } from "./spawn-executable";
 
 const PROCESS_PROBE_TIMEOUT_MS = 2_000;
 const PROCESS_PROBE_MAX_BUFFER_BYTES = 4_096;
@@ -21,7 +22,9 @@ type ProcessStartCommand = {
 function resolveProcessStartCommand(pid: number): ProcessStartCommand {
 	if (process.platform === "win32") {
 		return {
-			file: "powershell.exe",
+			// The fixed install path: a bare "powershell.exe" would be searched
+			// for in this process's cwd before PATH (see spawn-executable.ts).
+			file: windowsPowerShellExecutable(),
 			args: [
 				"-NoLogo",
 				"-NoProfile",

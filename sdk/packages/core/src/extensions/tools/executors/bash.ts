@@ -22,11 +22,17 @@ import {
 	type AgentToolContext,
 	getDefaultShell,
 	getShellInvocation,
+	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH,
 } from "@cline/shared";
 import {
 	type ProcessStartTokenProbeResult,
 	probeProcessStartTokenAsync,
 } from "../../../runtime/process-start-token";
+import {
+	mergeSpawnEnv,
+	omitSpawnEnv,
+	windowsSystemExecutable,
+} from "../../../runtime/spawn-executable";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
 import {
@@ -675,10 +681,22 @@ function spawnAndCollect(
 	}
 	return new Promise((resolve, reject) => {
 		const isWindows = process.platform === "win32";
+		// The lookup hardening this process applied to itself
+		// (hardenWindowsExecutableLookup) stays with this process: the shell
+		// must not inherit it, or cmd.exe would stop finding bare names in the
+		// working directory the way the user's own console does. Only the
+		// inherited copy is dropped; an embedder that sets the variable through
+		// `config.env` asked for it and keeps it. A spread would keep both
+		// `Path` and an overriding `PATH` on Windows; mergeSpawnEnv lets the
+		// override win in any case.
+		const env = mergeSpawnEnv(
+			omitSpawnEnv(process.env, NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH),
+			config.env,
+		);
 
 		const child = spawn(config.executable, config.args, {
 			cwd: config.cwd,
-			env: { ...process.env, ...config.env },
+			env,
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
 			// Prevent a console window from flashing on Windows when the
@@ -730,7 +748,9 @@ function spawnAndCollect(
 					};
 					try {
 						killer = spawn(
-							"taskkill.exe",
+							// The fixed System32 path: a bare "taskkill.exe" would be
+							// searched for in this process's cwd before PATH.
+							windowsSystemExecutable("taskkill.exe"),
 							["/PID", String(childPid), "/T", "/F"],
 							{ stdio: "ignore", shell: false, windowsHide: true },
 						);

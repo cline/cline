@@ -3,7 +3,10 @@ import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@cline/core";
 
-import { registerDisposable } from "@cline/shared";
+import {
+	hardenWindowsExecutableLookup,
+	registerDisposable,
+} from "@cline/shared";
 import type { Command } from "commander";
 import { registerHistoryCommand } from "./commands/history-command";
 import {
@@ -146,6 +149,10 @@ function startupTargetTakesPrecedenceOverMigrationNotice(
 }
 
 export async function runCli(): Promise<void> {
+	// Windows resolves a bare program name through the child's working
+	// directory before PATH; turn that off for this process before anything
+	// spawns into the workspace.
+	hardenWindowsExecutableLookup();
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
 

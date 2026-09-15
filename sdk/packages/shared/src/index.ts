@@ -515,6 +515,11 @@ export {
 	setConnectorCliLaunchSpec,
 	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
+export {
+	type HardenWindowsExecutableLookupOptions,
+	hardenWindowsExecutableLookup,
+	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH,
+} from "./runtime/windows-executable-lookup";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
