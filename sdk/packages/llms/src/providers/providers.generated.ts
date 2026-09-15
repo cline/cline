@@ -7,7 +7,7 @@
  * package supported by catalog-live.ts. Add an ID mapping in provider-keys.ts
  * when Cline's generated ID differs from the models.dev key, and ensure the ID
  * is not in MODELS_DEV_BLOCKED_PROVIDER_IDS. Then run:
- *   bun -F @cline/llms generate:models
+ *   bun run build:models
  *
  * Product/runtime-only providers belong in builtins.ts and are merged with
  * this catalog; they do not need to appear in this generated file.
@@ -24,7 +24,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "302ai",
-		defaultModelId: "claude-opus-4-7",
+		defaultModelId: "deepseek-flash",
 		apiKeyEnv: ["302AI_API_KEY"],
 		docsUrl: "https://doc.302.ai",
 		defaults: {
@@ -66,7 +66,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "above",
-		defaultModelId: "glm-5.3-flash",
+		defaultModelId: "deepseek-v4-flash",
 		apiKeyEnv: ["ABOVE_API_KEY"],
 		docsUrl: "https://above.dev/docs",
 		defaults: {
@@ -80,7 +80,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "agentrouter",
-		defaultModelId: "claude-opus-5",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["AGENTROUTER_API_KEY"],
 		docsUrl: "https://agentrouter.org/docs/opencode.html",
 		defaults: {
@@ -136,7 +136,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aihubmix",
-		defaultModelId: "glm-5.3-flash",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["AIHUBMIX_API_KEY"],
 		docsUrl: "https://docs.aihubmix.com",
 	},
@@ -161,7 +161,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "aki-io",
-		defaultModelId: "qwen3.8-27b",
+		defaultModelId: "glm5.3-754b",
 		apiKeyEnv: ["AKI_IO_API_KEY"],
 		docsUrl: "https://aki.io/docs/",
 		defaults: {
@@ -247,7 +247,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "alibaba-token-plan-cn",
-		defaultModelId: "qwen3.8-flash",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["ALIBABA_TOKEN_PLAN_API_KEY"],
 		docsUrl:
 			"https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview",
@@ -277,7 +277,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "amd",
-		defaultModelId: "Qwen3.8-Flash-Next",
+		defaultModelId: "DeepSeek-V4.1-Flash",
 		apiKeyEnv: ["AMD_API_KEY"],
 		docsUrl: "https://developer.amd.com.cn/radeon/tokenfactory",
 		defaults: {
@@ -372,7 +372,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "baseten",
-		defaultModelId: "zai-org/GLM-5.3-Flash",
+		defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash",
 		apiKeyEnv: ["BASETEN_API_KEY"],
 		docsUrl: "https://docs.baseten.co/inference/model-apis/overview",
 		defaults: {
@@ -386,7 +386,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "bedrock",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "bedrock",
-		defaultModelId: "anthropic.claude-fable-5-1",
+		defaultModelId: "global.openai.gpt-6-astra",
 		apiKeyEnv: [
 			"AWS_ACCESS_KEY_ID",
 			"AWS_SECRET_ACCESS_KEY",
@@ -431,7 +431,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "bothub",
-		defaultModelId: "nemotron-3-ultra-550b-a55b:free",
+		defaultModelId: "muse-spark-1.3-contributor",
 		apiKeyEnv: ["BOTHUB_API_KEY"],
 		docsUrl: "https://bothub.ru/models",
 		defaults: {
@@ -445,7 +445,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "cerebras",
-		defaultModelId: "gemma-4-31b",
+		defaultModelId: "qwen-3.8-27b",
 		apiKeyEnv: ["CEREBRAS_API_KEY"],
 		docsUrl: "https://inference-docs.cerebras.ai/models/overview",
 	},
@@ -498,7 +498,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cline-pass",
-		defaultModelId: "cline-pass/glm-5.3",
+		defaultModelId: "cline-pass/deepseek-v4.1-flash",
 		apiKeyEnv: ["CLINE_API_KEY"],
 		docsUrl: "https://docs.cline.bot/getting-started/clinepass",
 		defaults: {
@@ -541,7 +541,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "coralbricks",
-		defaultModelId: "glm-5.3-fp4",
+		defaultModelId: "glm-5.3-flash-fp4",
 		apiKeyEnv: ["CORAL_API_KEY"],
 		docsUrl: "https://www.coralbricks.ai/docs",
 		defaults: {
@@ -555,7 +555,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "cortecs",
-		defaultModelId: "qwen3.8-flash-next",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["CORTECS_API_KEY"],
 		docsUrl: "https://api.cortecs.ai/v1/models",
 		defaults: {
@@ -583,7 +583,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "crossmodel",
-		defaultModelId: "anthropic/claude-fable-5-1",
+		defaultModelId: "deepseek/deepseek-v4.1-flash",
 		apiKeyEnv: ["CROSSMODEL_API_KEY"],
 		docsUrl: "https://www.crossmodel.ai/docs",
 		defaults: {
@@ -640,7 +640,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "deepseek",
-		defaultModelId: "deepseek-v4-flash-vision-exp",
+		defaultModelId: "deepseek-flash",
 		apiKeyEnv: ["DEEPSEEK_API_KEY"],
 		docsUrl: "https://api-docs.deepseek.com/quick_start/pricing",
 		defaults: {
@@ -654,7 +654,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "digitalocean",
-		defaultModelId: "anthropic-claude-fable-5.1",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["DIGITALOCEAN_ACCESS_TOKEN"],
 		docsUrl:
 			"https://docs.digitalocean.com/products/gradient-ai-platform/details/models/",
@@ -725,7 +725,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "edenai",
-		defaultModelId: "google/gemini-3.8-flash",
+		defaultModelId: "deepinfra/deepseek-ai/DeepSeek-V4.1-Flash",
 		apiKeyEnv: ["EDENAI_API_KEY"],
 		docsUrl: "https://docs.edenai.co",
 		defaults: {
@@ -739,7 +739,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "empiriolabs",
-		defaultModelId: "muse-spark-1-3",
+		defaultModelId: "deepseek-v4-1-flash",
 		apiKeyEnv: ["EMPIRIOLABS_API_KEY"],
 		docsUrl: "https://docs.empiriolabs.ai",
 		defaults: {
@@ -781,7 +781,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "fireworks",
-		defaultModelId: "accounts/fireworks/models/glm-5p3-flash",
+		defaultModelId: "accounts/fireworks/models/deepseek-v4p1-flash",
 		apiKeyEnv: ["FIREWORKS_API_KEY"],
 		docsUrl: "https://fireworks.ai/docs/",
 		defaults: {
@@ -809,7 +809,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "friendli",
-		defaultModelId: "zai-org/GLM-5.3",
+		defaultModelId: "zai-org/GLM-5.3-Flash",
 		apiKeyEnv: ["FRIENDLI_TOKEN"],
 		docsUrl:
 			"https://friendli.ai/docs/guides/serverless_endpoints/introduction",
@@ -853,7 +853,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "github-copilot",
-		defaultModelId: "gemini-3.7-flash",
+		defaultModelId: "gpt-6-astra",
 		apiKeyEnv: ["GITHUB_TOKEN"],
 		docsUrl: "https://docs.github.com/en/copilot",
 		defaults: {
@@ -882,7 +882,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "greenpt",
-		defaultModelId: "deepseek-v4-flash-0731",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["GREENPT_API_KEY"],
 		docsUrl: "https://docs.greenpt.ai",
 		defaults: {
@@ -949,7 +949,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "huggingface",
-		defaultModelId: "zai-org/GLM-5.3-Flash",
+		defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash",
 		apiKeyEnv: ["HF_TOKEN"],
 		docsUrl: "https://huggingface.co/docs/inference-providers",
 		defaults: {
@@ -963,7 +963,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "hyper",
-		defaultModelId: "kimi-k2-thinking",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["HYPER_API_KEY"],
 		docsUrl: "https://hyper.charm.land",
 		defaults: {
@@ -1005,7 +1005,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "inception",
-		defaultModelId: "mercury-2",
+		defaultModelId: "mercury-2.5",
 		apiKeyEnv: ["INCEPTION_API_KEY"],
 		docsUrl: "https://platform.inceptionlabs.ai/docs",
 		defaults: {
@@ -1024,6 +1024,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://docs.inceptron.io",
 		defaults: {
 			baseUrl: "https://api.inceptron.io/v1",
+		},
+	},
+	{
+		id: "infer",
+		name: "Infer by Flow7",
+		description: "Infer by Flow7 model provider from models.dev",
+		family: "openai",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "infer",
+		defaultModelId: "infer/gpt-6-astra:official",
+		apiKeyEnv: ["INFER_API_KEY"],
+		docsUrl: "https://infer.flow7.org/opencode",
+		defaults: {
+			baseUrl: "https://infer.flow7.org/v1",
 		},
 	},
 	{
@@ -1148,7 +1162,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "google/gemini-3.8-flash",
+		defaultModelId: "~deepseek/deepseek-flash-latest",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1162,7 +1176,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "anthropic",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "kimi-for-coding",
-		defaultModelId: "k3",
+		defaultModelId: "kimi-for-coding",
 		apiKeyEnv: ["KIMI_API_KEY"],
 		docsUrl: "https://www.kimi.com/code/docs/en/kimi-code/models.html",
 		defaults: {
@@ -1247,7 +1261,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway",
-		defaultModelId: "gemini-3.8-flash",
+		defaultModelId: "atria-dawn-preview",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1261,7 +1275,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway-providers",
-		defaultModelId: "consensusprotocol/Qwen3.8-27B",
+		defaultModelId: "atria/atria-dawn-preview",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1364,6 +1378,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://docs.meganova.ai",
 		defaults: {
 			baseUrl: "https://api.meganova.ai/v1",
+		},
+	},
+	{
+		id: "melious",
+		name: "Melious",
+		description: "Melious model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "melious",
+		defaultModelId: "deepseek-v4.1-flash",
+		apiKeyEnv: ["MELIOUS_API_KEY"],
+		docsUrl: "https://melious.ai/docs/reference/models",
+		defaults: {
+			baseUrl: "https://api.melious.ai/v1",
 		},
 	},
 	{
@@ -1581,7 +1609,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "nan",
-		defaultModelId: "glm5.3-flash",
+		defaultModelId: "deepseek-v4-flash",
 		apiKeyEnv: ["NAN_API_KEY"],
 		docsUrl: "https://nan.builders/docs/models",
 		defaults: {
@@ -1595,7 +1623,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "alibaba/qwen3.8-max-0902",
+		defaultModelId: "openai/gpt-astra-latest",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1637,7 +1665,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "neon",
-		defaultModelId: "claude-opus-5",
+		defaultModelId: "claude-fable-5-1",
 		apiKeyEnv: ["NEON_AI_GATEWAY_BASE_URL", "NEON_AI_GATEWAY_TOKEN"],
 		docsUrl: "https://neon.com/docs",
 		defaults: {
@@ -1707,7 +1735,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nvidia",
-		defaultModelId: "deepseek-ai/deepseek-v4-pro-0813",
+		defaultModelId: "z-ai/glm-5.3-flash",
 		apiKeyEnv: ["NVIDIA_API_KEY"],
 		docsUrl: "https://docs.api.nvidia.com/nim/",
 		defaults: {
@@ -1721,7 +1749,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "ofox",
-		defaultModelId: "bailian/qwen3.8-max-0902",
+		defaultModelId: "deepseek/deepseek-v4.1-flash",
 		apiKeyEnv: ["OFOX_API_KEY"],
 		docsUrl: "https://ofox.ai/docs",
 		defaults: {
@@ -1735,7 +1763,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "ollama",
-		defaultModelId: "glm-5.3-flash",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["OLLAMA_API_KEY"],
 		docsUrl: "https://docs.ollama.com/cloud",
 		defaults: {
@@ -1749,7 +1777,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openai-native",
-		defaultModelId: "gpt-5.6",
+		defaultModelId: "gpt-6-astra",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		docsUrl: "https://platform.openai.com/docs/models",
 	},
@@ -1760,7 +1788,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "gemini-3.8-flash",
+		defaultModelId: "gpt-6-astra",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1774,7 +1802,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode-go",
-		defaultModelId: "muse-spark-1.3-contributor",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1802,7 +1830,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "google/gemini-3.8-flash",
+		defaultModelId: "~deepseek/deepseek-flash-latest",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -1929,7 +1957,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "privatemode-ai",
-		defaultModelId: "kimi-k2.6",
+		defaultModelId: "glm-5.3",
 		apiKeyEnv: ["PRIVATEMODE_API_KEY", "PRIVATEMODE_ENDPOINT"],
 		docsUrl: "https://docs.privatemode.ai/api/overview",
 		defaults: {
@@ -1985,7 +2013,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "requesty",
-		defaultModelId: "gemini-3.8-flash",
+		defaultModelId: "deepseek-v4.1-flash",
 		apiKeyEnv: ["REQUESTY_API_KEY"],
 		docsUrl: "https://requesty.ai/solution/llm-routing/models",
 		defaults: {
@@ -2041,7 +2069,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "sapaicore",
-		defaultModelId: "gpt-5.6-luna",
+		defaultModelId: "gemini-3.5-flash-lite",
 		apiKeyEnv: ["AICORE_SERVICE_KEY"],
 		docsUrl: "https://help.sap.com/docs/sap-ai-core",
 	},
@@ -2080,7 +2108,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "scnet-token-plan",
-		defaultModelId: "DeepSeek-V4-Pro-0813",
+		defaultModelId: "GLM-5.3-Flash",
 		apiKeyEnv: ["SCNET_API_KEY"],
 		docsUrl:
 			"https://www.scnet.cn/ac/openapi/doc/2.0/moduleapi/plans/token-plan.html",
@@ -2109,7 +2137,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "sensenova",
-		defaultModelId: "sensenova-6.8-flash-lite",
+		defaultModelId: "deepseek-v4-pro",
 		apiKeyEnv: ["SENSENOVA_API_KEY"],
 		docsUrl: "https://platform.sensenova.cn/docs",
 		defaults: {
@@ -2383,7 +2411,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "tinfoil",
-		defaultModelId: "glm-5-3-flash",
+		defaultModelId: "deepseek-v4-1-flash",
 		apiKeyEnv: ["TINFOIL_API_KEY"],
 		docsUrl: "https://docs.tinfoil.sh",
 		defaults: {
@@ -2397,7 +2425,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "together",
-		defaultModelId: "zai-org/GLM-5.3-Flash",
+		defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash",
 		apiKeyEnv: ["TOGETHER_API_KEY"],
 		docsUrl: "https://docs.together.ai/docs/serverless-models",
 	},
@@ -2517,7 +2545,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vancine",
-		defaultModelId: "hy4-preview",
+		defaultModelId: "deepseek-flash",
 		apiKeyEnv: ["VANCINE_API_KEY"],
 		docsUrl: "https://vancine.com/docs",
 		defaults: {
@@ -2531,7 +2559,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "alibaba/qwen3.8-max-0902",
+		defaultModelId: "deepseek/deepseek-v4.1-flash",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
@@ -2558,7 +2586,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vivgrid",
-		defaultModelId: "glm-5.3-flash",
+		defaultModelId: "gpt-6-astra",
 		apiKeyEnv: ["VIVGRID_API_KEY"],
 		docsUrl: "https://docs.vivgrid.com/models",
 		defaults: {
@@ -2586,7 +2614,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "volcengine-coding-plan",
-		defaultModelId: "glm-5.3",
+		defaultModelId: "glm-5.3-flash",
 		apiKeyEnv: ["ARK_CODING_PLAN_API_KEY"],
 		docsUrl: "https://www.volcengine.com/docs/82379/1928261",
 		defaults: {
@@ -2622,13 +2650,27 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		},
 	},
 	{
+		id: "wallaby",
+		name: "Wallaby",
+		description: "Wallaby model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "wallaby",
+		defaultModelId: "moonshotai/kimi-k3",
+		apiKeyEnv: ["WALLABY_API_KEY"],
+		docsUrl: "https://wallabytoken.com/docs",
+		defaults: {
+			baseUrl: "https://api.wallabytoken.com/v1",
+		},
+	},
+	{
 		id: "wandb",
 		name: "Weights & Biases",
 		description: "Weights & Biases model provider from models.dev",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "wandb",
-		defaultModelId: "ibm-granite/granite-4.2-8b",
+		defaultModelId: "zai-org/GLM-5.3-Flash",
 		apiKeyEnv: ["WANDB_API_KEY"],
 		docsUrl: "https://docs.wandb.ai/guides/integrations/inference/",
 		defaults: {

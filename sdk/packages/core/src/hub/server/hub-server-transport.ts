@@ -359,6 +359,7 @@ export class HubServerTransport implements NativeHubTransport {
 		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
+			telemetry: options.telemetry,
 			runtimeHandlers: options.runtimeHandlers,
 			eventPublisher: (eventType, payload) => {
 				const mapped =
@@ -445,6 +446,7 @@ export class HubServerTransport implements NativeHubTransport {
 			this.cronService = new CronService({
 				runtimeHandlers: options.runtimeHandlers,
 				...options.cronOptions,
+				telemetry: options.telemetry,
 			});
 		}
 		this.sessionHost.subscribe((event: CoreSessionEvent) => {

@@ -70,6 +70,7 @@ import {
 
 const originalApiKey = process.env.TELEMETRY_SERVICE_API_KEY;
 const originalIsTest = process.env.IS_TEST;
+const originalDataDir = process.env.CLINE_DATA_DIR;
 let dataDir: string;
 
 function accountContextPath(): string {
@@ -80,6 +81,7 @@ beforeEach(() => {
 	dataDir = mkdtempSync(join(tmpdir(), "cline-feature-flags-"));
 	process.env.CLINE_DATA_DIR = dataDir;
 	vi.clearAllMocks();
+	mocks.getBooleanFlagEnabled.mockReset().mockReturnValue(false);
 	resetDesktopFeatureFlagsForTesting();
 	delete process.env.IS_TEST;
 	delete process.env.E2E_TEST;
@@ -87,8 +89,12 @@ beforeEach(() => {
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
-	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
+	if (originalDataDir === undefined) {
+		delete process.env.CLINE_DATA_DIR;
+	} else {
+		process.env.CLINE_DATA_DIR = originalDataDir;
+	}
 	if (originalApiKey === undefined) {
 		delete process.env.TELEMETRY_SERVICE_API_KEY;
 	} else {

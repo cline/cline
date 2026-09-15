@@ -289,25 +289,36 @@ export async function identifyDesktopFeatureFlagsAccount(
 	}
 }
 
-/**
- * Env override first; otherwise the user's explicit opt-in from Settings.
- *
- * Cloud sessions are in preview, so the gate is a toggle the user flips in
- * Settings → General (default off) rather than a remote rollout flag.
- */
-export function isCloudAgentsEnabled(): boolean {
-	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
-	if (override === "1" || override === "true") {
-		return true;
-	}
-	if (override === "0" || override === "false") {
-		return false;
-	}
-	return readDesktopSettings().cloudSessionsEnabled;
-}
-
 export function resetDesktopFeatureFlagsForTesting(): void {
 	desktopFeatureFlagsService = undefined;
 	desktopFeatureFlagsContext = { clientName: "cline-code" };
 	desktopAccountContextHydrated = false;
+}
+
+export function readCloudAgentsEnvOverride(): boolean | undefined {
+	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** Whether the rollout makes cloud sessions available to this install. */
+export function isCloudAgentsAvailable(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	return true;
+}
+
+/** Whether cloud sessions are both available and enabled by the user. */
+export function isCloudAgentsEnabled(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	if (!isCloudAgentsAvailable(options)) return false;
+	return readDesktopSettings().cloudSessionsEnabled;
 }

@@ -66,6 +66,10 @@ export const ModelMetadataSchema = z
 	// Keep metadata open for catalog-defined facts while typing routing fields.
 	.object({
 		reasoningDefaultOn: z.boolean().optional(),
+		/** Per-model wire protocol for gateways that serve multiple API formats. */
+		apiProtocol: z
+			.enum(["openai-chat", "openai-responses", "anthropic", "gemini"])
+			.optional(),
 	})
 	.catchall(z.unknown());
 

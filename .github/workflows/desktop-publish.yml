@@ -319,6 +319,12 @@ jobs:
           # Updater artifact signing (minisign keypair, independent of Apple)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The DMG background, window size, and icon positions from
+          # tauri.conf.json are applied by a Finder AppleScript in Tauri's
+          # bundle_dmg.sh. When CI=true (always set on Actions) the bundler
+          # passes --skip-jenkins and silently skips that script, shipping a
+          # bare DMG. macOS runners have a GUI session, so opt out of the skip.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
 
       # Tauri lipos the main binary itself but sidecars are merged by our own
       # build-sidecar-bin.ts, so assert every Mach-O in the bundle really

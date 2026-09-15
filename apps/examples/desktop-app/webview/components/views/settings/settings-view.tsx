@@ -1,7 +1,7 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
-import { Import, Minus, Plus, RotateCcw } from "lucide-react";
+import { Switch } from "@cline/ui";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImportSessionsDialog } from "@/components/import-sessions-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +12,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
@@ -27,6 +26,7 @@ import {
 	APP_ICONS,
 	type AppIconId,
 	appIconAssetPath,
+	appIconSurface,
 	DEFAULT_APP_ICON,
 	readStoredAppIcon,
 	setStoredAppIcon,
@@ -81,6 +81,7 @@ import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
@@ -214,7 +215,7 @@ export function SettingsView({
 	>({});
 
 	useEffect(() => {
-		if (section !== "Models") {
+		if (section !== "API Providers") {
 			setSelectedProviderId(null);
 			setAddingProvider(false);
 		}
@@ -300,7 +301,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Models" && activeNav !== "Customize") {
+		if (activeNav !== "API Providers" && activeNav !== "Customize") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -644,7 +645,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		onNavigateSection("Models");
+		onNavigateSection("API Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -659,7 +660,7 @@ export function SettingsView({
 	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection("Models");
+		onNavigateSection("API Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -687,7 +688,7 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection("Models");
+		onNavigateSection("API Providers");
 		setAddingProvider(true);
 	};
 
@@ -796,14 +797,14 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "Models" ? (
+		activeNav === "API Providers" ? (
 			<>
 				{providerContent}
 				{addProviderDialog}
 			</>
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
-				onOpenModelProviders={() => onNavigateSection("Models")}
+				onOpenModelProviders={() => onNavigateSection("API Providers")}
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
@@ -850,11 +851,13 @@ export function SettingsView({
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Remote" ? (
 			<RemoteEnvironmentsContent />
+		) : activeNav === "Import" ? (
+			<ImportContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent
-				onOpenModelProviders={() => onNavigateSection("Models")}
+				onOpenModelProviders={() => onNavigateSection("API Providers")}
 			/>
 		) : (
 			<div className="flex h-full items-center justify-center">
@@ -894,7 +897,6 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
 	});
-	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [accent, setAccent] = useState<HubAccent>(() => {
 		if (typeof window === "undefined") return "violet";
 		return readStoredHubAccent();
@@ -907,6 +909,9 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
 	});
+	const [appIconLocation, setAppIconLocation] = useState<
+		"Dock" | "Taskbar" | "desktop"
+	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
 	const [avatars, setAvatars] = useState<AvatarOption[]>([]);
@@ -964,6 +969,7 @@ function GeneralSettingsContent({
 		}
 	}, []);
 
+	useEffect(() => setAppIconLocation(appIconSurface(navigator.userAgent)), []);
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
 
 	useEffect(() => {
@@ -1222,9 +1228,6 @@ function GeneralSettingsContent({
 			}
 			setAppIcon(previousIcon);
 			setAppIconError(error instanceof Error ? error.message : String(error));
-			// Storage was written before the native call failed; roll it back
-			// so the persisted choice matches what the dock actually shows.
-			await setStoredAppIcon(previousIcon).catch(() => {});
 		}
 	};
 
@@ -1364,7 +1367,7 @@ function GeneralSettingsContent({
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">App icon</p>
 						<p className="text-sm text-muted-foreground">
-							Pick the icon Cline shows in the Dock.
+							Pick the icon Cline shows in the {appIconLocation}.
 						</p>
 						{appIconError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
@@ -1580,31 +1583,6 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
 					/>
 				</div>
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">
-							Import sessions
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Bring your conversation history from Claude Code, Codex, or
-							opencode into Cline.
-						</p>
-					</div>
-					<Button
-						className="shrink-0"
-						onClick={() => setImportDialogOpen(true)}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Import className="size-3" />
-						Import
-					</Button>
-				</div>
-				<ImportSessionsDialog
-					onOpenChange={setImportDialogOpen}
-					open={importDialogOpen}
-				/>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">

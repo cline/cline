@@ -138,6 +138,7 @@ export {
 	type ClineAccountPaymentTransaction,
 	ClineAccountService,
 	type ClineAccountServiceOptions,
+	type ClineAccountTelemetryIdentity,
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
 	type ClineOrganization,
@@ -146,7 +147,9 @@ export {
 	type FeaturebaseTokenResponse,
 	isClineAccountActionRequest,
 	type ProviderActionExecutor,
+	persistClineAccountTelemetryIdentity,
 	RpcClineAccountService,
+	resolveClineAccountTelemetryIdentity,
 	type UserCurrentPlan,
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
@@ -583,7 +586,7 @@ export {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
 	isAutoUpdateEnabledGlobally,
-	isOptInToolEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
@@ -596,15 +599,15 @@ export {
 	resolveDisabledAgentPluginNames,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
-	resolveEnabledOptInToolNames,
-	resolveOptInToolSettings,
+	resolveEnabledConfigurableModelToolNames,
+	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
-	setOptInToolEnabledGlobally,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -738,6 +741,7 @@ export {
 } from "./services/providers/local-provider-service";
 export {
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
@@ -809,6 +813,7 @@ export {
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
 	identifyAccount,
 } from "./services/telemetry/core-events";
 export type { ITelemetryAdapter } from "./services/telemetry/ITelemetryAdapter";
@@ -821,6 +826,12 @@ export {
 	OpenTelemetryProvider,
 	type OpenTelemetryProviderOptions,
 } from "./services/telemetry/OpenTelemetryProvider";
+export {
+	type ClientTelemetryContext,
+	createClientScopedTelemetryService,
+	createScopedTelemetryService,
+	resolveClientTelemetryProperties,
+} from "./services/telemetry/scoped-telemetry";
 export {
 	TelemetryLoggerSink,
 	type TelemetryLoggerSinkOptions,
@@ -1014,6 +1025,8 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export * from "./remote/remote-environments";
+export { ensureLoginShellPath } from "./remote/shell-path";
 export {
 	applyClineFeaturedModels,
 	type ClineRecommendedModel,

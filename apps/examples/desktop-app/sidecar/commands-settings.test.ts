@@ -60,6 +60,7 @@ describe("desktop settings commands", () => {
 			flags: {
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
+				"code-cloud-agents": false,
 				"internal-composio-connectors": false,
 			},
 		});
@@ -97,6 +98,7 @@ describe("desktop settings commands", () => {
 			flags: {
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
+				"code-cloud-agents": false,
 				"internal-composio-connectors": false,
 			},
 		});
@@ -119,6 +121,7 @@ describe("desktop settings commands", () => {
 			flags: {
 				"code-onboarding-github": false,
 				"ext-cline-pass": false,
+				"code-cloud-agents": false,
 				"internal-composio-connectors": false,
 			},
 		});

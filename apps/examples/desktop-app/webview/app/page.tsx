@@ -117,6 +117,10 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
@@ -148,6 +152,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
@@ -452,8 +457,8 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		// The dock reverts to the bundled icon every launch; re-apply the
-		// user's choice once the shell is up.
+		// The native app icon reverts to the bundled icon every launch; re-apply
+		// the user's choice once the shell is up.
 		void syncAppIcon();
 	}, []);
 
@@ -761,7 +766,7 @@ export default function Home() {
 	);
 	const handleOpenModeSettings = useCallback(() => {
 		setModeSettingsRequest((request) => request + 1);
-		handleSettingsSectionChange("Models");
+		handleSettingsSectionChange("API Providers");
 	}, [handleSettingsSectionChange]);
 	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
 	// new session, and Cmd/Ctrl+, for settings.
@@ -1034,7 +1039,10 @@ export default function Home() {
 											onSelectEnvironment={handleSelectEnvironment}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
 											remoteEnvironment={
@@ -1047,7 +1055,7 @@ export default function Home() {
 												handleSettingsSectionChange("Voice")
 											}
 											onOpenVoiceOutputSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
 											}
 											onRealtimeBridgeChange={handleRealtimeBridgeChange}
 											onThreadStarted={handleThreadStarted}
@@ -1132,6 +1140,7 @@ function ChatThreadPane({
 	onSelectEnvironment,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenAccountSettings,
 	parentSession,
 	remoteEnvironment,
 	onOpenVoiceInputSettings,
@@ -1175,6 +1184,7 @@ function ChatThreadPane({
 	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
 	onOpenVoiceInputSettings?: () => void;
@@ -1192,6 +1202,7 @@ function ChatThreadPane({
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -2154,6 +2165,32 @@ function ChatThreadPane({
 			onHandoffUiAction,
 		],
 	);
+	const handleAttachFiles = useCallback((files: File[]) => {
+		const supportedFiles = files.filter(
+			(file) => !isUnsupportedImageAttachment(file),
+		);
+		if (supportedFiles.length !== files.length) {
+			toast({
+				title: "Unsupported image format",
+				description:
+					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+			});
+		}
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of supportedFiles) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
 
 	const handleSend = useCallback(
 		async (prompt: string) => {
@@ -2176,7 +2213,14 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend);
+			// The prompt never reached the runtime (e.g. the provider connection
+			// failed): hand it back so the user can fix the provider and resend
+			// without retyping. Leave anything they typed meanwhile alone.
+			if (!promptTaken && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				handleAttachFiles(toSend);
+			}
 		},
 		[
 			config.repoUrl,
@@ -2186,6 +2230,7 @@ function ChatThreadPane({
 			prepareHandoff,
 			sendPrompt,
 			sessionId,
+			handleAttachFiles,
 			setPromptInput,
 			threadId,
 		],
@@ -2193,7 +2238,9 @@ function ChatThreadPane({
 	const handleRealtimeSend = useCallback(
 		async (prompt: string) => {
 			onThreadStarted?.(threadId);
-			return sendPrompt(prompt, [], { source: "realtime" });
+			return (
+				(await sendPrompt(prompt, [], { source: "realtime" })) || undefined
+			);
 		},
 		[onThreadStarted, sendPrompt, threadId],
 	);
@@ -2310,6 +2357,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -2352,7 +2409,7 @@ function ChatThreadPane({
 			const deleted = await desktopClient.invoke<boolean>(
 				"delete_chat_session",
 				{
-					environmentId,
+					...(isCloudSession ? {} : { environmentId }),
 					sessionId: activeSessionToDelete,
 				},
 			);
@@ -2398,28 +2455,12 @@ function ChatThreadPane({
 		activeSessionToDelete,
 		deletingSession,
 		environmentId,
+		isCloudSession,
 		onDeleteSession,
 		reset,
 		threadId,
 		setPromptInput,
 	]);
-
-	const handleAttachFiles = useCallback((files: File[]) => {
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-			);
-			const next = [...prev];
-			for (const file of files) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
-			}
-			return next;
-		});
-	}, []);
 
 	const handleExecutionTargetChange = useCallback(
 		(target: "local" | "cloud") => {
@@ -2504,7 +2545,7 @@ function ChatThreadPane({
 			pendingAttachments.map((file, index) => ({
 				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 				name: file.name,
-				isImage: file.type.startsWith("image/"),
+				isImage: imageAttachmentMediaType(file) !== undefined,
 			})),
 		[pendingAttachments],
 	);
@@ -2650,6 +2691,9 @@ function ChatThreadPane({
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
 		: null;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -2683,6 +2727,7 @@ function ChatThreadPane({
 		loading: agentsLoading,
 		error: agentsError,
 	} = useSessionAgents({
+		environmentId,
 		sessionId: isCloudSession ? null : displayedSessionId,
 		panelOpen: agentPanelOpen,
 		sessionActive: isSessionActive,
@@ -2710,7 +2755,7 @@ function ChatThreadPane({
 			setRenamingSession(true);
 			try {
 				await desktopClient.invoke("update_chat_session_title", {
-					environmentId,
+					...(isCloudSession ? {} : { environmentId }),
 					sessionId: activeSessionForTitle,
 					title: nextTitle,
 				});
@@ -2743,6 +2788,7 @@ function ChatThreadPane({
 		[
 			activeSessionForTitle,
 			environmentId,
+			isCloudSession,
 			historySession?.metadata,
 			onUpdateSessionMetadata,
 			renamingSession,
@@ -2802,6 +2848,7 @@ function ChatThreadPane({
 
 	const chatComposer = (
 		<ChatInputBar
+			environmentId={environmentId}
 			attachments={attachmentList}
 			cloudHandoffAvailable={cloudAgentsEnabled}
 			hasRunningAgents={agentActivity.running > 0}
@@ -2813,7 +2860,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
-			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -2971,6 +3018,8 @@ function ChatThreadPane({
 											}
 										: undefined
 								}
+								activityLabel={activityLabel}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
 								onRestoreCheckpoint={
@@ -2988,6 +3037,7 @@ function ChatThreadPane({
 											: undefined
 								}
 								onProceedWhileRunning={proceedWhileRunning}
+								onFixCredentials={handleFixCredentials}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

@@ -2,7 +2,7 @@ import {
 	type BuiltinToolAvailabilityContext,
 	getCoreBuiltinToolCatalog,
 	resolveDisabledToolNames,
-	resolveEnabledOptInToolNames,
+	resolveEnabledConfigurableModelToolNames,
 	type ToolCatalogEntry,
 } from "@cline/core";
 
@@ -14,7 +14,7 @@ export function getToolCatalog(
 	return getCoreBuiltinToolCatalog({
 		clientType: "cli",
 		disabledToolIds: resolveDisabledToolNames(),
-		enabledOptInToolIds: resolveEnabledOptInToolNames(),
+		enabledOptInToolIds: resolveEnabledConfigurableModelToolNames(),
 		...availabilityContext,
 	});
 }

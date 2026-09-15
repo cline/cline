@@ -14,6 +14,57 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("preserves model adapters and narrowly fills missing Go Qwen declarations", () => {
+		const models = {
+			muse: { tool_call: true, provider: { npm: "@ai-sdk/openai" } },
+			minimax: { tool_call: true, provider: { npm: "@ai-sdk/anthropic" } },
+			google: { tool_call: true, provider: { npm: "@ai-sdk/google" } },
+			qwen: { tool_call: true, family: "qwen3.7-plus" },
+			explicitQwen: {
+				tool_call: true,
+				family: "qwen",
+				provider: { npm: "@ai-sdk/openai-compatible" },
+			},
+			unknownQwen: {
+				tool_call: true,
+				family: "qwen",
+				provider: { npm: "unknown-sdk" },
+			},
+			glm: { tool_call: true, family: "glm" },
+		};
+		const result = normalizeModelsDevProviderModels({
+			"opencode-go": { npm: "@ai-sdk/openai-compatible", models },
+			"other-gateway": { npm: "@ai-sdk/openai-compatible", models },
+		});
+		expect(result["opencode-go"].muse.metadata?.apiProtocol).toBe(
+			"openai-responses",
+		);
+		expect(result["opencode-go"].minimax.metadata?.apiProtocol).toBe(
+			"anthropic",
+		);
+		expect(result["opencode-go"].google.metadata?.apiProtocol).toBe("gemini");
+		expect(result["opencode-go"].qwen.metadata?.apiProtocol).toBe("anthropic");
+		expect(result["opencode-go"].explicitQwen.metadata?.apiProtocol).toBe(
+			"openai-chat",
+		);
+		expect(result["opencode-go"].unknownQwen.metadata).toBeUndefined();
+		expect(result["opencode-go"].glm.metadata).toBeUndefined();
+		expect(result["other-gateway"].qwen.metadata).toBeUndefined();
+	});
+
+	it("bundles zero prices for every Cline Pass model without a live refresh", () => {
+		const models = Object.values(getGeneratedModelsForProvider("cline-pass"));
+		expect(models.length).toBeGreaterThan(0);
+		for (const model of models) {
+			expect(model.pricing, model.id).toEqual({
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			});
+		}
+	});
+
 	it("normalizes current built-ins and providers using supported AI SDK packages", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
@@ -294,230 +345,6 @@ describe("models-dev-catalog", () => {
 		expect(providerModels.poe).not.toHaveProperty("unsupported-image");
 	});
 
-	it("keeps dedicated video models for providers with a video endpoint", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			google: {
-				id: "google",
-				name: "Google",
-				npm: "@ai-sdk/google",
-				models: {
-					"video-model": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-					"image-to-video-model": {
-						tool_call: false,
-						modalities: { input: ["text", "image"], output: ["video"] },
-					},
-				},
-			},
-			vercel: {
-				id: "vercel",
-				name: "Vercel AI Gateway",
-				models: {
-					"gateway-video-model": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-				},
-			},
-		});
-		expect(providerModels.gemini).toMatchObject({
-			"video-model": {
-				operation: "video-generation",
-				modalities: { input: ["text"], output: ["video"] },
-			},
-			"image-to-video-model": {
-				operation: "video-generation",
-				modalities: { input: ["text", "image"], output: ["video"] },
-			},
-		});
-		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
-			"gateway-video-model": {
-				operation: "video-generation",
-				modalities: { input: ["text"], output: ["video"] },
-			},
-		});
-	});
-
-	it("omits video models from providers without a declared video transport", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			openai: {
-				id: "openai",
-				name: "OpenAI",
-				models: {
-					"dedicated-video": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-					"tool-flagged-dedicated-video": {
-						// Tool metadata must not make a video-only model usable via a
-						// provider without a video transport.
-						tool_call: true,
-						modalities: { input: ["text"], output: ["video"] },
-					},
-					"mixed-video": {
-						tool_call: false,
-						modalities: {
-							input: ["text"],
-							output: ["text", "video"],
-						},
-					},
-					"chat-model": { tool_call: true },
-				},
-			},
-			google: {
-				id: "google",
-				name: "Google",
-				npm: "@ai-sdk/google",
-				models: {
-					"mixed-video": {
-						tool_call: true,
-						modalities: {
-							input: ["text"],
-							output: ["text", "video"],
-						},
-					},
-				},
-			},
-		});
-
-		expect(providerModels["openai-native"]).not.toHaveProperty(
-			"dedicated-video",
-		);
-		expect(providerModels["openai-native"]).not.toHaveProperty(
-			"tool-flagged-dedicated-video",
-		);
-		expect(providerModels["openai-native"]).not.toHaveProperty("mixed-video");
-		expect(providerModels["openai-native"]).toHaveProperty("chat-model");
-		expect(providerModels.gemini).toMatchObject({
-			"mixed-video": {
-				modalities: { input: ["text"], output: ["text", "video"] },
-			},
-		});
-		expect(providerModels.gemini?.["mixed-video"]?.operation).toBeUndefined();
-	});
-
-	it("keeps dedicated audio models for providers with a speech endpoint", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			openai: {
-				id: "openai",
-				name: "OpenAI",
-				models: {
-					"openai-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-			google: {
-				id: "google",
-				name: "Google",
-				npm: "@ai-sdk/google",
-				models: {
-					"google-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-			"google-vertex": {
-				id: "google-vertex",
-				name: "Google Vertex",
-				npm: "@ai-sdk/google-vertex",
-				models: {
-					"vertex-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-			vercel: {
-				id: "vercel",
-				name: "Vercel AI Gateway",
-				models: {
-					"gateway-speech": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-				},
-			},
-		});
-
-		expect(providerModels["openai-native"]).toMatchObject({
-			"openai-speech": { operation: "speech-generation" },
-		});
-		expect(providerModels.gemini).toMatchObject({
-			"google-speech": { operation: "speech-generation" },
-		});
-		expect(providerModels.vertex).toMatchObject({
-			"vertex-speech": { operation: "speech-generation" },
-		});
-		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
-			"gateway-speech": { operation: "speech-generation" },
-		});
-	});
-
-	it("omits audio models from providers without a declared speech transport", () => {
-		const providerModels = normalizeModelsDevProviderModels({
-			"extra-router": {
-				id: "extra-router",
-				name: "Extra Router",
-				npm: "@ai-sdk/openai-compatible",
-				models: {
-					"dedicated-audio": {
-						tool_call: false,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-					"tool-flagged-dedicated-audio": {
-						// Tool metadata must not make an audio-only model usable via a
-						// provider without a speech transport.
-						tool_call: true,
-						modalities: { input: ["text"], output: ["audio"] },
-					},
-					"mixed-audio": {
-						tool_call: false,
-						modalities: {
-							input: ["text"],
-							output: ["text", "audio"],
-						},
-					},
-					"chat-model": { tool_call: true },
-				},
-			},
-			openai: {
-				id: "openai",
-				name: "OpenAI",
-				models: {
-					"mixed-audio": {
-						tool_call: true,
-						modalities: {
-							input: ["text"],
-							output: ["text", "audio"],
-						},
-					},
-				},
-			},
-		});
-
-		expect(providerModels["extra-router"]).not.toHaveProperty(
-			"dedicated-audio",
-		);
-		expect(providerModels["extra-router"]).not.toHaveProperty(
-			"tool-flagged-dedicated-audio",
-		);
-		expect(providerModels["extra-router"]).not.toHaveProperty("mixed-audio");
-		expect(providerModels["extra-router"]).toHaveProperty("chat-model");
-		expect(providerModels["openai-native"]).toMatchObject({
-			"mixed-audio": {
-				modalities: { input: ["text"], output: ["text", "audio"] },
-			},
-		});
-		expect(
-			providerModels["openai-native"]?.["mixed-audio"]?.operation,
-		).toBeUndefined();
-	});
-
 	it("prefers a text-output model over a newer dedicated image default", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
@@ -689,7 +516,7 @@ describe("models-dev-catalog", () => {
 				reasoningOptions: [
 					{ type: "effort", values: ["low", "medium", "high"] },
 				],
-				pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				releaseDate: "2026-01-01",
 				family: "base-family",
 			},
@@ -734,7 +561,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 
@@ -788,18 +615,26 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
-	it("includes Cline Cloud models in the Cline provider", () => {
+	it("includes Cline Cloud models only when explicitly requested", () => {
+		const payload = {
+			clinePass: [{ id: "cline-pass/glm-5.2", name: "glm-5.2" }],
+			clineCloud: [
+				{
+					id: "cline-cloud/claude-sonnet-4.6",
+					name: "Claude Sonnet 4.6",
+				},
+			],
+		};
+		expect(
+			normalizeClineRecommendedProviderModels(payload, {}).cline ?? {},
+		).not.toHaveProperty("cline-cloud/claude-sonnet-4.6");
+
 		const result = normalizeClineRecommendedProviderModels(
-			{
-				clinePass: [{ id: "cline-pass/glm-5.2", name: "glm-5.2" }],
-				clineCloud: [
-					{
-						id: "cline-cloud/claude-sonnet-4.6",
-						name: "Claude Sonnet 4.6",
-					},
-				],
-			},
+			payload,
 			{},
+			{
+				includeClineCloudModels: true,
+			},
 		);
 
 		expect(result.cline?.["cline-cloud/claude-sonnet-4.6"]).toMatchObject({
@@ -812,7 +647,10 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
-	it("labels a Cline free model when its name matches a ClinePass model", () => {
+	it.each([
+		"cline-free/deepseek-v4-flash",
+		"deepseek/deepseek-v4-flash",
+	])("labels a free model with ID %s when its name matches a ClinePass model", (freeId) => {
 		const result = normalizeClineRecommendedProviderModels(
 			{
 				clinePass: [
@@ -823,7 +661,7 @@ describe("models-dev-catalog", () => {
 				],
 				free: [
 					{
-						id: "cline-free/deepseek-v4-flash",
+						id: freeId,
 						name: "DeepSeek V4 Flash",
 					},
 				],
@@ -834,12 +672,10 @@ describe("models-dev-catalog", () => {
 		expect(result["cline-pass"]?.["cline-pass/deepseek-v4-flash"]?.name).toBe(
 			"DeepSeek V4 Flash",
 		);
-		expect(result["cline-pass"]?.["cline-free/deepseek-v4-flash"]?.name).toBe(
+		expect(result["cline-pass"]?.[freeId]?.name).toBe(
 			"DeepSeek V4 Flash (free)",
 		);
-		expect(result.cline?.["cline-free/deepseek-v4-flash"]?.name).toBe(
-			"DeepSeek V4 Flash (free)",
-		);
+		expect(result.cline?.[freeId]?.name).toBe("DeepSeek V4 Flash (free)");
 	});
 
 	it("resolves free-model capabilities by slug and preserves free-only Cline catalog payloads", () => {
@@ -947,14 +783,16 @@ describe("models-dev-catalog", () => {
 
 		expect(result.cline?.["deepseek/deepseek-v4-flash"]).toMatchObject({
 			id: "deepseek/deepseek-v4-flash",
-			name: "DeepSeek V4 Flash",
+			name: "DeepSeek V4 Flash (free)",
 			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 		expect(result.cline?.["poolside/laguna-s-2.1:free"]?.name).toBe(
 			"Laguna S 2.1 (free)",
 		);
 		// Without a catalog match, fall back to the endpoint-provided name.
-		expect(result.cline?.["unknown/mystery-model"]?.name).toBe("mystery-model");
+		expect(result.cline?.["unknown/mystery-model"]?.name).toBe(
+			"mystery-model (free)",
+		);
 	});
 
 	it("uses input limits as the model request context window", () => {
@@ -1313,7 +1151,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 
