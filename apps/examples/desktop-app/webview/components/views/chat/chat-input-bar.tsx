@@ -1110,7 +1110,11 @@ function ChatInputBarImpl({
 			<div
 				className={cn(
 					"px-4 py-3",
-					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+					variant === "welcome"
+						? "pb-2 pt-4"
+						: promptsInQueue.length > 0
+							? "pb-4 pt-0"
+							: "py-4",
 				)}
 			>
 				<AgentPromptQueue
@@ -1377,7 +1381,9 @@ function ChatInputBarImpl({
 									: variant === "welcome"
 										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
 										: isBusy
-											? "Agent is working... submit to queue another message"
+											? promptsInQueue.length > 0
+												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+												: "Agent is working... submit to queue another message"
 											: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive}
