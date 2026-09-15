@@ -1,3 +1,5 @@
+import { InternalFeature } from "./internal-features";
+
 export const FeatureFlag = {
 	/** Enables ClinePass provider/model list exposure in supported clients. */
 	CLINE_PASS: "ext-cline-pass",
@@ -5,6 +7,9 @@ export const FeatureFlag = {
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
 	/** Shows the GitHub integration step in the desktop app */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
+	/** Widens access to the internal-only Composio connectors beyond
+	 * `@cline.bot` accounts (see `internal-features.ts`). */
+	INTERNAL_COMPOSIO_CONNECTORS: InternalFeature.COMPOSIO_CONNECTORS,
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -30,6 +35,12 @@ export interface FeatureFlagsContext {
 	distinctId?: string;
 	/** Authenticated Cline account/user ID, when available. */
 	userId?: string | null;
+	/**
+	 * Authenticated account email, when available. Used locally for
+	 * internal-feature gating (see `internal-features.ts`); providers do not
+	 * send it anywhere.
+	 */
+	email?: string | null;
 	/** Optional SDK consumer name, e.g. `my-production-app`. */
 	clientName?: string;
 }
@@ -68,6 +79,7 @@ export const FeatureFlagDefaultValue: Partial<
 	[FeatureFlag.CLINE_PASS]: false,
 	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
+	[FeatureFlag.INTERNAL_COMPOSIO_CONNECTORS]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);
