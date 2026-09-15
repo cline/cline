@@ -1544,6 +1544,16 @@ export class CloudSessionManager {
 			"session.update_connection",
 			{ sessionId: innerSessionId, updates: { modelId } },
 			innerSessionId,
+			{
+				beforeDispatch: () => {
+					this.assertSessionActive(connection.remote.id, connection);
+					if (connection.innerSessionId !== innerSessionId) {
+						throw new Error(
+							"The cloud session reconnected before the model could be changed. Please try again.",
+						);
+					}
+				},
+			},
 		);
 		this.assertSessionActive(connection.remote.id, connection);
 		this.applyModel(connection, modelId);
