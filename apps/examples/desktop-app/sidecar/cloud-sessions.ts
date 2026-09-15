@@ -74,6 +74,7 @@ export type CloudSessionRecord = {
 	repoContext: { repoUrl?: string; branch?: string };
 	metadata: {
 		modelId?: string;
+		taskId?: string;
 		statusReason?: string;
 		provisioningPhase?: CloudProvisioningPhase;
 		createRequestTitle?: string;
@@ -2247,6 +2248,16 @@ export class CloudSessionManager {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.ctx.liveSessions.get(connection.remote.id);
+		const branch = `cline/${(connection.remote.metadata.taskId?.trim() || connection.remote.id).slice(-8).toLowerCase()}`;
+		const systemPrompt =
+			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
+			"SAVE YOUR WORK: This sandbox is temporary. Push your progress to origin so it remains available outside the sandbox. " +
+			`The branch \`${branch}\` is a backup of your work-in-progress, not a finished deliverable, so commit to it freely even when the work is incomplete. ` +
+			"Do all work for this task on that branch: create it from the current checkout before your first change " +
+			"(or check it out if it already exists), and never commit directly to the default branch. " +
+			"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
+			`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. ` +
+			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
 		const reply = await connection.client.command("session.create", {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			cwd: CLOUD_WORKSPACE_ROOT,
@@ -2255,7 +2266,7 @@ export class CloudSessionManager {
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				cwd: CLOUD_WORKSPACE_ROOT,
-				systemPrompt: CLOUD_SESSION_SYSTEM_PROMPT,
+				systemPrompt,
 				mode: "act",
 				enableTools: true,
 				...(typeof live?.config.thinking === "boolean"
