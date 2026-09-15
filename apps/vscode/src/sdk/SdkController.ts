@@ -103,6 +103,7 @@ import { StatePostDebouncer } from "./state-post-debouncer"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { syncTelemetrySettingFromSharedGlobalSettings } from "./telemetry-settings-sync"
 import { TurnStateTracker } from "./turn-state-tracker"
+import { renderEnabledRulesForSystemPrompt } from "./user-instruction-rules"
 import { createWorkspaceFileReadExecutor } from "./vscode-file-read-executor"
 import { VscodeSessionHost } from "./vscode-session-host"
 import type { VscodeTerminalExecutionMode } from "./vscode-terminal-execution-mode"
@@ -992,6 +993,26 @@ export class Controller {
 			return service
 		})()
 		return this.userInstructionService
+	}
+
+	/**
+	 * The user's enabled rules rendered as the SDK renders them into a session's
+	 * system prompt, for standalone utility requests (commit message generation)
+	 * that don't run through a session. Empty when no rule is enabled or the
+	 * rules can't be read — a utility request should still go out without them.
+	 */
+	async getRulesForSystemPrompt(): Promise<string> {
+		if (this.isDisposed) {
+			return ""
+		}
+		try {
+			const workspaceRoot = await this.getWorkspaceRoot()
+			const service = await this.ensureUserInstructionService(workspaceRoot)
+			return renderEnabledRulesForSystemPrompt(service)
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to load rules for system prompt:", error)
+			return ""
+		}
 	}
 
 	/**
