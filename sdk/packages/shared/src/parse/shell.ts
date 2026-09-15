@@ -235,7 +235,8 @@ function splitNestedCommandToScript(
  *   bare executable names and paths may omit it
  * - the nested executable is `powershell` or `pwsh` (either edition; the
  *   requested one is returned so cross-edition wrappers such as `powershell`
- *   inside `pwsh` run in the edition the command asked for)
+ *   inside `pwsh` run in the edition the command asked for — which binary
+ *   provides that edition is then chosen by selectNestedExecutable)
  * - the nested invocation carries `-NoProfile` (written in full), and every
  *   other flag before `-Command` is bootstrap-equivalent (-NonInteractive)
  *   or a no-op under -Command (-NoLogo) — without -NoProfile the shell would
@@ -301,6 +302,38 @@ function parseNestedPowerShellCommand(
 	}
 }
 
+/**
+ * Choose the binary that runs an unwrapped script.
+ *
+ * A wrapper that names a bare executable of the configured shell's edition
+ * adds nothing over the configured shell itself, so the configured shell is
+ * kept: hosts resolve it to an absolute path, and an absolute path is spawned
+ * as-is. Taking the bare name from the command text instead would make
+ * `child_process.spawn` search for it, and on Windows that search looks in
+ * the command's working directory before PATH — a `powershell.exe` planted
+ * in the workspace would run in place of the real shell. PowerShell itself
+ * never resolves a bare name from the current directory.
+ *
+ * A wrapper that names an explicit path is an explicit choice and is honored
+ * as written. A wrapper that switches edition takes the requested name; the
+ * executor resolves it through PATH before spawning. This also means a chain
+ * that switches away and back (`powershell` inside `pwsh` inside `pwsh`)
+ * lands on the configured shell again rather than on a bare name.
+ */
+function selectNestedExecutable(
+	configuredShell: string,
+	requested: string,
+): string {
+	const requestedIsPath = /[\\/:]/.test(requested);
+	if (
+		!requestedIsPath &&
+		getPowerShellEdition(requested) === getPowerShellEdition(configuredShell)
+	) {
+		return configuredShell;
+	}
+	return requested;
+}
+
 export function getShellInvocation(
 	shell: string,
 	command: string,
@@ -309,11 +342,13 @@ export function getShellInvocation(
 		case "powershell": {
 			// At tool invocation construction, select executable and script together,
 			// before any await. A standalone NoProfile wrapper needs no outer process:
-			// run its requested executable (not an edition-equivalent substitute) with
-			// the existing bootstrap. This avoids both outer $ interpolation and native
-			// argv quote loss, including pwsh -> powershell.exe and the reverse (#13284).
-			// Each pass strips one wrapper layer, decoding it with the edition of the
-			// shell that would have parsed it, until no wrapper remains.
+			// run the decoded script through the existing bootstrap in the PowerShell
+			// edition the wrapper asked for. This avoids both outer $ interpolation
+			// and native argv quote loss, including pwsh -> powershell.exe and the
+			// reverse (#13284). Each pass strips one wrapper layer, decoding it with
+			// the edition of the shell that would have parsed it, until no wrapper
+			// remains. Which binary then provides the edition is decided by
+			// selectNestedExecutable.
 			let selected = { executable: shell, script: command };
 			for (;;) {
 				const nested = parseNestedPowerShellCommand(
@@ -321,7 +356,10 @@ export function getShellInvocation(
 					selected.executable,
 				);
 				if (!nested) break;
-				selected = nested;
+				selected = {
+					executable: selectNestedExecutable(shell, nested.executable),
+					script: nested.script,
+				};
 			}
 			// PowerShell's command-line parser decodes -Command through the active
 			// Windows code page. Keep the command line ASCII-only, send the command
