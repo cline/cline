@@ -91,6 +91,18 @@ describe("filterVisibleMessages", () => {
 
 		expect(visible).toEqual([askMessage, userMessage])
 	})
+
+	it("keeps feedback when a persisted follow-up has malformed options", () => {
+		const askMessage: ClineMessage = {
+			type: "ask",
+			ask: "followup",
+			text: JSON.stringify({ question: "Pick one", options: { first: "Use this" } }),
+			ts: 1,
+		}
+		const userMessage = createUserFeedbackMessage(2, "Use this")
+
+		expect(filterVisibleMessages([askMessage, userMessage])).toEqual([askMessage, userMessage])
+	})
 })
 
 describe("canRestoreWorkspaceFromMessage", () => {

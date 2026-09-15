@@ -1064,7 +1064,7 @@ export const ChatRowContent = memo(
 						try {
 							const parsedMessage = JSON.parse(message.text || "{}") as ClineAskQuestion
 							question = parsedMessage.question
-							options = parsedMessage.options
+							options = Array.isArray(parsedMessage.options) ? parsedMessage.options : undefined
 							selected = parsedMessage.selected
 						} catch (_e) {
 							// legacy messages would pass question directly
