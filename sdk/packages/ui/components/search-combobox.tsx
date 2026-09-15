@@ -35,6 +35,8 @@ export interface SearchComboboxProps {
 	emptyText?: string;
 	loading?: boolean;
 	loadingText?: string;
+	/** Called when the panel opens, so callers can refresh stale options. */
+	onOpen?: () => void;
 	onValueChange: (value: string) => void;
 	options: SearchComboboxOption[];
 	/** Panel width as a CSS length (default "16rem"). */
@@ -86,6 +88,7 @@ export function SearchCombobox({
 	emptyText = "No results",
 	loading = false,
 	loadingText = "Loading…",
+	onOpen,
 	onValueChange,
 	options,
 	panelWidth = "16rem",
@@ -333,7 +336,10 @@ export function SearchCombobox({
 					.filter(Boolean)
 					.join(" ")}
 				disabled={disabled}
-				onClick={() => setOpen((current) => !current)}
+				onClick={() => {
+					if (!open) onOpen?.();
+					setOpen(!open);
+				}}
 				ref={triggerRef}
 				title={displayedValue}
 				type="button"

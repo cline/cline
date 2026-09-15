@@ -1025,6 +1025,8 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export * from "./remote/remote-environments";
+export { ensureLoginShellPath } from "./remote/shell-path";
 export {
 	applyClineFeaturedModels,
 	type ClineRecommendedModel,

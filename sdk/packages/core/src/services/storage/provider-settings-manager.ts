@@ -10,7 +10,6 @@ import {
 import { basename, dirname } from "node:path";
 import type { ProviderMode, ProviderModeSettingsMap } from "@cline/shared";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
-import { getLiveModelsCatalog } from "../..";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
@@ -29,6 +28,7 @@ import {
 	type VoiceInputSettings,
 	VoiceInputSettingsSchema,
 } from "../../types/provider-settings";
+import { getLiveModelsCatalog } from "../llms/provider-defaults";
 import {
 	ensureCustomProvidersLoadedSync,
 	registerConfiguredProvidersFromSettings,

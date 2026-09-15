@@ -63,7 +63,7 @@ Cline as a native app for macOS and Windows.
 Run agent sessions in any folder, schedule
 routines, and manage models, plugins, and MCP servers.
 
-<a href="https://github.com/cline/cline/releases?q=desktop-v&expanded=true">Download for macOS and Windows</a>
+<a href="https://cline.bot/desktop">Download for macOS and Windows</a>
 <br><br>
 
 </td>
