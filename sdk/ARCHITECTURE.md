@@ -478,6 +478,25 @@ Design implication:
 - logging is injectable and transport-agnostic, allowing host environments (CLI, VS Code, browser) to wire their own backends
 - do not hardcode logging calls; accept a `logger?: BasicLogger` parameter instead
 
+### 6.1 Langfuse telemetry ownership
+
+`@cline/llms` owns Langfuse instrumentation, trace attribute propagation, and
+the `LangfuseAttributesSpanProcessor`. `@cline/core` owns the host OpenTelemetry
+provider and installs that processor when constructing an OTLP trace pipeline.
+The processor copies context attributes onto `cline-provider-langfuse` spans;
+it does not create an exporter or require Langfuse credentials. User and session
+IDs must be span attributes, not only observation metadata, for Langfuse tracking.
+
+In the collector relay path, spans use the existing host OTLP exporter. The
+collector owns Langfuse credentials and downstream filtering and sampling.
+`llms` checks provider eligibility, client sampling, opt-out, and content policy
+per request. The host owns flushing and shutting down its provider.
+
+When no host relay is available, explicitly configured direct Langfuse export
+uses an isolated provider owned and disposed by `llms`. It does not replace or
+shut down an ambient host provider. When both routes are configured, the relay
+takes precedence so a request is not exported through both routes.
+
 ### 7. Storage Adapters
 
 Stateful persistence should be isolated behind adapter/service layers.
