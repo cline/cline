@@ -592,21 +592,33 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
-		const bedrockAuthentication = normalizeLegacyBedrockAuthentication(
+		const legacyBedrockAuthentication = normalizeLegacyBedrockAuthentication(
 			legacyGlobalState.awsAuthentication,
 		);
+		const legacyBedrockProfile = trimNonEmpty(legacyGlobalState.awsProfile);
+		// Legacy state grew three ways to say "use a named AWS profile":
+		// awsAuthentication "profile" (newest), the awsUseProfile toggle, and,
+		// on installs that predate both flags, a bare awsProfile value. Treat a
+		// profile name with no explicit authentication choice as profile auth,
+		// mirroring the extension's default radio resolution — otherwise the
+		// migration silently drops the profile and the SDK falls back to the
+		// default credential chain (cline/cline#14095, #13292).
 		const useBedrockProfile =
-			bedrockAuthentication === "profile" ||
-			legacyGlobalState.awsUseProfile === true;
+			legacyBedrockAuthentication === "profile" ||
+			legacyGlobalState.awsUseProfile === true ||
+			(legacyBedrockAuthentication === undefined &&
+				legacyBedrockProfile !== undefined);
+		const bedrockAuthentication =
+			useBedrockProfile && legacyBedrockAuthentication === undefined
+				? "profile"
+				: legacyBedrockAuthentication;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
 			authentication: bedrockAuthentication,
-			profile: useBedrockProfile
-				? trimNonEmpty(legacyGlobalState.awsProfile)
-				: undefined,
+			profile: useBedrockProfile ? legacyBedrockProfile : undefined,
 			usePromptCache: legacyGlobalState.awsBedrockUsePromptCache,
 			useCrossRegionInference: legacyGlobalState.awsUseCrossRegionInference,
 			useGlobalInference: legacyGlobalState.awsUseGlobalInference,
