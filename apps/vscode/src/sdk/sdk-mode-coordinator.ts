@@ -238,7 +238,14 @@ export class SdkModeCoordinator {
 			Logger.warn("[SdkController] Failed to post mode state before session rebuild:", error)
 		}
 
-		if (wasRunning) {
+		// A turn AWAITING APPROVAL is parked on the user, so `isRunning` is false and this gate used
+		// to skip it. That left the ask pending and the phase stuck on `awaiting_approval` while the
+		// session underneath was replaced, so the footer fell back to a generic Approve that answered
+		// nothing (#13814). It is exactly the case the settle path's own comment names, "dead approval
+		// buttons (aborted while awaiting approval)", and `wasRunning` was the one condition under
+		// which that case could never arrive.
+		const awaitingApproval = this.options.getTurnPhase() === "awaiting_approval"
+		if (wasRunning || awaitingApproval) {
 			await this.cancelRunningTurnForModeChange(oldManager, oldSessionId)
 		}
 
