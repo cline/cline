@@ -4,6 +4,7 @@
 // I/O, so KEEP IT FIRST: do not add an import above this line that performs network
 // work at module-eval time, or proxy support silently breaks on JetBrains/CLI.
 import "@/shared/net"
+import { hardenWindowsExecutableLookup } from "@cline/shared"
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalEditPreview } from "@hosts/external/ExternalEditPreview"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
@@ -30,6 +31,11 @@ let globalCoreConnection: CoreConnection | undefined
 let shutdownPromise: Promise<void> | undefined
 
 async function main() {
+	// Windows resolves a bare program name through the child's working
+	// directory before PATH; turn that off for this process before anything
+	// spawns into the workspace.
+	hardenWindowsExecutableLookup()
+
 	// Capture the per-spawn secret and scrub it from the environment before
 	// initialization can launch provider or MCP child processes, and before the
 	// environment is logged below. Descendants must never inherit the credential;

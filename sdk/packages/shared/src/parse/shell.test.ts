@@ -83,6 +83,65 @@ describe("shell helpers", () => {
 		});
 	});
 
+	it("keeps the configured shell for a same-edition bare wrapper and honors explicit paths", () => {
+		const pwsh = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+		const windowsPowerShell =
+			"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+		// A bare name of the configured edition adds nothing over the configured
+		// shell, so the host's resolved path is kept and spawn never searches
+		// for the binary (on Windows that search would start in the cwd).
+		for (const wrapper of ["pwsh", "pwsh.exe", "& pwsh", "PWSH.EXE"]) {
+			expect(
+				getShellInvocation(
+					pwsh,
+					`${wrapper} -NoProfile -Command "Write-Output $_"`,
+				),
+			).toMatchObject({ executable: pwsh, input: "Write-Output $_" });
+		}
+		expect(
+			getShellInvocation(
+				windowsPowerShell,
+				"& powershell -NoProfile -Command 'Write-Output 42'",
+			),
+		).toMatchObject({
+			executable: windowsPowerShell,
+			input: "Write-Output 42",
+		});
+		// An explicit path is an explicit choice, even within the same edition.
+		expect(
+			getShellInvocation(
+				pwsh,
+				"& 'D:\\portable\\pwsh.exe' -NoProfile -Command 'Write-Output 42'",
+			),
+		).toMatchObject({
+			executable: "D:\\portable\\pwsh.exe",
+			input: "Write-Output 42",
+		});
+		// A different edition is taken from the wrapper by name; the executor
+		// resolves that name through PATH before spawning.
+		expect(
+			getShellInvocation(
+				pwsh,
+				'powershell -NoProfile -Command "Write-Output $_"',
+			),
+		).toMatchObject({ executable: "powershell", input: "Write-Output $_" });
+		// Switching away and back lands on the configured shell, not a bare name.
+		expect(
+			getShellInvocation(
+				pwsh,
+				'powershell -NoProfile -Command "pwsh -NoProfile -Command `"Write-Output $_`""',
+			),
+		).toMatchObject({ executable: pwsh, input: "Write-Output $_" });
+		// A configured shell that is itself a bare name (the SDK default) is
+		// kept as that bare name; resolution then happens at spawn time.
+		expect(
+			getShellInvocation(
+				"powershell",
+				'powershell -NoProfile -Command "Write-Output $_"',
+			),
+		).toMatchObject({ executable: "powershell", input: "Write-Output $_" });
+	});
+
 	it("decodes each wrapper in its outer edition and retains literal executable paths", () => {
 		const path = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
 		expect(

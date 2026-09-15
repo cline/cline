@@ -7,7 +7,11 @@ import {
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
+import {
+	captureSdkError,
+	claimHubDaemonProcess,
+	hardenWindowsExecutableLookup,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -49,6 +53,10 @@ async function main() {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
 	}
+	// Windows resolves a bare program name through the child's working
+	// directory before PATH; turn that off for this process before anything
+	// spawns into the workspace.
+	hardenWindowsExecutableLookup();
 
 	// When launched from Finder/the Dock the app inherits launchd's minimal
 	// PATH, so agent-spawned processes can't find shell-profile-installed
