@@ -17,12 +17,14 @@ import {
 } from "./chat-input-bar";
 
 const {
+	toastMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
+	toastMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	speechInputMockState: {
@@ -38,6 +40,7 @@ const {
 
 type MockSpeechInputProps = {
 	disabled?: boolean;
+	onError?: (error: unknown) => void;
 	onActiveChange?: (active: boolean) => void;
 	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 	onProcessingChange?: (processing: boolean) => void;
@@ -86,6 +89,8 @@ vi.mock("@/lib/vercel-streaming-transcription", () => ({
 	startVercelStreamingTranscription: startVercelStreamingTranscriptionMock,
 }));
 
+vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -99,6 +104,7 @@ beforeEach(() => {
 		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
+	toastMock.mockReset();
 	speechInputMockState.current = null;
 	startVercelStreamingTranscriptionMock.mockReset().mockResolvedValue({
 		done: new Promise<void>(() => {}),
@@ -283,6 +289,40 @@ describe("ChatInputBar", () => {
 			);
 		});
 		expect(onSend).toHaveBeenCalledWith("What is this?");
+	});
+
+	it("does not send when Enter commits an IME composition", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend, prompt: "你好" });
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					isComposing: true,
+					bubbles: true,
+				}),
+			);
+		});
+		// WebKit fires the committing Enter after compositionend with
+		// isComposing false but keyCode 229.
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					keyCode: 229,
+					bubbles: true,
+				}),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("你好");
 	});
 
 	it("allows a parent session with a running child agent to be stopped", async () => {
@@ -642,6 +682,40 @@ describe("ChatInputBar", () => {
 		);
 	});
 
+	it.each([
+		[
+			new Error("Transcription connection closed"),
+			"Transcription connection closed",
+		],
+		[
+			new DOMException("Permission denied", "NotAllowedError"),
+			"Check the microphone permission for Cline and try again.",
+		],
+	])("shows speech failures in chat with a configured model: %s", async (error, description) => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: false,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "Keep my draft" });
+		await act(async () => {
+			speechInputMockState.current?.onError?.(error);
+		});
+		expect(toastMock).toHaveBeenCalledWith({
+			variant: "destructive",
+			title: "Speech input failed",
+			description,
+		});
+		expect(container.querySelector("textarea")?.value).toBe("Keep my draft");
+		expect(
+			container.querySelector('[aria-label="Record speech"]'),
+		).not.toBeNull();
+	});
+
 	it("inserts a batch transcript only into its captured draft range", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({
@@ -833,7 +907,6 @@ describe("ChatInputBar", () => {
 
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
-		const onOpenVoiceInputSettings = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
 			await act(async () => {
 				root.render(
@@ -862,7 +935,6 @@ describe("ChatInputBar", () => {
 							}))}
 							onModeToggle={vi.fn()}
 							onModelChange={vi.fn()}
-							onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
 							onReasoningChange={onReasoningChange}
@@ -1519,8 +1591,12 @@ describe("ChatInputBar", () => {
 			'[aria-label^="Model:"]',
 		);
 		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(1);
 
 		await act(async () => modelTrigger?.click());
+		// Opening re-fetches so the tiers reflect the current feed.
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(2);
+		expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline");
 		const panel = document.querySelector('[role="dialog"]');
 		expect(panel?.textContent).toContain("Recommended");
 		expect(panel?.textContent).toContain("Free");
@@ -1777,6 +1853,34 @@ describe("ChatInputBar", () => {
 					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
 				),
 			).toEqual(selection);
+		});
+
+		it("keeps the live model name while the picker-open refresh is in flight", async () => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			await renderComposer({ model: kimi.id, provider: "cline-pass" });
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(kimi.name);
+			});
+			loadProviderModelCatalogMock.mockClear();
+			let resolveModels!: (models: ProviderModel[]) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve) => {
+					resolveModels = resolve;
+				}),
+			);
+
+			await act(async () => modelTrigger?.click());
+			// Only the live list is re-fetched; re-applying the bundled catalog
+			// (which lacks kimi) would flash the raw id in the trigger.
+			expect(modelTrigger?.textContent).toContain(kimi.name);
+			expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline-pass");
+			expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+			await act(async () => resolveModels([flash, kimi]));
+			expect(modelTrigger?.textContent).toContain(kimi.name);
 		});
 
 		it.each([

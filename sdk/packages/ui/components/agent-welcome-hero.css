@@ -170,9 +170,8 @@
 		var(--welcome-hero-color) var(--welcome-bot-fill-opacity),
 		transparent
 	);
-	backface-visibility: hidden;
-	transform: translate3d(var(--welcome-eye-x), var(--welcome-eye-y), 0);
-	will-change: transform;
+	/* Keep pointer movement out of layout without forcing a compositing layer. */
+	transform: translate(var(--welcome-eye-x), var(--welcome-eye-y));
 }
 
 .cline-ui-agent-welcome-hero__eye--left {

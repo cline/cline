@@ -281,12 +281,22 @@ describe("resolveBedrockModelId", () => {
 	});
 
 	it("prefixes other profile-only foundation models with confirmed variants", () => {
+		// Keep catalog presence explicit: models come and go from the generated
+		// catalog (deepseek.r1-v1:0 was retired from Bedrock) without changing
+		// the resolver's contract that a confirmed variant is prefixed.
+		const hasCatalogModel = (modelId: string) =>
+			modelId === "us.deepseek.r1-v1:0" ||
+			modelId === "us.meta.llama4-maverick-17b-instruct-v1:0";
 		expect(
-			resolveBedrockModelId("deepseek.r1-v1:0", { region: "us-west-2" }),
+			resolveBedrockModelId("deepseek.r1-v1:0", {
+				region: "us-west-2",
+				hasCatalogModel,
+			}),
 		).toBe("us.deepseek.r1-v1:0");
 		expect(
 			resolveBedrockModelId("meta.llama4-maverick-17b-instruct-v1:0", {
 				region: "us-east-1",
+				hasCatalogModel,
 			}),
 		).toBe("us.meta.llama4-maverick-17b-instruct-v1:0");
 	});
@@ -456,12 +466,15 @@ describe("resolveBedrockModelId", () => {
 				useGlobalInference: true,
 			}),
 		).toBe("us.anthropic.claude-sonnet-4-6");
-		// Models without a known global variant degrade to the geo profile.
+		// Models without a known global variant degrade to the geo profile. The
+		// geo variant is asserted explicitly so the case does not depend on the
+		// generated catalog still carrying this model.
 		expect(
 			resolveBedrockModelId("deepseek.r1-v1:0", {
 				region: "us-west-2",
 				useCrossRegionInference: true,
 				useGlobalInference: true,
+				hasCatalogModel: (modelId) => modelId === "us.deepseek.r1-v1:0",
 			}),
 		).toBe("us.deepseek.r1-v1:0");
 	});

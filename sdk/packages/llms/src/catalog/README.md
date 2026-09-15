@@ -8,6 +8,22 @@ generation scripts.
 This file documents the intended meaning of the token-limit fields and the
 boundary between catalog metadata and runtime request policy.
 
+## Per-model API Protocols
+
+Models.dev's model-level `provider.npm` is retained as `metadata.apiProtocol`
+for OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, and Gemini.
+Providers opt into these model routes with `metadata.routing.modelApiProtocol`
+when they serve those protocols under a shared base URL. The selected adapter
+also owns request options, serialization, and stream parsing. Native providers
+and local CLI providers retain their own transports.
+
+OpenCode Go opts in and sends `x-opencode-session` from request metadata's
+`sessionId`, plus a Cline User-Agent. Direct gateway callers should supply a
+stable `sessionId` per conversation; ClineCore supplies its session identity.
+Go's Qwen entries without an upstream adapter declaration use Anthropic
+Messages, matching [Go's endpoint documentation](https://opencode.ai/docs/go/#endpoints).
+An explicit upstream declaration takes precedence over that narrow fallback.
+
 ## Audio Modalities
 
 Audio-capable entries retain models.dev's directional modality metadata:

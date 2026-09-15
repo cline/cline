@@ -504,6 +504,158 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("retries a transient provider error with backoff before failing", async () => {
+		vi.useFakeTimers();
+		try {
+			// Initial attempt + 3 retries = 4 requests, all failing transiently.
+			const model = new ScriptedModel(
+				Array.from({ length: 4 }, () => () => [
+					{
+						type: "finish" as const,
+						reason: "error" as const,
+						error: "Provider returned error",
+					},
+				]),
+			);
+			const runtime = new AgentRuntime({ model });
+
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("failed");
+			expect(result.error?.message).toBe("Provider returned error");
+			expect(model.requests).toHaveLength(4);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("recovers when a retried provider error later succeeds", async () => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{
+						type: "finish" as const,
+						reason: "error" as const,
+						error: "Provider returned error",
+					},
+				],
+				() => [
+					{ type: "text-delta" as const, text: "recovered" },
+					{ type: "finish" as const, reason: "stop" as const },
+				],
+			]);
+			const runtime = new AgentRuntime({ model });
+
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry a non-transient provider error (honors errorRetryable=false)", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "Provider returned error",
+					// Boundary says this specific failure is not retryable; the flag
+					// wins over the message-based fallback.
+					errorRetryable: false,
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not retry when the failed attempt already streamed visible output", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "partial answer" },
+				{
+					type: "finish",
+					reason: "error",
+					error: "Provider returned error",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Provider returned error");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not retry when the failed attempt ran a provider-executed tool", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "prov_1",
+					toolName: "Bash",
+					input: { command: "make clean" },
+					execution: "provider",
+				},
+				{
+					type: "finish",
+					reason: "error",
+					error: "Provider returned error",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Provider returned error");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not carry retryability from an earlier attempt into an error-less finish", async () => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{
+						type: "finish",
+						reason: "error",
+						error: "Provider returned error",
+					},
+				],
+				// Valid per the AgentModel contract: an error finish with no payload.
+				() => [{ type: "finish", reason: "error" }],
+			]);
+			const runtime = new AgentRuntime({ model });
+
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("failed");
+			expect(result.error?.message).toBe("Model stream failed");
+			expect(model.requests).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("fails with an actionable message when overflow recovery has nothing to compact", async () => {
 		const model = new ScriptedModel([
 			() => [
