@@ -375,10 +375,22 @@ export class AuthService {
 			const bufferSeconds = 5 * 60 // 5 minute buffer
 			if (currentTime + bufferSeconds >= expiresAt) {
 				// Token is expired or about to expire — try to refresh
-				const refreshed = await this.refreshAccessToken()
-				if (!refreshed) {
+				await this.refreshAccessToken()
+
+				// A rejected refresh token clears the session; there is nothing
+				// left to send.
+				if (!this._clineAuthInfo?.idToken) {
 					return null
 				}
+
+				// A refresh that failed for any other reason does NOT mean the
+				// token is unusable. The buffer fires five minutes before
+				// expiry, so a network blip here leaves a token that still
+				// works, and the SDK resolver keeps it for exactly that reason
+				// (`transient_failure_kept_current`). Returning null instead
+				// reads downstream as "not signed in" and the user is told to
+				// re-authenticate over a failure that had nothing to do with
+				// their credentials. The expiry check below is what decides.
 			}
 		}
 
