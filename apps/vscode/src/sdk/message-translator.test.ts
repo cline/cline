@@ -4189,3 +4189,16 @@ describe("tool display paths are relativized to the cwd", () => {
 		)
 	})
 })
+
+describe("persisted display-only errors", () => {
+	it("restores a failed task with error recovery UI, not completion UI", () => {
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "hi" },
+			{ role: "assistant", content: "API key expired.", metadata: { displayOnly: true, displayRole: "error" } },
+		]
+		const rendered = sdkMessagesToClineMessages(messages)
+		expect(rendered.at(-1)).toMatchObject({ type: "ask", ask: "api_req_failed" })
+		expect(rendered.at(-1)?.text).toContain("API key expired")
+		expect(rendered.some((message) => message.say === "completion_result" || message.ask === "completion_result")).toBe(false)
+	})
+})

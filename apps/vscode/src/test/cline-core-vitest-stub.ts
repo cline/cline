@@ -517,3 +517,5 @@ export async function loginOcaOAuth(): Promise<OAuthCredentials> {
 export async function loginOpenAICodex(): Promise<OAuthCredentials> {
 	return {}
 }
+
+export { resolveMessageDisplayRole } from "../../../../sdk/packages/core/src/session/user-run-messages"

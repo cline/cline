@@ -27,7 +27,7 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@cline/core"
-import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
+import { PATCH_MARKERS, projectSessionMessagesForDisplay, resolveMessageDisplayRole } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput, type ProviderErrorClass } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
@@ -2359,6 +2359,17 @@ export function sdkMessagesToClineMessages(
 
 	for (const { message, sourceIndex } of projectSessionMessagesForDisplay(messages)) {
 		const sourceMessage = messages[sourceIndex]
+		if (resolveMessageDisplayRole(message) === "error") {
+			flushUnmatchedToolUses()
+			const text = typeof message.content === "string" ? message.content : textContentBlocksToText(message.content)
+			clineMessages.push(
+				...agentEventToMessages(
+					{ type: "error", error: new Error(text), recoverable: false, iteration: 0 } as AgentEvent,
+					state,
+				),
+			)
+			continue
+		}
 		if (message.role === "assistant") {
 			flushUnmatchedToolUses()
 
@@ -2521,23 +2532,24 @@ export function sdkMessagesToClineMessages(
 	// text) gets the inferred completion retag. Skipped when the session record says the last
 	// run failed, was cancelled, or died mid-turn: its terminal text is a dangling partial
 	// response, not a completion, and must stay a plain text row.
-	if (options?.finalTurnCompleted !== false) {
+	if (options?.finalTurnCompleted !== false && !state.wasErrorSeen()) {
 		endFinalTurn()
 	}
 
-	// Always emit ask:"completion_result"
+	// For non-error turns, emit ask:"completion_result"
 	// as the LAST message so it comes after the usage event's
 	// say:"api_req_started". This is critical: the webview uses
 	// the last raw message to determine UI state. If the usage
 	// event is last, the webview shows "Thinking..." instead of
 	// the completion UI
-	clineMessages.push({
-		ts: state.nextTs(),
-		type: "ask",
-		ask: "completion_result",
-		text: "",
-		partial: false,
-	})
+	if (!state.wasErrorSeen())
+		clineMessages.push({
+			ts: state.nextTs(),
+			type: "ask",
+			ask: "completion_result",
+			text: "",
+			partial: false,
+		})
 
 	flushUnmatchedToolUses()
 	return clineMessages

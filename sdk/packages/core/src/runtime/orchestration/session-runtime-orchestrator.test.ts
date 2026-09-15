@@ -1117,6 +1117,10 @@ describe("SessionRuntime.run", () => {
 		const { deps } = withFakeRuntime({ throwError: new Error("boom") });
 		const session = new SessionRuntime(makeAgentConfig(), deps);
 		await expect(session.run("go")).rejects.toThrow("boom");
+		expect(session.getMessages().at(-1)).toMatchObject({
+			content: [{ type: "text", text: "boom" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
 	});
 
 	it("rejects re-entrant run while the previous run is still active", async () => {
@@ -1183,13 +1187,30 @@ describe("SessionRuntime.run", () => {
 			},
 		} as unknown as AgentRuntime;
 
-		const session = new SessionRuntime(makeAgentConfig(), {
-			createAgentRuntimeImpl: () => slowRuntime,
-		});
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			{
+				createAgentRuntimeImpl: () => slowRuntime,
+			},
+		);
 		const first = session.run("one");
 		await Promise.resolve();
 		expect(session.canStartRun()).toBe(false);
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
 		await expect(session.continue("two")).rejects.toThrow(/"running"/i);
+		await expect(session.run("three")).rejects.toThrow(/"running"/i);
+		expect(session.getMessages()).toEqual(before);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+		expect(events.filter((event) => event.type === "error")).toHaveLength(0);
 		release?.();
 		await first;
 		expect(session.canStartRun()).toBe(true);
@@ -1674,13 +1695,25 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		const first = await session.run("first");
 		expect(first.finishReason).toBe("error");
 		expect(first.text).toBe("upstream failed");
-		expect(session.getMessages().map((message) => message.role)).toEqual([
-			"user",
-		]);
+		expect(first.messages.at(-1)).toMatchObject({
+			content: [{ type: "text", text: "upstream failed" }],
+			metadata: { displayOnly: true, displayRole: "error" },
+		});
+		// Exercise a disk round-trip before retrying.
+		session.restore(JSON.parse(JSON.stringify(first.messages)));
 
 		const second = await session.continue("second");
 		expect(second.finishReason).toBe("completed");
 		expect(second.text).toBe("second ok");
+		expect(
+			second.messages.filter((message) => message.metadata?.displayOnly),
+		).toHaveLength(1);
+		expect(second.messages.map((message) => message.role)).toEqual([
+			"user",
+			"assistant",
+			"user",
+			"assistant",
+		]);
 		expect(modelRequests).toHaveLength(2);
 		expect(
 			modelRequests[1]?.some((message) =>
@@ -1757,8 +1790,9 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 			"user",
 			"assistant",
 			"user",
+			"assistant",
 		]);
-		const lastContent = session.getMessages().at(-1)?.content[0];
+		const lastContent = session.getMessages().at(-2)?.content[0];
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
@@ -1883,6 +1917,29 @@ describe("SessionRuntime external abort signal", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime.shutdown", () => {
+	it("rejects new runs without changing a stopped transcript", async () => {
+		const capture = vi.fn();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			withFakeRuntime().deps,
+		);
+		await session.run("done");
+		await session.shutdown();
+		const before = session.getMessages();
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		await expect(session.run("again")).rejects.toThrow("after shutdown");
+		await expect(session.continue("again")).rejects.toThrow("after shutdown");
+		expect(session.getMessages()).toEqual(before);
+		expect(events).toEqual([]);
+		expect(
+			capture.mock.calls.filter(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toHaveLength(0);
+	});
 	it("completes successfully when no run is active and locks out future runs", async () => {
 		const session = new SessionRuntime(makeAgentConfig());
 		await expect(session.shutdown()).resolves.toBeUndefined();
@@ -2726,12 +2783,12 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 // ---------------------------------------------------------------------------
 
 describe("SessionRuntime auth retry", () => {
-	const authFailure: Partial<AgentRunResult> = {
+	const authFailure = {
 		status: "failed",
 		error: new Error(
 			"Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account.",
 		),
-	};
+	} satisfies Partial<AgentRunResult>;
 
 	/** Runtime factory that scripts each successive AgentRuntime build. */
 	function withSequencedRuntimes(scripts: FakeAgentRuntimeScript[]): {
@@ -2754,7 +2811,16 @@ describe("SessionRuntime auth retry", () => {
 		const capture = vi.fn();
 		const telemetry = { capture } as unknown as AgentConfig["telemetry"];
 		const { deps, createdCount } = withSequencedRuntimes([
-			{ result: authFailure },
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
 			{ result: { outputText: "recovered" } },
 		]);
 		const session = new SessionRuntime(
@@ -2762,22 +2828,101 @@ describe("SessionRuntime auth retry", () => {
 			deps,
 		);
 
+		const terminalEvents: AgentEvent[] = [];
+		session.subscribeEvents((event) => terminalEvents.push(event));
 		const result = await session.run("go");
 
 		expect(onAuthError).toHaveBeenCalledTimes(1);
 		expect(createdCount()).toBe(2);
 		expect(result.finishReason).toBe("completed");
 		expect(result.text).toBe("recovered");
+		expect(
+			terminalEvents.filter(
+				(event) => event.type === "error" && !event.recoverable,
+			),
+		).toHaveLength(0);
+		expect(
+			result.messages.some((message) => message.metadata?.displayOnly),
+		).toBe(false);
+		expect(
+			session.getMessages().some((message) => message.metadata?.displayOnly),
+		).toBe(false);
+		expect(
+			capture.mock.calls.some(
+				([event]) => event.event === "session.error_recorded",
+			),
+		).toBe(false);
 		expect(capture).toHaveBeenCalledWith({
 			event: "user.auth_run_retry",
 			properties: { provider: "anthropic", recovered: true },
 		});
 	});
 
+	it("records and reports only the final failed authentication attempt", async () => {
+		const capture = vi.fn();
+		const { deps } = withSequencedRuntimes([
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
+			{
+				result: {
+					status: "failed",
+					error: new Error("API key expired after refresh"),
+				},
+			},
+		]);
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				onAuthError: async () => true,
+				telemetry: { capture } as unknown as AgentConfig["telemetry"],
+			}),
+			deps,
+		);
+		const events: AgentEvent[] = [];
+		session.subscribeEvents((event) => events.push(event));
+		const result = await session.run("go");
+		expect(
+			result.messages.filter((message) => message.metadata?.displayOnly),
+		).toEqual([
+			expect.objectContaining({
+				content: [{ type: "text", text: "API key expired after refresh" }],
+			}),
+		]);
+		expect(
+			events.filter((event) => event.type === "error" && !event.recoverable),
+		).toHaveLength(1);
+		const recorded = capture.mock.calls.filter(
+			([event]) => event.event === "session.error_recorded",
+		);
+		expect(recorded).toHaveLength(1);
+		expect(recorded[0]?.[0].properties).toEqual({
+			sessionId: undefined,
+			provider: "anthropic",
+			model: "claude-3-5-sonnet",
+			source: "result",
+		});
+	});
+
 	it("returns the failed result when the host cannot refresh credentials", async () => {
 		const onAuthError = vi.fn(async () => false);
 		const { deps, createdCount } = withSequencedRuntimes([
-			{ result: authFailure },
+			{
+				result: authFailure,
+				events: [
+					{
+						type: "run-failed",
+						snapshot: makeSnapshot(),
+						error: authFailure.error,
+					},
+				],
+			},
 		]);
 		const session = new SessionRuntime(makeAgentConfig({ onAuthError }), deps);
 
