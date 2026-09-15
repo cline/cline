@@ -173,6 +173,32 @@ function hasBedrockCatalogModel(modelId: string): boolean {
 	return modelId in getGeneratedModelsForProvider("bedrock");
 }
 
+// Documented narrow exception (see packages/llms/AGENTS.md): Bedrock rejects
+// the Converse `temperature` field for newer Claude generations
+// ("`temperature` is deprecated for this model") while the shared AI SDK
+// stream config forwards it unconditionally. Omit it only where rejection is
+// evidenced: catalog models whose Bedrock entry withholds the "temperature"
+// capability (the models.dev source of truth), and application inference
+// profile ARNs, which are opaque user-created routes — unregistered models
+// carry no catalog signal — and the exact route from cline/cline#12252. Every
+// other id keeps forwarding, so unknown routes fail open instead of silently
+// dropping a temperature the model would have honored. A top-level
+// `buildStreamConfig` override (not PROVIDER_OPTION_RULES) carries this
+// because the routing table covers reasoning/provider-options, never the
+// top-level CallSettings temperature.
+export function shouldOmitBedrockTemperature(modelId: string): boolean {
+	if (modelId.includes(":application-inference-profile/")) {
+		return true;
+	}
+	const capabilities =
+		getGeneratedModelsForProvider("bedrock")[modelId]?.capabilities;
+	return (
+		capabilities !== undefined &&
+		capabilities.length > 0 &&
+		!capabilities.includes("temperature")
+	);
+}
+
 export async function createBedrockProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
@@ -238,6 +264,12 @@ export async function createBedrockProviderModule(
 				provider(resolveBedrockModelId(modelId, modelIdOptions)),
 			imageGeneration: (modelId) => provider.image(modelId),
 		},
+		buildStreamConfig: (request, context) => ({
+			...(request.temperature !== undefined &&
+			!shouldOmitBedrockTemperature(context.model.id)
+				? { temperature: request.temperature }
+				: {}),
+		}),
 	};
 }
 
