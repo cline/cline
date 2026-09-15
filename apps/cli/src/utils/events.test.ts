@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	handleEvent,
 	handleTeamEvent,
+	resetAgentEventStreamForTesting,
 	resolveStatusNoticeLabel,
 } from "./events";
 import { setCurrentOutputMode } from "./output";
@@ -47,6 +48,7 @@ describe("handleEvent text formatting", () => {
 	let errorOutput = "";
 
 	beforeEach(() => {
+		resetAgentEventStreamForTesting();
 		output = "";
 		errorOutput = "";
 		setCurrentOutputMode("text");
