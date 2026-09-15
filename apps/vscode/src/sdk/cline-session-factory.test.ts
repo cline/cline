@@ -329,6 +329,12 @@ describe("normalizeProviderReasoningSettings", () => {
 		expect(result).toEqual({ thinking: true, reasoningEffort: "xhigh" })
 	})
 
+	it("preserves a max effort", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, effort: "max" })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "max" })
+	})
+
 	it("keeps disabled reasoning off even with a stored budget", () => {
 		const result = normalizeProviderReasoningSettings({ enabled: false, budgetTokens: 4096 })
 
