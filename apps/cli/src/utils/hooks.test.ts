@@ -33,6 +33,7 @@ import { createRuntimeHooks } from "./hooks";
 
 async function emitRunStartAndPrompt(
 	hooks: NonNullable<ReturnType<typeof createRuntimeHooks>["hooks"]>,
+	displayRole?: "system",
 ): Promise<void> {
 	const snapshot = {
 		agentId: "agent-1",
@@ -59,6 +60,7 @@ async function emitRunStartAndPrompt(
 			role: "user",
 			content: [{ type: "text", text: "hello" }],
 			createdAt: 0,
+			metadata: displayRole ? { displayRole } : undefined,
 		},
 	});
 }
@@ -153,6 +155,16 @@ describe("createRuntimeHooks", () => {
 				taskId: "conversation-1",
 				workspaceRoots: ["/workspace"],
 			}),
+		);
+	});
+
+	it("does not dispatch prompt_submit for synthetic context", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({ yolo: false, dispatchHookEvent });
+		await emitRunStartAndPrompt(runtimeHooks.hooks!, "system");
+		expect(dispatchHookEvent).toHaveBeenCalledTimes(1);
+		expect(dispatchHookEvent).toHaveBeenCalledWith(
+			expect.objectContaining({ hookName: "agent_start" }),
 		);
 	});
 

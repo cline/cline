@@ -489,6 +489,14 @@ export class ClineApiServerMock {
 							messages.some((m: { role?: string }) => m?.role === "tool")
 
 						let responseText = E2E_MOCK_API_RESPONSES.DEFAULT
+						if (body.includes("hook context probe")) {
+							// Each turn requires a fresh fact; previous context cannot satisfy turn two.
+							const turn = body.includes("probe two") ? "two" : "one"
+							const fact = turn === "two" ? "HOOK_FACT_BETA" : "HOOK_FACT_ALPHA"
+							responseText = body.includes(fact)
+								? `Hook context received for turn ${turn}.`
+								: "Hook context missing."
+						}
 						let toolCall: typeof E2E_MOCK_EDITOR_TOOL_CALL | typeof E2E_MOCK_POWERSHELL_TOOL_CALL | undefined
 						log("Chat completion mock selection:", {
 							isEditRequest: body.includes("edit_request"),
