@@ -1125,7 +1125,8 @@ export class AgentRuntime {
 	 * visible output or provider tool activity are returned unchanged for the
 	 * caller to handle, so this only adds
 	 * resilience and never changes behavior for a turn that would otherwise
-	 * succeed. Context-window overflow recovery still runs inside each attempt.
+	 * succeed. Context-window overflow recovery and max-tokens recovery still
+	 * run inside each attempt (the latter at most once per run).
 	 */
 	private async generateAssistantMessageWithProviderRetry(): Promise<{
 		message: AgentMessage;
