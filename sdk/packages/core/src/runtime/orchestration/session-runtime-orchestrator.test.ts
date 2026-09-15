@@ -31,8 +31,14 @@ import {
 	type AgentTool,
 	type AgentToolContext,
 	EMPTY_CONTENT_TEXT,
+	estimateRequestInputTokens,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { createContextCompactionPrepareTurn } from "../../extensions/context/compaction";
+import {
+	COMPACTION_TRIGGER_RATIO,
+	CONTEXT_WINDOW_INPUT_RATIO,
+} from "../../extensions/context/compaction-shared";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -825,6 +831,53 @@ describe("SessionRuntime message preparation", () => {
 		expect(result).toEqual({
 			systemPrompt: "rewritten system prompt",
 		});
+	});
+
+	it("compacts at 81 percent of the providers.json context window when the catalog already lists the model", async () => {
+		const { compact, usableTokens, triggerTokens } =
+			await probeOllamaEightKCompaction({
+				"qwen3.6:64k": { id: "qwen3.6:64k", name: "qwen3.6:64k" },
+			});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(
+			compact.mock.calls[0]?.[0]?.budget.request.maxInputTokens,
+		).toBeCloseTo(usableTokens);
+		expect(
+			compact.mock.calls[0]?.[0]?.budget.request.triggerTokens,
+		).toBeCloseTo(triggerTokens);
+	});
+
+	it("compacts at 81 percent of the providers.json context window when the catalog omits the model", async () => {
+		const { compact, usableTokens, triggerTokens } =
+			await probeOllamaEightKCompaction({});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(
+			compact.mock.calls[0]?.[0]?.budget.request.maxInputTokens,
+		).toBeCloseTo(usableTokens);
+		expect(
+			compact.mock.calls[0]?.[0]?.budget.request.triggerTokens,
+		).toBeCloseTo(triggerTokens);
+	});
+
+	it("caps catalog maxInputTokens by the providers.json context window", async () => {
+		const { compact } = await probeOllamaEightKCompaction({
+			"qwen3.6:64k": {
+				id: "qwen3.6:64k",
+				name: "qwen3.6:64k",
+				maxInputTokens: 1_000_000,
+				contextWindow: 131_072,
+			},
+		});
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(compact.mock.calls[0]?.[0]?.budget.request.maxInputTokens).toBe(
+			8192,
+		);
+		expect(compact.mock.calls[0]?.[0]?.budget.request.triggerTokens).toBe(
+			8192 * 0.9,
+		);
 	});
 });
 
@@ -2108,6 +2161,100 @@ describe("SessionRuntime.subscribeEvents", () => {
 // ===========================================================================
 // P1 defect regression suites (#1, #2, #3) — added by impl-session-fixer.
 // ===========================================================================
+
+/**
+ * CLI Ollama: providers.json `contextWindow` becomes
+ * `providerConfig.maxInputTokens` and overlays ModelInfo.contextWindow.
+ * With no catalog maxInputTokens, usable input is 90% of that window and
+ * compact triggers at 90% of usable (81% of the window). The transcript is
+ * over that trigger and under 90% of the 128k fallback.
+ */
+async function probeOllamaEightKCompaction(
+	knownModels: Record<
+		string,
+		{
+			id: string;
+			name?: string;
+			maxInputTokens?: number;
+			contextWindow?: number;
+		}
+	>,
+) {
+	const contextWindow = 8192;
+	const usableTokens = contextWindow * CONTEXT_WINDOW_INPUT_RATIO;
+	const triggerTokens = usableTokens * COMPACTION_TRIGGER_RATIO;
+	const compact = vi.fn(
+		(_context: {
+			budget: { request: { maxInputTokens: number; triggerTokens: number } };
+		}) => ({
+			messages: [{ role: "user" as const, content: "compacted at 8k" }],
+		}),
+	);
+	const prepareTurn = createContextCompactionPrepareTurn({
+		providerId: "ollama",
+		modelId: "qwen3.6:64k",
+		compaction: { enabled: true, compact },
+	});
+	const { deps, configs } = makeRecordingRuntimeFactory();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			providerId: "ollama",
+			modelId: "qwen3.6:64k",
+			prepareTurn,
+			knownModels,
+			providerConfig: {
+				providerId: "ollama",
+				modelId: "qwen3.6:64k",
+				maxInputTokens: contextWindow,
+				knownModels,
+			},
+		}),
+		deps,
+	);
+	await session.run("go");
+	const runtimePrepareTurn = configs[0]?.prepareTurn;
+	if (!runtimePrepareTurn) {
+		throw new Error("Expected runtime prepareTurn");
+	}
+
+	const systemPrompt = "You are helpful.";
+	const filler = "x".repeat(25_000);
+	const requestInputTokens = estimateRequestInputTokens({
+		systemPrompt,
+		messages: [{ role: "user", content: filler }],
+		tools: [],
+	});
+	if (requestInputTokens <= triggerTokens) {
+		throw new Error(
+			`Fixture too small: ${requestInputTokens} tokens is not over the 8k trigger`,
+		);
+	}
+	if (requestInputTokens >= 128_000 * COMPACTION_TRIGGER_RATIO) {
+		throw new Error(
+			`Fixture too large: ${requestInputTokens} tokens would also trip the 128k fallback`,
+		);
+	}
+
+	await runtimePrepareTurn({
+		agentId: "agent-1",
+		conversationId: "conv-1",
+		parentAgentId: null,
+		iteration: 1,
+		messages: [
+			{
+				id: "m1",
+				role: "user",
+				content: [{ type: "text", text: filler }],
+				createdAt: 1,
+			},
+		],
+		systemPrompt,
+		tools: [],
+		model: {},
+	});
+
+	return { compact, usableTokens, triggerTokens };
+}
 
 /**
  * Build a runtime-factory that records the `AgentRuntimeConfig` it
