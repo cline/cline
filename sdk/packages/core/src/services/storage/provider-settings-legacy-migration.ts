@@ -592,21 +592,34 @@ function buildLegacyProviderSettings(
 		providerSpecific.headers = legacyGlobalState.openAiHeaders;
 	}
 	if (providerId === "bedrock") {
-		const bedrockAuthentication = normalizeLegacyBedrockAuthentication(
+		const legacyBedrockAuthentication = normalizeLegacyBedrockAuthentication(
 			legacyGlobalState.awsAuthentication,
 		);
+		const legacyBedrockProfile = trimNonEmpty(legacyGlobalState.awsProfile);
+		// Legacy state grew three ways to say "use a named AWS profile":
+		// awsAuthentication "profile" (newest), the awsUseProfile toggle, and,
+		// on older installs, a bare awsProfile value with neither flag. Treat a
+		// profile name with no explicit authentication choice as profile auth,
+		// mirroring how the settings UI displays that state and how the Next
+		// extension resolves it from live settings — otherwise the migrated
+		// entry has no profile and providers.json readers (CLI, desktop) fall
+		// back to the default credential chain (cline/cline#14095).
 		const useBedrockProfile =
-			bedrockAuthentication === "profile" ||
-			legacyGlobalState.awsUseProfile === true;
+			legacyBedrockAuthentication === "profile" ||
+			legacyGlobalState.awsUseProfile === true ||
+			(legacyBedrockAuthentication === undefined &&
+				legacyBedrockProfile !== undefined);
+		const bedrockAuthentication =
+			useBedrockProfile && legacyBedrockAuthentication === undefined
+				? "profile"
+				: legacyBedrockAuthentication;
 		providerSpecific.aws = {
 			accessKey: trimNonEmpty(legacySecrets.awsAccessKey),
 			secretKey: trimNonEmpty(legacySecrets.awsSecretKey),
 			sessionToken: trimNonEmpty(legacySecrets.awsSessionToken),
 			region: trimNonEmpty(legacyGlobalState.awsRegion),
 			authentication: bedrockAuthentication,
-			profile: useBedrockProfile
-				? trimNonEmpty(legacyGlobalState.awsProfile)
-				: undefined,
+			profile: useBedrockProfile ? legacyBedrockProfile : undefined,
 			usePromptCache: legacyGlobalState.awsBedrockUsePromptCache,
 			useCrossRegionInference: legacyGlobalState.awsUseCrossRegionInference,
 			useGlobalInference: legacyGlobalState.awsUseGlobalInference,

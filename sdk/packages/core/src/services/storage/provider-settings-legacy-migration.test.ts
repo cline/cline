@@ -949,6 +949,84 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
 	});
 
+	it("keeps the AWS profile for legacy installs that set only awsProfile", () => {
+		// Installs that predate both awsAuthentication and awsUseProfile stored
+		// just the profile name. Dropping it here left profile-auth users on the
+		// default credential chain (cline/cline#14095).
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					actModeApiModelId: "anthropic.claude-sonnet-4-6",
+					awsRegion: "eu-west-1",
+					awsProfile: "work",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true, providerCount: 1 });
+		expect(manager.getProviderSettings("bedrock")?.aws).toEqual({
+			region: "eu-west-1",
+			authentication: "profile",
+			profile: "work",
+		});
+	});
+
+	it("does not turn a stale awsProfile into profile auth when legacy auth is explicit", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					actModeApiModelId: "anthropic.claude-sonnet-4-6",
+					awsRegion: "us-east-1",
+					awsAuthentication: "credentials",
+					awsProfile: "stale",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ awsAccessKey: "access", awsSecretKey: "secret" }),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		const aws = manager.getProviderSettings("bedrock")?.aws;
+		expect(aws).toMatchObject({ authentication: "iam", accessKey: "access" });
+		expect(aws?.profile).toBeUndefined();
+	});
+
 	it("normalizes legacy Bedrock credentials auth to SDK iam auth", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
