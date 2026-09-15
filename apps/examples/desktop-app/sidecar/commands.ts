@@ -2319,7 +2319,9 @@ export async function handleCommand(
 					}),
 			},
 		);
-		if (providerId === "cline") {
+		const storageProviderId =
+			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
+		if (storageProviderId === "cline") {
 			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
