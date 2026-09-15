@@ -5,6 +5,7 @@ import {
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
 	disposeAll,
+	excludeCurrentDirectoryFromExecutableSearch,
 	initVcr,
 	setConnectorCliLaunchSpec,
 } from "@cline/shared";
@@ -16,6 +17,11 @@ import {
 } from "./runtime/active-runtime";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
+
+// Harden executable lookup before anything — the CLI, the hub daemon and a
+// supervised connector all start here — can spawn a program by bare name with
+// the user's repository as the working directory.
+excludeCurrentDirectoryFromExecutableSearch();
 
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.

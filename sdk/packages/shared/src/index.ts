@@ -497,6 +497,7 @@ export {
 	getClineEnvironmentConfig,
 	resolveClineEnvironment,
 } from "./runtime/cline-environment";
+export { excludeCurrentDirectoryFromExecutableSearch } from "./runtime/executable-search-path";
 export type {
 	ConnectorCliLaunchSpec,
 	ConnectorInstanceRef,

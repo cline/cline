@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import assert from "node:assert"
+import { excludeCurrentDirectoryFromExecutableSearch } from "@cline/shared"
 import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
@@ -65,6 +66,11 @@ export async function reportRolloutActivation(input: RolloutBundleActivation): P
 // for all-platform should be registered in common.ts.
 export async function activate(context: vscode.ExtensionContext) {
 	const activationStartTime = performance.now()
+
+	// 0. Harden executable lookup before any service can spawn a program by
+	// bare name with the open repository as the working directory. This is
+	// process state, so it applies to the whole extension host.
+	excludeCurrentDirectoryFromExecutableSearch()
 
 	// 1. Set up HostProvider for VSCode
 	// IMPORTANT: This must be done before any service can be registered

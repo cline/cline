@@ -7,7 +7,11 @@ import {
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
+import {
+	captureSdkError,
+	claimHubDaemonProcess,
+	excludeCurrentDirectoryFromExecutableSearch,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -49,6 +53,12 @@ async function main() {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
 	}
+
+	// Harden executable lookup before anything can spawn a program by bare name
+	// with the user's repository as the working directory. Bun 1.3 resolves bare
+	// names through PATH only; Bun 1.4 adopted the working-directory search Node
+	// has, so this is what keeps the sidecar safe across that bump.
+	excludeCurrentDirectoryFromExecutableSearch();
 
 	// When launched from Finder/the Dock the app inherits launchd's minimal
 	// PATH, so agent-spawned processes can't find shell-profile-installed
