@@ -1,4 +1,5 @@
 import { HubTransportError, type NodeHubClient } from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -2219,5 +2220,123 @@ describe("CloudSessionManager Hub runtime", () => {
 			events.filter((event) => event.name === "tool_approval_state").at(-1)
 				?.payload.items,
 		).toEqual([]);
+	});
+
+	it("seeds a handoff transcript and source settings into one inner session", async () => {
+		const hub = new FakeHubClient(false);
+		const { manager } = createFixture({ hub });
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Continue this task" },
+			{ role: "assistant", content: "Working on it" },
+		];
+
+		await expect(
+			manager.seedHandoff("ses-outer", {
+				sourceSessionId: "local-1",
+				messages,
+				mode: "plan",
+				workspaceRelativePath: "packages/app",
+				config: {
+					autoApproveTools: false,
+					thinking: true,
+					reasoningEffort: "high",
+				},
+			}),
+		).resolves.toEqual({ innerSessionId: "inner-created" });
+
+		const create = hub.commands.find(
+			({ command }) => command === "session.create",
+		)?.payload;
+		expect(create).toMatchObject({
+			cwd: "/workspace/packages/app",
+			initialMessages: messages,
+			runtimeOptions: { mode: "plan" },
+			metadata: {
+				handoff: {
+					from: "local",
+					sourceSessionId: "local-1",
+					outerSessionId: "ses-outer",
+				},
+			},
+			toolPolicies: { "*": { autoApprove: false } },
+		});
+		expect(create?.sessionConfig).toMatchObject({
+			cwd: "/workspace/packages/app",
+			mode: "plan",
+			thinking: true,
+			reasoningEffort: "high",
+		});
+	});
+
+	it("reuses only an inner session owned by the same handoff source", async () => {
+		const hub = new FakeHubClient();
+		hub.listedSessions = [
+			{
+				sessionId: "inner-1",
+				metadata: { handoff: { sourceSessionId: "local-1" } },
+			},
+		];
+		const { manager } = createFixture({ hub });
+
+		await expect(
+			manager.seedHandoff("ses-outer", {
+				sourceSessionId: "local-1",
+				messages: [],
+			}),
+		).resolves.toEqual({ innerSessionId: "inner-1" });
+		expect(
+			hub.commands.some(({ command }) => command === "session.create"),
+		).toBe(false);
+
+		await expect(
+			manager.seedHandoff("ses-outer", {
+				sourceSessionId: "local-2",
+				messages: [],
+			}),
+		).rejects.toThrow(/another conversation/i);
+	});
+
+	it("rejects a handoff workspace path outside the repository", async () => {
+		const hub = new FakeHubClient(false);
+		const { manager } = createFixture({ hub });
+
+		await expect(
+			manager.seedHandoff("ses-outer", {
+				sourceSessionId: "local-1",
+				messages: [],
+				workspaceRelativePath: "../escape",
+			}),
+		).rejects.toThrow(/inside the repository/i);
+		expect(
+			hub.commands.some(({ command }) => command === "session.create"),
+		).toBe(false);
+	});
+
+	it("verifies the seeded transcript against the live Hub", async () => {
+		const hub = new FakeHubClient();
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Continue this task" },
+		];
+		hub.messages = messages;
+		hub.listedSessions = [
+			{
+				sessionId: "inner-1",
+				metadata: { handoff: { sourceSessionId: "local-1" } },
+			},
+		];
+		const { manager } = createFixture({ hub });
+		await manager.seedHandoff("ses-outer", {
+			sourceSessionId: "local-1",
+			messages,
+		});
+
+		await expect(
+			manager.verifyHandoffTranscript("ses-outer", messages),
+		).resolves.toBeUndefined();
+		await expect(
+			manager.verifyHandoffTranscript("ses-outer", [
+				{ role: "user", content: "Different" },
+			]),
+		).rejects.toThrow(/transcript/i);
 	});
 });
