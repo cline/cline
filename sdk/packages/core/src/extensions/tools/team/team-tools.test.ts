@@ -780,6 +780,29 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(awaitRuns?.timeoutMs).toBe(60 * 60 * 1000);
 	});
 
+	it("rejects team_run_task calls that target the lead agent", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const runTask = tools.find((tool) => tool.name === "team_run_task");
+		expect(runTask).toBeDefined();
+		if (!runTask) {
+			throw new Error("Expected team_run_task tool to be defined");
+		}
+
+		await expect(
+			runTask.execute(
+				{ agentId: "lead", task: "Handle this locally", runMode: "sync" },
+				{ agentId: "lead", conversationId: "conv-1", iteration: 1 },
+			),
+		).rejects.toThrow(
+			'team_run_task targets teammates only; "lead" is the lead agent',
+		);
+	});
+
 	it("collapses concurrent sync team_run_task calls to the same agent", async () => {
 		let resolveRoute!: (value: { text: string; iterations: number }) => void;
 		const routePromise = new Promise<{ text: string; iterations: number }>(

@@ -498,6 +498,14 @@ export function createAgentTeamsTools(
 			inputSchema: zodToJsonSchema(TeamRunTaskInputSchema),
 			execute: async (input) => {
 				const validatedInput = validateWithZod(TeamRunTaskInputSchema, input);
+				if (
+					validatedInput.agentId === options.requesterId &&
+					options.runtime.getMemberRole(options.requesterId) === "lead"
+				) {
+					throw new Error(
+						`team_run_task targets teammates only; "${validatedInput.agentId}" is the lead agent. Use your own tools for lead work, or choose a teammate agentId.`,
+					);
+				}
 				if (validatedInput.runMode === "async") {
 					const run = options.runtime.startTeammateRun(
 						validatedInput.agentId,
