@@ -694,7 +694,7 @@ async fn get_desktop_backend_endpoint(
 
     // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
     // see sidecar/shell-path.ts) plus session-manager init, which on a cold
-    // start waits up to 20s for the shared hub daemon to boot (see
+    // start waits up to 15s for the shared hub daemon to boot (see
     // HUB_STARTUP_TIMEOUT_MS in @cline/core). Poll past that combined worst
     // case; the loop returns as soon as the ready line arrives, so only
     // failure waits long.

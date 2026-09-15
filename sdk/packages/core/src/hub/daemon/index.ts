@@ -56,7 +56,7 @@ import {
  * Kept below HUB_STARTUP_LOCK_MAX_AGE_MS so the startup lock held across
  * this wait is never reclaimed as abandoned.
  */
-const HUB_STARTUP_TIMEOUT_MS = 20_000;
+const HUB_STARTUP_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
