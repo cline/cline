@@ -351,6 +351,50 @@ describe("SdkTaskHistory", () => {
 		expect(result.filter((m) => m.say === "completion_result" || m.say === "plan_completion_result")).toHaveLength(0)
 	})
 
+	describe("getSearchableMessages", () => {
+		it("returns the SDK session's raw messages for an SDK-backed task", async () => {
+			const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
+			readMessages.mockResolvedValueOnce([
+				{ role: "user", content: "build the feature" },
+				{ role: "assistant", content: [{ type: "text", text: "Building it now." }] },
+			] as never)
+
+			const result = await history.getSearchableMessages("task-1")
+
+			expect(result).toEqual([
+				{ role: "user", content: "build the feature" },
+				{ role: "assistant", content: [{ type: "text", text: "Building it now." }] },
+			])
+		})
+
+		it("translates the legacy API conversation history for a pre-SDK task", async () => {
+			legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+			legacyStateReaderMock.apiConversationHistory = [
+				{ role: "user", content: "legacy prompt" },
+				{ role: "assistant", content: "legacy answer" },
+			]
+			const { history } = makeHistory([])
+
+			const result = await history.getSearchableMessages("legacy-task")
+
+			expect(readApiConversationHistory).toHaveBeenCalledWith("legacy-task", undefined)
+			expect(result).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ role: "user", content: "legacy prompt" }),
+					expect.objectContaining({ role: "assistant", content: "legacy answer" }),
+				]),
+			)
+		})
+
+		it("returns an empty array for a completely unknown task", async () => {
+			const { history } = makeHistory([])
+
+			const result = await history.getSearchableMessages("unknown-task")
+
+			expect(result).toEqual([])
+		})
+	})
+
 	it("does not retag a transcript that ends on a dangling tool call", () => {
 		const result = sdkMessagesToClineMessages([
 			{ role: "user", content: "do the thing" },
