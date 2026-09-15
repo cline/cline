@@ -613,4 +613,4 @@ current product contracts should be compared before standardizing them.
 - [Optional base styles](./theme/base.css)
 - [Complete theme](./theme/index.css)
 - [Package manifest](./package.json)
-- [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
+- [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/desktop-app/webview/styles/theme-integration.test.ts)

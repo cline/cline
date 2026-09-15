@@ -129,16 +129,16 @@ jobs:
           esac
 
           VERSION="${TAG#desktop-v}"
-          PACKAGE_VERSION=$(node -p "require('./apps/examples/desktop-app/package.json').version")
-          TAURI_VERSION=$(node -p "require('./apps/examples/desktop-app/src-tauri/tauri.conf.json').version")
+          PACKAGE_VERSION=$(node -p "require('./apps/desktop-app/package.json').version")
+          TAURI_VERSION=$(node -p "require('./apps/desktop-app/src-tauri/tauri.conf.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-            echo "apps/examples/desktop-app/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            echo "apps/desktop-app/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
             exit 1
           fi
 
           if [ "$TAURI_VERSION" != "$VERSION" ]; then
-            echo "apps/examples/desktop-app/src-tauri/tauri.conf.json version ${TAURI_VERSION} does not match ${TAG}"
+            echo "apps/desktop-app/src-tauri/tauri.conf.json version ${TAURI_VERSION} does not match ${TAG}"
             exit 1
           fi
 
@@ -285,7 +285,7 @@ jobs:
           printf "%s" "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/AuthKey.p8"
 
       - name: Build, sign, and notarize desktop bundle
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         # Tauri merges repeated --config flags in order, so the beta overlay
         # (product name, bundle identifier, beta update feed) layers on top of
         # the release overlay without duplicating it. $CONFIG_ARGS is
@@ -331,7 +331,7 @@ jobs:
       # carries both slices before anything is published. A single-arch
       # sidecar would otherwise ship fine and only crash on the other arch.
       - name: Verify bundle is a universal binary
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         env:
           PRODUCT: ${{ needs.validate.outputs.product }}
         run: |
@@ -360,7 +360,7 @@ jobs:
       # desktop-latest would pull its users onto stable builds, and a stable
       # bundle polling desktop-beta would push betas to every stable install.
       - name: Verify updater feed endpoint
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         env:
           CHANNEL: ${{ needs.validate.outputs.channel }}
           PRODUCT: ${{ needs.validate.outputs.product }}
@@ -412,7 +412,7 @@ jobs:
       # at runtime (the SDK exporters speak OTLP http/json only), so the
       # selfcheck must also report a usable endpoint host.
       - name: Verify sidecar telemetry config was inlined
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         run: |
           SELFCHECK=$(./src-tauri/bin/code-sidecar-universal-apple-darwin --telemetry-selfcheck)
           echo "$SELFCHECK"
@@ -432,7 +432,7 @@ jobs:
           fi
 
       - name: Collect artifacts
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         env:
           VERSION: ${{ needs.validate.outputs.version }}
           PRODUCT: ${{ needs.validate.outputs.product }}
@@ -465,7 +465,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-universal
-          path: apps/examples/desktop-app/dist/publish/*
+          path: apps/desktop-app/dist/publish/*
           if-no-files-found: error
 
   build-windows:
@@ -577,7 +577,7 @@ jobs:
       - name: Write signing config overlay
         shell: bash
         run: |
-          SCRIPT_PATH="${GITHUB_WORKSPACE//\\//}/apps/examples/desktop-app/scripts/tauri-sign-windows.ps1"
+          SCRIPT_PATH="${GITHUB_WORKSPACE//\\//}/apps/desktop-app/scripts/tauri-sign-windows.ps1"
           SIGN_CONF="${RUNNER_TEMP//\\//}/tauri-windows-sign.conf.json"
           cat > "$SIGN_CONF" <<EOF
           {
@@ -594,7 +594,7 @@ jobs:
 
       - name: Build and sign desktop bundle
         shell: bash
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         # NSIS only: the MSI (WiX) target adds nothing for direct-download
         # distribution and the updater uses the NSIS artifact. $CONFIG_ARGS is
         # deliberately unquoted: it must word-split into separate flags.
@@ -625,7 +625,7 @@ jobs:
       # contents, which defeats a string search on the installer itself.
       - name: Verify updater feed endpoint
         shell: bash
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         env:
           CHANNEL: ${{ needs.validate.outputs.channel }}
         run: |
@@ -666,7 +666,7 @@ jobs:
       # Same guardrail as the macOS job, run natively on the Windows sidecar.
       - name: Verify sidecar telemetry config was inlined
         shell: bash
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         run: |
           SELFCHECK=$(./src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe --telemetry-selfcheck)
           echo "$SELFCHECK"
@@ -686,7 +686,7 @@ jobs:
 
       - name: Collect artifacts
         shell: bash
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         env:
           VERSION: ${{ needs.validate.outputs.version }}
           PRODUCT: ${{ needs.validate.outputs.product }}
@@ -719,7 +719,7 @@ jobs:
       # would still catch an installer that skipped signCommand entirely.
       - name: Verify Authenticode signatures
         shell: pwsh
-        working-directory: apps/examples/desktop-app
+        working-directory: apps/desktop-app
         run: |
           # The Tauri bundler signs the sidecar in place, so check it here too;
           # a WDAC-locked machine blocks the app at runtime if the sidecar it
@@ -738,7 +738,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-windows-x64
-          path: apps/examples/desktop-app/dist/publish/*
+          path: apps/desktop-app/dist/publish/*
           if-no-files-found: error
 
   release:
@@ -775,9 +775,9 @@ jobs:
           # next one. Exact match, not "first section": once main and
           # desktop-experimental cross-merge, stable and beta sections
           # interleave and the top section may belong to the other channel.
-          CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
+          CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/desktop-app/CHANGELOG.md)
           if [ -z "$CONTENT" ]; then
-            echo "No '## ${VERSION}' section found in apps/examples/desktop-app/CHANGELOG.md"
+            echo "No '## ${VERSION}' section found in apps/desktop-app/CHANGELOG.md"
             exit 1
           fi
           echo "content<<EOF" >> $GITHUB_OUTPUT
@@ -817,7 +817,7 @@ jobs:
           VERSION: ${{ needs.validate.outputs.version }}
           TAG: ${{ needs.validate.outputs.tag }}
         run: |
-          bun apps/examples/desktop-app/scripts/generate-update-manifest.ts \
+          bun apps/desktop-app/scripts/generate-update-manifest.ts \
             --version "$VERSION" \
             --tag "$TAG" \
             --dir dist/desktop \

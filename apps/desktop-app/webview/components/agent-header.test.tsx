@@ -333,7 +333,7 @@ describe("AgentHeader agent roster popover", () => {
 					kind: "subagent",
 					status: "completed",
 					prompt:
-						"In /Users/beatrix/dev/clinee/apps/examples/desktop-app, investigate the triggers, algorithm/data flow, persistence/state behavior, provider wiring and everything else",
+						"In /Users/beatrix/dev/clinee/apps/desktop-app, investigate the triggers, algorithm/data flow, persistence/state behavior, provider wiring and everything else",
 					lastAction: "Running read_files",
 					startedAt: "2026-07-27T00:00:00.000Z",
 					hasMessages: true,
