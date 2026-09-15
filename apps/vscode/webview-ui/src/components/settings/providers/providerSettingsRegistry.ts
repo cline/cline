@@ -108,6 +108,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://chutes.ai/app/api",
 	},
 	"zai-coding-plan": {},
+	friendli: {
+		signupUrl: "https://friendli.ai/suite/~/setting/keys",
+	},
 }
 
 const GENERIC_PROVIDER_PROTOCOLS = new Set(["anthropic", "gemini", "openai-chat", "openai-responses"])
