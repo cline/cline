@@ -20,51 +20,44 @@ If you find yourself repeatedly clicking approve for the same safe operations, A
 
 ## How It Works
 
-Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a file, run a command, or use the browser, it checks your Auto Approve settings for that category.
+Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a file, run a command, or fetch web content, it checks your Auto Approve settings for that category.
 
 A few details matter:
 
-- **Workspace vs outside workspace**: "Read all files" and "Edit all files" only extend the base toggle. If the base toggle is off, the "all files" option does nothing.
-- **Terminal commands**: Cline treats commands as either safe or requiring approval. "Execute safe commands" covers safe commands. "Execute all commands" extends to commands flagged as requiring approval.
+- **Which build you have**: Cline currently ships the new SDK-based extension and the previous one together in a single install, and a loader picks one per window. Their auto-approve menus differ. The quickest tell is the command toggle: "Execute safe commands" means the previous build, "Execute commands" means the new one. To choose explicitly, set `cline.rollout.bundleOverride` to `next` or `legacy` in VS Code settings and reload the window; `auto` follows the rollout. On the Cline Nightly build the setting is `cline-nightly.rollout.bundleOverride`.
+- **Terminal commands**: the two builds decide command approval differently. See [Terminal commands](#terminal-commands) below.
 - **Notifications**: If enabled, Cline sends OS-level notifications when approval is required, and when an auto-approved terminal command has been running for 30 seconds.
 
 ## Permissions
 
 | Setting | What It Allows |
 |---------|----------------|
-| Read project files | Read files, list files, search in your workspace |
-| Read all files | Read files outside your workspace (requires base toggle) |
-| Edit project files | Create and edit files in your workspace |
-| Edit all files | Edit files outside your workspace (requires base toggle) |
-| Execute safe commands | Run terminal commands marked safe |
-| Execute all commands | Run commands requiring approval (requires base toggle) |
-| Use the browser | Browser tool for web fetching and searching |
+| Read files | Read files, list files, and search your codebase |
+| Edit files | Create, edit, and delete files |
+| Execute commands | Run terminal commands |
+| Fetch web content | Web fetching and searching |
 | Use MCP servers | MCP tools and resources |
 | Enable notifications | Notifies you about long-running commands |
 
+On the previous build these are named "Read project files", "Edit project files", "Execute safe commands" and "Use the browser", and three of them have a second checkbox that widens them: "Read all files" and "Edit all files" extend access outside your workspace, and "Execute all commands" is described below. A sub-toggle does nothing unless its base toggle is on.
+
+## Terminal commands
+
+How a command gets approved depends on which build you are running.
+
+**Previous build.** Cline asks the model to mark each command with a `requires_approval` flag. "Execute safe commands" auto-approves the commands the model marked safe, and "Execute all commands" additionally auto-approves the rest. There is no fixed allowlist, so this is the model's judgement rather than a guarantee: a command such as `git commit --amend` can be marked safe and run without prompting. "Execute safe commands" is on by default.
+
+**New build.** There is no safe-versus-unsafe distinction. "Execute commands" approves every command Cline runs, and it is off by default.
+
 <Warning>
-"Read all files" and "Edit all files" only matter if their base toggle is enabled. They extend access outside your workspace.
+On either build, an enabled command toggle can run destructive commands such as `rm -rf`, `git reset --hard` or `git commit --amend` without asking you first.
 </Warning>
-
-## Safe vs Approval-Required Commands
-
-Cline does not use a fixed allowlist. The model marks each command with a `requires_approval` flag based on the command and arguments. These are examples, not guarantees.
-
-**Commonly treated as safe:**
-- `npm run build`, `npm test` - Build/test output
-- `git status`, `ls -la`, `cat package.json` - Read-only commands
-
-**Commonly requires approval:**
-- `npm install <pkg>` - Modifies dependencies
-- `rm -rf <path>` - Deletes files
-- `mv <a> <b>` - Moves files (can overwrite)
-- `sed -i ...` - In-place file edits
 
 ## Recommendations
 
 A good default setup:
-- Enable **Read project files**
-- Leave edits, commands, browser, and MCP off until you have a specific reason
+- Enable **Read files**
+- Leave edits, commands, web fetching, and MCP off until you have a specific reason
 
 If you enable edits, use [Checkpoints](/core-workflows/checkpoints) so you can roll back quickly.
 
