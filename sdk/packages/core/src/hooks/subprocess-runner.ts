@@ -12,6 +12,14 @@ import {
  */
 const DEFAULT_DETACHED_OBSERVATION_MS = 30_000;
 
+/**
+ * Grace period after a blocking hook's process exits for its remaining
+ * output to drain before the result is settled without waiting for the
+ * stdio pipes to close. A background child the hook left behind can hold
+ * those pipes open indefinitely; this bounds how long the run waits on it.
+ */
+const EXIT_OUTPUT_GRACE_MS = 1_000;
+
 export interface RunSubprocessEventOptions {
 	command: string[];
 	cwd?: string;
@@ -267,7 +275,7 @@ export async function runSubprocessEvent(
 				exitFallback = setTimeout(() => {
 					settle(exitCode);
 					releaseStdio(child);
-				}, 1_000);
+				}, EXIT_OUTPUT_GRACE_MS);
 				exitFallback.unref?.();
 			});
 		}
@@ -287,65 +295,63 @@ export async function runSubprocessEvent(
 	// can leave that write pending until it exits (seen on Windows), and an
 	// observation window that only starts afterwards would never censor
 	// anything — the sample would silently fall back to hooks that finished.
-	if (detached) {
-		if (options.onDetachedSettled) {
-			const startedAt = Date.now();
-			const report = options.onDetachedSettled;
-			let reported = false;
-			let censorTimer: NodeJS.Timeout | undefined;
-			// Observe only: `completed` is already wired, and neither the
-			// listener nor the timer keeps the process alive (the child and
-			// the timer are both unref'd), so a hook that outlives the parent
-			// simply never reports.
-			const reportOnce = (event: {
-				durationMs: number;
-				exitCode: number | null;
-				exited: boolean;
-			}) => {
-				if (reported) {
-					return;
-				}
+	if (detached && options.onDetachedSettled) {
+		const startedAt = Date.now();
+		const report = options.onDetachedSettled;
+		let reported = false;
+		let censorTimer: NodeJS.Timeout | undefined;
+		// Observe only: `completed` is already wired, and neither the
+		// listener nor the timer keeps the process alive (the child and
+		// the timer are both unref'd), so a hook that outlives the parent
+		// simply never reports.
+		const reportOnce = (event: {
+			durationMs: number;
+			exitCode: number | null;
+			exited: boolean;
+		}) => {
+			if (reported) {
+				return;
+			}
+			reported = true;
+			if (censorTimer) {
+				clearTimeout(censorTimer);
+			}
+			report({ command, ...event });
+		};
+		const observationMs =
+			options.detachedObservationMs ?? DEFAULT_DETACHED_OBSERVATION_MS;
+		censorTimer = setTimeout(
+			() =>
+				// The window itself is the reported duration: a censored
+				// sample means "ran at least this long", and the timer's own
+				// firing time is both noisy and meaningless here.
+				reportOnce({
+					durationMs: observationMs,
+					exitCode: null,
+					exited: false,
+				}),
+			observationMs,
+		);
+		censorTimer.unref?.();
+		void completed
+			.then((result) =>
+				reportOnce({
+					durationMs: Date.now() - startedAt,
+					exitCode: result.exitCode,
+					exited: true,
+				}),
+			)
+			.catch(() => {
+				// The hook never started (missing executable, EACCES), so
+				// there is no runtime to sample. Left armed, the window
+				// would report the spawn failure as a hook that ran for
+				// the whole observation window. The failure itself still
+				// surfaces through the rejected run.
 				reported = true;
 				if (censorTimer) {
 					clearTimeout(censorTimer);
 				}
-				report({ command, ...event });
-			};
-			const observationMs =
-				options.detachedObservationMs ?? DEFAULT_DETACHED_OBSERVATION_MS;
-			censorTimer = setTimeout(
-				() =>
-					// The window itself is the reported duration: a censored
-					// sample means "ran at least this long", and the timer's own
-					// firing time is both noisy and meaningless here.
-					reportOnce({
-						durationMs: observationMs,
-						exitCode: null,
-						exited: false,
-					}),
-				observationMs,
-			);
-			censorTimer.unref?.();
-			void completed
-				.then((result) =>
-					reportOnce({
-						durationMs: Date.now() - startedAt,
-						exitCode: result.exitCode,
-						exited: true,
-					}),
-				)
-				.catch(() => {
-					// The hook never started (missing executable, EACCES), so
-					// there is no runtime to sample. Left armed, the window
-					// would report the spawn failure as a hook that ran for
-					// the whole observation window. The failure itself still
-					// surfaces through the rejected run.
-					reported = true;
-					if (censorTimer) {
-						clearTimeout(censorTimer);
-					}
-				});
-		}
+			});
 	}
 
 	await Promise.race([
