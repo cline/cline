@@ -34,6 +34,7 @@ import {
 } from "@cline/core"
 import {
 	type AgentToolContext,
+	createSessionId,
 	RUNTIME_CONFIG_EXTENSION_KINDS,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
@@ -44,6 +45,7 @@ import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTermin
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
+import { VscodeGitTelemetry } from "./git-telemetry"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 import type { SdkSessionHost } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
@@ -102,6 +104,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	private constructor(
 		inner: ClineCore,
+		private readonly gitTelemetry: Map<string, VscodeGitTelemetry>,
 		prepareStartSessionInput?: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>,
 	) {
 		this.inner = inner
@@ -137,6 +140,8 @@ export class VscodeSessionHost implements SdkSessionHost {
 			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
+		const gitTelemetry = new Map<string, VscodeGitTelemetry>()
+
 		// Single funnel for session-start preparation: waits on the remote-config
 		// readiness/policy gate, applies the remote-config integration, and adds
 		// the VSCode extra tools. Used by ClineCore's prepare hook for normal
@@ -157,6 +162,20 @@ export class VscodeSessionHost implements SdkSessionHost {
 				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
 				foregroundCommands: options.foregroundCommands,
 			})
+			let config: ClineCoreStartInput["config"] = {
+				...inputWithRemoteConfig.config,
+				telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
+				extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+			}
+			if (config.cwd && (config.providerId === "cline" || config.providerId === "cline-pass") && options.telemetry) {
+				const sessionId = config.sessionId?.trim() || createSessionId()
+				gitTelemetry.get(sessionId)?.dispose()
+				// Use the host's consent-aware telemetry, not an organization override
+				// that may bypass the user's ordinary telemetry setting.
+				const observer = new VscodeGitTelemetry({ ...config, sessionId, cwd: config.cwd }, options.telemetry)
+				gitTelemetry.set(sessionId, observer)
+				config = observer.configure()
+			}
 			return {
 				...inputWithRemoteConfig,
 				source: inputWithRemoteConfig.source ?? "vscode",
@@ -170,11 +189,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 						inputWithRemoteConfig.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
 					).filter((kind) => kind !== "hooks"),
 				},
-				config: {
-					...inputWithRemoteConfig.config,
-					telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-					extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
-				},
+				config,
 			}
 		}
 
@@ -189,22 +204,43 @@ export class VscodeSessionHost implements SdkSessionHost {
 			toolPolicies: options.toolPolicies,
 			telemetry: options.telemetry,
 			distinctId: getDistinctId() || undefined,
-			prepare: async () => ({
-				applyToStartSessionInput: prepareStartSessionInput,
-			}),
+			prepare: async () => {
+				let sessionId: string | undefined
+				return {
+					applyToStartSessionInput: async (input) => {
+						const prepared = await prepareStartSessionInput(input)
+						sessionId = prepared.config.sessionId
+						return prepared
+					},
+					dispose: () => {
+						if (sessionId) {
+							const observer = gitTelemetry.get(sessionId)
+							// Bootstrap cleanup also runs on SDK "ended", which need not
+							// close the chat. Once opened, stop()/dispose() owns this window,
+							// just like restored sessions. Still clean up failed starts.
+							if (observer && !observer.hasOpened) {
+								observer.dispose()
+								gitTelemetry.delete(sessionId)
+							}
+						}
+					},
+				}
+			},
 		})
 
 		Logger.log("[VscodeSessionHost] Initialized with ClineCore + VSCode extra tools")
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}
-		return new VscodeSessionHost(inner, prepareStartSessionInput)
+		return new VscodeSessionHost(inner, gitTelemetry, prepareStartSessionInput)
 	}
 
 	async start(input: StartSessionInput): Promise<StartSessionResult>
 	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
 	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
-		return this.inner.start(input as ClineCoreStartInput)
+		const result = await this.inner.start(input as ClineCoreStartInput)
+		void this.gitTelemetry.get(result.sessionId)?.open()
+		return result
 	}
 
 	async send(input: SendSessionInput) {
@@ -242,10 +278,14 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async stop(sessionId: string): Promise<void> {
+		this.gitTelemetry.get(sessionId)?.dispose()
+		this.gitTelemetry.delete(sessionId)
 		return this.inner.stop(sessionId)
 	}
 
 	async dispose(reason?: string): Promise<void> {
+		for (const observer of this.gitTelemetry.values()) observer.dispose()
+		this.gitTelemetry.clear()
 		return this.inner.dispose(reason)
 	}
 
@@ -284,7 +324,18 @@ export class VscodeSessionHost implements SdkSessionHost {
 		if (input.start && this.prepareStartSessionInput) {
 			input = { ...input, start: await this.prepareStartSessionInput(input.start) }
 		}
-		return this.inner.restore(input)
+		try {
+			const result = await this.inner.restore(input)
+			if (result.startResult && result.sessionId) void this.gitTelemetry.get(result.sessionId)?.open()
+			return result
+		} catch (error) {
+			const sessionId = input.start?.config.sessionId
+			if (sessionId) {
+				this.gitTelemetry.get(sessionId)?.dispose()
+				this.gitTelemetry.delete(sessionId)
+			}
+			throw error
+		}
 	}
 
 	async compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult> {

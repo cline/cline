@@ -1281,6 +1281,7 @@ export class AgentRuntime {
 		> = [];
 		let nextToolIndex = 0;
 		let finishReason: AgentModelFinishReason = "stop";
+		let requestId: string | undefined;
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
 
@@ -1456,6 +1457,7 @@ export class AgentRuntime {
 				}
 				case "finish": {
 					finishReason = event.reason;
+					requestId = event.requestId;
 					if (event.error) {
 						this.state.lastError = event.error;
 						// Models that classify at their own error boundary (where the
@@ -1539,6 +1541,7 @@ export class AgentRuntime {
 				snapshot: this.snapshot(),
 				assistantMessage: message,
 				finishReason,
+				...(requestId ? { requestId } : {}),
 			})) as AgentStopControl | undefined;
 			this.applyStopControl(control);
 		}

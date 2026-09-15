@@ -62,6 +62,7 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 

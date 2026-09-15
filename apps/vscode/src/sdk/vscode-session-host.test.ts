@@ -30,10 +30,13 @@ vi.mock("./vscode-runtime-builder", () => ({
 	createVscodeExtraTools: mockCreateVscodeExtraTools,
 }))
 
+import { VscodeGitTelemetry } from "./git-telemetry"
 import { VscodeSessionHost } from "./vscode-session-host"
 
 describe("VscodeSessionHost telemetry wiring", () => {
 	beforeEach(() => {
+		vi.restoreAllMocks()
+		vi.spyOn(VscodeGitTelemetry.prototype, "open")
 		mockClineCoreCreate.mockReset()
 		mockClineCoreCreate.mockResolvedValue({ runtimeAddress: undefined })
 		mockCreateVscodeExtraTools.mockReset().mockResolvedValue([])
@@ -103,6 +106,105 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		})
 
 		expect(prepared.config.telemetry).toBe(remoteTelemetry)
+	})
+
+	it.each(["cline", "cline-pass", "anthropic"])("scopes Git capture to eligible providers: %s", async (providerId) => {
+		const configure = vi.spyOn(VscodeGitTelemetry.prototype, "configure")
+		const delegate = vi.fn() as unknown as typeof fetch
+		await VscodeSessionHost.create({ mcpHub: {} as never, telemetry: makeTelemetry() })
+		const bootstrap = await mockClineCoreCreate.mock.calls[0][0].prepare()
+		const prepared = await bootstrap.applyToStartSessionInput({
+			config: {
+				cwd: "/workspace",
+				providerId,
+				modelId: "test",
+				providerConfig: { providerId, modelId: "test", fetch: delegate },
+			},
+		})
+		if (providerId === "anthropic") {
+			expect(configure).not.toHaveBeenCalled()
+			expect(prepared.config.providerConfig.fetch).toBe(delegate)
+		} else {
+			expect(configure).toHaveBeenCalledTimes(1)
+			expect(prepared.config.sessionId).toEqual(expect.any(String))
+			expect(prepared.config.sessionId.length).toBeGreaterThan(0)
+			expect(prepared.config.providerConfig.fetch).toBe(delegate)
+			expect(prepared.config.hooks.beforeModel).toBeTypeOf("function")
+			expect(prepared.config.hooks.afterModel).toBeTypeOf("function")
+		}
+		await bootstrap.dispose()
+	})
+
+	it.each(["start", "restore"])("keeps an opened %s window after SDK end until the chat closes", async (method) => {
+		const dispose = vi.spyOn(VscodeGitTelemetry.prototype, "dispose")
+		const bootstrapCleanups: Array<() => void> = []
+		mockClineCoreCreate.mockImplementation(async (options) => ({
+			start: async (input: ClineCoreStartInput) => {
+				const bootstrap = await options.prepare()
+				const prepared = await bootstrap.applyToStartSessionInput(input)
+				bootstrapCleanups.push(bootstrap.dispose)
+				return { sessionId: prepared.config.sessionId }
+			},
+			// ClineCore.restore deliberately bypasses its prepare/bootstrap lifecycle.
+			restore: async (input: { start: ClineCoreStartInput }) => ({
+				sessionId: input.start.config.sessionId,
+				startResult: { sessionId: input.start.config.sessionId },
+			}),
+			stop: async () => {},
+			dispose: async () => {},
+		}))
+		const host = await VscodeSessionHost.create({ mcpHub: {} as never, telemetry: makeTelemetry() })
+		if (method === "start") await host.start(gitStartInput)
+		else await host.restore({ sessionId: "source", checkpointRunCount: 1, start: gitStartInput })
+		expect(VscodeGitTelemetry.prototype.open).toHaveBeenCalledTimes(1)
+		expect(bootstrapCleanups).toHaveLength(method === "start" ? 1 : 0)
+		// This is ClineCore's "ended" behavior. It is not a conversation-close signal.
+		for (const cleanup of bootstrapCleanups) cleanup()
+		expect(dispose).not.toHaveBeenCalled()
+		await host.stop("git-task")
+		expect(dispose).toHaveBeenCalledTimes(1)
+		await host.dispose()
+		expect(dispose).toHaveBeenCalledTimes(1)
+	})
+
+	it.each(["start", "restore"])("disposes failed %s observers without opening or retaining them", async (method) => {
+		const dispose = vi.spyOn(VscodeGitTelemetry.prototype, "dispose")
+		const failure = new Error("startup failed")
+		mockClineCoreCreate.mockImplementation(async (options) => ({
+			start: async (input: ClineCoreStartInput) => {
+				const bootstrap = await options.prepare()
+				await bootstrap.applyToStartSessionInput(input)
+				bootstrap.dispose() // ClineCore's failed-start cleanup.
+				throw failure
+			},
+			restore: async () => {
+				throw failure
+			},
+			dispose: async () => {},
+		}))
+		const host = await VscodeSessionHost.create({ mcpHub: {} as never, telemetry: makeTelemetry() })
+		const result =
+			method === "start"
+				? host.start(gitStartInput)
+				: host.restore({ sessionId: "source", checkpointRunCount: 1, start: gitStartInput })
+		await expect(result).rejects.toBe(failure)
+		expect(VscodeGitTelemetry.prototype.open).not.toHaveBeenCalled()
+		expect(dispose).toHaveBeenCalledTimes(1)
+		await host.dispose()
+		expect(dispose).toHaveBeenCalledTimes(1)
+	})
+
+	it("closes a restored observation window on host disposal without an explicit stop", async () => {
+		const dispose = vi.spyOn(VscodeGitTelemetry.prototype, "dispose")
+		mockClineCoreCreate.mockResolvedValue({
+			restore: async () => ({ sessionId: "git-task", startResult: { sessionId: "git-task" } }),
+			dispose: async () => {},
+		})
+		const host = await VscodeSessionHost.create({ mcpHub: {} as never, telemetry: makeTelemetry() })
+		await host.restore({ sessionId: "source", checkpointRunCount: 1, start: gitStartInput })
+		expect(dispose).not.toHaveBeenCalled()
+		await host.dispose()
+		expect(dispose).toHaveBeenCalledTimes(1)
 	})
 
 	it("passes custom editor and apply_patch executors into tool executor capabilities", async () => {
@@ -240,6 +342,19 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(innerRestore).toHaveBeenCalledWith({ sessionId: "session-1", checkpointRunCount: 1 })
 	})
 })
+
+const gitStartInput: ClineCoreStartInput = {
+	config: {
+		sessionId: "git-task",
+		cwd: "/workspace",
+		providerId: "cline",
+		modelId: "test",
+		systemPrompt: "test",
+		enableTools: true,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
+	},
+}
 
 function makeTelemetry(): ITelemetryService {
 	return {
