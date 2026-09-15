@@ -1,7 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	clearLiveModelsCatalogCache,
+	resetClineRecommendedModelsCacheForTests,
+} from "@cline/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleCommand } from "./commands";
 import type { SidecarContext } from "./types";
 
@@ -43,24 +47,52 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	clearLiveModelsCatalogCache();
+	resetClineRecommendedModelsCacheForTests();
+	vi.unstubAllGlobals();
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
 });
 
 describe("desktop settings commands", () => {
-	it("reads default desktop settings and an off feature gate", async () => {
+	it("loads cloud-only models only for an enabled cloud picker", async () => {
 		const { ctx } = createContext();
-
-		await expect(
-			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: false });
-		await expect(
-			handleCommand(ctx, "get_feature_flags", {}),
-		).resolves.toMatchObject({
-			cloudAgents: false,
-			cloudAgentsAvailable: false,
+		const fetchMock = vi.fn(async (input: string | URL | Request) => {
+			if (String(input) === "https://models.dev/api.json") {
+				return new Response(JSON.stringify({}), { status: 200 });
+			}
+			return new Response(
+				JSON.stringify({
+					clineCloud: [
+						{
+							id: "cline-cloud/cloud-only",
+							name: "Cloud Only",
+						},
+					],
+				}),
+				{ status: 200 },
+			);
 		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		const local = (await handleCommand(ctx, "list_provider_models", {
+			provider: "cline",
+			includeCloudModels: true,
+		})) as { models: Array<{ id: string }> };
+		expect(
+			local.models.some((model) => model.id.startsWith("cline-cloud/")),
+		).toBe(false);
+
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		const cloud = (await handleCommand(ctx, "list_provider_models", {
+			provider: "cline",
+			includeCloudModels: true,
+		})) as { models: Array<{ id: string }> };
+		expect(cloud.models).toContainEqual(
+			expect.objectContaining({ id: "cline-cloud/cloud-only" }),
+		);
 	});
 
 	it("rejects a non-boolean cloud sessions toggle value", async () => {
@@ -82,9 +114,6 @@ describe("desktop settings commands", () => {
 				cloud_sessions_enabled: true,
 			}),
 		).resolves.toEqual({ cloudSessionsEnabled: true });
-		// Open webviews re-evaluate without waiting for a restart or account
-		// change. With the rollout flag off (NoOp provider in tests) the
-		// opt-in alone keeps the effective gate closed.
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",

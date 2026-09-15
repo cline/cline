@@ -184,6 +184,24 @@ describe("hub daemon entry", () => {
 		expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
 	});
 
+	it("leaves account connectors untouched when connector management is disabled", async () => {
+		process.argv = ["node", "entry.js", "--no-connectors"];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const { ConnectorSupervisor, getActiveConnectorSupervisor } = await import(
+			"../../services/connectors/connector-supervisor"
+		);
+		const adopt = vi.spyOn(
+			ConnectorSupervisor.prototype,
+			"adoptRunningConnectors",
+		);
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		expect(mockStartHubWebSocketServer).toHaveBeenCalledOnce();
+		expect(adopt).not.toHaveBeenCalled();
+		expect(mockReconnectDaemonConnectors).not.toHaveBeenCalled();
+		expect(getActiveConnectorSupervisor()).toBeUndefined();
+	});
+
 	it("does not signal readiness before the WebSocket server is listening", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);

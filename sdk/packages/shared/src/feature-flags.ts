@@ -68,6 +68,7 @@ export const FeatureFlagDefaultValue: Partial<
 	Record<FeatureFlag, FeatureFlagPayload | undefined>
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
+	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 

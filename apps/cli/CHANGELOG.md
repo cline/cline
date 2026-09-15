@@ -1,5 +1,33 @@
 # Cline CLI Changelog
 
+## 3.0.62
+
+- Introducing Cline Desktop: a native app for working with open-weight models, with task import from Claude Code and Codex, scheduled runs, web search and voice input, and a marketplace for plugins, MCP servers, and skills. The CLI now shows a one-time startup notice pointing at cline.bot/desktop. At most one notice appears per launch, and `CLINE_DISABLE_CLINE_PASS_NOTICE=1` still suppresses all of them
+- Agent Plugins are now managed through the Hub. Packages under `~/.agents/plugins/*` are discovered and validated, their skills are exposed through the skills tool as `plugin-name:skill-name`, and their MCP servers start without touching `cline_mcp_settings.json`. The config screen lists them separately from Cline Plugins and Space toggles them. Workspace `.agents/plugins` directories are deliberately not scanned, so opening a repo cannot implicitly start repo-controlled MCP servers
+- A model turn that dies mid-stream with a transient provider error is now retried up to 3 times with backoff instead of failing the run — a single forwarded 429 from OpenRouter previously ended the run with exit 1. A turn that already streamed output is never retried, so nothing is duplicated
+- Streaming output is no longer throttled by the Hub. Every streamed token was proxied to client hooks as a round trip carrying a full copy of the session, with the agent loop waiting on it
+- Checkpoints no longer stall every message in workspaces with large untracked directories. Each turn re-hashed every untracked file before the model call, which on multi-GB workspaces blocked messages for seconds to minutes; a persistent per-session snapshot index now lets git skip unchanged files
+- Fixed `run_commands` hanging until timeout after a command that backgrounds a child process. The command had finished, but the backgrounded child held the output pipes open
+- Fixed `cline` being OOM-killed when run from your home directory. Typing an `@` mention indexed every file under `$HOME` and re-ranked it on each keystroke
+- Fixed `apply_patch` silently overwriting an existing file when the model used "Add File" on a path that already exists
+- Fixed PowerShell commands that the model wrapped in another `powershell -Command "..."` being parsed twice, which stripped `$_` out of pipelines and produced an error per enumerated item while still reporting success. The tool description now also names which PowerShell edition is in use and tells the model not to wrap commands
+- API keys pasted with an invisible character (BOM, zero-width space) are now cleaned before being saved. They were stored corrupted and the provider's 401 was indistinguishable from a wrong key
+- Signing in with Claude Code no longer demands an API key it never reads. It authenticates from the `claude` CLI's own credential store, but onboarding treated it as an API-key provider and dropped you into the sign-in wizard; the workaround was storing a dummy key. A missing `claude` on PATH now warns instead of blocking, since a configured path, bundled binary, or npx also works. OpenCode gets the same local-CLI treatment
+- Web search is now on by default in non-yolo sessions on models that support it
+- A running Hub on the same core version as your CLI no longer prompts you to update it. Anyone with both the desktop app and the CLI installed saw a "Cline Hub was updated" dialog on every launch that could never resolve
+- Scheduled runs no longer stall behind each other — one long turn blocked dispatch of every other schedule. Parallelism limits are now enforced at claim time, work resumed after system sleep is no longer started twice, and a schedule created without a timezone uses your local one instead of an implicit default
+- Session history no longer goes blank when a session spawns many subagents. Child rows crowded out the roots, hiding the parent session and everything older
+- Fixed TUI toasts being clipped to their first line. The Hub messages that use them are all longer than that, so the keep-Hub reminder never showed the `cline hub upgrade` command it exists to deliver
+- Cline Pass now defaults to a subscribed model instead of a free one. Its model list mixes both tiers and the default was whichever model shipped most recently, so subscribers who never picked a model were put on the free tier
+- Cline Pass and free models now show zero cost instead of the upstream market price for requests you are not billed per token for
+- Model pickers now fall back to the full Recommended, Free, and Subscribed tiers when the models endpoint is unreachable. Previously the offline fallback was six hardcoded models with no subscribed tier at all
+- The OpenAI Codex (ChatGPT subscription) model list no longer includes models the backend rejects, and Codex context limits are applied to every Codex model instead of being inherited from the OpenAI API catalog, which was inflating the context budget and the usage math
+- Model lists for all shared-catalog providers now refresh from the live catalog, so newly published models appear without a CLI update, with timeouts so a hung provider endpoint cannot stall the list
+- Cline Pass now shows as a configured provider after sign-in — it stores credentials under Cline, so one sign-in configured both but only Cline appeared
+- Fixed OpenCode Go serving several wire protocols behind one URL while every model was sent over the OpenAI chat-completions adapter
+- Collapsed a nested `undici@5.29.0` (CVE-2026-1525) onto 7.x. The earlier remediation's version-scoped override key was silently ignored by Bun, so a vulnerable copy survived
+- Refreshed the model catalog. Adds four providers (Infer by Flow7, Melious, NaN, and Wallaby) and takes the bundled catalog from 5,788 to 6,079 models. This is a wide refresh: the resolved default model changes for 44 providers, most of them landing on DeepSeek V4.1 Flash — among them Hugging Face, Fireworks, Requesty, Nebius, Cortecs, CrossModel, DigitalOcean, Eden AI, and OpenCode Go. Gemini and Vertex now resolve to Gemini 3.8 Flash, GitHub Copilot and Vivgrid to GPT-6 Astra, and NVIDIA to GLM 5.3 Flash. If you use any provider without pinning a model, expect a different default
+
 ## 3.0.61
 
 - Cline now handles a running Hub that is older than your CLI. Instead of quietly talking to a hub executing stale code, you get a prompt showing how many active sessions a replacement would interrupt, with enter-to-replace or escape-to-keep. The replacement drains the Hub first so in-flight turns finish, and a hub too old or wedged to accept the drain is left alone rather than killed

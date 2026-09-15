@@ -14,6 +14,7 @@ vi.mock("@/lib/desktop-client", () => ({
 import {
 	APP_ICON_STORAGE_KEY,
 	appIconAssetPath,
+	appIconSurface,
 	DEFAULT_APP_ICON,
 	isAppIconId,
 	readStoredAppIcon,
@@ -45,6 +46,14 @@ describe("app icon", () => {
 	});
 
 	it.each([
+		["Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Taskbar"],
+		["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "Dock"],
+		["Mozilla/5.0 (X11; Linux x86_64)", "desktop"],
+	])("names the app icon surface for %s", (userAgent, surface) => {
+		expect(appIconSurface(userAgent)).toBe(surface);
+	});
+
+	it.each([
 		["sunrise", "hologram"],
 		["steel", "midnight"],
 	])("migrates the retired %s preference to %s", (retired, replacement) => {
@@ -70,6 +79,24 @@ describe("app icon", () => {
 		invoke.mockResolvedValue(true);
 		await setStoredAppIcon("midnight");
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
+	});
+
+	it("does not persist a native selection that fails to apply", async () => {
+		isTauriAvailable.mockReturnValue(true);
+		invoke.mockRejectedValue(new Error("native update failed"));
+
+		await expect(setStoredAppIcon("classic")).rejects.toThrow(
+			"native update failed",
+		);
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBeNull();
+	});
+
+	it("leaves the favicon unchanged when native application fails", async () => {
+		isTauriAvailable.mockReturnValue(true);
+		invoke.mockRejectedValue(new Error("native update failed"));
+
+		await expect(setStoredAppIcon("classic")).rejects.toThrow();
+		expect(document.querySelector('link[rel="icon"]')).toBeNull();
 	});
 
 	it("re-applies only non-bundled choices at boot", async () => {

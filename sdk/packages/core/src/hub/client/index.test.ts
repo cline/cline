@@ -16,6 +16,7 @@ class MockWebSocket {
 	static readonly CLOSED = 3;
 	static instances: MockWebSocket[] = [];
 	static commandPayloads = new Map<string, unknown>();
+	static failNextOpen = false;
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -24,6 +25,11 @@ class MockWebSocket {
 	constructor(public readonly url: string) {
 		MockWebSocket.instances.push(this);
 		queueMicrotask(() => {
+			if (MockWebSocket.failNextOpen) {
+				MockWebSocket.failNextOpen = false;
+				this.emit("error", new Error("connection refused"));
+				return;
+			}
 			this.readyState = MockWebSocket.OPEN;
 			this.emit("open");
 		});
@@ -32,6 +38,7 @@ class MockWebSocket {
 	static reset(): void {
 		MockWebSocket.instances = [];
 		MockWebSocket.commandPayloads.clear();
+		MockWebSocket.failNextOpen = false;
 	}
 
 	send(data: string): void {
@@ -219,6 +226,73 @@ describe("NodeHubClient", () => {
 				await client.dispose();
 			} finally {
 				vi.useRealTimers();
+			}
+		});
+
+		it("retries an initial connection failure with an active subscription", async () => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			MockWebSocket.failNextOpen = true;
+
+			try {
+				const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+				client.subscribe(() => {}, { sessionId: "session-1" });
+				await expect(client.connect()).rejects.toMatchObject({
+					code: "hub_connect_failed",
+				});
+
+				await vi.advanceTimersByTimeAsync(251);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				expect(MockWebSocket.instances).toHaveLength(2);
+				expect(client.isConnected()).toBe(true);
+				await client.dispose();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("checks cancellation after reconnect without allocating or sending a command", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			try {
+				await client.connect();
+				MockWebSocket.instances[0].emit("close", { code: 1006, reason: "" });
+				let cancelled = false;
+				const beforeDispatch = vi.fn(() => {
+					if (cancelled) throw new Error("cancelled");
+				});
+				const command = client.command(
+					"session.send_input",
+					{ prompt: "old" },
+					"task",
+					{
+						beforeDispatch,
+					},
+				);
+				expect(beforeDispatch).not.toHaveBeenCalled();
+				cancelled = true;
+				await expect(command).rejects.toThrow("cancelled");
+				expect(MockWebSocket.instances[1].sentFrames).not.toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							command: "session.send_input",
+						}),
+					}),
+				);
+				expect(
+					(client as unknown as { pendingReplies: Map<string, unknown> })
+						.pendingReplies.size,
+				).toBe(0);
+				cancelled = false;
+				await expect(
+					client.command("session.send_input", { prompt: "new" }, "task", {
+						beforeDispatch,
+					}),
+				).resolves.toMatchObject({ ok: true });
+			} finally {
+				await client.dispose();
 			}
 		});
 
@@ -594,10 +668,14 @@ describe("NodeHubClient", () => {
 				cwd: "/tmp/project",
 			});
 
-			await expect(client.command("client.list")).resolves.toMatchObject({
+			const beforeDispatch = vi.fn();
+			await expect(
+				client.command("client.list", undefined, undefined, { beforeDispatch }),
+			).resolves.toMatchObject({
 				ok: true,
 				payload: { clients: [] },
 			});
+			expect(beforeDispatch).toHaveBeenCalledTimes(2);
 			expect(client.getUrl()).toBe(recoveredUrl);
 			await client.dispose();
 		} finally {

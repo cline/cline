@@ -2,13 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
-/**
- * Desktop-app-only preferences.
- *
- * These are kept out of the shared `global-settings.json` on purpose: that
- * file is parsed with a strict schema by every Cline app, and an older CLI
- * writing settings would silently strip fields it does not know about.
- */
+/** Desktop-only preferences kept separate from strict shared global settings. */
 export type DesktopSettings = {
 	/** Opt-in gate for cloud sessions while the feature is in preview. */
 	cloudSessionsEnabled: boolean;
@@ -42,8 +36,7 @@ export function readDesktopSettings(): DesktopSettings {
 export function writeDesktopSettings(settings: DesktopSettings): void {
 	const filePath = resolveDesktopSettingsPath();
 	mkdirSync(dirname(filePath), { recursive: true });
-	// Write-then-rename keeps the file whole if two app instances race or the
-	// process dies mid-write; a torn JSON file would silently reset settings.
+	// Avoid leaving torn settings if the process exits mid-write.
 	const tempPath = `${filePath}.${process.pid}.tmp`;
 	writeFileSync(tempPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
 	renameSync(tempPath, filePath);

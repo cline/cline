@@ -59,7 +59,6 @@ import {
 import type { SerializedAttachments } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
-import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import {
 	resolveLiveHistorySession,
@@ -69,6 +68,7 @@ import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	formatHandoffModelFallback,
 	HANDOFF_PROGRESS_LABELS,
@@ -95,10 +95,7 @@ import {
 	pendingHandoffPromptCaughtUp,
 	resolveHandoffReceipt,
 } from "@/lib/cloud-handoff-ui-state";
-import {
-	cloudRepositoryLabel,
-	isCloudProvisioningSessionId,
-} from "@/lib/cloud-repositories";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import {
 	humanizeCloudSessionError,
 	parseCloudSessionError,
@@ -116,6 +113,10 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
@@ -139,6 +140,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
@@ -203,40 +205,73 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
-const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
+const LONG_PROVISIONING_THRESHOLD_MS = 60_000;
+
+type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
+
+function readCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	return value === "provisioning" ||
+		value === "cloning_repo" ||
+		value === "agent_starting" ||
+		value === "ready" ||
+		value === "failed"
+		? value
+		: undefined;
+}
+
 // create() can spend one 610s window on the original POST and another on
 // timeout recovery. Leave room for auth, Hub attach, seeding, and verification
 // without waiting forever for a lost transport response.
 const HANDOFF_INVOKE_TIMEOUT_MS = 25 * 60_000;
 
-/** Shared provisioning status for the originating thread and placeholder. */
-function useCloudProvisioningPhase(repoUrl?: string): string {
+function useCloudProvisioningPhase(
+	repoUrl: string | undefined,
+	active: boolean,
+	phase: CloudProvisioningPhase | undefined,
+	startedAt: string | undefined,
+): string {
 	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
-	const phases = useMemo(
-		() => [
-			"Spinning up a fresh sandbox",
-			repoLabel ? `Cloning ${repoLabel}` : "Cloning your repository",
-			"Waking up the agent",
-			"Getting everything ready",
-		],
-		[repoLabel],
-	);
-	const [phaseIndex, setPhaseIndex] = useState(0);
-	// Hold the final phase so provisioning does not appear to restart. The
-	// interval stops via this guard instead of inside the state updater,
-	// which must stay pure (StrictMode double-invokes it).
-	const lastPhase = phaseIndex >= phases.length - 1;
+	const [longRunning, setLongRunning] = useState(false);
 	useEffect(() => {
-		if (lastPhase) return;
-		const interval = window.setInterval(() => {
-			setPhaseIndex((current) => Math.min(current + 1, phases.length - 1));
-		}, PROVISIONING_PHASE_INTERVAL_MS);
-		return () => window.clearInterval(interval);
-	}, [lastPhase, phases.length]);
-	return `${phases[phaseIndex]}...`;
+		if (!active) {
+			setLongRunning(false);
+			return;
+		}
+		const parsedStartedAt = Date.parse(startedAt ?? "");
+		const elapsed = Number.isFinite(parsedStartedAt)
+			? Math.max(0, Date.now() - parsedStartedAt)
+			: 0;
+		if (elapsed >= LONG_PROVISIONING_THRESHOLD_MS) {
+			setLongRunning(true);
+			return;
+		}
+		setLongRunning(false);
+		const timeout = window.setTimeout(
+			() => setLongRunning(true),
+			LONG_PROVISIONING_THRESHOLD_MS - elapsed,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [active, startedAt]);
+	const label =
+		phase === "cloning_repo"
+			? repoLabel
+				? `Cloning ${repoLabel}`
+				: "Cloning your repository"
+			: phase === "agent_starting"
+				? "Starting the agent"
+				: "Starting your workspace";
+	return longRunning
+		? `${label}... This may take several minutes.`
+		: `${label}...`;
 }
 
-/** Matches the compact loading row shown inside a starting chat. */
 function CloudProvisioningPane({ phase }: { phase: string }) {
 	return (
 		<div className="px-6 py-6">
@@ -320,8 +355,8 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		// The dock reverts to the bundled icon every launch; re-apply the
-		// user's choice once the shell is up.
+		// The native app icon reverts to the bundled icon every launch; re-apply
+		// the user's choice once the shell is up.
 		void syncAppIcon();
 	}, []);
 
@@ -619,33 +654,6 @@ export default function Home() {
 		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 
-	// Replace an open provisioning placeholder with its real session.
-	useEffect(() => {
-		return desktopClient.subscribe("cloud_session_provisioned", (payload) => {
-			if (!payload || typeof payload !== "object") {
-				return;
-			}
-			const { placeholderId, sessionId } = payload as {
-				placeholderId?: string;
-				sessionId?: string;
-			};
-			if (!placeholderId?.trim() || !sessionId?.trim()) {
-				return;
-			}
-			const placeholderThread = threads.find(
-				(thread) => thread.historySession?.sessionId === placeholderId,
-			);
-			if (!placeholderThread) {
-				return;
-			}
-			// The mounted chat pane owns active-placeholder recovery, including
-			// retries. Background placeholders need only be removed.
-			if (placeholderThread.id !== activeThreadId) {
-				handleDeleteSession(placeholderId, placeholderThread.id);
-			}
-		});
-	}, [threads, activeThreadId, handleDeleteSession]);
-
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
@@ -724,9 +732,6 @@ export default function Home() {
 											handoffUiState={handoffUiState}
 											onHandoffUiAction={dispatchHandoffUi}
 											liveHistoryStatus={
-												// Live entry wins; otherwise trust the clicked snapshot
-												// (the list can lag by a refresh). Resolution is handled
-												// by cloud_session_provisioned, which swaps the thread.
 												sessionHistory.sessions.find(
 													(session) =>
 														session.sessionId ===
@@ -753,12 +758,12 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
-											onOpenVoiceInputSettings={() =>
-												handleSettingsSectionChange("Voice")
-											}
 											onThreadStarted={handleThreadStarted}
 										/>
 									</div>
@@ -824,8 +829,8 @@ function ChatThreadPane({
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenAccountSettings,
 	parentSession,
-	onOpenVoiceInputSettings,
 	onThreadStarted,
 	isThreadActive,
 	handoffUiState,
@@ -833,7 +838,6 @@ function ChatThreadPane({
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
-	/** Current status from the live list; the history snapshot may be stale. */
 	liveHistoryStatus?: SessionHistoryItem["status"];
 	/** Attachments to restore into the composer alongside initialPromptDraft. */
 	initialAttachments?: File[];
@@ -866,8 +870,8 @@ function ChatThreadPane({
 	) => boolean | Promise<boolean>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
-	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 	isThreadActive?: () => boolean;
 	handoffUiState: CloudHandoffUiState;
@@ -879,7 +883,9 @@ function ChatThreadPane({
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
+		isCloudSessionExpired,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -976,8 +982,18 @@ function ChatThreadPane({
 	);
 	const handoffExternalPresentation =
 		handoffUi?.status === "complete" && handoffUi.externalPresentation;
-	const { user: accountUser } = useAccount();
+	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
+	const openGitHubConnect = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization],
+	);
 	useEffect(() => {
 		void accountUserId;
 		let cancelled = false;
@@ -1004,8 +1020,7 @@ function ChatThreadPane({
 				});
 		};
 		fetchFlags();
-		// The Settings → General cloud toggle broadcasts immediately so the
-		// composer reflects the change without a restart or account switch.
+		// Reflect Settings changes without restarting or switching accounts.
 		const unsubscribe = desktopClient.subscribe(
 			"feature_flags_changed",
 			(payload) => {
@@ -1072,44 +1087,37 @@ function ChatThreadPane({
 		isCloudSession,
 		liveHistoryStatus,
 	});
-	const [provisioningError, setProvisioningError] = useState<string | null>(
-		null,
-	);
-	const provisioningPlaceholderId =
-		historySession?.sessionId &&
-		isCloudProvisioningSessionId(historySession.sessionId)
-			? historySession.sessionId
-			: undefined;
+	const [liveProvisioningPhase, setLiveProvisioningPhase] =
+		useState<CloudProvisioningPhase>();
 	useEffect(() => {
-		void provisioningPlaceholderId;
-		setProvisioningError(null);
-	}, [provisioningPlaceholderId]);
-	const handleProvisioningReady = useCallback(
-		async (sessionId: string) =>
-			Boolean(await onOpenSessionById?.(sessionId, { silent: true })),
-		[onOpenSessionById],
-	);
-	const handleProvisioningResolved = useCallback(() => {
-		if (provisioningPlaceholderId) {
-			onDeleteSession?.(provisioningPlaceholderId, threadId);
-		}
-	}, [onDeleteSession, provisioningPlaceholderId, threadId]);
-	useProvisioningOutcome({
-		placeholderId: provisioningPlaceholderId,
-		onOpenReady: handleProvisioningReady,
-		onResolved: handleProvisioningResolved,
-		onError: setProvisioningError,
-	});
-	// The placeholder id covers list-refresh lag before live status arrives.
+		setLiveProvisioningPhase(undefined);
+		return desktopClient.subscribe("chat_session_status", (payload) => {
+			if (
+				payload &&
+				typeof payload === "object" &&
+				"sessionId" in payload &&
+				payload.sessionId === sessionId &&
+				"phase" in payload
+			) {
+				setLiveProvisioningPhase(
+					payload.phase === "ready"
+						? undefined
+						: readCloudProvisioningPhase(payload.phase),
+				);
+			}
+		});
+	}, [sessionId]);
 	const isProvisioningCloudSession =
-		!provisioningError &&
+		isCloudSession &&
+		status === "starting" &&
 		(liveHistoryStatus === "provisioning" ||
-			Boolean(
-				historySession?.sessionId &&
-					isCloudProvisioningSessionId(historySession.sessionId),
-			));
+			liveProvisioningPhase !== undefined);
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
+		isProvisioningCloudSession || (isCloudSession && status === "starting"),
+		liveProvisioningPhase ??
+			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
+		historySession?.startedAt,
 	);
 	const activeWorkspaceCwd = isCloudSession
 		? ""
@@ -1527,6 +1535,33 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	const handleAttachFiles = useCallback((files: File[]) => {
+		const supportedFiles = files.filter(
+			(file) => !isUnsupportedImageAttachment(file),
+		);
+		if (supportedFiles.length !== files.length) {
+			toast({
+				title: "Unsupported image format",
+				description:
+					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+			});
+		}
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of supportedFiles) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
+
 	// Hydrate first, then restore a failed handoff's draft and attachments. If
 	// this ran above the hydration effect, hydration would immediately wipe the
 	// only retained retry payload after navigation back to the source session.
@@ -1834,10 +1869,18 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend);
+			// The prompt never reached the runtime (e.g. the provider connection
+			// failed): hand it back so the user can fix the provider and resend
+			// without retyping. Leave anything they typed meanwhile alone.
+			if (!promptTaken && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				handleAttachFiles(toSend);
+			}
 		},
 		[
 			config.repoUrl,
+			handleAttachFiles,
 			isCloudSession,
 			onThreadStarted,
 			pendingAttachments,
@@ -1935,6 +1978,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -2027,23 +2080,6 @@ function ChatThreadPane({
 		setPromptInput,
 	]);
 
-	const handleAttachFiles = useCallback((files: File[]) => {
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-			);
-			const next = [...prev];
-			for (const file of files) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
-			}
-			return next;
-		});
-	}, []);
-
 	const handleExecutionTargetChange = useCallback(
 		(target: "local" | "cloud") => {
 			if (target === "cloud" && !cloudAgentsEnabled) {
@@ -2121,12 +2157,13 @@ function ChatThreadPane({
 		},
 		[setConfig],
 	);
+
 	const attachmentList = useMemo(
 		() =>
 			pendingAttachments.map((file, index) => ({
 				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 				name: file.name,
-				isImage: file.type.startsWith("image/"),
+				isImage: imageAttachmentMediaType(file) !== undefined,
 			})),
 		[pendingAttachments],
 	);
@@ -2284,6 +2321,9 @@ function ChatThreadPane({
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
 		: null;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -2331,7 +2371,9 @@ function ChatThreadPane({
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
-		(agentSessionId: string) => onOpenSessionById?.(agentSessionId),
+		async (agentSessionId: string) => {
+			await onOpenSessionById?.(agentSessionId);
+		},
 		[onOpenSessionById],
 	);
 
@@ -2433,6 +2475,7 @@ function ChatThreadPane({
 
 	const chatComposer = (
 		<ChatInputBar
+			readOnly={isCloudSessionExpired}
 			attachments={attachmentList}
 			cloudHandoffAvailable={cloudHandoffAvailable || handoffRetryEligible}
 			hasRunningAgents={agentActivity.running > 0}
@@ -2444,7 +2487,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
-			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -2498,6 +2541,11 @@ function ChatThreadPane({
 		chatComposer
 	);
 
+	const cloudConnectUrl =
+		cloudSessionError?.code === "github_not_connected"
+			? cloudSessionError.connectUrl
+			: undefined;
+
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
 			{/* Requires `dragDropEnabled: false` on the Tauri window so the native shell does not swallow OS file drags. */}
@@ -2507,7 +2555,8 @@ function ChatThreadPane({
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
 						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				onAttachFiles={isCloudSession ? undefined : handleAttachFiles}
+				disabled={isCloudSession}
+				onAttachFiles={handleAttachFiles}
 			>
 				{!isWelcomeState ? (
 					<WindowTitleBarContent>
@@ -2543,27 +2592,10 @@ function ChatThreadPane({
 				<WelcomeScreen
 					active={isWelcomeState}
 					body={
-						provisioningError ? (
-							<div className="px-6 py-6">
-								<div
-									className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
-									role="alert"
-								>
-									<p className="font-medium">
-										This cloud session could not be started
-									</p>
-									<p className="mt-1">{provisioningError}</p>
-									<p className="mt-1 text-destructive/80">
-										Start a new cloud session to try again.
-									</p>
-								</div>
-							</div>
-						) : isCloudSession &&
-							displayedIsSwitching &&
-							displayedMessages.length === 0 ? (
-							// Keeps the loading treatment continuous through the
-							// placeholder → real-session swap: same compact row instead
-							// of flashing the hydration skeleton for a beat.
+						isCloudSession &&
+						displayedIsSwitching &&
+						displayedMessages.length === 0 ? (
+							// Keep opening an existing cloud session visually continuous.
 							<CloudProvisioningPane phase="Opening session..." />
 						) : showDiffView && !isCloudSession ? (
 							<DiffView
@@ -2577,16 +2609,17 @@ function ChatThreadPane({
 								onApproveToolApproval={handleApproveToolApproval}
 								onRejectToolApproval={handleRejectToolApproval}
 								chatTransportState={chatTransportState}
+								activityLabel={activityLabel}
 								error={cloudSessionError?.message ?? displayedError}
 								errorAction={
-									cloudSessionError?.code === "github_not_connected" &&
-									cloudSessionError.connectUrl
+									cloudConnectUrl
 										? {
 												label: "Connect GitHub",
-												url: cloudSessionError.connectUrl,
+												onClick: () => openGitHubConnect(cloudConnectUrl),
 											}
 										: undefined
 								}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
 								onRestoreCheckpoint={
@@ -2605,6 +2638,7 @@ function ChatThreadPane({
 											? provisioningPhase
 											: undefined
 								}
+								onFixCredentials={handleFixCredentials}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
