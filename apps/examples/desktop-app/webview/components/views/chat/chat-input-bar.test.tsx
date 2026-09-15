@@ -331,6 +331,40 @@ describe("ChatInputBar", () => {
 		expect(onSend).toHaveBeenCalledWith("What is this?");
 	});
 
+	it("does not send when Enter commits an IME composition", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ onSend, prompt: "你好" });
+		const textarea = container.querySelector("textarea");
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					isComposing: true,
+					bubbles: true,
+				}),
+			);
+		});
+		// WebKit fires the committing Enter after compositionend with
+		// isComposing false but keyCode 229.
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					keyCode: 229,
+					bubbles: true,
+				}),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).toHaveBeenCalledWith("你好");
+	});
+
 	it("allows a parent session with a running child agent to be stopped", async () => {
 		const onAbort = vi.fn();
 		await renderVoiceComposer({
@@ -564,7 +598,16 @@ describe("ChatInputBar", () => {
 		const cloudModel = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Model: cline-test"]',
 		);
+		loadProviderModelsMock.mockClear();
+		loadProviderModelCatalogMock.mockClear();
 		await act(async () => cloudModel?.click());
+		expect(loadProviderModelsMock).toHaveBeenCalledExactlyOnceWith(
+			"anthropic",
+			{
+				includeCloudModels: true,
+			},
+		);
+		expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
 		const alternateModel = Array.from(
 			container.querySelectorAll<HTMLButtonElement>(
 				".cline-ui-search-combobox__option",
@@ -1900,8 +1943,12 @@ describe("ChatInputBar", () => {
 			'[aria-label^="Model:"]',
 		);
 		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(1);
 
 		await act(async () => modelTrigger?.click());
+		// Opening re-fetches so the tiers reflect the current feed.
+		expect(loadProviderModelsMock).toHaveBeenCalledTimes(2);
+		expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline");
 		const panel = document.querySelector('[role="dialog"]');
 		expect(panel?.textContent).toContain("Recommended");
 		expect(panel?.textContent).toContain("Free");
@@ -2162,6 +2209,34 @@ describe("ChatInputBar", () => {
 					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
 				),
 			).toEqual(selection);
+		});
+
+		it("keeps the live model name while the picker-open refresh is in flight", async () => {
+			mockBundledCatalog();
+			loadProviderModelsMock.mockResolvedValue([flash, kimi]);
+			await renderComposer({ model: kimi.id, provider: "cline-pass" });
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(kimi.name);
+			});
+			loadProviderModelCatalogMock.mockClear();
+			let resolveModels!: (models: ProviderModel[]) => void;
+			loadProviderModelsMock.mockReturnValue(
+				new Promise<ProviderModel[]>((resolve) => {
+					resolveModels = resolve;
+				}),
+			);
+
+			await act(async () => modelTrigger?.click());
+			// Only the live list is re-fetched; re-applying the bundled catalog
+			// (which lacks kimi) would flash the raw id in the trigger.
+			expect(modelTrigger?.textContent).toContain(kimi.name);
+			expect(loadProviderModelsMock).toHaveBeenLastCalledWith("cline-pass");
+			expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+			await act(async () => resolveModels([flash, kimi]));
+			expect(modelTrigger?.textContent).toContain(kimi.name);
 		});
 
 		it.each([

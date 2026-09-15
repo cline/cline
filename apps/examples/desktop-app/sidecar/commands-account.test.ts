@@ -9,6 +9,12 @@ const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
 const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
+const runProviderOAuthLoginMock = vi.hoisted(() => vi.fn());
+
+vi.mock("./oauth-login", () => ({
+	runCancellableProviderOAuthLogin: runProviderOAuthLoginMock,
+	cancelProviderOAuthLogin: vi.fn(),
+}));
 
 vi.mock("./legacy-provider-credentials", () => ({
 	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
@@ -67,9 +73,41 @@ beforeEach(() => {
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
 	clearLegacyProviderCredentialsMock.mockReset();
+	runProviderOAuthLoginMock
+		.mockReset()
+		.mockResolvedValue({ accessToken: "token" });
 });
 
 describe("provider settings cloud session lifecycle", () => {
+	it.each([
+		["cline", false, true],
+		["cline-pass", false, true],
+		["openai-codex", false, false],
+		["cline-pass", true, false],
+	] as const)("handles %s login (failed: %s, resets cloud: %s)", async (provider, failed, resets) => {
+		const { ctx } = createContext();
+		const dispose = vi.fn().mockResolvedValue(undefined);
+		const cloudManager = { dispose } as unknown as NonNullable<
+			SidecarContext["cloudSessionManager"]
+		>;
+		ctx.cloudSessionManager = cloudManager;
+		const send = vi.fn();
+		ctx.wsClients.add({ send });
+		if (failed)
+			runProviderOAuthLoginMock.mockRejectedValueOnce(
+				new Error("login failed"),
+			);
+		const { handleCommand } = await import("./commands");
+		const login = handleCommand(ctx, "run_provider_oauth_login", { provider });
+		if (failed) await expect(login).rejects.toThrow("login failed");
+		else await expect(login).resolves.toEqual({ accessToken: "token" });
+		expect(ctx.cloudSessionManager).toBe(resets ? null : cloudManager);
+		expect(dispose).toHaveBeenCalledTimes(resets ? 1 : 0);
+		expect(send.mock.calls.map(([raw]) => JSON.parse(raw).event)).toEqual(
+			resets ? [{ name: "cloud_sessions_changed", payload: {} }] : [],
+		);
+	});
+
 	it.each([
 		{ enabled: true },
 		{ base_url: "https://api.example.test" },

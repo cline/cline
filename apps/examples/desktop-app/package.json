@@ -1,6 +1,6 @@
 {
 	"name": "@cline/code",
-	"version": "0.0.27",
+	"version": "0.0.28",
 	"private": true,
 	"scripts": {
 		"build:ui": "bun -F @cline/ui build",

@@ -892,3 +892,20 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+### SSH environments
+
+`core/src/remote` owns the reusable SSH environment service and standalone remote
+helper entrypoint. Clients use `RemoteEnvironmentService.connect` to obtain an
+authenticated loopback endpoint, then instantiate the ordinary `ClineCore` remote
+backend. The helper uploads are content-addressed and the remote Hub binds only
+to loopback. SSH forwards that endpoint to a local ephemeral port. The helper's
+explicit discovery record is separate from the remote account's default Hub.
+
+Desktop retains presentation, packaged-resource lookup, and its environment-to-
+runtime bindings. Settings and the chat environment selector call the shared
+service; each runtime binding supplies the same session/approval/event APIs.
+Workspace and session reads route by environment identity. System-prompt
+bootstrap happens on the remote host when the caller omits a prompt, so local
+filesystem metadata is not embedded in remote sessions. Login-shell PATH
+resolution also lives in core and is reused by the helper and desktop startup.
