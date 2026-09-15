@@ -113,11 +113,14 @@ struct UpdateState {
     // concurrently and the later one can overwrite a freshly staged "ready"
     // with "idle"/"error" decided from its stale pre-await snapshot.
     cycle: tokio::sync::Mutex<()>,
-    // Windows only: the downloaded-but-not-installed update. On Windows,
-    // Update::install launches the NSIS installer and std::process::exit(0)s
-    // immediately, so installation must wait for the user-initiated restart
-    // instead of running inside the background cycle like it does on macOS.
-    #[cfg(windows)]
+    // Windows and Linux deb/rpm: the downloaded-but-not-installed update. On
+    // Windows, Update::install launches the NSIS installer and
+    // std::process::exit(0)s immediately; on Linux a deb/rpm install hands the
+    // package to the system package manager, which needs elevation. Both must
+    // wait for the user-initiated restart instead of installing inside the
+    // background cycle, which macOS .app swaps and Linux AppImages can do.
+    // Those two never fill this slot, so their restart is a plain relaunch of
+    // the version the background cycle already installed.
     pending_install: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>,
 }
 
@@ -205,6 +208,52 @@ fn set_update_status(
     refresh_tray_status(app, update_state);
 }
 
+/// Whether a downloaded update has to be staged for the user-initiated restart
+/// instead of installed inside the background update cycle.
+///
+/// Installing mid-cycle is only safe when it is silent and needs no elevation:
+/// macOS swaps the .app on disk and a Linux AppImage is replaced in place,
+/// while the Windows NSIS installer and the Linux deb/rpm packages that hand
+/// off to the system package manager are neither.
+#[cfg(target_os = "linux")]
+fn defer_update_install() -> bool {
+    matches!(
+        tauri::utils::platform::bundle_type(),
+        Some(tauri::utils::config::BundleType::Deb)
+            | Some(tauri::utils::config::BundleType::Rpm)
+    )
+}
+
+#[cfg(not(target_os = "linux"))]
+fn defer_update_install() -> bool {
+    cfg!(windows)
+}
+
+/// Whether this build can update itself.
+///
+/// Every Linux package reports its own bundle type, but the AppImage updater
+/// works by replacing the running executable, which is only meaningful when the
+/// binary really is inside an AppImage: the runtime exports `APPIMAGE` with that
+/// file's path, and Tauri's own updater reads the same variable to decide what
+/// to replace. An AppImage-marked binary without it is a copy the bundler left
+/// behind in a build directory, and replacing that is damage, not an update.
+/// A binary reporting no bundle type at all is not a package either.
+#[cfg(target_os = "linux")]
+fn supports_self_update() -> bool {
+    match tauri::utils::platform::bundle_type() {
+        Some(tauri::utils::config::BundleType::AppImage) => {
+            std::env::var_os("APPIMAGE").is_some()
+        }
+        Some(_) => true,
+        None => false,
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn supports_self_update() -> bool {
+    true
+}
+
 async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
     let _cycle = state.cycle.lock().await;
     // An update that already finished downloading only needs a restart; keep
@@ -231,28 +280,29 @@ async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
                 return;
             }
             set_update_status(app, state, "downloading", Some(version.clone()), None);
-            // macOS: install right away — it only swaps the .app on disk and
-            // the running app keeps going until the user restarts. Windows:
-            // download only, because install() launches the NSIS installer
-            // and exits the process on the spot; the staged bytes are
-            // installed by restart_to_apply_update instead.
-            #[cfg(not(windows))]
-            match update.download_and_install(|_, _| {}, || {}).await {
-                Ok(()) => set_update_status(app, state, "ready", Some(version), None),
-                Err(error) => {
-                    set_update_status(app, state, "error", Some(version), Some(error.to_string()))
-                }
-            }
-            #[cfg(windows)]
-            match update.download(|_, _| {}, || {}).await {
-                Ok(bytes) => {
-                    if let Ok(mut pending) = state.pending_install.lock() {
-                        *pending = Some((update, bytes));
+            // Installs that are silent and need no elevation run right here:
+            // macOS only swaps the .app on disk and a Linux AppImage is
+            // replaced in place, both leaving the running app alive until the
+            // user restarts. Windows installers and Linux deb/rpm packages
+            // instead stage their bytes for restart_to_apply_update.
+            if defer_update_install() {
+                match update.download(|_, _| {}, || {}).await {
+                    Ok(bytes) => {
+                        if let Ok(mut pending) = state.pending_install.lock() {
+                            *pending = Some((update, bytes));
+                        }
+                        set_update_status(app, state, "ready", Some(version), None);
                     }
-                    set_update_status(app, state, "ready", Some(version), None);
+                    Err(error) => {
+                        set_update_status(app, state, "error", Some(version), Some(error.to_string()))
+                    }
                 }
-                Err(error) => {
-                    set_update_status(app, state, "error", Some(version), Some(error.to_string()))
+            } else {
+                match update.download_and_install(|_, _| {}, || {}).await {
+                    Ok(()) => set_update_status(app, state, "ready", Some(version), None),
+                    Err(error) => {
+                        set_update_status(app, state, "error", Some(version), Some(error.to_string()))
+                    }
                 }
             }
         }
@@ -759,11 +809,14 @@ fn restart_to_apply_update(
     // first. On Windows this also releases the sidecar exe's file lock,
     // which the NSIS installer needs in order to replace it.
     backend_state.stop();
-    // Windows: install the bytes staged by the background cycle. install()
-    // launches the NSIS installer (which relaunches the app when done) and
-    // exits this process, so it only returns on failure — fall through to a
-    // plain restart of the current version in that case.
-    #[cfg(windows)]
+    // Windows and Linux deb/rpm: install the bytes staged by the background
+    // cycle. On Windows install() launches the NSIS installer (which relaunches
+    // the app when done) and exits this process, so it only returns on failure;
+    // on Linux it returns once the package manager has finished. Either way,
+    // fall through to restarting the app.
+    //
+    // macOS and Linux AppImages never stage anything: they were already
+    // installed by the background cycle, so this is a plain restart.
     if let Some((update, bytes)) = update_state
         .pending_install
         .lock()
@@ -771,11 +824,9 @@ fn restart_to_apply_update(
         .and_then(|mut pending| pending.take())
     {
         if let Err(error) = update.install(bytes) {
-            eprintln!("[updater] failed to launch the update installer: {error}");
+            eprintln!("[updater] failed to apply the staged update: {error}");
         }
     }
-    #[cfg(not(windows))]
-    let _ = update_state;
     app.restart();
 }
 
@@ -817,7 +868,11 @@ async fn check_for_update_now(
 /// icons/app/<id>.png.
 const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux"
+))]
 fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, String> {
     let icon_path = app
         .path()
@@ -875,7 +930,10 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             .map_err(|_| "app icon update ended before AppKit completed".to_string())??;
         Ok(true)
     }
-    #[cfg(target_os = "windows")]
+    // Windows and Linux both apply the choice to the window, which is what the
+    // shell draws from: the taskbar button on Windows, and the window icon
+    // (taskbar, Alt-Tab, and the window list) on Linux through GTK.
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     {
         let icon_path = resolve_app_icon(&app, &icon)?;
         let image = tauri::image::Image::from_path(&icon_path)
@@ -885,10 +943,14 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             .ok_or_else(|| "main window is unavailable".to_string())?;
         window
             .set_icon(image)
-            .map_err(|e| format!("failed switching taskbar icon: {e}"))?;
+            .map_err(|e| format!("failed switching the window icon: {e}"))?;
         Ok(true)
     }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "linux"
+    )))]
     {
         let _ = app;
         Ok(false)
@@ -1252,11 +1314,17 @@ fn main() {
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
             if !cfg!(debug_assertions) {
-                let update_state = app.state::<Arc<UpdateState>>().inner().clone();
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    run_update_loop(app_handle, update_state).await;
-                });
+                if supports_self_update() {
+                    let update_state = app.state::<Arc<UpdateState>>().inner().clone();
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        run_update_loop(app_handle, update_state).await;
+                    });
+                } else {
+                    eprintln!(
+                        "[updater] update loop disabled: this build was not installed from a deb, rpm, or AppImage package"
+                    );
+                }
             }
             thread::spawn(move || loop {
                 thread::sleep(Duration::from_secs(5));

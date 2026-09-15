@@ -100,10 +100,13 @@ packaged DMG after upgrading Tauri in case its background validation changes.
 Apps launched from Finder/the Dock inherit launchd's minimal `PATH`
 (`/usr/bin:/bin:/usr/sbin:/sbin`), not the one your shell profiles build, so
 agent-run commands would miss Homebrew-installed tools like `gh` even though
-they work fine from a terminal. At startup the sidecar asks the user's login
-shell — read from the account database via `getpwuid`, falling back to
-`$SHELL` — for its `PATH` and merges it into `process.env.PATH`, which every
-agent-spawned child (run_commands, MCP servers) inherits. Only `PATH` is
+they work fine from a terminal. Launching from a Linux desktop entry has the
+same effect, for the same reason: the process has no parent shell. At startup
+the sidecar asks the user's login shell — read from the account database via
+`getpwuid`, falling back to `$SHELL` — for its `PATH` and merges it into
+`process.env.PATH`, which every agent-spawned child (run_commands, MCP
+servers) inherits. The fallback shell is `/bin/zsh` on macOS and `/bin/bash`
+elsewhere. Only `PATH` is
 imported, deliberately; other login-environment variables (`SSH_AUTH_SOCK`,
 API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
 `CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
@@ -120,12 +123,18 @@ desktop integration notes.
 
 ## Releases & Auto-Updates
 
-Releases are built, signed, notarized, and published by the `desktop-publish`
-GitHub workflow as a single universal macOS DMG — one download that runs
-natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture). The step-by-step flow (version
-bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
-(`.cline/skills/publish-desktop/SKILL.md`).
+Releases are built, signed, and published by the `desktop-publish` GitHub
+workflow, one job per platform because Tauri desktop bundles are built on the
+OS they target:
+
+- macOS: a single universal DMG — one download that runs natively on both
+  Apple Silicon and Intel (macOS picks the matching slice at launch, so users
+  never choose an architecture). Signed and notarized.
+- Windows: an Authenticode-signed x64 NSIS installer.
+- Linux: x64 AppImage, deb, and rpm packages.
+
+The step-by-step flow (version bumps, changelog, tag, repo secrets) lives in
+the `publish-desktop` skill (`.cline/skills/publish-desktop/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling
 `desktop-latest` release's `latest.json` on launch and every 2 hours, install
@@ -136,9 +145,49 @@ shipped apps can't verify new updates).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
-served by the rolling `desktop-beta` release — the same never-delete rule
+are served by the rolling `desktop-beta` release — the same never-delete rule
 applies to it. The experimental-branch process and beta release flow live in
 [`EXPERIMENTAL.md`](./EXPERIMENTAL.md).
+
+### Linux bundles
+
+`src-tauri/tauri.linux.conf.json` is merged automatically for Linux targets. It
+swaps the build hook (the DMG artwork step is macOS-only), lists the three
+bundle formats, and sets the freedesktop category, so Linux never needs flags
+passed on the command line.
+
+Building or packaging for Linux needs the WebKitGTK and tray dev packages plus
+`patchelf` and `rpmbuild`:
+
+```bash
+sudo apt-get install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+  librsvg2-dev patchelf rpm
+bun run package:desktop:linux   # or: bun run build:binary
+```
+
+`patchelf` is not optional: `scripts/build-sidecar-bin.ts` sets the sidecar's
+rpath with it. linuxdeploy, which Tauri runs to assemble the AppImage, carries
+its own patchelf 0.8 and rewrites the rpath of every ELF in the bundle, and on
+a Bun-compiled sidecar that rewrite corrupts the file into something that
+segfaults on launch. Writing the rpath we want ourselves makes linuxdeploy's
+rewrite a no-op.
+
+Auto-update behaves differently per format, because installing is only silent
+for some of them:
+
+- **AppImage** installs the update in place as soon as it downloads — like the
+  macOS `.app`, it is one file that can be replaced under the running app.
+- **deb** and **rpm** download and stage the package, then install it when you
+  restart, because handing it to `dpkg`/`rpm` needs elevation. The app never
+  prompts for a password from its background update check.
+- A build that is not one of those three (a release binary run straight out of
+  a build directory) does not run the update loop at all. The AppImage updater
+  replaces the running executable, so running it outside a real AppImage would
+  overwrite the binary rather than update it.
+
+The tray icon needs a StatusNotifier/AppIndicator host (standard on KDE, XFCE,
+and COSMIC; GNOME needs an extension such as AppIndicator Support). Without
+one the app still runs, minus the tray menu.
 
 ## Shareable Desktop Packages (manual fallback)
 

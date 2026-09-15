@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { $ } from "bun";
 import { telemetryDefineArgs } from "./telemetry-define-args";
 
@@ -38,6 +39,34 @@ const sidecarOutfile = (targetTriple: string): string => {
 	return `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
 };
 
+// linuxdeploy — which Tauri runs to assemble the AppImage — carries its own
+// patchelf 0.8 and rewrites the rpath of every ELF in the bundle. On a
+// Bun-compiled sidecar that rewrite corrupts the file: the result segfaults on
+// launch, and linuxdeploy then cannot even `ldd` it, so the AppImage either
+// fails to build or ships a backend that dies on startup. Writing the rpath
+// linuxdeploy wants ourselves, with a current patchelf, makes its rewrite a
+// no-op and leaves the sidecar byte-identical and runnable.
+const setLinuxRpath = (outfile: string): void => {
+	// Spawned directly instead of through the bun shell so `$ORIGIN` reaches
+	// patchelf as a literal rather than being read as a shell variable.
+	const result = spawnSync(
+		"patchelf",
+		["--set-rpath", "$ORIGIN/../lib", outfile],
+		{ encoding: "utf8" },
+	);
+	if (result.error || result.status !== 0) {
+		throw new Error(
+			[
+				`failed to set the AppImage rpath on ${outfile}`,
+				result.error?.message ??
+					result.stderr?.trim() ??
+					`patchelf exited with code ${result.status}`,
+				"patchelf is required to build the Linux desktop app (Debian/Ubuntu: apt-get install patchelf).",
+			].join("\n"),
+		);
+	}
+};
+
 const buildSidecar = async (targetTriple: string): Promise<string> => {
 	const outfile = sidecarOutfile(targetTriple);
 	const bunTarget = resolveBunCompileTarget(targetTriple);
@@ -50,6 +79,9 @@ const buildSidecar = async (targetTriple: string): Promise<string> => {
 		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} ${defines} --outfile ${outfile}`;
 	} else {
 		await $`bun build ./sidecar/index.ts --compile ${defines} --outfile ${outfile}`;
+	}
+	if (targetTriple.includes("linux")) {
+		setLinuxRpath(outfile);
 	}
 	return outfile;
 };
