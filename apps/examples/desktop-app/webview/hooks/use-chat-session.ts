@@ -3348,20 +3348,18 @@ export function useChatSession() {
 					clearTimeout(timer);
 				}
 				if (activeSessionIdRef.current !== activeSessionId) return;
-				const queue = await postSession({
-					action: "pending_prompts",
-					sessionId: activeSessionId,
-				});
-				promptId = queue.promptsInQueue?.[0]?.id;
 			}
-			if (!promptId?.trim() || activeSessionIdRef.current !== activeSessionId)
+			if (
+				(promptId !== undefined && !promptId.trim()) ||
+				activeSessionIdRef.current !== activeSessionId
+			)
 				return;
 			const epoch = turnEpochRef.current;
 			const queueRevision = queueRevisionRef.current;
 			const payload = await postSession({
 				action: "steer_prompt",
 				sessionId: activeSessionId,
-				promptId,
+				...(promptId === undefined ? {} : { promptId }),
 			});
 			// Steering can consume the prompt before this RPC returns. Its
 			// snapshot must not overwrite any newer local or remote queue change.

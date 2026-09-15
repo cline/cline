@@ -83,6 +83,25 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("sends first-prompt steering intent without reading a queue snapshot", async () => {
+		const requests: Record<string, unknown>[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as Record<string, unknown>;
+				requests.push(request);
+				if (request.action === "start") return { sessionId: "atomic-steer" };
+				return { promptsInQueue: [] };
+			},
+		);
+		await act(async () => current.start(current.config));
+		requests.length = 0;
+		await act(async () => current.steerPromptInQueue());
+		expect(requests).toEqual([
+			{ action: "steer_prompt", sessionId: "atomic-steer" },
+		]);
+	});
+
 	it("steers the first server entry after enqueue acknowledgement without waiting for the active response", async () => {
 		const sessionId = "session-quick-steer";
 		const activeResponse = deferred<unknown>();
@@ -143,7 +162,7 @@ describe("useChatSession", () => {
 		});
 		expect(
 			requests.filter((request) => request.action === "steer_prompt"),
-		).toEqual([{ action: "steer_prompt", sessionId, promptId: queued.id }]);
+		).toEqual([{ action: "steer_prompt", sessionId }]);
 		expect(current.status).toBe("running");
 		await act(async () => {
 			activeResponse.resolve({ ok: true });
@@ -207,7 +226,7 @@ describe("useChatSession", () => {
 			});
 			expect(
 				requests.filter((request) => request.action === "steer_prompt"),
-			).toEqual([{ action: "steer_prompt", sessionId, promptId: queued.id }]);
+			).toEqual([{ action: "steer_prompt", sessionId }]);
 			await act(async () => {
 				activeResponse.resolve({ ok: true });
 				await activeTask;

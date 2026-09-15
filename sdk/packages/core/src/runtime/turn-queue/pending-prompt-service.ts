@@ -213,6 +213,17 @@ export class PendingPromptsController {
 		return this.service.list(this.deps.getSession(sessionId));
 	}
 
+	steerFirst(sessionId: string): PendingPromptMutationResult {
+		// Selection and promotion share one synchronous runtime operation. No
+		// client snapshot or asynchronous request can intervene between them.
+		const session = this.deps.getSession(sessionId);
+		const first = session?.pendingPrompts[0];
+		if (!first || first.delivery === "steer") {
+			return { sessionId, prompts: this.service.list(session), updated: false };
+		}
+		return this.update({ sessionId, promptId: first.id, delivery: "steer" });
+	}
+
 	update(input: PendingPromptsUpdateInput): PendingPromptMutationResult {
 		const session = this.deps.getSession(input.sessionId);
 		if (!session) {
