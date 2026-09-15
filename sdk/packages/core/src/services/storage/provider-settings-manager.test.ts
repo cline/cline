@@ -743,4 +743,149 @@ describe("ProviderSettingsManager", () => {
 			});
 		});
 	});
+	describe("a last-used provider that no longer resolves", () => {
+		const at = (iso: string) => ({
+			updatedAt: iso,
+			tokenSource: "manual" as const,
+		});
+
+		function setup(state: unknown): {
+			filePath: string;
+			manager: ProviderSettingsManager;
+		} {
+			const tempDir = mkdtempSync(
+				path.join(os.tmpdir(), "core-provider-settings-"),
+			);
+			tempDirs.push(tempDir);
+			const filePath = path.join(tempDir, "provider-settings.json");
+			writeFileSync(filePath, JSON.stringify(state, null, 2));
+			return { filePath, manager: new ProviderSettingsManager({ filePath }) };
+		}
+
+		const openAiCompatible = {
+			settings: {
+				provider: "openai-compatible",
+				baseUrl: "http://127.0.0.1:8080/v1",
+				model: "qwen3-coder",
+			},
+			...at("2026-09-01T00:00:00.000Z"),
+		};
+
+		it("falls back to the configured provider instead of reporting none", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: { "openai-compatible": openAiCompatible },
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "openai-compatible",
+				baseUrl: "http://127.0.0.1:8080/v1",
+			});
+			expect(manager.getLastUsedProviderConfig()?.providerId).toBe(
+				"openai-compatible",
+			);
+			expect(manager.read().lastUsedProvider).toBe("openai-compatible");
+			// Reads repair in memory only; the file is left for the next write.
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"cline",
+			);
+		});
+
+		it("prefers the most recently saved provider when several are configured", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					anthropic: {
+						settings: { provider: "anthropic", apiKey: "older" },
+						...at("2026-08-01T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+					gemini: {
+						settings: { provider: "gemini", apiKey: "oldest" },
+						...at("2026-07-01T00:00:00.000Z"),
+					},
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()?.provider).toBe(
+				"openai-compatible",
+			);
+		});
+
+		it("reports no provider when nothing is configured", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+			expect(manager.read().lastUsedProvider).toBeUndefined();
+		});
+
+		it("keeps a selection whose credentials live under another provider's entry", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline-pass",
+				modes: {},
+				providers: {
+					cline: {
+						settings: {
+							provider: "cline",
+							auth: { accessToken: "workos:shared-token" },
+						},
+						...at("2026-09-01T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toMatchObject({
+				provider: "cline-pass",
+				auth: { accessToken: "workos:shared-token" },
+			});
+		});
+
+		it("keeps a signed-out selection whose entry still exists", () => {
+			const { manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: {
+					cline: {
+						settings: { provider: "cline" },
+						...at("2026-08-01T00:00:00.000Z"),
+					},
+					"openai-compatible": openAiCompatible,
+				},
+			});
+
+			expect(manager.getLastUsedProviderSettings()).toEqual({
+				provider: "cline",
+			});
+		});
+
+		it("persists the repaired selection on the next write", () => {
+			const { filePath, manager } = setup({
+				version: 1,
+				lastUsedProvider: "cline",
+				modes: {},
+				providers: { "openai-compatible": openAiCompatible },
+			});
+
+			manager.saveProviderSettings(
+				{ provider: "anthropic", apiKey: "new-key" },
+				{ setLastUsed: false },
+			);
+
+			expect(JSON.parse(readFileSync(filePath, "utf8")).lastUsedProvider).toBe(
+				"openai-compatible",
+			);
+		});
+	});
 });
