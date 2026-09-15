@@ -42,7 +42,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch } from "@/shared/net"
-import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
+import { type BedrockProviderConfig, buildBedrockProviderConfig, resolveBedrockSettingsForSync } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import type { ResolvedModelSelection } from "./model-catalog/contracts"
@@ -819,6 +819,29 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			// providers.json).
 			if (providerId === "bedrock") {
 				bedrockProviderConfig = buildBedrockProviderConfig(apiConfig, mode)
+				// The gateway registers this provider from providers.json alone, so
+				// mirror the StateManager values into the stored entry; otherwise a
+				// stale migrated entry (old region, missing profile) silently wins
+				// over what the settings UI shows.
+				if (modelId) {
+					try {
+						const manager = getProviderSettingsManager(resolveDataDir())
+						const synced = resolveBedrockSettingsForSync(
+							apiConfig,
+							modelId,
+							mode,
+							manager.getProviderSettings("bedrock"),
+						)
+						if (synced) {
+							manager.saveProviderSettings(
+								{ ...synced, provider: "bedrock" },
+								{ setLastUsed: false, tokenSource: "manual" },
+							)
+						}
+					} catch (error) {
+						Logger.warn("[SessionFactory] Failed to sync Bedrock settings into providers.json:", error)
+					}
+				}
 			}
 
 			if (providerId === "vertex") {
