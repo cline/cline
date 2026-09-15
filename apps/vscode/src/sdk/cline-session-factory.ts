@@ -194,7 +194,7 @@ export function normalizeProviderReasoningSettings(reasoning: ProviderReasoningS
 	return effort ? { thinking: true, reasoningEffort: effort } : {}
 }
 
-function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
+export function resolveProviderReasoningConfig(providerId: string): SessionReasoningConfig {
 	try {
 		const manager = getProviderSettingsManager(resolveDataDir())
 		const settings = manager.getProviderSettings(providerSettingsProviderId(providerId))
