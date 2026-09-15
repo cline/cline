@@ -197,7 +197,10 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("does not use port 0 for default production startup", async () => {
+	it.each([
+		true,
+		false,
+	])("preserves production startup options with manageConnectors=%s", async (manageConnectors) => {
 		process.env.CLINE_CONNECTOR_CLI_LAUNCH = JSON.stringify({
 			launcher: "bun",
 			connectArgsPrefix: ["/workspace/apps/cli/src/index.ts", "connect"],
@@ -217,7 +220,9 @@ describe("ensureDetachedHubServer", () => {
 		});
 
 		const { ensureDetachedHubServer } = await import(".");
-		const result = await ensureDetachedHubServer("/workspace");
+		const result = await ensureDetachedHubServer("/workspace", {
+			manageConnectors,
+		});
 		const spawnCalls = (spawn as unknown as { mock: { calls: unknown[][] } })
 			.mock.calls;
 		const spawnArgs = spawnCalls[0]?.[1] as string[] | undefined;
@@ -237,6 +242,7 @@ describe("ensureDetachedHubServer", () => {
 		expect(spawnArgs).toContain("--port");
 		expect(spawnArgs).toContain("25463");
 		expect(spawnArgs).not.toContain("0");
+		expect(spawnArgs?.includes("--no-connectors")).toBe(!manageConnectors);
 		expect(spawnOptions?.env?.[CLINE_RUN_AS_HUB_DAEMON_ENV]).toBe("1");
 		expect(spawnOptions?.env?.CLINE_CONNECTOR_CLI_LAUNCH).toBe(
 			process.env.CLINE_CONNECTOR_CLI_LAUNCH,
@@ -282,6 +288,16 @@ describe("ensureDetachedHubServer", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("passes disabled connector management to the detached daemon", async () => {
+		const { spawnDetachedHubServer } = await import(".");
+		spawnDetachedHubServer("/workspace", { manageConnectors: false });
+		expect(spawn).toHaveBeenCalledWith(
+			expect.any(String),
+			expect.arrayContaining(["--no-connectors"]),
+			expect.any(Object),
+		);
 	});
 
 	it("does not spawn another detached daemon from inside the hub daemon process", async () => {
