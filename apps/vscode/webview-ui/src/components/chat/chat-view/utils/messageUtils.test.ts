@@ -91,6 +91,54 @@ describe("filterVisibleMessages", () => {
 
 		expect(visible).toEqual([askMessage, userMessage])
 	})
+
+	it("hides preceding text when plan_mode_respond repeats the same content", () => {
+		const planText = createTextMessage(1, "Here is the full plan: do X, then Y.")
+		const planAsk: ClineMessage = {
+			type: "ask",
+			ask: "plan_mode_respond",
+			text: JSON.stringify({ response: "Here is the full plan: do X, then Y.", options: ["Plan it", "Do it"] }),
+			ts: 2,
+		}
+
+		expect(filterVisibleMessages([planText, planAsk])).toEqual([planAsk])
+	})
+
+	it("keeps preceding text when plan_mode_respond content differs", () => {
+		const planText = createTextMessage(1, "Let me think about this...")
+		const planAsk: ClineMessage = {
+			type: "ask",
+			ask: "plan_mode_respond",
+			text: JSON.stringify({ response: "Here is the full plan: do X, then Y.", options: ["Plan it", "Do it"] }),
+			ts: 2,
+		}
+
+		expect(filterVisibleMessages([planText, planAsk])).toEqual([planText, planAsk])
+	})
+
+	it("keeps partial text even when the next message is a matching plan_mode_respond", () => {
+		const partial: ClineMessage = { type: "say", say: "text", text: "Here is the full plan:", partial: true, ts: 1 }
+		const planAsk: ClineMessage = {
+			type: "ask",
+			ask: "plan_mode_respond",
+			text: JSON.stringify({ response: "Here is the full plan:", options: ["Plan it", "Do it"] }),
+			ts: 2,
+		}
+
+		expect(filterVisibleMessages([partial, planAsk])).toEqual([partial, planAsk])
+	})
+
+	it("hides preceding text when act_mode_respond repeats the same content", () => {
+		const actText = createTextMessage(1, "Task complete: fixed the bug.")
+		const actAsk: ClineMessage = {
+			type: "ask",
+			ask: "act_mode_respond",
+			text: JSON.stringify({ response: "Task complete: fixed the bug.", options: ["Do it", "View changes"] }),
+			ts: 2,
+		}
+
+		expect(filterVisibleMessages([actText, actAsk])).toEqual([actAsk])
+	})
 })
 
 describe("canRestoreWorkspaceFromMessage", () => {
