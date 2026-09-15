@@ -361,9 +361,19 @@ function sanitizeHookAttribute(value: string): string {
 	return value.replace(/[_"<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
 }
 
+/**
+ * Where a hook context block came from. Tool hooks carry the call they ran
+ * for; run-start hooks (TaskStart/UserPromptSubmit/TaskResume in their
+ * various layer spellings) have no tool identity, and the layers merge their
+ * outputs before the runtime sees them, so a single generic source labels
+ * those blocks.
+ */
+type HookContextOrigin =
+	| { source: "RunStart" }
+	| { source: "PreToolUse" | "PostToolUse"; toolCall: AgentToolCallPart };
+
 function formatHookContextBlock(
-	source: "PreToolUse" | "PostToolUse",
-	toolCall: AgentToolCallPart,
+	origin: HookContextOrigin,
 	text: string,
 ): string {
 	// Tool identity keeps each block attributable to its call: contexts are
@@ -373,19 +383,15 @@ function formatHookContextBlock(
 	// hook_context tags (opening and closing) neutralized so neither
 	// provider-supplied ids nor hook output can corrupt or spoof the block
 	// markup.
-	const toolName = sanitizeHookAttribute(toolCall.toolName);
-	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
+	const attributes = [`source="${origin.source}"`];
+	if ("toolCall" in origin) {
+		attributes.push(
+			`tool_name="${sanitizeHookAttribute(origin.toolCall.toolName)}"`,
+			`tool_call_id="${sanitizeHookAttribute(origin.toolCall.toolCallId)}"`,
+		);
+	}
 	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
-	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
-}
-
-function formatRunHookContextBlock(text: string): string {
-	// Run-start hooks (TaskStart/UserPromptSubmit/TaskResume in their various
-	// layer spellings) have no tool identity; layers merge their outputs before
-	// the runtime sees them, so a single generic source labels the block.
-	// Embedded hook_context tags are neutralized like the tool variant.
-	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
-	return `<hook_context source="RunStart">\n${body}\n</hook_context>`;
+	return `<hook_context ${attributes.join(" ")}>\n${body}\n</hook_context>`;
 }
 
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
@@ -508,9 +514,10 @@ export class AgentRuntime {
 		onEvent: [],
 	};
 	/**
-	 * `appendContext` blocks collected from beforeTool/afterTool hooks during
-	 * the current iteration's tool executions, flushed as one user message
-	 * after the tool results so tool-result parts stay contiguous for
+	 * `appendContext` blocks waiting to be injected as one user message.
+	 * beforeRun hooks fill it before the run's first model request; beforeTool
+	 * and afterTool hooks fill it during an iteration's tool executions and it
+	 * flushes after the tool results, so tool-result parts stay contiguous for
 	 * providers that require them first in the following turn.
 	 */
 	private pendingHookContexts: string[] = [];
@@ -965,35 +972,38 @@ export class AgentRuntime {
 	}
 
 	/**
-	 * Injects the collected hook context blocks as one user message. The
-	 * displayRole "system" keeps the injected block out of user-facing
-	 * transcripts (live and replayed) while it still reaches the model,
-	 * mirroring how compaction summaries are handled.
+	 * Injects the collected hook context blocks as one user message at the end
+	 * of the conversation. Always delivers: the buffer is empty afterwards.
 	 */
 	private async flushPendingHookContexts(): Promise<void> {
 		if (this.pendingHookContexts.length === 0) {
 			return;
 		}
-		// Never insert between an assistant tool_use and its tool_result: a
-		// resumed session can be seeded with a trailing unresolved tool call,
-		// and a user message in that gap breaks providers' pairing rules. The
-		// buffer keeps the context until the next flush point, which runs
-		// after the tool messages.
-		const lastMessage = this.state.messages.at(-1);
-		if (
-			lastMessage?.role === "assistant" &&
-			lastMessage.content.some((part) => part.type === "tool-call")
-		) {
-			return;
-		}
 		const hookContextText = this.pendingHookContexts.join("\n\n");
 		this.pendingHookContexts = [];
+		// displayRole "system" keeps the injected block out of user-facing
+		// transcripts (live and replayed) while it still reaches the model,
+		// mirroring how compaction summaries are handled.
 		const hookContextMessage = createMessage(
 			"user",
 			[{ type: "text", text: hookContextText }],
 			{ userRunSpan: 0, displayRole: "system" },
 		);
-		this.state.messages.push(hookContextMessage);
+		// Never insert between an assistant tool_use and its tool_result: a
+		// resumed session can be seeded with a trailing unresolved tool call,
+		// and a user message in that gap breaks providers' pairing rules. The
+		// context goes in ahead of that call instead — deferring it would only
+		// deliver if the model happened to call a tool next, and the buffer
+		// reset at the following run start would otherwise drop it.
+		const lastMessage = this.state.messages.at(-1);
+		const trailingToolCall =
+			lastMessage?.role === "assistant" &&
+			lastMessage.content.some((part) => part.type === "tool-call");
+		if (trailingToolCall) {
+			this.state.messages.splice(-1, 0, hookContextMessage);
+		} else {
+			this.state.messages.push(hookContextMessage);
+		}
 		await this.emit({
 			type: "message-added",
 			snapshot: this.snapshot(),
@@ -1011,7 +1021,7 @@ export class AgentRuntime {
 			// pushed, so the block lands in the same turn as the user prompt.
 			if (result?.appendContext?.trim()) {
 				this.pendingHookContexts.push(
-					formatRunHookContextBlock(result.appendContext),
+					formatHookContextBlock({ source: "RunStart" }, result.appendContext),
 				);
 			}
 		}
@@ -1832,11 +1842,7 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
-		// The buffer is not cleared here: it is empty on the normal path (each
-		// batch's contexts flush right after the batch, and stale entries from
-		// an aborted run are cleared at run start), and it may legitimately
-		// hold a run-start context whose flush was deferred past a seeded
-		// trailing tool call.
+		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
@@ -1933,8 +1939,7 @@ export class AgentRuntime {
 				if (result?.appendContext?.trim()) {
 					this.pendingHookContexts.push(
 						formatHookContextBlock(
-							"PreToolUse",
-							toolCall,
+							{ source: "PreToolUse", toolCall },
 							result.appendContext,
 						),
 					);
@@ -2089,8 +2094,7 @@ export class AgentRuntime {
 				if (after?.appendContext?.trim()) {
 					this.pendingHookContexts.push(
 						formatHookContextBlock(
-							"PostToolUse",
-							prepared.toolCall,
+							{ source: "PostToolUse", toolCall: prepared.toolCall },
 							after.appendContext,
 						),
 					);
