@@ -9,13 +9,16 @@ import {
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
+	credentialFailureMeta,
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
+	isCredentialFailure,
 	makeId,
 	mapCloudRuntimeStatus,
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
+	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
 import type {
 	AgentChunkEvent,
@@ -45,6 +48,7 @@ import {
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
 import {
 	buildSessionDiffState,
 	EMPTY_DIFF_SUMMARY,
@@ -57,6 +61,7 @@ import {
 	type SessionHistoryItem,
 	type SessionHistoryStatus,
 } from "@/lib/session-history";
+import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
@@ -119,15 +124,15 @@ function errorMessage(err: unknown): string {
 function makeErrorChatMessage(
 	sid: string | null,
 	content: string,
+	meta?: ChatMessage["meta"],
 ): ChatMessage {
 	return {
 		id: makeId("error"),
 		sessionId: sid,
 		role: "error",
-		// Sidecar cloud errors arrive wrapped in a machine-readable envelope;
-		// only the human message belongs in the transcript.
 		content: humanizeCloudSessionError(content),
 		createdAt: Date.now(),
+		...(meta ? { meta } : {}),
 	};
 }
 
@@ -165,8 +170,17 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 	});
 }
 
-function chunkCreatedAt(payload: AgentChunkEvent): number {
-	return payload.ts || Date.now();
+// Live rows are stamped on this process's clock, not the sidecar's `ts`.
+// Every timestamp a live row is compared against comes from here: the
+// optimistic user bubble a send appends, `hydrationStartedAt`,
+// `turnStartedAt`, and the preceding row in the thought-duration
+// subtraction. The sidecar can run on another machine's clock (the
+// browser-dev container, a remote hub), and mixing the two turned a
+// finished reasoning row into a durationless "Thinking" whenever that clock
+// trailed the browser by more than the time to first token. Persisted rows
+// keep the runtime's timestamps and are consistent among themselves.
+function chunkCreatedAt(): number {
+	return Date.now();
 }
 
 function mergeHydratedMessagesWithLive(options: {
@@ -230,9 +244,10 @@ export function mergeCloudSnapshotWithLive(
 	options: {
 		sessionId: string;
 		transcriptKnown: boolean;
-		previousUserCounts: Map<string, number>;
+		previousUserIds: Set<string>;
 		optimisticStates: Map<string, CloudOptimisticState>;
 		preserveUnmatchedLive?: boolean;
+		preserveLiveMessageIds?: Set<string>;
 	},
 ): ChatMessage[] {
 	const reconciledHydrated = [...hydrated];
@@ -240,11 +255,11 @@ export function mergeCloudSnapshotWithLive(
 		index: number | undefined,
 		source: ChatMessage,
 	) => {
-		if (index === undefined || !source.images?.length) return;
+		if (index === undefined) return;
 		const target = reconciledHydrated[index];
 		if (!target) return;
 		const existing = target.images ?? [];
-		const additions = source.images.filter(
+		const additions = (source.images ?? []).filter(
 			(image) =>
 				!existing.some(
 					(candidate) =>
@@ -252,9 +267,11 @@ export function mergeCloudSnapshotWithLive(
 						candidate.mediaType === image.mediaType,
 				),
 		);
-		if (additions.length > 0) {
+		const preserveId = options.preserveLiveMessageIds?.has(source.id) === true;
+		if (additions.length > 0 || preserveId) {
 			reconciledHydrated[index] = {
 				...target,
+				...(preserveId ? { id: source.id } : {}),
 				images: [...existing, ...additions],
 			};
 		}
@@ -276,14 +293,14 @@ export function mergeCloudSnapshotWithLive(
 		indexes.push(index);
 		hydratedIndexesByKey.set(key, indexes);
 	}
-	const hydratedAssistantTexts = hydrated
-		.filter((message) => message.role === "assistant" && message.content)
-		.map((message) => message.content);
-	const unmatchedHydratedAssistantTexts = [...hydratedAssistantTexts];
+	const unmatchedHydratedAssistants = hydrated.flatMap((message, index) =>
+		message.role === "assistant" && message.content
+			? [{ index, text: message.content }]
+			: [],
+	);
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
-		// Never let another session's live messages bleed into this merge.
 		if (message.sessionId && message.sessionId !== options.sessionId) {
 			continue;
 		}
@@ -304,67 +321,52 @@ export function mergeCloudSnapshotWithLive(
 				hydratedIndexesByKey.delete(key);
 			}
 			if (message.role === "assistant" && message.content) {
-				const index = unmatchedHydratedAssistantTexts.indexOf(message.content);
-				if (index >= 0) unmatchedHydratedAssistantTexts.splice(index, 1);
+				const index = unmatchedHydratedAssistants.findIndex(
+					(candidate) => candidate.text === message.content,
+				);
+				if (index >= 0) unmatchedHydratedAssistants.splice(index, 1);
 			}
 			continue;
 		}
 		if (message.role === "assistant" && message.content) {
-			const index = unmatchedHydratedAssistantTexts.findIndex((text) =>
-				text.includes(message.content),
+			const index = unmatchedHydratedAssistants.findIndex((candidate) =>
+				candidate.text.includes(message.content),
 			);
 			if (index >= 0) {
-				unmatchedHydratedAssistantTexts.splice(index, 1);
+				const [match] = unmatchedHydratedAssistants.splice(index, 1);
+				mergeImagesIntoHydrated(match?.index, message);
 				continue;
 			}
 		}
-		// UI-only error bubbles never appear in canonical snapshots; dropping
-		// them here would erase the explanation for the most recent failure
-		// (mirrors applyCanonicalHistory for local sessions).
+		// Canonical snapshots omit UI-only errors; retain those bubbles.
 		if (options.preserveUnmatchedLive === false && message.role !== "error") {
 			continue;
 		}
 		liveOnly.push(message);
 	}
 
-	const currentUserCounts = userMessageCounts(hydrated);
-	const reflectedPromptBudget = new Map<string, number>();
+	// Canonical IDs survive the capped history window sliding forward.
 	const reflectedUserIndexes = new Map<string, number[]>();
 	for (const [index, message] of hydrated.entries()) {
-		if (message.role !== "user") continue;
+		if (message.role !== "user" || options.previousUserIds.has(message.id)) {
+			continue;
+		}
 		const content = comparableUserContent(message.content);
 		const indexes = reflectedUserIndexes.get(content) ?? [];
 		indexes.push(index);
 		reflectedUserIndexes.set(content, indexes);
 	}
-	for (const [content, count] of currentUserCounts) {
-		const previousCount = options.previousUserCounts.get(content) ?? 0;
-		reflectedPromptBudget.set(
-			content,
-			options.transcriptKnown ? Math.max(0, count - previousCount) : count,
-		);
-		if (options.transcriptKnown && previousCount > 0) {
-			reflectedUserIndexes.set(
-				content,
-				(reflectedUserIndexes.get(content) ?? []).slice(previousCount),
-			);
-		}
-	}
-	// Reconcile pending prompts by count delta; always retain failed bubbles.
+	// Consume one newly reflected occurrence per pending prompt; retain failures.
 	for (const message of optimistic) {
 		const optimisticState = options.optimisticStates.get(message.id);
 		const content = comparableUserContent(message.content);
-		const budget = reflectedPromptBudget.get(content) ?? 0;
+		const reflectedIndexes = reflectedUserIndexes.get(content);
 		if (
 			options.transcriptKnown &&
 			optimisticState?.state === "pending" &&
-			budget > 0
+			reflectedIndexes?.length
 		) {
-			reflectedPromptBudget.set(content, budget - 1);
-			mergeImagesIntoHydrated(
-				reflectedUserIndexes.get(content)?.shift(),
-				message,
-			);
+			mergeImagesIntoHydrated(reflectedIndexes.shift(), message);
 			options.optimisticStates.delete(message.id);
 			continue;
 		}
@@ -540,6 +542,7 @@ export function useChatSession() {
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
+	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
 	const [config, setConfig] = useState<ChatSessionConfig>(getInitialChatConfig);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
@@ -555,6 +558,9 @@ export function useChatSession() {
 	const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<
 		string | null
 	>(null);
+	// Names what the runtime is doing before the first output of a turn (in
+	// place of "Thinking..."); ephemeral, cleared when the turn moves on.
+	const [activityLabel, setActivityLabel] = useState<string | null>(null);
 	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
@@ -580,9 +586,7 @@ export function useChatSession() {
 		new Map(),
 	);
 	const cloudTranscriptKnownRef = useRef<Record<string, boolean>>({});
-	const cloudTranscriptUserCountsRef = useRef<
-		Record<string, Map<string, number>>
-	>({});
+	const cloudTranscriptUserIdsRef = useRef<Record<string, Set<string>>>({});
 	// Which optimistic bubble each queued user-message id re-keyed. The re-key
 	// updater consumes the outstanding set on its first run, so StrictMode's
 	// double-invoked updater needs this memo to reach the same result on its
@@ -590,13 +594,14 @@ export function useChatSession() {
 	const rekeyedOptimisticIdByMessageIdRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
+	const providerIdRef = useRef(config.provider);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
+	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
 	const abortedRef = useRef(false);
 	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
-	const abortRequestPendingRef = useRef(false);
 	const hydrationRequestIdRef = useRef(0);
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
@@ -620,6 +625,17 @@ export function useChatSession() {
 	const abortStatusRevisionRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// Identifies the logical turn that owns a failure. Queue submission bumps
+	// the broader turn epoch, but this advances only when that queued turn starts.
+	const failureTurnGenerationRef = useRef(0);
+	// The failure bubble already shown for the current turn, so a second
+	// report of the same failure updates it instead of adding another.
+	const shownTurnFailureRef = useRef<{
+		sid: string;
+		generation: number;
+		id: string;
+		hasDetail: boolean;
+	} | null>(null);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -649,6 +665,9 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		providerIdRef.current = config.provider;
+	}, [config.provider]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -707,22 +726,52 @@ export function useChatSession() {
 			messages: ChatMessage[];
 			preserveUnmatchedLive?: boolean;
 			transcriptKnown?: boolean;
+			preserveLiveRouting?: boolean;
 		}) => {
-			const previousUserCounts =
-				cloudTranscriptUserCountsRef.current[options.sessionId] ?? new Map();
+			const previousUserIds =
+				cloudTranscriptUserIdsRef.current[options.sessionId] ?? new Set();
 			const transcriptKnown =
 				cloudTranscriptKnownRef.current[options.sessionId] === true;
-			setMessages((current) =>
-				mergeCloudSnapshotWithLive(options.messages, current, {
+			const preservedMessageIds = options.preserveLiveRouting
+				? new Set([
+						...(activeAssistantMessageIdRef.current
+							? [activeAssistantMessageIdRef.current]
+							: []),
+						...Object.values(liveToolMessageIdsRef.current),
+					])
+				: undefined;
+			// React may replay the updater; each pass needs the same optimistic ownership.
+			const optimisticStates = new Map(cloudOptimisticStatesRef.current);
+			setMessages((current) => {
+				const unmatchedOptimisticStates = new Map(optimisticStates);
+				const merged = mergeCloudSnapshotWithLive(options.messages, current, {
 					sessionId: options.sessionId,
 					transcriptKnown,
-					previousUserCounts,
-					optimisticStates: cloudOptimisticStatesRef.current,
+					previousUserIds,
+					optimisticStates: unmatchedOptimisticStates,
 					preserveUnmatchedLive: options.preserveUnmatchedLive,
-				}),
+					preserveLiveMessageIds: preservedMessageIds,
+				});
+				for (const [id, state] of optimisticStates) {
+					if (
+						!unmatchedOptimisticStates.has(id) &&
+						cloudOptimisticStatesRef.current.get(id) === state
+					) {
+						cloudOptimisticStatesRef.current.delete(id);
+					}
+				}
+				if (options.preserveLiveRouting) {
+					const liveToolState = deriveLiveToolState(merged);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
+				}
+				return merged;
+			});
+			cloudTranscriptUserIdsRef.current[options.sessionId] = new Set(
+				options.messages
+					.filter((message) => message.role === "user")
+					.map((message) => message.id),
 			);
-			cloudTranscriptUserCountsRef.current[options.sessionId] =
-				userMessageCounts(options.messages);
 			cloudTranscriptKnownRef.current[options.sessionId] =
 				options.transcriptKnown !== false;
 		},
@@ -732,9 +781,11 @@ export function useChatSession() {
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
 		if (targetSessionId) {
 			delete lastStreamIndexBySessionRef.current[targetSessionId];
+			delete lastStreamBootBySessionRef.current[targetSessionId];
 			return;
 		}
 		lastStreamIndexBySessionRef.current = {};
+		lastStreamBootBySessionRef.current = {};
 	}, []);
 
 	const clearAbortFallbackTimeout = useCallback(() => {
@@ -758,56 +809,103 @@ export function useChatSession() {
 	}, []);
 
 	const setErrorState = useCallback(
-		(msg: string, sid: string | null = null) => {
+		(msg: string, sid: string | null = null, meta?: ChatMessage["meta"]) => {
 			outstandingOptimisticUserIdsRef.current.clear();
 			rekeyedOptimisticIdByMessageIdRef.current = {};
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
-				sliceMessages([...prev, makeErrorChatMessage(sid, msg)]),
+				sliceMessages([...prev, makeErrorChatMessage(sid, msg, meta)]),
 			);
 		},
 		[],
+	);
+
+	// A session that fails to start over credentials (a fresh session hits the
+	// rejected OAuth refresh in start, not in the turn) gets the same guidance
+	// and fix action as a failed turn instead of the raw runtime message.
+	const reportSessionStartFailure = useCallback(
+		(err: unknown, sid: string | null) => {
+			const message = errorMessage(err);
+			const providerId = providerIdRef.current;
+			if (!isCredentialFailure(message)) {
+				setErrorState(message, sid);
+				return;
+			}
+			setErrorState(
+				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				sid,
+				credentialFailureMeta(providerId),
+			);
+		},
+		[setErrorState],
 	);
 
 	// Surfaces a failed turn in the transcript. Some turns (for example the
 	// first prompt of a fresh session, which the runtime consumes from its
 	// queue) never resolve through the send() RPC, so without this the app
 	// fails silently: the user message sits alone with no response and no
-	// explanation. Skips appending when an error for this turn is already
-	// visible so the RPC path and the chat_done stream never double-report.
+	// explanation. The RPC path and the chat_done stream can both report the
+	// same failure, and chat_done often lands first with no detail (the hub's
+	// run.failed for a thrown send carries none); the later, detailed report
+	// then upgrades the bubble in place rather than adding a second one. The
+	// `error` state follows the bubble so the chat never also shows it as a
+	// banner.
 	const appendTurnFailureMessage = useCallback(
-		(sid: string, detail: string) => {
+		(
+			sid: string,
+			detail: string,
+			ownedGeneration?: number,
+			ownedProviderId?: string,
+		) => {
+			const generation = ownedGeneration ?? failureTurnGenerationRef.current;
+			const isCurrentTurn =
+				sid === activeSessionIdRef.current &&
+				generation === failureTurnGenerationRef.current;
 			const description =
-				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
-			// Deliberately avoids matching a bare "token": provider failures like
-			// "maximum context tokens exceeded" or rate-limit messages are not
-			// credential problems and must not point users at Settings → Models.
+				detail.trim() ||
+				(isCurrentTurn
+					? lastCoreErrorBySessionRef.current[sid]?.trim() || ""
+					: "");
 			const looksCredentialRelated =
-				!description ||
-				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
-					description,
-				);
+				!description || isCredentialFailure(description);
+			const providerId = ownedProviderId ?? providerIdRef.current;
 			const content = [
 				description
 					? `The run failed: ${description}`
 					: "The run failed before a response was produced.",
-				looksCredentialRelated
-					? "Check your model connection in Settings → Models (or sign in with Cline), then try again."
-					: "",
+				looksCredentialRelated ? resolveCredentialFailureHint(providerId) : "",
 			]
 				.filter(Boolean)
 				.join(" ");
-			setMessages((prev) => {
-				const sessionMessages = prev.filter(
-					(message) => message.sessionId === sid,
-				);
-				const last = sessionMessages[sessionMessages.length - 1];
-				if (last?.role === "error") {
-					return prev;
+			const meta = looksCredentialRelated
+				? credentialFailureMeta(providerId)
+				: undefined;
+			const shown = shownTurnFailureRef.current;
+			if (shown && shown.sid === sid && shown.generation === generation) {
+				if (!description || shown.hasDetail) {
+					return;
 				}
-				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
-			});
+				shown.hasDetail = true;
+				setMessages((prev) =>
+					updateMessageById(prev, shown.id, (message) => ({
+						...message,
+						content,
+						meta,
+					})),
+				);
+				if (isCurrentTurn) setError(content);
+				return;
+			}
+			if (!isCurrentTurn) return;
+			const message = makeErrorChatMessage(sid, content, meta);
+			shownTurnFailureRef.current = {
+				sid,
+				generation,
+				id: message.id,
+				hasDetail: Boolean(description),
+			};
+			setMessages((prev) => sliceMessages([...prev, message]));
 			setError(content);
 		},
 		[],
@@ -1036,6 +1134,21 @@ export function useChatSession() {
 		const index = payload.index;
 		if (typeof index !== "number") {
 			return true;
+		}
+		// `index` counts up inside one sidecar process. When the sidecar is
+		// replaced under a live webview the counter restarts at 1, and without
+		// this the high-water mark below would silently discard the whole
+		// stream — user messages and tool rows included — until the new
+		// process counted past the old run.
+		const boot = payload.boot;
+		if (boot !== undefined) {
+			const previousBoot =
+				lastStreamBootBySessionRef.current[payload.sessionId];
+			if (previousBoot !== boot) {
+				lastStreamBootBySessionRef.current[payload.sessionId] = boot;
+				lastStreamIndexBySessionRef.current[payload.sessionId] = index;
+				return true;
+			}
 		}
 		const previous = lastStreamIndexBySessionRef.current[payload.sessionId];
 		if (previous !== undefined && index <= previous) {
@@ -1463,8 +1576,13 @@ export function useChatSession() {
 				return;
 			}
 			lastLiveChunkAtRef.current = Date.now();
-			if (abortedRef.current && payload.stream !== "chat_done") {
-				return;
+			if (abortedRef.current) {
+				if (payload.stream === "chat_queued_prompt_start") {
+					abortedRef.current = false;
+					clearAbortFallbackTimeout();
+				} else if (payload.stream !== "chat_done") {
+					return;
+				}
 			}
 
 			// --- Text stream (buffered) ---
@@ -1477,7 +1595,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: chunkCreatedAt(payload),
+						createdAt: chunkCreatedAt(),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -1501,7 +1619,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: chunkCreatedAt(payload),
+						createdAt: chunkCreatedAt(),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -1604,7 +1722,7 @@ export function useChatSession() {
 							role: "assistant",
 							content: "",
 							media: [media.data],
-							createdAt: chunkCreatedAt(payload),
+							createdAt: chunkCreatedAt(),
 						},
 					]);
 				});
@@ -1616,12 +1734,15 @@ export function useChatSession() {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
+				failureTurnGenerationRef.current += 1;
+				setActivityLabel(null);
 				// A new turn starts now: an error remembered from an earlier turn
 				// must not be attributed to this one if it fails without detail.
 				delete lastCoreErrorBySessionRef.current[listeningSessionId];
 				let parsed: {
 					promptId?: string;
 					prompt?: string;
+					transcriptReflected?: boolean;
 					attachmentCount?: number;
 					userImages?: string[];
 				} = {};
@@ -1629,6 +1750,7 @@ export function useChatSession() {
 					parsed = JSON.parse(payload.chunk) as {
 						promptId?: string;
 						prompt?: string;
+						transcriptReflected?: boolean;
 						attachmentCount?: number;
 						userImages?: string[];
 					};
@@ -1681,7 +1803,12 @@ export function useChatSession() {
 					promptsInQueueRef.current = next;
 					return next;
 				});
-				if (userLabel || userImages.length > 0) {
+				// Reconnect may already have hydrated this user bubble, but the
+				// queued-start lifecycle above still belongs to the new turn.
+				if (
+					!parsed.transcriptReflected &&
+					(userLabel || userImages.length > 0)
+				) {
 					// Computed outside the updater: makeId() inside would mint a
 					// different id on each StrictMode re-invocation.
 					const userMessageId = promptId
@@ -1718,9 +1845,7 @@ export function useChatSession() {
 								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
 								rekeyedOptimisticIdByMessageIdRef.current[userMessageId] =
 									candidate.id;
-								// Keep the cloud optimistic bookkeeping attached to the
-								// bubble across the re-key, or its failed-send retention
-								// semantics silently stop applying.
+								// Preserve optimistic tracking across re-keying so failed sends remain visible.
 								const cloudState = cloudOptimisticStatesRef.current.get(
 									candidate.id,
 								);
@@ -1748,7 +1873,7 @@ export function useChatSession() {
 								role: "user",
 								content: userLabel,
 								images: images.length > 0 ? images : undefined,
-								createdAt: chunkCreatedAt(payload),
+								createdAt: chunkCreatedAt(),
 							},
 						]);
 					});
@@ -1770,6 +1895,18 @@ export function useChatSession() {
 					) {
 						lastCoreErrorBySessionRef.current[payload.sessionId] =
 							parsed.message.trim();
+					}
+					// An imported session's history is summarized before the first
+					// model call; name that wait instead of showing "Thinking...".
+					const summaryActivity = readImportedHistorySummaryActivity(
+						parsed.metadata,
+					);
+					if (summaryActivity) {
+						setActivityLabel(
+							summaryActivity.phase === "started"
+								? summaryActivity.label
+								: null,
+						);
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
@@ -1807,6 +1944,7 @@ export function useChatSession() {
 			}
 
 			if (payload.stream === "chat_done") {
+				setActivityLabel(null);
 				// The turn is over: any optimistic bubble still registered was
 				// consumed by a direct send and must not be re-keyed by a later
 				// queued prompt that happens to repeat the same text. Clear
@@ -1894,7 +2032,7 @@ export function useChatSession() {
 						input: parsed.input,
 						output: null,
 					}),
-					createdAt: chunkCreatedAt(payload),
+					createdAt: chunkCreatedAt(),
 					meta: {
 						toolName,
 						toolCallId,
@@ -1953,6 +2091,7 @@ export function useChatSession() {
 		[
 			addMessage,
 			appendTurnFailureMessage,
+			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			finalizeSettledTurn,
 			flushPendingStream,
@@ -2007,14 +2146,6 @@ export function useChatSession() {
 				if (!nextStatus) {
 					return;
 				}
-				const resumedAfterAbort =
-					nextStatus === "running" &&
-					abortedRef.current &&
-					!abortRequestPendingRef.current;
-				if (resumedAfterAbort) {
-					abortedRef.current = false;
-					clearAbortFallbackTimeout();
-				}
 				// Status events are projected asynchronously from the hub's
 				// session record and can deliver a stale "running" after the
 				// stream's chat_done already settled the turn. A genuinely new
@@ -2023,17 +2154,32 @@ export function useChatSession() {
 				// equals the settled epoch a "running" here can only be stale.
 				if (
 					nextStatus === "running" &&
-					!resumedAfterAbort &&
 					(abortedRef.current ||
 						turnEpochRef.current === turnSettledEpochRef.current)
 				) {
 					return;
 				}
+				// The reverse case: the hub publishes the session record's status
+				// as soon as the session is created, before the first prompt's
+				// run starts, so an "idle" that lands while a local submission is
+				// still in flight predates the run it is about to start. Applying
+				// it flipped the composer and the request indicator from
+				// "starting" to idle and back for a frame on every new task. The
+				// submission owns status until it hands off (the queued-start
+				// event, or its own completion for a blocking send). Only "idle"
+				// is held back: a terminal status (failed, aborted) during a
+				// submission is real and must still unstick the UI even if the
+				// send response never arrives.
+				if (nextStatus === "idle" && activePromptSubmissionsRef.current > 0) {
+					return;
+				}
 				authoritativeStatusRevisionRef.current += 1;
 				setStatus(
-					(nextStatus === "aborted"
-						? "cancelled"
-						: nextStatus) as ChatSessionStatus,
+					(nextStatus === "provisioning"
+						? "starting"
+						: nextStatus === "aborted"
+							? "cancelled"
+							: nextStatus) as ChatSessionStatus,
 				);
 			},
 		);
@@ -2093,19 +2239,68 @@ export function useChatSession() {
 				) {
 					return;
 				}
+				const rehydrationEpoch = turnEpochRef.current;
 				const applySnapshot = (rehydratedMessages: ChatMessage[]) => {
 					if (activeSessionIdRef.current !== targetSessionId) return;
+					if (turnEpochRef.current !== rehydrationEpoch) return;
 					const nextStatus = record.status?.trim();
+					// A locally submitted turn owns status and live routing until its RPC
+					// settles. A reconnect snapshot may describe the preceding turn.
+					const previousUserIds =
+						cloudTranscriptUserIdsRef.current[targetSessionId] ?? new Set();
+					const snapshotNewUserCounts = userMessageCounts(
+						rehydratedMessages.filter(
+							(message) => !previousUserIds.has(message.id),
+						),
+					);
+					const liveNewUserCounts = userMessageCounts(
+						messagesRef.current.filter(
+							(message) => !previousUserIds.has(message.id),
+						),
+					);
+					const snapshotHasNewUserMessage = Array.from(
+						snapshotNewUserCounts,
+					).some(
+						([content, count]) => count > (liveNewUserCounts.get(content) ?? 0),
+					);
+					const reflectedPromptBudget = new Map(snapshotNewUserCounts);
+					const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
+						(message) => {
+							if (!outstandingOptimisticUserIdsRef.current.has(message.id))
+								return false;
+							const content = comparableUserContent(message.content);
+							const count = reflectedPromptBudget.get(content) ?? 0;
+							if (count === 0) return true;
+							reflectedPromptBudget.set(content, count - 1);
+							return false;
+						},
+					);
+					const localSubmissionActive =
+						activePromptSubmissionsRef.current > 0 ||
+						hasUnreflectedOptimisticPrompt;
+					const snapshotBusy =
+						nextStatus === "running" || nextStatus === "pending";
 					applyCloudSnapshotMessages({
 						sessionId: targetSessionId,
 						messages: rehydratedMessages,
 						transcriptKnown: record.transcriptKnown,
-						preserveUnmatchedLive:
-							nextStatus === "running" || nextStatus === "pending",
+						preserveUnmatchedLive: snapshotBusy || localSubmissionActive,
+						preserveLiveRouting: snapshotBusy || localSubmissionActive,
 					});
-					clearLiveToolRefs();
+					if (!snapshotBusy && localSubmissionActive) return;
+					if (!snapshotBusy) {
+						clearLiveToolRefs();
+					}
 					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
+					if (
+						mappedStatus === "running" &&
+						turnEpochRef.current === turnSettledEpochRef.current &&
+						!snapshotHasNewUserMessage
+					) {
+						return;
+					}
 					if (mappedStatus) {
+						authoritativeStatusRevisionRef.current += 1;
 						setStatus(mappedStatus);
 					}
 				};
@@ -2148,7 +2343,6 @@ export function useChatSession() {
 	}, [
 		appendTurnFailureMessage,
 		applyCloudSnapshotMessages,
-		clearAbortFallbackTimeout,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
 	]);
@@ -2201,21 +2395,28 @@ export function useChatSession() {
 			polling = true;
 			try {
 				const pollStartedAt = Date.now();
-				const [historyMessages, record] = await Promise.all([
+				const statusRevision = authoritativeStatusRevisionRef.current;
+				const isCloudSession = config.executionTarget === "cloud";
+				const readMessages = () =>
 					desktopClient
 						.invoke<ChatMessage[]>("read_session_messages", {
 							sessionId,
 							maxMessages: MAX_MESSAGES,
 						})
-						.catch(() => null),
-					desktopClient
-						.invoke<{ status?: string } | null>("get_discovered_session", {
-							sessionId,
-						})
-						.catch(() => null),
+						.catch(() => null);
+				const recordPromise = desktopClient
+					.invoke<{ status?: string } | null>("get_discovered_session", {
+						sessionId,
+					})
+					.catch(() => null);
+				// Refresh cached cloud readiness before history can attach.
+				const [historyMessages, record] = await Promise.all([
+					isCloudSession ? recordPromise.then(readMessages) : readMessages(),
+					recordPromise,
 				]);
 				if (
 					cancelled ||
+					authoritativeStatusRevisionRef.current !== statusRevision ||
 					activeSessionIdRef.current !== sessionId ||
 					// The live stream resumed (or a local turn started) while
 					// the poll was in flight; live state is fresher than the
@@ -2250,11 +2451,27 @@ export function useChatSession() {
 				// the working indicator and disarming this poll.
 				const nextStatus = record?.status?.trim();
 				if (nextStatus) {
-					const mappedStatus = mapSessionRecordStatus(
-						nextStatus as SessionHistoryStatus,
-					);
+					const mappedStatus = isCloudSession
+						? mapCloudRuntimeStatus(nextStatus)
+						: mapSessionRecordStatus(nextStatus as SessionHistoryStatus);
+					if (!mappedStatus) return;
+					// Sandbox readiness must not replace runtime activity or stop
+					// retries before a successful history read establishes attachment.
+					if (
+						isCloudSession &&
+						mappedStatus === "idle" &&
+						(historyMessages === null ||
+							(status !== "starting" &&
+								(nextStatus === "ready" || nextStatus === "active")))
+					) {
+						return;
+					}
 					if (abortedRef.current && mappedStatus === "running") {
 						return;
+					}
+					if (isCloudSession && nextStatus === "expired") {
+						setIsCloudSessionExpired(true);
+						setPromptsInQueue([]);
 					}
 					authoritativeStatusRevisionRef.current += 1;
 					setStatus(mappedStatus);
@@ -2271,7 +2488,7 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [hydratedHistorySessionId, sessionId, status]);
+	}, [config.executionTarget, hydratedHistorySessionId, sessionId, status]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -2280,6 +2497,8 @@ export function useChatSession() {
 			validatedConfig: ChatSessionConfig,
 			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
 		): Promise<string> => {
+			hydrationRequestIdRef.current += 1;
+			setIsHydratingSession(false);
 			const payload = await postSession({
 				action: "start",
 				config: validatedConfig,
@@ -2294,7 +2513,7 @@ export function useChatSession() {
 				id !== validatedConfig.sessionId
 			) {
 				cloudTranscriptKnownRef.current[id] = true;
-				cloudTranscriptUserCountsRef.current[id] = new Map();
+				cloudTranscriptUserIdsRef.current[id] = new Set();
 			}
 			const workspaceRoot =
 				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
@@ -2304,6 +2523,7 @@ export function useChatSession() {
 				throw new Error("Missing resolved workspace from server");
 			}
 			setSessionId(id);
+			setIsCloudSessionExpired(false);
 			// Mark idle — not running — so the first sendPrompt is not queued.
 			// The status transitions to "starting"/"running" once a prompt is
 			// actually dispatched.
@@ -2371,10 +2591,14 @@ export function useChatSession() {
 		],
 	);
 
+	// Resolves to false when the runtime never took the prompt (a failure
+	// before dispatch, or a provider switch / OAuth refresh that threw before
+	// the turn began) so the caller can hand the text back to the composer.
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []) => {
+		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
+			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
-			if (!trimmed && attachedFiles.length === 0) return;
+			if (!trimmed && attachedFiles.length === 0) return true;
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -2388,7 +2612,7 @@ export function useChatSession() {
 			});
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
-				return;
+				return false;
 			}
 			const parsed = validation.parsed;
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
@@ -2430,7 +2654,7 @@ export function useChatSession() {
 				(error: unknown) => ({ ok: false as const, error }),
 			);
 			const attachedFileCount = attachedFiles.filter(
-				(file) => !file.type.startsWith("image/"),
+				(file) => !imageAttachmentMediaType(file),
 			).length;
 			const userLabel =
 				attachedFileCount > 0
@@ -2456,6 +2680,20 @@ export function useChatSession() {
 				);
 				if (cloudOptimistic) cloudOptimistic.state = "failed";
 			};
+			// The prompt never reached the runtime: retract its optimistic bubble
+			// so the caller can hand the text back to the composer without the
+			// transcript showing it as sent.
+			const withdrawPrompt = () => {
+				if (optimisticUserMessageId) {
+					outstandingOptimisticUserIdsRef.current.delete(
+						optimisticUserMessageId,
+					);
+					setMessages((prev) =>
+						prev.filter((message) => message.id !== optimisticUserMessageId),
+					);
+				}
+				return false;
+			};
 
 			if (optimisticUserMessageId) {
 				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
@@ -2465,6 +2703,7 @@ export function useChatSession() {
 						state: "pending",
 					});
 				}
+				failureTurnGenerationRef.current += 1;
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -2496,6 +2735,7 @@ export function useChatSession() {
 				]);
 			}
 
+			const failureGenerationAtSubmission = failureTurnGenerationRef.current;
 			let sendTask: ReturnType<typeof postSession> | null = null;
 			// The turn epoch at send-RPC dispatch time. chat_queued_prompt_start
 			// bumps the epoch when the runtime starts consuming a queued prompt,
@@ -2514,9 +2754,9 @@ export function useChatSession() {
 							);
 						}
 						markCloudOptimisticFailed();
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
-						return;
+						return withdrawPrompt();
 					}
 				} else if (
 					activeSessionId &&
@@ -2534,9 +2774,9 @@ export function useChatSession() {
 						activeSessionId = await startPromise;
 					} catch (err) {
 						markCloudOptimisticFailed();
-						setErrorState(errorMessage(err), activeSessionId);
+						reportSessionStartFailure(err, activeSessionId);
 						finishPromptSubmission();
-						return;
+						return withdrawPrompt();
 					} finally {
 						if (sessionStartPromiseRef.current === startPromise) {
 							sessionStartPromiseRef.current = null;
@@ -2564,9 +2804,9 @@ export function useChatSession() {
 							activeSessionIdRef.current = null;
 						}
 						markCloudOptimisticFailed();
-						setErrorState(errorMessage(err));
+						reportSessionStartFailure(err, null);
 						finishPromptSubmission();
-						return;
+						return withdrawPrompt();
 					} finally {
 						if (sessionStartPromiseRef.current === startPromise) {
 							sessionStartPromiseRef.current = null;
@@ -2604,7 +2844,7 @@ export function useChatSession() {
 						activeSessionId,
 					);
 					finishPromptSubmission();
-					return;
+					return withdrawPrompt();
 				}
 				const serializedAttachments = serializedAttachmentsResult.attachments;
 				const hasAttachments =
@@ -2650,11 +2890,16 @@ export function useChatSession() {
 			}
 			if (!sendTask) {
 				finishPromptSubmission();
-				return;
+				return withdrawPrompt();
 			}
 			let abortedReconcileEpoch: number | undefined;
+			let replySuperseded = false;
+			let promptTaken = true;
+			const failureOwnerCurrent = () =>
+				activeSessionIdRef.current === activeSessionId &&
+				failureGenerationAtSubmission === failureTurnGenerationRef.current;
 			const settleAbortedSend = () => {
-				if (!abortedRef.current) return false;
+				if (!abortedRef.current || !failureOwnerCurrent()) return false;
 				if (
 					authoritativeStatusRevisionRef.current ===
 					abortStatusRevisionRef.current
@@ -2667,8 +2912,18 @@ export function useChatSession() {
 			};
 			try {
 				const payload = await sendTask;
+				// A queued successor clears the abort flag before the old send's
+				// aborted RPC reply can arrive. Its stream now owns the UI.
+				if (
+					payload.result?.finishReason === "aborted" &&
+					!abortedRef.current &&
+					turnEpochRef.current !== turnEpochAtDispatch
+				) {
+					replySuperseded = true;
+					return true;
+				}
 				if (payload.ok && payload.queued) {
-					if (settleAbortedSend()) return;
+					if (settleAbortedSend()) return true;
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
 						// (chat_queued_prompt_start bumped the epoch) while this
@@ -2679,16 +2934,27 @@ export function useChatSession() {
 						// back to "running" — wedging the composer forever. The
 						// stream (chat_queued_prompt_start/chat_done and
 						// prompts_in_queue_state) is authoritative from here on.
-						return;
+						return true;
 					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
-					return;
+					return true;
 				}
+
+				// The runtime drains the queue before it answers a blocking send,
+				// so the next queued prompt's chat_queued_prompt_start can reach
+				// the webview ahead of this response. That event bumps the epoch
+				// and its turn owns the transcript from then on: its user bubble
+				// exists only in live state until the runtime persists it at the
+				// end of that turn, so replacing the transcript from a canonical
+				// read here would erase it. The newer turn's own completion
+				// reconciles history when it ends.
+				const newerTurnOwnsTranscript = () =>
+					turnEpochRef.current !== turnEpochAtDispatch;
 
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				// On a failed run the runtime reports the error string in
 				// result.text — it is not assistant content and must not be
 				// rendered as an assistant bubble (canonical rehydration would
@@ -2700,7 +2966,7 @@ export function useChatSession() {
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
 				const resolvedAssistantText = rawAssistantText;
-				if (resolvedAssistantText) {
+				if (resolvedAssistantText && !newerTurnOwnsTranscript()) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
 					activeAssistantMessageIdRef.current = assistantMessageId;
@@ -2813,7 +3079,7 @@ export function useChatSession() {
 					});
 				}
 				const fallbackMedia = fallbackAssistantTurn.media;
-				if (fallbackMedia.length > 0) {
+				if (fallbackMedia.length > 0 && !newerTurnOwnsTranscript()) {
 					setMessages((prev) => {
 						const knownIds = new Set(
 							prev.flatMap((message) =>
@@ -2844,7 +3110,11 @@ export function useChatSession() {
 					fallbackAssistantTurn.reasoningRedacted ||
 					fallbackImages.length > 0 ||
 					fallbackMedia.length > 0;
-				if (!hasFallbackAssistantTurn && config.executionTarget !== "cloud") {
+				if (
+					!hasFallbackAssistantTurn &&
+					config.executionTarget !== "cloud" &&
+					!newerTurnOwnsTranscript()
+				) {
 					// Recovery: load canonical messages if transport missed result text.
 					// Cloud sessions hydrate through the snapshot path below instead.
 					try {
@@ -2852,14 +3122,18 @@ export function useChatSession() {
 							"read_session_messages",
 							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
-						if (historyMessages.length > 0) {
+						if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 							applyCanonicalHistory(activeSessionId, historyMessages);
 						}
 					} catch {
 						// Keep optimistic state if hydration read fails.
 					}
 				}
-				if (Array.isArray(result?.toolCalls) && result.toolCalls.length > 0) {
+				if (
+					Array.isArray(result?.toolCalls) &&
+					result.toolCalls.length > 0 &&
+					!newerTurnOwnsTranscript()
+				) {
 					materializeToolMessagesFromResult({
 						sessionId: activeSessionId,
 						turnStartedAt: now,
@@ -2872,7 +3146,7 @@ export function useChatSession() {
 						"read_session_messages",
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
-					if (historyMessages.length > 0) {
+					if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 						if (config.executionTarget === "cloud") {
 							applyCloudSnapshotMessages({
 								sessionId: activeSessionId,
@@ -2993,10 +3267,19 @@ export function useChatSession() {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
+				// A queued prompt that already started its turn owns status from here.
+				const newerTurnOwnsStatus = newerTurnOwnsTranscript();
 				if (payload.recoveredAfterDisconnect) {
 					const recoveredStatus = mapCloudRuntimeStatus(payload.status);
-					if (recoveredStatus) {
+					if (
+						!newerTurnOwnsStatus &&
+						recoveredStatus &&
+						!(
+							recoveredStatus === "running" &&
+							turnEpochRef.current === turnSettledEpochRef.current
+						)
+					) {
 						setStatus(recoveredStatus);
 					}
 				} else if (result?.finishReason === "error") {
@@ -3011,12 +3294,28 @@ export function useChatSession() {
 					appendTurnFailureMessage(
 						activeSessionId,
 						runError || toolError?.trim() || "",
+						failureGenerationAtSubmission,
+						parsed.provider,
 					);
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("failed");
+					if (!newerTurnOwnsStatus) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("failed");
+					}
+					// A run that fails mid-turn always carries `messages` (the
+					// user turn is persisted). The sidecar synthesizes a
+					// messages-less error result when the runtime threw before
+					// the turn began — e.g. the provider switch or OAuth refresh
+					// failed — so the prompt never entered the session.
+					if (!result.messages) {
+						promptTaken = withdrawPrompt();
+					}
 				} else if (result?.finishReason === "aborted") {
-					turnSettledEpochRef.current = turnEpochRef.current;
-					setStatus("cancelled");
+					if (!newerTurnOwnsStatus) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("cancelled");
+					}
+				} else if (newerTurnOwnsStatus) {
+					// Leave status to the turn in flight.
 				} else if (hasQueuedFollowUps) {
 					setStatus("running");
 				} else {
@@ -3025,31 +3324,46 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
-				if (settleAbortedSend()) return;
+				if (settleAbortedSend()) return true;
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
 					);
 				}
 				markCloudOptimisticFailed();
-				setErrorState(errorMessage(err), activeSessionId);
+				if (!failureOwnerCurrent()) {
+					replySuperseded = true;
+				} else {
+					setErrorState(errorMessage(err), activeSessionId);
+				}
 			} finally {
-				clearAbortFallbackTimeout();
+				if (!replySuperseded && failureOwnerCurrent()) {
+					clearAbortFallbackTimeout();
+				}
 				if (!shouldQueue) {
 					pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
-					activeAssistantMessageIdRef.current = null;
-					setActiveAssistantMessageId(null);
-					clearLiveToolRefs();
+					// If a queued successor already started, these refs belong to it.
+					if (
+						!replySuperseded &&
+						turnEpochRef.current === turnEpochAtDispatch
+					) {
+						activeAssistantMessageIdRef.current = null;
+						setActiveAssistantMessageId(null);
+						clearLiveToolRefs();
+					}
 				}
 				finishPromptSubmission();
 				if (
-					abortedReconcileEpoch !== undefined &&
 					activeSessionIdRef.current === activeSessionId &&
-					turnEpochRef.current === abortedReconcileEpoch
+					((abortedReconcileEpoch !== undefined &&
+						turnEpochRef.current === abortedReconcileEpoch) ||
+						(turnEpochRef.current !== turnEpochAtDispatch &&
+							turnEpochRef.current === turnSettledEpochRef.current))
 				) {
 					finalizeSettledTurn(activeSessionId);
 				}
 			}
+			return promptTaken;
 		},
 		[
 			addMessage,
@@ -3062,8 +3376,10 @@ export function useChatSession() {
 			config,
 			finalizeSettledTurn,
 			hydratedHistorySessionId,
+			isCloudSessionExpired,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
+			reportSessionStartFailure,
 			sessionId,
 			setErrorState,
 			startSession,
@@ -3200,7 +3516,6 @@ export function useChatSession() {
 			}
 		};
 		abortedRef.current = true;
-		abortRequestPendingRef.current = true;
 		setStatus("stopping");
 		clearAbortFallbackTimeout();
 		abortFallbackTimeoutRef.current = setTimeout(() => {
@@ -3220,8 +3535,6 @@ export function useChatSession() {
 			}
 		} catch {
 			restoreFallbackStatus();
-		} finally {
-			abortRequestPendingRef.current = false;
 		}
 	}, [clearAbortFallbackTimeout, postSession, sessionId, status]);
 
@@ -3246,10 +3559,12 @@ export function useChatSession() {
 	);
 
 	const reset = useCallback(async () => {
+		hydrationRequestIdRef.current += 1;
 		const activeSessionId = sessionId;
 		setSessionId(null);
 		setStatus("idle");
 		setIsHydratingSession(false);
+		setIsCloudSessionExpired(false);
 		abortedRef.current = false;
 		clearAbortFallbackTimeout();
 		discardPendingStream();
@@ -3279,9 +3594,11 @@ export function useChatSession() {
 		lastCoreErrorBySessionRef.current = {};
 		cloudOptimisticStatesRef.current.clear();
 		cloudTranscriptKnownRef.current = {};
-		cloudTranscriptUserCountsRef.current = {};
+		cloudTranscriptUserIdsRef.current = {};
+		shownTurnFailureRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
+		setActivityLabel(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
 		setPendingAskQuestions([]);
@@ -3308,6 +3625,9 @@ export function useChatSession() {
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
+			setIsCloudSessionExpired(
+				session.origin === "cloud" && session.status === "expired",
+			);
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
@@ -3332,6 +3652,7 @@ export function useChatSession() {
 			activeSessionIdRef.current = session.sessionId;
 			activeAssistantMessageIdRef.current = null;
 			setActiveAssistantMessageId(null);
+			setActivityLabel(null);
 			// A freshly hydrated session has no local turn in flight; without
 			// this the mount defaults (epoch 0, settled -1) read as an open
 			// turn and keep the stale-stream fallback inert forever.
@@ -3350,11 +3671,13 @@ export function useChatSession() {
 				outstandingOptimisticUserIdsRef.current.clear();
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
+				shownTurnFailureRef.current = null;
 				if (session.origin === "cloud") {
 					applyCloudSnapshotMessages({
 						sessionId: session.sessionId,
 						messages: msgs,
 						preserveUnmatchedLive: true,
+						preserveLiveRouting: sessionStatus === "running",
 					});
 				} else {
 					const mergedMessages = mergeHydratedMessagesWithLive({
@@ -3373,7 +3696,12 @@ export function useChatSession() {
 				}
 				setRawTranscript("");
 				resetCounters();
-				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
+				setStatus(
+					session.origin === "cloud"
+						? (mapCloudRuntimeStatus(sessionStatus) ??
+								inferHydratedChatStatus(sessionStatus, msgs))
+						: inferHydratedChatStatus(sessionStatus, msgs),
+				);
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
@@ -3414,6 +3742,7 @@ export function useChatSession() {
 						},
 					})
 					.catch((err) => {
+						if (hydrationRequestIdRef.current !== requestId) return undefined;
 						if (historyMessages.length === 0) {
 							throw err;
 						}
@@ -3444,13 +3773,31 @@ export function useChatSession() {
 						session.cwd ||
 						prev.cwd,
 				}));
+				if (
+					session.origin === "cloud" &&
+					(attached?.status || session.status) === "expired"
+				) {
+					setIsCloudSessionExpired(true);
+					setError(
+						historyMessages.length > 0
+							? "This cloud session has expired. Start a new cloud session to continue."
+							: "This cloud session has expired and no archived history is available. Start a new cloud session to continue.",
+					);
+				}
 
 				if (historyMessages.length > 0) {
 					setStatus(
-						inferHydratedChatStatus(
-							(attached?.status || session.status) as SessionHistoryStatus,
-							historyMessages,
-						),
+						session.origin === "cloud"
+							? (mapCloudRuntimeStatus(attached?.status || session.status) ??
+									inferHydratedChatStatus(
+										(attached?.status ||
+											session.status) as SessionHistoryStatus,
+										historyMessages,
+									))
+							: inferHydratedChatStatus(
+									(attached?.status || session.status) as SessionHistoryStatus,
+									historyMessages,
+								),
 					);
 					return;
 				}
@@ -3544,7 +3891,7 @@ export function useChatSession() {
 	const steerPromptInQueue = useCallback(
 		async (promptId: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
+			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
 				return;
 			}
 			const payload = await postSession({
@@ -3556,13 +3903,13 @@ export function useChatSession() {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[isCloudSessionExpired, postSession],
 	);
 
 	const updatePromptInQueue = useCallback(
 		async (promptId: string, prompt: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
+			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
 				return;
 			}
 			const payload = await postSession({
@@ -3575,13 +3922,13 @@ export function useChatSession() {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[isCloudSessionExpired, postSession],
 	);
 
 	const removePromptInQueue = useCallback(
 		async (promptId: string): Promise<PromptInQueue | undefined> => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
+			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
 				return undefined;
 			}
 			const payload = await postSession({
@@ -3594,7 +3941,7 @@ export function useChatSession() {
 			);
 			return payload.prompt;
 		},
-		[postSession],
+		[isCloudSessionExpired, postSession],
 	);
 
 	const summary = useMemo(
@@ -3621,17 +3968,19 @@ export function useChatSession() {
 	return {
 		sessionId,
 		status,
+		isCloudSessionExpired,
 		chatTransportState,
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		rawTranscript,
 		error,
 		summary,
 		fileDiffs,
-		promptsInQueue,
+		promptsInQueue: isCloudSessionExpired ? [] : promptsInQueue,
 		pendingToolApprovals,
 		pendingAskQuestions,
 		setConfig,

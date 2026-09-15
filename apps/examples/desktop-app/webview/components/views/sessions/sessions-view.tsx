@@ -52,7 +52,6 @@ import {
 	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
-import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
@@ -244,6 +243,24 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	const canGoNext =
 		currentPage + 1 < pageCount ||
 		(history.mayHaveMoreSessions && !requiresCompleteHistory);
+
+	// Tokens and cost are not part of the discovery rows; the hook reads them
+	// from each transcript on demand, so tell it which rows are on screen.
+	// Paging (or a fresh batch of older sessions) changes the visible rows and
+	// the new page fills in the same way.
+	useEffect(() => {
+		history.requestUsage(visibleThreads.map((thread) => thread.id));
+	}, [history.requestUsage, visibleThreads]);
+	// Leaving the view releases its page, so running sessions on it stop being
+	// re-read while nobody is looking at them. Separate from the effect above
+	// on purpose: a per-change cleanup would clear and re-set the same ids and
+	// restart the hook's hydration each time a row filled in.
+	useEffect(
+		() => () => {
+			history.requestUsage([]);
+		},
+		[history.requestUsage],
+	);
 
 	// Snap back when a page disappears (filters changed, or "next" asked the
 	// backend for older sessions and there were none left).
@@ -470,7 +487,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								: null;
 							const workspace = session?.workspaceRoot || session?.cwd || "";
 							const updated = formatRelativeTime(
-								session?.endedAt || session?.startedAt,
+								session?.lastActivityAt ||
+									session?.endedAt ||
+									session?.startedAt,
 							);
 							return (
 								<div
@@ -672,15 +691,10 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 														{thread.pinned ? "Unpin" : "Pin"}
 													</DropdownMenuItem>
 												) : null}
-												{/* Cloud sessions support rename (PATCH title), matching
-												    the sidebar and chat header affordances. Provisioning
-												    placeholders have no server session to rename yet. */}
-												{!isCloudProvisioningSessionId(thread.id) ? (
-													<DropdownMenuItem onClick={() => startRename(thread)}>
-														<Pencil className="size-4" />
-														Rename
-													</DropdownMenuItem>
-												) : null}
+												<DropdownMenuItem onClick={() => startRename(thread)}>
+													<Pencil className="size-4" />
+													Rename
+												</DropdownMenuItem>
 												{thread.origin !== "cloud" ? (
 													<DropdownMenuItem
 														onClick={() => void history.forkThread(thread.id)}
@@ -691,9 +705,6 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
-													// Provisioning placeholders have no server session
-													// to delete yet; the sidecar rejects the request.
-													disabled={isCloudProvisioningSessionId(thread.id)}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"
 												>

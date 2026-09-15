@@ -4,7 +4,6 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
-	Bot,
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
@@ -12,11 +11,13 @@ import {
 	Filter,
 	FolderTree,
 	GitFork,
+	Import,
 	Loader2,
 	Mic,
 	PanelLeftOpen,
 	Pencil,
 	Pin,
+	Plug,
 	Plus,
 	Radio,
 	Search,
@@ -89,7 +90,6 @@ import {
 	isBetaVersion,
 	productNameForVersion,
 } from "@/lib/app-channel";
-import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -143,10 +143,11 @@ function hubPort(url: string | null): string | null {
 
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
-	Models: Bot,
+	"API Providers": Plug,
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
+	Import: Import,
 	Account: CircleUserRound,
 	Customize: Blocks,
 	Marketplace: Store,
@@ -916,12 +917,12 @@ export function AgentSidebar({
 								newTaskActive && "bg-surface-hover text-sidebar-foreground",
 							)}
 							onClick={openHome}
-							title="Start a new task"
+							title="Start a new session"
 							type="button"
 							variant="sidebarItem"
 						>
 							<Plus className="size-4 shrink-0" />
-							<span className="truncate">New</span>
+							<span className="truncate">Session</span>
 						</Button>
 						<Button
 							aria-label="Schedule"
@@ -1601,7 +1602,7 @@ function ThreadItem({
 							<Button
 								aria-label={`Delete ${title}`}
 								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
-								disabled={pending || isCloudProvisioningSessionId(thread.id)}
+								disabled={pending}
 								onClick={(event) => {
 									event.stopPropagation();
 									onDelete();
@@ -1631,7 +1632,7 @@ function ThreadItem({
 						<div className="wrap-break-word text-sm font-medium">
 							{overviewTitle}
 						</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
+						<div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
@@ -1650,10 +1651,7 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowPin={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				// Provisioning placeholders have no server session to rename or
-				// delete yet (the sidecar rejects both until the create settles).
-				allowRename={!isCloudProvisioningSessionId(thread.id)}
-				allowDelete={!isCloudProvisioningSessionId(thread.id)}
+				allowRename
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}

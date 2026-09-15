@@ -12,6 +12,7 @@ import {
 	Cloud,
 	Cpu,
 	Paperclip,
+	Plus,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +47,10 @@ import {
 	type ModelPickerData,
 } from "@/lib/featured-models";
 import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
+import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
@@ -54,6 +59,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	subscribeToProviderCatalogInvalidation,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
@@ -63,6 +69,7 @@ import { cn } from "@/lib/utils";
 
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
+import { PullRequestBar } from "./pull-request-bar";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -288,6 +295,7 @@ export type PromptDraft = {
 
 type ChatInputBarProps = {
 	variant?: "conversation" | "welcome";
+	readOnly?: boolean;
 	status: ChatSessionStatus;
 	hasRunningAgents?: boolean;
 	provider: string;
@@ -324,7 +332,7 @@ type ChatInputBarProps = {
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	onOpenVoiceInputSettings?: () => void;
+	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -336,6 +344,7 @@ type ChatInputBarProps = {
 
 function ChatInputBarImpl({
 	variant = "conversation",
+	readOnly = false,
 	status,
 	hasRunningAgents = false,
 	provider,
@@ -366,7 +375,7 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
+	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -472,11 +481,6 @@ function ChatInputBarImpl({
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
-	const canSend =
-		hasDraft &&
-		!speechInputActive &&
-		!needsCloudRepository &&
-		(executionTarget !== "cloud" || promptInput.trim().length > 0);
 	const cloudContextLabel = useMemo(
 		() =>
 			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
@@ -484,12 +488,94 @@ function ChatInputBarImpl({
 				.join(" / "),
 		[cloudBranch, repoUrl],
 	);
+	const [imageCapability, setImageCapability] = useState<{
+		provider: string;
+		model: string;
+		supported: boolean | null;
+	} | null>(null);
+	const imagesUnsupported =
+		imageCapability?.provider === provider &&
+		imageCapability.model === model &&
+		imageCapability.supported === false;
+	const handleModelSupportsImagesChange = useCallback(
+		(supported: boolean | null) => {
+			setImageCapability({ provider, model, supported });
+		},
+		[provider, model],
+	);
+	const reportUnsupportedImages = useCallback(() => {
+		toast({
+			title: "This model doesn’t support image input",
+			description:
+				"Choose a model that supports images or remove the images before sending." +
+				(executionTarget === "cloud"
+					? ""
+					: " Other files can still be attached."),
+		});
+	}, [executionTarget]);
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const supportedFiles =
+				executionTarget === "cloud"
+					? files.filter(
+							(file) =>
+								imageAttachmentMediaType(file) &&
+								!isUnsupportedImageAttachment(file),
+						)
+					: files;
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: "Unsupported cloud attachment",
+					description:
+						"Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files.",
+				});
+			}
+			const allowed = imagesUnsupported
+				? supportedFiles.filter((file) => !imageAttachmentMediaType(file))
+				: supportedFiles;
+			if (allowed.length !== supportedFiles.length) reportUnsupportedImages();
+			if (allowed.length > 0) onAttachFiles(allowed);
+		},
+		[
+			executionTarget,
+			imagesUnsupported,
+			onAttachFiles,
+			reportUnsupportedImages,
+		],
+	);
+	const unsupportedDraftImageCount = imagesUnsupported
+		? attachments.filter((attachment) => attachment.isImage).length
+		: 0;
+	const canSend =
+		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
 	const handleSend = useCallback(() => {
-		if (!canSend) return;
+		if (speechInputActive || readOnly) return;
+		if (unsupportedDraftImageCount > 0) {
+			reportUnsupportedImages();
+			return;
+		}
+		if (needsCloudRepository) return;
 		const prompt = promptInput.trim();
+		if (!prompt) {
+			toast({
+				title: "Add a message to go with your attachments",
+				description:
+					"Describe what you want Cline to do with the attached files before sending.",
+			});
+			return;
+		}
 		setPromptInput("");
 		onSend(prompt);
-	}, [canSend, onSend, promptInput, setPromptInput]);
+	}, [
+		needsCloudRepository,
+		readOnly,
+		onSend,
+		promptInput,
+		setPromptInput,
+		speechInputActive,
+		unsupportedDraftImageCount,
+		reportUnsupportedImages,
+	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -793,38 +879,30 @@ function ChatInputBarImpl({
 		[transcriptionTarget],
 	);
 
-	const handleSpeechInputError = useCallback(
-		(error: unknown) => {
-			// Microphone failures surface as DOMExceptions (getUserMedia) or
-			// capture-layer events; provider failures (credentials, transcription
-			// setup) as plain Errors, and are fixed in Settings → Voice.
-			const isMicrophoneError =
-				error instanceof DOMException || error instanceof Event;
-			const message =
-				error instanceof Error
-					? error.message
-					: "Check microphone permission and audio provider settings.";
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "error",
-				message: "Speech input failed in the webview",
-				timestamp: new Date().toISOString(),
-				metadata: { failure: message },
-			});
-			if (!isMicrophoneError && onOpenVoiceInputSettings) {
-				onOpenVoiceInputSettings();
-				return;
-			}
-			toast({
-				variant: "destructive",
-				title: "Speech input failed",
-				description: isMicrophoneError
-					? "Check the microphone permission for Cline and try again."
-					: message,
-			});
-		},
-		[onOpenVoiceInputSettings],
-	);
+	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
+		const message =
+			error instanceof Error
+				? error.message
+				: "Check microphone permission and audio provider settings.";
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "error",
+			message: "Speech input failed in the webview",
+			timestamp: new Date().toISOString(),
+			metadata: { failure: message },
+		});
+		toast({
+			variant: "destructive",
+			title: "Speech input failed",
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
+		});
+	}, []);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -1081,6 +1159,7 @@ function ChatInputBarImpl({
 			)}
 		>
 			{/* Input area */}
+			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<div
 				className={cn(
 					"px-4 py-3",
@@ -1250,10 +1329,16 @@ function ChatInputBarImpl({
 									// Attach the image instead of pasting its fallback
 									// text representation (e.g. a file path or URL).
 									e.preventDefault();
-									onAttachFiles(images);
+									handleAttachFiles(images);
 								}
 							}}
 							onKeyDown={(e) => {
+								// While an IME (e.g. Chinese/Japanese) is composing, Enter
+								// commits the composition and arrows move between candidates,
+								// so leave those keys to the IME. WebKit can fire the committing
+								// Enter after compositionend with isComposing already false but
+								// the legacy keyCode 229, hence the second check.
+								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -1343,7 +1428,7 @@ function ChatInputBarImpl({
 													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
 													: "Enter your question or type / for commands or @ for context"
 							}
-							readOnly={speechInputActive}
+							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
 							role="combobox"
 							rows={promptInputRows}
@@ -1433,6 +1518,12 @@ function ChatInputBarImpl({
 						</div>
 					</div>
 				</div>
+				{unsupportedDraftImageCount > 0 && (
+					<output className="block px-2 text-sm text-destructive">
+						This model doesn’t support the attached images. Remove them or
+						choose a model that supports images before sending.
+					</output>
+				)}
 				{attachments.length > 0 && (
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{attachments.map((attachment) => (
@@ -1462,6 +1553,13 @@ function ChatInputBarImpl({
 						aria-label={
 							executionTarget === "cloud" ? "Attach images" : "Attach files"
 						}
+						title={
+							executionTarget === "cloud"
+								? "Attach images"
+								: imagesUnsupported
+									? "Attach files (this model doesn’t support images)"
+									: "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -1474,7 +1572,7 @@ function ChatInputBarImpl({
 						multiple
 						onChange={(event) => {
 							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) onAttachFiles(files);
+							if (files.length > 0) handleAttachFiles(files);
 							event.currentTarget.value = "";
 						}}
 						ref={fileInputRef}
@@ -1520,12 +1618,15 @@ function ChatInputBarImpl({
 									: undefined
 							}
 							autoCorrectModel={!cloudSettingsLocked}
+							includeCloudModels={executionTarget === "cloud"}
 							isBusy={isBusy}
 							model={model}
 							onModelChange={onModelChange}
+							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
+							onOpenModelSettings={onOpenModelSettings}
 							onProviderChange={onProviderChange}
 							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
@@ -1613,9 +1714,13 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
+/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
+const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
+
 const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
 	autoCorrectModel = true,
+	includeCloudModels = false,
 	persistSelection = true,
 	provider,
 	model,
@@ -1623,9 +1728,12 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
+	onModelSupportsImagesChange,
+	onOpenModelSettings,
 }: {
 	allowedProviderIds?: string[];
 	autoCorrectModel?: boolean;
+	includeCloudModels?: boolean;
 	persistSelection?: boolean;
 	provider: string;
 	model: string;
@@ -1633,6 +1741,9 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
+	onModelSupportsImagesChange: (supported: boolean | null) => void;
+	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
+	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1654,7 +1765,55 @@ const ModelSelector = memo(function ModelSelector({
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
+	const [catalogRevision, setCatalogRevision] = useState(0);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	useEffect(
+		() =>
+			subscribeToProviderCatalogInvalidation(() =>
+				setCatalogRevision((current) => current + 1),
+			),
+		[],
+	);
+	const applyProviderModels = useCallback(
+		(providerId: string, models: ProviderModel[]) => {
+			setProviderModels((current) => ({
+				...current,
+				[providerId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[providerId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setModelDetails((current) => ({
+				...current,
+				[providerId]: models,
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(providerId) ? current : [...current, providerId],
+			);
+		},
+		[],
+	);
+	// Re-fetch only the live list on picker open so the Recommended/Free tiers
+	// stay current. Re-running the full load would first re-apply the bundled
+	// catalog and briefly flash a stale name in the trigger.
+	const refreshActiveProviderModels = useCallback(() => {
+		if (!normalizedProvider) return;
+		const loading = includeCloudModels
+			? loadProviderModels(normalizedProvider, { includeCloudModels: true })
+			: loadProviderModels(normalizedProvider);
+		loading
+			.then((models) => {
+				if (models.length === 0) return;
+				applyProviderModels(normalizedProvider, models);
+				setReasoningCapabilitySource("catalog");
+			})
+			.catch(() => {
+				// Keep the current list when the refresh fails.
+			});
+	}, [applyProviderModels, includeCloudModels, normalizedProvider]);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
@@ -1703,6 +1862,17 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[modelDetails, visibleProviderModels],
 	);
+	useEffect(() => {
+		const selected = modelDetails[normalizedProvider]?.find(
+			(entry) => entry.id === model,
+		);
+		onModelSupportsImagesChange(
+			selected?.inputModalities !== undefined
+				? selected.inputModalities.includes("image")
+				: (selected?.supportsVision ?? null),
+		);
+	}, [modelDetails, normalizedProvider, model, onModelSupportsImagesChange]);
+
 	const modelPicker = useMemo(
 		() => pickerDataForProvider(resolvedProvider),
 		[pickerDataForProvider, resolvedProvider],
@@ -1712,21 +1882,29 @@ const ModelSelector = memo(function ModelSelector({
 		[modelPicker],
 	);
 	const resolvedModel = useMemo(() => {
-		if (modelsForProvider.length === 0) {
-			return "";
-		}
 		const rememberedModel =
 			lastSelection.lastModelByProvider[resolvedProvider] ??
-			lastSelection.lastModelByProvider[rememberedLastProvider];
-		// An explicitly configured model stays active even when the picker's
-		// offer hides it (the picker preserves it as a visible option below);
-		// remembered and default selections are our own bookkeeping, so they
-		// must resolve to a visible option — otherwise a stale remembered id
-		// gets silently resurrected into a selection the picker cannot show.
-		if (model && modelsForProvider.includes(model)) {
+			(normalizeProviderId(rememberedLastProvider) === resolvedProvider
+				? lastSelection.lastModelByProvider[rememberedLastProvider]
+				: undefined);
+		// Catalogs are discovery data, not validation: the bundled catalog can
+		// omit live ClinePass models, and refreshes can return partial lists.
+		// Keep the configured model for the current provider even if absent;
+		// otherwise loading the catalog silently changes the session's model.
+		if (
+			model &&
+			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model))
+		) {
 			return model;
 		}
-		if (rememberedModel && pickerModelIds.has(rememberedModel)) {
+		// Missing remembered models may also be live-only. Models present in
+		// the catalog but deliberately hidden from the offer still fall back.
+		if (
+			rememberedModel &&
+			(pickerModelIds.has(rememberedModel) ||
+				!modelsForProvider.includes(rememberedModel))
+		) {
 			return rememberedModel;
 		}
 		return (
@@ -1738,6 +1916,7 @@ const ModelSelector = memo(function ModelSelector({
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		normalizedProvider,
 		pickerModelIds,
 		rememberedLastProvider,
 		resolvedProvider,
@@ -1745,8 +1924,8 @@ const ModelSelector = memo(function ModelSelector({
 	// The picker can intentionally hide catalog models (the ClinePass offer
 	// is exactly its subscribed/free tiers), but the active model must stay
 	// visible and selectable — e.g. a hydrated session configured with a
-	// model outside the current offer. Surface it under its own section
-	// rather than selecting a value that does not exist in the list.
+	// model outside the current offer or missing from the catalog. Surface it
+	// under its own section so the selected value always exists in the list.
 	const visibleModelPicker = useMemo((): ModelPickerData => {
 		if (!resolvedModel || pickerModelIds.has(resolvedModel)) {
 			return modelPicker;
@@ -1781,6 +1960,7 @@ const ModelSelector = memo(function ModelSelector({
 		resolvedProvider,
 	]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: catalogRevision is a reload signal.
 	useEffect(() => {
 		let cancelled = false;
 		setReasoningCapabilitySource("loading");
@@ -1822,32 +2002,16 @@ const ModelSelector = memo(function ModelSelector({
 				return;
 			}
 			try {
-				const models = await loadProviderModels(normalizedProvider);
+				const models = includeCloudModels
+					? await loadProviderModels(normalizedProvider, {
+							includeCloudModels: true,
+						})
+					: await loadProviderModels(normalizedProvider);
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
-				setProviderModels((current) => ({
-					...current,
-					[normalizedProvider]: modelIds,
-				}));
-				setProviderReasoningModels((current) => ({
-					...current,
-					[normalizedProvider]: reasoningModelIds,
-				}));
-				setModelDetails((current) => ({
-					...current,
-					[normalizedProvider]: models,
-				}));
+				applyProviderModels(normalizedProvider, models);
 				setReasoningCapabilitySource("catalog");
-				setEnabledProviderIds((current) =>
-					current.includes(normalizedProvider)
-						? current
-						: [...current, normalizedProvider],
-				);
 			} catch {
 				// Keep the catalog values when provider-specific loading fails.
 			}
@@ -1857,30 +2021,20 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [
+		applyProviderModels,
+		catalogRevision,
+		includeCloudModels,
+		normalizedProvider,
+	]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
 			const normalizedId = normalizeProviderId(providerId);
-			setProviderModels((current) => ({
-				...current,
-				[normalizedId]: models.map((entry) => entry.id),
-			}));
-			setProviderReasoningModels((current) => ({
-				...current,
-				[normalizedId]: models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id),
-			}));
-			setModelDetails((current) => ({
-				...current,
-				[normalizedId]: models,
-			}));
-			setEnabledProviderIds((current) =>
-				current.includes(normalizedId) ? current : [...current, normalizedId],
-			);
+			if (includeCloudModels && normalizedId === "cline") return;
+			applyProviderModels(normalizedId, models);
 		});
-	}, []);
+	}, [applyProviderModels, includeCloudModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
@@ -1930,10 +2084,6 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
-		// isBusy also covers a locked cloud composer: silently "correcting" an
-		// attached cloud session's model (e.g. an org-catalog id missing from
-		// the local list) would push a real model change to the remote session
-		// on the next send, contradicting the locked-settings tooltip.
 		if (isBusy) {
 			return;
 		}
@@ -1983,17 +2133,23 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
+			if (value === ADD_PROVIDER_OPTION_VALUE) {
+				setMobileOpen(false);
+				onOpenModelSettings?.();
+				return;
+			}
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
-			// Validate against the target provider's visible picker options,
-			// not its full catalog: a remembered model the picker hides (e.g.
-			// outside the ClinePass offer) must not become the selection.
+			// Preserve live-only remembered models missing from the bundled
+			// catalog. Only fall back when a known model is hidden by the offer.
 			const providerOptionIds = new Set(
 				pickerDataForProvider(value).options.map((option) => option.value),
 			);
 			const nextModel =
-				rememberedModel && providerOptionIds.has(rememberedModel)
+				rememberedModel &&
+				(providerOptionIds.has(rememberedModel) ||
+					!providerModelIds.includes(rememberedModel))
 					? rememberedModel
 					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
 						providerModelIds[0]);
@@ -2006,6 +2162,7 @@ const ModelSelector = memo(function ModelSelector({
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
+			onOpenModelSettings,
 			onProviderChange,
 			pickerDataForProvider,
 			rememberSelection,
@@ -2019,13 +2176,25 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	// The picker only lists providers with saved settings, so it is also the
+	// natural place to reach the rest of the catalog.
 	const providerOptions = useMemo(
-		() =>
-			providers.map((value) => ({
+		() => [
+			...providers.map((value) => ({
 				label: providerNames[value]?.trim() || value,
 				value,
 			})),
-		[providerNames, providers],
+			...(onOpenModelSettings
+				? [
+						{
+							icon: <Plus className="size-3 shrink-0 text-muted-foreground" />,
+							label: "Set up another provider",
+							value: ADD_PROVIDER_OPTION_VALUE,
+						},
+					]
+				: []),
+		],
+		[onOpenModelSettings, providerNames, providers],
 	);
 	const selectedModelLabel =
 		visibleModelPicker.options.find((option) => option.value === resolvedModel)
@@ -2051,8 +2220,9 @@ const ModelSelector = memo(function ModelSelector({
 		<SearchCombobox
 			ariaLabel="Model"
 			className={triggerClassName}
-			disabled={isBusy || modelsForProvider.length === 0}
+			disabled={isBusy || visibleModelPicker.options.length === 0}
 			emptyText="No models found."
+			onOpen={refreshActiveProviderModels}
 			onValueChange={(value) => {
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);

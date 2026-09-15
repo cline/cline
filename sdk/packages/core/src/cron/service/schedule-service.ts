@@ -5,6 +5,7 @@ import {
 	type ChatStartSessionRequest,
 	type HubScheduleCreateInput,
 	type HubScheduleUpdateInput,
+	type ITelemetryService,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	type ScheduleExecutionRecord,
@@ -88,6 +89,7 @@ export interface HubScheduleServiceOptions {
 		payload: Record<string, unknown>,
 	) => void;
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 	dbPath?: string;
 	/**
 	 * Cron spec source/report location forwarded to the runner. Defaults to
@@ -237,6 +239,7 @@ export class HubScheduleService {
 			workspaceRoot: "",
 			specs: options.specs,
 			logger: options.logger,
+			telemetry: options.telemetry,
 			pollIntervalMs: options.pollIntervalMs,
 			claimLeaseSeconds: options.claimLeaseSeconds,
 			globalMaxConcurrency: options.globalMaxConcurrency,
@@ -263,16 +266,21 @@ export class HubScheduleService {
 	}
 
 	public createSchedule(input: HubScheduleCreateInput): ScheduleRecord {
+		const timezone =
+			input.cronPattern === ONE_TIME_SCHEDULE_CRON_PATTERN
+				? input.timezone
+				: input.timezone?.trim() ||
+					Intl.DateTimeFormat().resolvedOptions().timeZone;
 		this.validateScheduleTiming(
 			input.cronPattern,
-			input.timezone,
+			timezone,
 			input.metadata,
 			true,
 		);
 		if (!input.workspaceRoot?.trim()) {
 			throw new Error("workspaceRoot is required for schedules");
 		}
-		return specToSchedule(this.store.createHubSchedule(input));
+		return specToSchedule(this.store.createHubSchedule({ ...input, timezone }));
 	}
 
 	public getSchedule(scheduleId: string): ScheduleRecord | undefined {

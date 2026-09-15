@@ -12,9 +12,20 @@ interface ThumbnailsProps {
 	setFiles?: React.Dispatch<React.SetStateAction<string[]>>
 	onHeightChange?: (height: number) => void
 	className?: string
+	/** The selected model has no image input: mark image thumbnails as going to be ignored. */
+	imagesUnsupported?: boolean
 }
 
-const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange, className }: ThumbnailsProps) => {
+const Thumbnails = ({
+	images,
+	files,
+	style,
+	setImages,
+	setFiles,
+	onHeightChange,
+	className,
+	imagesUnsupported = false,
+}: ThumbnailsProps) => {
 	const [hoveredIndex, setHoveredIndex] = useState<string | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const { width } = useWindowSize()
@@ -79,8 +90,31 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 							objectFit: "cover",
 							borderRadius: 4,
 							cursor: "pointer",
+							opacity: imagesUnsupported ? 0.55 : 1,
 						}}
 					/>
+					{imagesUnsupported && (
+						<div
+							data-testid="image-unsupported-badge"
+							style={{
+								position: "absolute",
+								top: -4,
+								left: -4,
+								width: 13,
+								height: 13,
+								borderRadius: "50%",
+								backgroundColor: "var(--vscode-editorWarning-foreground)",
+								display: "flex",
+								justifyContent: "center",
+								alignItems: "center",
+							}}
+							title="The selected model doesn't support images, so this image will be ignored.">
+							<span
+								className="codicon codicon-warning"
+								style={{ color: "var(--vscode-editor-background)", fontSize: 9, fontWeight: "bold" }}
+							/>
+						</div>
+					)}
 					{isDeletableImages && hoveredIndex === `image-${index}` && (
 						<div
 							onClick={() => handleDeleteImages(index)}
@@ -103,7 +137,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 									color: "var(--vscode-foreground)",
 									fontSize: 10,
 									fontWeight: "bold",
-								}}></span>
+								}}
+							/>
 						</div>
 					)}
 				</div>
@@ -137,7 +172,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 								style={{
 									fontSize: 16,
 									color: "var(--vscode-foreground)",
-								}}></span>
+								}}
+							/>
 							<span
 								style={{
 									fontSize: 7,
@@ -174,7 +210,8 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 										color: "var(--vscode-foreground)",
 										fontSize: 10,
 										fontWeight: "bold",
-									}}></span>
+									}}
+								/>
 							</div>
 						)}
 					</div>

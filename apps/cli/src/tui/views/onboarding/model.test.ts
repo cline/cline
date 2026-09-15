@@ -1,7 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getLocalCliInfo } from "../../../utils/local-cli";
+
+vi.mock("../../../utils/local-cli", () => ({
+	getLocalCliInfo: () => undefined,
+}));
+
 import {
+	canContinueLocalCliSetup,
 	getMainMenuOptions,
 	getOAuthProviderLabel,
+	resolveProviderSetupRoute,
 	shouldUseFeaturedClineModelPicker,
 	toModelEntriesFromKnownModels,
 	toModelEntry,
@@ -72,6 +80,20 @@ describe("onboarding model helpers", () => {
 			}),
 		).toMatchObject({
 			id: "openai-codex-cli",
+			isOAuth: false,
+			isLocalAuth: true,
+		});
+	});
+
+	it("marks the Claude Code provider as local auth", () => {
+		expect(
+			toProviderEntry({
+				id: "claude-code",
+				name: "Claude Code",
+				models: null,
+			}),
+		).toMatchObject({
+			id: "claude-code",
 			isOAuth: false,
 			isLocalAuth: true,
 		});
@@ -164,5 +186,33 @@ describe("onboarding model helpers", () => {
 		expect(shouldUseFeaturedClineModelPicker("cline")).toBe(true);
 		expect(shouldUseFeaturedClineModelPicker("cline-pass")).toBe(true);
 		expect(shouldUseFeaturedClineModelPicker("anthropic")).toBe(false);
+	});
+});
+
+describe("local-auth setup routing", () => {
+	// A provider can declare `local-auth` without naming a CLI we can probe.
+	// Routing must follow the capability; the descriptor is only for probing.
+	// Otherwise it falls through to the API-key form, which renders no fields
+	// for a local-auth provider.
+	it("routes a local-auth provider with no CLI descriptor to local setup", () => {
+		expect(getLocalCliInfo("claude-code")).toBeUndefined();
+		expect(resolveProviderSetupRoute("claude-code")).toBe("local_cli");
+	});
+
+	it("routes OAuth and API-key providers unchanged", () => {
+		expect(resolveProviderSetupRoute("anthropic")).toBe("api_key");
+	});
+
+	// The probe only looks on PATH, while the runtime also accepts an explicit
+	// pathToClaudeCodeExecutable and a bundled platform binary. A PATH miss
+	// therefore means "not on PATH", not "unusable", so it must not block.
+	it("lets the user continue when the CLI is not found on PATH", () => {
+		const cli = { command: "claude", docsUrl: "https://example.invalid" };
+		expect(
+			canContinueLocalCliSetup(cli, {
+				installed: false,
+				reason: "The claude executable was not found on PATH.",
+			}),
+		).toBe(true);
 	});
 });

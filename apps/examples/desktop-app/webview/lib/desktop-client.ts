@@ -423,8 +423,15 @@ class DesktopClient {
 			RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 4),
 			RECONNECT_MAX_DELAY_MS,
 		);
+		// Re-resolve the endpoint on every attempt: a sidecar the Tauri shell
+		// respawned listens on the same port but issues a new approval token,
+		// and one that was still booting only publishes its endpoint later.
+		this.endpoint = null;
+		resolvedEndpointCache = null;
 		this.reconnectTimer = setTimeout(() => {
-			void this.ensureConnected(true);
+			void this.ensureConnected(true).catch(() => {
+				// The failure path already scheduled the next attempt.
+			});
 		}, delayMs);
 	}
 
@@ -487,6 +494,11 @@ class DesktopClient {
 				if (!this.hasConnectedOnce) {
 					this.setTransportState("unavailable");
 				}
+				// A failed connect usually means the sidecar is still booting
+				// (the Tauri endpoint command gives up after a fixed poll) or is
+				// being respawned by the shell's health check. Keep trying rather
+				// than parking the UI on "unavailable" until the app is relaunched.
+				this.scheduleReconnect();
 				throw error;
 			})
 			.finally(() => {

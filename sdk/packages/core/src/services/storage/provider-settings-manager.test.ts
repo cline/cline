@@ -591,4 +591,156 @@ describe("ProviderSettingsManager", () => {
 			providers: {},
 		});
 	});
+
+	describe("credential sanitization on save", () => {
+		const createManager = () => {
+			const tempDir = mkdtempSync(
+				path.join(os.tmpdir(), "core-provider-settings-"),
+			);
+			tempDirs.push(tempDir);
+			const filePath = path.join(tempDir, "provider-settings.json");
+			return {
+				manager: new ProviderSettingsManager({ filePath }),
+				filePath,
+			};
+		};
+
+		const readStoredSettings = (filePath: string, providerId: string) => {
+			const raw = JSON.parse(readFileSync(filePath, "utf8")) as {
+				providers: Record<string, { settings: Record<string, unknown> }>;
+			};
+			return raw.providers[providerId]?.settings;
+		};
+
+		it("strips invisible characters and whitespace from the api key", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "mistral",
+				apiKey: "\ufeff\u200b sk-mistral-key\u202e\r\n ",
+			});
+
+			expect(manager.getProviderSettings("mistral")?.apiKey).toBe(
+				"sk-mistral-key",
+			);
+			expect(readStoredSettings(filePath, "mistral")?.apiKey).toBe(
+				"sk-mistral-key",
+			);
+		});
+
+		it("drops an api key that is only whitespace and invisible characters", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "mistral",
+				model: "mistral-large-latest",
+				apiKey: " \u200b \r\n ",
+			});
+
+			expect(manager.getProviderSettings("mistral")?.apiKey).toBeUndefined();
+			const stored = readStoredSettings(filePath, "mistral");
+			expect(stored).not.toHaveProperty("apiKey");
+			expect(stored?.model).toBe("mistral-large-latest");
+		});
+
+		it("sanitizes auth tokens while preserving the rest of the auth block", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "cline",
+				auth: {
+					apiKey: " auth-key\u200b ",
+					accessToken: " access-token ",
+					refreshToken: " refresh-token\ufeff",
+					expiresAt: 1234567890,
+					accountId: "acct-1",
+				},
+			});
+
+			expect(readStoredSettings(filePath, "cline")?.auth).toEqual({
+				apiKey: "auth-key",
+				accessToken: "access-token",
+				refreshToken: "refresh-token",
+				expiresAt: 1234567890,
+				accountId: "acct-1",
+			});
+		});
+
+		it("sanitizes aws credentials while preserving non-credential aws fields", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "bedrock",
+				aws: {
+					accessKey: " AKIA-EXAMPLE\u200b",
+					secretKey: "\ufeffsecret-value ",
+					sessionToken: " session-value\r\n",
+					region: "us-east-1",
+					profile: "default",
+				},
+			});
+
+			expect(readStoredSettings(filePath, "bedrock")?.aws).toEqual({
+				accessKey: "AKIA-EXAMPLE",
+				secretKey: "secret-value",
+				sessionToken: "session-value",
+				region: "us-east-1",
+				profile: "default",
+			});
+		});
+
+		it("sanitizes gcp fields", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "vertex",
+				gcp: {
+					projectId: " my-project\u200b ",
+					region: " us-central1 ",
+				},
+			});
+
+			expect(readStoredSettings(filePath, "vertex")?.gcp).toEqual({
+				projectId: "my-project",
+				region: "us-central1",
+			});
+		});
+
+		it("sanitizes sap client credentials", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "sapaicore",
+				sap: {
+					clientId: " client-id\u200b",
+					clientSecret: "\ufeffclient-secret ",
+					resourceGroup: "default",
+				},
+			});
+
+			expect(readStoredSettings(filePath, "sapaicore")?.sap).toEqual({
+				clientId: "client-id",
+				clientSecret: "client-secret",
+				resourceGroup: "default",
+			});
+		});
+
+		it("sanitizes header values without touching header names", () => {
+			const { manager, filePath } = createManager();
+
+			manager.saveProviderSettings({
+				provider: "litellm",
+				baseUrl: "https://litellm.example.com",
+				headers: {
+					Authorization: " Bearer token-value\u200b\r\n",
+					"X-Custom": "plain-value",
+				},
+			});
+
+			expect(readStoredSettings(filePath, "litellm")?.headers).toEqual({
+				Authorization: "Bearer token-value",
+				"X-Custom": "plain-value",
+			});
+		});
+	});
 });

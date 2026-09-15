@@ -187,6 +187,7 @@ function emitChunk(
 		chunk,
 		ts,
 		index: nextIndex,
+		boot: ctx.bootId,
 	});
 }
 
@@ -234,12 +235,14 @@ export function serializeQueuedPromptStart(input: {
 	prompt: string;
 	attachmentCount?: number;
 	userImages?: string[];
+	transcriptReflected?: boolean;
 }): string {
 	return JSON.stringify({
 		promptId: input.promptId,
 		prompt: input.prompt,
 		attachmentCount: input.attachmentCount ?? 0,
 		userImages: input.userImages,
+		...(input.transcriptReflected ? { transcriptReflected: true } : {}),
 	});
 }
 
@@ -344,6 +347,7 @@ function handleAgentEvent(
 					message: event.message,
 					noticeType: event.noticeType,
 					reason: event.reason,
+					metadata: event.metadata,
 				}),
 			);
 			break;
@@ -367,6 +371,7 @@ function handleAgentEvent(
 			break;
 		}
 		case "done": {
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Run ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -401,7 +406,19 @@ function handleAgentEvent(
 			);
 			break;
 		}
-		case "iteration_start":
+		case "iteration_start": {
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				// Iterations restart at one for each user run. Keep the previous
+				// answer only within the run in which it was supplied.
+				if (event.iteration === 1 || !session.mistakeRecovery) {
+					session.mistakeRecovery = { latestIteration: event.iteration };
+				} else {
+					session.mistakeRecovery.latestIteration = event.iteration;
+				}
+			}
+			break;
+		}
 		case "iteration_end":
 			break;
 	}
@@ -411,10 +428,8 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
-// The runtime's queue drain emits a pending_prompts snapshot (head removed)
-// and a pending_prompt_submitted event for the same prompt back-to-back, and
-// both are translated here into chat_queued_prompt_start — dedupe by prompt
-// id or the UI renders the user message twice.
+// Dedupe by prompt id so a repeated pending_prompt_submitted for the same
+// prompt cannot render the user message twice.
 function emitQueuedPromptStart(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -424,6 +439,7 @@ function emitQueuedPromptStart(
 		prompt: string;
 		attachmentCount: number;
 		userImages?: string[];
+		transcriptReflected?: boolean;
 	},
 ): void {
 	if (session) {
@@ -431,6 +447,11 @@ function emitQueuedPromptStart(
 			return;
 		}
 		session.lastQueuedPromptStartId = input.promptId;
+		session.busy = true;
+		if (session.status !== "running") {
+			session.status = "running";
+			sendEvent(ctx, "chat_session_status", { sessionId, status: "running" });
+		}
 	}
 	emitChunk(
 		ctx,
@@ -475,20 +496,10 @@ export function handleCoreSessionEvent(
 					session,
 					mapped.map((item) => item.id),
 				);
-				const previous = session.promptsInQueue;
+				// A shrinking snapshot is not evidence that the head started
+				// running: the user may have deleted it or the queue may have been
+				// discarded. Only pending_prompt_submitted announces a start.
 				session.promptsInQueue = mapped;
-				if (
-					previous.length > mapped.length &&
-					previous[0] &&
-					previous[0].id !== mapped[0]?.id
-				) {
-					emitQueuedPromptStart(ctx, sessionId, session, {
-						promptId: previous[0].id,
-						prompt: previous[0].prompt,
-						attachmentCount: previous[0].attachmentCount ?? 0,
-						userImages: previous[0].userImages,
-					});
-				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;
@@ -520,6 +531,7 @@ export function handleCoreSessionEvent(
 		}
 		case "ended": {
 			const { sessionId, reason } = event.payload;
+			cancelSidecarMistakeQuestions(ctx, sessionId, "Session ended");
 			const session = ctx.liveSessions.get(sessionId);
 			if (session) {
 				session.busy = false;
@@ -570,12 +582,14 @@ export function createSidecarContext(
 	observability: {
 		logger?: BasicLogger;
 		telemetry?: ITelemetryService;
+		telemetryUser?: SidecarContext["telemetryUser"];
 	} = {},
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
 		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
+		bootId: randomUUID(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
@@ -584,6 +598,7 @@ export function createSidecarContext(
 		workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
+		telemetryUser: observability.telemetryUser,
 		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
 		hubBuildMismatch: null,
@@ -614,10 +629,8 @@ export async function disposeSidecarContext(
 	}
 	ctx.wsClients.clear();
 	for (const pending of ctx.pendingApprovals.values()) {
-		// Cloud sessions outlive this app: denying their approvals on local
-		// shutdown would fail a tool call on a pod that keeps running and
-		// could otherwise be answered later (from here or another surface).
-		// Drop those entries locally and leave the remote approval pending.
+		// Drop remote approvals locally without denying them: the pod outlives
+		// this app, and another client can still answer.
 		if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
 			continue;
 		}
@@ -626,7 +639,6 @@ export async function disposeSidecarContext(
 				Promise.resolve(pending.resolve({ approved: false, reason })),
 			);
 		} catch (error) {
-			// Keep disposing the remaining resources, then preserve the failure.
 			approvalCleanup.push(Promise.reject(error));
 		}
 	}
@@ -748,6 +760,28 @@ export function resolveSidecarAskQuestion(
 	return true;
 }
 
+/** Remove prompts before their session is stopped or replaced in the UI. */
+export function cancelSidecarMistakeQuestions(
+	ctx: SidecarContext,
+	sessionId: string,
+	reason: string,
+): void {
+	for (const pending of ctx.pendingQuestions?.values() ?? []) {
+		if (
+			pending.item.sessionId !== sessionId ||
+			pending.item.context?.agentId !== "desktop-mistake-limit"
+		)
+			continue;
+		ctx.pendingQuestions.delete(pending.item.requestId);
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+		sendEvent(ctx, "ask_question_cancelled", {
+			requestId: pending.item.requestId,
+			reason,
+		});
+	}
+}
+
 export function createSidecarRuntimeCapabilities(
 	ctx: SidecarContext,
 ): RuntimeCapabilities {
@@ -814,6 +848,7 @@ export function handleHubLiveEvent(
 	event: {
 		event: string;
 		sessionId?: string;
+		sequence?: number;
 		payload?: Record<string, unknown>;
 	},
 ): void {
@@ -846,6 +881,31 @@ export function handleHubLiveEvent(
 	}
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
+		return;
+	}
+	const projectsStatus =
+		event.event === "run.started" ||
+		event.event === "session.attached" ||
+		event.event === "session.updated" ||
+		event.event === "run.completed" ||
+		event.event === "run.failed" ||
+		event.event === "run.aborted";
+	if (projectsStatus && typeof event.sequence === "number") {
+		if (
+			session.lastHubStatusSequence !== undefined &&
+			event.sequence < session.lastHubStatusSequence
+		) {
+			return;
+		}
+		session.lastHubStatusSequence = event.sequence;
+	}
+	// The observer client and ClineCore's own hub client are separate sockets
+	// that both receive this session's events. This projection only exists for
+	// sessions ClineCore is not subscribed to (it subscribes as a side effect
+	// of start/send/pending_prompts and unsubscribes on stop); once it is,
+	// `handleCoreSessionEvent` carries everything below and a second copy here
+	// would double every delta, tool row, and status change.
+	if (ctx.sessionManager?.hasSessionSubscription(sessionId)) {
 		return;
 	}
 
@@ -930,11 +990,8 @@ export function handleHubLiveEvent(
 				session,
 				mapped.map((item) => item.id),
 			);
-			// No "head submitted" inference here, unlike the local queue-drain
-			// handler: the hub emits an explicit session.pending_prompt_submitted
-			// for real submissions, and a snapshot can also shrink because a
-			// prompt was REMOVED — inferring a start would render the deleted
-			// prompt in the transcript as if it had been sent.
+			// Queue shrinkage may mean deletion, not submission; only
+			// session.pending_prompt_submitted starts a turn.
 			session.promptsInQueue = mapped;
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			return;
@@ -951,6 +1008,7 @@ export function handleHubLiveEvent(
 			markQueuedAttachmentsSubmitted(session, promptId);
 			emitQueuedPromptStart(ctx, sessionId, session, {
 				promptId,
+				transcriptReflected: event.payload?.transcriptReflected === true,
 				prompt: typeof item?.prompt === "string" ? item.prompt : "",
 				attachmentCount:
 					typeof item?.attachmentCount === "number" ? item.attachmentCount : 0,
@@ -1051,6 +1109,14 @@ export function handleHubLiveEvent(
 			// run.started may move an already-idle attached session to running.
 			// This is especially important for an idle fork created from handoff
 			// history, which otherwise renders "Thinking" forever after attach.
+			if (
+				event.event === "session.updated" &&
+				status === "running" &&
+				session.endedAt !== undefined &&
+				!session.busy
+			) {
+				return;
+			}
 			if (
 				runtimeStatus === "running" &&
 				session.status !== "running" &&

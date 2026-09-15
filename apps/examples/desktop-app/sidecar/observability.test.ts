@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { version } from "../package.json";
 
 const mocks = vi.hoisted(() => ({
 	captureExtensionActivated: vi.fn(),
@@ -28,7 +29,14 @@ vi.mock("@cline/core", async () => {
 		identifyAccount: mocks.identifyAccount,
 		ProviderSettingsManager: class {
 			getProviderSettings() {
-				return { auth: { accountId: "account-1" } };
+				return {
+					auth: {
+						accountId: "account-1",
+						organizationId: "org-1",
+						organizationName: "Acme",
+						memberId: "member-1",
+					},
+				};
 			}
 		},
 		setSdkLogger: mocks.setSdkLogger,
@@ -57,8 +65,10 @@ describe("desktop observability", () => {
 
 		expect(mocks.createClineTelemetryServiceConfig).toHaveBeenCalledWith({
 			metadata: expect.objectContaining({
+				extension_version: version,
 				cline_type: "desktop",
-				platform: "Cline",
+				platform: "Cline Desktop",
+				platform_version: version,
 			}),
 		});
 		expect(mocks.createConfiguredTelemetryHandle).toHaveBeenCalledWith(
@@ -67,9 +77,18 @@ describe("desktop observability", () => {
 		expect(mocks.identifyAccount).toHaveBeenCalledWith(telemetry, {
 			id: "account-1",
 			provider: "cline",
+			organizationId: "org-1",
+			organizationName: "Acme",
+			memberId: "member-1",
 		});
 		expect(mocks.captureExtensionActivated).toHaveBeenCalledWith(telemetry);
 		expect(mocks.setSdkLogger).toHaveBeenCalledWith(logger);
+		expect(observability.telemetryUser).toEqual({
+			distinctId: "account-1",
+			accountId: "account-1",
+			email: undefined,
+			organizationId: "org-1",
+		});
 
 		await observability.dispose();
 		await observability.dispose();
