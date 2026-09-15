@@ -1,6 +1,7 @@
 {
 	"name": "@cline/shared",
 	"version": "0.0.82",
+	"license": "Apache-2.0",
 	"description": "Shared utilities, types, and schemas for Cline packages",
 	"repository": {
 		"type": "git",
@@ -47,9 +48,11 @@
 		}
 	},
 	"files": [
+		"LICENSE",
 		"dist"
 	],
 	"scripts": {
+		"prepack": "cp ../../../LICENSE LICENSE",
 		"build": "BUILD_MODE=package bun bun.mts",
 		"typecheck": "bun tsc --noEmit",
 		"test": "bun run test:unit",

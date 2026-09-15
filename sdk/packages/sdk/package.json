@@ -21,6 +21,7 @@
 		}
 	},
 	"scripts": {
+		"prepack": "cp ../../../LICENSE LICENSE",
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
@@ -31,6 +32,7 @@
 		"node": ">=22"
 	},
 	"files": [
+		"LICENSE",
 		"dist"
 	],
 	"license": "Apache-2.0"
