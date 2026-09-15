@@ -505,12 +505,12 @@ export default function Home() {
 											onOpenSessionById={handleOpenSessionById}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
-											onOpenVoiceInputSettings={() =>
-												handleSettingsSectionChange("Voice")
-											}
 											onThreadStarted={handleThreadStarted}
 										/>
 									</div>
@@ -573,8 +573,8 @@ function ChatThreadPane({
 	onOpenSessionById,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenAccountSettings,
 	parentSession,
-	onOpenVoiceInputSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -595,8 +595,8 @@ function ChatThreadPane({
 	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
-	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1228,6 +1228,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -1552,7 +1562,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
-			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1635,6 +1645,7 @@ function ChatThreadPane({
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
 								onProceedWhileRunning={proceedWhileRunning}
+								onFixCredentials={handleFixCredentials}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

@@ -8,5 +8,6 @@
 @import "./components/agent-quick-actions.css";
 @import "./components/search-combobox.css";
 @import "./components/session-status.css";
+@import "./components/switch.css";
 
 @source "./components";

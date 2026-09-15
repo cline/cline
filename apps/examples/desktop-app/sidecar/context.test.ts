@@ -531,6 +531,65 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
+	it("does not announce a queued prompt start when the head is deleted from the queue", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		let onEvent: ((event: unknown) => void) | undefined;
+		createCoreMock.mockResolvedValue({
+			runtimeAddress: "ws://127.0.0.1:25463/hub",
+			subscribe: vi.fn((handler: (event: unknown) => void) => {
+				onEvent = handler;
+				return () => {};
+			}),
+			dispose: vi.fn(),
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [
+				{ id: "prompt-1", prompt: "first", steer: false, attachmentCount: 0 },
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		});
+
+		// Removing the head only produces a shrunken snapshot — no
+		// pending_prompt_submitted — so nothing must reach the transcript.
+		onEvent?.({
+			type: "pending_prompts",
+			payload: {
+				sessionId: "session-1",
+				prompts: [{ id: "prompt-2", prompt: "second", delivery: "queue" }],
+			},
+		});
+
+		const events = readEvents(ctx);
+		expect(
+			events.filter(
+				(message) =>
+					message.event.name === "chat_event" &&
+					(message.event.payload as { stream?: string }).stream ===
+						"chat_queued_prompt_start",
+			),
+		).toHaveLength(0);
+		expect(
+			events.find((message) => message.event.name === "prompts_in_queue_state")
+				?.event.payload,
+		).toEqual({
+			sessionId: "session-1",
+			items: [
+				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
+			],
+		});
+	});
+
 	it("relays generated media for attach-only Hub sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"

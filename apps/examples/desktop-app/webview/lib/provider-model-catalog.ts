@@ -2,7 +2,6 @@
 
 import { isChatCompatibleModel } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
-import { isProviderConnected } from "@/lib/provider-connection";
 import type {
 	Provider,
 	ProviderCatalogResponse,
@@ -14,8 +13,6 @@ import type {
 export type ProviderModelCatalog = {
 	providers: Provider[];
 	enabledProviderIds: string[];
-	/** Providers with usable credentials (see `isProviderConnected`). */
-	configuredProviderIds: string[];
 	providerModels: Record<string, string[]>;
 	/** Full chat-model entries per provider (display names, capabilities). */
 	providerModelDetails: Record<string, ProviderModel[]>;
@@ -113,9 +110,6 @@ export function buildProviderModelCatalog(
 				({ provider, modelIds }) => provider.enabled && modelIds.length > 0,
 			)
 			.map(({ provider }) => provider.id),
-		configuredProviderIds: providers
-			.filter(isProviderConnected)
-			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providerEntries.map(({ provider, modelIds }) => [provider.id, modelIds]),
 		),
