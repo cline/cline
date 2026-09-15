@@ -9,8 +9,8 @@ import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { getDeviceId, setDistinctId } from "../logging/distinctId"
+import { type CoreSpawnTelemetryMetadata, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
-import { type CoreSpawnReason, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import {
 	getRolloutErrorProperties,
 	getRolloutTelemetryMetadata,
@@ -111,13 +111,9 @@ export type TelemetryMetadata = {
 	 * `extension_version`). Absent when the host does not report one (e.g. CLI).
 	 */
 	host_plugin_version?: string
-	/**
-	 * Spawn-time facts reported by an out-of-process host (the JetBrains plugin): how many
-	 * cores this host window has spawned so far and why this one was started. Absent when the
-	 * host runs core in-process (VS Code). See `core-spawn-metadata.ts`.
-	 */
-	core_spawn_ordinal?: number
-	core_spawn_reason?: CoreSpawnReason
+	// Spawn-time facts from an out-of-process host; see core-spawn-metadata.ts.
+	core_spawn_ordinal?: CoreSpawnTelemetryMetadata["core_spawn_ordinal"]
+	core_spawn_reason?: CoreSpawnTelemetryMetadata["core_spawn_reason"]
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
