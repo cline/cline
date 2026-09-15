@@ -6,13 +6,12 @@ export interface SlashCommand {
 }
 
 export const BASE_SLASH_COMMANDS: SlashCommand[] = [
-	// `/newtask` is an alias of `/compact`: condensing achieves its goal
-	// (continue working with a fresh, summarized context window) without the
-	// legacy new_task tool. The webview intercepts all three spellings and
-	// runs the condense RPC (see useMessageHandlers.handleSendMessage).
+	// `/newtask` starts a fresh task with a clean context window — the webview
+	// routes it to TaskService.clearTask (see useMessageHandlers.handleSendMessage),
+	// unlike `/compact`/`/smol` which condense the current task in place.
 	{
 		name: "newtask",
-		description: "Condenses the current task and continues with a fresh context window",
+		description: "Start a fresh task with a clean context window",
 		section: "default",
 		cliCompatible: true,
 	},
