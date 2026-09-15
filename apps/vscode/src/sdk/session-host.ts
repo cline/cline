@@ -54,6 +54,11 @@ export interface SdkSessionHost {
 			title?: string | null
 		},
 	): Promise<{ updated: boolean }>
+	/**
+	 * Persist a lazy in-memory session into History before clear/close can erase it.
+	 * Optional: hosts without resident sessions may omit this.
+	 */
+	ensureSessionPersisted?(sessionId: string, options?: { prompt?: string }): Promise<boolean>
 	handleHookEvent(payload: HookEventPayload): Promise<void>
 	pendingPrompts(action: "list", input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>
 	pendingPrompts(action: "update", input: PendingPromptsUpdateInput): Promise<PendingPromptMutationResult>
