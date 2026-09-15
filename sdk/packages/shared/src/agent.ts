@@ -316,6 +316,14 @@ export type AgentModelEvent =
 			error?: string;
 			errorClass?: ProviderErrorClass;
 			/**
+			 * Whether the underlying provider error was transient and worth
+			 * retrying, decided at the model boundary from the AI SDK's typed
+			 * `isRetryable` flag while the structured error is still in hand
+			 * (`error` is a flattened string, so the agent loop cannot re-derive
+			 * this). When absent, the agent loop classifies from the message.
+			 */
+			errorRetryable?: boolean;
+			/**
 			 * The model layer already recorded `sdk.error` telemetry for this
 			 * failure at its own error boundary. `error` is a flattened string,
 			 * so this bit carries reporting ownership across the boundary: the
