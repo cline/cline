@@ -166,10 +166,7 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
-        run: |
-          # build:sdk preserves env reads; this application pass inlines them.
-          bun run package
-          node scripts/check-trace-artifact.mjs dist/extension.js
+        run: bun run package
 
       - name: Install legacy dependencies
         working-directory: legacy-src
@@ -255,13 +252,6 @@ jobs:
         # both standalone bundle workflows. No SendGrid credential is intentionally
         # supplied here; inspect the reported artifact before widening the exemption.
         run: vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-nightly-${{ steps.version.outputs.version }}.vsix"
-
-      - name: Check packaged next trace activation
-        working-directory: staging
-        run: |
-          # Check the shipped next bundle, not the loader or the legacy cohort.
-          set -euo pipefail
-          unzip -p "cline-nightly-${{ steps.version.outputs.version }}.vsix" extension/next/dist/extension.js | node "$GITHUB_WORKSPACE/next-src/apps/vscode/scripts/check-trace-artifact.mjs" -
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4

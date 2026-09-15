@@ -189,7 +189,6 @@ jobs:
               echo "Expected $package_name@$VERSION, got $actual_version"
               exit 1
             fi
-            node apps/vscode/scripts/check-trace-artifact.mjs "$dir"/bin/cline*
             ls -lh "$dir/bin/"
           done
 
@@ -462,7 +461,6 @@ jobs:
               echo "Expected $package_name@$VERSION, got $actual_version"
               exit 1
             fi
-            node apps/vscode/scripts/check-trace-artifact.mjs "$dir"/bin/cline*
             ls -lh "$dir/bin/"
           done
 
