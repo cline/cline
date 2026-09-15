@@ -141,7 +141,7 @@ export const ModelPicker: Story = {
 		docs: {
 			description: {
 				story:
-					"Sectioned model picker: recommended and free tiers first, the full catalog after. Searching flattens the sections into one ranked list.",
+					"Sectioned model picker: recommended and free tiers first, the full catalog after. Section headers stay visible while searching.",
 			},
 		},
 	},

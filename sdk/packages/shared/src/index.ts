@@ -294,6 +294,7 @@ export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,
+	getPowerShellEdition,
 	getShellArgs,
 	getShellInvocation,
 	getShellKind,
@@ -535,7 +536,10 @@ export {
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,
+	isOtlpTraceRelayProvider,
+	markOtlpTraceRelayProvider,
 	normalizeSdkError,
+	OTLP_TRACE_RELAY_MARKER,
 	resetSdkErrorRateLimiterForTests,
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,

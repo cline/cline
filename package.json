@@ -68,7 +68,7 @@
     "overrides": {
         "axios": "1.18.0",
         "fast-uri": ">=3.1.4",
-        "undici@>=6.0.0 <7.0.0": "6.28.0",
+        "undici": ">=7.29.0 <8",
         "@opentui/core": "0.4.3",
         "@opentui/react": "0.4.3",
         "tar-fs": ">=3.1.1",

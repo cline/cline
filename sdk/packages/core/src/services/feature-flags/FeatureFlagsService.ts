@@ -13,7 +13,7 @@ import {
 	type FeatureFlag,
 	FeatureFlagDefaultValue,
 } from "@cline/shared";
-import { CORE_TELEMETRY_EVENTS } from "../..";
+import { CORE_TELEMETRY_EVENTS } from "../telemetry/core-events";
 
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_PERSISTENT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -68,7 +68,12 @@ export class FeatureFlagsService {
 	}
 
 	setContext(context: FeatureFlagsContext): void {
+		const identityChanged = this.cacheInfo.userId !== (context.userId ?? null);
 		this.context = { ...context };
+		if (identityChanged) {
+			this.cache.clear();
+			this.cacheInfo = { updateTime: 0, userId: context.userId ?? null };
+		}
 	}
 
 	hydrateCache(snapshot: FeatureFlagsCacheSnapshot): void {

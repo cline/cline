@@ -34,6 +34,12 @@ type PendingReply = {
 	reject: (error: unknown) => void;
 };
 
+type HubCommandOptions = {
+	timeoutMs?: number | null;
+	/** Synchronous local guard, checked after connection before each dispatch. */
+	beforeDispatch?: () => void;
+};
+
 type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
@@ -177,6 +183,8 @@ export interface HubClientOptions {
 	/**
 	 * Resolves HTTP headers for each new WebSocket, including reconnects.
 	 * This Node-only transport option is mutually exclusive with `authToken`.
+	 * Resolver failures are surfaced by `connect()` and `getConnectionError()`;
+	 * `Sec-WebSocket-Protocol` must be configured through `authToken` instead.
 	 */
 	resolveConnectionHeaders?: () =>
 		| Readonly<Record<string, string>>
@@ -258,9 +266,7 @@ function resolveLocalHubAuthToken(
 	if (queryToken) {
 		return queryToken;
 	}
-	// Header-auth clients must not inherit tokens that local hub discovery
-	// registered for the same loopback URL in this process; only explicit
-	// tokens conflict with connection headers.
+	// Header-auth clients must not inherit a discovery token for the same URL.
 	if (options.skipRegistry) {
 		return undefined;
 	}
@@ -329,10 +335,7 @@ export class NodeHubClient {
 	private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private reconnectAttempt = 0;
 	private closedByClient = false;
-	// Bumped by close() and each fresh connect attempt. An openSocket() call
-	// that awaited its header resolver across a close()/connect() boundary
-	// detects the stale generation and aborts instead of clobbering the newer
-	// attempt's state.
+	// Invalidates connection work superseded by close() or a newer attempt.
 	private connectGeneration = 0;
 	private lastCloseError = new HubTransportError(
 		"hub_connection_closed",
@@ -430,11 +433,7 @@ export class NodeHubClient {
 				undefined,
 				false,
 			);
-			// A close() (or a newer attempt after it) may have superseded this
-			// attempt while the register reply was in flight. Marking the client
-			// registered now would poison later failure handling (a stale
-			// `registered === true` makes a future failed attempt skip closing
-			// its socket) and leave a zombie connection behind.
+			// Registration may resolve after close/reconnect; reject a stale socket.
 			if (generation !== this.connectGeneration || this.closedByClient) {
 				try {
 					socket.close();
@@ -459,19 +458,20 @@ export class NodeHubClient {
 			if (this.connectPromise === registrationPromise) {
 				this.connectPromise = undefined;
 			}
-			// A socket that opened but never registered must not survive: a later
-			// connect() would see it open and resolve without a registered client.
-			// Close only THIS attempt's socket — after close()+connect() races the
-			// current socket may belong to a newer attempt that must stay alive.
-			// Deliberately not conditioned on `this.registered`: the socket
-			// identity check alone decides ownership and cannot be poisoned by a
-			// stale registration flag.
+			// Clear only the socket owned by this failed registration attempt.
 			if (attemptSocket && this.socket === attemptSocket) {
+				this.lastCloseError = normalizeWebSocketConnectError(error, url);
+				this.registered = false;
+				this.sawSocketClose = false;
+				this.socket = undefined;
 				try {
 					attemptSocket.close();
 				} catch {
 					// best-effort close
 				}
+			}
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
 			}
 			throw error;
 		}
@@ -485,10 +485,7 @@ export class NodeHubClient {
 		const resolveHeaders = this.options.resolveConnectionHeaders;
 		let headers: Readonly<Record<string, string>> | undefined;
 		if (resolveHeaders) {
-			// The resolver may perform network I/O (token refresh); bound it so
-			// a hung resolver cannot pin connect() — and every deduped caller —
-			// forever, and record failures so getConnectionError() reports the
-			// real cause instead of a stale close message.
+			// Bound header refresh so concurrent connect callers cannot hang forever.
 			let timeoutId: ReturnType<typeof setTimeout> | undefined;
 			try {
 				headers = await Promise.race([
@@ -520,8 +517,7 @@ export class NodeHubClient {
 				clearTimeout(timeoutId);
 			}
 		}
-		// A close() (or a newer attempt after it) supersedes this attempt while
-		// the resolver was pending; abort before touching shared socket state.
+		// Do not open a socket for a superseded header-resolution attempt.
 		if (generation !== this.connectGeneration || this.closedByClient) {
 			throw this.lastCloseError;
 		}
@@ -531,9 +527,14 @@ export class NodeHubClient {
 				(name) => name.toLowerCase() === "sec-websocket-protocol",
 			)
 		) {
-			throw new Error(
+			const error = new HubTransportError(
+				"hub_connect_failed",
 				"Hub connection headers cannot set Sec-WebSocket-Protocol.",
 			);
+			if (generation === this.connectGeneration) {
+				this.lastCloseError = error;
+			}
+			throw error;
 		}
 
 		const socket = headers
@@ -558,9 +559,7 @@ export class NodeHubClient {
 					"hub_connect_timeout",
 					`Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`,
 				);
-				// Guarded on identity: a stale attempt's late failure must not
-				// clobber a newer in-flight attempt's dedupe state or its
-				// reported connection error.
+				// A stale timeout must not overwrite a newer attempt.
 				if (this.socket === socket) {
 					this.lastCloseError = timeoutError;
 					this.sawSocketClose = false;
@@ -665,7 +664,7 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
 		const canRecoverTransport =
@@ -690,12 +689,13 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
 		}
+		options?.beforeDispatch?.();
 		const requestId = createSessionId("hubreq_");
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
@@ -864,15 +864,11 @@ export class NodeHubClient {
 	close(): void {
 		const socket = this.socket;
 		this.closedByClient = true;
-		// Invalidate any attempt still awaiting its header resolver so it
-		// aborts instead of clobbering a later connect()'s state.
+		// Invalidate any in-flight connection attempt.
 		this.connectGeneration += 1;
 		this.clearReconnectTimer();
 		this.registered = false;
-		// Without a socket there is nothing this close() is tearing down, so
-		// keep the real failure cause (e.g. a connect error) for
-		// getConnectionError() readers instead of wiping it with the generic
-		// closed message.
+		// Preserve the last failure when close() has no live socket.
 		if (socket) {
 			this.lastCloseError = new HubTransportError(
 				"hub_connection_closed",

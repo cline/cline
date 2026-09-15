@@ -16,8 +16,7 @@ export type WorkspacePathSource = {
 	origin?: string;
 };
 
-// Cloud sessions run in the sandbox's synthetic /workspace root — offering it
-// in the local workspace picker (or persisting it) would be meaningless.
+// Do not offer a cloud sandbox path as a local workspace.
 function isLocalWorkspaceSource(session: WorkspacePathSource): boolean {
 	return session.origin !== "cloud";
 }

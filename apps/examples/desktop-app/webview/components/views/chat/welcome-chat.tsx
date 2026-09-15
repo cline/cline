@@ -14,6 +14,7 @@ import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { isAgendaTaskExpired, useAgendaTasks } from "@/hooks/use-agenda-tasks";
+import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
@@ -34,8 +35,6 @@ import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 // Used only until the API's connectUrl arrives (or when it is blank), so a
 // staging/local build still points at its own dashboard.
 const FALLBACK_CONNECT_URL = `${getClineEnvironmentConfig().appBaseUrl}/dashboard/integrations`;
-// The dashboard hand-off happens in the browser, so re-check often enough
-// that the panel flips to ready shortly after the user finishes there.
 const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;
 
 type CloudSetupState = {
@@ -51,6 +50,8 @@ type CloudSetupState = {
 	repositoryUrls: string[];
 };
 
+const noop = () => undefined;
+
 export function WelcomeScreen({
 	active,
 	body,
@@ -62,9 +63,9 @@ export function WelcomeScreen({
 	executionTarget = "local",
 	repoUrl = "",
 	cloudBranch = "",
-	onExecutionTargetChange = () => undefined,
-	onRepoUrlChange = () => undefined,
-	onCloudBranchChange = () => undefined,
+	onExecutionTargetChange = noop,
+	onRepoUrlChange = noop,
+	onCloudBranchChange = noop,
 	cloudAgentsEnabled = false,
 	onOpenSession,
 }: {
@@ -86,7 +87,7 @@ export function WelcomeScreen({
 	cloudAgentsEnabled?: boolean;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
-	const { user, refreshAccount } = useAccount();
+	const { user, activeOrganization, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
@@ -130,11 +131,7 @@ export function WelcomeScreen({
 		[],
 	);
 	const listCloudRepositories = useCallback(async () => {
-		// Every successful repository fetch — the picker's own load included —
-		// refreshes the snapshot the stale-selection guard below compares
-		// against. Without this, an org switch leaves the guard holding the
-		// old scope's list and it wipes a repository just picked from the new
-		// scope's correctly filtered picker.
+		// Keep stale-selection checks aligned with the latest account scope.
 		const requestId = ++cloudSetupRequestRef.current;
 		const result = await fetchCloudRepositories();
 		if (cloudSetupRequestRef.current === requestId) {
@@ -161,6 +158,16 @@ export function WelcomeScreen({
 	const openExternalUrl = useCallback(async (url: string) => {
 		await desktopClient.invoke("open_external_url", { url });
 	}, []);
+	const connectGitHub = useCallback(
+		async (fallbackUrl: string) => {
+			if (activeOrganization) {
+				await openExternalUrl(fallbackUrl);
+				return;
+			}
+			await openPersonalGitHubInstallUrl(fallbackUrl);
+		},
+		[activeOrganization, openExternalUrl],
+	);
 
 	const cloudModeActive =
 		active && cloudAgentsEnabled && executionTarget === "cloud";
@@ -187,17 +194,21 @@ export function WelcomeScreen({
 			}
 		}
 	}, [applyCloudSetupResult, fetchCloudRepositories]);
+	const invalidateCloudScope = useCallback(() => {
+		setCloudSetup((prev) => ({
+			...prev,
+			status: "checking",
+			repositoryUrls: [],
+		}));
+		onRepoUrlChange("");
+		onCloudBranchChange("");
+	}, [onCloudBranchChange, onRepoUrlChange]);
 
-	// Check GitHub connectivity whenever the cloud composer becomes relevant
-	// or the signed-in account changes, and keep watching while onboarding is
-	// on screen: the connect flow finishes in the browser, so the panel must
-	// notice on its own.
+	// GitHub setup finishes in the browser; poll while onboarding is visible.
 	useEffect(() => {
 		void accountUserId;
 		if (!cloudModeActive || !signedIn) return;
-		setCloudSetup((prev) =>
-			prev.status === "unknown" ? { ...prev, status: "checking" } : prev,
-		);
+		invalidateCloudScope();
 		void checkCloudSetup();
 		const handleFocus = () => void checkCloudSetup();
 		window.addEventListener("focus", handleFocus);
@@ -211,17 +222,22 @@ export function WelcomeScreen({
 			window.removeEventListener("focus", handleFocus);
 			window.clearInterval(interval);
 		};
-	}, [accountUserId, checkCloudSetup, cloudModeActive, signedIn]);
+	}, [
+		accountUserId,
+		checkCloudSetup,
+		cloudModeActive,
+		invalidateCloudScope,
+		signedIn,
+	]);
 
-	// Account/organization switches re-scope the repository list on the
-	// sidecar side; refresh the setup snapshot immediately instead of waiting
-	// for a focus event or the onboarding poll (which stops in "ready").
+	// Refresh on account/org switches even after the onboarding poll stops.
 	useEffect(() => {
 		if (!cloudModeActive || !signedIn) return;
 		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			invalidateCloudScope();
 			void checkCloudSetup();
 		});
-	}, [checkCloudSetup, cloudModeActive, signedIn]);
+	}, [checkCloudSetup, cloudModeActive, invalidateCloudScope, signedIn]);
 
 	const agenda = useAgendaTasks(
 		{
@@ -287,10 +303,7 @@ export function WelcomeScreen({
 		if (active && executionTarget === "local") void refreshWorkspaces();
 	}, [active, executionTarget, refreshWorkspaces]);
 
-	// A previously selected repository can disappear from the account's reach
-	// (GitHub App access revoked, account/org switched). Clear the stale
-	// selection so the "Repository required" gate re-engages instead of
-	// letting the send fail server-side after the fact.
+	// Clear repositories made inaccessible by account/org or GitHub access changes.
 	useEffect(() => {
 		if (!cloudModeActive || cloudSetup.status === "unknown") return;
 		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
@@ -378,7 +391,7 @@ export function WelcomeScreen({
 									onListCloudBranches={listCloudBranches}
 									onListCloudRepositories={listCloudRepositories}
 									onListGitBranches={onListGitBranches}
-									onOpenExternalUrl={openExternalUrl}
+									onOpenExternalUrl={connectGitHub}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
 									onExecutionTargetChange={onExecutionTargetChange}
@@ -419,7 +432,11 @@ export function WelcomeScreen({
 						<div className="mt-4 w-full">
 							<CloudOnboardingCard
 								checking={cloudSetupChecking}
-								onConnect={() => void openExternalUrl(cloudSetup.connectUrl)}
+								onConnect={() =>
+									void (cloudOnboardingVariant === "not_connected"
+										? connectGitHub(cloudSetup.connectUrl)
+										: openExternalUrl(cloudSetup.connectUrl))
+								}
 								onRefresh={() => void checkCloudSetup()}
 								onSignIn={() => void signIn()}
 								signingIn={signingIn}

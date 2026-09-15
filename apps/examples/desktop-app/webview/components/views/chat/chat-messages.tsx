@@ -27,8 +27,9 @@ import type {
 	ChatMessageImage,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
-import { openExternalUrl } from "@/lib/desktop-client";
+import type { SessionImportTool } from "@/lib/session-import";
 import { cn } from "@/lib/utils";
+import { ImportedSessionNotice } from "./imported-session-notice";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
 	buildPreviousTimestampMap,
@@ -36,6 +37,7 @@ import {
 	collapseCompletedWork,
 	getThoughtDurationMilliseconds,
 	groupChatMessages,
+	isSystemSteeringMessage,
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
@@ -59,6 +61,10 @@ type ChatMessagesProps = {
 	isSessionSwitching?: boolean;
 	messages: ChatMessage[];
 	error: string | null;
+	/** Set when the session's history was imported from another coding agent. */
+	importedFromTool?: SessionImportTool;
+	/** Replaces "Thinking..." while the runtime reports a named pre-output step. */
+	activityLabel?: string | null;
 	streamingMessageId?: string | null;
 	pendingToolApprovals: ToolApprovalRequestItem[];
 	pendingAskQuestions: AskQuestionRequestItem[];
@@ -76,11 +82,13 @@ type ChatMessagesProps = {
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
 	startingLabel?: string;
-	errorAction?: { label: string; url: string };
+	errorAction?: { label: string; onClick: () => void | Promise<void> };
 	onProceedWhileRunning?: (
 		sessionId: string,
 		toolCallId?: string,
 	) => void | Promise<void>;
+	/** Opens the settings page that fixes a credential failure. */
+	onFixCredentials?: (target: "account" | "models") => void;
 };
 
 type AskQuestionRequestItem = {
@@ -103,6 +111,8 @@ function ChatMessagesImpl({
 	isSessionSwitching = false,
 	messages,
 	error,
+	importedFromTool,
+	activityLabel = null,
 	streamingMessageId = null,
 	pendingToolApprovals,
 	pendingAskQuestions,
@@ -112,9 +122,10 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
-	startingLabel = "Thinking...",
+	startingLabel,
 	errorAction,
 	onProceedWhileRunning,
+	onFixCredentials,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -141,7 +152,8 @@ function ChatMessagesImpl({
 		};
 	}, [messages]);
 	const shouldShowErrorBanner =
-		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+		Boolean(error) &&
+		(Boolean(errorAction) || lastErrorMessage?.content !== error);
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&
@@ -210,6 +222,14 @@ function ChatMessagesImpl({
 				collapseTrailingRun,
 			}),
 		[messages, collapseTrailingRun],
+	);
+	const isRunActive =
+		status === "starting" || status === "running" || status === "stopping";
+	const lastUserItemIndex = renderItems.findLastIndex(
+		(item) =>
+			item.type === "message" &&
+			item.message.role === "user" &&
+			!isSystemSteeringMessage(item.message),
 	);
 	// Mid-run the thinking indicator's replacement (the next tool or thinking
 	// row) joins the tight run group, so the indicator must sit at that same
@@ -538,6 +558,9 @@ function ChatMessagesImpl({
 					>
 						{showIdleDetails ? null : (
 							<div className="flex min-h-full w-full min-w-0 flex-col gap-4">
+								{importedFromTool ? (
+									<ImportedSessionNotice tool={importedFromTool} />
+								) : null}
 								{renderItems.map((item, itemIndex) => {
 									// Working rows — live (`run`) or folded (`work`) — render
 									// through one child renderer so a row keeps its exact look
@@ -549,6 +572,9 @@ function ChatMessagesImpl({
 										if (child.type === "tools") {
 											return (
 												<ToolMessageBlock
+													isRunActive={
+														isRunActive && itemIndex > lastUserItemIndex
+													}
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
 													messages={child.messages}
 													onExpandImage={handleExpandImage}
@@ -665,6 +691,7 @@ function ChatMessagesImpl({
 											}
 											forkPending={forkingMessageId === message.id}
 											forkError={forkErrors[message.id]}
+											onFixCredentials={onFixCredentials}
 											{...getReasoningProps(reasoningMessages)}
 										/>
 									);
@@ -683,7 +710,7 @@ function ChatMessagesImpl({
 									>
 										<Loader2 className="size-4 animate-spin" />
 										<span className={STREAMING_TITLE_CLASS}>
-											{startingLabel}
+											{startingLabel ?? activityLabel ?? "Thinking..."}
 										</span>
 									</div>
 								) : null}
@@ -740,7 +767,6 @@ function ChatMessagesImpl({
 								</div>
 							)
 						) : null}
-
 						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
 							<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
 								<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -753,11 +779,11 @@ function ChatMessagesImpl({
 						) : null}
 						{shouldShowErrorBanner ? (
 							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								<p>{error}</p>
+								{lastErrorMessage?.content !== error ? <p>{error}</p> : null}
 								{errorAction ? (
 									<Button
 										className="mt-2"
-										onClick={() => void openExternalUrl(errorAction.url)}
+										onClick={() => void errorAction.onClick()}
 										size="sm"
 										variant="outline"
 									>

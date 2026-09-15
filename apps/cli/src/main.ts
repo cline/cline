@@ -1198,8 +1198,8 @@ export async function runCli(): Promise<void> {
 					activeProviderId: provider,
 				});
 				if (initialNotice) {
-					markInitialNoticeShown = () => {
-						markClineCliMigrationNoticeShown();
+					markInitialNoticeShown = (notice) => {
+						markClineCliMigrationNoticeShown(undefined, notice.id);
 					};
 				}
 			}
