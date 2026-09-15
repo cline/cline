@@ -1736,11 +1736,11 @@ export async function handleCommand(
 		if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
 			throw new Error("profile is required");
 		}
-		return {
-			profile: await getRemoteEnvironmentService(ctx).upsert(
-				profile as RemoteEnvironmentInput,
-			),
-		};
+		const saved = await getRemoteEnvironmentService(ctx).upsert(
+			profile as RemoteEnvironmentInput,
+		);
+		broadcastEvent(ctx, "remote_environment_profiles_changed", {});
+		return { profile: saved };
 	}
 	if (command === "test_remote_environment") {
 		const id = String(args?.id ?? "").trim();
@@ -1890,6 +1890,8 @@ export async function handleCommand(
 			if (deleted && wasActive) {
 				broadcastLocalEnvironment(ctx, { reason: "profile_deleted" });
 			}
+			if (deleted)
+				broadcastEvent(ctx, "remote_environment_profiles_changed", {});
 			return { deleted, ...active };
 		});
 	}
@@ -1920,11 +1922,10 @@ export async function handleCommand(
 			throw new Error("sessionId is required");
 		}
 		const toolCallId = asTrimmedString(args?.toolCallId);
-		const hubClient = await ensureSharedHubClient(
-			ctx,
-			ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.sessionManager
-				.runtimeAddress,
-		);
+		const binding =
+			(await getCommandSessionBinding(ctx, sessionId, args)) ??
+			getCommandRuntimeBinding(ctx, args);
+		const hubClient = binding.hubClient;
 		const reply = await hubClient.command(
 			"run.proceed_while_running",
 			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },

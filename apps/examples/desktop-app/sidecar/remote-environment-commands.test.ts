@@ -252,12 +252,53 @@ describe("remote environment command routing", () => {
 		sessionStoreDeleteMock.mockReturnValue(false);
 	});
 
+	it("routes proceed-while-running exclusively to the requested SSH Hub", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/local/project");
+		const remoteCommand = vi.fn(async () => ({
+			ok: true,
+			payload: { detachedCount: 1 },
+		}));
+		const localCommand = vi.fn();
+		ctx.runtimeBindings.set("local", {
+			...createExistingRemoteBinding("local"),
+			kind: "local",
+			hubClient: { command: localCommand },
+		} as unknown as SessionRuntimeBinding);
+		ctx.runtimeBindings.set(profile.id, {
+			...createExistingRemoteBinding(profile.id),
+			hubClient: { command: remoteCommand },
+		} as unknown as SessionRuntimeBinding);
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				environmentId: profile.id,
+				sessionId: "same-id",
+				toolCallId: "tool-1",
+			}),
+		).resolves.toEqual({ detachedCount: 1 });
+		expect(remoteCommand).toHaveBeenCalledWith(
+			"run.proceed_while_running",
+			{ sessionId: "same-id", toolCallId: "tool-1" },
+			"same-id",
+		);
+		expect(localCommand).not.toHaveBeenCalled();
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				environmentId: "disconnected",
+				sessionId: "same-id",
+			}),
+		).rejects.toThrow();
+		expect(localCommand).not.toHaveBeenCalled();
+	});
+
 	it("routes list, upsert, and SSH test commands through the configured service", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
 		const fake = createFakeService();
 		const ctx = createSidecarContext("/local/project");
 		ctx.remoteEnvironments = fake.service;
+		const send = attachEventRecorder(ctx);
 
 		await expect(
 			handleCommand(ctx, "list_remote_environments"),
@@ -277,6 +318,9 @@ describe("remote environment command routing", () => {
 			handleCommand(ctx, "upsert_remote_environment", { profile: input }),
 		).resolves.toEqual({ profile });
 		expect(fake.upsert).toHaveBeenCalledWith(input);
+		expect(readEvent(send, 0)).toMatchObject({
+			event: { name: "remote_environment_profiles_changed" },
+		});
 
 		await expect(
 			handleCommand(ctx, "test_remote_environment", { id: ` ${profile.id} ` }),
@@ -563,6 +607,9 @@ describe("remote environment command routing", () => {
 		);
 		expect(binding.hubClient.dispose).toHaveBeenCalledOnce();
 		expect(fake.delete).toHaveBeenCalledWith(profile.id);
+		expect(
+			send.mock.calls.map((call) => JSON.parse(String(call[0])).event.name),
+		).toContain("remote_environment_profiles_changed");
 		expect(ctx.runtimeBindings.has(profile.id)).toBe(false);
 		expect(ctx.activeEnvironmentId).toBe("local");
 		expect(readEvent(send, 0)).toEqual({

@@ -306,21 +306,32 @@ export default function Home() {
 
 	useEffect(() => {
 		if (view !== "chat") return;
-		let cancelled = false;
-		setRemoteEnvironmentProfilesLoading(true);
-		desktopClient
-			.invoke<RemoteEnvironmentListResult>("list_remote_environments")
-			.then((result) => {
-				if (!cancelled) setRemoteEnvironmentProfiles(result.profiles);
-			})
-			.catch(() => {
-				// The Settings > Remote surface owns profile-management errors.
-			})
-			.finally(() => {
-				if (!cancelled) setRemoteEnvironmentProfilesLoading(false);
-			});
+		let revision = 0;
+		const refresh = () => {
+			const requestRevision = ++revision;
+			setRemoteEnvironmentProfilesLoading(true);
+			void desktopClient
+				.invoke<RemoteEnvironmentListResult>("list_remote_environments")
+				.then((result) => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfiles(result.profiles);
+				})
+				.catch(() => {
+					// The Settings > Remote surface owns profile-management errors.
+				})
+				.finally(() => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfilesLoading(false);
+				});
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"remote_environment_profiles_changed",
+			refresh,
+		);
+		refresh();
 		return () => {
-			cancelled = true;
+			++revision;
+			unsubscribe();
 		};
 	}, [view]);
 
