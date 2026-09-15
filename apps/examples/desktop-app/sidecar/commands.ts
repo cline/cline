@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join } from "node:path";
-import { promisify } from "node:util";
+import { isDeepStrictEqual, promisify } from "node:util";
 import type {
 	ClineAccountActionRequest,
 	CoreSettingsSnapshot,
@@ -15,6 +15,8 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
+	type ClineAccountUser,
+	clearAccountTelemetryIdentity,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -22,13 +24,17 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getProviderAuthHandler,
+	identifyAccount,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
+	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
 	readGlobalSettings,
+	resolveClineAccountTelemetryIdentity,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -63,6 +69,7 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	getCloudSessionManager,
@@ -94,6 +101,7 @@ import {
 	isCloudAgentsEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -123,9 +131,14 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { getPullRequestStatus } from "./pull-request";
+import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
-import { normalizeSessionTitle } from "./session-data/common";
+import {
+	compareSessionRecordsByStartedAtDesc,
+	normalizeSessionTitle,
+} from "./session-data/common";
 import {
 	discoverChatSessions,
 	mergeDiscoveredSessionLists,
@@ -211,9 +224,7 @@ function emitDesktopDebugLog(
 // launch arbitrary local handlers.
 const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
 
-// Caps how long session discovery waits on the cloud API so a slow or
-// unreachable backend can never stall the sidebar; the manager falls back to
-// its last cached list.
+// Fall back to cached rows rather than stall the sidebar on the cloud API.
 const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
@@ -319,14 +330,23 @@ function removePathIfExists(
 	return true;
 }
 
-function syncFeatureFlagsAccountFromResult(
+function syncAccountContextFromResult(
 	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
 	operation: string,
 	result: unknown,
 ): void {
 	if (operation === "fetchMe") {
-		const user = result as { id?: string; email?: string } | undefined;
+		const user = result as ClineAccountUser | undefined;
 		if (user?.id) {
+			const identity = resolveClineAccountTelemetryIdentity(user);
+			ctx.telemetryUser = resolveDesktopTelemetryUser({
+				accountId: identity.id,
+				email: identity.email,
+				organizationId: identity.organizationId,
+			});
+			identifyAccount(ctx.telemetry, identity);
+			persistClineAccountTelemetryIdentity(manager, identity);
 			void identifyDesktopFeatureFlagsAccount(
 				{ id: user.id, email: user.email },
 				{ logger: ctx.logger, telemetry: ctx.telemetry },
@@ -336,12 +356,39 @@ function syncFeatureFlagsAccountFromResult(
 	}
 }
 
-function syncFeatureFlagsAccountFromSettings(
+function syncAccountContextFromSettings(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
 ): void {
+	const auth = manager.getProviderSettings("cline")?.auth;
+	const accountId = auth?.accountId?.trim();
+	if (!auth || !accountId) {
+		syncSignedOutAccountContext(ctx);
+		return;
+	}
+	ctx.telemetryUser = resolveDesktopTelemetryUser({
+		accountId,
+		organizationId: auth.organizationId,
+	});
+	identifyAccount(ctx.telemetry, {
+		id: accountId,
+		provider: "cline",
+		organizationId: auth.organizationId,
+		organizationName: auth.organizationName,
+		memberId: auth.memberId,
+	});
 	void identifyDesktopFeatureFlagsAccount(
-		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ id: accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
+function syncSignedOutAccountContext(ctx: SidecarContext): void {
+	const telemetryUser = resolveDesktopTelemetryUser();
+	ctx.telemetryUser = telemetryUser;
+	clearAccountTelemetryIdentity(ctx.telemetry, telemetryUser.distinctId);
+	void identifyDesktopFeatureFlagsAccount(
+		{},
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
 }
@@ -620,9 +667,13 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
-function routineScheduleTiming(
-	args?: Record<string, unknown>,
-): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+function routineScheduleTiming(args?: Record<string, unknown>):
+	| {
+			cronPattern: string;
+			timezone?: string;
+			metadata?: Record<string, number>;
+	  }
+	| undefined {
 	if (args?.schedule_type === "once") {
 		const runAt =
 			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
@@ -634,7 +685,9 @@ function routineScheduleTiming(
 			: undefined;
 	}
 	const cronPattern = asTrimmedString(args?.cron_pattern);
-	return cronPattern ? { cronPattern } : undefined;
+	return cronPattern
+		? { cronPattern, timezone: asTrimmedString(args?.timezone) }
+		: undefined;
 }
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -892,7 +945,7 @@ async function listHubSettings(
 async function toggleHubSetting(
 	ctx: SidecarContext,
 	input: {
-		type: "plugins" | "tools";
+		type: "plugins" | "tools" | "skills";
 		path?: string;
 		name?: string;
 		enabled?: boolean;
@@ -931,13 +984,18 @@ async function listUserInstructionConfigs(
 		const items: unknown[] = [];
 		for (const record of userInstructionService.listRecords(type)) {
 			const item = record.item as unknown as JsonRecord;
-			if (item.disabled === true) continue;
+			const disabled = item.disabled === true;
+			// Rules and workflows have no toggle UI, so keep hiding disabled
+			// ones; skills need to stay visible (disabled) so they can be
+			// re-enabled from the Skills tab.
+			if (disabled && type !== "skill") continue;
 			items.push({
 				id: record.id,
 				name: item.name ?? record.id,
 				description: item.description,
 				instructions: item.instructions,
 				path: record.filePath,
+				...(type === "skill" ? { enabled: !disabled } : {}),
 			});
 		}
 		return items;
@@ -1395,11 +1453,8 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// PostHog flags resolve sidecar-side (build-time key, telemetry
-		// distinct id); the webview reads resolved values only. Cloud gets
-		// two derived fields: `cloudAgentsAvailable` (rollout flag — shows
-		// the Settings opt-in) and `cloudAgents` (flag AND the user's
-		// opt-in — enables the feature).
+		// Resolve flags in the sidecar: available shows the opt-in;
+		// enabled requires both the rollout flag and the user's opt-in.
 		const snapshot = await refreshDesktopFeatureFlags({
 			logger: ctx.logger,
 			telemetry: ctx.telemetry,
@@ -1425,11 +1480,6 @@ export async function handleCommand(
 			cursor: typeof args?.cursor === "string" ? args.cursor : undefined,
 			query: typeof args?.query === "string" ? args.query : undefined,
 		});
-	}
-	if (command === "get_cloud_provisioning_outcome") {
-		const placeholderId = String(args?.placeholderId ?? "").trim();
-		if (!placeholderId) throw new Error("placeholderId is required");
-		return getCloudSessionManager(ctx).getProvisioningOutcome(placeholderId);
 	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
@@ -1506,7 +1556,6 @@ export async function handleCommand(
 		if (pending.item.sessionId !== sessionId) {
 			throw new Error("tool approval does not belong to this session");
 		}
-		// Cloud approvals resolve through an async hub round-trip.
 		await pending.resolve({
 			approved: Boolean(args?.approved),
 			...(typeof args?.reason === "string" && args.reason.trim().length > 0
@@ -1594,6 +1643,13 @@ export async function handleCommand(
 			typeof args?.workspaceRoot === "string"
 				? args.workspaceRoot.trim() || undefined
 				: undefined;
+		// Start now so cloud latency does not add to the local fallback deadline.
+		const cloudDiscovery = (async () => {
+			const manager = getCloudSessionManager(ctx);
+			const sessions = await manager.listForDiscovery({ timeoutMs: 750 });
+			return { manager, sessions };
+		})().catch(() => undefined);
+		let hits: JsonRecord[] = [];
 		if (ctx.hubClient) {
 			try {
 				const reply = await withSearchDeadline(
@@ -1609,7 +1665,7 @@ export async function handleCommand(
 					Array.isArray(reply.payload?.hits) &&
 					reply.payload.hits.length > 0
 				) {
-					return reply.payload.hits.slice(0, limit).map((hit) => ({
+					hits = reply.payload.hits.map((hit) => ({
 						...hit,
 						title: formatSessionSearchTitle(hit.title),
 						snippet: formatSessionSearchPreview(hit.role, hit.snippet),
@@ -1620,11 +1676,34 @@ export async function handleCommand(
 			}
 		}
 
-		const sessions = await withSearchDeadline(
-			listSessionsFromSidecarManager(ctx, 500),
-			1_000,
-		).catch(() => []);
-		return metadataSessionSearchHits(sessions, query).slice(0, limit);
+		if (hits.length === 0) {
+			const sessions = await withSearchDeadline(
+				listSessionsFromSidecarManager(ctx, 500),
+				1_000,
+			).catch(() => []);
+			hits = metadataSessionSearchHits(sessions, query);
+		}
+		hits = hits.filter(
+			(hit) => !workspaceRoot || hit.workspaceRoot === workspaceRoot,
+		);
+		const cloud = await cloudDiscovery;
+		// Account changes replace the manager; discard any in-flight old scope.
+		if (cloud && ctx.cloudSessionManager === cloud.manager) {
+			const seen = new Set(hits.map((hit) => hit.sessionId));
+			const cloudHits = metadataSessionSearchHits(cloud.sessions, query)
+				.filter((hit) => {
+					if (
+						(workspaceRoot && hit.workspaceRoot !== workspaceRoot) ||
+						seen.has(hit.sessionId)
+					)
+						return false;
+					seen.add(hit.sessionId);
+					return true;
+				})
+				.sort(compareSessionRecordsByStartedAtDesc);
+			hits.push(...cloudHits);
+		}
+		return hits.slice(0, limit);
 	}
 	if (command === "get_discovered_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
@@ -1900,10 +1979,7 @@ export async function handleCommand(
 			// an expired or server-revoked token. Explicit sign-out is handled
 			// at its source in `save_provider_settings`; this catches the rest
 			// so a stale account never keeps serving its rollout cohort.
-			void identifyDesktopFeatureFlagsAccount(
-				{},
-				{ logger: ctx.logger, telemetry: ctx.telemetry },
-			);
+			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -1922,7 +1998,7 @@ export async function handleCommand(
 			// the next 12s poll.
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
-		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		syncAccountContextFromResult(ctx, manager, operation, result);
 		return result;
 	}
 
@@ -1966,10 +2042,14 @@ export async function handleCommand(
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
+		const includeCloudModels =
+			providerId === "cline" &&
+			args?.includeCloudModels === true &&
+			isCloudAgentsEnabled();
 		return await getLocalProviderModels(
 			providerId,
-			manager.getProviderConfig(providerId),
-			{ loadLatest: providerId === "cline" },
+			manager.getProviderConfig(providerId, { includeKnownModels: false }),
+			{ loadLatest: includeCloudModels },
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -2116,6 +2196,12 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
+		const storageProviderId =
+			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
+		const previous =
+			storageProviderId === "cline"
+				? manager.getProviderSettings(storageProviderId)
+				: undefined;
 		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
@@ -2123,18 +2209,38 @@ export async function handleCommand(
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
-		if (providerId === "cline") {
-			await resetCloudSessionManager(ctx);
-			// Sign-out must clear cloud rows from the sidebar immediately,
-			// not on the next 12s poll.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		if (!saved.enabled) {
+			// Cline Pass keeps its credentials under "cline", so removing only
+			// its own entry would leave the account signed in.
+			if (storageProviderId !== saved.providerId) {
+				saveLocalProviderSettings(manager, {
+					providerId: storageProviderId,
+					enabled: false,
+				});
+			}
+			// Removing a providers.json entry lets the legacy import restore it
+			// from the extension's secrets.json on the next command unless those
+			// credentials go too. A failed write throws so the webview reports
+			// the sign-out as failed and resyncs.
+			clearLegacyProviderCredentials(storageProviderId);
+		}
+		if (storageProviderId === "cline") {
+			const current = manager.getProviderSettings(storageProviderId);
+			// Ordinary provider preferences must not interrupt cloud sessions.
+			if (
+				previous?.apiKey !== current?.apiKey ||
+				!isDeepStrictEqual(previous?.auth, current?.auth)
+			) {
+				await resetCloudSessionManager(ctx);
+				broadcastEvent(ctx, "cloud_sessions_changed", {});
+			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
 		// (see signOut in webview settings/account-view.tsx), so this is the
 		// authoritative signal — it fires the moment credentials are cleared
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
-			syncFeatureFlagsAccountFromSettings(ctx, manager);
+			syncAccountContextFromSettings(ctx, manager);
 		}
 		return saved;
 	}
@@ -2213,10 +2319,10 @@ export async function handleCommand(
 					}),
 			},
 		);
-		if (providerId === "cline") {
-			// New credentials re-scope cloud sessions just like switchAccount:
-			// drop the manager's cached org/session state and refresh the
-			// sidebar immediately instead of on the next poll.
+		const storageProviderId =
+			getProviderAuthHandler(providerId)?.storageProviderId ?? providerId;
+		if (storageProviderId === "cline") {
+			// Re-scope cached cloud sessions after sign-in.
 			await resetCloudSessionManager(ctx);
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
@@ -2256,8 +2362,6 @@ export async function handleCommand(
 			throw new Error("cloud_sessions_enabled must be a boolean");
 		}
 		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
-		// Every open webview (welcome composer included) must re-evaluate the
-		// gate immediately instead of waiting for the next sign-in refresh.
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
@@ -2272,11 +2376,6 @@ export async function handleCommand(
 		return readGlobalSettings();
 	}
 
-	// ── Feature flags ──────────────────────────────────────────────────
-	// Flags are evaluated here, not in the webview: the sidecar already has
-	// the PostHog key inlined at build time and evaluates against the same
-	// distinct ID it reports telemetry with. The client just reads the
-	// resolved values.
 	// ── Connector channels ─────────────────────────────────────────────
 	if (command === "list_connector_channels") {
 		return connectorChannelsPayload();
@@ -2489,6 +2588,17 @@ export async function handleCommand(
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
+	if (command === "capture_pull_request_event") {
+		capturePullRequestEvent(ctx.telemetry, args);
+		return null;
+	}
+	if (command === "get_pull_request_status") {
+		return await getPullRequestStatus(
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.workspaceRoot,
+		);
+	}
 	if (command === "get_git_branch") {
 		const cwd =
 			typeof args?.cwd === "string" && args.cwd.trim()
@@ -2604,6 +2714,18 @@ export async function handleCommand(
 		const snapshot = await toggleHubSetting(ctx, {
 			type: "plugins",
 			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
+	}
+	if (command === "set_skill_disabled") {
+		const skillPath = String(args?.path ?? "").trim();
+		if (!skillPath) {
+			throw new Error("skill path is required");
+		}
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "skills",
+			path: skillPath,
 			enabled: args?.disabled !== true,
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);

@@ -11,6 +11,16 @@
 
 @source "../../node_modules/streamdown/dist";
 
+:root {
+	--window-title-bar-height: 3rem;
+}
+
+@variant max-md {
+	:root {
+		--window-title-bar-height: 1.75rem;
+	}
+}
+
 @layer base {
 	html,
 	body {
@@ -53,6 +63,17 @@
 		-webkit-user-select: text;
 		user-select: text;
 	}
+
+	/* The Windows caption controls occupy the right edge of the shared title-bar row. */
+	html[data-windows-custom-titlebar]
+	[data-slot="window-title-bar-content-host"] {
+		padding-right: 9rem;
+	}
+}
+
+/* Mobile toasts start below the caption row so both close buttons remain reachable. */
+html[data-windows-custom-titlebar] [data-slot="toast-viewport"] {
+	@apply max-sm:top-(--window-title-bar-height);
 }
 
 /* Chat Markdown polish and the streaming-title shimmer live in

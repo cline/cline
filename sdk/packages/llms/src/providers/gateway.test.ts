@@ -1500,6 +1500,7 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 				errorClass: "unknown",
+				errorRetryable: false,
 			},
 		]);
 	});
@@ -2333,6 +2334,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "OpenAI image generation tool returned no supported image output",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -2548,6 +2550,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Invalid API key",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -2763,6 +2766,7 @@ describe("sdk-gateway", () => {
 				reason: "error",
 				error: "Invalid API key",
 				errorClass: "unknown",
+				errorRetryable: false,
 			},
 		]);
 	});
@@ -2803,6 +2807,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "prompt is too long: 213462 tokens > 200000 maximum",
 			errorClass: "context_window_exceeded",
+			errorRetryable: false,
 		});
 	});
 
@@ -2839,6 +2844,7 @@ describe("sdk-gateway", () => {
 			reason: "error",
 			error: "Instructions are required",
 			errorClass: "unknown",
+			errorRetryable: false,
 		});
 	});
 
@@ -3495,6 +3501,59 @@ describe("sdk-gateway", () => {
 				cacheReadTokens: 0,
 				cacheWriteTokens: 0,
 				totalCost: 0.009145675,
+			},
+		});
+	});
+
+	it.each([
+		"cline-pass",
+		"cline",
+	])("emits zero cost for included models on %s", async (providerId) => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 1000,
+						completion_tokens: 200,
+						cost: 0.5,
+						market_cost: 1,
+					},
+				},
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: "test-key",
+					models: [
+						{
+							id: "included-model",
+							name: "Included Model",
+							metadata: {
+								pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+							},
+						},
+					],
+				},
+			],
+		});
+		const events = await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "included-model",
+				messages: baseMessages,
+			}),
+		);
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: {
+				inputTokens: 1000,
+				outputTokens: 200,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				totalCost: 0,
 			},
 		});
 	});
