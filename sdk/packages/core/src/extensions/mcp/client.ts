@@ -5,6 +5,7 @@ import {
 	type AgentToolContext,
 	formatMcpTimeoutErrorMessage,
 	isMcpTimeoutConfigured,
+	withInheritedExecutableSearch,
 } from "@cline/shared";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -415,10 +416,10 @@ class StdioMcpClient implements McpServerClient {
 				: {};
 		const child = spawn(transport.command, transport.args ?? [], {
 			cwd: transport.cwd,
-			env: {
+			env: withInheritedExecutableSearch({
 				...process.env,
 				...(transport.env ?? {}),
-			},
+			}),
 			stdio: ["pipe", "pipe", "pipe"],
 			...platformOptions,
 		});

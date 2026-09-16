@@ -22,6 +22,7 @@ import {
 	type AgentToolContext,
 	getDefaultShell,
 	getShellInvocation,
+	withInheritedExecutableSearch,
 } from "@cline/shared";
 import {
 	type ProcessStartTokenProbeResult,
@@ -678,7 +679,7 @@ function spawnAndCollect(
 
 		const child = spawn(config.executable, config.args, {
 			cwd: config.cwd,
-			env: { ...process.env, ...config.env },
+			env: withInheritedExecutableSearch({ ...process.env, ...config.env }),
 			stdio: ["pipe", "pipe", "pipe"],
 			detached: !isWindows,
 			// Prevent a console window from flashing on Windows when the
