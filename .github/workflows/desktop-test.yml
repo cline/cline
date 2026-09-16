@@ -75,6 +75,9 @@ jobs:
 
       # Use the same NSIS distribution as the locked Tauri CLI. No workspace
       # install or full desktop build: the test compiles a disposable sidecar.
+      # The test asserts makensis reports NSIS_VERSION and that bun.lock still
+      # resolves TAURI_CLI_VERSION, so changing this download or bumping the
+      # CLI without updating windows-installer.test.ts fails the job.
       - name: Setup NSIS
         shell: pwsh
         run: |

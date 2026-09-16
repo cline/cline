@@ -21,6 +21,15 @@ const hook = path.resolve(
 	import.meta.dir,
 	"../src-tauri/nsis/installer-hooks.nsh",
 );
+const lockfile = path.resolve(import.meta.dir, "../../../../bun.lock");
+
+// The shipped installer is compiled by the NSIS that tauri-bundler pins
+// (NSIS_URL / NSIS_SHA1 in crates/tauri-bundler/src/bundle/windows/nsis/mod.rs
+// of the locked @tauri-apps/cli), and desktop-test.yml downloads that same
+// archive by hand. Pin both ends here so a Tauri CLI bump, or an edit to the
+// workflow's download, fails this suite until the pair is re-checked together.
+const TAURI_CLI_VERSION = "2.11.4";
+const NSIS_VERSION = "v3.11";
 const children: ChildProcess[] = [];
 let root: string;
 let fixture: string;
@@ -79,10 +88,24 @@ async function start(dir: string, name: string): Promise<ChildProcess> {
 	return child;
 }
 
+test("locked Tauri CLI is the version whose NSIS pin this suite mirrors", () => {
+	const resolved = readFileSync(lockfile, "utf8").match(
+		/"@tauri-apps\/cli": \["@tauri-apps\/cli@([^"]+)"/,
+	)?.[1];
+	expect(
+		resolved,
+		`@tauri-apps/cli moved from ${TAURI_CLI_VERSION}; re-read its bundler's NSIS_URL/NSIS_SHA1 and update TAURI_CLI_VERSION, NSIS_VERSION and the download in desktop-test.yml`,
+	).toBe(TAURI_CLI_VERSION);
+});
+
 describe.skipIf(!windows)("Windows installer process cleanup", () => {
 	beforeAll(async () => {
 		if (!existsSync(nsis))
 			throw new Error(`Set MAKENSIS_PATH: not found: ${nsis}`);
+		expect(
+			Bun.spawnSync([nsis, "/VERSION"]).stdout.toString().trim(),
+			`makensis is not the ${NSIS_VERSION} that the locked Tauri CLI bundles installers with`,
+		).toBe(NSIS_VERSION);
 		root = mkdtempSync(path.join(tmpdir(), "cline-installer-test-"));
 		fixture = path.join(root, "fixture.exe");
 		const source = path.join(root, "fixture.ts");
