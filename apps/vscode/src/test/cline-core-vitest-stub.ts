@@ -123,6 +123,25 @@ export class CommandExitError extends Error {
 	}
 }
 
+export class CommandSpawnError extends Error {
+	readonly code: string | undefined
+	readonly missing: "executable" | "cwd" | undefined
+
+	constructor(cause: Error, options: { cwd?: string } = {}) {
+		super(`Failed to execute command: ${cause.message}`)
+		this.name = "CommandSpawnError"
+		const code = (cause as NodeJS.ErrnoException).code
+		this.code = typeof code === "string" ? code : undefined
+		if (this.code !== "ENOENT") {
+			this.missing = undefined
+		} else if (options.cwd !== undefined && !existsSync(options.cwd)) {
+			this.missing = "cwd"
+		} else {
+			this.missing = "executable"
+		}
+	}
+}
+
 export function createShellExecutor() {
 	return async () => ""
 }
