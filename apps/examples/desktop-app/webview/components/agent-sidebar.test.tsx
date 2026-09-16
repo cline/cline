@@ -142,12 +142,6 @@ const signedInUser = {
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-	if (typeof window.localStorage.clear !== "function") {
-		Object.defineProperty(window, "localStorage", {
-			configurable: true,
-			value: window.sessionStorage,
-		});
-	}
 	window.localStorage.clear();
 	invoke.mockReset();
 	invoke.mockRejectedValue(new Error("No Cline account auth token found"));
@@ -734,21 +728,6 @@ describe("AgentSidebar session organization", () => {
 		]);
 	});
 
-	it("labels a cloud session by repository", () => {
-		expect(
-			getSessionOverviewItems({
-				...makeThread("cloud", 1),
-				origin: "cloud",
-				repoUrl: "https://github.com/cline/cline",
-				workspacePath: "https://github.com/cline/cline",
-			}),
-		).toContainEqual([
-			"Repository",
-			"https://github.com/cline/cline",
-			"https://github.com/cline/cline",
-		]);
-	});
-
 	it("shows the full first line of the session title", () => {
 		const firstLine =
 			"This is a complete session title that is intentionally longer than seventy characters for the hover overview";
@@ -1113,7 +1092,7 @@ describe("AgentSidebar session organization", () => {
 			...(actionsNav?.querySelectorAll<HTMLButtonElement>("button") ?? []),
 		];
 		expect(rows.map((row) => row.textContent)).toEqual([
-			"Session",
+			"New",
 			"Schedule",
 			"Customize",
 		]);
@@ -1122,7 +1101,7 @@ describe("AgentSidebar session organization", () => {
 		}
 		expect(actionsNav?.contains(logo as Element)).toBe(false);
 
-		await click(buttonWithText("Session", actionsNav as ParentNode));
+		await click(buttonWithText("New", actionsNav as ParentNode));
 		expect(onHome).toHaveBeenCalledOnce();
 		await click(buttonWithText("Schedule", actionsNav as ParentNode));
 		expect(onSettingsSectionChange).toHaveBeenCalledWith("Schedules");
@@ -1204,7 +1183,7 @@ describe("AgentSidebar session organization", () => {
 				);
 			});
 			return buttonWithText(
-				"Session",
+				"New",
 				container.querySelector('[aria-label="Sidebar actions"]') as ParentNode,
 			);
 		};

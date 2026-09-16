@@ -153,13 +153,6 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
-Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
-attachment; requests with neither are rejected before starting a turn.
-NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
-It runs after connection setup, before allocating or sending the command, on
-each attempt. Throwing prevents that attempt's dispatch; already-dispatched runs still require
-`run.abort`.
-
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
 starts (one-shot or interactive) begin `running`, interactive starts without a
@@ -318,8 +311,6 @@ Header authentication is mutually exclusive with the local hub-token subprotocol
 the proxy is responsible for authenticating the client and adding any private
 upstream hub credentials. Resolver failures and rejected protocol headers fail the
 connection and remain available through the client's connection-error state.
-Clients with active subscriptions keep retrying after header-resolution failures,
-even when no socket was created.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -892,6 +883,12 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+Queue steering through `pendingPrompts.steerFirst` selects and promotes the
+current queue head in one synchronous core operation. Desktop Enter sends this
+intent through the sidecar and Hub without fetching a prompt ID first; explicit
+per-prompt steering continues to update by ID. Concurrent clients therefore
+cannot make Enter promote an entry from a stale queue snapshot.
 
 ### SSH environments
 

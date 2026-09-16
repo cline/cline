@@ -13,13 +13,7 @@ export type WorkspacePathSource = {
 	workspaceRoot?: string;
 	startedAt?: string;
 	endedAt?: string;
-	origin?: string;
 };
-
-// Do not offer a cloud sandbox path as a local workspace.
-function isLocalWorkspaceSource(session: WorkspacePathSource): boolean {
-	return session.origin !== "cloud";
-}
 
 /** Typed/pasted folder paths in search boxes double as manual path entry. */
 export function looksLikeFolderPath(value: string): boolean {
@@ -149,9 +143,8 @@ export function filterWorkspacePaths(paths: readonly string[]): string[] {
  * the end.
  */
 export function workspacePathsFromSessions(
-	allSessions: readonly WorkspacePathSource[],
+	sessions: readonly WorkspacePathSource[],
 ): string[] {
-	const sessions = allSessions.filter(isLocalWorkspaceSource);
 	const lastActivityByPath = new Map<string, number>();
 	for (const session of sessions) {
 		const normalized = normalizeWorkspacePath(

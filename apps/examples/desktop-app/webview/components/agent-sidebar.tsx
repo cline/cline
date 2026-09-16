@@ -7,7 +7,6 @@ import {
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
-	Cloud,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -660,7 +659,7 @@ export function AgentSidebar({
 	);
 	// A single click flips straight to the other mode (a dropdown here would
 	// cost an extra click for a two-option choice); the icon shows the mode
-	// that is currently active.
+	// the click switches to, not the one currently active.
 	const sortToggle = (
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
@@ -677,9 +676,9 @@ export function AgentSidebar({
 			variant="ghost"
 		>
 			{sortMode === "time" ? (
-				<Clock3 className="size-3.5" />
-			) : (
 				<FolderTree className="size-3.5" />
+			) : (
+				<Clock3 className="size-3.5" />
 			)}
 		</Button>
 	);
@@ -1281,9 +1280,9 @@ export function AgentSidebar({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							{deleteConfirmThread?.origin === "cloud"
-								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
-								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
+							This removes "
+							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
+							from local history.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1507,13 +1506,11 @@ function ThreadItem({
 	const pending = pendingAction !== null;
 	const statusDotClass = pending
 		? "bg-yellow-400"
-		: thread.status === "provisioning"
-			? "animate-pulse bg-yellow-400"
-			: thread.status === "running"
-				? "bg-green-500"
-				: unread
-					? "bg-blue-500"
-					: "";
+		: thread.status === "running"
+			? "bg-green-500"
+			: unread
+				? "bg-blue-500"
+				: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
@@ -1568,12 +1565,6 @@ function ThreadItem({
 								type="button"
 							>
 								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
-									{thread.origin === "cloud" ? (
-										<Cloud
-											aria-label="Cloud session"
-											className="size-3 shrink-0 text-muted-foreground"
-										/>
-									) : null}
 									{thread.isScheduled && !nested ? (
 										<Clock3
 											aria-label="Scheduled"
@@ -1649,9 +1640,6 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
-				allowPin={thread.origin !== "cloud"}
-				allowFork={thread.origin !== "cloud"}
-				allowRename
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
@@ -1677,10 +1665,8 @@ export function getSessionOverviewItems(
 		["Schedule", thread.scheduleName],
 		["Run", thread.scheduleRunNumber ? String(thread.scheduleRunNumber) : null],
 		[
-			thread.origin === "cloud" ? "Repository" : "Workspace",
-			thread.origin === "cloud"
-				? thread.repoUrl
-				: workspaceDisplayName(workspacePath),
+			"Workspace",
+			workspaceDisplayName(workspacePath),
 			workspacePath || undefined,
 		],
 		["Branch", thread.gitBranch],
@@ -1748,10 +1734,6 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
-	allowPin,
-	allowFork,
-	allowRename,
-	allowDelete = true,
 	pinned,
 	onRename,
 	onTogglePin,
@@ -1759,10 +1741,6 @@ function SessionContextMenuContent({
 	onDelete,
 	pendingAction,
 }: {
-	allowPin: boolean;
-	allowFork: boolean;
-	allowRename: boolean;
-	allowDelete?: boolean;
 	pinned: boolean;
 	onRename: () => void;
 	onTogglePin: () => void;
@@ -1773,34 +1751,28 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			{allowPin ? (
-				<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
-					<Pin className={cn("size-4", pinned && "fill-current")} />
-					{pinned ? "Unpin" : "Pin"}
-				</ContextMenuItem>
-			) : null}
-			{allowRename ? (
-				<ContextMenuItem disabled={pending} onSelect={onRename}>
-					{pendingAction === "rename" ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<Pencil className="size-4" />
-					)}
-					{pendingAction === "rename" ? "Renaming..." : "Rename"}
-				</ContextMenuItem>
-			) : null}
-			{allowFork ? (
-				<ContextMenuItem disabled={pending} onSelect={onFork}>
-					{pendingAction === "fork" ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<GitFork className="size-4" />
-					)}
-					{pendingAction === "fork" ? "Forking..." : "Fork"}
-				</ContextMenuItem>
-			) : null}
+			<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
+				<Pin className={cn("size-4", pinned && "fill-current")} />
+				{pinned ? "Unpin" : "Pin"}
+			</ContextMenuItem>
+			<ContextMenuItem disabled={pending} onSelect={onRename}>
+				{pendingAction === "rename" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Pencil className="size-4" />
+				)}
+				{pendingAction === "rename" ? "Renaming..." : "Rename"}
+			</ContextMenuItem>
+			<ContextMenuItem disabled={pending} onSelect={onFork}>
+				{pendingAction === "fork" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<GitFork className="size-4" />
+				)}
+				{pendingAction === "fork" ? "Forking..." : "Fork"}
+			</ContextMenuItem>
 			<ContextMenuItem
-				disabled={pending || !allowDelete}
+				disabled={pending}
 				onSelect={onDelete}
 				variant="destructive"
 			>
