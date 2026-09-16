@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio"
 import { Browser, Page } from "puppeteer-core"
-import TurndownService from "turndown"
 import { StateManager } from "@/core/storage/StateManager"
+import { htmlToMarkdown } from "./htmlToMarkdown"
 import { ensureChromiumExists } from "./utils"
 
 export class UrlContentFetcher {
@@ -55,9 +55,6 @@ export class UrlContentFetcher {
 		$("script, style, nav, footer, header").remove()
 
 		// convert cleaned HTML to markdown
-		const turndownService = new TurndownService()
-		const markdown = turndownService.turndown($.html())
-
-		return markdown
+		return htmlToMarkdown($.html())
 	}
 }
