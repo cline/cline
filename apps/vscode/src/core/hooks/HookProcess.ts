@@ -1,4 +1,3 @@
-import { withInheritedExecutableSearch } from "@cline/shared"
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
 import { existsSync } from "fs"
@@ -192,7 +191,6 @@ export class HookProcess extends EventEmitter {
 							shell: launchConfig.shell,
 							detached: launchConfig.detached,
 							cwd: this.cwd, // Execute from the determined workspace root (validated above)
-							env: withInheritedExecutableSearch(process.env),
 							windowsHide: true,
 						})
 

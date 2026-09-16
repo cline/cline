@@ -518,7 +518,6 @@ export {
 export {
 	disableCurrentDirectoryExecutableSearch,
 	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,
-	withInheritedExecutableSearch,
 } from "./runtime/windows-exe-path";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,

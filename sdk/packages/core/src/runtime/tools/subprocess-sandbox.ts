@@ -2,7 +2,6 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { basename } from "node:path";
 import {
 	augmentNodeCommandForDebug,
-	withInheritedExecutableSearch,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
@@ -268,9 +267,7 @@ export class SubprocessSandbox {
 			command.slice(1),
 			{
 				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: withInheritedExecutableSearch(
-					withResolvedClineBuildEnv(process.env),
-				),
+				env: withResolvedClineBuildEnv(process.env),
 				// Prevent a console window from flashing on Windows.
 				windowsHide: true,
 			},
