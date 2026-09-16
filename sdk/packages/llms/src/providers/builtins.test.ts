@@ -248,6 +248,16 @@ describe("cline-pass builtin spec", () => {
 			expect(model.pricing).toBeDefined();
 		}
 	});
+
+	it("defaults to a subscribed-tier model, not a free one", async () => {
+		const models = await getModelsForProvider("cline-pass");
+		const provider = await getProvider("cline-pass");
+
+		expect(provider?.defaultModelId).toMatch(/^cline-pass\//);
+		expect(
+			Object.keys(models).some((id) => !id.startsWith("cline-pass/")),
+		).toBe(true);
+	});
 });
 
 describe("built-in provider metadata", () => {
