@@ -1,5 +1,11 @@
 # Cline Desktop Changelog
 
+## 0.0.29
+
+- Queued messages can now be sent into the running turn with Enter. While the agent is working, pressing Enter with an empty composer steers the first message in the queue, so it is picked up at the next turn boundary instead of waiting for the whole task to finish; the composer placeholder says so whenever the queue is non-empty. The queue head is claimed atomically, so a fast second Enter can't steer a message that has already left the queue, and a steer that fails now surfaces as a toast rather than silently doing nothing
+- The macOS Dock icon now has the standard margin other apps use. The bundled icon and the selectable runtime icons (Classic, Chip, Hologram, Midnight) were edge-to-edge, so Cline rendered visibly larger than its neighbours in the Dock. Windows keeps its existing artwork
+- The session sidebar's sort toggle now shows the mode a click switches to, not the one already active — a folder icon while sorted by time, a clock while grouped by project
+
 ## 0.0.28
 
 - The app no longer gets stuck on "Desktop backend unavailable" when the backend is slow to start. The window asked for the backend's address exactly once and the shell stops waiting after about 15 seconds, so on a slower machine — where starting the hub pushed past that — you were left on the error screen until you relaunched, and the relaunch could lose the same race. Connection attempts now keep retrying and re-resolve the address each time, so a backend that has since restarted is reached at its current one

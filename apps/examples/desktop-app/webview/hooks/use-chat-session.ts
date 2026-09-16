@@ -77,6 +77,7 @@ const STREAM_FLUSH_INTERVAL_MS = 48;
 // turn metadata) races the done event by a few milliseconds, so an immediate
 // read could catch the file mid-rewrite.
 const TURN_END_RECONCILE_DELAY_MS = 250;
+const QUEUE_ACKNOWLEDGEMENT_WAIT_MS = 1_000;
 
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
@@ -406,7 +407,18 @@ export function useChatSession() {
 	const [pendingAskQuestions, setPendingAskQuestions] = useState<
 		AskQuestionRequestItem[]
 	>([]);
-	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
+	const [promptsInQueue, setPromptsInQueueState] = useState<PromptInQueue[]>(
+		[],
+	);
+	const queueRevisionRef = useRef(0);
+	const setPromptsInQueue = useCallback(
+		(value: React.SetStateAction<PromptInQueue[]>) => {
+			// Invalidate in-flight snapshots immediately, before React renders.
+			queueRevisionRef.current += 1;
+			setPromptsInQueueState(value);
+		},
+		[],
+	);
 	const messagesRef = useRef<ChatMessage[]>([]);
 	// When the last chat_event chunk for the active session arrived. The
 	// stale-stream fallback below only polls while this stays quiet.
@@ -437,6 +449,7 @@ export function useChatSession() {
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
@@ -827,7 +840,7 @@ export function useChatSession() {
 					// Keep the last known state on transient transport failures.
 				});
 		},
-		[finalizeSettledTurn, postSession],
+		[finalizeSettledTurn, postSession, setPromptsInQueue],
 	);
 
 	const refreshPromptsInQueue = useCallback(
@@ -848,15 +861,18 @@ export function useChatSession() {
 				// Ignore queue refresh failures and keep the last known state.
 			}
 		},
-		[postSession],
+		[postSession, setPromptsInQueue],
 	);
 
-	const applyPromptsInQueue = useCallback((value: unknown) => {
-		if (!Array.isArray(value)) {
-			return;
-		}
-		setPromptsInQueue(value as PromptInQueue[]);
-	}, []);
+	const applyPromptsInQueue = useCallback(
+		(value: unknown) => {
+			if (!Array.isArray(value)) {
+				return;
+			}
+			setPromptsInQueue(value as PromptInQueue[]);
+		},
+		[setPromptsInQueue],
+	);
 
 	const sessionDiffCwd = (config.cwd || config.workspaceRoot || "").trim();
 	const refreshSessionDiffSummary = useCallback(
@@ -1164,7 +1180,12 @@ export function useChatSession() {
 		}
 		void refreshSessionDiffSummary(sessionId);
 		void refreshPromptsInQueue(sessionId);
-	}, [refreshPromptsInQueue, refreshSessionDiffSummary, sessionId]);
+	}, [
+		refreshPromptsInQueue,
+		refreshSessionDiffSummary,
+		sessionId,
+		setPromptsInQueue,
+	]);
 
 	// Fallback for sessions with no tool events in the hook log (e.g. sessions
 	// recorded before tool_call/tool_result hook logging existed): rebuild the
@@ -1320,7 +1341,7 @@ export function useChatSession() {
 			if (record.sessionId !== activeSessionIdRef.current) return;
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
-	}, []);
+	}, [setPromptsInQueue]);
 
 	// ---- Incoming chunk handler ----
 
@@ -1793,12 +1814,6 @@ export function useChatSession() {
 			const toolInput =
 				parsed.input ??
 				(toolCallId ? liveToolInputsRef.current[toolCallId] : undefined);
-			const toolPayload = buildToolPayloadString({
-				toolName,
-				input: toolInput,
-				output: parsed.output,
-				error: parsed.error,
-			});
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
@@ -1808,7 +1823,19 @@ export function useChatSession() {
 				setMessages((prev) =>
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
-						content: toolPayload,
+						// A tool that streamed its output through chat_tool_call_update
+						// may finish without repeating it in `output`. Writing the absent
+						// value would leave the payload result null, which
+						// buildToolPresentation reads as "still running" — the finished
+						// tool would go back to spinning. Fall back to the streamed
+						// output, which flushPendingStream folded into meta.toolOutput
+						// before this non-delta event was handled.
+						content: buildToolPayloadString({
+							toolName,
+							input: toolInput,
+							output: parsed.output ?? msg.meta?.toolOutput ?? null,
+							error: parsed.error,
+						}),
 						meta: {
 							...msg.meta,
 							toolName,
@@ -1832,6 +1859,7 @@ export function useChatSession() {
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 			verifyQueueStillBusy,
+			setPromptsInQueue,
 		],
 	);
 
@@ -2146,6 +2174,7 @@ export function useChatSession() {
 			resetCounters,
 			setErrorState,
 			startSession,
+			setPromptsInQueue,
 		],
 	);
 
@@ -2173,9 +2202,15 @@ export function useChatSession() {
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
 			activePromptSubmissionsRef.current += 1;
 			let promptSubmissionFinished = false;
+			let queuedSubmission: Promise<void> | undefined;
+			let resolveQueuedSubmission: (() => void) | undefined;
 			const finishPromptSubmission = () => {
 				if (promptSubmissionFinished) return;
 				promptSubmissionFinished = true;
+				if (queuedSubmission) {
+					pendingQueueSubmissionsRef.current.delete(queuedSubmission);
+					resolveQueuedSubmission?.();
+				}
 				activePromptSubmissionsRef.current = Math.max(
 					0,
 					activePromptSubmissionsRef.current - 1,
@@ -2220,6 +2255,15 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
+			if (shouldQueue && activeSessionId) {
+				queuedSubmission = new Promise<void>((resolve) => {
+					resolveQueuedSubmission = resolve;
+				});
+				pendingQueueSubmissionsRef.current.set(
+					queuedSubmission,
+					activeSessionId,
+				);
+			}
 			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
 				? undefined
 				: { streamedCostUsd: 0 };
@@ -2844,6 +2888,7 @@ export function useChatSession() {
 			startSession,
 			status,
 			postSession,
+			setPromptsInQueue,
 		],
 	);
 
@@ -2949,6 +2994,7 @@ export function useChatSession() {
 			refreshSessionDiffSummary,
 			resetCounters,
 			status,
+			setPromptsInQueue,
 		],
 	);
 
@@ -3066,6 +3112,7 @@ export function useChatSession() {
 		postSession,
 		resetCounters,
 		clearLiveToolRefs,
+		setPromptsInQueue,
 	]);
 
 	const hydrateSession = useCallback(
@@ -3233,6 +3280,7 @@ export function useChatSession() {
 			refreshSessionDiffSummary,
 			resetStreamDedupe,
 			resetCounters,
+			setPromptsInQueue,
 		],
 	);
 
@@ -3282,21 +3330,56 @@ export function useChatSession() {
 	);
 
 	const steerPromptInQueue = useCallback(
-		async (promptId: string) => {
+		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId || !promptId.trim()) {
-				return;
+			if (!activeSessionId) return;
+			if (promptId === undefined) {
+				// Enter targets the first server queue entry. The composer can
+				// already be empty while its optimistic entry is still being sent.
+				// Give new submissions a bounded chance to reach the server. A
+				// lost acknowledgement must not block already queued prompts.
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				try {
+					await Promise.race([
+						Promise.all(
+							[...pendingQueueSubmissionsRef.current]
+								.filter(([, sid]) => sid === activeSessionId)
+								.map(([submission]) => submission),
+						),
+						new Promise<void>((resolve) => {
+							timer = setTimeout(resolve, QUEUE_ACKNOWLEDGEMENT_WAIT_MS);
+						}),
+					]);
+				} finally {
+					clearTimeout(timer);
+				}
+				if (activeSessionIdRef.current !== activeSessionId) return;
 			}
+			if (
+				(promptId !== undefined && !promptId.trim()) ||
+				activeSessionIdRef.current !== activeSessionId
+			)
+				return;
+			const epoch = turnEpochRef.current;
+			const queueRevision = queueRevisionRef.current;
 			const payload = await postSession({
 				action: "steer_prompt",
 				sessionId: activeSessionId,
-				promptId,
+				...(promptId === undefined ? {} : { promptId }),
 			});
-			setPromptsInQueue(
-				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
-			);
+			// Steering can consume the prompt before this RPC returns. Its
+			// snapshot must not overwrite any newer local or remote queue change.
+			if (
+				activeSessionIdRef.current === activeSessionId &&
+				turnEpochRef.current === epoch &&
+				queueRevisionRef.current === queueRevision
+			) {
+				setPromptsInQueue(
+					Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+				);
+			}
 		},
-		[postSession],
+		[postSession, setPromptsInQueue],
 	);
 
 	const updatePromptInQueue = useCallback(
@@ -3315,7 +3398,7 @@ export function useChatSession() {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[postSession],
+		[postSession, setPromptsInQueue],
 	);
 
 	const removePromptInQueue = useCallback(
@@ -3334,7 +3417,7 @@ export function useChatSession() {
 			);
 			return payload.prompt;
 		},
-		[postSession],
+		[postSession, setPromptsInQueue],
 	);
 
 	const summary = useMemo(
