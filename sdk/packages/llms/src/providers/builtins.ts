@@ -858,6 +858,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
+		id: "gptzzz",
+		name: "GPTZZZ",
+		description: "OpenAI-compatible gateway",
+		family: "openai-compatible",
+		defaultModelId: "gpt-5.6",
+		apiKeyEnv: ["GPTZZZ_API_KEY"],
+		defaults: { baseUrl: "https://gptzzz.ai/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
