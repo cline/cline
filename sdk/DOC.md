@@ -240,3 +240,25 @@ dialog's tab order. Image source validation and resolution remain host-owned;
 provider-generated URLs must go through an explicit host trust policy before
 rendering. This presentation primitive does not replace `GeneratedMediaContent`
 or its inline-byte validation.
+
+## Shell executor errors
+
+`createShellExecutor` rejects with one of two error classes, so a host can tell
+"the command ran and failed" from "the command never ran" without parsing
+messages:
+
+- `CommandExitError` — the shell started and exited non-zero. `exitCode` is the
+  process exit code and `output` is what the command printed. The `run_commands`
+  tool wrapper turns this into a failed tool result that still carries the
+  output.
+- `CommandSpawnError` — the shell process could not be started, so there is no
+  exit code. The message keeps the pre-existing `Failed to execute command: …`
+  form. `code` is the operating system error libuv reported (`ENOENT`,
+  `EACCES`, `EFTYPE` for a file that is not a valid executable). Because spawn
+  reports `ENOENT` with the same message when the executable is not found and
+  when the working directory no longer exists, `missing` records which path was
+  absent: `"executable"` or `"cwd"`. It is `undefined` for every other code.
+
+Hosts that record command telemetry should label a `CommandSpawnError` by its
+`code` (and `missing`) rather than inventing an exit code; the VS Code
+extension does this in its `errorCode` dimension.
