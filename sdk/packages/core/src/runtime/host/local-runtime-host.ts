@@ -945,6 +945,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				active.updatedAt = persistedUpdatedAt;
 			}
 		}
+		if (!Number.isFinite(Date.parse(active.updatedAt))) {
+			active.updatedAt = startedAt;
+		}
 		active.activity = new SessionActivity(
 			Date.parse(active.updatedAt),
 			(at) => this.invokeOptional("recordAgentActivity", sessionId, at),

@@ -233,7 +233,8 @@ describe("LocalRuntimeHost", () => {
 	it.each([
 		[undefined, false],
 		["continue working", false],
-		[undefined, true],
+		[undefined, "index"],
+		[undefined, "manifest"],
 	] as const)("reports and restores recency with prompt %s and invalid timestamp %s", async (prompt, invalidTimestamp) => {
 		const dir = join(isolatedHomeDir, "activity-sessions");
 		const start = Date.parse("2026-01-02T00:00:00.000Z");
@@ -326,6 +327,12 @@ describe("LocalRuntimeHost", () => {
 				index.sessions.activity.updatedAt = "invalid";
 				writeFileSync(path, JSON.stringify(index));
 			}
+			if (invalidTimestamp === "manifest") {
+				const path = join(dir, "activity", "activity.json");
+				const manifest = JSON.parse(readFileSync(path, "utf8"));
+				manifest.started_at = manifest.ended_at = "invalid";
+				writeFileSync(path, JSON.stringify(manifest));
+			}
 			agent.run.mockImplementation(async () =>
 				createResult({ endedAt: new Date() }),
 			);
@@ -339,11 +346,11 @@ describe("LocalRuntimeHost", () => {
 				}),
 			);
 			expect((await reader.getSession("activity"))?.updatedAt).toBe(
-				iso(prompt ? 4_000 : 3_000),
+				iso(prompt || invalidTimestamp === "manifest" ? 4_000 : 3_000),
 			);
 			expect(list).not.toHaveBeenCalled();
 			expect((await reader.listSessions())[0]?.updatedAt).toBe(
-				iso(prompt ? 4_000 : 3_000),
+				iso(prompt || invalidTimestamp === "manifest" ? 4_000 : 3_000),
 			);
 			expect(agent.run).toHaveBeenCalledTimes(prompt ? 1 : 0);
 			await options.sessionService.recordAgentActivity(
