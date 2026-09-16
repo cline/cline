@@ -401,6 +401,31 @@ function findContext(
 			}
 		}
 
+		// read_files prefixes are display metadata, not file content. A fuzzy
+		// match must not accept them and then write them back in inserted lines.
+		// Exact and whitespace-only matches above still allow literal numbered text.
+		const unnumberedContext = context.map((line) =>
+			line.replace(/^\s*\d+ \|(?: |$)/, ""),
+		);
+		if (unnumberedContext.some((line, i) => line !== context[i])) {
+			const canonicalUnnumbered = canonicalize(
+				unnumberedContext.map((line) => line.trim()).join("\n"),
+			);
+			for (let i = startIdx; i + context.length <= lines.length; i++) {
+				const segment = canonicalize(
+					lines
+						.slice(i, i + context.length)
+						.map((line) => line.trim())
+						.join("\n"),
+				);
+				if (segment === canonicalUnnumbered) {
+					throw new DiffError(
+						"Patch context contains read_files line-number prefixes. Remove the prefixes and retry with the actual file contents.",
+					);
+				}
+			}
+		}
+
 		const similarityThreshold = 0.66;
 		for (let i = startIdx; i < lines.length; i++) {
 			const segment = canonicalize(
