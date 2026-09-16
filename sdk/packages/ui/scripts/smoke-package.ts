@@ -85,6 +85,110 @@ if (
 }
 `;
 
+// Compile against the installed archive, not workspace source aliases. In
+// particular, declaration checking catches optional peer API incompatibilities.
+const typeCheck = `
+import { createElement } from "react";
+import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import { ToolFileDiff, type ToolFileDiffProps } from "@cline/ui/components/agent-chat/tool-diff";
+const diff: ToolFileDiffProps = {
+ path: "example.ts", oldText: "before", newText: "after",
+ options: { diffStyle: "unified", disableLineNumbers: true },
+};
+createElement(ToolFileDiff, diff);
+createElement(SearchCombobox, {
+ ariaLabel: "Model", options: [{ label: "Model", value: "model" }], value: "model",
+ onValueChange: (_value: string) => {}, onOpen: () => {},
+});
+createElement(AgentPromptQueue, {
+ items: [{ id: "one", prompt: "Queued", steer: false }],
+ onEdit: (_id: string, _prompt: string) => {},
+ onRemove: (_id: string) => {}, onSteer: (_id: string) => {},
+});
+`;
+
+const interactionCheck = `
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
+const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://consumer.test" });
+for (const key of ["window", "document", "navigator", "HTMLElement", "HTMLInputElement", "Node", "Event", "KeyboardEvent"]) {
+ Object.defineProperty(globalThis, key, { configurable: true, value: dom.window[key] });
+}
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const { act, createElement } = await import("react");
+const { createRoot } = await import("react-dom/client");
+const { SearchCombobox, AgentPromptQueue } = await import("@cline/ui");
+const container = document.createElement("div");
+document.body.append(container);
+const root = createRoot(container);
+try {
+ let opens = 0;
+ const props = { ariaLabel: "Model", options: [{ label: "Model", value: "model" }], value: "model", onValueChange() {}, onOpen() { opens++; } };
+ await act(async () => root.render(createElement(SearchCombobox, props)));
+ assert.equal(opens, 0, "mount must not refresh the picker");
+ const trigger = container.querySelector("button");
+ assert.ok(trigger);
+ await act(async () => trigger.click());
+ assert.equal(opens, 1, "opening the packed picker calls onOpen");
+ await act(async () => root.render(createElement(SearchCombobox, { ...props, options: [...props.options] })));
+ assert.equal(opens, 1, "a catalog refresh must not reopen the picker");
+ await act(async () => trigger.click());
+ assert.equal(opens, 1, "closing must not refresh the picker");
+ await act(async () => trigger.click());
+ assert.equal(opens, 2, "reopening refreshes again");
+ await act(async () => root.render(createElement(SearchCombobox, { ...props, disabled: true })));
+ await act(async () => trigger.click());
+ assert.equal(opens, 2, "disabled picker must not refresh");
+ const steered = [];
+ const queueProps = { items: [{ id: "one", prompt: "Visible queued message", steer: false }], onEdit() {}, onRemove() {}, onSteer(id) { steered.push(id); } };
+ await act(async () => root.render(createElement(AgentPromptQueue, queueProps)));
+ assert.ok(container.textContent.includes("Visible queued message"), "single queued prompt is immediately visible");
+ const singleHeader = container.querySelector("button[aria-expanded]");
+ assert.equal(singleHeader?.getAttribute("aria-expanded"), "true");
+ assert.equal(document.getElementById(singleHeader.getAttribute("aria-controls"))?.hidden, false, "single prompt is visible without opening a disclosure");
+ const steer = container.querySelector('[aria-label="Steer queued prompt"]');
+ assert.ok(steer, "single prompt retains manual steering");
+ await act(async () => steer.click());
+ assert.deepEqual(steered, ["one"]);
+ await act(async () => root.render(createElement(AgentPromptQueue, { ...queueProps, items: [...queueProps.items, { id: "two", prompt: "Second queued message", steer: false }] })));
+ const toggle = container.querySelector("button[aria-expanded]");
+ assert.ok(toggle, "multiple prompts retain disclosure");
+ assert.equal(toggle.getAttribute("aria-expanded"), "false");
+ assert.equal(document.getElementById(toggle.getAttribute("aria-controls"))?.hidden, true);
+ await act(async () => toggle.click());
+ assert.ok(container.textContent.includes("Second queued message"));
+ assert.equal(document.getElementById(toggle.getAttribute("aria-controls"))?.hidden, false);
+} finally {
+ await act(async () => root.unmount());
+ dom.window.close();
+}
+`;
+
+async function verifyConsumer(root: string, runtime: string[]): Promise<void> {
+	writeFileSync(join(root, "consumer.ts"), typeCheck);
+	await run(
+		[
+			process.execPath,
+			"x",
+			"tsc",
+			"--noEmit",
+			"--strict",
+			"--module",
+			"ESNext",
+			"--moduleResolution",
+			"Bundler",
+			"--target",
+			"ES2022",
+			"--lib",
+			"ESNext,DOM,DOM.Iterable",
+			"consumer.ts",
+		],
+		root,
+	);
+	writeFileSync(join(root, "interactions.mjs"), interactionCheck);
+	await run([...runtime, "interactions.mjs"], root);
+}
+
 async function run(command: string[], cwd: string): Promise<void> {
 	const child = Bun.spawn(command, {
 		cwd,
@@ -255,45 +359,53 @@ try {
 			archive,
 			"react@19.2.4",
 			"react-dom@19.2.4",
-			"@pierre/diffs@1.3.2",
+			"@pierre/diffs@1.4.0",
+			"@types/react@19.2.14",
+			"typescript@5.9.3",
+			"@types/node@22",
+			"jsdom@26.0.0",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
+	await verifyConsumer(bunConsumer, [process.execPath]);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
 		"tailwindcss",
 	]);
 
-	const npmConsumer = join(temporaryRoot, "npm-consumer");
-	createConsumer(npmConsumer);
+	const nodeConsumer = join(temporaryRoot, "node-consumer");
+	createConsumer(nodeConsumer);
 	await run(
 		[
-			"npm",
-			"install",
+			process.execPath,
+			"add",
 			"--ignore-scripts",
-			"--no-audit",
-			"--no-fund",
 			archive,
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
+			"@types/react@18.3.1",
+			"typescript@5.9.3",
+			"@types/node@22",
+			"jsdom@26.0.0",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
-		npmConsumer,
+		nodeConsumer,
 	);
-	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
-	await verifyTailwindContract(npmConsumer, [
-		"npx",
-		"--no-install",
+	await run(["node", "--input-type=module", "-e", importCheck], nodeConsumer);
+	await verifyConsumer(nodeConsumer, ["node"]);
+	await verifyTailwindContract(nodeConsumer, [
+		process.execPath,
+		"x",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18, including Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and Node/React 18/diffs 1.3, including declarations, picker/queue interactions and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });
