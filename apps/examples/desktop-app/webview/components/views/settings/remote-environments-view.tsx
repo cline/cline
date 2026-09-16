@@ -3,7 +3,6 @@
 import {
 	CheckCircle2,
 	CircleAlert,
-	CloudCog,
 	Loader2,
 	Plug,
 	Plus,
@@ -378,7 +377,6 @@ export function RemoteEnvironmentsContent() {
 						<RefreshCw className={cn(isLoading && "animate-spin")} />
 					</Button>
 				}
-				icon={CloudCog}
 				title="Remote Environments"
 				description="Manage your remote SSH hosts and their configurations."
 			/>
@@ -402,6 +400,7 @@ export function RemoteEnvironmentsContent() {
 							disabled={isBusy}
 							onClick={startNewProfile}
 							variant="default"
+							size="xs"
 						>
 							<Plus />
 							New Host
