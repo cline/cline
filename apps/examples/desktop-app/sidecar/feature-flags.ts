@@ -12,9 +12,7 @@ import {
 	type FeatureFlagPayload,
 	type FeatureFlagsContext,
 	FeatureFlagsService,
-	type InternalFeature,
 	type ITelemetryService,
-	isInternalFeatureEnabled,
 	NoOpFeatureFlagsProvider,
 	resolveCoreDistinctId,
 } from "@cline/core";
@@ -43,9 +41,8 @@ function resolveDesktopFeatureFlagsCachePath(): string {
 
 /**
  * Where the last-known account identity ({@link setDesktopFeatureFlagsAccountContext})
- * is remembered between launches. The account email only reaches the sidecar
- * when the webview fetches the account; without this file, internal-feature
- * gates would open only after that fetch on every launch.
+ * is remembered between launches so flag evaluation can use the account
+ * identity before the webview fetches the account again.
  */
 function resolveDesktopAccountContextPath(): string {
 	return join(
@@ -134,25 +131,6 @@ export function getDesktopFeatureFlagsContext(): FeatureFlagsContext {
 	return { ...desktopFeatureFlagsContext };
 }
 
-/**
- * Whether this install may use an internal-only feature: the signed-in
- * account has an internal (`@cline.bot`) email — learned from the account
- * fetch and remembered across launches — or the feature's own flag was
- * enabled for the account (the PostHog escape hatch). Signed-out and
- * never-fetched accounts fail closed.
- */
-export function isDesktopInternalFeatureEnabled(
-	feature: InternalFeature,
-	options?: { logger?: BasicLogger; telemetry?: ITelemetryService },
-): boolean {
-	hydrateDesktopAccountContextOnce();
-	return isInternalFeatureEnabled(feature, {
-		email: desktopFeatureFlagsContext.email,
-		isFlagEnabled: (flagKey) =>
-			getDesktopFeatureFlagsService(options).getBooleanFlagEnabled(flagKey),
-	});
-}
-
 export function getDesktopFeatureFlagsService(options?: {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
@@ -206,9 +184,8 @@ export function setDesktopFeatureFlagsAccountContext(
 	const previousUserId = desktopFeatureFlagsContext.userId ?? undefined;
 	const previousEmail = desktopFeatureFlagsContext.email ?? undefined;
 	// Callers that only know the account ID (e.g. provider-settings syncs)
-	// must not erase an email a full account fetch already provided — the
-	// email is what internal-feature gating keys on. A different account (or
-	// sign-out) always drops it.
+	// must not erase an email a full account fetch already provided. A
+	// different account (or sign-out) always drops it.
 	const email =
 		account.email?.trim() ||
 		(accountId && accountId === previousUserId ? previousEmail : undefined);
