@@ -9,6 +9,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { getDeviceId, setDistinctId } from "../logging/distinctId"
+import { type CoreSpawnTelemetryMetadata, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import {
 	getRolloutErrorProperties,
@@ -110,6 +111,9 @@ export type TelemetryMetadata = {
 	 * `extension_version`). Absent when the host does not report one (e.g. CLI).
 	 */
 	host_plugin_version?: string
+	// Spawn-time facts from an out-of-process host; see core-spawn-metadata.ts.
+	core_spawn_ordinal?: CoreSpawnTelemetryMetadata["core_spawn_ordinal"]
+	core_spawn_reason?: CoreSpawnTelemetryMetadata["core_spawn_reason"]
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
@@ -361,6 +365,7 @@ export class TelemetryService {
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
+			...getCoreSpawnTelemetryMetadata(),
 			...getRolloutTelemetryMetadata(),
 		}
 		return new TelemetryService(providers, metadata)
