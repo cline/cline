@@ -52,7 +52,7 @@ export function formatHandoffModelFallback(
 export function parseHandoffCommand(
 	input: string,
 ): ParsedHandoffCommand | null {
-	const match = input.trim().match(/^\/handoff(?:\s+([\s\S]*))?$/i);
+	const match = input.trim().match(/^\/cloud(?:\s+([\s\S]*))?$/i);
 	if (!match) {
 		return null;
 	}
@@ -68,7 +68,7 @@ export function validateHandoffAttachments(
 		return `Cloud handoff only supports image attachments. Remove ${nonImage.name} and try again.`;
 	}
 	if (files.length > 0 && !nextCommand.trim()) {
-		return "Add a command after /handoff to send the attached images in cloud.";
+		return "Add a command after /cloud to send the attached images in cloud.";
 	}
 	return null;
 }

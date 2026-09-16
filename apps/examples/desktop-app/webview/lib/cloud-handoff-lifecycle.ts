@@ -539,7 +539,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				type: "failed",
 				sourceSessionId,
 				exposeRecovery: true,
-				retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+				retryDraft: nextCommand ? `/cloud ${nextCommand}` : "/cloud",
 				retryAttachments: sourceAttachments,
 			});
 			toastFailure(error);

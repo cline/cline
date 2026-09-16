@@ -410,7 +410,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.openSession).not.toHaveBeenCalled();
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "failed",
-			retryDraft: "/handoff current command",
+			retryDraft: "/cloud current command",
 			retryAttachments: [currentAttachment],
 		});
 	});
@@ -437,7 +437,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "failed",
-			retryDraft: "/handoff edited retry command",
+			retryDraft: "/cloud edited retry command",
 			retryAttachments: [retryAttachment],
 		});
 	});
@@ -465,7 +465,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "failed",
-			retryDraft: "/handoff retry command",
+			retryDraft: "/cloud retry command",
 			retryAttachments: [retryAttachment],
 		});
 
@@ -882,7 +882,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 				type: "failed",
 				sourceSessionId: SOURCE,
 				exposeRecovery: true,
-				retryDraft: "/handoff fix flaky test",
+				retryDraft: "/cloud fix flaky test",
 				retryAttachments: [attachment],
 			},
 		]);
@@ -905,7 +905,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		// unknown: these File objects otherwise have no durable owner.
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "failed",
-			retryDraft: "/handoff fix flaky test",
+			retryDraft: "/cloud fix flaky test",
 			retryAttachments: [attachment],
 		});
 		resolveOpen?.(true);
@@ -1050,7 +1050,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 				type: "failed",
 				sourceSessionId: SOURCE,
 				exposeRecovery: true,
-				retryDraft: "/handoff",
+				retryDraft: "/cloud",
 				retryAttachments: [],
 			},
 		]);
@@ -1250,7 +1250,7 @@ describe("cloud handoff lifecycle: RPC rejected with no completion", () => {
 				type: "failed",
 				sourceSessionId: SOURCE,
 				exposeRecovery: true,
-				retryDraft: "/handoff open a PR",
+				retryDraft: "/cloud open a PR",
 				retryAttachments: [attachment],
 			},
 		]);
@@ -1263,7 +1263,7 @@ describe("cloud handoff lifecycle: RPC rejected with no completion", () => {
 		expect(h.openSession).not.toHaveBeenCalled();
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "failed",
-			retryDraft: "/handoff open a PR",
+			retryDraft: "/cloud open a PR",
 		});
 	});
 
@@ -1298,7 +1298,7 @@ describe("cloud handoff lifecycle: RPC rejected with no completion", () => {
 		expect(h.getState()[SOURCE]).toEqual({
 			status: "recovery",
 			dashboardUrl: DASHBOARD_URL,
-			retryDraft: "/handoff retry me",
+			retryDraft: "/cloud retry me",
 			retryAttachments: [],
 		});
 	});

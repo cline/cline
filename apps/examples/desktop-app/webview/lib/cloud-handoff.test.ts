@@ -24,12 +24,12 @@ describe("cloud handoff helpers", () => {
 	});
 
 	it("parses the bare command and preserves an optional next command", () => {
-		expect(parseHandoffCommand("/handoff")).toEqual({ nextCommand: "" });
-		expect(parseHandoffCommand(" /HANDOFF   continue the tests ")).toEqual({
+		expect(parseHandoffCommand("/cloud")).toEqual({ nextCommand: "" });
+		expect(parseHandoffCommand(" /CLOUD   continue the tests ")).toEqual({
 			nextCommand: "continue the tests",
 		});
-		expect(parseHandoffCommand("/handoffish")).toBeNull();
-		expect(parseHandoffCommand("please /handoff")).toBeNull();
+		expect(parseHandoffCommand("/cloudish")).toBeNull();
+		expect(parseHandoffCommand("please /cloud")).toBeNull();
 	});
 
 	it("accepts images only when a cloud command will consume them", () => {

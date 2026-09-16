@@ -120,7 +120,6 @@ describe("desktop settings commands", () => {
 				payload: {
 					cloudAgents: false,
 					cloudAgentsAvailable: false,
-					cloudHandoff: false,
 				},
 			},
 		]);
@@ -139,7 +138,6 @@ describe("desktop settings commands", () => {
 			payload: {
 				cloudAgents: false,
 				cloudAgentsAvailable: false,
-				cloudHandoff: false,
 			},
 		});
 	});

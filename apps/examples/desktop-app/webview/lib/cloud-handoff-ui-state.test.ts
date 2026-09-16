@@ -34,7 +34,7 @@ describe("cloudHandoffUiReducer", () => {
 				{
 					status: "recovery",
 					dashboardUrl: persisted.dashboardUrl,
-					retryDraft: "/handoff continue",
+					retryDraft: "/cloud continue",
 				},
 				persisted,
 			),
@@ -96,12 +96,12 @@ describe("cloudHandoffUiReducer", () => {
 			type: "failed",
 			sourceSessionId: "local-1",
 			exposeRecovery: true,
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 		});
 		expect(recovery["local-1"]).toEqual({
 			status: "recovery",
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 			retryAttachments: undefined,
 		});
 		expect(
@@ -112,7 +112,7 @@ describe("cloudHandoffUiReducer", () => {
 		).toEqual({
 			status: "retry_restored",
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 			retryAttachments: undefined,
 		});
 		expect(
@@ -195,7 +195,7 @@ describe("cloudHandoffUiReducer", () => {
 		const failed = {
 			"local-1": {
 				status: "failed" as const,
-				retryDraft: "/handoff continue",
+				retryDraft: "/cloud continue",
 			},
 		};
 		const completed = cloudHandoffUiReducer(failed, {
@@ -237,7 +237,7 @@ describe("cloudHandoffUiReducer", () => {
 			type: "failed",
 			sourceSessionId: "local-1",
 			exposeRecovery: true,
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 		});
 		expect(withRecovery["local-1"]).toMatchObject({
 			status: "complete",
@@ -245,7 +245,7 @@ describe("cloudHandoffUiReducer", () => {
 				targetSessionId: "cloud-1",
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 		});
 		expect(
 			cloudHandoffUiReducer(completed, {
@@ -283,7 +283,7 @@ describe("cloudHandoffUiReducer", () => {
 				type: "target_open_failed",
 				sourceSessionId: "local-1",
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-				retryDraft: "/handoff continue",
+				retryDraft: "/cloud continue",
 				retryAttachments: [attachment],
 			},
 		);
@@ -295,7 +295,7 @@ describe("cloudHandoffUiReducer", () => {
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
 			externalPresentation: false,
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 			retryAttachments: [attachment],
 		});
 	});
