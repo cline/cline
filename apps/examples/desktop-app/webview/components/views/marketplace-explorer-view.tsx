@@ -977,7 +977,7 @@ export function MarketplaceExplorerView() {
 	}
 
 	return (
-		<div className="flex h-full min-h-0 min-w-0">
+		<div className="flex h-full min-h-0 min-w-0 select-text">
 			<aside
 				className={cn(
 					"flex flex-col",
