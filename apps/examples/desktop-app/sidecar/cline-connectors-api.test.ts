@@ -72,7 +72,13 @@ describe("requestConnectorsApi envelope handling", () => {
 	});
 
 	it("unwraps an empty data payload", async () => {
-		mockFetchOnce(200, JSON.stringify({ data: [], success: true }));
+		mockFetchOnce(
+			200,
+			JSON.stringify({
+				data: { items: [], nextToken: "", total: 0 },
+				success: true,
+			}),
+		);
 		const toolkits = await fetchConnectableToolkits();
 		expect(toolkits).toEqual([]);
 	});
@@ -201,9 +207,15 @@ describe("connector router contract", () => {
 		expect(global.fetch).toHaveBeenCalledTimes(2);
 	});
 
-	it("reads the catalog directly from the data array", async () => {
+	it("reads the catalog from a paginated response", async () => {
 		const catalog = [{ slug: "gmail", name: "Gmail", toolsCount: 50 }];
-		mockFetchOnce(200, JSON.stringify({ success: true, data: catalog }));
+		mockFetchOnce(
+			200,
+			JSON.stringify({
+				success: true,
+				data: { items: catalog, nextToken: "", total: 1 },
+			}),
+		);
 		expect(await fetchConnectableToolkits()).toEqual(catalog);
 		expect(global.fetch).toHaveBeenCalledWith(
 			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits?limit=200",
@@ -211,10 +223,72 @@ describe("connector router contract", () => {
 		);
 	});
 
-	it("rejects a catalog response that is not an array", async () => {
-		mockFetchOnce(200, JSON.stringify({ success: true, data: { items: [] } }));
+	it("loads uninstalled apps across all catalog pages, including empty filtered pages", async () => {
+		const first = Array.from({ length: 200 }, (_, i) => ({
+			slug: `app_${i}`,
+			name: `App ${i}`,
+		}));
+		const last = [{ slug: "notion", name: "Notion" }];
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce(page(first, "next"))
+			.mockResolvedValueOnce(page([], "last"))
+			.mockResolvedValueOnce(page(last)) as unknown as typeof fetch;
+		expect(await fetchConnectableToolkits()).toEqual([...first, ...last]);
+		expect(global.fetch).toHaveBeenNthCalledWith(
+			3,
+			"https://core-api.staging.int.cline.bot/api/v1/connectors/toolkits?limit=200&cursor=last",
+			expect.objectContaining({ method: "GET" }),
+		);
+	});
+
+	it("rejects a failed catalog page instead of presenting a partial catalog", async () => {
+		global.fetch = vi
+			.fn()
+			.mockResolvedValueOnce(page([{ slug: "gmail", name: "Gmail" }], "next"))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: "Catalog unavailable" }), {
+					status: 502,
+				}),
+			) as unknown as typeof fetch;
 		await expect(fetchConnectableToolkits()).rejects.toThrow(
-			"Invalid connectors toolkit catalog.",
+			"Catalog unavailable",
+		);
+	});
+
+	it("rejects cyclic catalog pagination", async () => {
+		global.fetch = vi.fn(async () =>
+			page([], "same"),
+		) as unknown as typeof fetch;
+		await expect(fetchConnectableToolkits()).rejects.toThrow(/repeated cursor/);
+		expect(global.fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it("accepts the toolkit page without a total", async () => {
+		const toolkits = [
+			{ slug: "github", name: "GitHub" },
+			{ slug: "googlecalendar", name: "Google Calendar" },
+		];
+		mockFetchOnce(
+			200,
+			JSON.stringify({
+				success: true,
+				data: { items: toolkits, nextToken: "" },
+			}),
+		);
+		expect(await fetchConnectableToolkits()).toEqual(toolkits);
+	});
+
+	it("explains when the server still returns the older configured-app array", async () => {
+		mockFetchOnce(
+			200,
+			JSON.stringify({
+				success: true,
+				data: [{ slug: "gmail", name: "Gmail" }],
+			}),
+		);
+		await expect(fetchConnectableToolkits()).rejects.toThrow(
+			"Deploy the full-catalog backend update",
 		);
 	});
 

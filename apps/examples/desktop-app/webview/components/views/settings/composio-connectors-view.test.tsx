@@ -63,14 +63,20 @@ describe("Customize connector catalog", () => {
 			configured: true,
 			toolkits: [
 				{ slug: "gmail", name: "Gmail", description: "Email" },
-				{ slug: "notion", name: "Notion", description: "Notes" },
+				{ slug: "github", name: "GitHub", description: "Code" },
+				{
+					slug: "googlecalendar",
+					name: "Google Calendar",
+					description: "Events",
+				},
 			],
 		});
 		await render();
-		expect(container.textContent).toContain("Notion");
+		expect(container.textContent).toContain("GitHub");
+		expect(container.textContent).toContain("Google Calendar");
 		expect(container.textContent).not.toContain("Marketplace");
 		await act(async () => button("Install")?.click());
-		expect(mocks.connect).toHaveBeenCalledWith("notion");
+		expect(mocks.connect).toHaveBeenCalledWith("github");
 		await act(async () => button("View")?.click());
 		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
 			"GMAIL_SEND_EMAIL",

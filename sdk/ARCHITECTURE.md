@@ -897,21 +897,23 @@ enable tools. Existing sessions recheck access before each tool execution.
 Disconnect/cancel cleanup remains available after access is removed. The Cline
 API proxy must enforce the same flag server-side for authenticated requests.
 
-The connector client uses `/api/v1/connectors`. Management responses use the
-Cline `{ success, data }` envelope; connection and tool pages contain
-`items`, `nextToken`, and `total`. The sidecar follows all connection pages
-before reconciling local state, and rejects incomplete or malformed lists.
+The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
+envelope. The toolkit catalog contains `items` and `nextToken`; connections and
+tool pages additionally carry `total`. The sidecar fetches every catalog and
+connection page, including empty pages with continuation tokens, and rejects
+failed, malformed, or cyclic pagination before caching or reconciliation.
 Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
 per toolkit and persists `input_parameters` and the pinned version for the core
 extension. Tool execution sends arguments and the optional version to
-`/tools/{slug}/execute` and retains the provider response body. The catalog
-currently exposes an array without a continuation token, so the sidecar requests
-the backend's maximum page size of 200 auth configs.
+`/tools/{slug}/execute` and retains the provider response body.
 
-The full, paginated toolkit catalog and first-time managed auth provisioning
-are proposed in core-platform PR #3383. The desktop currently uses the deployed
-array contract; update it to consume catalog pages when that backend change is
-ready to deploy.
+Customize > Connectors displays the usage-ranked catalog, with search across
+all loaded apps and installation/connection management in its detail dialog.
+The backend includes managed-auth toolkits before anyone has connected them,
+and provisions their auth configuration on first installation. This requires
+the full-catalog backend in core-platform PR #3383. Deploy that backend with
+this client; an old array response produces an explicit backend-update error
+rather than presenting configured apps as the full catalog.
 
 Connector metadata and cancellation tombstones live in
 `settings/composio/<sha256-account-id>.json`. Each account has separate
