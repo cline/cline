@@ -554,7 +554,11 @@ function ChatInputBarImpl({
 		if (!firstPrompt || firstPrompt.steer || steeringPromptRef.current) return;
 		steeringPromptRef.current = true;
 		try {
-			await onSteerPromptInQueue();
+			if (executionTarget === "cloud") {
+				await onSteerPromptInQueue(firstPrompt.id);
+			} else {
+				await onSteerPromptInQueue();
+			}
 		} catch (error) {
 			toast({
 				variant: "destructive",

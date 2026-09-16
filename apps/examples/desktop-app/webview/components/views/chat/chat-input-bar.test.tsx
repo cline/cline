@@ -1521,7 +1521,7 @@ describe("ChatInputBar", () => {
 		});
 	});
 
-	it("shows queued prompts in an accessible list with clear priority actions", async () => {
+	it.each(["local", "cloud"] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
 		const onSteerPromptInQueue = vi
 			.fn()
 			.mockRejectedValue(new Error("steer failed"));
@@ -1550,6 +1550,7 @@ describe("ChatInputBar", () => {
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={onEditPromptInQueue}
+						executionTarget={executionTarget}
 						onListGitBranches={vi.fn(async () => ({
 							current: "main",
 							branches: ["main"],
@@ -1615,7 +1616,9 @@ describe("ChatInputBar", () => {
 				}),
 			);
 		});
-		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith();
+		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith(
+			...(executionTarget === "cloud" ? ["queued-prompt-1"] : []),
+		);
 		onSteerPromptInQueue.mockClear();
 
 		const queueToggle = [
