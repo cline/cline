@@ -3,10 +3,22 @@ import { describe, expect, it } from "vitest";
 import { serializeAttachments } from "../hooks/chat-session/attachments";
 import {
 	imageAttachmentMediaType,
+	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "./image-attachments";
 
 describe("image attachments", () => {
+	it.each([
+		["photo.png", "image/png", true],
+		["photo.jfif", "", true],
+		["photo.webp", "application/octet-stream", true],
+		["photo.heic", "", false],
+		["diagram.svg", "image/svg+xml", false],
+		["notes.txt", "text/plain", false],
+	])("validates cloud image attachment %s (%s)", (name, type, expected) => {
+		expect(isSupportedImageAttachment({ name, type })).toBe(expected);
+	});
+
 	it.each([
 		"photo.jfif",
 		"photo.JPE",

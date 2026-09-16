@@ -48,7 +48,7 @@ import {
 } from "@/lib/featured-models";
 import {
 	imageAttachmentMediaType,
-	isUnsupportedImageAttachment,
+	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
@@ -517,11 +517,7 @@ function ChatInputBarImpl({
 		(files: File[]) => {
 			const supportedFiles =
 				executionTarget === "cloud"
-					? files.filter(
-							(file) =>
-								imageAttachmentMediaType(file) &&
-								!isUnsupportedImageAttachment(file),
-						)
+					? files.filter(isSupportedImageAttachment)
 					: files;
 			if (supportedFiles.length !== files.length) {
 				toast({

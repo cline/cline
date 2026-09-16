@@ -75,6 +75,7 @@ import {
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
 	imageAttachmentMediaType,
+	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
 } from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
@@ -1294,32 +1295,40 @@ function ChatThreadPane({
 		threadId,
 	]);
 
-	const handleAttachFiles = useCallback((files: File[]) => {
-		const supportedFiles = files.filter(
-			(file) => !isUnsupportedImageAttachment(file),
-		);
-		if (supportedFiles.length !== files.length) {
-			toast({
-				title: "Unsupported image format",
-				description:
-					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
-			});
-		}
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const supportedFiles = files.filter((file) =>
+				isCloudSession
+					? isSupportedImageAttachment(file)
+					: !isUnsupportedImageAttachment(file),
 			);
-			const next = [...prev];
-			for (const file of supportedFiles) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
+			if (supportedFiles.length !== files.length) {
+				toast({
+					title: isCloudSession
+						? "Unsupported cloud attachment"
+						: "Unsupported image format",
+					description: isCloudSession
+						? "Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files."
+						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+				});
 			}
-			return next;
-		});
-	}, []);
+			setPendingAttachments((prev) => {
+				const existing = new Set(
+					prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+				);
+				const next = [...prev];
+				for (const file of supportedFiles) {
+					const key = `${file.name}:${file.size}:${file.lastModified}`;
+					if (!existing.has(key)) {
+						existing.add(key);
+						next.push(file);
+					}
+				}
+				return next;
+			});
+		},
+		[isCloudSession],
+	);
 
 	const handleSend = useCallback(
 		async (prompt: string) => {
@@ -1913,7 +1922,12 @@ function ChatThreadPane({
 						? "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
 						: "grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
 				}
-				disabled={isCloudSession}
+				disabled={isCloudSessionExpired}
+				description={
+					isCloudSession
+						? "Images will be added to your next message"
+						: undefined
+				}
 				onAttachFiles={handleAttachFiles}
 			>
 				{!isWelcomeState ? (
