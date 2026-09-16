@@ -90,6 +90,19 @@ export interface CaptureTaskLifecycleEventInput {
 	messageLimit?: number;
 }
 
+/**
+ * Why an out-of-process host spawned this core. The JetBrains plugin sets it via
+ * `CLINE_CORE_SPAWN_REASON`; keep in sync with its `SpawnReason`.
+ */
+export const CORE_SPAWN_REASONS = [
+	"initial",
+	"crash_restart",
+	"rollout_fallback",
+	"rollout_demotion",
+	"user_restart",
+] as const;
+export type CoreSpawnReason = (typeof CORE_SPAWN_REASONS)[number];
+
 export interface TelemetryMetadata {
 	extension_version: string;
 	/**
@@ -105,6 +118,13 @@ export interface TelemetryMetadata {
 	os_version: string;
 	is_dev?: string;
 	is_remote_workspace?: boolean;
+	/**
+	 * Spawn-time facts reported by an out-of-process host (the JetBrains plugin): how many
+	 * cores this host window has spawned so far and why this one was started. Absent when the
+	 * host runs core in-process (VS Code).
+	 */
+	core_spawn_ordinal?: number;
+	core_spawn_reason?: CoreSpawnReason;
 }
 
 export interface ITelemetryService {
