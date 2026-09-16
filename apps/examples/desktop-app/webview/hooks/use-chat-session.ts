@@ -2498,7 +2498,7 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [config.executionTarget, hydratedHistorySessionId, sessionId, status]);
+	}, [config.executionTarget, hydratedHistorySessionId, sessionId, status, setPromptsInQueue]);
 
 	// ---- Shared: start a new session via RPC ----
 
