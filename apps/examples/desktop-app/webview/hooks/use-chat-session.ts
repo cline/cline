@@ -1814,12 +1814,6 @@ export function useChatSession() {
 			const toolInput =
 				parsed.input ??
 				(toolCallId ? liveToolInputsRef.current[toolCallId] : undefined);
-			const toolPayload = buildToolPayloadString({
-				toolName,
-				input: toolInput,
-				output: parsed.output,
-				error: parsed.error,
-			});
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
@@ -1829,7 +1823,19 @@ export function useChatSession() {
 				setMessages((prev) =>
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
-						content: toolPayload,
+						// A tool that streamed its output through chat_tool_call_update
+						// may finish without repeating it in `output`. Writing the absent
+						// value would leave the payload result null, which
+						// buildToolPresentation reads as "still running" — the finished
+						// tool would go back to spinning. Fall back to the streamed
+						// output, which flushPendingStream folded into meta.toolOutput
+						// before this non-delta event was handled.
+						content: buildToolPayloadString({
+							toolName,
+							input: toolInput,
+							output: parsed.output ?? msg.meta?.toolOutput ?? null,
+							error: parsed.error,
+						}),
 						meta: {
 							...msg.meta,
 							toolName,
