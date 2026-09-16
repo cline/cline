@@ -28,6 +28,7 @@ import {
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
 	findLatestSummaryIndex,
+	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
 
@@ -317,30 +318,45 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const maxInputTokens =
+		const rawMaxInputTokens =
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: context.model.info?.maxInputTokens,
 				contextWindow: context.model.info?.contextWindow,
 			}) ?? DEFAULT_MAX_INPUT_TOKENS;
-		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
-		const messageTriggerTokens = translateRequestBudgetToMessages(
-			requestTriggerTokens,
-			requestOverheadTokens,
-		);
 		// The char-based estimate under-counts dense content (disassembly, image
-		// dumps), so also trigger on the provider's actual last-request input
-		// count when it is higher — otherwise the real context can grow past the
-		// window without ever crossing the estimated trigger.
+		// dumps, minified sources). When the provider's actual count for the
+		// PREVIOUS request already exceeds our estimate for the (larger) current
+		// transcript, the estimator is demonstrably under-counting, so scale the
+		// whole budget down by that ratio. Scaling the budget rather than just the
+		// trigger keeps every downstream number — trigger, target and the
+		// projection's message costs — in the same estimate units while still
+		// corresponding to the provider's real limit; raising only the trigger
+		// would start a compaction that then retains too much and still overflows.
+		//
+		// Deliberately conservative: it never loosens the budget, engages only on
+		// direct evidence of under-counting, and is capped so a tiny estimate
+		// cannot collapse the budget.
 		const actualPreviousInputTokens =
 			typeof context.previousRequestInputTokens === "number" &&
 			context.previousRequestInputTokens > 0
 				? context.previousRequestInputTokens
 				: 0;
-		const effectiveInputTokens = Math.max(
-			requestInputTokens,
-			actualPreviousInputTokens,
+		const underestimateFactor =
+			actualPreviousInputTokens > 0 && requestInputTokens > 0
+				? Math.min(
+						MAX_INPUT_UNDERESTIMATE_FACTOR,
+						Math.max(1, actualPreviousInputTokens / requestInputTokens),
+					)
+				: 1;
+		const maxInputTokens = rawMaxInputTokens / underestimateFactor;
+		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
+		const messageTriggerTokens = translateRequestBudgetToMessages(
+			requestTriggerTokens,
+			requestOverheadTokens,
 		);
-		const shouldCompact = effectiveInputTokens >= requestTriggerTokens;
+		// Equivalent to comparing the provider's actual count against the unscaled
+		// trigger, because the budget above already carries the ratio.
+		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode: effectiveMode,
 			strategy,
@@ -352,6 +368,9 @@ export function createContextCompactionPrepareTurn(
 			messageInputTokens,
 			requestOverheadTokens,
 			maxInputTokens,
+			rawMaxInputTokens,
+			actualPreviousInputTokens,
+			underestimateFactor,
 			requestTriggerTokens,
 			messageTriggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
