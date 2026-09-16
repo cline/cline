@@ -23,7 +23,7 @@ import type {
 } from "@/lib/composio-types";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 
-/** Customize > Connectors: browse apps and manage connected accounts in place. */
+/** Shared connector browser for Customize and Marketplace. */
 
 /** How many catalog entries to show before asking the user to search. */
 const CATALOG_PREVIEW_COUNT = 24;
@@ -96,7 +96,6 @@ export function ConnectorActionButton({
 	status,
 	configured,
 	busy,
-	variant = "ghost",
 	showUninstall = false,
 	onConnect,
 	onCancel,
@@ -106,8 +105,6 @@ export function ConnectorActionButton({
 	status: ComposioIntegrationStatus;
 	configured: boolean;
 	busy: boolean;
-	/** Visual weight of the Install button; state buttons stay subtle. */
-	variant?: "ghost" | "default";
 	/** Installed connectors show an Uninstall action where management is
 	 * expected (the detail dialog in Customize > Connectors); list rows show a
 	 * View button that opens the detail dialog instead. */
@@ -185,8 +182,11 @@ export function ConnectorActionButton({
 
 export function ComposioConnectorsView({
 	onChanged,
+	searchQuery,
 }: {
 	onChanged?: () => void;
+	/** Use the host page search instead of rendering a separate search field. */
+	searchQuery?: string;
 }) {
 	const {
 		status,
@@ -203,7 +203,8 @@ export function ComposioConnectorsView({
 	const [catalog, setCatalog] = useState<ComposioCatalogToolkit[] | null>(null);
 	const [catalogError, setCatalogError] = useState<string | null>(null);
 	const [catalogLoading, setCatalogLoading] = useState(false);
-	const [query, setQuery] = useState("");
+	const [localQuery, setQuery] = useState("");
+	const query = searchQuery ?? localQuery;
 	const [retry, setRetry] = useState(0);
 	const [detailSlug, setDetailSlug] = useState<ComposioToolkitSlug | null>(
 		null,
@@ -288,16 +289,18 @@ export function ComposioConnectorsView({
 					Connect your accounts to give Cline tools for your favorite apps.
 					Tools will become available in new sessions.
 				</p>
-				<div className="relative">
-					<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						className="h-8 w-64 pl-8"
-						onChange={(event) => setQuery(event.target.value)}
-						aria-label="Search connectors"
-						placeholder="Search connectors"
-						value={query}
-					/>
-				</div>
+				{searchQuery === undefined ? (
+					<div className="relative">
+						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							className="h-8 w-64 pl-8"
+							onChange={(event) => setQuery(event.target.value)}
+							aria-label="Search connectors"
+							placeholder="Search connectors"
+							value={query}
+						/>
+					</div>
+				) : null}
 			</div>
 
 			{catalogLoading && !catalog ? (
@@ -323,9 +326,9 @@ export function ComposioConnectorsView({
 				</div>
 			) : (
 				<>
-					{/* The Customize page owns scrolling. */}
+					{/* The host page owns scrolling. */}
 					<div className="min-w-0">
-						<div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+						<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-2">
 							{visibleCatalog.map((entry) => (
 								<div className="min-w-0" key={entry.slug}>
 									<ConnectorRow
@@ -598,7 +601,6 @@ function ConnectorDetailDialog({
 								onDisconnect={onDisconnect}
 								showUninstall
 								status={status}
-								variant="default"
 							/>
 						</DialogFooter>
 					</>

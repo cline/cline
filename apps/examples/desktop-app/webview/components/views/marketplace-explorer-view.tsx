@@ -1,6 +1,7 @@
 import {
 	ArrowUpRight,
 	BadgeCheck,
+	Cable,
 	Globe,
 	Puzzle,
 	Search,
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchComposioStatus } from "@/lib/composio";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	fetchMarketplaceCatalog,
@@ -24,6 +26,7 @@ import {
 	type MarketplacePrimitiveType,
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
+import { ComposioConnectorsView } from "./settings/composio-connectors-view";
 
 /**
  * Marketplace explorer: a master/detail directory in the spirit of an IDE
@@ -563,12 +566,33 @@ function DetailPane({
 export function MarketplaceExplorerView() {
 	const directory = useMarketplaceDirectory();
 	const [query, setQuery] = useState("");
-	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
-		null,
-	);
+	const [typeFilter, setTypeFilter] = useState<
+		MarketplacePrimitiveType | "connector" | null
+	>(null);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
+	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
+	useEffect(() => {
+		let cancelled = false;
+		const refresh = async () => {
+			const status = await fetchComposioStatus().catch(() => null);
+			if (!cancelled) setConnectorsAvailable(status?.configured === true);
+		};
+		void refresh();
+		const unsubscribe = desktopClient.subscribe(
+			"settings.changed",
+			() => void refresh(),
+		);
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, []);
+	const showConnectors =
+		connectorsAvailable &&
+		!selectedTag &&
+		(typeFilter === null || typeFilter === "connector");
 
 	// Type + query filtering happens before tag filtering so the tag pill
 	// counts reflect what each tag would narrow the current list down to.
@@ -661,25 +685,6 @@ export function MarketplaceExplorerView() {
 		return counts;
 	}, [directory.catalog?.entries]);
 
-	if (directory.loading) {
-		return (
-			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-				<Spinner className="mr-2" />
-				Loading marketplace...
-			</div>
-		);
-	}
-
-	if (directory.errorMessage) {
-		return (
-			<div className="p-8">
-				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-					{directory.errorMessage}
-				</div>
-			</div>
-		);
-	}
-
 	return (
 		<div className="flex h-full min-h-0 min-w-0 select-text">
 			<aside
@@ -728,8 +733,25 @@ export function MarketplaceExplorerView() {
 								</span>
 							</Button>
 						))}
+						{connectorsAvailable ? (
+							<Button
+								aria-pressed={typeFilter === "connector"}
+								onClick={() => {
+									setTypeFilter((current) =>
+										current === "connector" ? null : "connector",
+									);
+									setSelectedTag(null);
+									setSelectedKey(null);
+								}}
+								size="xs"
+								type="button"
+								variant={typeFilter === "connector" ? "default" : "outline"}
+							>
+								Connectors
+							</Button>
+						) : null}
 					</div>
-					{visibleTags.length > 0 ? (
+					{typeFilter !== "connector" && visibleTags.length > 0 ? (
 						<div className="flex flex-wrap gap-1">
 							{displayedTags.map((tag) => {
 								const active = selectedTag === tag.id;
@@ -775,6 +797,17 @@ export function MarketplaceExplorerView() {
 				</div>
 				<ScrollArea className="min-h-0 flex-1">
 					<div className="grid gap-4 p-2 pb-6">
+						{typeFilter !== "connector" && directory.loading ? (
+							<p className="flex items-center justify-center p-6 text-sm text-muted-foreground">
+								<Spinner className="mr-2" />
+								Loading marketplace...
+							</p>
+						) : null}
+						{typeFilter !== "connector" && directory.errorMessage ? (
+							<p className="p-4 text-sm text-destructive" role="alert">
+								{directory.errorMessage}
+							</p>
+						) : null}
 						{groups.map((group) => {
 							const meta = TYPE_META[group.type];
 							const Icon = meta.icon;
@@ -807,10 +840,22 @@ export function MarketplaceExplorerView() {
 								</div>
 							);
 						})}
-						{groups.length === 0 ? (
+						{groups.length === 0 &&
+						!showConnectors &&
+						!directory.loading &&
+						!directory.errorMessage ? (
 							<p className="px-3 py-6 text-center text-sm text-muted-foreground">
 								No entries match the current filters.
 							</p>
+						) : null}
+						{showConnectors ? (
+							<section className="grid gap-3 px-2.5" aria-label="Connectors">
+								<h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+									<Cable className="size-3.5 text-primary" />
+									Connectors
+								</h2>
+								<ComposioConnectorsView searchQuery={query} />
+							</section>
 						) : null}
 					</div>
 				</ScrollArea>
