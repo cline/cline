@@ -286,7 +286,10 @@ workspace on its own filesystem at
 and to create a named project folder only when the user asks for one.
 The resolved paths are returned in the session snapshot and are the source of
 truth for client-side manifests; transport clients must not invent a local path
-for a remote runtime.
+for a remote runtime. When no explicit system prompt is supplied, local runtime
+bootstrap builds the default prompt from the execution host’s platform, resolved
+workspace metadata, rules, and mode. SSH clients can therefore leave it empty
+without inserting the desktop machine’s paths or platform into a remote session.
 
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI

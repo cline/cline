@@ -18,6 +18,7 @@
 		"build:sidecar:bin": "bun run scripts/build-sidecar-bin.ts",
 		"build:binary": "tauri build",
 		"dmg:background": "bun run scripts/dmg-background.ts",
+		"test:bun-cross-compile-runtime": "bun test scripts/bun-cross-compile-runtime.test.ts",
 		"test:dmg-background": "bun test scripts/dmg-background.test.ts",
 		"package": "bun run package:desktop",
 		"package:desktop": "bun run scripts/package-desktop.ts",

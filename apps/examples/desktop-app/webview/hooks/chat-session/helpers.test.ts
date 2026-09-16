@@ -9,6 +9,7 @@ import {
 
 function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 	return {
+		environmentId: "local",
 		workspaceRoot: "/tmp/project",
 		provider: "anthropic",
 		model: "claude-sonnet-4-5",
