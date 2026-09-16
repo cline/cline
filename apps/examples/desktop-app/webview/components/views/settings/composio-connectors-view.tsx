@@ -128,7 +128,7 @@ export function ConnectorActionButton({
 					}}
 					size="sm"
 					type="button"
-					variant={variant}
+					variant="default"
 				>
 					View
 				</Button>
@@ -175,7 +175,7 @@ export function ConnectorActionButton({
 			}}
 			size="sm"
 			type="button"
-			variant={variant}
+			variant="outline"
 		>
 			{busy ? <Loader2 className="size-4 animate-spin" /> : null}
 			Install
@@ -286,7 +286,7 @@ export function ComposioConnectorsView({
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<p className="text-sm text-muted-foreground">
 					Connect your accounts to give Cline tools for your favorite apps.
-					Connected tools become available in new sessions.
+					Tools will become available in new sessions.
 				</p>
 				<div className="relative">
 					<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
