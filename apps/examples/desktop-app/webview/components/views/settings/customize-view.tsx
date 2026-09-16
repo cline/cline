@@ -197,10 +197,7 @@ export function CustomizeView({
 					onInventoryChanged={handleInventoryChanged}
 				/>
 			) : tab === "integrations" ? (
-				<ComposioConnectorsView
-					onChanged={handleInventoryChanged}
-					onOpenMarketplace={onOpenMarketplace}
-				/>
+				<ComposioConnectorsView onChanged={handleInventoryChanged} />
 			) : tab === "plugins" ? (
 				<CustomizationSectionView
 					catalogPrimitive="plugin"

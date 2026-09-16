@@ -2,7 +2,6 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ComposioCatalogResponse } from "@/lib/composio-types";
 
 const mocks = vi.hoisted(() => ({
 	configured: true,
@@ -59,54 +58,13 @@ function connectorFilter() {
 	);
 }
 
-describe("Marketplace connector catalog states", () => {
-	it("keeps the filter visible while loading and after an empty response", async () => {
-		let finish!: (response: ComposioCatalogResponse) => void;
-		mocks.catalog.mockImplementation(
-			() =>
-				new Promise((resolve) => {
-					finish = resolve;
-				}),
-		);
-		await render();
-		expect(connectorFilter()).toBeDefined();
-		expect(container.textContent).toContain("Loading connectors...");
-		await act(async () => connectorFilter()?.click());
-		await act(async () => finish({ configured: true, toolkits: [] }));
-		expect(connectorFilter()?.getAttribute("aria-pressed")).toBe("true");
-		expect(container.textContent).toContain(
-			"No connectors are available for your account yet.",
-		);
-		expect(container.textContent).not.toContain("No entries match");
-	});
-
-	it("shows a catalog error and retries without hiding the filter", async () => {
-		mocks.catalog
-			.mockRejectedValueOnce(new Error("Service unavailable"))
-			.mockResolvedValueOnce({
-				configured: true,
-				toolkits: [{ slug: "gmail", name: "Gmail" }],
-			});
-		await render();
-		expect(connectorFilter()).toBeDefined();
-		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-			"Service unavailable",
-		);
-		const retry = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Retry",
-		);
-		expect(retry).toBeDefined();
-		await act(async () => retry?.click());
-		expect(mocks.catalog).toHaveBeenCalledTimes(2);
-		expect(container.textContent).toContain("Gmail");
-		expect(container.querySelector('[role="alert"]')).toBeNull();
-	});
-
-	it("does not fetch or show connectors for an account without access", async () => {
-		mocks.configured = false;
+describe("Marketplace directory", () => {
+	it("does not show or fetch connectors, which live in Customize", async () => {
 		await render();
 		expect(connectorFilter()).toBeUndefined();
 		expect(mocks.catalog).not.toHaveBeenCalled();
-		expect(container.textContent).not.toContain("Loading connectors");
+		expect(
+			container.querySelector('input[aria-label="Search marketplace"]'),
+		).not.toBeNull();
 	});
 });
