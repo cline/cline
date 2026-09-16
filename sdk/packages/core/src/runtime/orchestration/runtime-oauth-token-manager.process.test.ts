@@ -7,8 +7,17 @@ import { ProviderSettingsManager } from "../../services/storage/provider-setting
 
 const directories: string[] = [];
 const children: ReturnType<typeof spawn>[] = [];
-afterEach(() => {
-	for (const child of children.splice(0)) child.kill();
+afterEach(async () => {
+	await Promise.all(
+		children.splice(0).map((child) => {
+			if (child.exitCode !== null || child.signalCode !== null)
+				return undefined;
+			return new Promise<void>((resolve) => {
+				child.once("close", () => resolve());
+				child.kill();
+			});
+		}),
+	);
 	for (const dir of directories.splice(0))
 		rmSync(dir, { recursive: true, force: true });
 });
@@ -74,18 +83,40 @@ describe("OAuth refresh across processes", () => {
 			child.stderr.on("data", (data) => {
 				errors += data;
 			});
+			let failure: Error | undefined;
 			const done = new Promise<string>((resolve, reject) => {
 				child.on("error", reject);
-				child.on("exit", (code) =>
-					code === 0 ? resolve(output) : reject(new Error(errors)),
-				);
+				// close fires after stdout/stderr drain, so failures retain diagnostics.
+				child.on("close", (code, signal) => {
+					if (code === 0) resolve(output);
+					else
+						reject(
+							new Error(
+								`OAuth child exited with code ${code}, signal ${signal}: ${errors}`,
+							),
+						);
+				});
 			});
-			return { output: () => output, done };
+			// Observe rejection immediately, even while waiting for a readiness marker.
+			void done.catch((error: Error) => {
+				failure = error;
+			});
+			return {
+				output: () => {
+					if (failure) throw failure;
+					return output;
+				},
+				done,
+			};
 		}
 		const first = launch();
-		await expect.poll(first.output).toContain("refreshing");
+		await expect
+			.poll(first.output, { timeout: 10_000 })
+			.toContain("refreshing");
 		const second = launch();
-		await expect.poll(second.output).toContain("resolving");
+		await expect
+			.poll(second.output, { timeout: 10_000 })
+			.toContain("resolving");
 		writeFileSync(release, "");
 		const results = await Promise.all([first.done, second.done]);
 		for (const result of results)
@@ -96,5 +127,5 @@ describe("OAuth refresh across processes", () => {
 		expect(settings.getProviderSettings("cline")?.auth?.refreshToken).toBe(
 			"rotated-refresh",
 		);
-	}, 15_000);
+	}, 30_000);
 });

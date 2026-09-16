@@ -1,10 +1,6 @@
 import type { FeatureFlag, FeatureFlagsContext } from "@cline/shared";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { FeatureFlagsService } from "./FeatureFlagsService";
-import {
-	buildClinePostHogClient,
-	PostHogFeatureFlagsProvider,
-} from "./posthog";
 
 // Shared by connector management and tool execution, including detached hub
 // processes where a client's in-memory feature flag service is unavailable.
@@ -55,6 +51,9 @@ export async function isClineAccountFeatureEnabled(
 					}) {
 						// Scope the network client to the poll so account changes and
 						// idle runtimes do not leave background client handles behind.
+						// Keep the optional PostHog peer out of the SDK import path.
+						const { buildClinePostHogClient, PostHogFeatureFlagsProvider } =
+							await import("@cline/core/services/feature-flags/posthog");
 						const provider = new PostHogFeatureFlagsProvider({
 							client: buildClinePostHogClient(apiKey),
 							config: {},
