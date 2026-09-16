@@ -85,7 +85,7 @@ describe("Marketplace directory", () => {
 			container.querySelector('input[aria-label="Search marketplace"]'),
 		).not.toBeNull();
 	});
-	it("shows the shared connector cards in All and the Connectors filter, with marketplace search and install", async () => {
+	it("shows the shared marketplace rows in All and the Connectors filter, with marketplace search and install", async () => {
 		await render();
 		expect(container.textContent).toContain("Gmail");
 		expect(container.textContent).toContain("GitHub");
@@ -106,12 +106,30 @@ describe("Marketplace directory", () => {
 		});
 		expect(container.textContent).toContain("GitHub");
 		expect(container.textContent).not.toContain("Gmail");
+		expect(
+			container.querySelector('section[aria-label="Connectors"]')?.textContent,
+		).not.toContain("Install");
 		await act(async () =>
 			[...container.querySelectorAll("button")]
+				.find((button) => button.textContent === "GitHub")
+				?.click(),
+		);
+		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+			"GitHub",
+		);
+		await act(async () =>
+			[...document.querySelectorAll("button")]
 				.find((button) => button.textContent === "Install")
 				?.click(),
 		);
 		expect(mocks.connect).toHaveBeenCalledWith("github");
+		await act(async () =>
+			(
+				document.querySelector(
+					'[role="dialog"] button[data-slot="dialog-close"]',
+				) as HTMLButtonElement | null
+			)?.click(),
+		);
 		await act(async () =>
 			[...container.querySelectorAll("button")]
 				.find((button) => button.textContent?.startsWith("Skills"))
@@ -130,5 +148,32 @@ describe("Marketplace directory", () => {
 		await act(async () => connectorFilter()?.click());
 		expect(container.textContent).toContain("Gmail");
 		expect(container.textContent).not.toContain("Marketplace unavailable");
+	});
+	it("shows the full catalog count instead of the preview or search-result count", async () => {
+		mocks.catalog.mockResolvedValue({
+			toolkits: Array.from({ length: 121 }, (_, i) => ({
+				slug: `app_${i}`,
+				name: `App ${i}`,
+			})),
+		});
+		await render();
+		expect(connectorFilter()?.textContent).toBe("Connectors121");
+		const section = container.querySelector('section[aria-label="Connectors"]');
+		expect(section?.querySelector("h2")?.textContent).toBe("Connectors121");
+		expect(section?.querySelectorAll("button")).toHaveLength(24);
+		const input = container.querySelector(
+			'input[aria-label="Search marketplace"]',
+		) as HTMLInputElement;
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set?.call(input, "App 120");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(section?.querySelectorAll("button")).toHaveLength(1);
+		expect(section?.textContent).toContain("App 120");
+		expect(connectorFilter()?.textContent).toBe("Connectors121");
+		expect(section?.querySelector("h2")?.textContent).toBe("Connectors121");
 	});
 });

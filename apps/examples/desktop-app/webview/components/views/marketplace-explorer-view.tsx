@@ -26,6 +26,7 @@ import {
 	type MarketplacePrimitiveType,
 } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
+import { MarketplaceListRow } from "./marketplace-list-row";
 import { ComposioConnectorsView } from "./settings/composio-connectors-view";
 
 /**
@@ -281,49 +282,6 @@ function isBusy(state: EntryActionState | undefined): boolean {
 	return state?.status === "installing" || state?.status === "uninstalling";
 }
 
-function ListRow({
-	entry,
-	installed,
-	onSelect,
-	selected,
-}: {
-	entry: MarketplaceEntry;
-	installed: boolean;
-	onSelect: () => void;
-	selected: boolean;
-}) {
-	return (
-		<button
-			className={cn(
-				"flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-				selected ? "bg-primary/10" : "hover:bg-surface-hover-lighter",
-			)}
-			onClick={onSelect}
-			type="button"
-		>
-			<span className="min-w-0 flex-1">
-				<span className="flex min-w-0 items-center gap-1">
-					<span className="truncate text-sm font-medium text-foreground">
-						{entry.name}
-					</span>
-					{entry.verified ? (
-						<BadgeCheck className="size-3.5 shrink-0 text-sky-500" />
-					) : null}
-				</span>
-				<span className="block truncate text-xs text-muted-foreground">
-					{entry.tagline}
-				</span>
-			</span>
-			{installed ? (
-				<span
-					className="size-1.5 shrink-0 rounded-full bg-emerald-500"
-					title="Installed"
-				/>
-			) : null}
-		</button>
-	);
-}
-
 function MetaCell({
 	icon: Icon,
 	label,
@@ -573,6 +531,7 @@ export function MarketplaceExplorerView() {
 	const [tagsExpanded, setTagsExpanded] = useState(false);
 	const [selectedKey, setSelectedKey] = useState<string | null>(null);
 	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
+	const [connectorCount, setConnectorCount] = useState<number | null>(null);
 	useEffect(() => {
 		let cancelled = false;
 		const refresh = async () => {
@@ -748,6 +707,9 @@ export function MarketplaceExplorerView() {
 								variant={typeFilter === "connector" ? "default" : "outline"}
 							>
 								Connectors
+								<span className="text-[10px] opacity-70">
+									{connectorCount ?? "…"}
+								</span>
 							</Button>
 						) : null}
 					</div>
@@ -825,8 +787,10 @@ export function MarketplaceExplorerView() {
 									{group.entries.map((entry) => {
 										const key = entryKey(entry);
 										return (
-											<ListRow
-												entry={entry}
+											<MarketplaceListRow
+												name={entry.name}
+												description={entry.tagline}
+												verified={entry.verified}
 												installed={directory.installedKeys.has(key)}
 												key={key}
 												onSelect={() => setSelectedKey(key)}
@@ -849,12 +813,27 @@ export function MarketplaceExplorerView() {
 							</p>
 						) : null}
 						{showConnectors ? (
-							<section className="grid gap-3 px-2.5" aria-label="Connectors">
-								<h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+							<section className="grid gap-1" aria-label="Connectors">
+								<h2 className="flex items-center gap-1.5 px-2.5 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 									<Cable className="size-3.5 text-primary" />
 									Connectors
+									<span className="font-normal text-muted-foreground/70">
+										{connectorCount ?? "…"}
+									</span>
 								</h2>
-								<ComposioConnectorsView searchQuery={query} />
+								<ComposioConnectorsView
+									searchQuery={query}
+									onCatalogCountChange={setConnectorCount}
+									renderItem={({ entry, status, onOpenDetails, selected }) => (
+										<MarketplaceListRow
+											name={entry.name}
+											description={entry.description}
+											installed={status === "connected"}
+											selected={selected}
+											onSelect={onOpenDetails}
+										/>
+									)}
+								/>
 							</section>
 						) : null}
 					</div>

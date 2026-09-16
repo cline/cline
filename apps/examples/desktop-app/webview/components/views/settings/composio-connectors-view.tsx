@@ -2,7 +2,7 @@
 
 import { GitHubIcon } from "@cline/ui";
 import { CalendarDays, Loader2, Mail, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -183,10 +183,19 @@ export function ConnectorActionButton({
 export function ComposioConnectorsView({
 	onChanged,
 	searchQuery,
+	onCatalogCountChange,
+	renderItem,
 }: {
 	onChanged?: () => void;
 	/** Use the host page search instead of rendering a separate search field. */
 	searchQuery?: string;
+	onCatalogCountChange?: (count: number | null) => void;
+	renderItem?: (props: {
+		entry: ComposioCatalogToolkit;
+		status: ComposioIntegrationStatus;
+		selected: boolean;
+		onOpenDetails: () => void;
+	}) => ReactNode;
 }) {
 	const {
 		status,
@@ -233,6 +242,11 @@ export function ComposioConnectorsView({
 			cancelled = true;
 		};
 	}, [configured, retry]);
+
+	useEffect(() => {
+		// listToolkits resolves only after every backend page has been fetched.
+		onCatalogCountChange?.(catalog?.length ?? null);
+	}, [catalog, onCatalogCountChange]);
 
 	const trimmedQuery = query.trim().toLowerCase();
 	const visibleCatalog = useMemo(() => {
@@ -284,24 +298,26 @@ export function ComposioConnectorsView({
 
 	return (
 		<div className="flex flex-col gap-4 select-text">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<p className="text-sm text-muted-foreground">
-					Connect your accounts to give Cline tools for your favorite apps.
-					Tools will become available in new sessions.
-				</p>
-				{searchQuery === undefined ? (
-					<div className="relative">
-						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							className="h-8 w-64 pl-8"
-							onChange={(event) => setQuery(event.target.value)}
-							aria-label="Search connectors"
-							placeholder="Search connectors"
-							value={query}
-						/>
-					</div>
-				) : null}
-			</div>
+			{!renderItem ? (
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						Connect your accounts to give Cline tools for your favorite apps.
+						Tools will become available in new sessions.
+					</p>
+					{searchQuery === undefined ? (
+						<div className="relative">
+							<Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+							<Input
+								className="h-8 w-64 pl-8"
+								onChange={(event) => setQuery(event.target.value)}
+								aria-label="Search connectors"
+								placeholder="Search connectors"
+								value={query}
+							/>
+						</div>
+					) : null}
+				</div>
+			) : null}
 
 			{catalogLoading && !catalog ? (
 				<output
@@ -328,20 +344,36 @@ export function ComposioConnectorsView({
 				<>
 					{/* The host page owns scrolling. */}
 					<div className="min-w-0">
-						<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-2">
+						<div
+							className={
+								renderItem
+									? "grid gap-1"
+									: "grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-2"
+							}
+						>
 							{visibleCatalog.map((entry) => (
 								<div className="min-w-0" key={entry.slug}>
-									<ConnectorRow
-										busy={busyToolkit === entry.slug}
-										entry={entry}
-										onCancel={() => void cancelConnect(entry.slug)}
-										onConnect={() => void connect(entry.slug)}
-										onDisconnect={() => void disconnect(entry.slug)}
-										onOpenDetails={() => setDetailSlug(entry.slug)}
-										status={
-											statusBySlug.get(entry.slug)?.status ?? "not_connected"
-										}
-									/>
+									{renderItem ? (
+										renderItem({
+											entry,
+											status:
+												statusBySlug.get(entry.slug)?.status ?? "not_connected",
+											selected: detailSlug === entry.slug,
+											onOpenDetails: () => setDetailSlug(entry.slug),
+										})
+									) : (
+										<ConnectorRow
+											busy={busyToolkit === entry.slug}
+											entry={entry}
+											onCancel={() => void cancelConnect(entry.slug)}
+											onConnect={() => void connect(entry.slug)}
+											onDisconnect={() => void disconnect(entry.slug)}
+											onOpenDetails={() => setDetailSlug(entry.slug)}
+											status={
+												statusBySlug.get(entry.slug)?.status ?? "not_connected"
+											}
+										/>
+									)}
 									{actionError?.toolkit === entry.slug ? (
 										// Scoped to this connector's own card; no shared
 										// surface retains another connector's failure.
