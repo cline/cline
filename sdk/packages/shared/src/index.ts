@@ -529,6 +529,7 @@ export type {
 	TelemetryPrimitive,
 	TelemetryProperties,
 	TelemetryValue,
+	CoreSpawnReason,
 } from "./services/telemetry";
 export {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
@@ -547,6 +548,7 @@ export {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	CORE_SPAWN_REASONS,
 } from "./services/telemetry";
 export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
 export {

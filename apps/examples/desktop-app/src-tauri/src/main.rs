@@ -814,15 +814,21 @@ async fn check_for_update_now(
 
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
 /// webview/lib/app-icon.ts. Every id has a matching bundled resource at
-/// icons/app/<id>.png.
+/// icons/app/<id>.png, plus a macOS variant at icons/app/macos/<id>.png with
+/// the transparent margin the Dock expects (artwork fills ~80% of the canvas).
 const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
+
+#[cfg(target_os = "macos")]
+const APP_ICON_RESOURCE_DIR: &str = "icons/app/macos";
+#[cfg(target_os = "windows")]
+const APP_ICON_RESOURCE_DIR: &str = "icons/app";
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, String> {
     let icon_path = app
         .path()
         .resolve(
-            format!("icons/app/{icon}.png"),
+            format!("{APP_ICON_RESOURCE_DIR}/{icon}.png"),
             tauri::path::BaseDirectory::Resource,
         )
         .map_err(|e| format!("failed resolving app icon resource: {e}"))?;
