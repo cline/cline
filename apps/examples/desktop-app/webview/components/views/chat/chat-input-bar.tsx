@@ -384,7 +384,7 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
+	onSteerPromptInQueue: (promptId?: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
 		prompt: string,
@@ -585,6 +585,23 @@ function ChatInputBarImpl({
 		!speechInputActive &&
 		!needsCloudRepository &&
 		(executionTarget !== "cloud" || promptInput.trim().length > 0);
+	const steeringPromptRef = useRef(false);
+	const steerFirstQueuedPrompt = async () => {
+		const firstPrompt = promptsInQueue[0];
+		if (!firstPrompt || firstPrompt.steer || steeringPromptRef.current) return;
+		steeringPromptRef.current = true;
+		try {
+			await onSteerPromptInQueue();
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not steer queued message",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			steeringPromptRef.current = false;
+		}
+	};
 	const handleSend = useCallback(() => {
 		if (!canSend) return;
 		if (unsupportedDraftImageCount > 0) {
@@ -1238,7 +1255,11 @@ function ChatInputBarImpl({
 			<div
 				className={cn(
 					"px-4 py-3",
-					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+					variant === "welcome"
+						? "pb-2 pt-4"
+						: promptsInQueue.length > 0
+							? "pb-4 pt-0"
+							: "py-4",
 				)}
 			>
 				<AgentPromptQueue
@@ -1482,6 +1503,15 @@ function ChatInputBarImpl({
 									e.preventDefault();
 									if (canSend) {
 										handleSend();
+									} else if (
+										!hasDraft &&
+										!speechInputActive &&
+										!e.ctrlKey &&
+										!e.metaKey &&
+										!e.altKey &&
+										!e.repeat
+									) {
+										void steerFirstQueuedPrompt();
 									}
 								}
 							}}
@@ -1496,7 +1526,9 @@ function ChatInputBarImpl({
 									: needsCloudRepository
 										? "Choose a repository"
 										: isBusy && variant !== "welcome"
-											? "Agent is working... submit to queue another message"
+											? promptsInQueue.length > 0
+												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+												: "Agent is working... submit to queue another message"
 											: executionTarget === "cloud"
 												? // Mentions and slash commands are local-only; do not
 													// advertise them in cloud sessions.

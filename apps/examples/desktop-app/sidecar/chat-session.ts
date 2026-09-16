@@ -2116,14 +2116,17 @@ async function handleSteerPrompt(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	const promptId = request.promptId?.trim();
-	if (!sessionId || !promptId)
-		throw new Error("sessionId and promptId are required");
+	if (!sessionId) throw new Error("sessionId is required");
+	if (request.promptId !== undefined && !promptId)
+		throw new Error("promptId cannot be empty");
 	const manager = getSessionManager(ctx, sessionId, request.config);
-	const result = await manager.pendingPrompts.update({
-		sessionId,
-		promptId,
-		delivery: "steer",
-	});
+	const result = promptId
+		? await manager.pendingPrompts.update({
+				sessionId,
+				promptId,
+				delivery: "steer",
+			})
+		: await manager.pendingPrompts.steerFirst({ sessionId });
 	return {
 		sessionId,
 		updated: result.updated === true,
@@ -3136,11 +3139,14 @@ export async function handleChatSessionCommand(
 				return await cloud.pendingPrompts(sessionId);
 			case "steer_prompt": {
 				const promptId = request.promptId?.trim();
-				if (!sessionId || !promptId)
-					throw new Error("sessionId and promptId are required");
-				return await cloud.updatePendingPrompt(sessionId, promptId, {
-					delivery: "steer",
-				});
+				if (!sessionId) throw new Error("sessionId is required");
+				if (request.promptId !== undefined && !promptId)
+					throw new Error("promptId cannot be empty");
+				return promptId
+					? await cloud.updatePendingPrompt(sessionId, promptId, {
+							delivery: "steer",
+						})
+					: await cloud.steerFirstPendingPrompt(sessionId);
 			}
 			case "update_pending_prompt": {
 				const promptId = request.promptId?.trim();

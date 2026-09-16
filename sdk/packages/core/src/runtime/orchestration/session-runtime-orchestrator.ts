@@ -593,6 +593,10 @@ export class SessionRuntime {
 	// Abort / shutdown
 	// -------------------------------------------------------------------
 
+	notifyPendingUserMessage(): void {
+		this.activeRuntime?.notifyPendingUserMessage();
+	}
+
 	abort(reason?: unknown): void {
 		const message =
 			typeof reason === "string"

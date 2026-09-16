@@ -3566,3 +3566,53 @@ describe("mistake-limit prompt", () => {
 		expect(start).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("queue steering routing", () => {
+	it.each([
+		["local", undefined],
+		["local", "selected-prompt"],
+		["ssh:test", undefined],
+		["ssh:test", "selected-prompt"],
+	] as const)("routes %s steering with prompt ID %s", async (environmentId, promptId) => {
+		const result = { sessionId: "session", prompts: [], updated: false };
+		const steerFirst = vi.fn(async () => result);
+		const update = vi.fn(async () => result);
+		const ctx = {
+			liveSessions: new Map(),
+			wsClients: new Set(),
+			...localRuntimeContext(
+				{ pendingPrompts: { steerFirst, update } },
+				{ sessionIds: ["session"] },
+			),
+		} as unknown as SidecarContext;
+		if (environmentId !== "local") {
+			const localBinding = ctx.runtimeBindings.get("local")!;
+			ctx.runtimeBindings.set(environmentId, {
+				...localBinding,
+				environmentId,
+				kind: "ssh",
+			});
+			ctx.sessionEnvironmentIds.set("session", environmentId);
+			ctx.runtimeBindings.set("local", {
+				...localBinding,
+				sessionManager: {} as never,
+			});
+		}
+		await handleChatSessionCommand(ctx, {
+			action: "steer_prompt",
+			sessionId: "session",
+			promptId,
+		});
+		if (promptId === undefined) {
+			expect(steerFirst).toHaveBeenCalledWith({ sessionId: "session" });
+			expect(update).not.toHaveBeenCalled();
+		} else {
+			expect(update).toHaveBeenCalledWith({
+				sessionId: "session",
+				promptId,
+				delivery: "steer",
+			});
+			expect(steerFirst).not.toHaveBeenCalled();
+		}
+	});
+});

@@ -233,6 +233,18 @@ class FakeHubClient {
 		if (command === "session.pending_prompts" && this.malformedQueueReply) {
 			return { ok: true, payload: {} };
 		}
+		if (command === "session.steer_first_pending_prompt") {
+			return {
+				ok: true,
+				payload: {
+					updated: this.prompts.length > 0,
+					prompts: this.prompts.map((item, index) => ({
+						...item,
+						delivery: index === 0 ? "steer" : item.delivery,
+					})),
+				},
+			};
+		}
 		if (
 			command === "session.pending_prompts" ||
 			command === "session.update_pending_prompt" ||
@@ -2345,6 +2357,29 @@ describe("CloudSessionManager", () => {
 				}),
 			}),
 		);
+
+		const steeredFirst = await handleChatSessionCommand(ctx, {
+			action: "steer_prompt",
+			sessionId: "ses-outer",
+		});
+		expect(steeredFirst).toMatchObject({
+			sessionId: "ses-outer",
+			updated: true,
+			promptsInQueue: [expect.objectContaining({ id: "q-1", steer: true })],
+		});
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.steer_first_pending_prompt",
+				payload: { sessionId: "inner-1" },
+			}),
+		);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "steer_prompt",
+				sessionId: "ses-outer",
+				promptId: " ",
+			}),
+		).rejects.toThrow("promptId cannot be empty");
 
 		const removed = await handleChatSessionCommand(ctx, {
 			action: "remove_pending_prompt",

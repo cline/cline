@@ -2283,6 +2283,19 @@ export class CloudSessionManager {
 		};
 	}
 
+	async steerFirstPendingPrompt(outerSessionId: string): Promise<JsonRecord> {
+		const reply = await this.queueCommand(
+			outerSessionId,
+			"session.steer_first_pending_prompt",
+			{},
+		);
+		return {
+			sessionId: outerSessionId,
+			updated: reply.payload?.updated === true,
+			promptsInQueue: this.applyQueueSnapshot(outerSessionId, reply),
+		};
+	}
+
 	async updatePendingPrompt(
 		outerSessionId: string,
 		promptId: string,
@@ -2320,6 +2333,7 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		command:
 			| "session.pending_prompts"
+			| "session.steer_first_pending_prompt"
 			| "session.update_pending_prompt"
 			| "session.remove_pending_prompt",
 		payload: Record<string, unknown>,

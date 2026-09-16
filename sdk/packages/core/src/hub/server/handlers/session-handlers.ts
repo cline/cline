@@ -1206,6 +1206,26 @@ export async function handleSessionPendingPrompts(
 	return okReply(envelope, { sessionId, prompts });
 }
 
+export async function handleSessionSteerFirstPendingPrompt(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	const service = ctx.sessionHost.pendingPrompts;
+	if (!service) {
+		return errorReply(
+			envelope,
+			"pending_prompts_unavailable",
+			"Pending prompt service is not available.",
+		);
+	}
+	const result = await service.steerFirst({ sessionId });
+	return okReply(
+		envelope,
+		result as unknown as Record<string, JsonValue | undefined>,
+	);
+}
+
 export async function handleSessionUpdatePendingPrompt(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
