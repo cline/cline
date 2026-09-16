@@ -501,19 +501,6 @@ function ConnectorDetailDialog({
 								</span>
 								<div>
 									<DialogTitle>{entry.name}</DialogTitle>
-									{entry.categories && entry.categories.length > 0 ? (
-										<div className="mt-1 flex flex-wrap gap-1">
-											{entry.categories.map((category) => (
-												<Badge
-													className="font-normal"
-													key={category}
-													variant="outline"
-												>
-													{category}
-												</Badge>
-											))}
-										</div>
-									) : null}
 								</div>
 							</div>
 						</DialogHeader>
@@ -525,11 +512,27 @@ function ConnectorDetailDialog({
 								</DialogDescription>
 							) : null}
 
+							{entry.categories && entry.categories.length > 0 ? (
+								<div className="flex flex-wrap gap-1">
+									{entry.categories.map((category) => (
+										<Badge
+											className="font-normal"
+											key={category}
+											variant="outline"
+										>
+											{category}
+										</Badge>
+									))}
+								</div>
+							) : null}
+
 							<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
 								{typeof entry.toolsCount === "number" ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
-										<dd className="text-foreground">{entry.toolsCount}</dd>
+										<dd className="text-foreground">
+											{entry.toolsCount} in catalog
+										</dd>
 									</>
 								) : null}
 								<dt className="text-muted-foreground">Slug</dt>
