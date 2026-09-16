@@ -86,6 +86,57 @@ describe("htmlToMarkdown", () => {
 		)
 	})
 
+	it("pads the columns a colspan covers", () => {
+		// One cell for three columns left the row two cells short of the header.
+		const html =
+			"<table><tr><th>A</th><th>B</th><th>C</th></tr>" +
+			'<tr><td colspan="3">total</td></tr>' +
+			'<tr><td>1</td><td colspan="2">rest</td></tr></table>'
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["A", "B", "C"],
+			["---", "---", "---"],
+			["total", "", ""],
+			["1", "rest", ""],
+		])
+	})
+
+	it("holds the column a rowspan covers open in the rows below it", () => {
+		// Without the placeholder, "9 EUR" moved left into the Product column.
+		const html =
+			"<table><tr><th>Product</th><th>Variant</th><th>Price</th></tr>" +
+			'<tr><td rowspan="2">Cable</td><td>1 m</td><td>9 EUR</td></tr>' +
+			"<tr><td>2 m</td><td>12 EUR</td></tr></table>"
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["Product", "Variant", "Price"],
+			["---", "---", "---"],
+			["Cable", "1 m", "9 EUR"],
+			["", "2 m", "12 EUR"],
+		])
+	})
+
+	it("counts the header columns by their spans", () => {
+		const html =
+			'<table><tr><th colspan="2">Size</th><th>Price</th></tr>' + "<tr><td>S</td><td>M</td><td>9 EUR</td></tr></table>"
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["Size", "", "Price"],
+			["---", "---", "---"],
+			["S", "M", "9 EUR"],
+		])
+	})
+
+	it("pads a row that is short of the widest row", () => {
+		const html = "<table><tr><th>A</th><th>B</th></tr><tr><td>1</td></tr></table>"
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["A", "B"],
+			["---", "---"],
+			["1", ""],
+		])
+	})
+
 	it("leaves markup without a table alone", () => {
 		const html = "<p>hello</p><ul><li>a</li><li>b</li></ul>"
 
