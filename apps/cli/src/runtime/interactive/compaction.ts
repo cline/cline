@@ -97,13 +97,16 @@ export async function compactInteractiveMessages(input: {
 	// Manual compaction intentionally summarizes the full canonical transcript
 	// instead of reusing a prior sidecar summary, which avoids summary-of-summary
 	// drift across repeated `/compact` calls.
+	const conversationMessages = input.messages.filter(
+		(message) => message.metadata?.displayOnly !== true,
+	);
 	const result = await compact({
 		agentId: "cli",
 		conversationId: input.sessionId,
 		parentAgentId: null,
 		iteration: 0,
-		messages: input.messages,
-		apiMessages: input.messages,
+		messages: conversationMessages,
+		apiMessages: conversationMessages,
 		abortSignal: input.abortSignal ?? new AbortController().signal,
 		systemPrompt: "",
 		tools: [],
