@@ -14,7 +14,7 @@ vi.mock("../storage/provider-settings-manager", () => ({
 		}
 	},
 }));
-vi.mock("./posthog", () => ({
+vi.mock("@cline/core/services/feature-flags/posthog", () => ({
 	buildClinePostHogClient: vi.fn(() => ({})),
 	PostHogFeatureFlagsProvider: class {
 		getAllFlagsAndPayloads = mocks.getAllFlagsAndPayloads;
