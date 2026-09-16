@@ -270,9 +270,10 @@ describe("LocalRuntimeHost", () => {
 			},
 		};
 		const manager = new RuntimeHostUnderTest(options);
+		const readerService = new FileSessionService(dir);
 		const reader = new RuntimeHostUnderTest({
 			...options,
-			sessionService: new FileSessionService(dir),
+			sessionService: readerService,
 		});
 		try {
 			await manager.startSession(
@@ -314,6 +315,10 @@ describe("LocalRuntimeHost", () => {
 			await manager.dispose();
 			expect((await reader.getSession("activity"))?.updatedAt).toBe(iso(3_000));
 
+			// Resume and active reads must also work outside the history window.
+			const list = vi
+				.spyOn(readerService, "listSessions")
+				.mockResolvedValue([]);
 			vi.setSystemTime(start + 4_000);
 			if (invalidTimestamp) {
 				const path = join(dir, "sessions.index.json");
@@ -336,10 +341,17 @@ describe("LocalRuntimeHost", () => {
 			expect((await reader.getSession("activity"))?.updatedAt).toBe(
 				iso(prompt ? 4_000 : 3_000),
 			);
+			expect(list).not.toHaveBeenCalled();
 			expect((await reader.listSessions())[0]?.updatedAt).toBe(
 				iso(prompt ? 4_000 : 3_000),
 			);
 			expect(agent.run).toHaveBeenCalledTimes(prompt ? 1 : 0);
+			await options.sessionService.recordAgentActivity(
+				"activity",
+				start + 4_500,
+			);
+			expect((await reader.getSession("activity"))?.updatedAt).toBe(iso(4_500));
+			expect((await reader.listSessions())[0]?.updatedAt).toBe(iso(4_500));
 			if (invalidTimestamp) {
 				vi.setSystemTime(start + 5_000);
 				emit?.({ type: "iteration_start", iteration: 1 });

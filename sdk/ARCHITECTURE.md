@@ -153,10 +153,12 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
-Core advances session `updatedAt` from live agent progress through the shared
-event handler. Writes are coalesced over 60 seconds and flushed on completion
-and shutdown; crashes or storage failures can lose recent observations.
-Expiry policy belongs to consumers, not Hub.
+Session `updatedAt` includes live root/child agent progress, metadata, and status
+changes. Activity writes are coalesced over 60 seconds and flushed on completion
+and shutdown; crashes or storage failures can lose recent observations. Reads
+and connections do not themselves advance it, but stale-session reconciliation
+and maintenance turns can. It is recency, not proof of idleness; expiry remains
+consumer policy.
 
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing

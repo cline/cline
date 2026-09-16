@@ -1,11 +1,4 @@
 
-## Session activity
-
-Session `updatedAt` includes live agent and attributed child progress, alongside
-metadata and status changes. Reads and client connections do not themselves
-advance it, but stale-session reconciliation and maintenance turns can.
-It is a recency timestamp, not proof of idleness; no expiry behavior changes.
-
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH

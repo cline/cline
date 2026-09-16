@@ -9,7 +9,6 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
@@ -116,7 +115,7 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	sqliteIt(
-		"reads and resumes activity outside the recent-history window",
+		"reads activity by ID outside the recent-history window",
 		async () => {
 			const dir = mkdtempSync(join(tmpdir(), "old-session-activity-"));
 			tempDirs.push(dir);
@@ -154,59 +153,12 @@ describe("UnifiedSessionPersistenceService", () => {
 				});
 			}
 			store.run("COMMIT");
-			const list = vi.spyOn(service, "listSessions");
-			const host = new LocalRuntimeHost({
-				distinctId: "test",
-				sessionService: service,
-				runtimeBuilder: {
-					build: () => ({ tools: [], shutdown: async () => {} }),
-				} as never,
-				createAgent: () =>
-					({
-						getMessages: () => [],
-						getAgentId: () => "root",
-						getConversationId: () => "conversation",
-						canStartRun: () => true,
-						shutdown: async () => {},
-						abort: () => {},
-						subscribeEvents: () => () => {},
-					}) as never,
-			});
-			try {
-				expect((await host.getSession("old-session"))?.updatedAt).toBe(
-					new Date(at).toISOString(),
-				);
-				await host.startSession({
-					config: {
-						sessionId: "old-session",
-						providerId: "mock",
-						modelId: "mock",
-						cwd: dir,
-						workspaceRoot: dir,
-						systemPrompt: "test",
-						mode: "act",
-						enableTools: false,
-						enableSpawnAgent: false,
-						enableAgentTeams: false,
-					},
-					interactive: true,
-					initialMessages: [{ role: "user", content: "previous work" }],
-				});
-				expect((await host.getSession("old-session"))?.updatedAt).toBe(
-					new Date(at).toISOString(),
-				);
-				expect(list).not.toHaveBeenCalled();
-				await service.recordAgentActivity("old-session", at + 1_000);
-				expect((await host.listSessions(1))[0]).toMatchObject({
-					sessionId: "old-session",
-					updatedAt: (await host.getSession("old-session"))?.updatedAt,
-				});
-				expect((await host.getSession("old-session"))?.updatedAt).toBe(
-					new Date(at + 1_000).toISOString(),
-				);
-			} finally {
-				await host.dispose();
-			}
+			const rows = await service.listSessions(2000);
+			expect(rows).toHaveLength(2000);
+			expect(rows.some((row) => row.sessionId === "old-session")).toBe(false);
+			expect((await service.getSession("old-session"))?.updatedAt).toBe(
+				new Date(at).toISOString(),
+			);
 		},
 	);
 
