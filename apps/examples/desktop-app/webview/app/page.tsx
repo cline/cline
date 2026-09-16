@@ -1553,6 +1553,7 @@ function ChatThreadPane({
 	const composer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			hasPendingQuestion={pendingAskQuestions.length > 0}
 			hasRunningAgents={agentActivity.running > 0}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}

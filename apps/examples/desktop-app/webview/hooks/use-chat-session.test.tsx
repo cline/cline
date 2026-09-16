@@ -2244,6 +2244,56 @@ describe("useChatSession", () => {
 		expect(current.promptsInQueue).toEqual([]);
 	});
 
+	it("hands a message with attachments back instead of answering or queueing it while a question is pending", async () => {
+		const sessionId = "session-question-attachments";
+		const sendActions: string[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action) sendActions.push(request.action);
+					if (request?.action === "start") {
+						return { sessionId };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const pendingQuestion = {
+			requestId: "question-attachments",
+			sessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		await act(async () => {
+			handlerFor("ask_question_requested")(pendingQuestion);
+		});
+
+		const attachment = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+			type: "image/png",
+		});
+		let promptTaken: boolean | undefined;
+		await act(async () => {
+			promptTaken = await current.sendPrompt("Use this one", [attachment]);
+		});
+
+		expect(promptTaken).toBe(false);
+		expect(current.error).toContain("Question answers are text only");
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"respond_ask_question",
+			expect.anything(),
+		);
+		expect(current.pendingAskQuestions).toEqual([pendingQuestion]);
+		expect(sendActions).not.toContain("send");
+		expect(current.promptsInQueue).toEqual([]);
+	});
+
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
 		window.localStorage.setItem(
 			MODEL_SELECTION_STORAGE_KEY,

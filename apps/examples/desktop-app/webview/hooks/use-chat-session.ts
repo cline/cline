@@ -2174,7 +2174,17 @@ export function useChatSession() {
 			// typed message is the answer rather than a follow-up prompt to
 			// queue behind it (which left the question card up indefinitely).
 			const pendingQuestion = pendingAskQuestions[0];
-			if (pendingQuestion && trimmed && attachedFiles.length === 0) {
+			if (pendingQuestion) {
+				// The ask_question tool result is a string, so attachments cannot
+				// ride along with the answer; hand them back rather than silently
+				// dropping them or queueing the message behind the blocked agent.
+				if (attachedFiles.length > 0) {
+					setErrorState(
+						"Question answers are text only. Remove the attachments to answer, or pick an option first and send the files afterwards.",
+						sessionId ?? activeSessionIdRef.current,
+					);
+					return false;
+				}
 				try {
 					await answerAskQuestion(pendingQuestion.requestId, trimmed);
 					return true;
