@@ -80,7 +80,6 @@ export type ConnectorToolSchema = {
 type ConnectorPage<T> = {
 	items: T[];
 	nextToken: string;
-	total: number;
 };
 
 async function requestConnectorsApi<T>(
