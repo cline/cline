@@ -241,7 +241,7 @@ export class CloudQueueUnconfirmedError extends CloudSessionError {
 export class CloudHandoffSeedUnsupportedError extends Error {
 	constructor() {
 		super(
-			"The cloud session was created, but its transcript was not persisted. This cloud runtime cannot durably seed handoff transcripts and must use @cline/core 0.0.72 or newer. Updating the cloud runtime or pod is required; retrying /handoff against this same pod will not help.",
+			"The cloud session was created, but its transcript was not persisted. This cloud runtime cannot durably seed handoff transcripts and must use @cline/core 0.0.72 or newer. Updating the cloud runtime or pod is required; retrying /cloud against this same pod will not help.",
 		);
 		this.name = "CloudHandoffSeedUnsupportedError";
 	}

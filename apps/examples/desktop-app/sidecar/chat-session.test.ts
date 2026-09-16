@@ -63,22 +63,19 @@ vi.mock("@cline/core", async (importOriginal) => {
 	};
 });
 
-// New handoffs are gated on the rollout flags AND the user's Cloud sessions
-// opt-in (a handoff uploads the local transcript). Tests that drive
-// prepare_handoff/handoff arrange all three through this helper.
+// New handoffs use the existing Cloud sessions gate. Tests that drive
+// prepare_handoff/handoff enable that gate through this helper.
 const handoffOptInDataDirs: string[] = [];
 
 function enableCloudHandoffGates(): void {
 	const dataDir = mkdtempSync(join(tmpdir(), "cline-handoff-optin-"));
 	handoffOptInDataDirs.push(dataDir);
 	process.env.CLINE_DATA_DIR = dataDir;
-	process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
 	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 	writeDesktopSettings({ cloudSessionsEnabled: true });
 }
 
 afterEach(() => {
-	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 	delete process.env.CLINE_DATA_DIR;
 	for (const dataDir of handoffOptInDataDirs.splice(0)) {
@@ -2107,16 +2104,16 @@ describe("cloud handoff gates", () => {
 		enableCloudHandoffGates();
 	});
 
-	it("blocks handoff actions when the rollout flag is off", async () => {
+	it("blocks handoff actions when Cloud sessions are unavailable", async () => {
 		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
 
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		await expect(
 			handleChatSessionCommand(ctx, {
 				action: "prepare_handoff",
 				sessionId,
 			}),
-		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
 		await expect(
 			handleChatSessionCommand(ctx, {
 				action: "handoff",
@@ -2128,12 +2125,12 @@ describe("cloud handoff gates", () => {
 					modelId: "anthropic/claude-sonnet-4.6",
 				},
 			}),
-		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
 		expect(ctx.cloudSessionManager).toBeFalsy();
 	});
 
-	it("exempts a persisted pending handoff from the rollout flag gate", async () => {
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+	it("exempts a persisted pending handoff from the Cloud sessions gate", async () => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		// An empty transcript makes the recovery attempt fail deterministically
 		// at a later gate, proving the flag gate itself let it through.
 		const { ctx, sessionId } = createHandoffGateContext({
@@ -2158,14 +2155,14 @@ describe("cloud handoff gates", () => {
 			},
 		});
 
-		await expect(recovery).rejects.not.toThrow("Cloud handoff is not enabled");
+		await expect(recovery).rejects.not.toThrow("Enable Cloud sessions");
 		await expect(recovery).rejects.toThrow(
 			"Start a conversation before handing it off to cloud.",
 		);
 	});
 
-	it("keeps the rollout flag gate for sessions without a pending handoff", async () => {
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+	it("keeps the Cloud sessions gate for sessions without a pending handoff", async () => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		const { ctx, sessionId } = createHandoffGateContext({
 			messages: [],
 			metadata: { workspace: "preserved" },
@@ -2182,41 +2179,10 @@ describe("cloud handoff gates", () => {
 					modelId: "anthropic/claude-sonnet-4.6",
 				},
 			}),
-		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		).rejects.toThrow("Enable Cloud sessions in Settings before using /cloud.");
 	});
 
-	it("blocks new handoffs when the Cloud sessions opt-in is off", async () => {
-		// The rollout flag is on (suite setup), but the user has not opted in:
-		// a handoff uploads the local transcript and needs that consent.
-		writeDesktopSettings({ cloudSessionsEnabled: false });
-		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
-
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "prepare_handoff",
-				sessionId,
-			}),
-		).rejects.toThrow(
-			"Enable Cloud sessions in Settings before using cloud handoff.",
-		);
-		await expect(
-			handleChatSessionCommand(ctx, {
-				action: "handoff",
-				sessionId,
-				fingerprint: {
-					repoUrl: "https://github.com/cline/cline.git",
-					branch: "main",
-					headSha: "abc123",
-					modelId: "anthropic/claude-sonnet-4.6",
-				},
-			}),
-		).rejects.toThrow(
-			"Enable Cloud sessions in Settings before using cloud handoff.",
-		);
-		expect(ctx.cloudSessionManager).toBeFalsy();
-	});
-
-	it("lets new handoffs proceed when the flag and opt-in are both on", async () => {
+	it("lets new handoffs proceed when Cloud sessions are enabled", async () => {
 		// An empty transcript makes the attempt fail deterministically at a
 		// later gate, proving the flag+opt-in gate itself let it through.
 		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
@@ -2246,7 +2212,7 @@ describe("cloud handoff gates", () => {
 			dashboardUrl,
 		);
 
-		expect(message).toContain("delete it before retrying /handoff");
+		expect(message).toContain("delete it before retrying /cloud");
 		expect(message).toContain(dashboardUrl);
 	});
 
@@ -3183,39 +3149,39 @@ Follow the desktop send workflow instructions.`,
 		});
 	});
 
-	it("expands a user /handoff workflow while the feature gate is off", async () => {
+	it("expands a user /cloud workflow while the Cloud sessions gate is off", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const workflowsDir = join(workspace, ".cline", "workflows");
 		writeFileSync(
-			join(workflowsDir, "handoff.md"),
+			join(workflowsDir, "cloud.md"),
 			`---
-name: handoff
+name: cloud
 ---
-Follow the user handoff workflow instructions.`,
+Follow the user cloud workflow instructions.`,
 		);
 		const { ctx, send, sessionId } = createContext(workspace);
 
-		// Gate off (default in tests): the user's workflow owns /handoff.
+		// Gate off (default in tests): the user's workflow owns /cloud.
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId,
-			prompt: "/handoff please",
+			prompt: "/cloud please",
 		});
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({
-				prompt: "Follow the user handoff workflow instructions. please",
+				prompt: "Follow the user cloud workflow instructions. please",
 			}),
 		);
 
-		// Gate on: /handoff is built-in again and passes through untouched.
+		// Gate on: /cloud is built-in again and passes through untouched.
 		enableCloudHandoffGates();
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId,
-			prompt: "/handoff please",
+			prompt: "/cloud please",
 		});
 		expect(send).toHaveBeenLastCalledWith(
-			expect.objectContaining({ prompt: "/handoff please" }),
+			expect.objectContaining({ prompt: "/cloud please" }),
 		);
 	});
 
