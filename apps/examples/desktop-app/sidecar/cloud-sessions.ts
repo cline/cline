@@ -3,6 +3,7 @@ import {
 	ClineAccountService,
 	isHubCommandTimeoutError,
 	isHubReconnectableTransportError,
+	isSessionNotFoundError,
 	NodeHubClient,
 	ProviderSettingsManager,
 } from "@cline/core";
@@ -85,6 +86,13 @@ export type CloudSessionRecord = {
 	updatedAt: string;
 };
 
+export type CloudProvisioningPhase =
+	| "provisioning"
+	| "cloning_repo"
+	| "agent_starting"
+	| "ready"
+	| "failed";
+
 export function deriveCloudSessionTitle(prompt: string): string {
 	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
 }
@@ -157,6 +165,21 @@ function createRequestTitle(requestId: string): string {
 
 function isCreateRequestTitle(title: string | undefined): boolean {
 	return title?.startsWith(CREATE_REQUEST_TITLE_PREFIX) === true;
+}
+
+function parseCloudProvisioningPhase(
+	value: unknown,
+): CloudProvisioningPhase | undefined {
+	switch (value) {
+		case "provisioning":
+		case "cloning_repo":
+		case "agent_starting":
+		case "ready":
+		case "failed":
+			return value;
+		default:
+			return undefined;
+	}
 }
 
 type CreationAuth = {
@@ -237,28 +260,6 @@ function cloudErrorForResponse(
 		);
 	}
 	return new CloudSessionError("request_failed", message, undefined, status);
-}
-
-export type CloudProvisioningPhase =
-	| "provisioning"
-	| "cloning_repo"
-	| "agent_starting"
-	| "ready"
-	| "failed";
-
-function parseCloudProvisioningPhase(
-	value: unknown,
-): CloudProvisioningPhase | undefined {
-	switch (value) {
-		case "provisioning":
-		case "cloning_repo":
-		case "agent_starting":
-		case "ready":
-		case "failed":
-			return value;
-		default:
-			return undefined;
-	}
 }
 
 export class CloudSessionApi {
@@ -780,6 +781,7 @@ type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
 	innerSessionId?: string;
+	reconnectResolution?: Promise<void>;
 	rehydrationPromise?: Promise<CloudRehydrationSnapshot>;
 	rehydrationRerunRequested?: boolean;
 	bufferingEvents?: boolean;
@@ -908,6 +910,7 @@ export function cloudSessionToDiscoveryRecord(
 		branch: record.repoContext.branch ?? "",
 		// updatedAt changes on every reconnect, so it is not a stable start time.
 		startedAt: record.createdAt,
+		...(record.lastActivityAt ? { lastActivityAt: record.lastActivityAt } : {}),
 		endedAt: isExpiredRecord(record)
 			? (record.expiredAt ?? undefined)
 			: record.status === "failed"
@@ -918,6 +921,9 @@ export function cloudSessionToDiscoveryRecord(
 		metadata: {
 			...(record.title?.trim() ? { title: record.title.trim() } : {}),
 			origin: "cloud",
+			...(record.metadata.provisioningPhase
+				? { provisioningPhase: record.metadata.provisioningPhase }
+				: {}),
 			repoUrl: record.repoContext.repoUrl ?? "",
 			git: {
 				url: record.repoContext.repoUrl ?? "",
@@ -1042,6 +1048,9 @@ export class CloudSessionManager {
 					status,
 					metadata: {
 						...session.metadata,
+						...(parseCloudProvisioningPhase(result?.phase)
+							? { provisioningPhase: result?.phase }
+							: {}),
 						...(result?.statusReason?.trim()
 							? { statusReason: result.statusReason.trim() }
 							: {}),
@@ -1355,22 +1364,19 @@ export class CloudSessionManager {
 		const connection = await this.ensureConnection(outerSessionId, {
 			createInner: true,
 		});
+		const isCancelled = () =>
+			this.disposed ||
+			connection.disposed ||
+			this.deletingSessions.has(outerSessionId) ||
+			this.sendAbortTokens.get(outerSessionId) !== abortToken;
 		const throwIfCancelled = () => {
-			if (
-				this.disposed ||
-				connection.disposed ||
-				this.deletingSessions.has(outerSessionId) ||
-				this.sendAbortTokens.get(outerSessionId) !== abortToken
-			) {
-				throw new Error("Cloud session prompt cancelled");
-			}
+			if (isCancelled()) throw new Error("Cloud session prompt cancelled");
 		};
 		throwIfCancelled();
-		const innerSessionId = connection.innerSessionId;
-		if (!innerSessionId) {
-			throw new Error("Cloud Hub session was not initialized");
-		}
+		await connection.reconnectResolution;
+		throwIfCancelled();
 		await this.ensureAttached(connection);
+		await connection.reconnectResolution;
 		throwIfCancelled();
 		if (!connection.transcriptKnown) {
 			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
@@ -1380,7 +1386,13 @@ export class CloudSessionManager {
 		// final authoritative snapshot.
 		throwIfCancelled();
 		await this.updateModel(connection, modelId);
+		await connection.reconnectResolution;
+		// Stop also cancels sends still waiting for connection/attachment.
 		throwIfCancelled();
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub session was not initialized");
+		}
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
 		const promptOccurrencesBeforeSend = countPromptOccurrences(
@@ -1441,9 +1453,17 @@ export class CloudSessionManager {
 					...(userImages?.length ? { attachments: { userImages } } : {}),
 				},
 				innerSessionId,
-				delivery === "queue"
-					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
-					: { timeoutMs: null },
+				{
+					timeoutMs: delivery === "queue" ? QUEUE_COMMAND_TIMEOUT_MS : null,
+					beforeDispatch: () => {
+						throwIfCancelled();
+						if (connection.innerSessionId !== innerSessionId) {
+							throw new Error(
+								"The cloud session reconnected before the prompt could be sent. Please try again.",
+							);
+						}
+					},
+				},
 			);
 			const queued =
 				delivery === "queue" ||
@@ -1456,8 +1476,11 @@ export class CloudSessionManager {
 				result: reply.payload?.result,
 			};
 		} catch (error) {
-			// Disposal also rejects pending sends with a transport error; don't reconnect.
-			throwIfCancelled();
+			if (isCancelled()) {
+				removePendingMessage();
+				// Stop owns the status; a newer send may already own busy state.
+				throw error;
+			}
 			if (
 				isHubReconnectableTransportError(error) ||
 				isHubCommandTimeoutError(error, "session.send_input")
@@ -1529,6 +1552,16 @@ export class CloudSessionManager {
 			"session.update_connection",
 			{ sessionId: innerSessionId, updates: { modelId } },
 			innerSessionId,
+			{
+				beforeDispatch: () => {
+					this.assertSessionActive(connection.remote.id, connection);
+					if (connection.innerSessionId !== innerSessionId) {
+						throw new Error(
+							"The cloud session reconnected before the model could be changed. Please try again.",
+						);
+					}
+				},
+			},
 		);
 		this.assertSessionActive(connection.remote.id, connection);
 		this.applyModel(connection, modelId);
@@ -1733,14 +1766,42 @@ export class CloudSessionManager {
 			return { sessionId: outerSessionId, ok: true };
 		}
 		const connection = await this.ensureConnection(outerSessionId);
+		const throwIfDisposed = () => {
+			if (this.disposed || connection.disposed) {
+				throw new Error("Cloud session connection was disposed");
+			}
+		};
+		throwIfDisposed();
+		await connection.client.connect();
+		await connection.reconnectResolution;
+		throwIfDisposed();
+		// Reconnect clears the id and may swallow lookup errors for background
+		// retry. Stop must resolve it or surface the failure before acknowledging.
+		await this.resolveInnerSession(outerSessionId, connection);
 		if (connection.innerSessionId) {
 			await this.ensureAttached(connection);
+			await connection.reconnectResolution;
+			throwIfDisposed();
+			const innerSessionId = connection.innerSessionId;
+			if (!innerSessionId)
+				throw new Error("Cloud Hub session was not initialized");
 			await connection.client.command(
 				"run.abort",
-				{ sessionId: connection.innerSessionId },
-				connection.innerSessionId,
+				{ sessionId: innerSessionId },
+				innerSessionId,
+				{
+					beforeDispatch: () => {
+						throwIfDisposed();
+						if (connection.innerSessionId !== innerSessionId) {
+							throw new Error(
+								"The cloud session reconnected before Stop could be sent. Please try Stop again.",
+							);
+						}
+					},
+				},
 			);
 		}
+		throwIfDisposed();
 		const live = this.ctx.liveSessions.get(outerSessionId);
 		if (live) {
 			live.busy = false;
@@ -1814,11 +1875,24 @@ export class CloudSessionManager {
 		if (!innerSessionId) {
 			throw new Error("Cloud Hub session was not initialized");
 		}
+		await connection.client.connect();
+		await connection.reconnectResolution;
 		await this.ensureAttached(connection);
+		await connection.reconnectResolution;
 		const reply = await connection.client.command(
 			command,
 			{ sessionId: innerSessionId, ...payload },
 			innerSessionId,
+			{
+				beforeDispatch: () => {
+					this.assertSessionActive(outerSessionId, connection);
+					if (connection.innerSessionId !== innerSessionId) {
+						throw new Error(
+							"The cloud session reconnected before the queue request could be sent. Refresh the queue and try again.",
+						);
+					}
+				},
+			},
 		);
 		this.assertSessionActive(outerSessionId, connection);
 		return reply;
@@ -2055,21 +2129,26 @@ export class CloudSessionManager {
 		options: { createInner?: boolean } = {},
 	): Promise<CloudConnection> {
 		this.assertSessionActive(outerSessionId);
-		const existing = this.connections.get(outerSessionId);
+		// The client is registered early to retain its reconnect loop, before
+		// initial root resolution finishes. Callers must await that resolution.
+		const pending = this.connectionPromises.get(outerSessionId);
+		const existing = pending
+			? await pending
+			: this.connections.get(outerSessionId);
 		if (existing) {
+			this.assertSessionActive(outerSessionId, existing);
+			// Reconnect clears the id while looking up the existing root session.
+			if (options.createInner) await existing.reconnectResolution;
+			this.assertSessionActive(outerSessionId, existing);
 			if (options.createInner && !existing.innerSessionId) {
+				// An initial failed upgrade can leave a retained, unresolved client.
+				await existing.client.connect();
+				await existing.reconnectResolution;
+				await this.resolveInnerSession(outerSessionId, existing);
 				await this.createInnerSession(existing);
 			}
+			this.assertSessionActive(outerSessionId, existing);
 			return existing;
-		}
-		const pending = this.connectionPromises.get(outerSessionId);
-		if (pending) {
-			const connection = await pending;
-			this.assertSessionActive(outerSessionId, connection);
-			if (options.createInner && !connection.innerSessionId) {
-				await this.createInnerSession(connection);
-			}
-			return connection;
 		}
 
 		const connecting = (async () => {
@@ -2153,23 +2232,34 @@ export class CloudSessionManager {
 					const reconnecting = socketAttempt > 0;
 					socketAttempt += 1;
 					if (reconnecting) {
-						setTimeout(() => {
-							const reconnected = connection;
-							if (!reconnected || reconnected.disposed) return;
-							// A dropped transport invalidates the duplicate-prompt
-							// baseline send() computes from live.messages.
+						const reconnected = connection;
+						if (reconnected && !reconnected.disposed) {
+							// Publish reconnect recovery synchronously so a concurrent send
+							// cannot capture the previous inner-session id.
 							reconnected.transcriptKnown = false;
-							this.subscribeToInnerSession(outerSessionId, reconnected);
-							void this.rehydrateAfterTransportDrop(
-								outerSessionId,
-								reconnected,
-							).catch(() =>
-								this.disposeConnectionIfSessionGone(
-									outerSessionId,
-									reconnected,
-								),
-							);
-						}, 0);
+							reconnected.innerSessionId = undefined;
+							const resolution = (async () => {
+								await this.resolveInnerSession(outerSessionId, reconnected);
+								if (reconnected.innerSessionId) {
+									await this.rehydrateAfterTransportDrop(
+										outerSessionId,
+										reconnected,
+									);
+								}
+							})()
+								.catch(() =>
+									this.disposeConnectionIfSessionGone(
+										outerSessionId,
+										reconnected,
+									),
+								)
+								.finally(() => {
+									if (reconnected.reconnectResolution === resolution) {
+										reconnected.reconnectResolution = undefined;
+									}
+								});
+							reconnected.reconnectResolution = resolution;
+						}
 					}
 					const token = await this.options.getAuthToken();
 					if (!token?.trim()) {
@@ -2190,29 +2280,32 @@ export class CloudSessionManager {
 				seenEventIds: new Set(),
 				unsubscribe: () => {},
 			};
+			// A scoped placeholder subscription keeps the client's built-in retry
+			// loop alive if the first WebSocket upgrade races pod startup.
+			connection.unsubscribe = client.subscribe(() => {}, {
+				sessionId: remote.metadata.taskId?.trim() || outerSessionId,
+			});
+			this.connections.set(outerSessionId, connection);
 			try {
 				await client.connect();
 				this.assertSessionActive(outerSessionId, connection);
-				const listed = await client.command("session.list", { limit: 100 });
+				await this.resolveInnerSession(outerSessionId, connection);
 				this.assertSessionActive(outerSessionId, connection);
-				const newest = readSessionRows(listed.payload)
-					.filter(isRootSessionRow)
-					.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
-				const innerSessionId = String(newest?.sessionId ?? "").trim();
-				if (innerSessionId) {
-					connection.innerSessionId = innerSessionId;
-					this.subscribeToInnerSession(outerSessionId, connection);
-					const modelId = sessionRowModelId(newest);
-					if (modelId) this.applyModel(connection, modelId);
-					await this.ensureAttached(connection);
-				}
-				this.assertSessionActive(outerSessionId, connection);
-				this.connections.set(outerSessionId, connection);
 				if (options.createInner && !connection.innerSessionId) {
 					await this.createInnerSession(connection);
 				}
+				this.assertSessionActive(outerSessionId, connection);
 				return connection;
 			} catch (error) {
+				if (
+					isHubReconnectableTransportError(error) &&
+					!this.disposed &&
+					!connection.disposed &&
+					!this.deletingSessions.has(outerSessionId)
+				) {
+					if (options.createInner) throw error;
+					return connection;
+				}
 				this.connections.delete(outerSessionId);
 				connection.disposed = true;
 				connection.unsubscribe();
@@ -2230,6 +2323,49 @@ export class CloudSessionManager {
 		});
 		this.connectionPromises.set(outerSessionId, connecting);
 		return await connecting;
+	}
+
+	private async resolveInnerSession(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): Promise<void> {
+		this.assertSessionActive(outerSessionId, connection);
+		if (connection.innerSessionId) return;
+		const taskId = connection.remote.metadata.taskId?.trim();
+		let session: JsonRecord | undefined;
+		if (taskId) {
+			try {
+				const reply = await connection.client.command(
+					"session.get",
+					{ sessionId: taskId },
+					taskId,
+				);
+				this.assertSessionActive(outerSessionId, connection);
+				session =
+					reply.payload?.session &&
+					typeof reply.payload.session === "object" &&
+					!Array.isArray(reply.payload.session)
+						? (reply.payload.session as JsonRecord)
+						: undefined;
+			} catch (error) {
+				if (!isSessionNotFoundError(error)) throw error;
+			}
+		} else {
+			const listed = await connection.client.command("session.list", {
+				limit: 100,
+			});
+			this.assertSessionActive(outerSessionId, connection);
+			session = readSessionRows(listed.payload)
+				.filter(isRootSessionRow)
+				.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
+		}
+		const innerSessionId = String(session?.sessionId ?? "").trim();
+		if (!innerSessionId) return;
+		connection.innerSessionId = innerSessionId;
+		this.subscribeToInnerSession(outerSessionId, connection);
+		const modelId = sessionRowModelId(session);
+		if (modelId) this.applyModel(connection, modelId);
+		await this.ensureAttached(connection);
 	}
 
 	private async createInnerSession(connection: CloudConnection): Promise<void> {
@@ -2269,6 +2405,9 @@ export class CloudSessionManager {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			cwd: CLOUD_WORKSPACE_ROOT,
 			sessionConfig: {
+				...(connection.remote.metadata.taskId?.trim()
+					? { sessionId: connection.remote.metadata.taskId.trim() }
+					: {}),
 				providerId: "cline",
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
@@ -2552,6 +2691,16 @@ export class CloudSessionManager {
 		}
 		this.knownSessions.set(outerSessionId, listed);
 		connection.remote = listed;
+		if (listed.status === "failed") {
+			const live = this.ctx.liveSessions.get(outerSessionId);
+			if (live) {
+				live.busy = false;
+				live.status = "failed";
+				live.endedAt = Date.parse(listed.updatedAt) || Date.now();
+			}
+			await this.disposeConnection(outerSessionId).catch(() => undefined);
+			return;
+		}
 		if (isExpiredRecord(listed)) {
 			await this.attachExpired(listed).catch(() => undefined);
 			await this.disposeConnection(outerSessionId).catch(() => undefined);
