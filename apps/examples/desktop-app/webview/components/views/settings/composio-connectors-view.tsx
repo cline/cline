@@ -527,21 +527,34 @@ function ConnectorDetailDialog({
 							) : null}
 
 							<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
+								<dt className="text-muted-foreground">Slug</dt>
+								<dd className="font-mono text-xs leading-5 text-foreground">
+									{entry.slug}
+								</dd>
+								{summary?.connectedAt ? (
+									<>
+										<dt className="text-muted-foreground">Connected</dt>
+										<dd className="text-foreground">
+											{new Date(summary.connectedAt).toLocaleString()}
+										</dd>
+									</>
+								) : null}
 								{typeof entry.toolsCount === "number" ||
 								(status === "connected" && toolNames.length > 0) ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
 										<dd className="text-foreground">
-											{entry.toolsCount ?? toolNames.length}
 											{status === "connected" && toolNames.length > 0 ? (
 												<>
-													{" "}
-													- {toolNames.length}{" "}
+													{toolNames.length}/
+													{entry.toolsCount ?? toolNames.length}{" "}
 													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 														available in new sessions
 													</span>
 												</>
-											) : null}
+											) : (
+												entry.toolsCount
+											)}
 										</dd>
 										{status === "connected" && toolNames.length > 0 ? (
 											<dd className="col-span-2 mb-3 mt-1">
@@ -556,18 +569,6 @@ function ConnectorDetailDialog({
 												</ul>
 											</dd>
 										) : null}
-									</>
-								) : null}
-								<dt className="text-muted-foreground">Slug</dt>
-								<dd className="font-mono text-xs leading-5 text-foreground">
-									{entry.slug}
-								</dd>
-								{summary?.connectedAt ? (
-									<>
-										<dt className="text-muted-foreground">Connected</dt>
-										<dd className="text-foreground">
-											{new Date(summary.connectedAt).toLocaleString()}
-										</dd>
 									</>
 								) : null}
 							</dl>
