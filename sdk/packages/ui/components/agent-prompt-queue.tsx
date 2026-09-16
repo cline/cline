@@ -17,8 +17,8 @@ export interface AgentPromptQueueProps {
 }
 
 type IconName =
-	| "arrow-up"
 	| "check"
+	| "corner-down-left"
 	| "chevron-down"
 	| "chevron-right"
 	| "clock"
@@ -27,7 +27,7 @@ type IconName =
 	| "x";
 
 const ACTION_CLASS_NAME =
-	"cline-ui-agent-prompt-queue__action inline-flex cursor-pointer items-center justify-center rounded-cline-ui-md border-0 bg-transparent p-1.5 text-cline-ui-muted-foreground transition-[color,background-color] duration-150 ease-[ease] enabled:hover:bg-cline-ui-accent enabled:hover:text-cline-ui-foreground focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50";
+	"cline-ui-agent-prompt-queue__action inline-flex cursor-pointer items-center justify-center rounded-cline-ui-md border-0 bg-transparent p-1 text-cline-ui-muted-foreground transition-[color,background-color] duration-150 ease-[ease] [&>svg]:size-3.5 enabled:hover:bg-cline-ui-accent enabled:hover:text-cline-ui-foreground focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50";
 
 function Icon({ name, small = false }: { name: IconName; small?: boolean }) {
 	return (
@@ -44,13 +44,13 @@ function Icon({ name, small = false }: { name: IconName; small?: boolean }) {
 			strokeWidth="2"
 			viewBox="0 0 24 24"
 		>
-			{name === "arrow-up" ? (
+			{name === "check" ? <path d="M20 6 9 17l-5-5" /> : null}
+			{name === "corner-down-left" ? (
 				<>
-					<path d="m5 12 7-7 7 7" />
-					<path d="M12 19V5" />
+					<path d="m9 10-5 5 5 5" />
+					<path d="M4 15h10a6 6 0 0 0 6-6V4" />
 				</>
 			) : null}
-			{name === "check" ? <path d="M20 6 9 17l-5-5" /> : null}
 			{name === "chevron-down" ? <path d="m6 9 6 6 6-6" /> : null}
 			{name === "chevron-right" ? <path d="m9 18 6-6-6-6" /> : null}
 			{name === "clock" ? (
@@ -113,6 +113,7 @@ export function AgentPromptQueue({
 	} | null>(null);
 	const [expanded, setExpanded] = useState(false);
 	const queueId = useId();
+	const hasMultipleItems = items.length > 1;
 
 	const cancelEdit = useCallback(() => {
 		setEditingId(null);
@@ -181,12 +182,18 @@ export function AgentPromptQueue({
 	if (items.length === 0) return null;
 
 	return (
-		<div className="cline-ui-agent-prompt-queue mb-2">
+		<div className="cline-ui-agent-prompt-queue mb-2 border-b border-cline-ui-border pb-0">
 			<button
 				aria-controls={queueId}
-				aria-expanded={expanded}
-				className="cline-ui-agent-prompt-queue__toggle flex w-full cursor-pointer items-center gap-2 rounded-cline-ui-md border-0 bg-transparent px-1.5 py-1 text-left font-cline-ui-medium text-cline-ui-foreground text-cline-ui-xs transition-[background-color] duration-150 ease-[ease] hover:bg-cline-ui-accent/60 focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0"
-				onClick={() => setExpanded((value) => !value)}
+				aria-expanded={hasMultipleItems ? expanded : true}
+				className={
+					hasMultipleItems
+						? "cline-ui-agent-prompt-queue__toggle flex w-full cursor-pointer items-center gap-2 rounded-cline-ui-md border-0 bg-transparent px-0 py-1 text-left font-cline-ui-medium text-cline-ui-foreground text-cline-ui-xs transition-[background-color] duration-150 ease-[ease] hover:bg-cline-ui-accent/60 focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0"
+						: "sr-only"
+				}
+				onClick={() => {
+					if (hasMultipleItems) setExpanded((value) => !value);
+				}}
 				type="button"
 			>
 				<Icon name={expanded ? "chevron-down" : "chevron-right"} small />
@@ -195,8 +202,8 @@ export function AgentPromptQueue({
 				</span>
 			</button>
 			<div
-				className="cline-ui-agent-prompt-queue__items flex max-h-[40dvh] flex-col gap-0.5 overflow-y-auto py-1"
-				hidden={!expanded}
+				className="cline-ui-agent-prompt-queue__items flex max-h-[40dvh] flex-col gap-0.5 overflow-y-auto py-0"
+				hidden={hasMultipleItems && !expanded}
 				id={queueId}
 			>
 				{items.map((item) => {
@@ -209,7 +216,7 @@ export function AgentPromptQueue({
 					return (
 						<div
 							aria-busy={isPending || undefined}
-							className="cline-ui-agent-prompt-queue__item flex min-w-0 items-center gap-2 rounded-cline-ui-md p-1.5 hover:bg-[color-mix(in_oklab,var(--cline-ui-accent)_35%,transparent)] data-[steer=true]:bg-cline-ui-primary/5"
+							className="cline-ui-agent-prompt-queue__item flex min-w-0 items-center gap-2 rounded-cline-ui-md px-0 py-1 hover:bg-[color-mix(in_oklab,var(--cline-ui-accent)_35%,transparent)] data-[steer=true]:bg-cline-ui-primary/5"
 							data-steer={item.steer || undefined}
 							key={item.id}
 						>
@@ -217,7 +224,11 @@ export function AgentPromptQueue({
 								className="cline-ui-agent-prompt-queue__status-icon inline-flex size-4 shrink-0 text-cline-ui-muted-foreground data-[steer=true]:text-cline-ui-primary"
 								data-steer={item.steer || undefined}
 							>
-								<Icon name={item.steer ? "arrow-up" : "clock"} />
+								{item.steer ? (
+									<Icon name="corner-down-left" />
+								) : (
+									<Icon name="clock" />
+								)}
 							</span>
 							<div className="cline-ui-agent-prompt-queue__content min-w-0 flex-1">
 								{isEditing ? (
@@ -300,10 +311,10 @@ export function AgentPromptQueue({
 												className={ACTION_CLASS_NAME}
 												disabled={isBusy}
 												onClick={() => void runAction(item, "steer")}
-												title="Steer next"
+												title="Steer"
 												type="button"
 											>
-												<Icon name="arrow-up" />
+												<Icon name="corner-down-left" />
 											</button>
 										) : null}
 										<button
