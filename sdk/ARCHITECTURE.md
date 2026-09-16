@@ -911,9 +911,8 @@ Customize > Connectors displays the usage-ranked catalog, with search across
 all loaded apps and installation/connection management in its detail dialog.
 The backend includes managed-auth toolkits before anyone has connected them,
 and provisions their auth configuration on first installation. This requires
-the full-catalog backend in core-platform PR #3383. Deploy that backend with
-this client; an old array response produces an explicit backend-update error
-rather than presenting configured apps as the full catalog.
+the full-catalog backend in core-platform PR #3383. Catalog responses must
+use the paginated contract; malformed responses are rejected.
 
 Connector metadata and cancellation tombstones live in
 `settings/composio/<sha256-account-id>.json`. Each account has separate

@@ -279,19 +279,6 @@ describe("connector router contract", () => {
 		expect(await fetchConnectableToolkits()).toEqual(toolkits);
 	});
 
-	it("explains when the server still returns the older configured-app array", async () => {
-		mockFetchOnce(
-			200,
-			JSON.stringify({
-				success: true,
-				data: [{ slug: "gmail", name: "Gmail" }],
-			}),
-		);
-		await expect(fetchConnectableToolkits()).rejects.toThrow(
-			"Deploy the full-catalog backend update",
-		);
-	});
-
 	it("initiates OAuth with only the toolkit in the request body", async () => {
 		const result = {
 			connectedAccountId: "c1",
