@@ -29,7 +29,7 @@ export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
  */
 
 const CONNECTORS_API_PATH = "/api/v1/connectors";
-const CONNECTORS_PAGE_SIZE = 200;
+const CONNECTION_PAGE_SIZE = 200;
 const TOOLKIT_TOOL_LIMIT = 20;
 
 /** How often the connect waiter polls the caller's connections while the
@@ -174,16 +174,27 @@ async function requestConnectorsApi<T>(
 	);
 }
 
-/** Complete usage-ranked catalog, including apps not yet connected by anyone. */
+/**
+ * Toolkits with an enabled project auth config. The backend returns an array
+ * without a continuation token; request its maximum auth-config page size.
+ */
 export async function fetchConnectableToolkits(
 	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorCatalogEntry[]> {
-	return listAllConnectorPages<ConnectorCatalogEntry>("/toolkits", ctx);
+	const response = await requestConnectorsApi<ConnectorCatalogEntry[]>(
+		"GET",
+		"/toolkits?limit=200",
+		{ ctx },
+	);
+	if (!Array.isArray(response)) {
+		throw new ConnectorsApiError("Invalid connectors toolkit catalog.");
+	}
+	return response;
 }
 
 /**
  * `POST /api/v1/connectors/connections` — initiate an OAuth connection.
- * The server selects or creates an auth config and derives `user_id`
+ * The server selects an enabled project auth config and derives `user_id`
  * from the authenticated account, never accepting it from the client.
  */
 export async function initiateConnection(
@@ -207,22 +218,18 @@ export async function initiateConnection(
 export async function listConnections(
 	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorConnection[]> {
-	return listAllConnectorPages<ConnectorConnection>("/connections", ctx);
-}
-
-async function listAllConnectorPages<T>(
-	path: "/connections" | "/toolkits",
-	ctx?: ConnectorsRequestContext,
-): Promise<T[]> {
 	ctx = { ...ctx, accountId: ctx?.accountId ?? getClineAccountId() };
-	const items: T[] = [];
+	const connections: ConnectorConnection[] = [];
 	const seenCursors = new Set<string>();
 	let cursor = "";
 	do {
-		const query = new URLSearchParams({ limit: String(CONNECTORS_PAGE_SIZE) });
+		const query = new URLSearchParams({ limit: String(CONNECTION_PAGE_SIZE) });
 		if (cursor) query.set("cursor", cursor);
-		const page = await requestConnectorPage<T>(`${path}?${query}`, ctx);
-		items.push(...page.items);
+		const page = await requestConnectorPage<ConnectorConnection>(
+			`/connections?${query}`,
+			ctx,
+		);
+		connections.push(...page.items);
 		cursor = page.nextToken;
 		if (cursor && seenCursors.has(cursor)) {
 			throw new ConnectorsApiError(
@@ -231,7 +238,7 @@ async function listAllConnectorPages<T>(
 		}
 		seenCursors.add(cursor);
 	} while (cursor);
-	return items;
+	return connections;
 }
 
 async function requestConnectorPage<T>(

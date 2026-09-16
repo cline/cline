@@ -898,27 +898,20 @@ Disconnect/cancel cleanup remains available after access is removed. The Cline
 API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors`. Management responses use the
-Cline `{ success, data }` envelope; catalog, connection, and tool pages contain
-`items`, `nextToken`, and `total`. The sidecar follows all catalog and connection
-pages, including empty pages with continuation tokens, and rejects incomplete
-or malformed lists before caching the catalog or reconciling local state.
+Cline `{ success, data }` envelope; connection and tool pages contain
+`items`, `nextToken`, and `total`. The sidecar follows all connection pages
+before reconciling local state, and rejects incomplete or malformed lists.
 Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
 per toolkit and persists `input_parameters` and the pinned version for the core
 extension. Tool execution sends arguments and the optional version to
 `/tools/{slug}/execute` and retains the provider response body. The catalog
-uses Composio's usage-ranked toolkit listing, including toolkits with managed
-authentication or an enabled project auth config. It is independent of the
-user's installed connections. The backend creates a managed auth config on
-first installation when needed, preferring an existing custom config for the
-project's OAuth branding. Catalog pages use the provider's catalog cursor,
-not the auth-config cursor; clients request 200 entries per page.
+currently exposes an array without a continuation token, so the sidecar requests
+the backend's maximum page size of 200 auth configs.
 
-The paginated catalog contract requires the corresponding core-platform
-backend change; deploy it together with this desktop client. To verify, open
-Marketplace > Connectors, search for an app you have never connected, then
-install it and complete authorization. The full catalog must remain visible
-after installation. Restart the sidecar after deploying to clear its catalog
-cache.
+The full, paginated toolkit catalog and first-time managed auth provisioning
+are proposed in core-platform PR #3383. The desktop currently uses the deployed
+array contract; update it to consume catalog pages when that backend change is
+ready to deploy.
 
 Connector metadata and cancellation tombstones live in
 `settings/composio/<sha256-account-id>.json`. Each account has separate
