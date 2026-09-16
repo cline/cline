@@ -2186,6 +2186,7 @@ export function useChatSession() {
 					return false;
 				}
 				try {
+					setError(null);
 					await answerAskQuestion(pendingQuestion.requestId, trimmed);
 					return true;
 				} catch (err) {

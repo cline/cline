@@ -2292,6 +2292,14 @@ describe("useChatSession", () => {
 		expect(current.pendingAskQuestions).toEqual([pendingQuestion]);
 		expect(sendActions).not.toContain("send");
 		expect(current.promptsInQueue).toEqual([]);
+
+		await act(async () => {
+			promptTaken = await current.sendPrompt("Use this one");
+		});
+
+		expect(promptTaken).toBe(true);
+		expect(current.error).toBeNull();
+		expect(current.pendingAskQuestions).toEqual([]);
 	});
 
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
