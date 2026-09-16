@@ -344,7 +344,7 @@ describe("cloudHandoffUiReducer", () => {
 				"local-1": {
 					status: "retry_restored",
 					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-					retryDraft: "/handoff continue",
+					retryDraft: "/cloud continue",
 					retryAttachments: [attachment],
 				},
 			},
@@ -358,7 +358,7 @@ describe("cloudHandoffUiReducer", () => {
 		expect(dismissed["local-1"]).toEqual({
 			status: "recovery_dismissed",
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
-			retryDraft: "/handoff continue",
+			retryDraft: "/cloud continue",
 			retryAttachments: [attachment],
 		});
 	});

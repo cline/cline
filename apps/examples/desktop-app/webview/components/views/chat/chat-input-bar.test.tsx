@@ -478,15 +478,15 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("shows the reserved handoff command only while cloud handoff is available", () => {
+	it("shows the reserved cloud command only while Cloud sessions are available", () => {
 		const commands = [
 			{ name: "fork", description: "Fork" },
-			{ name: "handoff", description: "User workflow" },
+			{ name: "cloud", description: "User workflow" },
 		];
 		expect(withCloudHandoffSlashCommand(commands, false)).toEqual(commands);
 		expect(withCloudHandoffSlashCommand(commands, true)).toEqual([
 			{
-				name: "handoff",
+				name: "cloud",
 				description: "Continue this local session in Cline Cloud",
 			},
 			{ name: "fork", description: "Fork" },

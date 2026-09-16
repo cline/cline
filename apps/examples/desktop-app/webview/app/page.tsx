@@ -936,10 +936,7 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
-	// `code-cloud-handoff` rollout flag (resolved sidecar-side); /handoff also
-	// requires cloud sessions, so the effective gate ANDs the two.
-	const [cloudHandoffEnabled, setCloudHandoffEnabled] = useState(false);
-	const cloudHandoffAvailable = cloudAgentsEnabled && cloudHandoffEnabled;
+	const cloudHandoffAvailable = cloudAgentsEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	const handoffUi = sourceSessionId
@@ -1006,10 +1003,8 @@ function ChatThreadPane({
 					if (!cancelled) {
 						const featureFlags = flags as {
 							cloudAgents?: boolean;
-							cloudHandoff?: boolean;
 						};
 						setCloudAgentsEnabled(Boolean(featureFlags?.cloudAgents));
-						setCloudHandoffEnabled(Boolean(featureFlags?.cloudHandoff));
 					}
 				})
 				.catch(() => {
@@ -1027,10 +1022,8 @@ function ChatThreadPane({
 				if (!cancelled) {
 					const featureFlags = payload as {
 						cloudAgents?: boolean;
-						cloudHandoff?: boolean;
 					};
 					setCloudAgentsEnabled(Boolean(featureFlags?.cloudAgents));
-					setCloudHandoffEnabled(Boolean(featureFlags?.cloudHandoff));
 				}
 			},
 		);
@@ -1675,7 +1668,7 @@ function ChatThreadPane({
 		async (nextCommand: string) => {
 			const sourceSessionId = sessionId ?? historySession?.sessionId;
 			if (isCloudSession) {
-				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Already in Cline Cloud",
 					description: "Handoff is available from local sessions.",
@@ -1687,17 +1680,15 @@ function ChatThreadPane({
 			// pending guard, so gating the retry here would lock it forever.
 			// The sidecar applies the same recovery exemption on its side.
 			if (!cloudHandoffAvailable && !handoffRetryEligible) {
-				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Cloud handoff is not available",
-					description: cloudAgentsEnabled
-						? "Cloud handoff is not enabled for this account yet."
-						: "Enable Cloud sessions in Settings before using /handoff.",
+					description: "Enable Cloud sessions in Settings before using /cloud.",
 				});
 				return;
 			}
 			if (!sourceSessionId) {
-				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Start the local session first",
 					description: "Send at least one message before handing off to cloud.",
@@ -1710,7 +1701,7 @@ function ChatThreadPane({
 				status === "stopping" ||
 				promptsInQueue.length > 0
 			) {
-				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Wait for the current turn",
 					description:
@@ -1723,7 +1714,7 @@ function ChatThreadPane({
 				nextCommand,
 			);
 			if (attachmentError) {
-				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				setPromptInput(nextCommand ? `/cloud ${nextCommand}` : "/cloud");
 				toast({
 					title: "Handoff is not ready",
 					description: attachmentError,
@@ -1815,7 +1806,6 @@ function ChatThreadPane({
 			}
 		},
 		[
-			cloudAgentsEnabled,
 			cloudHandoffAvailable,
 			config,
 			handoffRetryEligible,
@@ -1840,9 +1830,9 @@ function ChatThreadPane({
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
 			const handoff = parseHandoffCommand(trimmed);
-			// Only reserve /handoff when the feature gate is on (or a pending
+			// Only reserve /cloud when the Cloud sessions gate is on (or a pending
 			// handoff needs its retry path); otherwise a user's own workflow
-			// or skill named "handoff" stays reachable.
+			// or skill named "cloud" stays reachable.
 			if (handoff && (cloudHandoffAvailable || handoffRetryEligible)) {
 				await prepareHandoff(handoff.nextCommand);
 				return;
@@ -1852,7 +1842,7 @@ function ChatThreadPane({
 				toast({
 					title: "Cloud handoff is still pending",
 					description:
-						"Retry /handoff or use the recovery link before sending another prompt.",
+						"Retry /cloud or use the recovery link before sending another prompt.",
 				});
 				return;
 			}

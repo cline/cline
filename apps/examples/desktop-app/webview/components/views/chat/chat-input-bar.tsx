@@ -111,7 +111,7 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{ name: "team", description: "Start the task with an agent team" },
 ];
 const CLOUD_HANDOFF_SLASH_COMMAND: SlashCommand = {
-	name: "handoff",
+	name: "cloud",
 	description: "Continue this local session in Cline Cloud",
 };
 
@@ -122,7 +122,7 @@ export function withCloudHandoffSlashCommand(
 	if (!enabled) return commands;
 	return [
 		CLOUD_HANDOFF_SLASH_COMMAND,
-		...commands.filter((command) => command.name !== "handoff"),
+		...commands.filter((command) => command.name !== "cloud"),
 	];
 }
 
