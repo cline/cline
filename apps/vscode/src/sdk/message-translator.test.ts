@@ -2176,10 +2176,10 @@ describe("translateSessionEvent — agent_event notice", () => {
 describe("translateSessionEvent — agent_event content_update", () => {
 	const translate = (state: MessageTranslatorState, event: AgentEvent) =>
 		translateSessionEvent({ type: "agent_event", payload: { sessionId: "session-1", event } }, state).messages
-	const start = (state: MessageTranslatorState, toolName = "run_commands") =>
-		translate(state, { type: "content_start", contentType: "tool", toolName, input: { commands: ["build"] } })[0]
-	const update = (state: MessageTranslatorState, value: unknown, toolName?: string) =>
-		translate(state, { type: "content_update", contentType: "tool", toolName, update: value })
+	const start = (state: MessageTranslatorState, toolName = "run_commands", toolCallId?: string) =>
+		translate(state, { type: "content_start", contentType: "tool", toolName, toolCallId, input: { commands: ["build"] } })[0]
+	const update = (state: MessageTranslatorState, value: unknown, toolName?: string, toolCallId?: string) =>
+		translate(state, { type: "content_update", contentType: "tool", toolName, toolCallId, update: value })
 
 	it.each(["run_commands", "execute_command"])("streams %s stdout and stderr into the existing row", (toolName) => {
 		const state = new MessageTranslatorState()
@@ -2226,6 +2226,20 @@ describe("translateSessionEvent — agent_event content_update", () => {
 		])
 	})
 
+	it("ignores output from an interleaved same-named tool call", () => {
+		const state = new MessageTranslatorState()
+		const initial = start(state, "run_commands", "active-call")
+
+		expect(update(state, { chunk: "other output" }, "run_commands", "other-call")).toEqual([])
+		expect(update(state, { chunk: "active output" }, "run_commands", "active-call")).toEqual([
+			{ ...initial, text: `build\n${COMMAND_OUTPUT_STRING}\nactive output` },
+		])
+		// Older producers may omit the id; preserve the existing active-tool fallback.
+		expect(update(state, { chunk: " without id" }, "run_commands")).toEqual([
+			{ ...initial, text: `build\n${COMMAND_OUTPUT_STRING}\nactive output without id` },
+		])
+	})
+
 	it("bounds accumulated output while preserving its head and latest tail", () => {
 		const state = new MessageTranslatorState()
 		start(state)
@@ -2236,6 +2250,12 @@ describe("translateSessionEvent — agent_event content_update", () => {
 		expect(message.text?.endsWith("\ntail")).toBe(true)
 		// The shared helper keeps the capped head/tail plus a short truncation notice.
 		expect(message.text!.length).toBeLessThan(MAX_COMMAND_OUTPUT_CHARS + 500)
+
+		const lastChunk = "\nlatest"
+		const [laterMessage] = update(state, { chunk: lastChunk })
+		const totalChars = 2 * MAX_COMMAND_OUTPUT_CHARS + "head\n".length + "\ntail".length + lastChunk.length
+		expect(laterMessage.text).toContain(`output truncated: ${totalChars} chars total`)
+		expect(laterMessage.text?.endsWith(lastChunk)).toBe(true)
 	})
 
 	it("ignores malformed, empty, metadata-only, and unrelated tool updates", () => {
