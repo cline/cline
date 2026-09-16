@@ -784,28 +784,45 @@ export function MarketplaceExplorerView() {
 	const [connectorEntries, setConnectorEntries] = useState<
 		ComposioCatalogToolkit[] | null
 	>(null);
+	const [connectorError, setConnectorError] = useState<string | null>(null);
+	const [connectorRetry, setConnectorRetry] = useState(0);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Retry deliberately starts a new fetch and cancels the previous effect.
 	useEffect(() => {
+		setConnectorEntries(null);
+		setConnectorError(null);
 		if (!connections.configured) {
-			setConnectorEntries(null);
 			return;
 		}
 		let cancelled = false;
 		void fetchComposioToolkitCatalog()
 			.then((response) => {
-				if (!cancelled && response.configured) {
-					setConnectorEntries(response.toolkits);
+				if (cancelled) return;
+				if (!response.configured) {
+					setConnectorError(
+						"Connectors are no longer available for this account.",
+					);
+					return;
 				}
+				setConnectorEntries(response.toolkits);
 			})
-			.catch(() => {
-				// The section appears once the catalog loads; a failed fetch
-				// leaves the marketplace usable without it.
+			.catch((error: unknown) => {
+				if (!cancelled) {
+					setConnectorError(
+						error instanceof Error ? error.message : String(error),
+					);
+				}
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [connections.configured]);
-	const connectorsAvailable =
-		connections.configured && (connectorEntries?.length ?? 0) > 0;
+	}, [connections.configured, connectorRetry]);
+	// Visibility follows account access, independently of catalog availability.
+	const connectorsAvailable = connections.configured;
+	const showConnectorStatus =
+		connectorsAvailable &&
+		selectedTag === null &&
+		(typeFilter === null || typeFilter === "connectors") &&
+		(connectorError !== null || !connectorEntries?.length);
 
 	// Marketplace tags don't apply to connectors (they carry their own
 	// category labels), so an active tag narrows the list to tagged
@@ -1020,9 +1037,11 @@ export function MarketplaceExplorerView() {
 								variant={typeFilter === "connectors" ? "default" : "outline"}
 							>
 								Connectors
-								<span className="text-[10px] opacity-70">
-									{connectorEntries?.length ?? 0}
-								</span>
+								{connectorEntries !== null ? (
+									<span className="text-[10px] opacity-70">
+										{connectorEntries.length}
+									</span>
+								) : null}
 							</Button>
 						) : null}
 					</div>
@@ -1104,17 +1123,46 @@ export function MarketplaceExplorerView() {
 								</div>
 							);
 						})}
-						{visibleConnectors.length > 0 ? (
+						{visibleConnectors.length > 0 || showConnectorStatus ? (
 							<div className="grid gap-1">
 								<div className="flex items-center gap-1.5 px-2.5 pt-1">
 									<Cable className="size-3.5 text-primary" />
 									<span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 										Connectors
 									</span>
-									<span className="text-xs text-muted-foreground/70">
-										{matchedConnectors.length}
-									</span>
+									{connectorEntries !== null ? (
+										<span className="text-xs text-muted-foreground/70">
+											{matchedConnectors.length}
+										</span>
+									) : null}
 								</div>
+								{showConnectorStatus ? (
+									<div className="grid justify-items-start gap-2 px-2.5 py-3 text-sm text-muted-foreground">
+										{connectorError !== null ? (
+											<>
+												<p role="alert">
+													Could not load connectors: {connectorError}
+												</p>
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() =>
+														setConnectorRetry((value) => value + 1)
+													}
+												>
+													Retry
+												</Button>
+											</>
+										) : connectorEntries === null ? (
+											<output className="flex items-center gap-2">
+												<Spinner />
+												Loading connectors...
+											</output>
+										) : (
+											<p>No connectors are available for your account yet.</p>
+										)}
+									</div>
+								) : null}
 								{visibleConnectors.map((connector) => (
 									<ConnectorListRow
 										connected={
@@ -1140,7 +1188,9 @@ export function MarketplaceExplorerView() {
 								) : null}
 							</div>
 						) : null}
-						{groups.length === 0 && visibleConnectors.length === 0 ? (
+						{groups.length === 0 &&
+						visibleConnectors.length === 0 &&
+						!showConnectorStatus ? (
 							<p className="px-3 py-6 text-center text-sm text-muted-foreground">
 								No entries match the current filters.
 							</p>
