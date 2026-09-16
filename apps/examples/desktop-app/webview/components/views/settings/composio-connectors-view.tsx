@@ -512,25 +512,23 @@ function ConnectorDetailDialog({
 								</DialogDescription>
 							) : null}
 
-							{entry.categories && entry.categories.length > 0 ? (
-								<div className="flex flex-wrap gap-1">
-									{entry.categories.map((category) => (
-										<Badge
-											className="font-normal"
-											key={category}
-											variant="outline"
-										>
-											{category}
-										</Badge>
-									))}
-								</div>
-							) : null}
-
 							<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-								<dt className="text-muted-foreground">Slug</dt>
-								<dd className="font-mono text-xs leading-5 text-foreground">
-									{entry.slug}
-								</dd>
+								{entry.categories && entry.categories.length > 0 ? (
+									<>
+										<dt className="text-muted-foreground">Category</dt>
+										<dd className="flex flex-wrap gap-1">
+											{entry.categories.map((category) => (
+												<Badge
+													className="font-normal"
+													key={category}
+													variant="outline"
+												>
+													{category}
+												</Badge>
+											))}
+										</dd>
+									</>
+								) : null}
 								{summary?.connectedAt ? (
 									<>
 										<dt className="text-muted-foreground">Connected</dt>
@@ -539,6 +537,10 @@ function ConnectorDetailDialog({
 										</dd>
 									</>
 								) : null}
+								<dt className="text-muted-foreground">Slug</dt>
+								<dd className="font-mono text-xs leading-5 text-foreground">
+									{entry.slug}
+								</dd>
 								{typeof entry.toolsCount === "number" ||
 								(status === "connected" && toolNames.length > 0) ? (
 									<>
