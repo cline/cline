@@ -17,7 +17,7 @@ describe("SessionActivity", () => {
 			contentType: "tool",
 			update: "progress",
 		});
-		expect(activity.lastAgentActivityAt).toBe(31_000);
+		expect(activity.lastObservedAt).toBe(31_000);
 		expect(persist).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(30_000);
 		expect(persist.mock.calls).toEqual([[31_000]]);
@@ -32,7 +32,7 @@ describe("SessionActivity", () => {
 			activity.observe({ type } as AgentEvent);
 		}
 		await activity.flush();
-		expect(activity.lastAgentActivityAt).toBeNull();
+		expect(activity.lastObservedAt).toBeNull();
 		expect(persist).not.toHaveBeenCalled();
 	});
 
@@ -60,7 +60,7 @@ describe("SessionActivity", () => {
 		vi.setSystemTime(500);
 		activity.observe({ type: "content_start", contentType: "reasoning" });
 		await activity.flush();
-		expect(activity.lastAgentActivityAt).toBe(2_000);
+		expect(activity.lastObservedAt).toBe(2_000);
 		expect(persist.mock.calls).toEqual([[2_000], [2_000]]);
 		expect(vi.getTimerCount()).toBe(0);
 	});

@@ -213,8 +213,7 @@ const SCHEMA_STATEMENTS = [
 		transcript_path TEXT NOT NULL DEFAULT '',
 		hook_path TEXT NOT NULL,
 		messages_path TEXT,
-		updated_at TEXT NOT NULL,
-		last_agent_activity_at INTEGER
+		updated_at TEXT NOT NULL
 	);`,
 	`CREATE TABLE IF NOT EXISTS subagent_spawn_queue (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -282,11 +281,6 @@ const LEGACY_MIGRATIONS: Array<{
 		table: "sessions",
 		column: "workspace_root",
 		sql: "ALTER TABLE sessions ADD COLUMN workspace_root TEXT;",
-	},
-	{
-		table: "sessions",
-		column: "last_agent_activity_at",
-		sql: "ALTER TABLE sessions ADD COLUMN last_agent_activity_at INTEGER;",
 	},
 	{
 		table: "sessions",

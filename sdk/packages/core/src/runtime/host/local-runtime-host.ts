@@ -936,10 +936,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			lastInteractiveTurnFinishReason: undefined,
 		};
 		activeSessionRef = active;
+		if (wasSessionIdRequested) {
+			active.updatedAt =
+				(await this.getRow(sessionId))?.updatedAt ?? active.updatedAt;
+		}
 		active.activity = new SessionActivity(
-			resumedArtifacts
-				? ((await this.getRow(sessionId))?.lastAgentActivityAt ?? null)
-				: null,
+			Date.parse(active.updatedAt),
 			(at) => this.invokeOptional("recordAgentActivity", sessionId, at),
 			(error) =>
 				(active.config.logger ?? this.defaultLogger)?.error?.(
@@ -1276,7 +1278,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async getSession(sessionId: string): Promise<SessionRecord | undefined> {
 		const active = this.sessions.get(sessionId);
 		if (active) {
-			return toActiveSessionRecord(active);
+			return toActiveSessionRecord(
+				active,
+				(await this.getRow(sessionId))?.updatedAt,
+			);
 		}
 		const target = sessionId.trim();
 		if (!target) return undefined;
@@ -1291,19 +1296,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 		options: ListSessionsOptions = {},
 	): Promise<SessionRecord[]> {
 		const rows = await this.listRows(limit, options);
-		const persisted: SessionRecord[] = rows.map((row) => ({
-			...toSessionRecord(row),
-			lastAgentActivityAt:
-				this.sessions.get(row.sessionId)?.activity?.lastAgentActivityAt ??
-				row.lastAgentActivityAt ??
-				null,
-		}));
+		const persisted: SessionRecord[] = rows.map((row) => {
+			const record = toSessionRecord(row);
+			const active = this.sessions.get(row.sessionId);
+			if (active) {
+				record.updatedAt = toActiveSessionRecord(
+					active,
+					row.updatedAt,
+				).updatedAt;
+			}
+			return record;
+		});
 		const seen = new Set(persisted.map((row) => row.sessionId));
 		for (const active of this.sessions.values()) {
 			if (seen.has(active.sessionId)) {
 				continue;
 			}
-			persisted.unshift(toActiveSessionRecord(active));
+			persisted.unshift(
+				toActiveSessionRecord(
+					active,
+					(await this.getRow(active.sessionId))?.updatedAt,
+				),
+			);
 		}
 		return persisted.slice(0, limit);
 	}
@@ -2724,8 +2738,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async getRow(sessionId: string): Promise<SessionRow | undefined> {
 		const target = sessionId.trim();
 		if (!target) return undefined;
-		const rows = await this.listRows(MAX_SCAN_LIMIT);
-		return rows.find((row) => row.sessionId === target);
+		return this.invoke<SessionRow | undefined>("getSession", target);
 	}
 
 	private async readManifest(

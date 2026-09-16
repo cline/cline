@@ -7,11 +7,11 @@ export class SessionActivity {
 	private persistedAt: number | null;
 
 	constructor(
-		public lastAgentActivityAt: number | null,
+		public lastObservedAt: number | null,
 		private readonly persist: (at: number) => Promise<void>,
 		private readonly onError: (error: unknown) => void,
 	) {
-		this.persistedAt = lastAgentActivityAt;
+		this.persistedAt = lastObservedAt;
 	}
 
 	observe(event: AgentEvent): void {
@@ -21,10 +21,7 @@ export class SessionActivity {
 			event.type === "content_update" ||
 			event.type === "content_end"
 		) {
-			this.lastAgentActivityAt = Math.max(
-				this.lastAgentActivityAt ?? 0,
-				Date.now(),
-			);
+			this.lastObservedAt = Math.max(this.lastObservedAt ?? 0, Date.now());
 			this.timer ??= setTimeout(() => void this.flush(), 60_000);
 			this.timer.unref();
 		}
@@ -34,7 +31,7 @@ export class SessionActivity {
 	flush(): Promise<void> {
 		clearTimeout(this.timer);
 		this.timer = undefined;
-		const at = this.lastAgentActivityAt;
+		const at = this.lastObservedAt;
 		if (at === null) return this.writes;
 		// Capture observation time before asynchronous persistence; never stamp flush time.
 		this.writes = this.writes

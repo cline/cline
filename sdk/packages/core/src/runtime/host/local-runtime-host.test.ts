@@ -36,6 +36,7 @@ import {
 	type SessionCompactionState,
 } from "../../session/models/session-compaction";
 import type { SessionManifest } from "../../session/models/session-manifest";
+import type { SessionRow } from "../../session/models/session-row";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
@@ -43,6 +44,13 @@ import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { type StartSessionInput, splitCoreSessionConfig } from "./runtime-host";
 
 const distinctId = "test-machine-id";
+
+async function getMockSession(
+	this: { listSessions: () => Promise<SessionRow[]> },
+	sessionId: string,
+): Promise<SessionRow | undefined> {
+	return (await this.listSessions()).find((row) => row.sessionId === sessionId);
+}
 
 function createResult(overrides: Partial<AgentResult> = {}): AgentResult {
 	return {
@@ -222,18 +230,25 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
-	it("reports live activity, flushes at turn end/shutdown, and restores it without client activity", async () => {
+	it.each([
+		undefined,
+		"continue working",
+	])("reports and restores session recency with resume prompt %s", async (prompt) => {
 		const dir = join(isolatedHomeDir, "activity-sessions");
+		const start = Date.parse("2026-01-02T00:00:00.000Z");
+		const iso = (offset: number) => new Date(start + offset).toISOString();
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(start);
 		let emit: AgentConfig["onEvent"];
-		const clock = vi.spyOn(Date, "now").mockReturnValue(1_000);
 		const agent = {
-			run: async () => {
+			run: vi.fn(async () => {
+				vi.setSystemTime(start + 1_000);
 				emit?.({ type: "iteration_start", iteration: 1 });
-				expect(
-					(await manager.getSession("activity"))?.lastAgentActivityAt,
-				).toBe(1_000);
-				return createResult();
-			},
+				expect((await manager.getSession("activity"))?.updatedAt).toBe(
+					iso(1_000),
+				);
+				return createResult({ endedAt: new Date() });
+			}),
 			getMessages: () => [],
 			getAgentId: () => "root",
 			getConversationId: () => "conversation",
@@ -265,21 +280,24 @@ describe("LocalRuntimeHost", () => {
 					interactive: true,
 				}),
 			);
-			expect(
-				(await manager.getSession("activity"))?.lastAgentActivityAt,
-			).toBeNull();
+			expect((await manager.getSession("activity"))?.updatedAt).toBe(iso(0));
 			await manager.runTurn({
 				sessionId: "activity",
 				prompt: "work without a viewer",
 			});
-			expect((await reader.getSession("activity"))?.lastAgentActivityAt).toBe(
-				1_000,
+			expect((await reader.getSession("activity"))?.updatedAt).toBe(iso(1_000));
+
+			vi.setSystemTime(start + 2_000);
+			await options.sessionService.updateSession({
+				sessionId: "activity",
+				title: "renamed externally",
+			});
+			expect((await manager.getSession("activity"))?.updatedAt).toBe(
+				iso(2_000),
 			);
-			clock.mockReturnValue(2_000);
-			await manager.updateSession("activity", { title: "renamed" });
-			expect((await manager.getSession("activity"))?.lastAgentActivityAt).toBe(
-				1_000,
-			);
+			expect((await manager.listSessions())[0]?.updatedAt).toBe(iso(2_000));
+
+			vi.setSystemTime(start + 3_000);
 			emit?.({
 				type: "content_update",
 				contentType: "tool",
@@ -287,25 +305,38 @@ describe("LocalRuntimeHost", () => {
 				update: "still working",
 			});
 			const live = (await manager.listSessions())[0];
-			expect(toHubSessionRecord(live).lastAgentActivityAt).toBe(2_000);
-			await manager.dispose();
-			expect((await reader.getSession("activity"))?.lastAgentActivityAt).toBe(
-				2_000,
+			expect(toHubSessionRecord(live).updatedAt).toBe(start + 3_000);
+			expect((await manager.getSession("activity"))?.updatedAt).toBe(
+				iso(3_000),
 			);
+			expect((await reader.getSession("activity"))?.updatedAt).toBe(iso(2_000));
+			await manager.dispose();
+			expect((await reader.getSession("activity"))?.updatedAt).toBe(iso(3_000));
+
+			vi.setSystemTime(start + 4_000);
+			agent.run.mockImplementation(async () =>
+				createResult({ endedAt: new Date() }),
+			);
+			agent.run.mockClear();
 			await reader.startSession(
 				normalizeStartInput({
 					config: createConfig({ sessionId: "activity", cwd: isolatedHomeDir }),
 					interactive: true,
 					initialMessages: [{ role: "user", content: "work without a viewer" }],
+					prompt,
 				}),
 			);
-			expect((await reader.getSession("activity"))?.lastAgentActivityAt).toBe(
-				2_000,
+			expect((await reader.getSession("activity"))?.updatedAt).toBe(
+				iso(prompt ? 4_000 : 3_000),
 			);
+			expect((await reader.listSessions())[0]?.updatedAt).toBe(
+				iso(prompt ? 4_000 : 3_000),
+			);
+			expect(agent.run).toHaveBeenCalledTimes(prompt ? 1 : 0);
 		} finally {
 			await manager.dispose();
 			await reader.dispose();
-			clock.mockRestore();
+			vi.useRealTimers();
 		}
 	});
 
@@ -482,6 +513,7 @@ describe("LocalRuntimeHost", () => {
 	it("forwards rootOnly to the session backend when listing sessions", async () => {
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 		};
 		const manager = new RuntimeHostUnderTest({
@@ -527,6 +559,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -609,6 +642,7 @@ describe("LocalRuntimeHost", () => {
 			}),
 			persistSessionMessages: vi.fn(),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -677,6 +711,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -758,6 +793,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -926,6 +962,7 @@ describe("LocalRuntimeHost", () => {
 				persistSessionMessages: vi.fn(),
 				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			} as never,
@@ -1016,6 +1053,7 @@ describe("LocalRuntimeHost", () => {
 				persistSessionMessages: vi.fn(),
 				updateSessionStatus,
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			} as never,
@@ -1085,6 +1123,7 @@ describe("LocalRuntimeHost", () => {
 			distinctId,
 			sessionService: {
 				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 			} as never,
 		});
@@ -1148,6 +1187,7 @@ describe("LocalRuntimeHost", () => {
 					endedAt: "2026-01-01T00:00:05.000Z",
 				}),
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			} as never,
@@ -1204,6 +1244,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1275,6 +1316,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1369,6 +1411,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1435,6 +1478,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1495,6 +1539,7 @@ describe("LocalRuntimeHost", () => {
 			messages_path: messagesPath,
 		};
 		const sessionService = {
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			readSessionManifest: vi.fn().mockReturnValue(manifest),
 		};
@@ -1534,6 +1579,7 @@ describe("LocalRuntimeHost", () => {
 						: { endedAt: "2026-01-01T00:00:05.000Z" }),
 				})),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1596,6 +1642,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1654,6 +1701,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([
 				{
 					sessionId,
@@ -1764,6 +1812,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			readSessionManifest: vi.fn().mockImplementation(importedManifest),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -1863,6 +1912,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus,
 			writeSessionManifest,
+			getSession: getMockSession,
 			listSessions,
 			deleteSession,
 		};
@@ -1950,6 +2000,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -2082,6 +2133,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -2157,6 +2209,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus,
 			writeSessionManifest,
+			getSession: getMockSession,
 			listSessions,
 			deleteSession,
 		};
@@ -2289,6 +2342,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus,
 			readSessionManifest,
 			writeSessionManifest,
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -2428,6 +2482,7 @@ describe("LocalRuntimeHost", () => {
 			updateSession,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([
 				{
 					sessionId,
@@ -2548,6 +2603,7 @@ describe("LocalRuntimeHost", () => {
 			updateSession,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([
 				{
 					sessionId,
@@ -2709,6 +2765,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -2816,6 +2873,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -2912,6 +2970,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -2991,6 +3050,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3074,6 +3134,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3204,6 +3265,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3348,6 +3410,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3451,6 +3514,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3558,6 +3622,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3670,6 +3735,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3768,6 +3834,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:05.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3873,6 +3940,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -3954,6 +4022,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4166,6 +4235,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4231,6 +4301,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4304,6 +4375,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4379,6 +4451,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			updateSession: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4455,6 +4528,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			updateSession: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4537,6 +4611,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			updateSession: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4685,6 +4760,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus,
 			updateSession,
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4883,6 +4959,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus: vi.fn(),
 			updateSession: vi.fn(),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -4938,6 +5015,7 @@ describe("LocalRuntimeHost", () => {
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			updateSession: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5086,6 +5164,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5202,6 +5281,7 @@ describe("LocalRuntimeHost", () => {
 				endedAt: "2026-01-01T00:00:01.000Z",
 			}),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			readSessionManifest: vi.fn().mockResolvedValue(manifest),
@@ -5289,6 +5369,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5393,6 +5474,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5496,6 +5578,7 @@ describe("LocalRuntimeHost", () => {
 			distinctId,
 			sessionService: {
 				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: false }),
 			} as never,
@@ -5538,6 +5621,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5607,6 +5691,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages,
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5665,6 +5750,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5721,6 +5807,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn(),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5780,6 +5867,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5858,6 +5946,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -5944,6 +6033,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -6008,6 +6098,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -6082,6 +6173,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionCompactionState: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -6177,6 +6269,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionCompactionState: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -6324,6 +6417,7 @@ describe("LocalRuntimeHost", () => {
 				persistSessionCompactionState: vi.fn(),
 				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			};
@@ -6540,6 +6634,7 @@ describe("LocalRuntimeHost", () => {
 				persistSessionCompactionState: vi.fn(),
 				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([
 					{
 						sessionId,
@@ -6685,6 +6780,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionCompactionState: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -6810,6 +6906,7 @@ describe("LocalRuntimeHost", () => {
 			});
 			const sessionService = {
 				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([
 					{
 						sessionId,
@@ -6866,6 +6963,7 @@ describe("LocalRuntimeHost", () => {
 				persistSessionMessages: vi.fn(),
 				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			};
@@ -6933,6 +7031,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -7071,6 +7170,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
@@ -7215,6 +7315,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			onTeamTaskStart: vi.fn().mockResolvedValue(undefined),
@@ -7304,6 +7405,7 @@ describe("LocalRuntimeHost", () => {
 			persistSessionMessages: vi.fn(),
 			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
 			writeSessionManifest: vi.fn(),
+			getSession: getMockSession,
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			onTeamTaskStart: vi.fn().mockResolvedValue(undefined),
@@ -7449,6 +7551,7 @@ describe("LocalRuntimeHost", () => {
 					endedAt: "2026-01-01T00:00:05.000Z",
 				}),
 				writeSessionManifest: vi.fn(),
+				getSession: getMockSession,
 				listSessions: vi.fn().mockResolvedValue([]),
 				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 			};

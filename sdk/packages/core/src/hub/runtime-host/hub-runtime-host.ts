@@ -666,7 +666,6 @@ function toSessionRecord(session: HubSessionRecord): SessionRecord {
 		prompt: typeof metadata?.prompt === "string" ? metadata.prompt : undefined,
 		metadata,
 		updatedAt: new Date(session.updatedAt).toISOString(),
-		lastAgentActivityAt: session.lastAgentActivityAt,
 		messagesPath:
 			typeof metadata?.messagesPath === "string"
 				? metadata.messagesPath

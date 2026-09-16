@@ -51,8 +51,8 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 	async recordAgentActivity(sessionId: string, at: number): Promise<void> {
 		const index = this.readIndex();
 		const row = index.sessions[sessionId];
-		if (!row) return;
-		row.lastAgentActivityAt = Math.max(row.lastAgentActivityAt ?? 0, at);
+		if (!row || Date.parse(row.updatedAt) >= at) return;
+		row.updatedAt = new Date(at).toISOString();
 		this.writeIndex(index);
 	}
 
@@ -121,11 +121,14 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 	async upsertSession(row: SessionRow): Promise<void> {
 		const index = this.readIndex();
-		index.sessions[row.sessionId] = {
-			...row,
-			lastAgentActivityAt:
-				index.sessions[row.sessionId]?.lastAgentActivityAt ?? null,
-		};
+		const existing = index.sessions[row.sessionId];
+		if (
+			existing &&
+			Date.parse(existing.updatedAt) > Date.parse(row.updatedAt)
+		) {
+			row = { ...row, updatedAt: existing.updatedAt };
+		}
+		index.sessions[row.sessionId] = row;
 		this.writeIndex(index);
 	}
 

@@ -6,7 +6,17 @@ import type { SessionRecord } from "../../../types/sessions";
 
 export type SessionBackend = CoreSessionService | FileSessionService;
 
-export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
+export function toActiveSessionRecord(
+	session: ActiveSession,
+	persistedUpdatedAt?: string,
+): SessionRecord {
+	const updatedAt = new Date(
+		Math.max(
+			Date.parse(session.updatedAt ?? session.endedAt ?? session.startedAt),
+			Date.parse(persistedUpdatedAt ?? "") || 0,
+			session.activity?.lastObservedAt ?? 0,
+		),
+	).toISOString();
 	return {
 		sessionId: session.sessionId,
 		source: session.source,
@@ -47,7 +57,6 @@ export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		prompt: session.pendingPrompt,
 		metadata: session.sessionMetadata,
 		messagesPath: session.artifacts?.messagesPath,
-		updatedAt: session.updatedAt ?? session.endedAt ?? session.startedAt,
-		lastAgentActivityAt: session.activity?.lastAgentActivityAt ?? null,
+		updatedAt,
 	};
 }

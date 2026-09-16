@@ -70,7 +70,6 @@ export function toHubSessionRecord(
 		cwd: session.cwd,
 		createdAt: Date.parse(session.startedAt),
 		updatedAt: Date.parse(session.updatedAt),
-		lastAgentActivityAt: session.lastAgentActivityAt ?? null,
 		createdByClientId: state?.createdByClientId ?? "hub",
 		status: mapLocalStatusToHubStatus(session.status),
 		participants: state ? [...state.participants.values()] : [],

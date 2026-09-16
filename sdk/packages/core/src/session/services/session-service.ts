@@ -19,9 +19,12 @@ import { UnifiedSessionPersistenceService } from "./persistence-service";
 
 class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 	async recordAgentActivity(sessionId: string, at: number): Promise<void> {
+		const updatedAt = new Date(at).toISOString();
 		this.store.run(
-			`UPDATE sessions SET last_agent_activity_at = MAX(COALESCE(last_agent_activity_at, 0), ?) WHERE session_id = ?`,
-			[at, sessionId],
+			`UPDATE sessions SET updated_at = CASE
+				WHEN julianday(updated_at) > julianday(?) THEN updated_at ELSE ? END
+			WHERE session_id = ?`,
+			[updatedAt, updatedAt, sessionId],
 		);
 	}
 
@@ -43,9 +46,10 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at, last_agent_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-				(SELECT last_agent_activity_at FROM sessions WHERE session_id = ?))`,
+				metadata_json, transcript_path, hook_path, messages_path, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT updated_at FROM sessions
+					WHERE session_id = ? AND julianday(updated_at) > julianday(?)), ?))`,
 			[
 				row.sessionId,
 				row.source,
@@ -74,8 +78,9 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				"",
 				row.hookPath ?? "",
 				row.messagesPath ?? null,
-				row.updatedAt,
 				row.sessionId,
+				row.updatedAt,
+				row.updatedAt,
 			],
 		);
 	}
@@ -292,14 +297,16 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 	}
 
 	createRootSession(input: CreateRootSessionInput): void {
+		const updatedAt = nowIso();
 		this.store.run(
 			`INSERT OR REPLACE INTO sessions (
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at, last_agent_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-				(SELECT last_agent_activity_at FROM sessions WHERE session_id = ?))`,
+				metadata_json, transcript_path, hook_path, messages_path, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				COALESCE((SELECT updated_at FROM sessions
+					WHERE session_id = ? AND julianday(updated_at) > julianday(?)), ?))`,
 			[
 				input.sessionId,
 				input.source,
@@ -328,8 +335,9 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 				"",
 				"",
 				input.messagesPath,
-				nowIso(),
 				input.sessionId,
+				updatedAt,
+				updatedAt,
 			],
 		);
 	}

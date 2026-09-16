@@ -257,6 +257,10 @@ class LocalFileSessionService {
 		);
 	}
 
+	getSession(sessionId: string): SessionRow | undefined {
+		return this.rows.get(sessionId);
+	}
+
 	listSessions(limit = 200): SessionRow[] {
 		return Array.from(this.rows.values()).slice(0, limit);
 	}

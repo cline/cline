@@ -514,6 +514,26 @@ export class UnifiedSessionPersistenceService {
 		return await this.adapter.getSession(row.sessionId);
 	}
 
+	async getSession(sessionId: string): Promise<SessionRow | undefined> {
+		const row = await this.adapter.getSession(sessionId);
+		if (!row) return undefined;
+		const reconciled = await this.reconcileDeadRunningSession(row);
+		return reconciled ? this.resolveSessionMetadata(reconciled) : undefined;
+	}
+
+	private async resolveSessionMetadata(row: SessionRow): Promise<SessionRow> {
+		const meta = sanitizeMetadata(row.metadata ?? undefined);
+		const manifestTitle = normalizeTitle(
+			await this.manifestStore.readSessionManifestTitle(row.sessionId),
+		);
+		return {
+			...row,
+			metadata: manifestTitle
+				? { ...(meta ?? {}), title: manifestTitle }
+				: meta,
+		};
+	}
+
 	async listSessions(
 		limit = 200,
 		options: { rootOnly?: boolean } = {},
@@ -531,19 +551,7 @@ export class UnifiedSessionPersistenceService {
 		// Resolve manifest titles concurrently and off-thread. Each row only needs
 		// the manifest's `metadata.title`, so read just that asynchronously instead
 		// of synchronously reading + Zod-parsing the entire manifest per row.
-		const manifestTitles = await Promise.all(
-			rows.map((row) =>
-				this.manifestStore.readSessionManifestTitle(row.sessionId),
-			),
-		);
-		return rows.map((row, index) => {
-			const meta = sanitizeMetadata(row.metadata ?? undefined);
-			const manifestTitle = normalizeTitle(manifestTitles[index]);
-			const resolved = manifestTitle
-				? { ...(meta ?? {}), title: manifestTitle }
-				: meta;
-			return { ...row, metadata: resolved };
-		});
+		return Promise.all(rows.map((row) => this.resolveSessionMetadata(row)));
 	}
 
 	/**

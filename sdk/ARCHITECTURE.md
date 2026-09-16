@@ -153,20 +153,10 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
-Session records also expose `lastAgentActivityAt` (Unix milliseconds). The common
-agent-event handler observes iteration starts and content events from the root,
-spawned agents, and teammates while the session is registered. A trailing 60-second
-flush coalesces progress writes; turn completion and runtime shutdown also flush.
-The existing session SQLite column/file index retains the monotonic timestamp
-without changing metadata, status locks, or `updatedAt`. Active reads use the live
-value; restored sessions use the durable value. A crash can lose the unflushed
-window. Persistence failures are logged and retried only on subsequent flushes;
-the crash-loss window is not a bound during storage failures. There is no activity
-heartbeat, and emissions after runtime deregistration are not recorded.
-
-This is an observation primitive, not an expiry policy. Maintenance turns count;
-independent scheduled roots have their own timestamps. Maintenance exclusion and
-sandbox-wide coverage must be solved before using it for remote-session expiry.
+Core advances session `updatedAt` from live agent progress through the shared
+event handler. Writes are coalesced over 60 seconds and flushed on completion
+and shutdown; crashes or storage failures can lose recent observations.
+Expiry policy belongs to consumers, not Hub.
 
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing

@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { SessionSource } from "../../types/common";
 import { createSessionCompactionState } from "../models/session-compaction";
@@ -32,7 +33,7 @@ describe("UnifiedSessionPersistenceService", () => {
 
 	for (const backend of ["file", "sqlite"] as const) {
 		(backend === "sqlite" ? sqliteIt : it)(
-			`${backend}: activity survives reopen and row replacement without changing status or metadata`,
+			`${backend}: progress advances recency without changing status, and stale writes cannot rewind it`,
 			async () => {
 				const dir = mkdtempSync(join(tmpdir(), "agent-activity-"));
 				tempDirs.push(dir);
@@ -43,8 +44,6 @@ describe("UnifiedSessionPersistenceService", () => {
 				if (store) {
 					stores.push(store);
 					store.init();
-					store.run("ALTER TABLE sessions DROP COLUMN last_agent_activity_at");
-					store.close();
 				}
 				const open = () =>
 					store
@@ -66,23 +65,42 @@ describe("UnifiedSessionPersistenceService", () => {
 				};
 				await service.createRootSessionWithArtifacts(input);
 				const original = (await service.listSessions())[0];
-				expect(original?.lastAgentActivityAt).toBeNull();
-				await service.recordAgentActivity(input.sessionId, 2_000);
-				await service.recordAgentActivity(input.sessionId, 1_000);
+				if (!original) throw new Error("Missing session fixture");
+				const at = Date.parse("2099-01-01T00:00:00.500Z");
+				// Exercise mixed ISO precision: lexical comparison would drop this touch.
+				store?.run("UPDATE sessions SET updated_at = ? WHERE session_id = ?", [
+					"2099-01-01T00:00:00Z",
+					input.sessionId,
+				]);
+				await service.recordAgentActivity(input.sessionId, at);
+				await service.recordAgentActivity(input.sessionId, at - 1_000);
 				expect((await service.listSessions())[0]).toEqual({
 					...original,
-					lastAgentActivityAt: 2_000,
+					updatedAt: new Date(at).toISOString(),
 				});
 				await service.updateSession({
 					sessionId: input.sessionId,
 					metadata: { title: "renamed" },
 				});
+				expect(await service.getSession(input.sessionId)).toEqual(
+					(await service.listSessions())[0],
+				);
+				expect(await service.getSession("missing")).toBeUndefined();
+				await service.recordAgentActivity(input.sessionId, at);
 				await service.createRootSessionWithArtifacts(input);
-				store?.close();
-				if (store)
-					expect(store.get(input.sessionId)?.lastAgentActivityAt).toBe(2_000);
-				expect((await open().listSessions())[0]?.lastAgentActivityAt).toBe(
-					2_000,
+				if (store) {
+					new CoreSessionService(store).createRootSession({
+						...input,
+						startedAt: original.startedAt,
+						messagesPath: original.messagesPath ?? "",
+					});
+					const record = store.get(input.sessionId);
+					if (!record) throw new Error("Missing session fixture");
+					store.create(record);
+					store.close();
+				}
+				expect((await open().listSessions())[0]?.updatedAt).toBe(
+					new Date(at).toISOString(),
 				);
 			},
 		);
@@ -96,6 +114,101 @@ describe("UnifiedSessionPersistenceService", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 	});
+
+	sqliteIt(
+		"reads and resumes activity outside the recent-history window",
+		async () => {
+			const dir = mkdtempSync(join(tmpdir(), "old-session-activity-"));
+			tempDirs.push(dir);
+			const store = new SqliteSessionStore({ sessionsDir: dir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: dir,
+			});
+			await service.createRootSessionWithArtifacts({
+				sessionId: "old-session",
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: true,
+				provider: "mock",
+				model: "mock",
+				cwd: dir,
+				workspaceRoot: dir,
+				enableTools: false,
+				enableSpawn: false,
+				enableTeams: false,
+				status: "idle",
+				startedAt: "2020-01-01T00:00:00.000Z",
+			});
+			const at = Date.parse("2099-01-01T00:00:00.000Z");
+			await service.recordAgentActivity("old-session", at);
+			const original = store.get("old-session");
+			if (!original) throw new Error("Missing session fixture");
+			store.run("BEGIN");
+			for (let index = 0; index < 2000; index++) {
+				store.create({
+					...original,
+					sessionId: `newer-${index}`,
+					startedAt: "2026-01-01T00:00:00.000Z",
+					status: "completed",
+				});
+			}
+			store.run("COMMIT");
+			const list = vi.spyOn(service, "listSessions");
+			const host = new LocalRuntimeHost({
+				distinctId: "test",
+				sessionService: service,
+				runtimeBuilder: {
+					build: () => ({ tools: [], shutdown: async () => {} }),
+				} as never,
+				createAgent: () =>
+					({
+						getMessages: () => [],
+						getAgentId: () => "root",
+						getConversationId: () => "conversation",
+						canStartRun: () => true,
+						shutdown: async () => {},
+						abort: () => {},
+						subscribeEvents: () => () => {},
+					}) as never,
+			});
+			try {
+				expect((await host.getSession("old-session"))?.updatedAt).toBe(
+					new Date(at).toISOString(),
+				);
+				await host.startSession({
+					config: {
+						sessionId: "old-session",
+						providerId: "mock",
+						modelId: "mock",
+						cwd: dir,
+						workspaceRoot: dir,
+						systemPrompt: "test",
+						mode: "act",
+						enableTools: false,
+						enableSpawnAgent: false,
+						enableAgentTeams: false,
+					},
+					interactive: true,
+					initialMessages: [{ role: "user", content: "previous work" }],
+				});
+				expect((await host.getSession("old-session"))?.updatedAt).toBe(
+					new Date(at).toISOString(),
+				);
+				expect(list).not.toHaveBeenCalled();
+				await service.recordAgentActivity("old-session", at + 1_000);
+				expect((await host.listSessions(1))[0]).toMatchObject({
+					sessionId: "old-session",
+					updatedAt: (await host.getSession("old-session"))?.updatedAt,
+				});
+				expect((await host.getSession("old-session"))?.updatedAt).toBe(
+					new Date(at + 1_000).toISOString(),
+				);
+			} finally {
+				await host.dispose();
+			}
+		},
+	);
 
 	it("does not allocate a session while rejecting messages for an unknown id", async () => {
 		const sessionsDir = mkdtempSync(
@@ -363,9 +476,9 @@ describe("UnifiedSessionPersistenceService", () => {
 		).toHaveProperty("compaction_path", artifacts.compactionPath);
 	});
 
-	sqliteIt(
-		"reconciles dead running sessions into failed manifests with terminal markers",
-		async () => {
+	sqliteIt.each(["sweep", "get"])(
+		"reconciles dead running sessions into failed manifests with terminal markers via %s",
+		async (read) => {
 			const dbDir = mkdtempSync(join(tmpdir(), "stale-session-reconcile-db-"));
 			const sessionsDir = mkdtempSync(
 				join(tmpdir(), "stale-session-reconcile-sessions-"),
@@ -394,8 +507,11 @@ describe("UnifiedSessionPersistenceService", () => {
 				startedAt: "2026-01-01T00:00:00.000Z",
 			});
 
-			const reconciled = await service.reconcileDeadSessions();
-			expect(reconciled).toBe(1);
+			if (read === "get") {
+				expect((await service.getSession(sessionId))?.status).toBe("failed");
+			} else {
+				expect(await service.reconcileDeadSessions()).toBe(1);
+			}
 
 			const rows = await service.listSessions(10);
 			expect(rows).toHaveLength(1);
