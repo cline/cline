@@ -103,6 +103,7 @@ import {
 	handleSessionSearch,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -846,6 +847,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionCompactionUpdate(this.ctx, envelope);
 			case "session.pending_prompts":
 				return await handleSessionPendingPrompts(this.ctx, envelope);
+			case "session.steer_first_pending_prompt":
+				return await handleSessionSteerFirstPendingPrompt(this.ctx, envelope);
 			case "session.update_pending_prompt":
 				return await handleSessionUpdatePendingPrompt(this.ctx, envelope);
 			case "session.remove_pending_prompt":
