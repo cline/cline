@@ -240,11 +240,6 @@ async function requestConnectorPage<T>(
 	const page = await requestConnectorsApi<ConnectorPage<T>>("GET", path, {
 		ctx,
 	});
-	if (path.startsWith("/toolkits?") && Array.isArray(page)) {
-		throw new ConnectorsApiError(
-			"The server is using the older connector catalog. Deploy the full-catalog backend update to browse all connectors.",
-		);
-	}
 	if (
 		!page ||
 		!Array.isArray(page.items) ||
