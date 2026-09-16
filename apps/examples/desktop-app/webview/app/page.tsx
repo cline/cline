@@ -25,7 +25,6 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
 	Sidebar,
 	SidebarInset,
@@ -127,14 +126,6 @@ const viewLoading = () => (
 	<div className="flex h-full flex-1 items-center justify-center bg-background">
 		<Loader2 className="size-5 animate-spin text-muted-foreground" />
 	</div>
-);
-
-const RemoteEnvironmentsContent = dynamic(
-	() =>
-		import("@/components/views/settings/remote-environments-view").then(
-			(module) => module.RemoteEnvironmentsContent,
-		),
-	{ loading: viewLoading, ssr: false },
 );
 
 const SettingsView = dynamic(
@@ -428,10 +419,6 @@ export default function Home() {
 		},
 		[activeRemoteEnvironment, selectEnvironmentDraft],
 	);
-	const [remoteSettingsOpen, setRemoteSettingsOpen] = useState(false);
-	const handleAddSshHost = useCallback(() => {
-		setRemoteSettingsOpen(true);
-	}, []);
 	const pickRemoteWorkspaceDirectory = useCallback(
 		(environment: RemoteWorkspaceEnvironment): Promise<string | null> => {
 			remoteDirectoryPickerResolverRef.current?.(null);
@@ -802,7 +789,7 @@ export default function Home() {
 											environmentProfilesLoading={
 												remoteEnvironmentProfilesLoading
 											}
-											onAddSshHost={handleAddSshHost}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
 											onPickRemoteWorkspaceDirectory={
 												pickRemoteWorkspaceDirectory
 											}
@@ -877,21 +864,6 @@ export default function Home() {
 					) : null}
 				</WindowTitleBarProvider>
 			</SidebarProvider>
-			<Dialog open={remoteSettingsOpen} onOpenChange={setRemoteSettingsOpen}>
-				<DialogContent
-					aria-describedby={undefined}
-					className="h-[85dvh] max-h-220 gap-0 overflow-hidden p-0 pt-4 sm:max-w-[min(72rem,calc(100vw-2rem))]"
-					onCloseAutoFocus={(event) => {
-						event.preventDefault();
-						document.getElementById("environment-selector-btn")?.focus();
-					}}
-				>
-					<DialogTitle className="sr-only">Remote environments</DialogTitle>
-					<div className="min-h-0 overflow-hidden">
-						<RemoteEnvironmentsContent />
-					</div>
-				</DialogContent>
-			</Dialog>
 			<HubUpdateRequiredDialog />
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
