@@ -527,12 +527,35 @@ function ConnectorDetailDialog({
 							) : null}
 
 							<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-								{typeof entry.toolsCount === "number" ? (
+								{typeof entry.toolsCount === "number" ||
+								(status === "connected" && toolNames.length > 0) ? (
 									<>
 										<dt className="text-muted-foreground">Tools</dt>
 										<dd className="text-foreground">
-											{entry.toolsCount} in catalog
+											{entry.toolsCount ?? toolNames.length}
+											{status === "connected" && toolNames.length > 0 ? (
+												<>
+													{" "}
+													- {toolNames.length}{" "}
+													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+														available in new sessions
+													</span>
+												</>
+											) : null}
 										</dd>
+										{status === "connected" && toolNames.length > 0 ? (
+											<dd className="col-span-2 mb-3 mt-1">
+												<ul className="flex flex-wrap gap-1.5">
+													{toolNames.map((name) => (
+														<li key={name}>
+															<Badge className="font-normal" variant="outline">
+																{name}
+															</Badge>
+														</li>
+													))}
+												</ul>
+											</dd>
+										) : null}
 									</>
 								) : null}
 								<dt className="text-muted-foreground">Slug</dt>
@@ -560,24 +583,6 @@ function ConnectorDetailDialog({
 								<p className="text-xs text-destructive" role="alert">
 									{actionError ?? summary?.error}
 								</p>
-							) : null}
-
-							{status === "connected" && toolNames.length > 0 ? (
-								<div>
-									<p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-										{toolNames.length} tool{toolNames.length === 1 ? "" : "s"}{" "}
-										available in new sessions
-									</p>
-									<ul className="flex flex-wrap gap-1.5">
-										{toolNames.map((name) => (
-											<li key={name}>
-												<Badge className="font-normal" variant="outline">
-													{name}
-												</Badge>
-											</li>
-										))}
-									</ul>
-								</div>
 							) : null}
 						</div>
 
