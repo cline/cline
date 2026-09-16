@@ -12,6 +12,7 @@ import {
 	buildPreviousTimestampMap,
 	getThoughtDurationMilliseconds,
 } from "../components/views/chat/messages/group-messages";
+import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -1046,6 +1047,207 @@ describe("useChatSession", () => {
 			result: "done",
 		});
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
+	});
+
+	function mockStreamingToolSession() {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-stream-end",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+	}
+
+	it("keeps streamed output and stops the running presentation when the tool ends without a final output", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "compiling...\n" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "done\n" },
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const streaming = current.messages.find((m) => m.role === "tool");
+		if (!streaming) throw new Error("Expected a tool message");
+		expect(streaming.meta?.toolOutput).toBe("compiling...\ndone\n");
+		expect(buildToolPresentation(streaming).inProgress).toBe(true);
+
+		// The runtime finishes the call without repeating the streamed output.
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					durationMs: 12,
+				}),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(completed.meta?.hookEventName).toBe("tool_call_end");
+		// The streamed output survives completion as the payload result…
+		expect(JSON.parse(completed.content)).toMatchObject({
+			toolName: "run_commands",
+			result: "compiling...\ndone\n",
+			isError: false,
+		});
+		expect(completed.meta?.toolOutput).toBe("compiling...\ndone\n");
+		// …so the finished tool no longer presents as pending/spinning.
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
+	it("prefers a final chat_tool_call_end output over the streamed output", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "partial" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					output: "final output",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(JSON.parse(completed.content)).toMatchObject({
+			result: "final output",
+			isError: false,
+		});
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
+	it("reports a tool error even when output was streamed first", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					update: { stream: "stderr", chunk: "boom\n" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					error: "command failed",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(JSON.parse(completed.content)).toMatchObject({
+			result: "command failed",
+			isError: true,
+		});
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
 	});
 
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
