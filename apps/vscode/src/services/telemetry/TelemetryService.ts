@@ -1265,7 +1265,11 @@ export class TelemetryService {
 	 *   ("backgroundExec");
 	 *   markerlessCause — for method "markerless_heuristic", why the command was
 	 *   considered complete;
-	 *   terminalClosed — the terminal was closed while the command was running
+	 *   terminalClosed — the terminal was closed while the command was running;
+	 *   errorCode — for a failed background execution that produced no exit code,
+	 *   why: the OS code when the shell could not start (ENOENT, EACCES, EFTYPE),
+	 *   "ENOENT_CWD" when the working directory had vanished instead, "aborted",
+	 *   or "other"
 	 */
 	public captureTerminalExecution(
 		success: boolean,
@@ -1276,6 +1280,7 @@ export class TelemetryService {
 			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 			markerlessCause?: MarkerlessCompletionCause
 			terminalClosed?: boolean
+			errorCode?: string
 		},
 	): void
 	/**
@@ -1304,9 +1309,10 @@ export class TelemetryService {
 			terminalExecutionMode?: "vscodeTerminal" | "backgroundExec"
 			markerlessCause?: MarkerlessCompletionCause
 			terminalClosed?: boolean
+			errorCode?: string
 		},
 	): void {
-		const { exitCode, terminalExecutionMode, markerlessCause, terminalClosed } = details ?? {}
+		const { exitCode, terminalExecutionMode, markerlessCause, terminalClosed, errorCode } = details ?? {}
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
@@ -1318,6 +1324,7 @@ export class TelemetryService {
 				...(terminalExecutionMode !== undefined && { terminalExecutionMode }),
 				...(markerlessCause !== undefined && { markerlessCause }),
 				...(terminalClosed !== undefined && { terminalClosed }),
+				...(errorCode !== undefined && { errorCode }),
 			},
 		})
 	}

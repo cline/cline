@@ -16,6 +16,7 @@ import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
 	CommandExitError,
+	CommandSpawnError,
 	cleanupStaleDetachedCommandLogs,
 	createShellExecutor,
 } from "./bash";
@@ -1190,4 +1191,46 @@ describe("createShellExecutor with inherited stdio", () => {
 			expect(await fileExists(completedAtPath)).toBe(true);
 		},
 	);
+});
+
+describe("CommandSpawnError", () => {
+	const context: AgentToolContext = {
+		agentId: "agent-1",
+		conversationId: "conversation-1",
+		iteration: 1,
+	};
+
+	it("reports a shell that cannot be started with the operating system error code", async () => {
+		const executor = createShellExecutor({
+			shell: "cline-definitely-missing-shell",
+		});
+		let error: unknown;
+		try {
+			await executor("echo hi", process.cwd(), context);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandSpawnError);
+		expect((error as CommandSpawnError).code).toBe("ENOENT");
+		expect((error as CommandSpawnError).missing).toBe("executable");
+		// The message is what hosts and users saw before; only the class and
+		// code are new.
+		expect((error as Error).message).toContain("Failed to execute command");
+	});
+
+	it("tells a vanished working directory apart from a missing shell", async () => {
+		// spawn reports ENOENT with the same message in both cases; the class
+		// checks the directory so telemetry does not count one as the other.
+		const gone = join(tmpdir(), `cline-gone-${process.pid}-${Date.now()}`);
+		const executor = createShellExecutor();
+		let error: unknown;
+		try {
+			await executor("echo hi", gone, context);
+		} catch (caught) {
+			error = caught;
+		}
+		expect(error).toBeInstanceOf(CommandSpawnError);
+		expect((error as CommandSpawnError).code).toBe("ENOENT");
+		expect((error as CommandSpawnError).missing).toBe("cwd");
+	});
 });

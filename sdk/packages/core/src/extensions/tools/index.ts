@@ -30,6 +30,7 @@ export {
 export {
 	type ApplyPatchExecutorOptions,
 	CommandExitError,
+	CommandSpawnError,
 	computePatchChanges,
 	createApplyPatchExecutor,
 	createDefaultExecutors,

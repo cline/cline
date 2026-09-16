@@ -34,6 +34,7 @@ import {
 } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 import { getShellForProfile } from "@/utils/shell"
+import { describeBackgroundFailure } from "./background-failure"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
 
 // ---------------------------------------------------------------------------
@@ -580,7 +581,7 @@ function createVscodeShellExecutor(options: VscodeRunCommandsToolOptions, state:
 				return result
 			} catch (error) {
 				telemetryService.captureTerminalExecution(false, "vscode", "child_process", {
-					...(error instanceof CommandExitError && { exitCode: error.exitCode }),
+					...describeBackgroundFailure(error),
 					terminalExecutionMode: "backgroundExec",
 				})
 				throw error

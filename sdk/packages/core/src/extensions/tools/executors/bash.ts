@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import {
 	createWriteStream,
 	type Dirent,
+	existsSync,
 	mkdtempSync,
 	renameSync,
 	rmSync,
@@ -324,6 +325,38 @@ export class CommandExitError extends Error {
 	) {
 		super(`Command exited with code ${exitCode}`);
 		this.name = "CommandExitError";
+	}
+}
+
+/**
+ * The shell process could not be started, so the command never ran and there
+ * is no exit code. `code` carries the operating system error libuv reported —
+ * `ENOENT`, `EACCES`, `EFTYPE` for a file that is not a valid executable — so
+ * a host can count "the shell is missing" separately from "the command
+ * failed" without parsing the message.
+ *
+ * `ENOENT` alone is ambiguous: spawn reports it both when the executable is
+ * not found and when the working directory no longer exists, with the same
+ * message. `missing` settles it by checking the directory at failure time, so
+ * "shell not on PATH" and "workspace folder gone" stay separately countable.
+ */
+export class CommandSpawnError extends Error {
+	readonly code: string | undefined;
+	/** For `ENOENT`, which path was absent. Undefined for every other code. */
+	readonly missing: "executable" | "cwd" | undefined;
+
+	constructor(cause: Error, options: { cwd?: string } = {}) {
+		super(`Failed to execute command: ${cause.message}`);
+		this.name = "CommandSpawnError";
+		const code = (cause as NodeJS.ErrnoException).code;
+		this.code = typeof code === "string" ? code : undefined;
+		if (this.code !== "ENOENT") {
+			this.missing = undefined;
+		} else if (options.cwd !== undefined && !existsSync(options.cwd)) {
+			this.missing = "cwd";
+		} else {
+			this.missing = "executable";
+		}
 	}
 }
 
@@ -1047,9 +1080,7 @@ function spawnAndCollect(
 			}
 			progress.stop({ flush: true });
 			cleanup();
-			settle(() =>
-				reject(new Error(`Failed to execute command: ${error.message}`)),
-			);
+			settle(() => reject(new CommandSpawnError(error, { cwd: config.cwd })));
 		});
 
 		child.stdin?.on("error", (error) => {

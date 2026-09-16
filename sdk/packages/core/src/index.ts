@@ -956,6 +956,7 @@ export {
 	type AskQuestionExecutor,
 	type BuiltinToolAvailabilityContext,
 	CommandExitError,
+	CommandSpawnError,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	computePatchChanges,
