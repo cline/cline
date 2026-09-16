@@ -26,8 +26,10 @@ export type ActiveSession = {
 	started: boolean;
 	aborting: boolean;
 	interactive: boolean;
-	persistedMessages?: LlmsProviders.MessageWithMetadata[];
+	persistedMessages?: LlmsProviders.SessionHistoryEntry[];
 	compactionState?: SessionCompactionState;
+	manualCompaction?: AbortController;
+	turnPreparing?: boolean;
 	compactionStateWriteQueue?: Promise<void>;
 	activeTeamRunIds: Set<string>;
 	pendingTeamRunUpdates: TeamRunUpdate[];
@@ -83,7 +85,7 @@ export type TeamRunUpdate = {
 	iterations?: number;
 };
 
-export type StoredMessageWithMetadata = LlmsProviders.MessageWithMetadata;
+export type StoredSessionHistoryEntry = LlmsProviders.SessionHistoryEntry;
 
 export type PreparedTurnInput = {
 	prompt: string;

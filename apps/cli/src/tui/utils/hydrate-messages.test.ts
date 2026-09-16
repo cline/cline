@@ -1,11 +1,21 @@
 import { readFileSync, rmSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Message, MessageWithMetadata } from "@cline/shared";
+import type { Message, SessionHistoryEntry } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { hydrateSessionMessages } from "./hydrate-messages";
 
 describe("hydrateSessionMessages", () => {
+	it("restores display-only errors as error entries", () => {
+		expect(
+			hydrateSessionMessages([
+				{
+					role: "error",
+					content: [{ type: "text", text: "Provider unavailable" }],
+				},
+			]),
+		).toEqual([{ kind: "error", text: "Provider unavailable" }]);
+	});
 	it("renders regular user messages", () => {
 		const messages = [
 			{
@@ -218,7 +228,7 @@ describe("hydrateSessionMessages", () => {
 	});
 
 	it("hydrates provider model tools through the ordinary tool card path", () => {
-		const messages: MessageWithMetadata[] = [
+		const messages: SessionHistoryEntry[] = [
 			{
 				id: "assistant-search",
 				role: "assistant",
@@ -269,7 +279,7 @@ describe("hydrateSessionMessages", () => {
 			pageAge: "2026-08-12",
 			encryptedContent: "encrypted",
 		};
-		const messages: MessageWithMetadata[] = [
+		const messages: SessionHistoryEntry[] = [
 			{
 				role: "assistant",
 				content: "Search failed.",

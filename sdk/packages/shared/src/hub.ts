@@ -540,6 +540,7 @@ export type HubCommandName =
 	| "session.delete"
 	| "session.update"
 	| "session.update_connection"
+	| "session.compact"
 	| "session.compaction.get"
 	| "session.compaction.update"
 	| "session.pending_prompts"

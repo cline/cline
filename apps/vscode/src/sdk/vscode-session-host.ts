@@ -273,6 +273,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 		return this.inner.readLiveMessages(sessionId)
 	}
 
+	async compactSession(sessionId: string) {
+		return this.inner.compactSession(sessionId)
+	}
+
 	async updateSessionCompactionState(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }> {
 		return this.inner.updateSessionCompactionState(sessionId, state)
 	}

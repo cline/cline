@@ -4,10 +4,8 @@
 // VSCode compact button or slash command. This mirrors the CLI's
 // `compactCurrentSession` (apps/cli/src/runtime/interactive/session-runtime.ts):
 //
-//   1. Read the session's transcript.
-//   2. Run a manual SDK compaction over it (sdk-compaction.ts).
-//   3. Persist the SDK compaction sidecar so the next turn and resumes keep
-//      using the compacted working context.
+// Core owns snapshot capture, summarization and sidecar persistence. The
+// coordinator requests compaction and renders the operation result.
 //
 // Compaction always runs against an active session. When the user compacts a
 // task opened from history (a displayed, non-running task with no active
@@ -24,13 +22,10 @@
 // which the SDK does not treat as a runtime command, so the model improvised a
 // fake "Conversation Summary" instead of compacting (CLINE-2503).
 
-import type { Message as SdkMessage } from "@cline/llms"
 import type { ClineCompactionInfo, ClineMessage } from "@shared/ExtensionMessage"
-import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
 import { Logger } from "@/shared/services/Logger"
 import { buildCompactionMessage, parseCompactionNoticeMetadata } from "./message-translator"
-import { compactSessionMessages } from "./sdk-compaction"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
 import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
@@ -40,7 +35,6 @@ import { prepareTaskResumeStartInput } from "./sdk-task-resume"
 import type { SdkSessionHost } from "./session-host"
 
 const COMPACTION_FAILURE_MESSAGE = "Couldn't compact the conversation. Please try again."
-const COMPACTION_UNSUPPORTED_MESSAGE = "Compaction is not supported by this runtime yet. Please update Cline and try again."
 const COMPACTION_TURN_RUNNING_MESSAGE =
 	"Cannot compact while a response is in progress. Try again once the current turn finishes."
 
@@ -199,82 +193,26 @@ export class SdkCompactionCoordinator {
 	}
 
 	private async runCompaction(sdkHost: SdkSessionHost, sessionId: string): Promise<void> {
-		if (!sdkHost.updateSessionCompactionState) {
-			this.emitInfo(COMPACTION_UNSUPPORTED_MESSAGE, sessionId)
-			await this.options.postStateToWebview()
-			return
-		}
-		const messages = (await sdkHost.readMessages(sessionId)) as SdkMessage[]
-		const messagesBefore = messages.length
-		if (messagesBefore === 0) {
-			this.emitInfo("No messages to compact.", sessionId)
-			await this.options.postStateToWebview()
-			return
-		}
-
-		const cwd = await this.options.getWorkspaceRoot()
-		const mode = this.getCurrentMode()
-		const config = await this.options.sessionConfigBuilder.build({ cwd, mode })
-
 		// A live divider row, updated in place (same ts) from "started" to its
 		// terminal state — the same UX as the CLI's compaction divider.
 		const compactionTs = Date.now()
 		this.emitCompactionRow({ status: "started", mode: "manual" }, compactionTs, sessionId)
 		await this.options.postStateToWebview()
 
-		// The SDK reports the compaction's token/message counters through its
-		// status notices; capture the terminal one for the final divider.
-		let noticeInfo: ClineCompactionInfo | undefined
 		try {
-			const result = await compactSessionMessages({
-				config: {
-					providerConfig: config.providerConfig,
-					providerId: config.providerId,
-					modelId: config.modelId,
-					knownModels: config.knownModels,
-					compaction: config.compaction,
-					logger: config.logger,
-					telemetry: config.telemetry,
-				},
-				sessionId,
-				messages,
-				emitStatusNotice: (_message, metadata) => {
-					const parsed = parseCompactionNoticeMetadata(metadata)
-					if (parsed && parsed.status !== "started") {
-						noticeInfo = { ...parsed, mode: "manual" }
-					}
-				},
-			})
-
-			if (!result.compacted) {
-				this.emitCompactionRow(noticeInfo ?? { status: "skipped", mode: "manual" }, compactionTs, sessionId)
-				await this.options.postStateToWebview()
-				return
-			}
-
-			if (!result.compactionState) {
-				throw new Error("Compaction did not return durable state.")
-			}
-			const persisted = await sdkHost.updateSessionCompactionState(sessionId, result.compactionState)
-			if (!persisted.updated) {
-				throw new Error("Compaction sidecar could not be persisted.")
-			}
-
+			const result = await sdkHost.compactSession(sessionId)
 			this.emitCompactionRow(
-				noticeInfo?.status === "completed"
-					? noticeInfo
-					: {
-							status: "completed",
-							mode: "manual",
-							messagesBefore,
-							messagesAfter: result.messages.length,
-						},
+				{
+					status: result.compacted ? "completed" : "skipped",
+					mode: "manual",
+					messagesBefore: result.messagesBefore,
+					messagesAfter: result.workingContextMessagesAfter ?? result.messagesAfter,
+					...parseCompactionNoticeMetadata(result.notice),
+				},
 				compactionTs,
 				sessionId,
 			)
 			await this.options.postStateToWebview()
-
-			Logger.log(`[SdkController] Compacted session ${sessionId}: ${messagesBefore} -> ${result.messages.length} messages`)
 		} catch (error) {
 			// Manual-mode counterpart of the translator's finalizeDanglingCompaction
 			// (message-translator.ts), which handles auto compaction from turn
@@ -283,11 +221,6 @@ export class SdkCompactionCoordinator {
 			await this.options.postStateToWebview()
 			throw error
 		}
-	}
-
-	private getCurrentMode(): Mode {
-		const m = this.options.stateManager.getGlobalSettingsKey("mode")
-		return m === "plan" ? m : "act"
 	}
 
 	/** Append or update-in-place (same ts) the compaction divider row. */

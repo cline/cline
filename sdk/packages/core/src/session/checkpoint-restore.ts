@@ -14,7 +14,7 @@ const execFile = promisify(execFileCallback);
 
 export interface CheckpointRestorePlan {
 	checkpoint: CheckpointEntry;
-	messages?: LlmsProviders.MessageWithMetadata[];
+	messages?: LlmsProviders.SessionHistoryEntry[];
 	cwd: string;
 }
 
@@ -215,7 +215,7 @@ export function findCheckpointForRun(
 }
 
 function findUserRunMessage(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 	runCount: number,
 ): { index: number; span: number } {
 	let userRunCount = 0;
@@ -243,17 +243,17 @@ function findUserRunMessage(
 }
 
 export function trimMessagesToCheckpoint(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 	runCount: number,
-): LlmsProviders.MessageWithMetadata[] {
+): LlmsProviders.SessionHistoryEntry[] {
 	const { index } = findUserRunMessage(messages, runCount);
 	return messages.slice(0, index + 1);
 }
 
 export function trimMessagesBeforeUserRun(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 	runCount: number,
-): LlmsProviders.MessageWithMetadata[] {
+): LlmsProviders.SessionHistoryEntry[] {
 	const { index, span } = findUserRunMessage(messages, runCount);
 	if (span !== 1) {
 		throw new Error(
@@ -265,7 +265,7 @@ export function trimMessagesBeforeUserRun(
 
 export function createCheckpointRestorePlan(input: {
 	session: SessionRecord;
-	messages?: LlmsProviders.MessageWithMetadata[];
+	messages?: LlmsProviders.SessionHistoryEntry[];
 	checkpointRunCount: number;
 	cwd?: string;
 	restoreMessages?: boolean;

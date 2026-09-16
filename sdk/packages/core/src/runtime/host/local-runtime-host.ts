@@ -30,6 +30,7 @@ import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
 import { resolveWorkspacePath } from "../../services/config";
+import { resolveAgentProviderConfig } from "../../services/llms/handler-factory";
 import { prepareLocalRuntimeBootstrap } from "../../services/local-runtime-bootstrap";
 import { nowIso } from "../../services/session-artifacts";
 import {
@@ -68,7 +69,9 @@ import {
 	readSessionHistoryOriginMetadata,
 	withSessionHistoryOriginMetadata,
 } from "../../session/history-origin";
+import { ConversationSnapshot } from "../../session/models/conversation-snapshot";
 import {
+	createSessionCompactionState,
 	projectSessionCompactionState,
 	type SessionCompactionState,
 } from "../../session/models/session-compaction";
@@ -710,7 +713,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const prepareTurn = createCompactionStateAwarePrepareTurn({
 			compact,
 			getState: () => activeSessionRef?.compactionState,
-			saveState: async (state, sourceMessages) => {
+			saveState: async (state, source) => {
 				const activeSession = activeSessionRef;
 				if (!activeSession) return;
 				const stateForSession = {
@@ -726,7 +729,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 					const result = await this.persistActiveSessionCompactionState(
 						activeSession,
 						stateForSession,
-						sourceMessages,
+						source,
 					);
 					if (!result.updated) {
 						configWithProvider.logger?.debug?.(
@@ -1084,6 +1087,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async runTurn(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		if (session.manualCompaction)
+			throw new Error("Session compaction is running.");
 		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
@@ -1167,6 +1172,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
+		if (session.manualCompaction) {
+			session.manualCompaction.abort(reason);
+			return;
+		}
 		session.config.telemetry?.capture({
 			event: "session.aborted",
 			properties: { sessionId },
@@ -1209,6 +1218,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async stopSession(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
+		session.manualCompaction?.abort(new Error("session_stop"));
 		session.config.telemetry?.capture({
 			event: "session.stopped",
 			properties: { sessionId },
@@ -1239,6 +1249,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
 		const sessions = [...this.sessions.values()];
+		for (const session of sessions)
+			session.manualCompaction?.abort(new Error(reason));
 		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
@@ -1327,6 +1339,102 @@ export class LocalRuntimeHost implements RuntimeHost {
 		return { updated: result?.updated === true };
 	}
 
+	async compactSession(
+		sessionId: string,
+	): Promise<import("./runtime-host").SessionCompactionResult> {
+		const session = this.getSessionOrThrow(sessionId);
+		if (
+			!session.agent.canStartRun() ||
+			session.status === "running" ||
+			session.turnPreparing ||
+			session.manualCompaction
+		) {
+			throw new Error("Cannot compact while a turn or compaction is running.");
+		}
+		const controller = new AbortController();
+		session.manualCompaction = controller;
+		try {
+			await this.syncOAuthCredentials(session);
+			const history = session.agent.getMessages();
+			const source = ConversationSnapshot.capture(history);
+			const unchanged = {
+				compacted: false,
+				messagesBefore: history.length,
+				messagesAfter: history.length,
+			};
+			if (!source.messages.length) return unchanged;
+			const providerConfig = resolveAgentProviderConfig(
+				session.config,
+				session.config.logger,
+			);
+			const compact = createContextCompactionPrepareTurn(
+				{
+					...session.config,
+					providerConfig,
+					compaction: { ...session.config.compaction, enabled: true },
+					sessionId,
+				},
+				{ mode: "manual" },
+			);
+			const info = providerConfig.knownModels?.[session.config.modelId];
+			const messages = source.messages;
+			let notice: Record<string, unknown> | undefined;
+			const result = await compact?.({
+				emitStatusNotice: (_message, metadata) => {
+					notice = metadata;
+				},
+				agentId: session.agent.getAgentId(),
+				conversationId: sessionId,
+				parentAgentId: null,
+				iteration: 0,
+				messages,
+				apiMessages: messages,
+				abortSignal: controller.signal,
+				systemPrompt: "",
+				tools: [],
+				model: {
+					id: session.config.modelId,
+					provider: session.config.providerId,
+					info: info
+						? { ...info, id: info.id ?? session.config.modelId }
+						: { id: session.config.modelId, maxInputTokens: 64_000 },
+				},
+			});
+			controller.signal.throwIfAborted();
+			if (this.sessions.get(sessionId) !== session)
+				throw new Error("Session changed during compaction.");
+			if (!result?.messages) return unchanged;
+			const state = createSessionCompactionState({
+				source,
+				compactedMessages: result.messages,
+				conversationId: sessionId,
+				systemPrompt: result.systemPrompt,
+			});
+			// Manual operations hold admission, so the captured history must still
+			// project before the write; auto compaction uses its exact mid-turn snapshot.
+			const live = ConversationSnapshot.capture(session.agent.getMessages());
+			const projection = projectSessionCompactionState(state, live);
+			if (projection.status === "invalid")
+				throw new Error(`Compaction source invalidated: ${projection.reason}`);
+			const saved = await this.persistActiveSessionCompactionState(
+				session,
+				state,
+				source,
+				controller.signal,
+			);
+			if (!saved.updated) throw new Error("Compaction could not be saved.");
+			return {
+				...unchanged,
+				compacted: true,
+				notice,
+				workingContextMessagesAfter: result.messages.length,
+			};
+		} finally {
+			if (session.manualCompaction === controller)
+				session.manualCompaction = undefined;
+		}
+	}
+
 	async updateSessionCompactionState(
 		sessionId: string,
 		state: SessionCompactionState,
@@ -1334,6 +1442,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const target = sessionId.trim();
 		if (!target) return { updated: false };
 		const activeSession = this.sessions.get(target);
+		if (activeSession?.manualCompaction) return { updated: false };
 		const sessionRecord = activeSession
 			? undefined
 			: await this.getSession(target);
@@ -1341,12 +1450,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!existing) return { updated: false };
 		if (activeSession) {
 			const persistedMessages = await this.readSessionMessages(target);
+			const persistedSource = ConversationSnapshot.capture(persistedMessages);
 			const hasPersistedSource =
 				state.source_message_count > 0 &&
-				persistedMessages.length >= state.source_message_count;
-			const validationMessages = hasPersistedSource
-				? persistedMessages
-				: undefined;
+				persistedSource.messages.length >= state.source_message_count;
+			const validationSource = hasPersistedSource ? persistedSource : undefined;
 			if (hasPersistedSource) {
 				if (
 					!(await this.canPersistCompactionState(
@@ -1354,7 +1462,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 						state,
 						activeSession,
 						undefined,
-						persistedMessages,
+						persistedSource,
 					))
 				) {
 					return { updated: false };
@@ -1364,7 +1472,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return await this.persistActiveSessionCompactionState(
 				activeSession,
 				state,
-				validationMessages,
+				validationSource,
 			);
 		}
 		if (
@@ -1435,7 +1543,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		state: SessionCompactionState,
 		activeSession?: ActiveSession,
 		sessionRecord?: SessionRecord,
-		sourceMessages?: readonly LlmsProviders.Message[],
+		source?: ConversationSnapshot,
 	): Promise<boolean> {
 		if (!state.conversation_id?.trim()) {
 			return false;
@@ -1451,18 +1559,29 @@ export class LocalRuntimeHost implements RuntimeHost {
 			return false;
 		}
 		const messagesForProjection =
-			sourceMessages ??
-			activeSession?.agent.getMessages() ??
-			(await this.readSessionMessages(sessionId));
-		return (
-			projectSessionCompactionState(state, messagesForProjection) !== undefined
+			source ??
+			ConversationSnapshot.capture(
+				activeSession?.agent.getMessages() ??
+					(await this.readSessionMessages(sessionId)),
+			);
+		const projection = projectSessionCompactionState(
+			state,
+			messagesForProjection,
 		);
+		if (projection.status === "invalid") {
+			(activeSession?.config.logger ?? this.defaultLogger)?.log?.(
+				"Compaction state rejected",
+				{ severity: "warn", sessionId, reason: projection.reason },
+			);
+		}
+		return projection.status === "projected";
 	}
 
 	private async persistActiveSessionCompactionState(
 		session: ActiveSession,
 		state: SessionCompactionState,
-		sourceMessages?: readonly LlmsProviders.Message[],
+		source?: ConversationSnapshot,
+		signal?: AbortSignal,
 	): Promise<{ updated: boolean }> {
 		if (
 			!(await this.canPersistCompactionState(
@@ -1470,19 +1589,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 				state,
 				session,
 				undefined,
-				sourceMessages,
+				source,
 			))
 		) {
 			return { updated: false };
 		}
 		return await this.enqueueCompactionStateWrite(session, async () => {
+			signal?.throwIfAborted();
 			const currentState = session.compactionState;
 			const currentStateStillProjects =
 				currentState !== undefined &&
 				projectSessionCompactionState(
 					currentState,
-					sourceMessages ?? session.agent.getMessages(),
-				) !== undefined;
+					source ?? ConversationSnapshot.capture(session.agent.getMessages()),
+				).messages !== undefined;
 			// The count-based stale guard exists to stop an old write from
 			// clobbering a newer one, which only makes sense while the stored
 			// state is still valid. An unprojectable state (e.g. invalidated by
@@ -1529,7 +1649,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async readLiveSessionMessages(
 		sessionId: string,
-	): Promise<LlmsProviders.MessageWithMetadata[]> {
+	): Promise<LlmsProviders.SessionHistoryEntry[]> {
 		const target = sessionId.trim();
 		if (!target) return [];
 		// Resident sessions are authoritative: disk persistence lags at
@@ -1549,7 +1669,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<LlmsProviders.MessageWithMetadata[]> {
+	): Promise<LlmsProviders.SessionHistoryEntry[]> {
 		const target = sessionId.trim();
 		if (!target) return [];
 		const row = await this.getRow(target);
@@ -1724,6 +1844,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 	// ── Turn execution ──────────────────────────────────────────────────
 
 	private async executeTurn(
+		session: ActiveSession,
+		input: {
+			prompt: string;
+			mode?: SendSessionInput["mode"];
+			userImages?: string[];
+			userFiles?: string[];
+		},
+	): Promise<AgentResult> {
+		if (session.manualCompaction)
+			throw new Error("Session compaction is running.");
+		if (session.turnPreparing)
+			throw new Error("Session turn is already running.");
+		session.turnPreparing = true;
+		try {
+			return await this.executeAdmittedTurn(session, input);
+		} finally {
+			session.turnPreparing = false;
+		}
+	}
+
+	private async executeAdmittedTurn(
 		session: ActiveSession,
 		input: {
 			prompt: string;
@@ -2501,7 +2642,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async runWithAuthRetry(
 		session: ActiveSession,
 		run: () => Promise<AgentResult>,
-		baselineMessages: LlmsProviders.Message[],
+		baselineMessages: LlmsProviders.SessionHistoryEntry[],
 	): Promise<AgentResult> {
 		try {
 			return await run();

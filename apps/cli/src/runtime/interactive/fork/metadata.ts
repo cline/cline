@@ -1,5 +1,5 @@
 import { SessionSource } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { SessionHistoryEntry } from "@cline/shared";
 import { deriveForkSessionTitle } from "./title";
 
 type SourceSession = {
@@ -12,7 +12,7 @@ export function buildForkSessionMetadata(input: {
 	forkedFromSessionId: string;
 	forkedAt: string;
 	sourceSession?: SourceSession;
-	messages: Message[];
+	messages: SessionHistoryEntry[];
 }): Record<string, unknown> {
 	const forkMetadata: Record<string, unknown> = {};
 	const sourceMetadata = input.sourceSession?.metadata ?? undefined;

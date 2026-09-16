@@ -19,7 +19,7 @@ import {
 import type {
 	SessionMessagesArtifactUploader,
 	SessionPersistenceAdapter,
-	StoredMessageWithMetadata,
+	StoredSessionHistoryEntry,
 } from "../../types/session";
 import {
 	parseSessionCompactionState,
@@ -197,7 +197,7 @@ export class SessionManifestStore {
 
 	async persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.MessageWithMetadata[],
+		messages: LlmsProviders.SessionHistoryEntry[],
 		systemPrompt?: string,
 	): Promise<void> {
 		const row = await this.resolveSessionRow(sessionId);
@@ -208,7 +208,7 @@ export class SessionManifestStore {
 		const payload = buildMessagesFilePayload({
 			updatedAt: nowIso(),
 			context: resolveMessagesFileContext(row),
-			messages: messages as StoredMessageWithMetadata[],
+			messages: messages as StoredSessionHistoryEntry[],
 			systemPrompt,
 		});
 		const contents = `${JSON.stringify(payload, null, 2)}\n`;

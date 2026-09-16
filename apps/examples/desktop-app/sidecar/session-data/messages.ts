@@ -7,7 +7,7 @@ import {
 } from "@cline/core";
 import {
 	isGeneratedMedia,
-	type MessageWithMetadata,
+	type SessionHistoryEntry,
 	validateImageMedia,
 } from "@cline/shared";
 import {
@@ -154,15 +154,15 @@ function extractImageBlock(
 
 export function readPersistedChatMessages(
 	sessionId: string,
-): MessageWithMetadata[] | null {
+): SessionHistoryEntry[] | null {
 	const path = sharedSessionMessagesPath(sessionId);
 	if (!existsSync(path)) {
 		return null;
 	}
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as
-			| { messages?: MessageWithMetadata[] }
-			| MessageWithMetadata[];
+			| { messages?: SessionHistoryEntry[] }
+			| SessionHistoryEntry[];
 		if (Array.isArray(parsed)) {
 			return parsed;
 		}

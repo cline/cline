@@ -9,6 +9,7 @@ import type {
 	Message,
 	MessageWithMetadata,
 	RedactedThinkingContent,
+	SessionHistoryEntry,
 	TextContent,
 	ThinkingContent,
 	ToolResultContent,
@@ -18,8 +19,10 @@ import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 
 export function messageToAgentMessages(
-	message: MessageWithMetadata,
+	message: SessionHistoryEntry,
 ): AgentMessage[] {
+	// Display-only history must never enter agent state or model requests.
+	if (message.role === "error") return [];
 	const blocks = normalizeContentBlocks(message.content);
 	const out: AgentMessage[] = [];
 	const baseId = message.id ?? generateMessageId();
@@ -113,7 +116,7 @@ export function messageToAgentMessages(
 }
 
 export function messagesToAgentMessages(
-	messages: readonly MessageWithMetadata[],
+	messages: readonly SessionHistoryEntry[],
 ): AgentMessage[] {
 	return messages.flatMap(messageToAgentMessages);
 }

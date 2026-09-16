@@ -15,7 +15,7 @@ import {
 } from "../session/models/session-manifest";
 import type { SessionRow } from "../session/models/session-row";
 import type { SessionSource, SessionStatus } from "../types/common";
-import type { StoredMessageWithMetadata } from "../types/session";
+import type { StoredSessionHistoryEntry } from "../types/session";
 import type { SessionRecord } from "../types/sessions";
 
 export function hasRuntimeHooks(hooks: AgentConfig["hooks"]): boolean {
@@ -63,15 +63,15 @@ function trimNonEmptyString(value: unknown): string | undefined {
 }
 
 function normalizeStoredMessageModelMetadata(
-	message: StoredMessageWithMetadata,
+	message: StoredSessionHistoryEntry,
 	fallback?: {
 		id?: string;
 		provider?: string;
 		family?: string;
 	},
-): StoredMessageWithMetadata {
+): StoredSessionHistoryEntry {
 	const next = {
-		...(message as StoredMessageWithMetadata & {
+		...(message as StoredSessionHistoryEntry & {
 			providerId?: string;
 			modelId?: string;
 		}),
@@ -112,18 +112,18 @@ function normalizeStoredMessageModelMetadata(
 }
 
 export function normalizeStoredMessagesForPersistence(
-	messages: LlmsProviders.MessageWithMetadata[],
-): StoredMessageWithMetadata[] {
+	messages: LlmsProviders.SessionHistoryEntry[],
+): StoredSessionHistoryEntry[] {
 	return messages.map((message) =>
-		normalizeStoredMessageModelMetadata(message as StoredMessageWithMetadata),
+		normalizeStoredMessageModelMetadata(message as StoredSessionHistoryEntry),
 	);
 }
 
 export function withLatestAssistantTurnMetadata(
-	messages: LlmsProviders.Message[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 	result: AgentResult,
-	previousMessages: LlmsProviders.MessageWithMetadata[] = [],
-): StoredMessageWithMetadata[] {
+	previousMessages: LlmsProviders.SessionHistoryEntry[] = [],
+): StoredSessionHistoryEntry[] {
 	const next = messages.map((message, index) => {
 		const previous = previousMessages[index];
 		const sameMessage =
@@ -133,8 +133,8 @@ export function withLatestAssistantTurnMetadata(
 			? ({
 					...previous,
 					...message,
-				} as StoredMessageWithMetadata)
-			: ({ ...message } as StoredMessageWithMetadata);
+				} as StoredSessionHistoryEntry)
+			: ({ ...message } as StoredSessionHistoryEntry);
 		return normalizeStoredMessageModelMetadata(merged);
 	});
 	const firstNewMessageIndex = previousMessages.length;
@@ -327,7 +327,7 @@ export function resolveMessagesFileContext(
 export function buildMessagesFilePayload(input: {
 	updatedAt: string;
 	context: MessagesFileContext;
-	messages: LlmsProviders.MessageWithMetadata[];
+	messages: LlmsProviders.SessionHistoryEntry[];
 	systemPrompt?: string;
 }): {
 	version: 1;
@@ -336,7 +336,7 @@ export function buildMessagesFilePayload(input: {
 	sessionId: string;
 	taskType?: string;
 	origin: MessagesFileContext["origin"];
-	messages: StoredMessageWithMetadata[];
+	messages: StoredSessionHistoryEntry[];
 	system_prompt?: string;
 } {
 	return {

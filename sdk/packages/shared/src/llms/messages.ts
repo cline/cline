@@ -175,3 +175,11 @@ export interface ToolDefinition {
 	/** JSON Schema for the tool's input parameters */
 	inputSchema: Record<string, unknown>;
 }
+
+/** A persisted session failure, never assistant output or model input. */
+export interface SessionErrorEntry extends Omit<MessageWithMetadata, "role"> {
+	role: "error";
+}
+
+/** Ordered session history includes conversation messages and session events. */
+export type SessionHistoryEntry = MessageWithMetadata | SessionErrorEntry;

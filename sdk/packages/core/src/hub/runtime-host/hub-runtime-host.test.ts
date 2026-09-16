@@ -1,6 +1,7 @@
 import type { AgentToolContext, HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
+import { ConversationSnapshot } from "../../session/models/conversation-snapshot";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
 
@@ -1644,6 +1645,32 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("requests core-owned compaction without the ordinary RPC timeout", async () => {
+		const result = {
+			compacted: true,
+			messagesBefore: 5,
+			messagesAfter: 5,
+			workingContextMessagesAfter: 1,
+		};
+		commandMock.mockResolvedValue({ ok: true, payload: result });
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		expect(await host.compactSession("sess-1")).toEqual(result);
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.compact",
+			{ sessionId: "sess-1" },
+			"sess-1",
+			{ timeoutMs: null },
+		);
+		commandMock.mockResolvedValue({
+			ok: false,
+			error: { message: "source changed" },
+		});
+		await expect(host.compactSession("sess-1")).rejects.toThrow(
+			"source changed",
+		);
+	});
+
 	it("throws when the hub rejects message reads", async () => {
 		const telemetry = { capture: vi.fn() };
 		commandMock.mockResolvedValue({
@@ -1681,7 +1708,9 @@ describe("HubRuntimeHost", () => {
 	it("records rejected compaction state updates as handled errors", async () => {
 		const telemetry = { capture: vi.fn() };
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "sess-1",
 		});
@@ -1720,7 +1749,9 @@ describe("HubRuntimeHost", () => {
 	it("treats stale compaction state updates as non-error no-ops", async () => {
 		const telemetry = { capture: vi.fn() };
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "sess-1",
 		});

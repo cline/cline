@@ -27,7 +27,11 @@ import type {
 } from "../extensions/contribution-registry";
 import type { HookControl } from "../hooks/contracts";
 import type { GeneratedMedia } from "../llms/media";
-import type { Message, MessageWithMetadata } from "../llms/messages";
+import type {
+	Message,
+	MessageWithMetadata,
+	SessionHistoryEntry,
+} from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
 import type { ModelTool } from "../llms/model-tools";
@@ -637,8 +641,8 @@ export interface AgentResult {
 	text: string;
 	/** Aggregated token usage and cost */
 	usage: LegacyAgentUsage;
-	/** Full conversation history */
-	messages: MessageWithMetadata[];
+	/** Full ordered session history, including session errors. */
+	messages: SessionHistoryEntry[];
 	/** All tool calls made during execution */
 	toolCalls: ToolCallRecord[];
 	/** Number of loop iterations */
@@ -662,7 +666,7 @@ export interface AgentResult {
 export const AgentResultSchema = z.object({
 	text: z.string(),
 	usage: AgentUsageSchema,
-	messages: z.array(z.custom<MessageWithMetadata>()),
+	messages: z.array(z.custom<SessionHistoryEntry>()),
 	toolCalls: z.array(ToolCallRecordSchema),
 	iterations: z.number(),
 	finishReason: AgentFinishReasonSchema,
@@ -725,7 +729,7 @@ export interface AgentConfig {
 	 * Optional preloaded conversation history for resume flows.
 	 * When provided, start by calling continue() to preserve history.
 	 */
-	initialMessages?: Message[];
+	initialMessages?: SessionHistoryEntry[];
 
 	// -------------------------------------------------------------------------
 	// Agent Behavior

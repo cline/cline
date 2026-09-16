@@ -5,6 +5,7 @@ import {
 	captureCompactionSkipped,
 	type TelemetryCompactionStrategy,
 } from "../../services/telemetry/core-events";
+import { ConversationSnapshot } from "../../session/models/conversation-snapshot";
 import {
 	createSessionCompactionState,
 	projectSessionCompactionState,
@@ -708,22 +709,29 @@ export function createCompactionStateAwarePrepareTurn(input: {
 	compact?: ContextPipelinePrepareTurn;
 	getState?: () => SessionCompactionState | undefined;
 	/**
-	 * Persist a freshly-computed compaction state. `sourceMessages` are the
-	 * exact canonical messages the state's source-prefix hash was computed
-	 * over; hosts must validate projection against these rather than a
+	 * Persist a freshly-computed compaction state. `source` is the captured
+	 * conversation the state's source-prefix hash was computed over; hosts
+	 * must validate projection against this snapshot rather than a
 	 * separately derived transcript, which can legally differ mid-turn and
 	 * spuriously reject the write.
 	 */
 	saveState?: (
 		state: SessionCompactionState,
-		sourceMessages: CoreCompactionContext["messages"],
+		source: ConversationSnapshot,
 	) => void | Promise<void>;
 }): ContextPipelinePrepareTurn {
 	return async (context) => {
+		const source = ConversationSnapshot.capture(context.messages);
 		const existingState = input.getState?.();
-		const projectedMessages = existingState
-			? projectSessionCompactionState(existingState, context.messages)
+		const projection = existingState
+			? projectSessionCompactionState(existingState, source)
 			: undefined;
+		if (projection?.status === "invalid") {
+			context.emitStatusNotice?.("compaction-state-invalidated", {
+				reason: projection.reason,
+			});
+		}
+		const projectedMessages = projection?.messages;
 		if (existingState && projectedMessages) {
 			// Re-compaction intentionally starts from the compacted projection plus
 			// canonical tail. This keeps automatic turns bounded without rebuilding a
@@ -739,12 +747,12 @@ export function createCompactionStateAwarePrepareTurn(input: {
 			if (result?.messages) {
 				const systemPrompt = result.systemPrompt ?? existingState.system_prompt;
 				const nextState = createSessionCompactionState({
-					sourceMessages: context.messages,
+					source,
 					compactedMessages: result.messages,
 					conversationId: context.conversationId,
 					systemPrompt,
 				});
-				await input.saveState?.(nextState, context.messages);
+				await input.saveState?.(nextState, source);
 				return {
 					...result,
 					...(systemPrompt !== undefined ? { systemPrompt } : {}),
@@ -762,12 +770,12 @@ export function createCompactionStateAwarePrepareTurn(input: {
 		const result = input.compact ? await input.compact(context) : undefined;
 		if (result?.messages) {
 			const nextState = createSessionCompactionState({
-				sourceMessages: context.messages,
+				source,
 				compactedMessages: result.messages,
 				conversationId: context.conversationId,
 				systemPrompt: result.systemPrompt,
 			});
-			await input.saveState?.(nextState, context.messages);
+			await input.saveState?.(nextState, source);
 		}
 		return result;
 	};

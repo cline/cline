@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { SqliteSessionStore } from "@cline/core";
-import type { MessageWithMetadata } from "@cline/shared";
+import type { SessionHistoryEntry } from "@cline/shared";
 
 /**
  * Child agents of a chat session: `spawn_agent` subagent runs and team-task
@@ -32,14 +32,14 @@ export type SessionAgentRecord = {
 const TEAM_TASK_MARKER = "__teamtask__";
 const LAST_ACTION_LIMIT = 160;
 
-function readMessagesFile(path: string): MessageWithMetadata[] | null {
+function readMessagesFile(path: string): SessionHistoryEntry[] | null {
 	if (!path || !existsSync(path)) {
 		return null;
 	}
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as
-			| { messages?: MessageWithMetadata[] }
-			| MessageWithMetadata[];
+			| { messages?: SessionHistoryEntry[] }
+			| SessionHistoryEntry[];
 		if (Array.isArray(parsed)) {
 			return parsed;
 		}
@@ -67,7 +67,7 @@ function resolveChildMessagesPath(record: {
  */
 export function readChildSessionMessages(
 	sessionId: string,
-): MessageWithMetadata[] | null {
+): SessionHistoryEntry[] | null {
 	const trimmed = sessionId.trim();
 	if (!trimmed) {
 		return null;

@@ -28,7 +28,7 @@ import type {
 	PersistedSessionUpdateInput,
 	SessionMessagesArtifactUploader,
 	SessionPersistenceAdapter,
-	StoredMessageWithMetadata,
+	StoredSessionHistoryEntry,
 } from "../../types/session";
 import { withSessionHistoryOriginMetadata } from "../history-origin";
 import type { SessionCompactionState } from "../models/session-compaction";
@@ -69,10 +69,10 @@ export class UnifiedSessionPersistenceService {
 	}
 
 	private toPersistedMessages(
-		messages: LlmsProviders.MessageWithMetadata[] | undefined,
+		messages: LlmsProviders.SessionHistoryEntry[] | undefined,
 		result?: AgentResult,
-		previousMessages?: LlmsProviders.MessageWithMetadata[],
-	): StoredMessageWithMetadata[] | undefined {
+		previousMessages?: LlmsProviders.SessionHistoryEntry[],
+	): StoredSessionHistoryEntry[] | undefined {
 		if (!messages) return undefined;
 		return result
 			? withLatestAssistantTurnMetadata(
@@ -315,7 +315,7 @@ export class UnifiedSessionPersistenceService {
 
 	persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.MessageWithMetadata[],
+		messages: LlmsProviders.SessionHistoryEntry[],
 		systemPrompt?: string,
 	): Promise<void> {
 		const normalizedMessages = normalizeStoredMessagesForPersistence(messages);
@@ -384,7 +384,7 @@ export class UnifiedSessionPersistenceService {
 		status: SessionStatus,
 		summary?: string,
 		result?: AgentResult,
-		messages?: LlmsProviders.MessageWithMetadata[],
+		messages?: LlmsProviders.SessionHistoryEntry[],
 	): Promise<void> {
 		return this.teamChildren.onTeamTaskEnd(
 			rootSessionId,

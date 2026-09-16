@@ -30,7 +30,7 @@ import {
 	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
-import { isLikelyAuthError, type MessageWithMetadata } from "@cline/shared";
+import { isLikelyAuthError, type SessionHistoryEntry } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
@@ -104,7 +104,7 @@ interface SessionState {
 	 */
 	fatalError?: Error;
 	/** Messages to inject into the next session manager for conversation continuity. */
-	pendingInitialMessages?: MessageWithMetadata[];
+	pendingInitialMessages?: SessionHistoryEntry[];
 }
 
 export class AcpAgent implements Agent {
@@ -247,7 +247,7 @@ export class AcpAgent implements Agent {
 		this.isSessionReady();
 
 		let session = this.sessions.get(params.sessionId);
-		let messages: MessageWithMetadata[];
+		let messages: SessionHistoryEntry[];
 
 		if (session?.sessionManager && session.activeSessionId) {
 			// The session is still live in this connection — replay its current
@@ -690,7 +690,7 @@ export class AcpAgent implements Agent {
 		session: SessionState,
 		acpSessionId: string,
 		options?: { resume?: boolean },
-	): Promise<MessageWithMetadata[] | undefined> {
+	): Promise<SessionHistoryEntry[] | undefined> {
 		if (session.sessionManager) {
 			return undefined;
 		}
@@ -709,7 +709,7 @@ export class AcpAgent implements Agent {
 			workspaceRoot: config.workspaceRoot,
 		});
 
-		let initialMessages: MessageWithMetadata[] | undefined;
+		let initialMessages: SessionHistoryEntry[] | undefined;
 		if (options?.resume) {
 			initialMessages = await sessionManager
 				.readMessages(acpSessionId)

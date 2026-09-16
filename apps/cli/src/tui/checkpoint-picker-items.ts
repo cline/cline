@@ -1,6 +1,6 @@
 import type { CheckpointEntry } from "@cline/core";
 import { getUserRunSpan } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { SessionHistoryEntry } from "@cline/shared";
 import { formatDisplayUserInput, truncateStr } from "@cline/shared";
 import type { CheckpointPickerItem } from "./components/dialogs/checkpoint-picker";
 
@@ -23,7 +23,7 @@ function checkpointForRun(
 	);
 }
 
-function extractText(content: Message["content"]): string {
+function extractText(content: SessionHistoryEntry["content"]): string {
 	if (typeof content === "string") {
 		return content;
 	}
@@ -56,7 +56,7 @@ function extractText(content: Message["content"]): string {
  * "Could not find user message for run N" and aborting the restore.
  */
 export function buildCheckpointPickerItems(
-	rawMessages: readonly Message[],
+	rawMessages: readonly SessionHistoryEntry[],
 	checkpointHistory: readonly CheckpointEntry[],
 ): CheckpointPickerItem[] {
 	const items: CheckpointPickerItem[] = [];

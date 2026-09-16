@@ -1,7 +1,7 @@
 import {
 	formatDisplayUserInput,
-	type Message,
 	normalizeUserInput,
+	type SessionHistoryEntry,
 } from "@cline/shared";
 
 const FORK_TITLE_SUFFIX = " (fork)";
@@ -22,7 +22,7 @@ function truncateForForkSuffix(base: string): string {
 	return base.slice(0, maxBaseLength).trimEnd();
 }
 
-function extractMessageText(message: Message): string | undefined {
+function extractMessageText(message: SessionHistoryEntry): string | undefined {
 	if (typeof message.content === "string") {
 		return message.content;
 	}
@@ -35,7 +35,9 @@ function extractMessageText(message: Message): string | undefined {
 	return parts.join("\n").trim() || undefined;
 }
 
-function inferForkTitleFromMessages(messages: Message[]): string | undefined {
+function inferForkTitleFromMessages(
+	messages: SessionHistoryEntry[],
+): string | undefined {
 	for (const role of ["user", "assistant"] as const) {
 		for (const message of messages) {
 			if (message.role !== role) {
@@ -54,7 +56,7 @@ function inferForkTitleFromMessages(messages: Message[]): string | undefined {
 export function deriveForkSessionTitle(input: {
 	sourceTitle?: string | null;
 	sourcePrompt?: string | null;
-	messages: Message[];
+	messages: SessionHistoryEntry[];
 }): string {
 	const base =
 		normalizeForkTitleText(input.sourceTitle ?? undefined) ??

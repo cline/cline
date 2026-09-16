@@ -48,6 +48,7 @@ import {
 	mergeModelOptions,
 	modelSupportsImageInput,
 	modelSupportsToolCalling,
+	type SessionHistoryEntry,
 	type ToolCallRecord,
 	usesImageGenerationOperation,
 } from "@cline/shared";
@@ -485,7 +486,7 @@ export class SessionRuntime {
 		return this.conversation.getConversationId();
 	}
 
-	getMessages(): MessageWithMetadata[] {
+	getMessages(): SessionHistoryEntry[] {
 		return this.conversation.getMessages();
 	}
 
@@ -559,7 +560,7 @@ export class SessionRuntime {
 		this.resetConversationBoundaryTrackers();
 	}
 
-	restore(messages: readonly MessageWithMetadata[]): void {
+	restore(messages: readonly SessionHistoryEntry[]): void {
 		this.conversation.restore(messages);
 		this.resetConversationBoundaryTrackers();
 	}

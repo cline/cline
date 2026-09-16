@@ -100,7 +100,10 @@ function readPositiveInteger(value: unknown): number | undefined {
 }
 
 export function resolveKnownModelsFromConfig(
-	config: AgentConfig,
+	config: Pick<
+		AgentConfig,
+		"providerConfig" | "knownModels" | "providerId" | "modelId"
+	>,
 ): Record<string, ModelInfo> | undefined {
 	const pc = config.providerConfig as ProviderConfig | undefined;
 	const knownModels = pc?.knownModels
@@ -165,15 +168,30 @@ function toGatewayConfiguredModel(
 	};
 }
 
-export function createAgentModelFromConfig(
-	config: AgentConfig,
-	logger: BasicLogger | undefined,
-	telemetry?: ITelemetryService,
-): AgentModel {
+/** Shared connection resolution for normal turns and session compaction. */
+export function resolveAgentProviderConfig(
+	config: Pick<
+		AgentConfig,
+		| "providerConfig"
+		| "providerId"
+		| "modelId"
+		| "apiKey"
+		| "baseUrl"
+		| "headers"
+		| "knownModels"
+		| "maxTokensPerTurn"
+		| "temperature"
+		| "reasoningEffort"
+		| "thinkingBudgetTokens"
+		| "thinking"
+		| "extensionContext"
+	>,
+	logger?: BasicLogger,
+): ProviderConfig {
 	const pc = config.providerConfig as ProviderConfig | undefined;
 	const baseProviderConfig =
 		pc?.providerId === config.providerId ? pc : undefined;
-	const normalizedProviderConfig: ProviderConfig = {
+	return {
 		...(baseProviderConfig ?? {}),
 		providerId: config.providerId,
 		modelId: config.modelId,
@@ -189,6 +207,14 @@ export function createAgentModelFromConfig(
 		logger,
 		extensionContext: config.extensionContext,
 	};
+}
+
+export function createAgentModelFromConfig(
+	config: AgentConfig,
+	logger: BasicLogger | undefined,
+	telemetry?: ITelemetryService,
+): AgentModel {
+	const normalizedProviderConfig = resolveAgentProviderConfig(config, logger);
 
 	// Host-registered custom handlers (e.g. VS Code LM, which needs the host's
 	// `vscode.lm` API) are not part of the gateway. When a handler is registered

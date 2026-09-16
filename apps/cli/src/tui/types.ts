@@ -6,7 +6,7 @@ import type {
 	TeamEvent,
 } from "@cline/core";
 import type {
-	MessageWithMetadata,
+	SessionHistoryEntry,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
@@ -99,7 +99,7 @@ export interface InteractiveTurnResult {
 }
 
 export interface ResumedSessionResult {
-	messages: MessageWithMetadata[];
+	messages: SessionHistoryEntry[];
 	totalCost?: number;
 	currentContextSize?: number;
 }
@@ -152,7 +152,7 @@ export interface TuiProps {
 	initialPrompt?: string;
 	initialNotice?: CliMigrationNotice;
 	onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
-	initialMessages?: MessageWithMetadata[];
+	initialMessages?: SessionHistoryEntry[];
 	loadDeferredInitialMessages?: () => Promise<ResumedSessionResult>;
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
@@ -226,7 +226,7 @@ export interface TuiProps {
 	>;
 	getCheckpointData: () => Promise<
 		| {
-				messages: MessageWithMetadata[];
+				messages: SessionHistoryEntry[];
 				checkpointHistory: CheckpointEntry[];
 		  }
 		| undefined
@@ -235,7 +235,7 @@ export interface TuiProps {
 		runCount: number,
 		restoreWorkspace: boolean,
 	) => Promise<
-		{ newSessionId: string; messages: MessageWithMetadata[] } | undefined
+		{ newSessionId: string; messages: SessionHistoryEntry[] } | undefined
 	>;
 	setToolApprover: (
 		approver:

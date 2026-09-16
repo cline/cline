@@ -2,6 +2,7 @@ import {
 	type AgentEvent,
 	type AgentHooks,
 	type CheckpointEntry,
+	ConversationSnapshot,
 	type CoreSettingsListInput,
 	type CoreSettingsMutationResult,
 	type CoreSettingsSnapshot,
@@ -19,7 +20,7 @@ import {
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
 } from "@cline/core";
-import type { MessageWithMetadata } from "@cline/shared";
+import type { SessionHistoryEntry } from "@cline/shared";
 import { createCliCore } from "../../session/session";
 import { submitAndExitInTerminal } from "../../utils/approval";
 import type {
@@ -39,7 +40,6 @@ import {
 	subscribeToAgentEvents,
 	subscribeToPendingPromptEvents,
 } from "../session-events";
-import { compactInteractiveMessages } from "./compaction";
 import {
 	createInteractiveExitSummary,
 	type InteractiveExitSummary,
@@ -60,11 +60,11 @@ type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
 type CurrentMessagesRead =
-	| { messages: MessageWithMetadata[]; status: "read" }
-	| { messages: MessageWithMetadata[]; status: "recovered" }
-	| { messages: MessageWithMetadata[]; status: "stale" };
+	| { messages: SessionHistoryEntry[]; status: "read" }
+	| { messages: SessionHistoryEntry[]; status: "recovered" }
+	| { messages: SessionHistoryEntry[]; status: "stale" };
 type MissingSessionRecovery = {
-	messages: MessageWithMetadata[];
+	messages: SessionHistoryEntry[];
 };
 type ToolPolicyResolver = (
 	toolName: string,
@@ -126,7 +126,6 @@ export function createInteractiveSessionRuntime(input: {
 	// A reset can happen while an earlier manager.start() is still in flight.
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
-	let manualCompactionAbortController: AbortController | undefined;
 
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
@@ -214,7 +213,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const startFreshSession = async (
-		initial: MessageWithMetadata[] = [],
+		initial: SessionHistoryEntry[] = [],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
 		// Restarting an old session associate with this ID,
@@ -247,7 +246,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const startResumedSession = async (
 		resumeId: string,
-		initial: MessageWithMetadata[] | undefined,
+		initial: SessionHistoryEntry[] | undefined,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
@@ -438,7 +437,7 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const restartWithMessages = async (
-		messages: MessageWithMetadata[],
+		messages: SessionHistoryEntry[],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
 		options?: { preserveSessionId?: boolean },
@@ -494,15 +493,23 @@ export function createInteractiveSessionRuntime(input: {
 			// operation changed the active session while this read was in flight.
 			return;
 		}
-		const projectedMessages = compactionState
-			? projectSessionCompactionState(compactionState, messages)
+		const compactionSource = ConversationSnapshot.capture(messages);
+		const projection = compactionState
+			? projectSessionCompactionState(compactionState, compactionSource)
 			: undefined;
+		if (projection?.status === "invalid") {
+			input.config.logger?.log?.("Discarding invalid compaction state", {
+				severity: "warn",
+				reason: projection.reason,
+			});
+		}
+		const projectedMessages = projection?.messages;
 		await restartWithMessages(
 			messages,
 			undefined,
 			projectedMessages
 				? createSessionCompactionState({
-						sourceMessages: messages,
+						source: compactionSource,
 						compactedMessages: projectedMessages,
 						systemPrompt: compactionState?.system_prompt,
 					})
@@ -637,9 +644,17 @@ export function createInteractiveSessionRuntime(input: {
 			throw new Error("Cannot fork an empty session.");
 		}
 		const compactionState = await readCompactionState(forkedFromSessionId);
-		const projectedMessages = compactionState
-			? projectSessionCompactionState(compactionState, messages)
+		const compactionSource = ConversationSnapshot.capture(messages);
+		const projection = compactionState
+			? projectSessionCompactionState(compactionState, compactionSource)
 			: undefined;
+		if (projection?.status === "invalid") {
+			input.config.logger?.log?.("Discarding invalid compaction state", {
+				severity: "warn",
+				reason: projection.reason,
+			});
+		}
+		const projectedMessages = projection?.messages;
 		await manager.stop(forkedFromSessionId);
 		const forkMetadata = buildForkSessionMetadata({
 			forkedFromSessionId,
@@ -652,7 +667,7 @@ export function createInteractiveSessionRuntime(input: {
 			forkMetadata,
 			projectedMessages
 				? createSessionCompactionState({
-						sourceMessages: messages,
+						source: compactionSource,
 						compactedMessages: projectedMessages,
 						systemPrompt: compactionState?.system_prompt,
 					})
@@ -678,7 +693,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const resumeSession = async (
 		sessionId: string,
-	): Promise<MessageWithMetadata[]> => {
+	): Promise<SessionHistoryEntry[]> => {
 		const manager = await ensureSessionManager();
 		const sessionRecord = await manager.get(sessionId);
 		if (!sessionRecord) {
@@ -709,71 +724,12 @@ export function createInteractiveSessionRuntime(input: {
 		if (!manager || !sourceSessionId) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const { messages, status } = await readCurrentMessages();
-		if (status === "stale" || (status === "recovered" && !activeSessionId)) {
-			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
-		}
-		// If reading messages recovered the session, `messages` are the same messages
-		// used to seed the replacement session, so it is safe to compact the current
-		// active session with them.
-		const messagesBefore = messages.length;
-		if (messagesBefore === 0) {
-			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
-		}
-		const sessionRecord = await manager.get(sourceSessionId);
-		if (sessionRecord?.status === "running") {
-			throw new Error(
-				"Cannot compact while the current turn is running. Wait for it to finish or abort it first.",
-			);
-		}
-		let result: Awaited<ReturnType<typeof compactInteractiveMessages>>;
-		const abortController = new AbortController();
-		manualCompactionAbortController = abortController;
-		try {
-			result = await compactInteractiveMessages({
-				config: input.config,
-				providerSettingsManager: input.providerSettingsManager,
-				sessionId: sourceSessionId,
-				messages,
-				abortSignal: abortController.signal,
-			});
-		} finally {
-			if (manualCompactionAbortController === abortController) {
-				manualCompactionAbortController = undefined;
-			}
-		}
-		if (!result.compacted) {
-			return {
-				messagesBefore,
-				messagesAfter: messagesBefore,
-				compacted: false,
-			};
-		}
-		if (!result.compactionState) {
-			return {
-				messagesBefore,
-				messagesAfter: messagesBefore,
-				compacted: false,
-			};
-		}
-		const updated = await manager.updateSessionCompactionState(
-			sourceSessionId,
-			result.compactionState,
-		);
-		if (!updated.updated) {
-			throw new Error("Compaction could not be saved. Try again.");
-		}
-		return {
-			messagesBefore,
-			messagesAfter: result.canonicalMessages.length,
-			workingContextMessagesAfter: result.compactionState?.messages.length,
-			compacted: true,
-		};
+		return manager.compactSession(sourceSessionId);
 	};
 
 	const getCheckpointData = async (): Promise<
 		| {
-				messages: MessageWithMetadata[];
+				messages: SessionHistoryEntry[];
 				checkpointHistory: CheckpointEntry[];
 		  }
 		| undefined
@@ -797,7 +753,7 @@ export function createInteractiveSessionRuntime(input: {
 		runCount: number,
 		restoreWorkspace: boolean,
 	): Promise<
-		{ newSessionId: string; messages: MessageWithMetadata[] } | undefined
+		{ newSessionId: string; messages: SessionHistoryEntry[] } | undefined
 	> => {
 		const manager = sessionManager;
 		if (!manager || !activeSessionId) {
@@ -858,9 +814,6 @@ export function createInteractiveSessionRuntime(input: {
 		}
 		abortRequested = true;
 		markAbortInProgress();
-		manualCompactionAbortController?.abort(
-			new Error("Interactive runtime abort requested"),
-		);
 		sessionManager
 			.abort(activeSessionId, new Error("Interactive runtime abort requested"))
 			.catch(() => {});

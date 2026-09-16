@@ -9,7 +9,7 @@
  * class uses to decide when to fire `session_start` hooks.
  */
 
-import type { MessageWithMetadata } from "@cline/shared";
+import type { SessionHistoryEntry } from "@cline/shared";
 
 /** Generate a fresh conversation id. Exported for reuse by `SessionRuntime`. */
 export function createConversationId(): string {
@@ -17,11 +17,11 @@ export function createConversationId(): string {
 }
 
 export class ConversationStore {
-	private messages: MessageWithMetadata[] = [];
+	private messages: SessionHistoryEntry[] = [];
 	private conversationId = createConversationId();
 	private sessionStarted = false;
 
-	constructor(initialMessages?: readonly MessageWithMetadata[]) {
+	constructor(initialMessages?: readonly SessionHistoryEntry[]) {
 		if ((initialMessages?.length ?? 0) > 0) {
 			this.restore(initialMessages ?? []);
 		}
@@ -31,23 +31,43 @@ export class ConversationStore {
 		return this.conversationId;
 	}
 
-	getMessages(): MessageWithMetadata[] {
+	getMessages(): SessionHistoryEntry[] {
 		return [...this.messages];
 	}
 
-	appendMessage(message: MessageWithMetadata): void {
+	appendMessage(message: SessionHistoryEntry): void {
 		this.messages.push(message);
 	}
 
-	appendMessages(messages: readonly MessageWithMetadata[]): void {
+	appendMessages(messages: readonly SessionHistoryEntry[]): void {
 		if (messages.length === 0) {
 			return;
 		}
 		this.messages.push(...messages);
 	}
 
-	replaceMessages(messages: readonly MessageWithMetadata[]): void {
-		this.messages = [...messages];
+	replaceMessages(messages: readonly SessionHistoryEntry[]): void {
+		// Agent snapshots exclude display-only entries. Reinsert each after its
+		// closest surviving predecessor; compacted-away history lands at the start.
+		const indices = new Map(
+			messages.map((message, index) => [message.id, index]),
+		);
+		const insertions = new Map<number, SessionHistoryEntry[]>();
+		let anchor = -1;
+		for (const message of this.messages) {
+			const index = message.id ? indices.get(message.id) : undefined;
+			if (index !== undefined) {
+				anchor = index;
+			} else if (message.role === "error") {
+				const entries = insertions.get(anchor) ?? [];
+				entries.push(message);
+				insertions.set(anchor, entries);
+			}
+		}
+		this.messages = [...(insertions.get(-1) ?? [])];
+		for (const [index, message] of messages.entries()) {
+			this.messages.push(message, ...(insertions.get(index) ?? []));
+		}
 	}
 
 	resetForRun(): void {
@@ -62,7 +82,7 @@ export class ConversationStore {
 		this.sessionStarted = false;
 	}
 
-	restore(messages: readonly MessageWithMetadata[]): void {
+	restore(messages: readonly SessionHistoryEntry[]): void {
 		this.messages = [...messages];
 		this.sessionStarted = false;
 	}

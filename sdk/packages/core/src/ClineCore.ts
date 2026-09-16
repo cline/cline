@@ -498,8 +498,12 @@ export class ClineCore {
 	update: RuntimeHost["updateSession"] = (...args) =>
 		this.host.updateSession(...args);
 	/**
-	 * Stores the compacted working-context state for an existing session.
+	 * Compacts an idle session and persists its working context without replacing history.
 	 */
+	compactSession: RuntimeHost["compactSession"] = (sessionId) =>
+		this.host.compactSession(sessionId);
+
+	/** Stores externally computed state; callers must capture a ConversationSnapshot. */
 	updateSessionCompactionState: RuntimeHost["updateSessionCompactionState"] = (
 		...args
 	) => this.host.updateSessionCompactionState(...args);
@@ -512,9 +516,9 @@ export class ClineCore {
 	/**
 	 * Reads the canonical message history for a session.
 	 *
-	 * This is the model/replay representation used by resume, fork, and
-	 * compaction. Provider-owned model-tool activity remains observational
-	 * metadata here. Use {@link readDisplayMessages} for a UI transcript with
+	 * This is full session history, including typed error entries. Resume and
+	 * compaction derive their conversation through ConversationSnapshot.
+	 * Use {@link readDisplayMessages} for a UI transcript with
 	 * that activity projected into ordinary tool blocks.
 	 *
 	 * @example
