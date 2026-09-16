@@ -1493,7 +1493,7 @@ export class CloudSessionManager {
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
 					throw new CloudSessionError(
 						"request_failed",
-						"The connection was interrupted before this message could be confirmed. It was not found in the cloud session, so please send it again.",
+						"Cline could not confirm whether this message was accepted. Check the cloud session before resending it.",
 					);
 				}
 				return {
