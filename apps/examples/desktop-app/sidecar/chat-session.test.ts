@@ -2389,3 +2389,35 @@ describe("mistake-limit prompt", () => {
 		expect(start).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("queue steering routing", () => {
+	it.each([
+		undefined,
+		"selected-prompt",
+	])("routes steering with prompt ID %s", async (promptId) => {
+		const result = { sessionId: "session", prompts: [], updated: false };
+		const steerFirst = vi.fn(async () => result);
+		const update = vi.fn(async () => result);
+		const ctx = {
+			liveSessions: new Map(),
+			wsClients: new Set(),
+			...localRuntimeContext({ pendingPrompts: { steerFirst, update } }),
+		} as unknown as SidecarContext;
+		await handleChatSessionCommand(ctx, {
+			action: "steer_prompt",
+			sessionId: "session",
+			promptId,
+		});
+		if (promptId === undefined) {
+			expect(steerFirst).toHaveBeenCalledWith({ sessionId: "session" });
+			expect(update).not.toHaveBeenCalled();
+		} else {
+			expect(update).toHaveBeenCalledWith({
+				sessionId: "session",
+				promptId,
+				delivery: "steer",
+			});
+			expect(steerFirst).not.toHaveBeenCalled();
+		}
+	});
+});

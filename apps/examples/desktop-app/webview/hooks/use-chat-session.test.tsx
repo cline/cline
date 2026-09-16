@@ -12,6 +12,7 @@ import {
 	buildPreviousTimestampMap,
 	getThoughtDurationMilliseconds,
 } from "../components/views/chat/messages/group-messages";
+import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -108,6 +109,263 @@ describe("useChatSession", () => {
 			handler({ ...question, environmentId: "local" });
 		});
 		expect(current.pendingAskQuestions).toHaveLength(1);
+	});
+
+	it("sends first-prompt steering intent without reading a queue snapshot", async () => {
+		const requests: Record<string, unknown>[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as Record<string, unknown>;
+				requests.push(request);
+				if (request.action === "start") return { sessionId: "atomic-steer" };
+				return { promptsInQueue: [] };
+			},
+		);
+		await act(async () => current.start(current.config));
+		requests.length = 0;
+		await act(async () => current.steerPromptInQueue());
+		expect(requests).toEqual([
+			{
+				action: "steer_prompt",
+				sessionId: "atomic-steer",
+				config: { environmentId: "local" },
+			},
+		]);
+	});
+
+	it("steers the first server entry after enqueue acknowledgement without waiting for the active response", async () => {
+		const sessionId = "session-quick-steer";
+		const activeResponse = deferred<unknown>();
+		const queuedResponse = deferred<unknown>();
+		let acknowledged = false;
+		const queued = { id: "pending-real", prompt: "queued", steer: false };
+		const requests: Array<{
+			action?: string;
+			prompt?: string;
+			promptId?: string;
+		}> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as (typeof requests)[number];
+				requests.push(request);
+				if (request.action === "start") return { sessionId };
+				if (request.action === "send")
+					return request.prompt === "active"
+						? activeResponse.promise
+						: queuedResponse.promise;
+				if (request.action === "pending_prompts")
+					return { promptsInQueue: acknowledged ? [queued] : [] };
+				if (request.action === "steer_prompt")
+					return {
+						updated: true,
+						promptsInQueue: [{ ...queued, steer: true }],
+					};
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		let activeTask!: Promise<void>;
+		await act(async () => {
+			activeTask = current.sendPrompt("active");
+		});
+		let queuedTask!: Promise<void>;
+		await act(async () => {
+			queuedTask = current.sendPrompt("queued");
+		});
+		expect(current.promptsInQueue[0]?.id).not.toBe(queued.id);
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue();
+		});
+		expect(requests.some((request) => request.action === "steer_prompt")).toBe(
+			false,
+		);
+		await act(async () => {
+			acknowledged = true;
+			queuedResponse.resolve({
+				ok: true,
+				queued: true,
+				promptsInQueue: [queued],
+			});
+			await queuedTask;
+			await steerTask;
+		});
+		expect(
+			requests.filter((request) => request.action === "steer_prompt"),
+		).toEqual([
+			{ action: "steer_prompt", sessionId, config: { environmentId: "local" } },
+		]);
+		expect(current.status).toBe("running");
+		await act(async () => {
+			activeResponse.resolve({ ok: true });
+			await activeTask;
+		});
+	});
+
+	it("steers an acknowledged prompt when another submission never acknowledges", async () => {
+		vi.useFakeTimers();
+		try {
+			const sessionId = "session-quick-steer";
+			const activeResponse = deferred<unknown>();
+			const queuedResponse = deferred<unknown>();
+			const acknowledged = true;
+			const queued = { id: "pending-real", prompt: "queued", steer: false };
+			const requests: Array<{
+				action?: string;
+				prompt?: string;
+				promptId?: string;
+			}> = [];
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command !== "chat_session_command") return [];
+					const request = args?.request as (typeof requests)[number];
+					requests.push(request);
+					if (request.action === "start") return { sessionId };
+					if (request.action === "send")
+						return request.prompt === "active"
+							? activeResponse.promise
+							: queuedResponse.promise;
+					if (request.action === "pending_prompts")
+						return { promptsInQueue: acknowledged ? [queued] : [] };
+					if (request.action === "steer_prompt")
+						return {
+							updated: true,
+							promptsInQueue: [{ ...queued, steer: true }],
+						};
+					return {};
+				},
+			);
+			await act(async () => current.start(current.config));
+			let activeTask!: Promise<void>;
+			await act(async () => {
+				activeTask = current.sendPrompt("active");
+			});
+
+			await act(async () => {
+				void current.sendPrompt("queued");
+			});
+			expect(current.promptsInQueue[0]?.id).toBe(queued.id);
+			let steerTask!: Promise<void>;
+			await act(async () => {
+				steerTask = current.steerPromptInQueue();
+			});
+			expect(
+				requests.some((request) => request.action === "steer_prompt"),
+			).toBe(false);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1_000);
+				await steerTask;
+			});
+			expect(
+				requests.filter((request) => request.action === "steer_prompt"),
+			).toEqual([
+				{
+					action: "steer_prompt",
+					sessionId,
+					config: { environmentId: "local" },
+				},
+			]);
+			await act(async () => {
+				activeResponse.resolve({ ok: true });
+				await activeTask;
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+	it("does not resurrect a consumed queued prompt when its steering reply arrives late", async () => {
+		const sessionId = "session-steer-snapshot";
+		const reply = deferred<unknown>();
+		const first = { id: "pending-first", prompt: "first", steer: false };
+		const second = { id: "pending-second", prompt: "second", steer: false };
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string };
+				if (request.action === "start") return { sessionId };
+				if (request.action === "steer_prompt") return reply.promise;
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({
+				sessionId,
+				items: [first, second],
+			});
+		});
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue(first.id);
+		});
+		await act(async () => {
+			handlerFor("chat_event")({
+				sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({ promptId: first.id, prompt: first.prompt }),
+				ts: Date.now(),
+				index: 1,
+			});
+			handlerFor("prompts_in_queue_state")({ sessionId, items: [second] });
+		});
+		await act(async () => {
+			reply.resolve({
+				updated: true,
+				promptsInQueue: [{ ...first, steer: true }, second],
+			});
+			await steerTask;
+		});
+		expect(current.promptsInQueue).toEqual([second]);
+	});
+
+	it.each([
+		"remove",
+		"edit",
+		"enqueue",
+	] as const)("preserves a concurrent queue %s when a steering reply arrives late", async (mutation) => {
+		const sessionId = "session-steer-snapshot";
+		const reply = deferred<unknown>();
+		const first = { id: "pending-first", prompt: "first", steer: false };
+		const second = { id: "pending-second", prompt: "second", steer: false };
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string };
+				if (request.action === "start") return { sessionId };
+				if (request.action === "steer_prompt") return reply.promise;
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({
+				sessionId,
+				items: [first, second],
+			});
+		});
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue(first.id);
+		});
+		const newerQueue =
+			mutation === "remove"
+				? [second]
+				: mutation === "edit"
+					? [first, { ...second, prompt: "edited" }]
+					: [first, second, { id: "third", prompt: "third", steer: false }];
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({ sessionId, items: newerQueue });
+		});
+		await act(async () => {
+			reply.resolve({
+				updated: true,
+				promptsInQueue: [{ ...first, steer: true }, second],
+			});
+			await steerTask;
+		});
+		expect(current.promptsInQueue).toEqual(newerQueue);
 	});
 
 	it("restores an idle parent when aborting its child fails", async () => {
@@ -838,6 +1096,207 @@ describe("useChatSession", () => {
 			result: "done",
 		});
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
+	});
+
+	function mockStreamingToolSession() {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-stream-end",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+	}
+
+	it("keeps streamed output and stops the running presentation when the tool ends without a final output", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "compiling...\n" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "done\n" },
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const streaming = current.messages.find((m) => m.role === "tool");
+		if (!streaming) throw new Error("Expected a tool message");
+		expect(streaming.meta?.toolOutput).toBe("compiling...\ndone\n");
+		expect(buildToolPresentation(streaming).inProgress).toBe(true);
+
+		// The runtime finishes the call without repeating the streamed output.
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					durationMs: 12,
+				}),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(completed.meta?.hookEventName).toBe("tool_call_end");
+		// The streamed output survives completion as the payload result…
+		expect(JSON.parse(completed.content)).toMatchObject({
+			toolName: "run_commands",
+			result: "compiling...\ndone\n",
+			isError: false,
+		});
+		expect(completed.meta?.toolOutput).toBe("compiling...\ndone\n");
+		// …so the finished tool no longer presents as pending/spinning.
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
+	it("prefers a final chat_tool_call_end output over the streamed output", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "partial" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					output: "final output",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(JSON.parse(completed.content)).toMatchObject({
+			result: "final output",
+			isError: false,
+		});
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
+	it("reports a tool error even when output was streamed first", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					update: { stream: "stderr", chunk: "boom\n" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					error: "command failed",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(JSON.parse(completed.content)).toMatchObject({
+			result: "command failed",
+			isError: true,
+		});
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
 	});
 
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {

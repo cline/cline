@@ -1814,3 +1814,26 @@ describe("HubRuntimeHost", () => {
 		expect(disposeMock).toHaveBeenCalledTimes(1);
 	});
 });
+
+it("sends atomic first-prompt steering through the Hub without listing the queue", async () => {
+	const { HubRuntimeHost } = await import("./hub-runtime-host");
+	const result = {
+		sessionId: "session",
+		prompts: [{ id: "current-head", prompt: "current", delivery: "steer" }],
+		updated: true,
+	};
+	commandMock.mockResolvedValue({ payload: result });
+	const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+	try {
+		expect(
+			await host.pendingPrompts.steerFirst({ sessionId: "session" }),
+		).toMatchObject(result);
+		expect(commandMock).toHaveBeenCalledExactlyOnceWith(
+			"session.steer_first_pending_prompt",
+			{ sessionId: "session" },
+			"session",
+		);
+	} finally {
+		await host.dispose();
+	}
+});

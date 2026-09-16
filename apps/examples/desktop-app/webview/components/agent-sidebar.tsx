@@ -661,7 +661,7 @@ export function AgentSidebar({
 	);
 	// A single click flips straight to the other mode (a dropdown here would
 	// cost an extra click for a two-option choice); the icon shows the mode
-	// that is currently active.
+	// the click switches to, not the one currently active.
 	const sortToggle = (
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
@@ -678,9 +678,9 @@ export function AgentSidebar({
 			variant="ghost"
 		>
 			{sortMode === "time" ? (
-				<Clock3 className="size-3.5" />
-			) : (
 				<FolderTree className="size-3.5" />
+			) : (
+				<Clock3 className="size-3.5" />
 			)}
 		</Button>
 	);

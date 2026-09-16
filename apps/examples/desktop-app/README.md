@@ -63,6 +63,23 @@ names, paths, PR numbers/titles, check names, and URLs are not included.
 Automatic polling does not emit additional impressions. Telemetry delivery
 does not block interactions, and failures do not interrupt the feature.
 
+## App Icons
+
+`src-tauri/app-icon.png` (1024x1024, edge-to-edge) is the source for
+`bun tauri icon`, which generates the Windows `.ico` and Linux PNGs in
+`src-tauri/icons/`. macOS is the exception: Dock icons are expected to have a
+transparent margin, with the artwork filling 824 of the 1024 canvas, so the
+committed `icons/icon.icns` is built from a padded copy of the source, and the
+selectable runtime icons in `icons/app/macos/` are padded copies of the
+Windows ones in `icons/app/`. To regenerate the macOS icon after changing the
+artwork:
+
+```bash
+cd src-tauri
+magick app-icon.png -resize 824x824 -background none -gravity center -extent 1024x1024 /tmp/app-icon-macos.png
+bun tauri icon /tmp/app-icon-macos.png -o /tmp/icons-macos && cp /tmp/icons-macos/icon.icns icons/icon.icns
+```
+
 ## Customizing the macOS Install Window
 
 The drag-to-Applications window is configured by `bundle.macOS.dmg` in
