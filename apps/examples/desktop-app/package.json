@@ -32,6 +32,7 @@
 		"pretest:settings-ui": "bun run build:ui",
 		"test:settings-ui": "vitest run webview/components/views/settings webview/components/ui/switch-integration.test.tsx --config vitest.config.ts",
 		"test:sidecar": "vitest run sidecar scripts/telemetry-define-args.test.ts --config vitest.config.ts",
+		"test:build-sidecar-target": "bun test scripts/build-sidecar-target.test.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
