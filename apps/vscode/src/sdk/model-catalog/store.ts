@@ -588,8 +588,12 @@ function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsReco
 
 // Credential-bearing fields. A GUI patch that touches any of these means the
 // user (re-)entered the provider's auth by hand, so the entry is no longer
-// purely "migration"/"oauth" sourced.
-const CREDENTIAL_PATCH_KEYS = ["apiKey", "aws", "auth"] as const
+// purely "migration"/"oauth" sourced. `headers` counts because custom request
+// headers are a credential channel of their own: OpenAI-compatible providers
+// can carry the key in `Authorization` or `api-key` rather than in `apiKey`.
+// `gcp` (project id + region) and `extras` (token limits, prompt-cache flags,
+// Bedrock profile names) hold no secrets, so they stay out of the list.
+const CREDENTIAL_PATCH_KEYS = ["apiKey", "aws", "auth", "headers"] as const
 
 function patchTouchesCredentials(patch: ProviderConfigPatch): boolean {
 	return CREDENTIAL_PATCH_KEYS.some((key) => key in patch)

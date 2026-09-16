@@ -244,6 +244,25 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
 	})
 
+	// Request headers are a credential channel of their own for
+	// OpenAI-compatible providers (the key can live in `Authorization` or
+	// `api-key`), so editing them by hand is a manual credential edit too.
+	it("marks the entry as manual when a GUI patch edits request headers", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({
+			"openai-compatible": { provider: "openai-compatible", headers: { Authorization: "Bearer migrated" } },
+		})
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openai")
+
+		store.write(providerId, { headers: { Authorization: "Bearer typed-by-hand" } })
+
+		expect(mocks.getSavedProviderSettings("openai-compatible")).toMatchObject({
+			headers: { Authorization: "Bearer typed-by-hand" },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
+	})
+
 	// Changing the regional API line in the settings UI goes through
 	// store.write. It must land in providers.json (the CLI and desktop app
 	// bake the regional base URL from its stored apiLine) AND mirror to the
