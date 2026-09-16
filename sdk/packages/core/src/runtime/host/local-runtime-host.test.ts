@@ -231,9 +231,10 @@ describe("LocalRuntimeHost", () => {
 	});
 
 	it.each([
-		undefined,
-		"continue working",
-	])("reports and restores session recency with resume prompt %s", async (prompt) => {
+		[undefined, false],
+		["continue working", false],
+		[undefined, true],
+	] as const)("reports and restores recency with prompt %s and invalid timestamp %s", async (prompt, invalidTimestamp) => {
 		const dir = join(isolatedHomeDir, "activity-sessions");
 		const start = Date.parse("2026-01-02T00:00:00.000Z");
 		const iso = (offset: number) => new Date(start + offset).toISOString();
@@ -314,6 +315,12 @@ describe("LocalRuntimeHost", () => {
 			expect((await reader.getSession("activity"))?.updatedAt).toBe(iso(3_000));
 
 			vi.setSystemTime(start + 4_000);
+			if (invalidTimestamp) {
+				const path = join(dir, "sessions.index.json");
+				const index = JSON.parse(readFileSync(path, "utf8"));
+				index.sessions.activity.updatedAt = "invalid";
+				writeFileSync(path, JSON.stringify(index));
+			}
 			agent.run.mockImplementation(async () =>
 				createResult({ endedAt: new Date() }),
 			);
@@ -333,6 +340,17 @@ describe("LocalRuntimeHost", () => {
 				iso(prompt ? 4_000 : 3_000),
 			);
 			expect(agent.run).toHaveBeenCalledTimes(prompt ? 1 : 0);
+			if (invalidTimestamp) {
+				vi.setSystemTime(start + 5_000);
+				emit?.({ type: "iteration_start", iteration: 1 });
+				expect((await reader.getSession("activity"))?.updatedAt).toBe(
+					iso(5_000),
+				);
+				await reader.dispose();
+				expect(
+					(await options.sessionService.getSession("activity"))?.updatedAt,
+				).toBe(iso(5_000));
+			}
 		} finally {
 			await manager.dispose();
 			await reader.dispose();

@@ -937,8 +937,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 		};
 		activeSessionRef = active;
 		if (wasSessionIdRequested) {
-			active.updatedAt =
-				(await this.getRow(sessionId))?.updatedAt ?? active.updatedAt;
+			const persistedUpdatedAt = (await this.getRow(sessionId))?.updatedAt;
+			if (
+				persistedUpdatedAt &&
+				Number.isFinite(Date.parse(persistedUpdatedAt))
+			) {
+				active.updatedAt = persistedUpdatedAt;
+			}
 		}
 		active.activity = new SessionActivity(
 			Date.parse(active.updatedAt),
