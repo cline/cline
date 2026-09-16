@@ -897,6 +897,12 @@ whether the terminal failure returned or threw, without error/transcript text.
 Desktop reconciliation retains the full live failed turn until a saved terminal
 error reaches its user-run count and is not a previously displayed error ID.
 
+Queue steering through `pendingPrompts.steerFirst` selects and promotes the
+current queue head in one synchronous core operation. Desktop Enter sends this
+intent through the sidecar and Hub without fetching a prompt ID first; explicit
+per-prompt steering continues to update by ID. Concurrent clients therefore
+cannot make Enter promote an entry from a stale queue snapshot.
+
 ### SSH environments
 
 `core/src/remote` owns the reusable SSH environment service and standalone remote
