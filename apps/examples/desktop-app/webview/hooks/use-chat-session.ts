@@ -10,6 +10,7 @@ import {
 	buildToolPayloadString,
 	credentialFailureMeta,
 	extractAssistantTurnDataFromRpcMessages,
+	extractToolUpdateChunk,
 	inferHydratedChatStatus,
 	isCredentialFailure,
 	makeId,
@@ -1428,24 +1429,21 @@ export function useChatSession() {
 					? liveToolMessageIdsRef.current[toolCallId]
 					: undefined;
 				if (!messageId) return;
+				// Textual deltas may arrive as a bare string, a bare `chunk`, or a
+				// stdout/stderr record; structured progress snapshots carry no
+				// display text and only matter for their detachable/truncated flags.
+				const chunk = extractToolUpdateChunk(parsed.update) ?? "";
 				const update =
 					parsed.update &&
 					typeof parsed.update === "object" &&
 					!Array.isArray(parsed.update)
 						? (parsed.update as Record<string, unknown>)
 						: undefined;
-				if (!update) return;
-				const stream = update.stream;
-				const chunk =
-					(stream === "stdout" || stream === "stderr") &&
-					typeof update.chunk === "string"
-						? update.chunk
-						: "";
 				const detachable =
-					typeof update.detachable === "boolean"
+					typeof update?.detachable === "boolean"
 						? update.detachable
 						: undefined;
-				const sourceTruncated = update.truncated === true;
+				const sourceTruncated = update?.truncated === true;
 				if (!chunk && detachable === undefined && !sourceTruncated) return;
 				const pending = pendingToolOutputRef.current;
 				const existing = pending.get(messageId);

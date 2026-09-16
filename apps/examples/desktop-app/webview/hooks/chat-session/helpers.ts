@@ -151,6 +151,34 @@ export function buildToolPayloadString(options: {
 	});
 }
 
+/**
+ * Pull the textual delta out of a `chat_tool_call_update` payload.
+ *
+ * Tools stream progress through `AgentToolContext.emitUpdate`, so the payload
+ * shape is whatever the tool passed: a bare string, or a record carrying a
+ * `chunk` — with `stream` set to stdout/stderr for command tools, or absent
+ * for plain textual deltas. Records with a `chunk` on any other stream, and
+ * structured progress snapshots (e.g. sub-agent counters), are not display
+ * text and yield undefined.
+ */
+export function extractToolUpdateChunk(update: unknown): string | undefined {
+	if (typeof update === "string") {
+		return update;
+	}
+	if (!update || typeof update !== "object" || Array.isArray(update)) {
+		return undefined;
+	}
+	const record = update as { stream?: unknown; chunk?: unknown };
+	if (typeof record.chunk !== "string") {
+		return undefined;
+	}
+	return record.stream === undefined ||
+		record.stream === "stdout" ||
+		record.stream === "stderr"
+		? record.chunk
+		: undefined;
+}
+
 export function normalizeRuntimeConfig(
 	config: ChatSessionConfig,
 ): ChatSessionConfig {
