@@ -2,7 +2,7 @@
 
 import { GitHubIcon } from "@cline/ui";
 import { CalendarDays, Loader2, Mail, Search } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -185,8 +185,10 @@ export function ComposioConnectorsView({
 	searchQuery,
 	onCatalogCountChange,
 	renderItem,
+	appendOnScroll = false,
 }: {
 	onChanged?: () => void;
+	appendOnScroll?: boolean;
 	/** Use the host page search instead of rendering a separate search field. */
 	searchQuery?: string;
 	onCatalogCountChange?: (count: number | null) => void;
@@ -249,15 +251,55 @@ export function ComposioConnectorsView({
 	}, [catalog, onCatalogCountChange]);
 
 	const trimmedQuery = query.trim().toLowerCase();
-	const visibleCatalog = useMemo(() => {
+	const [page, setPage] = useState({
+		query: trimmedQuery,
+		limit: CATALOG_PREVIEW_COUNT,
+	});
+	if (page.query !== trimmedQuery) {
+		setPage({ query: trimmedQuery, limit: CATALOG_PREVIEW_COUNT });
+	}
+	const matchingCatalog = useMemo(() => {
 		const entries = catalog ?? [];
-		if (!trimmedQuery) {
-			return entries.slice(0, CATALOG_PREVIEW_COUNT);
-		}
-		return entries
-			.filter((entry) => connectorMatchesQuery(entry, trimmedQuery))
-			.slice(0, CATALOG_SEARCH_RESULT_LIMIT);
+		return trimmedQuery
+			? entries.filter((entry) => connectorMatchesQuery(entry, trimmedQuery))
+			: entries;
 	}, [catalog, trimmedQuery]);
+	const visibleCatalog = matchingCatalog.slice(
+		0,
+		appendOnScroll
+			? page.limit
+			: trimmedQuery
+				? CATALOG_SEARCH_RESULT_LIMIT
+				: CATALOG_PREVIEW_COUNT,
+	);
+	const hasMore =
+		appendOnScroll && visibleCatalog.length < matchingCatalog.length;
+	const loadMoreRef = useRef<HTMLDivElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Reobserve after appending or searching so a sentinel still in view can load another page.
+	useEffect(() => {
+		const sentinel = loadMoreRef.current;
+		if (!hasMore || !sentinel) return;
+		let active = true;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (!active || !entries.some((entry) => entry.isIntersecting)) return;
+				active = false;
+				setPage((current) => ({
+					...current,
+					limit: current.limit + CATALOG_PREVIEW_COUNT,
+				}));
+			},
+			{
+				root: sentinel.closest("[data-radix-scroll-area-viewport]"),
+				rootMargin: "200px",
+			},
+		);
+		observer.observe(sentinel);
+		return () => {
+			active = false;
+			observer.disconnect();
+		};
+	}, [hasMore, visibleCatalog.length, trimmedQuery]);
 
 	const hiddenCount = trimmedQuery
 		? 0
@@ -395,7 +437,10 @@ export function ComposioConnectorsView({
 							</p>
 						) : null}
 					</div>
-					{hiddenCount > 0 ? (
+					{hasMore ? (
+						<div ref={loadMoreRef} className="h-px" aria-hidden="true" />
+					) : null}
+					{!appendOnScroll && hiddenCount > 0 ? (
 						<p className="text-xs text-muted-foreground">
 							Showing the {CATALOG_PREVIEW_COUNT} most-used connectors — search
 							to find {hiddenCount} more.

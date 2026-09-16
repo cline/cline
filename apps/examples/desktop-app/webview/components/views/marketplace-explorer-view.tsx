@@ -822,6 +822,7 @@ export function MarketplaceExplorerView() {
 									</span>
 								</h2>
 								<ComposioConnectorsView
+									appendOnScroll
 									searchQuery={query}
 									onCatalogCountChange={setConnectorCount}
 									renderItem={({ entry, status, onOpenDetails, selected }) => (

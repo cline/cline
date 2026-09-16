@@ -36,6 +36,7 @@ import { MarketplaceExplorerView } from "./marketplace-explorer-view";
 
 let container: HTMLDivElement;
 let root: Root;
+const intersections = new Set<() => void>();
 beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.stubGlobal(
@@ -44,6 +45,26 @@ beforeEach(() => {
 			observe() {}
 			unobserve() {}
 			disconnect() {}
+		},
+	);
+	intersections.clear();
+	vi.stubGlobal(
+		"IntersectionObserver",
+		class {
+			callback: () => void;
+			constructor(callback: IntersectionObserverCallback) {
+				this.callback = () =>
+					callback(
+						[{ isIntersecting: true } as IntersectionObserverEntry],
+						this as unknown as IntersectionObserver,
+					);
+			}
+			observe() {
+				intersections.add(this.callback);
+			}
+			disconnect() {
+				intersections.delete(this.callback);
+			}
 		},
 	);
 	mocks.configured = true;
@@ -175,5 +196,51 @@ describe("Marketplace directory", () => {
 		expect(section?.textContent).toContain("App 120");
 		expect(connectorFilter()?.textContent).toBe("Connectors121");
 		expect(section?.querySelector("h2")?.textContent).toBe("Connectors121");
+	});
+	it("appends pages on scroll through the full catalog and resets pagination for search", async () => {
+		mocks.catalog.mockResolvedValue({
+			toolkits: Array.from({ length: 73 }, (_, i) => ({
+				slug: `app_${i}`,
+				name: `App ${i}`,
+			})),
+		});
+		await render();
+		const section = container.querySelector('section[aria-label="Connectors"]');
+		expect(section?.textContent).not.toContain("search to find");
+		for (const count of [48, 72, 73]) {
+			await act(async () =>
+				[...intersections].forEach((callback) => {
+					callback();
+				}),
+			);
+			expect(section?.querySelectorAll("button")).toHaveLength(count);
+			expect(connectorFilter()?.textContent).toBe("Connectors73");
+		}
+		expect(intersections.size).toBe(0);
+		expect(
+			new Set(
+				[...(section?.querySelectorAll("button") ?? [])].map(
+					(button) => button.textContent,
+				),
+			).size,
+		).toBe(73);
+		const input = container.querySelector(
+			'input[aria-label="Search marketplace"]',
+		) as HTMLInputElement;
+		await act(async () => {
+			Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set?.call(input, "App");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(section?.querySelectorAll("button")).toHaveLength(24);
+		await act(async () =>
+			[...intersections].forEach((callback) => {
+				callback();
+			}),
+		);
+		expect(section?.querySelectorAll("button")).toHaveLength(48);
+		expect(mocks.catalog).toHaveBeenCalledTimes(1);
 	});
 });
