@@ -9,7 +9,9 @@ function normalizeShellName(shell: string): string {
 }
 
 export function getDefaultShell(platform: string): string {
-	return platform === "win32" ? "powershell" : "/bin/bash";
+	if (platform === "win32") return "powershell";
+	if (platform === "freebsd") return "/bin/sh";
+	return "/bin/bash";
 }
 
 /**

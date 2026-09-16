@@ -13,6 +13,10 @@ describe("shell helpers", () => {
 		expect(getDefaultShell("linux")).toBe("/bin/bash");
 	});
 
+	it("selects /bin/sh on FreeBSD", () => {
+		expect(getDefaultShell("freebsd")).toBe("/bin/sh");
+	});
+
 	it("uses an ASCII bootstrap with Unicode-safe PowerShell stdin", () => {
 		const command = "Write-Output '中文'";
 		for (const shell of [
