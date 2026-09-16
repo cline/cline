@@ -1,11 +1,14 @@
+import { HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	CloudSessionApi,
+	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -224,6 +227,166 @@ function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it("does not recover a send rejected by deleting its connection", async () => {
+		const hub = new FakeHubClient();
+		const started = Promise.withResolvers<void>();
+		const pendingSend = Promise.withResolvers<void>();
+		hub.commandHook = (command) => {
+			if (command === "session.send_input") {
+				started.resolve();
+				return pendingSend.promise;
+			}
+		};
+		let disposedAt = 0;
+		hub.dispose = async () => {
+			hub.disposed = true;
+			disposedAt = hub.commands.length;
+			pendingSend.reject(
+				new HubTransportError("hub_connection_closed", "disposed"),
+			);
+		};
+		const { manager, events } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => undefined,
+			} as unknown as CloudSessionApi,
+		});
+		await manager.attach("ses-outer");
+		const sending = manager
+			.send("ses-outer", "active prompt")
+			.catch((error: unknown) => error);
+		await started.promise;
+		events.length = 0;
+		await manager.delete("ses-outer");
+		expect(await sending).toBeInstanceOf(Error);
+		expect(hub.commands.slice(disposedAt)).toEqual([]);
+		expect(events).toEqual([
+			{
+				name: "tool_approval_state",
+				payload: { items: [], sessionId: "ses-outer" },
+			},
+		]);
+	});
+
+	it.each([
+		"session.attach",
+		"after attachment",
+		"session.get",
+		"session.messages",
+		"session.pending_prompts",
+		"message conversion",
+	])("stops hydration disposed during %s without later commands or events", async (stage) => {
+		const { manager, hub, events } = createFixture();
+		await manager.attach("ses-outer");
+		const started = Promise.withResolvers<void>();
+		const blocked = Promise.withResolvers<void>();
+		const block = async () => {
+			started.resolve();
+			await blocked.promise;
+		};
+		if (stage === "after attachment") {
+			const attach = manager["ensureAttached"].bind(manager);
+			Object.assign(manager, {
+				ensureAttached: async (connection: Parameters<typeof attach>[0]) => {
+					await attach(connection);
+					await block();
+				},
+			});
+		}
+		const conversion =
+			stage === "message conversion"
+				? vi
+						.spyOn(sessionMessages, "readSessionMessages")
+						.mockImplementationOnce(async () => {
+							await block();
+							return [];
+						})
+				: undefined;
+		hub.commandHook = (command) => (command === stage ? block() : undefined);
+		const reading = manager
+			.readMessages("ses-outer")
+			.catch((error: unknown) => error);
+		try {
+			await started.promise;
+			await manager.dispose();
+			const commandCount = hub.commands.length;
+			events.length = 0;
+			blocked.resolve();
+			expect(await reading).toBeInstanceOf(Error);
+			expect(hub.commands).toHaveLength(commandCount);
+			expect(events).toEqual([]);
+		} finally {
+			blocked.resolve();
+			conversion?.mockRestore();
+		}
+	});
+
+	it.each([
+		"session.list",
+		"session.create",
+	])("cancels a send stopped while %s is pending", async (blockedCommand) => {
+		const { manager, hub } = createFixture({ hub: new FakeHubClient(false) });
+		let release!: () => void;
+		hub.commandHook = (command) => {
+			if (command === blockedCommand) {
+				hub.commandHook = undefined;
+				return new Promise<void>((resolve) => {
+					release = resolve;
+				});
+			}
+		};
+		const result = manager
+			.send("ses-outer", "cancel this")
+			.catch((error: unknown) => error);
+		await vi.waitFor(() => expect(release).toBeDefined());
+		const aborting = manager.abort("ses-outer");
+		release();
+		await aborting;
+		expect(await result).toBeInstanceOf(Error);
+		expect(
+			hub.commands.some(({ command }) => command === "session.send_input"),
+		).toBe(false);
+		await manager.dispose();
+	});
+
+	it.each([
+		"abort",
+		"dispose",
+	] as const)("%s cancels a provisioning send before opening the Hub", async (action) => {
+		let provisioningSignal: AbortSignal | undefined;
+		const { manager, hub, ctx } = createFixture({
+			api: {
+				create: async () => ({
+					sessionId: "ses-outer",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list: async () => [],
+				waitUntilReady: (_id: string, signal: AbortSignal) =>
+					new Promise<void>((_resolve, reject) => {
+						provisioningSignal = signal;
+						signal.addEventListener("abort", () => reject(signal.reason), {
+							once: true,
+						});
+					}),
+			} as unknown as CloudSessionApi,
+		});
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+		});
+		const rejected = expect(
+			manager.send("ses-outer", "Fix this"),
+		).rejects.toThrow();
+		await vi.waitFor(() => expect(provisioningSignal).toBeDefined());
+		if (action === "abort") await manager.abort("ses-outer");
+		else await manager.dispose();
+		await rejected;
+		expect(provisioningSignal?.aborted).toBe(true);
+		expect(hub.commands).toEqual([]);
+		expect(ctx.liveSessions.has("ses-outer")).toBe(action === "abort");
+	});
 	it("reuses the newest inner Hub session and translates events to the outer id", async () => {
 		const { manager, events, hub } = createFixture();
 
@@ -624,6 +787,259 @@ describe("CloudSessionManager Hub runtime", () => {
 		).toBe(false);
 	});
 
+	it.each([
+		[" tsk-01ABCDEF1234ABCD ", "cline/1234abcd"],
+		[undefined, "cline/es-outer"],
+	])("includes save-work guidance when the task id is %s", async (taskId, branch) => {
+		const { manager, hub } = createFixture({
+			hub: new FakeHubClient(false),
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: { ...REMOTE_SESSION.metadata, taskId },
+					},
+				],
+			} as unknown as CloudSessionApi,
+		});
+		await manager.send("ses-outer", "Fix it");
+		const config = hub.commands.find(
+			({ command }) => command === "session.create",
+		)?.payload?.sessionConfig as { systemPrompt: string };
+		expect(config.systemPrompt).toContain(
+			"credentials are injected transparently",
+		);
+		expect(config.systemPrompt).toContain(`git push -u origin ${branch}`);
+		expect(config.systemPrompt).toContain(
+			"never commit directly to the default branch",
+		);
+		expect(config.systemPrompt).toContain(
+			"Do not force-push or amend commits that are already pushed",
+		);
+		await manager.dispose();
+	});
+
+	it("creates and sends to an inner session while preserving the outer id", async () => {
+		const { manager, hub } = createFixture({
+			hub: new FakeHubClient(false),
+			api: {
+				list: async () => [],
+				create: async () => ({
+					sessionId: "ses-outer",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				waitUntilReady: async () => {},
+			} as unknown as CloudSessionApi,
+		});
+
+		const created = await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "Fix it",
+			thinking: true,
+			reasoningEffort: "high",
+		});
+		const attached = await manager.attach("ses-outer");
+		const sent = await manager.send("ses-outer", "Fix it");
+
+		expect(created.sessionId).toBe("ses-outer");
+		expect(created.prompt).toBe("Fix it");
+		expect(attached.prompt).toBe("Fix it");
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.create",
+				payload: expect.objectContaining({
+					workspaceRoot: "/workspace",
+					sessionConfig: expect.objectContaining({
+						thinking: true,
+						reasoningEffort: "high",
+					}),
+					modelSelection: {
+						provider: "cline",
+						model: "anthropic/claude-sonnet-5",
+					},
+				}),
+			}),
+		);
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "session.send_input",
+			payload: { prompt: "Fix it", delivery: undefined },
+			sessionId: "inner-created",
+			options: { timeoutMs: null },
+		});
+		expect(sent.sessionId).toBe("ses-outer");
+		expect(hub.commands.at(-2)).toMatchObject({
+			command: "session.attach",
+			sessionId: "inner-created",
+		});
+	});
+
+	it("preserves the live Hub model across REST discovery refreshes", async () => {
+		const hub = new FakeHubClient();
+		hub.listedModel = "anthropic/claude-opus-4-1";
+		const { manager } = createFixture({
+			hub,
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: {
+							...REMOTE_SESSION.metadata,
+							modelId: "anthropic/claude-sonnet-5",
+						},
+					},
+				],
+			} as CloudSessionApi,
+		});
+		await manager.list();
+		const attached = await manager.attach("ses-outer");
+
+		expect(attached.model).toBe("anthropic/claude-opus-4-1");
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({ model: "anthropic/claude-opus-4-1" }),
+		]);
+		await manager.send(
+			"ses-outer",
+			"Continue with the live model",
+			undefined,
+			"anthropic/claude-opus-4-1",
+		);
+
+		expect(
+			hub.commands.filter(
+				(command) => command.command === "session.update_connection",
+			),
+		).toHaveLength(0);
+	});
+
+	it("reconciles another client's model change before the next prompt", async () => {
+		const hub = new FakeHubClient();
+		const originalModel = REMOTE_SESSION.metadata.modelId ?? "";
+		const externalModel = "anthropic/claude-opus-4-1";
+		const { manager, ctx } = createFixture({ hub });
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		hub.events?.({
+			version: "v1",
+			event: "session.updated",
+			eventId: "evt-model-change",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: { session: { metadata: { model: externalModel } } },
+		});
+		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(externalModel);
+
+		await manager.send(
+			"ses-outer",
+			"Use the selected model",
+			undefined,
+			originalModel,
+		);
+		expect(
+			hub.commands.filter(
+				(command) => command.command === "session.update_connection",
+			),
+		).toEqual([
+			expect.objectContaining({
+				payload: {
+					sessionId: "inner-1",
+					updates: { modelId: originalModel },
+				},
+			}),
+		]);
+	});
+
+	it("uses the attach reply as the final model authority before sending", async () => {
+		const hub = new FakeHubClient();
+		const selectedModel = REMOTE_SESSION.metadata.modelId ?? "";
+		const externalModel = "anthropic/claude-opus-4-1";
+		const { manager, ctx } = createFixture({ hub });
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.attachedModel = externalModel;
+
+		await manager.send("ses-outer", "Continue", undefined, selectedModel);
+
+		expect(
+			hub.commands.filter(
+				(command) => command.command === "session.update_connection",
+			),
+		).toHaveLength(1);
+		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(selectedModel);
+	});
+
+	it("disposes the Hub connection before deleting the outer session", async () => {
+		const hub = new FakeHubClient();
+		let deleted = "";
+		const { manager, ctx } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async (sessionId: string) => {
+					deleted = sessionId;
+				},
+			} as CloudSessionApi,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await manager.delete("ses-outer");
+
+		expect(hub.disposed).toBe(true);
+		expect(deleted).toBe("ses-outer");
+		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
+	it("blocks a concurrent attach from re-dialing a session mid-delete", async () => {
+		const hub = new FakeHubClient();
+		const { promise: deleteBlocked, resolve: releaseDelete } =
+			Promise.withResolvers<void>();
+		const { manager, ctx } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => {
+					await deleteBlocked;
+				},
+			} as unknown as CloudSessionApi,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		const deleting = manager.delete("ses-outer");
+		// Yield so delete() reaches the (blocked) REST call.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		// Without the tombstone this would dial a fresh connection that
+		// outlives the delete and reconnect-loops against a dead session.
+		await expect(manager.attach("ses-outer")).rejects.toMatchObject({
+			name: "CloudSessionError",
+		});
+		releaseDelete();
+		await deleting;
+		expect(hub.disposed).toBe(true);
+		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
+	it("still cleans up locally when the session is already gone remotely", async () => {
+		const { manager, ctx, hub } = createFixture({
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => {
+					throw new CloudSessionError("session_not_found", "already gone");
+				},
+			} as unknown as CloudSessionApi,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await expect(manager.delete("ses-outer")).resolves.toBeUndefined();
+		expect(hub.disposed).toBe(true);
+		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
 	it("reaps the connection when the sidebar poll reports the session expired", async () => {
 		const hub = new FakeHubClient();
 		let expired = false;
@@ -747,6 +1163,45 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(ctx.liveSessions.get(REMOTE_SESSION.id)?.messages ?? []).toEqual([]);
 	});
 
+	it("serves archived history for expired sessions without dialing the sandbox", async () => {
+		const expired: CloudSessionRecord = {
+			...REMOTE_SESSION,
+			expiredAt: "2026-08-04T00:00:00.000Z",
+		};
+		let historyCalls = 0;
+		const { manager, ctx } = createFixture({
+			api: {
+				list: async () => [expired],
+				create: async () => {
+					throw new Error("must not create");
+				},
+				history: async () => {
+					historyCalls += 1;
+					return [{ role: "user", content: "archived" }];
+				},
+			} as unknown as CloudSessionApi,
+			createHubClient: () => {
+				throw new Error("expired sessions must not open a websocket");
+			},
+		});
+		ctx.cloudSessionManager = manager;
+
+		const attached = await manager.attach(expired.id);
+		expect(attached).toMatchObject({
+			sessionId: expired.id,
+			status: "expired",
+		});
+		expect(historyCalls).toBe(1);
+
+		const messages = await manager.readMessages(expired.id);
+		expect(messages).toEqual([{ role: "user", content: "archived" }]);
+		expect(ctx.liveSessions.get(expired.id)?.messages).toEqual(messages);
+
+		await expect(manager.send(expired.id, "hello")).rejects.toMatchObject({
+			code: "session_expired",
+		});
+	});
+
 	it("falls back to archived history when live hydration fails", async () => {
 		const { manager, ctx } = createFixture({
 			api: {
@@ -866,6 +1321,94 @@ describe("CloudSessionManager Hub runtime", () => {
 		await expect(manager.attach("ses-org")).rejects.toThrow("pod offline");
 
 		expect(listCalls).toEqual(["org-cline-bot", "org-cline-bot"]);
+	});
+
+	it("recovers with a fresh connection after inner-session creation fails", async () => {
+		let clientCount = 0;
+		let failNextInnerCreate = true;
+		const clients: FakeHubClient[] = [];
+		const { manager, ctx } = createFixture({
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
+			} as unknown as CloudSessionApi,
+			createHubClient: () => {
+				clientCount += 1;
+				const hub = new FakeHubClient(false);
+				hub.commandHook = (command) => {
+					if (command === "session.create" && failNextInnerCreate) {
+						failNextInnerCreate = false;
+						throw new Error("insufficient balance");
+					}
+				};
+				clients.push(hub);
+				return hub as never;
+			},
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
+			"insufficient balance",
+		);
+		await manager.send("ses-outer", "second");
+		expect(clientCount).toBe(2);
+		expect(clients[1]?.events).toBeDefined();
+		expect(
+			clients[1]?.commands.some((entry) => entry.command === "session.create"),
+		).toBe(true);
+	});
+
+	it("single-flights inner-session creation under concurrent sends", async () => {
+		const { manager, ctx, hub } = createFixture({
+			hub: new FakeHubClient(false),
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
+			} as unknown as CloudSessionApi,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+
+		await Promise.all([
+			manager.send("ses-outer", "first"),
+			manager.send("ses-outer", "second"),
+		]);
+		const innerCreates = hub.commands.filter(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreates).toHaveLength(1);
+	});
+
+	it("re-scopes the visible list on org change but keeps open sessions routable", async () => {
+		const hub = new FakeHubClient();
+		let scope: string | undefined = "org-a";
+		const orgSession = { ...REMOTE_SESSION, id: "ses-org-a", title: undefined };
+		const personalSession = {
+			...REMOTE_SESSION,
+			id: "ses-personal",
+			title: undefined,
+		};
+		const { manager, ctx } = createFixture({
+			hub,
+			api: {
+				list: async (organizationId?: string) =>
+					organizationId ? [orgSession] : [personalSession],
+			} as unknown as CloudSessionApi,
+			getActiveOrganizationId: async () => scope,
+		});
+		ctx.cloudSessionManager = manager;
+
+		await manager.list();
+		await manager.attach("ses-org-a");
+
+		scope = undefined;
+		const visible = (await manager.listForDiscovery()).map(
+			(session) => session.sessionId,
+		);
+		expect(visible).toEqual(["ses-personal"]);
+
+		await expect(manager.send("ses-org-a", "hello")).resolves.toMatchObject({
+			ok: true,
+		});
 	});
 
 	it("clears approvals when setup fails after replay", async () => {
