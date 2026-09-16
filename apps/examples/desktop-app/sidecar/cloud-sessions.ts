@@ -1144,9 +1144,16 @@ export class CloudSessionManager {
 				refresh.then(
 					(value) => ({ value }),
 					(error) => {
-						this.ctx.logger?.error?.("Cloud session discovery failed", {
-							error,
-						});
+						if (
+							!(
+								error instanceof CloudSessionError &&
+								error.code === "authentication_required"
+							)
+						) {
+							this.ctx.logger?.error?.("Cloud session discovery failed", {
+								error,
+							});
+						}
 						return { value: this.lastListedSessions };
 					},
 				),
@@ -2583,6 +2590,9 @@ export function getCloudSessionManager(
 			Date.now() - activeOrgCache.at < 60_000
 		) {
 			return activeOrgCache.id;
+		}
+		if (!(await getAuthToken())?.trim()) {
+			return undefined;
 		}
 		const organizations = await accountService.fetchUserOrganizations();
 		const id = organizations?.find(
