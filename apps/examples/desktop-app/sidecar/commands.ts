@@ -99,7 +99,6 @@ import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
-	isCloudHandoffEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
@@ -1470,10 +1469,6 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
-			cloudHandoff: isCloudHandoffEnabled({
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			}),
 		};
 	}
 	if (command === "list_cloud_repositories") {
@@ -2392,7 +2387,6 @@ export async function handleCommand(
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
-			cloudHandoff: isCloudHandoffEnabled(),
 		});
 		return settings;
 	}

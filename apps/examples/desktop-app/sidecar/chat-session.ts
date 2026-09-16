@@ -65,8 +65,7 @@ import {
 	requestSidecarAskQuestion,
 	sendEvent,
 } from "./context";
-import { readDesktopSettings } from "./desktop-settings";
-import { isCloudAgentsEnabled, isCloudHandoffEnabled } from "./feature-flags";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -139,11 +138,11 @@ function workspacePathKey(
  */
 const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
-/** /handoff is built-in only while its gate is on; when the feature is off a
- * user-defined /handoff workflow owns the name and must expand normally. */
+/** /cloud is built-in only while Cloud sessions are enabled; otherwise a
+ * user-defined /cloud workflow owns the name and must expand normally. */
 function isBuiltinSlashCommand(name: string): boolean {
 	if (BUILTIN_SLASH_COMMAND_NAMES.has(name)) return true;
-	return name === "handoff" && isCloudHandoffEffectivelyEnabled();
+	return name === "cloud" && isCloudHandoffEffectivelyEnabled();
 }
 
 /**
@@ -1218,7 +1217,7 @@ async function handleSendOnce(
 	);
 	if (handoff?.status === "pending") {
 		throw new Error(
-			`Cloud handoff is still pending. Retry /handoff or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+			`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
 		);
 	}
 	if (handoff?.status === "complete") {
@@ -1510,7 +1509,7 @@ async function handleFork(
 	);
 	if (sourceHandoff?.status === "pending") {
 		throw new Error(
-			`Cloud handoff is still pending. Retry /handoff or continue here: ${sourceHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, sourceHandoff.toCloudSessionId)}`,
+			`Cloud handoff is still pending. Retry /cloud or continue here: ${sourceHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, sourceHandoff.toCloudSessionId)}`,
 		);
 	}
 	if (
@@ -1734,7 +1733,7 @@ async function handleReset(
 		);
 		if (pendingHandoff?.status === "pending") {
 			throw new Error(
-				`Cloud handoff is still pending. Retry /handoff or continue here: ${pendingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, pendingHandoff.toCloudSessionId)}`,
+				`Cloud handoff is still pending. Retry /cloud or continue here: ${pendingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, pendingHandoff.toCloudSessionId)}`,
 			);
 		}
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
@@ -1779,7 +1778,7 @@ async function handleRestoreCheckpoint(
 	);
 	if (completedHandoff?.status === "pending") {
 		throw new Error(
-			`Cloud handoff is still pending. Retry /handoff or continue here: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}`,
+			`Cloud handoff is still pending. Retry /cloud or continue here: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}`,
 		);
 	}
 	if (completedHandoff?.status === "complete") {
@@ -2166,25 +2165,18 @@ export function formatPendingHandoffVerificationError(
 	error: CloudHandoffTranscriptMismatchError,
 	dashboardUrl: string,
 ): string {
-	return `${error.message} Open the pending cloud workspace to inspect it, or delete it before retrying /handoff: ${dashboardUrl}`;
+	return `${error.message} Open the pending cloud workspace to inspect it, or delete it before retrying /cloud: ${dashboardUrl}`;
 }
 
-/** The full handoff gate: rollout flag, cloudAgents, and the user's Cloud
- * Sessions opt-in — a handoff uploads the local transcript, so the rollout
- * flag alone is not consent. */
+/** Handoff follows the existing Cloud sessions rollout and user opt-in. */
 function isCloudHandoffEffectivelyEnabled(): boolean {
-	return (
-		isCloudHandoffEnabled() &&
-		isCloudAgentsEnabled() &&
-		readDesktopSettings().cloudSessionsEnabled
-	);
+	return isCloudAgentsEnabled();
 }
 
 async function assertCloudHandoffAvailable(
 	ctx: SidecarContext,
 	sourceSessionId?: string,
 ): Promise<void> {
-	const flagEnabled = isCloudHandoffEnabled();
 	if (isCloudHandoffEffectivelyEnabled()) {
 		return;
 	}
@@ -2201,11 +2193,7 @@ async function assertCloudHandoffAvailable(
 			) ?? readCloudHandoffMetadata(readSessionMetadata(sourceSessionId));
 		if (pending?.status === "pending") return;
 	}
-	throw new Error(
-		flagEnabled
-			? "Enable Cloud sessions in Settings before using cloud handoff."
-			: "Cloud handoff is not enabled for this account.",
-	);
+	throw new Error("Enable Cloud sessions in Settings before using /cloud.");
 }
 
 async function prepareCloudHandoff(
@@ -2250,7 +2238,7 @@ async function prepareCloudHandoff(
 	if (options.pinnedModelId) {
 		if (selection.modelId !== options.pinnedModelId) {
 			throw new Error(
-				`Cloud model ${options.pinnedModelId} is no longer available for this account. Run /handoff again to select an available model.`,
+				`Cloud model ${options.pinnedModelId} is no longer available for this account. Run /cloud again to select an available model.`,
 			);
 		}
 		selection = {
@@ -2427,7 +2415,7 @@ async function handleHandoffOnce(
 				: undefined;
 			const error = new Error(
 				createdOuterSessionThisAttempt
-					? "The repository branch changed while the cloud workspace was starting. Review the latest commit and run /handoff again."
+					? "The repository branch changed while the cloud workspace was starting. Review the latest commit and run /cloud again."
 					: `The repository branch changed after this cloud handoff started. Restore the source repository to commit ${prepared.headSha.slice(0, 12)} and retry, or open/delete the pending cloud workspace before starting another handoff${dashboardUrl ? `: ${dashboardUrl}` : "."}`,
 			);
 			if (createdOuterSessionThisAttempt && outerSessionId) {
@@ -2868,7 +2856,7 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 		);
 		if (handoff?.status === "pending") {
 			throw new Error(
-				`Cloud handoff is still pending. Retry /handoff or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+				`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
 			);
 		}
 		return release;

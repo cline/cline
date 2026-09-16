@@ -70,18 +70,13 @@ describe("telemetryDefineArgs", () => {
 		expect(withoutToggle).not.toHaveProperty(
 			"process.env.CLINE_CODE_CLOUD_AGENTS",
 		);
-		expect(withoutToggle).not.toHaveProperty(
-			"process.env.CLINE_CODE_CLOUD_HANDOFF",
-		);
 
 		const withToggle = defineMap(
 			telemetryDefineArgs({
 				CLINE_CODE_CLOUD_AGENTS: "1",
-				CLINE_CODE_CLOUD_HANDOFF: "1",
 			}),
 		);
 		expect(withToggle["process.env.CLINE_CODE_CLOUD_AGENTS"]).toBe('"1"');
-		expect(withToggle["process.env.CLINE_CODE_CLOUD_HANDOFF"]).toBe('"1"');
 	});
 
 	it("JSON-escapes values so headers with quotes survive the define", () => {
