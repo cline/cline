@@ -41,21 +41,6 @@ describe("restore_checkpoint", () => {
 		// makes the read after a restore prefer the file over the live session.
 		persistSessionMessages(sessionId, fullMessages);
 
-		const sessionManager = {
-			get: vi.fn(async () => ({
-				sessionId,
-				status: "idle",
-				cwd: "/tmp/project",
-				workspaceRoot: "/tmp/project",
-			})),
-			// A restore that reuses the source id is what the hub does today.
-			restore: vi.fn(async () => ({
-				sessionId,
-				messages: restoredMessages,
-				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-			})),
-			pendingPrompts: { list: vi.fn(async () => []) },
-		};
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -76,8 +61,7 @@ describe("restore_checkpoint", () => {
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			activeEnvironmentId: "local",
-			localWorkspaceRoot: "/tmp/project",
-			sessionEnvironmentIds: new Map([[sessionId, "local"]]),
+			sessionEnvironmentIds: new Map(),
 			runtimeBindings: new Map([
 				[
 					"local",
@@ -85,13 +69,24 @@ describe("restore_checkpoint", () => {
 						environmentId: "local",
 						kind: "local",
 						workspaceRoot: "/tmp/project",
-						sessionManager,
-						hubClient: { command: vi.fn(async () => undefined) },
-						unsubscribeSessionEvents: () => {},
+						sessionManager: {
+							get: vi.fn(async () => ({
+								sessionId,
+								status: "idle",
+								cwd: "/tmp/project",
+								workspaceRoot: "/tmp/project",
+							})),
+							// A restore that reuses the source id is what the hub does today.
+							restore: vi.fn(async () => ({
+								sessionId,
+								messages: restoredMessages,
+								checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+							})),
+							pendingPrompts: { list: vi.fn(async () => []) },
+						},
 					},
 				],
 			]),
-			remoteEnvironments: null,
 		} as unknown as SidecarContext;
 
 		await handleChatSessionCommand(ctx, {

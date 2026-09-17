@@ -66,6 +66,7 @@ import {
 	cancelSidecarMistakeQuestions,
 	emitChunk,
 	findSessionRuntimeBinding,
+	getEnvironmentContext,
 	getSessionRuntimeBinding,
 	nowMs,
 	requestSidecarAskQuestion,
@@ -644,6 +645,9 @@ export function createDesktopMistakeLimitPrompt(
 			.join(" ");
 		// Use the existing steering queue so the running model receives the
 		// guidance, including any instructions entered in the desktop prompt.
+		const manager = ctx.runtimeBindings.get(
+			ctx.sessionEnvironmentIds.get(sessionId) ?? "local",
+		)?.sessionManager;
 		try {
 			const manager = getSessionRuntimeBinding(ctx, sessionId).sessionManager;
 			if (!manager) throw new Error("Desktop session manager is unavailable");
@@ -844,11 +848,24 @@ export function mergeSessionConfig(
 	const providerId =
 		readAliasedString(updates, "provider", "providerId") ??
 		readAliasedString(currentConfig, "provider", "providerId");
+	const previous = { ...currentConfig };
+	if (hasProviderChanged(currentConfig, updates)) {
+		for (const key of [
+			"apiKey",
+			"api_key",
+			"baseUrl",
+			"headers",
+			"providerConfig",
+			"accessToken",
+			"refreshToken",
+		])
+			delete previous[key];
+	}
 	const modelId =
 		readAliasedString(updates, "model", "modelId") ??
 		readAliasedString(currentConfig, "model", "modelId");
 	return {
-		...currentConfig,
+		...previous,
 		...updates,
 		...(providerId ? { provider: providerId, providerId } : {}),
 		...(modelId ? { model: modelId, modelId } : {}),
@@ -991,31 +1008,49 @@ async function withRemoteProviderCredentials(
 	const modelId = String(
 		config.model ?? config.modelId ?? settings.model ?? "",
 	).trim();
-	const storedConfig = {
-		...toProviderConfig(
-			{
-				...settings,
-				...(modelId ? { model: modelId } : {}),
-			},
-			{ includeKnownModels: false },
-		),
-	};
-	delete storedConfig.refreshToken;
 	const explicitProviderConfig =
 		config.providerConfig && typeof config.providerConfig === "object"
 			? (config.providerConfig as JsonRecord)
 			: undefined;
-	const explicitApiKey = String(config.apiKey ?? config.api_key ?? "").trim();
+	const explicitApiKey =
+		[
+			config.apiKey,
+			config.api_key,
+			explicitProviderConfig?.apiKey,
+			explicitProviderConfig?.accessToken,
+		]
+			.find(
+				(value): value is string =>
+					typeof value === "string" && value.trim().length > 0,
+			)
+			?.trim() ?? "";
+
 	const oauth = explicitApiKey
 		? null
 		: await new RuntimeOAuthTokenManager({
 				providerSettingsManager: manager,
 			}).resolveProviderApiKey({ providerId });
+	// Refresh can replace access tokens, account IDs, and provider metadata.
+	const refreshedSettings = manager.getProviderSettings(providerId) ?? settings;
+	const storedConfig = {
+		...toProviderConfig(
+			{ ...refreshedSettings, ...(modelId ? { model: modelId } : {}) },
+			{ includeKnownModels: false },
+		),
+	};
 	const apiKey =
 		explicitApiKey ||
 		oauth?.apiKey ||
 		resolveProviderApiKeyFromSettings(manager, providerId) ||
 		String(storedConfig.apiKey ?? "").trim();
+	const providerConfig = {
+		...storedConfig,
+		...explicitProviderConfig,
+		providerId,
+		...(modelId ? { modelId } : {}),
+		...(apiKey ? { apiKey, accessToken: apiKey } : {}),
+	};
+	delete providerConfig.refreshToken;
 
 	return {
 		...config,
@@ -1026,12 +1061,7 @@ async function withRemoteProviderCredentials(
 		...(!config.headers && storedConfig.headers
 			? { headers: storedConfig.headers }
 			: {}),
-		providerConfig: {
-			...storedConfig,
-			...(explicitProviderConfig ?? {}),
-			providerId,
-			...(modelId ? { modelId } : {}),
-		},
+		providerConfig,
 	};
 }
 
@@ -1077,7 +1107,9 @@ async function handleStart(
 		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
 			? config.initialMessages
 			: requestedSessionId
-				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
+				? binding.kind === "ssh"
+					? await manager.readMessages(requestedSessionId)
+					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
 	let startedSessionId = requestedSessionId;
@@ -1108,7 +1140,15 @@ async function handleStart(
 				: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(request.config),
+		toolPolicies: resolveToolPolicies(config),
+		sessionMetadata:
+			binding.kind === "ssh"
+				? {
+						remoteEnvironmentId: binding.environmentId,
+						remoteEnvironmentName: binding.remote?.profile.name,
+						remoteHost: binding.remote?.profile.host,
+					}
+				: undefined,
 	});
 	const sessionId = startResult.sessionId;
 	startedSessionId = sessionId;
@@ -1117,7 +1157,7 @@ async function handleStart(
 	ctx.logger?.log("Desktop chat session started", { sessionId });
 	const session = createLiveSession(
 		{
-			...config,
+			...request.config,
 			cwd,
 			workspaceRoot,
 			environmentId: binding.environmentId,
@@ -1128,9 +1168,10 @@ async function handleStart(
 			prompt: initialMessages
 				? derivePromptFromMessages(initialMessages)
 				: undefined,
-			title: requestedSessionId
-				? readSessionMetadataTitle(requestedSessionId)
-				: undefined,
+			title:
+				requestedSessionId && binding.kind === "local"
+					? readSessionMetadataTitle(requestedSessionId)
+					: undefined,
 			status: "idle",
 		},
 	);
@@ -1203,7 +1244,7 @@ async function handleAttach(
 			: baseAttachedConfig;
 	ctx.liveSessions.set(
 		sessionId,
-		createLiveSession(attachedConfig, {
+		createLiveSession(baseAttachedConfig, {
 			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
@@ -1424,20 +1465,23 @@ async function handleSend(
 	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
-	const runtimePrompt = await resolveDesktopRuntimePrompt(
-		ctx,
-		readWorkspacePath(session?.config ?? request.config) ??
-			ctx.localWorkspaceRoot,
-		prompt,
-		request.config?.mode ?? session?.config?.mode,
-	);
+	const runtimePrompt =
+		binding.kind === "ssh"
+			? prompt
+			: await resolveDesktopRuntimePrompt(
+					ctx,
+					readWorkspacePath(session?.config ?? request.config) ??
+						ctx.localWorkspaceRoot,
+					prompt,
+					request.config?.mode ?? session?.config?.mode,
+				);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
 	}
 	const nextConfig = request.config
 		? mergeSessionConfig(session?.config ?? {}, request.config)
-		: undefined;
+		: session?.config;
 	const providerChanged = Boolean(
 		session &&
 			request.config &&
@@ -1460,7 +1504,7 @@ async function handleSend(
 		}
 	}
 	try {
-		if (request.config && nextConfig) {
+		if ((request.config || binding.kind === "ssh") && nextConfig) {
 			if (providerChanged && session) {
 				await rebuildSessionForProviderChange(
 					ctx,
@@ -1470,13 +1514,18 @@ async function handleSend(
 					nextConfig,
 				);
 			} else if (
+				binding.kind === "ssh" ||
 				!session ||
 				session.attachedViaHub ||
 				shouldUpdateSessionConnection(session.config, nextConfig)
 			) {
 				await manager.updateSessionConnection(
 					sessionId,
-					buildSessionConnectionUpdate(nextConfig),
+					buildSessionConnectionUpdate(
+						binding.kind === "ssh"
+							? await withRemoteProviderCredentials(nextConfig)
+							: nextConfig,
+					),
 				);
 			}
 			if (session) {
@@ -1756,12 +1805,12 @@ async function handleForkUnlocked(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	let sourceMessages =
-		readPersistedChatMessages(sourceSessionId) ??
-		ctx.liveSessions.get(sourceSessionId)?.messages;
-	if (!sourceMessages?.length && binding.kind === "ssh") {
-		sourceMessages = await manager.readMessages(sourceSessionId);
-	}
+	const sourceMessages =
+		binding.kind === "ssh"
+			? await manager.readMessages(sourceSessionId)
+			: (readPersistedChatMessages(sourceSessionId) ??
+				ctx.liveSessions.get(sourceSessionId)?.messages);
+
 	if (!sourceMessages?.length) {
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
@@ -1769,7 +1818,10 @@ async function handleForkUnlocked(
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)
-			: undefined) ?? readSessionMetadata(sourceSessionId);
+			: undefined) ??
+		(binding.kind === "local"
+			? readSessionMetadata(sourceSessionId)
+			: undefined);
 	const liveConfig = ctx.liveSessions.get(sourceSessionId)?.config;
 	const baseForkConfig: JsonRecord = {
 		...(liveConfig ?? {}),
@@ -1915,11 +1967,16 @@ async function handleForkUnlocked(
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		newSessionId,
-		createLiveSession(forkConfig, {
+		createLiveSession(baseForkConfig, {
 			environmentId: binding.environmentId,
 			messages: forkMessages,
 			prompt: derivePromptFromMessages(forkMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
+			title:
+				binding.kind === "local"
+					? readSessionMetadataTitle(sourceSessionId)
+					: typeof sourceMetadata?.title === "string"
+						? sourceMetadata.title
+						: undefined,
 			status: "idle",
 		}),
 	);
@@ -1959,7 +2016,7 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await manager.stop(sessionId);
+			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
@@ -2070,7 +2127,7 @@ async function handleRestoreCheckpoint(
 		ctx.liveSessions.delete(sourceSessionId);
 		ctx.liveSessions.set(
 			sessionId,
-			createLiveSession(config, {
+			createLiveSession(requestedConfig, {
 				environmentId: binding.environmentId,
 				messages: restoredMessages,
 				prompt: derivePromptFromMessages(restoredMessages),
@@ -2083,7 +2140,10 @@ async function handleRestoreCheckpoint(
 		// transcript describing the discarded turns, and read_session_messages
 		// prefers that file over the live session. Write the trimmed history so
 		// the transcript matches the workspace the restore just rolled back to.
-		persistSessionMessages(sessionId, restoredMessages);
+		if (binding.kind === "local") {
+			persistSessionMessages(sessionId, restoredMessages);
+		}
+		ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 		return {
@@ -2147,16 +2207,24 @@ async function handleUpdatePendingPrompt(
 	if (!prompt) {
 		throw new Error("prompt is required");
 	}
-	const manager = getSessionManager(ctx);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
 	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
 	// Queued prompts are delivered by the runtime without another pass
 	// through handleSend, so resolve slash commands here too.
-	const runtimePrompt = await resolveDesktopRuntimePrompt(
-		ctx,
-		readWorkspacePath(sessionConfig) ?? ctx.localWorkspaceRoot,
-		prompt,
-		sessionConfig?.mode,
-	);
+	const runtimePrompt =
+		binding.kind === "ssh"
+			? prompt
+			: await resolveDesktopRuntimePrompt(
+					ctx,
+					readWorkspacePath(sessionConfig) ?? ctx.localWorkspaceRoot,
+					prompt,
+					sessionConfig?.mode,
+				);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
@@ -2752,7 +2820,7 @@ async function handleHandoffOnce(
 	}
 	if (!outerSessionId) {
 		emitProgress("creating", "Creating the cloud workspace…");
-		const created = await cloud.create({
+		const created = await cloud.createAndAttach({
 			repoUrl: prepared.repoUrl,
 			branch: prepared.branch,
 			modelId: prepared.modelId,
@@ -2966,6 +3034,12 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 	sessionId: string,
 	sessionManager?: ClineCore,
 ): Promise<void> {
+	ctx = getEnvironmentContext(
+		ctx,
+		ctx.sessionEnvironmentIds.get(sessionId) ??
+			ctx.activeEnvironmentId ??
+			"local",
+	);
 	if (handoffRequests.get(ctx)?.has(sessionId)) {
 		throw new Error("Wait for the cloud handoff to finish before deleting.");
 	}
@@ -3093,7 +3167,7 @@ export async function handleChatSessionCommand(
 				const reasoningEffort = readReasoningEffort(
 					request.config?.reasoningEffort,
 				);
-				return await cloud.create({
+				return await cloud.createAndAttach({
 					repoUrl,
 					modelId,
 					...(initialPrompt ? { initialPrompt } : {}),
@@ -3172,5 +3246,25 @@ export async function handleChatSessionCommand(
 	}
 	const handler = ACTION_HANDLERS[request.action];
 	if (!handler) throw new Error("unsupported action");
-	return handler(ctx, request);
+	const explicitEnvironment =
+		readEnvironmentId(request.config) ??
+		(request.action === "handoff" || request.action === "prepare_handoff"
+			? (ctx.sessionEnvironmentIds.get(request.sessionId ?? "") ??
+				ctx.activeEnvironmentId ??
+				"local")
+			: undefined);
+	const binding =
+		!explicitEnvironment && request.sessionId
+			? await findSessionRuntimeBinding(ctx, request.sessionId)
+			: undefined;
+	return handler(
+		getEnvironmentContext(
+			ctx,
+			explicitEnvironment ??
+				binding?.environmentId ??
+				ctx.activeEnvironmentId ??
+				"local",
+		),
+		request,
+	);
 }

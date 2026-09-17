@@ -359,7 +359,7 @@ describe("built-in provider metadata", () => {
 	it("uses generated specs directly when no runtime override is required", () => {
 		// moonshot is intentionally absent: it carries a Cline-specific
 		// regional routing override (apiLineBaseUrls) on top of its generated
-		// spec.
+		// spec. wandb is absent because it carries a CoreWeave branding override.
 		const generatedOnlyProviderIds = [
 			"fireworks",
 			"poolside",
@@ -367,7 +367,6 @@ describe("built-in provider metadata", () => {
 			"baseten",
 			"requesty",
 			"huggingface",
-			"wandb",
 			"xiaomi",
 			"tencent-tokenhub",
 		] as const;
@@ -377,6 +376,21 @@ describe("built-in provider metadata", () => {
 				GENERATED_PROVIDER_SPECS.find((spec) => spec.id === providerId),
 			);
 		}
+	});
+
+	it("preserves W&B connection settings under the CoreWeave display name", () => {
+		const generated = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "wandb",
+		);
+		const builtin = BUILTIN_SPECS.find((spec) => spec.id === "wandb");
+
+		expect(generated).toBeDefined();
+		expect(builtin).toEqual({
+			...generated,
+			name: "CoreWeave",
+			description: "CoreWeave Serverless Inference",
+			docsUrl: "https://docs.wandb.ai/inference/",
+		});
 	});
 
 	it("marks popular providers with a provider capability and rank", async () => {

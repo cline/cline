@@ -4,6 +4,7 @@ import {
 	navigationHistoryReducer,
 } from "./navigation-history";
 import type { SessionHistoryItem, SessionMetadata } from "./session-history";
+import { sessionKey } from "./session-identity";
 
 export type DesktopAppView = "chat" | "sessions" | "settings";
 
@@ -47,12 +48,14 @@ export type DesktopAppAction<SettingsSection extends string> =
 	| {
 			type: "delete-session";
 			deletedSessionId: string;
+			environmentId?: string;
 			deletedThreadId?: string;
 			fallbackThreadId: string;
 			fallbackEnvironmentId: string;
 	  }
 	| {
 			type: "update-session-metadata";
+			environmentId?: string;
 			sessionId: string;
 			metadata: SessionMetadata;
 	  }
@@ -168,7 +171,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		}
 		case "open-session": {
-			const threadId = `session_${action.session.sessionId}`;
+			const threadId = `session_${sessionKey({ ...action.session, environmentId: action.environmentId })}`;
 			const existingIdx = state.threads.findIndex(
 				(thread) => thread.id === threadId,
 			);
@@ -224,14 +227,15 @@ export function desktopAppReducer<SettingsSection extends string>(
 				),
 			};
 		case "delete-session": {
-			const historyThreadId = `session_${action.deletedSessionId}`;
+			const historyThreadId = `session_${sessionKey({ sessionId: action.deletedSessionId, environmentId: action.environmentId })}`;
 			const deletedThreadIds = new Set(
 				state.threads
 					.filter(
 						(thread) =>
 							thread.id === action.deletedThreadId ||
 							thread.id === historyThreadId ||
-							thread.historySession?.sessionId === action.deletedSessionId,
+							(thread.historySession?.sessionId === action.deletedSessionId &&
+								thread.environmentId === (action.environmentId ?? "local")),
 					)
 					.map((thread) => thread.id),
 			);
@@ -297,7 +301,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 			return {
 				...state,
 				threads: state.threads.map((thread) =>
-					thread.historySession?.sessionId === action.sessionId
+					thread.historySession?.sessionId === action.sessionId &&
+					thread.environmentId === (action.environmentId ?? "local")
 						? {
 								...thread,
 								historySession: {

@@ -52,43 +52,6 @@ afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 });
 
-function localRuntimeContext(
-	sessionManager: Record<string, unknown>,
-	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
-) {
-	const workspaceRoot = options.workspaceRoot ?? "/workspace";
-	return {
-		runtimeBindings: new Map([
-			[
-				"local",
-				{
-					environmentId: "local",
-					kind: "local" as const,
-					workspaceRoot,
-					sessionManager,
-					hubClient: {
-						command: vi.fn(async () => undefined),
-					},
-					unsubscribeSessionEvents: () => {},
-				},
-			],
-		]),
-		sessionEnvironmentIds: new Map(
-			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
-		),
-		activeEnvironmentId: "local",
-		remoteEnvironments: null,
-		localWorkspaceRoot: workspaceRoot,
-	};
-}
-
-function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
-	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
-		string,
-		unknown
-	>;
-}
-
 describe("cloud handoff model catalog", () => {
 	it("retains a catalog model duplicated in Cline Pass for organization use", () => {
 		const models = combineCloudHandoffModels({
@@ -166,6 +129,45 @@ describe("rewriteDesktopTeamPrompt", () => {
 		}
 	});
 });
+function localRuntimeContext(
+	sessionManager: Record<string, unknown>,
+	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
+) {
+	const workspaceRoot = options.workspaceRoot ?? "/workspace";
+	return {
+		runtimeBindings: new Map([
+			[
+				"local",
+				{
+					environmentId: "local",
+					kind: "local" as const,
+					workspaceRoot,
+					sessionManager: {
+						get: vi.fn(async () => undefined),
+						...sessionManager,
+					},
+					hubClient: {
+						command: vi.fn(async () => undefined),
+					},
+					unsubscribeSessionEvents: () => {},
+				},
+			],
+		]),
+		sessionEnvironmentIds: new Map(
+			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
+		),
+		activeEnvironmentId: "local",
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
+	};
+}
+
+function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
+	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
+		string,
+		unknown
+	>;
+}
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -1304,9 +1306,22 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext(sessionManager, {
-				sessionIds: [sourceSessionId],
-				workspaceRoot: "/workspace/project",
+			...localRuntimeContext({
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						importedFrom: { tool: "codex", sourceId: "cdx-1" },
+					},
+				})),
+				readMessages,
+				restore,
+				start,
 			}),
 			streamIndices: new Map(),
 			wsClients: new Set(),
@@ -1587,10 +1602,7 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				...localRuntimeContext(
-					{ restore, get: vi.fn(async () => undefined) },
-					{ sessionIds: [sessionId], workspaceRoot: "/workspace/project" },
-				),
+				...localRuntimeContext({ restore }),
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -1716,7 +1728,6 @@ describe("first-send connection updates", () => {
 			wsClients: new Set(),
 			...localRuntimeContext(
 				{
-					get,
 					readMessages,
 					readSessionCompactionState,
 					send,
@@ -3088,15 +3099,11 @@ describe("mistake-limit prompt", () => {
 			streamIndices: new Map(),
 			pendingQuestions: new Map(),
 			liveSessions: new Map(),
-			...localRuntimeContext(
-				{
-					send: steer,
-					get: vi.fn(async () => null),
-					stop: vi.fn(async () => {}),
-					abort: vi.fn(async () => {}),
-				},
-				{ sessionIds: ["session-1"] },
-			),
+			...localRuntimeContext({
+				send: steer,
+				stop: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+			}),
 		} as unknown as SidecarContext;
 		const readQuestionRequest = () => {
 			const raw = send.mock.calls
@@ -3303,7 +3310,7 @@ describe("mistake-limit prompt", () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		if (failure === "rejected")
 			steer.mockRejectedValueOnce(new Error("Disconnected"));
-		else ctx.runtimeBindings.get("local")!.sessionManager = null as never;
+		else ctx.runtimeBindings.clear();
 		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
 		const waiting = Promise.all([
@@ -3580,10 +3587,7 @@ describe("queue steering routing", () => {
 		const ctx = {
 			liveSessions: new Map(),
 			wsClients: new Set(),
-			...localRuntimeContext(
-				{ pendingPrompts: { steerFirst, update } },
-				{ sessionIds: ["session"] },
-			),
+			...localRuntimeContext({ pendingPrompts: { steerFirst, update } }),
 		} as unknown as SidecarContext;
 		if (environmentId !== "local") {
 			const localBinding = ctx.runtimeBindings.get("local")!;

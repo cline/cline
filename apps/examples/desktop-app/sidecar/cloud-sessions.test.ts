@@ -498,7 +498,7 @@ describe("cloud creation provisioning identity", () => {
 				getAuthToken: async () => "workos:create",
 				createHubClient: () => new FakeHubClient() as never,
 			});
-			const creating = manager.create({
+			const creating = manager.createAndAttach({
 				modelId: "anthropic/claude-sonnet-5",
 				repoUrl: "https://github.com/cline/test",
 			});
@@ -558,7 +558,7 @@ describe("cloud creation provisioning identity", () => {
 			getAuthToken: async () => "workos:create",
 		});
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 				handoff: {
@@ -858,7 +858,11 @@ describe("CloudSessionManager", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				environmentId: "local",
+				sessionId: "ses-outer",
+				status: "running",
+			},
 		});
 	});
 
@@ -889,7 +893,11 @@ describe("CloudSessionManager", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				environmentId: "local",
+				sessionId: "ses-outer",
+				status: "running",
+			},
 		});
 	});
 
@@ -1276,7 +1284,7 @@ describe("CloudSessionManager", () => {
 			createHubClient: () => hub as never,
 		});
 
-		const created = await manager.create({
+		const created = await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix it",
@@ -1350,7 +1358,7 @@ describe("CloudSessionManager", () => {
 		});
 
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 			}),
@@ -1378,7 +1386,7 @@ describe("CloudSessionManager", () => {
 		});
 
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 			}),
@@ -1421,7 +1429,7 @@ describe("CloudSessionManager", () => {
 			createHubClient: () => hub as never,
 		});
 
-		const created = await manager.create({
+		const created = await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			branch: "main",
@@ -1486,7 +1494,7 @@ describe("CloudSessionManager", () => {
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
 		});
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 			handoff: {
@@ -1518,7 +1526,7 @@ describe("CloudSessionManager", () => {
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
 		});
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 			handoff: {
@@ -2552,7 +2560,7 @@ describe("CloudSessionManager", () => {
 		});
 		ctx.cloudSessionManager = manager;
 
-		const creating = manager.create({
+		const creating = manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix the provisioning flow",
@@ -2629,7 +2637,7 @@ describe("CloudSessionManager", () => {
 		});
 		ctx.cloudSessionManager = manager;
 
-		const creating = manager.create({
+		const creating = manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -2710,8 +2718,8 @@ describe("CloudSessionManager", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		const first = manager.create(input);
-		const second = manager.create(input);
+		const first = manager.createAndAttach(input);
+		const second = manager.createAndAttach(input);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(createCalls).toBe(1);
 		expect(
@@ -2765,7 +2773,7 @@ describe("CloudSessionManager", () => {
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => authToken,
 		});
-		const creating = manager.create({
+		const creating = manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -2935,7 +2943,7 @@ describe("CloudSessionManager", () => {
 		expect(repositoryScopes).toEqual(["org-cline-bot"]);
 		expect(branchScopes).toEqual(["org-cline-bot"]);
 
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -2958,7 +2966,7 @@ describe("CloudSessionManager", () => {
 			getActiveOrganizationId: scopeLookup,
 		});
 
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			organizationId: null,
@@ -2995,7 +3003,7 @@ describe("CloudSessionManager", () => {
 
 		await manager.list();
 		serverScope = "org-b";
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -3059,7 +3067,7 @@ describe("CloudSessionManager", () => {
 		ctx.cloudSessionManager = manager;
 
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "anthropic/claude-sonnet-5",
 				repoUrl: "https://github.com/cline/test",
 			}),

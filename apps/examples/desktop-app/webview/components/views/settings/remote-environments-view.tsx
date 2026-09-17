@@ -3,11 +3,10 @@
 import {
 	CheckCircle2,
 	CircleAlert,
-	CloudCog,
 	Loader2,
+	Plug,
 	Plus,
 	RefreshCw,
-	Server,
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -69,6 +68,7 @@ function profileIdOrThrow(profile: RemoteEnvironmentProfile): string {
 }
 
 function statusLabel(value: string): string {
+	if (value === "untested") return "Not tested";
 	return value
 		.split("-")
 		.map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
@@ -367,29 +367,18 @@ export function RemoteEnvironmentsContent() {
 		<PageFrame>
 			<PageHeader
 				actions={
-					<>
-						<Button
-							disabled={isBusy}
-							onClick={startNewProfile}
-							variant="outline"
-						>
-							<Plus />
-							New host
-						</Button>
-						<Button
-							aria-label="Refresh remote environments"
-							disabled={isLoading || isBusy}
-							onClick={() => void loadProfiles()}
-							variant="outline"
-						>
-							<RefreshCw className={cn(isLoading && "animate-spin")} />
-							Refresh
-						</Button>
-					</>
+					<Button
+						aria-label="Refresh remote environments"
+						disabled={isLoading || isBusy}
+						onClick={() => void loadProfiles()}
+						variant="ghost"
+						size="icon-sm"
+					>
+						<RefreshCw className={cn(isLoading && "animate-spin")} />
+					</Button>
 				}
-				description="Save SSH hosts and verify access. Connect from the environment selector beside the workspace picker."
-				icon={CloudCog}
-				title="Remote environments"
+				title="Remote Environments"
+				description="Manage your remote SSH hosts and their configurations."
 			/>
 
 			{error ? (
@@ -401,16 +390,23 @@ export function RemoteEnvironmentsContent() {
 			) : null}
 
 			<div className="grid grid-cols-[minmax(16rem,0.75fr)_minmax(24rem,1.25fr)] gap-5 max-[960px]:grid-cols-1">
-				<Card className="h-fit gap-4 py-5">
-					<CardHeader className="px-5">
-						<CardTitle>SSH hosts</CardTitle>
-						<CardDescription>
-							{profiles.length === 1
-								? "1 configured environment"
-								: `${profiles.length} configured environments`}
-						</CardDescription>
+				<Card className="h-112 gap-4 overflow-hidden py-5">
+					<CardHeader className="flex shrink-0 flex-row items-center justify-between gap-3 px-5">
+						<CardTitle className="flex items-center gap-2">
+							SSH Hosts
+							<Badge variant="secondary">{profiles.length}</Badge>
+						</CardTitle>
+						<Button
+							disabled={isBusy}
+							onClick={startNewProfile}
+							variant="default"
+							size="xs"
+						>
+							<Plus />
+							New Host
+						</Button>
 					</CardHeader>
-					<CardContent className="space-y-2 px-3">
+					<CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3">
 						{isLoading ? (
 							<div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
 								<Loader2 className="size-4 animate-spin" />
@@ -470,17 +466,26 @@ export function RemoteEnvironmentsContent() {
 
 				<Card className="gap-5 py-5">
 					<CardHeader className="px-5">
-						<CardTitle>
-							{selectedProfile
-								? `Edit ${selectedProfile.name}`
-								: "Add SSH host"}
-						</CardTitle>
-						<CardDescription>
-							OpenSSH config aliases work in the host field. Explicit values
-							here override matching SSH config values. v0 requires key-based or
-							agent authentication; it cannot show an interactive password
-							prompt.
-						</CardDescription>
+						<div className="flex items-center justify-between gap-3">
+							<CardTitle>
+								{selectedProfile?.name ?? "Adding New Host..."}
+							</CardTitle>
+							{draft.id ? (
+								<Button
+									disabled={isBusy}
+									onClick={() => setDeleteTarget(draft)}
+									variant="ghost"
+									size="icon-lg"
+								>
+									<Trash2 />
+								</Button>
+							) : null}
+						</div>
+						{hasSavedDestination ? (
+							<CardDescription>
+								Create a new host to change the SSH host, user, or port.
+							</CardDescription>
+						) : null}
 					</CardHeader>
 					<CardContent className="space-y-5 px-5">
 						<div className="grid grid-cols-2 gap-4 max-[620px]:grid-cols-1">
@@ -543,11 +548,6 @@ export function RemoteEnvironmentsContent() {
 								/>
 							</div>
 						</div>
-						{hasSavedDestination ? (
-							<p className="text-xs text-muted-foreground">
-								Create a new host to change the SSH host, user, or port.
-							</p>
-						) : null}
 
 						<div className="space-y-2">
 							<Label htmlFor="remote-identity">Identity file (optional)</Label>
@@ -561,6 +561,10 @@ export function RemoteEnvironmentsContent() {
 								spellCheck={false}
 								value={draft.identityFile ?? ""}
 							/>
+							<p className="text-xs text-muted-foreground">
+								Password sign-in is not supported. The host key must already be
+								trusted in your SSH known_hosts file.
+							</p>
 						</div>
 
 						{formError ? (
@@ -570,26 +574,42 @@ export function RemoteEnvironmentsContent() {
 						<div className="rounded-lg border bg-muted/30 p-4">
 							<div className="mb-3 flex items-center justify-between gap-3">
 								<div className="flex items-center gap-2">
-									<Server className="size-4 text-muted-foreground" />
 									<p className="text-sm font-medium">Environment status</p>
 								</div>
-								{draft.id === activeProfileId ? (
-									<Badge>Active</Badge>
-								) : (
-									<Badge variant="secondary">Inactive</Badge>
-								)}
+								<Button
+									disabled={isBusy}
+									onClick={() => void testProfile()}
+									variant="secondary"
+									className="text-muted-foreground"
+									size="sm"
+								>
+									{busyAction?.action === "test" ? (
+										<Loader2 className="animate-spin" />
+									) : (
+										<Plug />
+									)}
+									Test Connection
+								</Button>
 							</div>
-							<div className="grid grid-cols-3 gap-x-5 gap-y-2 max-[620px]:grid-cols-1">
+							<div className="grid grid-cols-2 gap-x-5 gap-y-3 max-[620px]:grid-cols-1">
+								<StatusBadge
+									label="Environment"
+									value={draft.id === activeProfileId ? "active" : "inactive"}
+								/>
 								<StatusBadge
 									label="Connection"
 									value={selectedRuntime.connection}
 								/>
-								<StatusBadge label="SSH test" value={selectedRuntime.test} />
 								<StatusBadge
-									label="Cline bootstrap"
+									label="Connection test"
+									value={selectedRuntime.test}
+								/>
+								<StatusBadge
+									label="Cline setup"
 									value={selectedRuntime.bootstrap}
 								/>
 							</div>
+
 							{selectedRuntime.remotePlatform || selectedRuntime.remoteArch ? (
 								<p className="mt-3 text-xs text-muted-foreground">
 									Remote:{" "}
@@ -613,39 +633,17 @@ export function RemoteEnvironmentsContent() {
 							) : null}
 						</div>
 
-						<div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-							<div>
-								{draft.id ? (
-									<Button
-										disabled={isBusy}
-										onClick={() => setDeleteTarget(draft)}
-										variant="ghost"
-									>
-										<Trash2 />
-										Delete
-									</Button>
-								) : null}
-							</div>
+						<div className="flex justify-end border-t pt-5">
 							<div className="flex flex-wrap justify-end gap-2">
 								<Button
 									disabled={isBusy}
 									onClick={() => void saveProfile()}
-									variant="outline"
+									variant="default"
 								>
 									{busyAction?.action === "save" ? (
 										<Loader2 className="animate-spin" />
 									) : null}
 									Save
-								</Button>
-								<Button
-									disabled={isBusy}
-									onClick={() => void testProfile()}
-									variant="outline"
-								>
-									{busyAction?.action === "test" ? (
-										<Loader2 className="animate-spin" />
-									) : null}
-									Test connection
 								</Button>
 							</div>
 						</div>

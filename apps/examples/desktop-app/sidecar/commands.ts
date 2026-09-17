@@ -16,6 +16,8 @@ import type {
 	ProviderClient,
 	ProviderConfig,
 	ProviderProtocol,
+	RemoteEnvironmentConnection,
+	RemoteEnvironmentInput,
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
@@ -41,6 +43,7 @@ import {
 	parseProviderModeSettings,
 	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
+	RemoteEnvironmentService,
 	readGlobalSettings,
 	resolveClineAccountTelemetryIdentity,
 	resolveDisabledToolNames,
@@ -116,6 +119,8 @@ import {
 	disconnectRemoteSessionRuntime,
 	ensureSharedHubClient,
 	findSessionRuntimeBinding,
+	getEnvironmentContext,
+	getEnvironmentContexts,
 	getRuntimeBinding,
 	resolveSidecarAskQuestion,
 	sendEventToClient,
@@ -162,11 +167,7 @@ import {
 } from "./paths";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
-import type {
-	RemoteEnvironmentConnection,
-	RemoteEnvironmentInput,
-} from "./remote-environments";
-import { RemoteEnvironmentService } from "./remote-environments";
+import { resolveDesktopRemoteHelper } from "./remote-helper";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -209,127 +210,6 @@ function createDesktopProviderSettingsManager(): ProviderSettingsManager {
 	const manager = new ProviderSettingsManager();
 	desktopClientSettingsManager.initializeModesIfMissing(manager.read().modes);
 	return manager;
-}
-
-const remoteEnvironmentTransitionTails = new WeakMap<
-	SidecarContext,
-	Promise<void>
->();
-
-function withRemoteEnvironmentTransition<T>(
-	ctx: SidecarContext,
-	operation: () => Promise<T>,
-): Promise<T> {
-	const previous =
-		remoteEnvironmentTransitionTails.get(ctx) ?? Promise.resolve();
-	const result = previous.then(operation, operation);
-	const tail = result.then(
-		() => undefined,
-		() => undefined,
-	);
-	remoteEnvironmentTransitionTails.set(ctx, tail);
-	void tail.finally(() => {
-		if (remoteEnvironmentTransitionTails.get(ctx) === tail) {
-			remoteEnvironmentTransitionTails.delete(ctx);
-		}
-	});
-	return result;
-}
-
-function activeRemoteEnvironmentState(ctx: SidecarContext): {
-	activeEnvironmentId: string;
-	activeProfileId: string | null;
-} {
-	const binding = ctx.runtimeBindings.get(ctx.activeEnvironmentId);
-	if (binding?.kind === "ssh") {
-		return {
-			activeEnvironmentId: binding.environmentId,
-			activeProfileId: binding.environmentId,
-		};
-	}
-	return {
-		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
-		activeProfileId: null,
-	};
-}
-
-function broadcastLocalEnvironment(
-	ctx: SidecarContext,
-	details: { reason?: string; message?: string } = {},
-): void {
-	broadcastEvent(ctx, "remote_environment_changed", {
-		status: "disconnected",
-		activeProfileId: null,
-		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
-		environmentId: LOCAL_ENVIRONMENT_ID,
-		workspaceRoot: ctx.localWorkspaceRoot,
-		...details,
-	});
-}
-
-function getRemoteEnvironmentService(
-	ctx: SidecarContext,
-): RemoteEnvironmentService {
-	if (!ctx.remoteEnvironments) {
-		ctx.remoteEnvironments = new RemoteEnvironmentService({
-			onStatusChange: (status) => {
-				broadcastEvent(ctx, "remote_environment_status", status);
-			},
-			onConnectionLost: (status) => {
-				const binding = ctx.runtimeBindings.get(status.profileId);
-				if (binding?.kind !== "ssh") return;
-				const wasActive = ctx.activeEnvironmentId === status.profileId;
-				void disconnectRemoteSessionRuntime(ctx, status.profileId)
-					.catch((error) => {
-						ctx.logger?.log("Failed to dispose dead SSH runtime", {
-							error,
-							environmentId: status.profileId,
-							severity: "warn",
-						});
-					})
-					.finally(() => {
-						if (
-							!wasActive ||
-							ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID
-						) {
-							return;
-						}
-						broadcastLocalEnvironment(ctx, {
-							reason: "tunnel_error",
-							message: status.message,
-						});
-					});
-			},
-		});
-	}
-	return ctx.remoteEnvironments;
-}
-
-function requestedEnvironmentId(
-	args: Record<string, unknown> | undefined,
-): string | undefined {
-	if (typeof args?.environmentId !== "string") return undefined;
-	const environmentId = args.environmentId.trim();
-	return environmentId || undefined;
-}
-
-function getCommandRuntimeBinding(
-	ctx: SidecarContext,
-	args: Record<string, unknown> | undefined,
-) {
-	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
-	return getRuntimeBinding(ctx, environmentId);
-}
-
-async function getCommandSessionBinding(
-	ctx: SidecarContext,
-	sessionId: string,
-	args: Record<string, unknown> | undefined,
-) {
-	const environmentId = requestedEnvironmentId(args);
-	return environmentId
-		? getRuntimeBinding(ctx, environmentId)
-		: await findSessionRuntimeBinding(ctx, sessionId);
 }
 
 type DesktopDebugLogLevel = "debug" | "info" | "error";
@@ -391,6 +271,130 @@ function emitDesktopDebugLog(
 		timestamp: new Date().toISOString(),
 		metadata,
 	});
+}
+const remoteEnvironmentTransitionTails = new WeakMap<
+	SidecarContext,
+	Promise<void>
+>();
+
+function withRemoteEnvironmentTransition<T>(
+	ctx: SidecarContext,
+	operation: () => Promise<T>,
+): Promise<T> {
+	const previous =
+		remoteEnvironmentTransitionTails.get(ctx) ?? Promise.resolve();
+	const result = previous.then(operation, operation);
+	const tail = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	remoteEnvironmentTransitionTails.set(ctx, tail);
+	void tail.finally(() => {
+		if (remoteEnvironmentTransitionTails.get(ctx) === tail) {
+			remoteEnvironmentTransitionTails.delete(ctx);
+		}
+	});
+	return result;
+}
+
+function activeRemoteEnvironmentState(ctx: SidecarContext): {
+	activeEnvironmentId: string;
+	activeProfileId: string | null;
+} {
+	const binding = ctx.runtimeBindings.get(ctx.activeEnvironmentId);
+	if (binding?.kind === "ssh") {
+		return {
+			activeEnvironmentId: binding.environmentId,
+			activeProfileId: binding.environmentId,
+		};
+	}
+	return {
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		activeProfileId: null,
+	};
+}
+
+function broadcastLocalEnvironment(
+	ctx: SidecarContext,
+	details: { reason?: string; message?: string } = {},
+): void {
+	broadcastEvent(ctx, "remote_environment_changed", {
+		status: "disconnected",
+		activeProfileId: null,
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		environmentId: LOCAL_ENVIRONMENT_ID,
+		workspaceRoot: ctx.localWorkspaceRoot,
+		...details,
+	});
+}
+
+function getRemoteEnvironmentService(
+	ctx: SidecarContext,
+): RemoteEnvironmentService {
+	if (!ctx.remoteEnvironments) {
+		ctx.remoteEnvironments = new RemoteEnvironmentService({
+			dependencies: {
+				resolveHelperBinary: async (target) =>
+					resolveDesktopRemoteHelper(target),
+			},
+			onStatusChange: (status) => {
+				broadcastEvent(ctx, "remote_environment_status", status);
+			},
+			onConnectionLost: (status) => {
+				const binding = ctx.runtimeBindings.get(status.profileId);
+				if (binding?.kind !== "ssh") return;
+				const wasActive = ctx.activeEnvironmentId === status.profileId;
+				void disconnectRemoteSessionRuntime(ctx, status.profileId)
+					.catch((error) => {
+						ctx.logger?.log("Failed to dispose dead SSH runtime", {
+							error,
+							environmentId: status.profileId,
+							severity: "warn",
+						});
+					})
+					.finally(() => {
+						if (
+							!wasActive ||
+							ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID
+						) {
+							return;
+						}
+						broadcastLocalEnvironment(ctx, {
+							reason: "tunnel_error",
+							message: status.message,
+						});
+					});
+			},
+		});
+	}
+	return ctx.remoteEnvironments;
+}
+
+function requestedEnvironmentId(
+	args: Record<string, unknown> | undefined,
+): string | undefined {
+	if (typeof args?.environmentId !== "string") return undefined;
+	const environmentId = args.environmentId.trim();
+	return environmentId || undefined;
+}
+
+function getCommandRuntimeBinding(
+	ctx: SidecarContext,
+	args: Record<string, unknown> | undefined,
+) {
+	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
+	return getRuntimeBinding(ctx, environmentId);
+}
+
+async function getCommandSessionBinding(
+	ctx: SidecarContext,
+	sessionId: string,
+	args: Record<string, unknown> | undefined,
+) {
+	const environmentId = requestedEnvironmentId(args);
+	return environmentId
+		? getRuntimeBinding(ctx, environmentId)
+		: await findSessionRuntimeBinding(ctx, sessionId);
 }
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
@@ -677,7 +681,10 @@ async function listSessionsFromSidecarManager(
 				const record = item as unknown as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
 				if (!sessionId) continue;
-				ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+				getEnvironmentContext(
+					ctx,
+					binding.environmentId,
+				).sessionEnvironmentIds.set(sessionId, binding.environmentId);
 				const merged = mergePersistedSessionRecord(
 					sessionId,
 					record,
@@ -685,7 +692,7 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
-				byId.set(sessionId, {
+				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
 					remoteEnvironment:
@@ -705,47 +712,46 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
-			byId.set(session.sessionId, {
+			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
 			});
 		}
 	}
 
-	for (const [sessionId, session] of ctx.liveSessions.entries()) {
-		const existing = byId.get(sessionId);
-		byId.set(sessionId, {
-			...(existing ?? {}),
-			sessionId,
-			environmentId:
-				session.environmentId ??
-				ctx.sessionEnvironmentIds.get(sessionId) ??
-				LOCAL_ENVIRONMENT_ID,
-			status: session.status,
-			provider: session.config.provider ?? existing?.provider ?? "",
-			model: session.config.model ?? existing?.model ?? "",
-			cwd: session.config.cwd ?? existing?.cwd ?? "",
-			workspaceRoot:
-				session.config.workspaceRoot ??
-				existing?.workspaceRoot ??
-				existing?.cwd ??
-				"",
-			prompt: session.prompt ?? existing?.prompt,
-			startedAt:
-				existing?.startedAt ?? new Date(session.startedAt).toISOString(),
-			endedAt:
-				session.endedAt !== undefined
-					? new Date(session.endedAt).toISOString()
-					: existing?.endedAt,
-			metadata: {
-				...((existing?.metadata && typeof existing.metadata === "object"
-					? existing.metadata
-					: {}) as JsonRecord),
-				...(session.title ? { title: session.title } : {}),
-			},
-		});
+	for (const scoped of getEnvironmentContexts(ctx)) {
+		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
+			const existing = byId.get(key);
+			byId.set(key, {
+				...(existing ?? {}),
+				sessionId,
+				environmentId: scoped.activeEnvironmentId,
+				status: session.status,
+				provider: session.config.provider ?? existing?.provider ?? "",
+				model: session.config.model ?? existing?.model ?? "",
+				cwd: session.config.cwd ?? existing?.cwd ?? "",
+				workspaceRoot:
+					session.config.workspaceRoot ??
+					existing?.workspaceRoot ??
+					existing?.cwd ??
+					"",
+				prompt: session.prompt ?? existing?.prompt,
+				startedAt:
+					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
+				endedAt:
+					session.endedAt !== undefined
+						? new Date(session.endedAt).toISOString()
+						: existing?.endedAt,
+				metadata: {
+					...((existing?.metadata && typeof existing.metadata === "object"
+						? existing.metadata
+						: {}) as JsonRecord),
+					...(session.title ? { title: session.title } : {}),
+				},
+			});
+		}
 	}
-
 	return Array.from(byId.values())
 		.sort((left, right) => {
 			const leftTime = Date.parse(
@@ -881,6 +887,13 @@ async function listGitBranches(
 	return { current: current || undefined, branches };
 }
 
+const REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES = 256 * 1024;
+const REMOTE_FILE_SEARCH_SCRIPT =
+	"if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then " +
+	"git -c core.quotePath=false ls-files --cached --others --exclude-standard; " +
+	"else find . -type d '(' -name .git -o -name node_modules ')' -prune -o -type f -print; fi | " +
+	`head -c ${REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES}`;
+
 async function searchRemoteWorkspaceFiles(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
@@ -902,34 +915,13 @@ async function searchRemoteWorkspaceFiles(
 		typeof args?.limit === "number" && Number.isFinite(args.limit)
 			? Math.max(1, Math.min(50, Math.trunc(args.limit)))
 			: 10;
-	let output = "";
-	try {
-		output = (
-			await ctx.remoteEnvironments.run(binding.environmentId, {
-				command: "git",
-				args: ["ls-files", "--cached", "--others", "--exclude-standard"],
-				cwd: root,
-			})
-		).stdout;
-	} catch {
-		output = (
-			await ctx.remoteEnvironments.run(binding.environmentId, {
-				command: "find",
-				args: [
-					".",
-					"-type",
-					"f",
-					"-not",
-					"-path",
-					"./.git/*",
-					"-not",
-					"-path",
-					"./node_modules/*",
-				],
-				cwd: root,
-			})
-		).stdout;
-	}
+	const result = await ctx.remoteEnvironments.run(binding.environmentId, {
+		command: "sh",
+		args: ["-c", REMOTE_FILE_SEARCH_SCRIPT],
+		cwd: root,
+	});
+	// A byte cap can split a path. Discard the incomplete final record.
+	const output = result.stdout.slice(0, result.stdout.lastIndexOf("\n") + 1);
 	const rank = (path: string): number => {
 		if (!query) return 3;
 		const lower = path.toLowerCase();
@@ -1781,6 +1773,14 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	const explicitEnvironment = requestedEnvironmentId(args);
+	if (explicitEnvironment) {
+		ctx = getEnvironmentContext(ctx, explicitEnvironment);
+	} else if (typeof args?.sessionId === "string" && args.sessionId.trim()) {
+		const binding = await findSessionRuntimeBinding(ctx, args.sessionId.trim());
+		if (binding) ctx = getEnvironmentContext(ctx, binding.environmentId);
+	}
+
 	// ── SSH remote environments ──────────────────────────────────────
 	if (command === "list_remote_environments") {
 		const service = getRemoteEnvironmentService(ctx);
@@ -1795,11 +1795,11 @@ export async function handleCommand(
 		if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
 			throw new Error("profile is required");
 		}
-		return {
-			profile: await getRemoteEnvironmentService(ctx).upsert(
-				profile as RemoteEnvironmentInput,
-			),
-		};
+		const saved = await getRemoteEnvironmentService(ctx).upsert(
+			profile as RemoteEnvironmentInput,
+		);
+		broadcastEvent(ctx, "remote_environment_profiles_changed", {});
+		return { profile: saved };
 	}
 	if (command === "test_remote_environment") {
 		const id = String(args?.id ?? "").trim();
@@ -1949,6 +1949,8 @@ export async function handleCommand(
 			if (deleted && wasActive) {
 				broadcastLocalEnvironment(ctx, { reason: "profile_deleted" });
 			}
+			if (deleted)
+				broadcastEvent(ctx, "remote_environment_profiles_changed", {});
 			return { deleted, ...active };
 		});
 	}
@@ -2272,11 +2274,12 @@ export async function handleCommand(
 			typeof args?.workspaceRoot === "string"
 				? args.workspaceRoot.trim() || undefined
 				: undefined;
-		const localBinding = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID);
-		if (localBinding) {
+		const searchClient =
+			ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+		if (searchClient) {
 			try {
 				const reply = await withSearchDeadline(
-					localBinding.hubClient.command("session.search", {
+					searchClient.command("session.search", {
 						query,
 						limit,
 						workspaceRoot,
@@ -2460,15 +2463,17 @@ export async function handleCommand(
 			"./chat-session"
 		);
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		await assertSessionDeleteAllowedDuringHandoff(
-			ctx,
-			sessionId,
-			binding?.sessionManager,
-		);
+		if (binding?.kind !== "ssh")
+			await assertSessionDeleteAllowedDuringHandoff(
+				ctx,
+				sessionId,
+				binding?.sessionManager,
+			);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
+
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
@@ -3401,7 +3406,7 @@ export async function handleCommand(
 		return await getPullRequestStatus(
 			typeof args?.cwd === "string" && args.cwd.trim()
 				? args.cwd.trim()
-				: getCommandRuntimeBinding(ctx, args).workspaceRoot,
+				: ctx.localWorkspaceRoot,
 		);
 	}
 	if (command === "get_git_branch") {

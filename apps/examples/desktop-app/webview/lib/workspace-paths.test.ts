@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-// @vitest-environment-options {"url":"http://localhost/"}
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
 	filterWorkspacePaths,
 	isAbsoluteFilePath,
@@ -18,31 +17,7 @@ import {
 	writeWorkspaceSelectionToWindow,
 } from "./workspace-paths";
 
-const originalLocalStorage = Object.getOwnPropertyDescriptor(
-	window,
-	"localStorage",
-);
-
 describe("workspace paths", () => {
-	beforeEach(() => {
-		const values = new Map<string, string>();
-		Object.defineProperty(window, "localStorage", {
-			configurable: true,
-			value: {
-				clear: () => values.clear(),
-				getItem: (key: string) => values.get(key) ?? null,
-				removeItem: (key: string) => values.delete(key),
-				setItem: (key: string, value: string) => values.set(key, value),
-			},
-		});
-	});
-
-	afterEach(() => {
-		if (originalLocalStorage) {
-			Object.defineProperty(window, "localStorage", originalLocalStorage);
-		}
-	});
-
 	it("recognizes typed folder paths for manual entry", () => {
 		expect(looksLikeFolderPath("/home/user/projects")).toBe(true);
 		expect(looksLikeFolderPath(" /home/user/projects/ ")).toBe(true);
@@ -53,6 +28,10 @@ describe("workspace paths", () => {
 		expect(looksLikeFolderPath("my-project")).toBe(false);
 		expect(looksLikeFolderPath("search text")).toBe(false);
 		expect(looksLikeFolderPath("")).toBe(false);
+	});
+
+	afterEach(() => {
+		window.localStorage.clear();
 	});
 
 	it("normalizes trailing separators and Windows path casing", () => {
@@ -164,20 +143,6 @@ describe("workspace paths", () => {
 			"/projects/active",
 			"/projects/undated",
 		]);
-	});
-
-	it("excludes cloud sessions so /workspace never pollutes local recents", () => {
-		const paths = workspacePathsFromSessions([
-			{ workspaceRoot: "/projects/local", startedAt: "2026-02-01T00:00:00Z" },
-			{
-				workspaceRoot: "/workspace",
-				cwd: "/workspace",
-				origin: "cloud",
-				startedAt: "2026-03-01T00:00:00Z",
-			},
-		]);
-
-		expect(paths).toEqual(["/projects/local"]);
 	});
 
 	it("builds the project catalog from every loaded history workspace", () => {

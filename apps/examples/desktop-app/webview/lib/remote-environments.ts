@@ -1,35 +1,20 @@
 export const DEFAULT_REMOTE_ENVIRONMENT_PORT = 22;
 
-export type RemoteEnvironmentProfile = {
-	id?: string;
-	name: string;
-	host: string;
-	user?: string;
-	port?: number;
-	identityFile?: string;
-};
+export type {
+	RemoteEnvironmentInput as RemoteEnvironmentProfile,
+	RemoteEnvironmentStatus,
+} from "@cline/core";
+
+import type {
+	RemoteEnvironmentInput as RemoteEnvironmentProfile,
+	RemoteEnvironmentStatus,
+} from "@cline/core";
 
 export type RemoteEnvironmentListResult = {
 	profiles: RemoteEnvironmentProfile[];
 	activeEnvironmentId: string;
 	activeProfileId: string | null;
 	statuses: RemoteEnvironmentStatus[];
-};
-
-export type RemoteEnvironmentStatus = {
-	profileId: string;
-	state:
-		| "disconnected"
-		| "testing"
-		| "available"
-		| "connecting"
-		| "connected"
-		| "error";
-	updatedAt: string;
-	message?: string;
-	remotePlatform?: "linux" | "darwin";
-	remoteArch?: "x64" | "arm64";
-	remoteHome?: string;
 };
 
 export type RemoteEnvironmentUpsertResult = {

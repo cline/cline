@@ -63,6 +63,7 @@ import {
 	type SessionHistoryItem,
 	type SessionHistoryStatus,
 } from "@/lib/session-history";
+import { eventEnvironmentId } from "@/lib/session-identity";
 import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
@@ -557,6 +558,13 @@ function dispatchCoreLog(chunk: string): void {
 // ---------------------------------------------------------------------------
 
 export function useChatSession(environmentId: string) {
+	const subscribeToEnvironment = useCallback(
+		(name: string, listener: (payload: unknown) => void) =>
+			desktopClient.subscribe(name, (payload) => {
+				if (eventEnvironmentId(payload) === environmentId) listener(payload);
+			}),
+		[environmentId],
+	);
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
@@ -972,6 +980,7 @@ export function useChatSession(environmentId: string) {
 				turnEndReconcileTimerRef.current = null;
 				void desktopClient
 					.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
 						sessionId: sid,
 						maxMessages: MAX_MESSAGES,
 					})
@@ -1000,7 +1009,7 @@ export function useChatSession(environmentId: string) {
 					});
 			}, TURN_END_RECONCILE_DELAY_MS);
 		},
-		[applyCanonicalHistory],
+		[applyCanonicalHistory, environmentId],
 	);
 
 	useEffect(() => {
@@ -1509,6 +1518,7 @@ export function useChatSession(environmentId: string) {
 
 		void desktopClient
 			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				environmentId,
 				sessionId: activeSessionId,
 			})
 			.then((pending) => {
@@ -1518,7 +1528,7 @@ export function useChatSession(environmentId: string) {
 			})
 			.catch(() => {});
 
-		const unsubscribe = desktopClient.subscribe(
+		const unsubscribe = subscribeToEnvironment(
 			"tool_approval_state",
 			(payload) => {
 				if (!payload || typeof payload !== "object") return;
@@ -1537,10 +1547,10 @@ export function useChatSession(environmentId: string) {
 			cancelled = true;
 			unsubscribe();
 		};
-	}, [environmentId, sessionId]);
+	}, [environmentId, sessionId, subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_requested", (payload) => {
+		return subscribeToEnvironment("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
 			if (
@@ -1558,10 +1568,10 @@ export function useChatSession(environmentId: string) {
 				return [...prev, item];
 			});
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_answered", (payload) => {
+		return subscribeToEnvironment("ask_question_answered", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const requestId = String(
 				(payload as { requestId?: unknown }).requestId ?? "",
@@ -1571,10 +1581,10 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_cancelled", (payload) => {
+		return subscribeToEnvironment("ask_question_cancelled", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const requestId = String(
 				(payload as { requestId?: unknown }).requestId ?? "",
@@ -1584,10 +1594,10 @@ export function useChatSession(environmentId: string) {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("prompts_in_queue_state", (payload) => {
+		return subscribeToEnvironment("prompts_in_queue_state", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as {
 				sessionId?: string;
@@ -1596,7 +1606,7 @@ export function useChatSession(environmentId: string) {
 			if (record.sessionId !== activeSessionIdRef.current) return;
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
-	}, [setPromptsInQueue]);
+	}, [setPromptsInQueue, subscribeToEnvironment]);
 
 	// ---- Incoming chunk handler ----
 
@@ -2095,12 +2105,7 @@ export function useChatSession(environmentId: string) {
 			const projectedOutput = projectGeneratedMediaFromToolOutput(
 				parsed.output,
 			);
-			const toolPayload = buildToolPayloadString({
-				toolName,
-				input: toolInput,
-				output: projectedOutput.output,
-				error: parsed.error,
-			});
+
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
@@ -2110,7 +2115,12 @@ export function useChatSession(environmentId: string) {
 				setMessages((prev) =>
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
-						content: toolPayload,
+						content: buildToolPayloadString({
+							toolName,
+							input: toolInput,
+							output: projectedOutput.output ?? msg.meta?.toolOutput ?? null,
+							error: parsed.error,
+						}),
 						media:
 							projectedOutput.media.length > 0
 								? projectedOutput.media
@@ -2152,7 +2162,7 @@ export function useChatSession(environmentId: string) {
 				setChatTransportError(desktopClient.getTransportError());
 			},
 		);
-		const unsubscribeEvents = desktopClient.subscribe(
+		const unsubscribeEvents = subscribeToEnvironment(
 			"chat_event",
 			(payload) => {
 				if (payload && typeof payload === "object") {
@@ -2164,10 +2174,10 @@ export function useChatSession(environmentId: string) {
 			unsubscribeTransport();
 			unsubscribeEvents();
 		};
-	}, [handleIncomingChunk]);
+	}, [handleIncomingChunk, subscribeToEnvironment]);
 
 	useEffect(() => {
-		const unsubscribeStatus = desktopClient.subscribe(
+		const unsubscribeStatus = subscribeToEnvironment(
 			"chat_session_status",
 			(payload) => {
 				if (!payload || typeof payload !== "object") {
@@ -2226,7 +2236,7 @@ export function useChatSession(environmentId: string) {
 				);
 			},
 		);
-		const unsubscribeEnded = desktopClient.subscribe(
+		const unsubscribeEnded = subscribeToEnvironment(
 			"chat_session_ended",
 			(payload) => {
 				if (!payload || typeof payload !== "object") {
@@ -2339,6 +2349,7 @@ export function useChatSession(environmentId: string) {
 		applyCloudSnapshotMessages,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
+		subscribeToEnvironment,
 	]);
 
 	// ---- Stale-stream fallback for attached sessions ----
@@ -2392,12 +2403,14 @@ export function useChatSession(environmentId: string) {
 				const [historyMessages, record] = await Promise.all([
 					desktopClient
 						.invoke<ChatMessage[]>("read_session_messages", {
+							environmentId,
 							sessionId,
 							maxMessages: MAX_MESSAGES,
 						})
 						.catch(() => null),
 					desktopClient
 						.invoke<{ status?: string } | null>("get_discovered_session", {
+							environmentId,
 							sessionId,
 						})
 						.catch(() => null),
@@ -2459,7 +2472,7 @@ export function useChatSession(environmentId: string) {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [hydratedHistorySessionId, sessionId, status]);
+	}, [hydratedHistorySessionId, sessionId, status, environmentId]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -2475,7 +2488,7 @@ export function useChatSession(environmentId: string) {
 			const boundConfig = { ...validatedConfig, environmentId };
 			const payload = await postSession({
 				action: "start",
-				config: validatedConfig,
+				config: boundConfig,
 				...(options.source ? { source: options.source } : {}),
 				...(options.initialPrompt?.trim()
 					? { prompt: options.initialPrompt.trim() }
@@ -2528,9 +2541,12 @@ export function useChatSession(environmentId: string) {
 
 	const start = useCallback(
 		async (nextConfig: ChatSessionConfig) => {
-			const validation = validateConfig(nextConfig, {
-				hasActiveSession: Boolean(nextConfig.sessionId),
-			});
+			const validation = validateConfig(
+				{ ...nextConfig, environmentId },
+				{
+					hasActiveSession: Boolean(nextConfig.sessionId),
+				},
+			);
 			if (!validation.parsed) {
 				setErrorState(validation.error);
 				return;
@@ -2567,6 +2583,7 @@ export function useChatSession(environmentId: string) {
 			addMessage,
 			clearAbortFallbackTimeout,
 			discardPendingStream,
+			environmentId,
 			resetCounters,
 			setErrorState,
 			startSession,
@@ -2593,9 +2610,12 @@ export function useChatSession(environmentId: string) {
 			const pendingSessionStart = sessionStartPromiseRef.current;
 			let activeSessionId = sessionId ?? activeSessionIdRef.current;
 
-			const validation = validateConfig(config, {
-				hasActiveSession: Boolean(activeSessionId),
-			});
+			const validation = validateConfig(
+				{ ...config, environmentId },
+				{
+					hasActiveSession: Boolean(activeSessionId),
+				},
+			);
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
 				return false;
@@ -3379,6 +3399,7 @@ export function useChatSession(environmentId: string) {
 			try {
 				await desktopClient.invoke("respond_tool_approval", {
 					sessionId: activeSessionId,
+					environmentId,
 					requestId,
 					approved,
 					reason: approved
@@ -3394,7 +3415,7 @@ export function useChatSession(environmentId: string) {
 				setError(errorMessage(error));
 			}
 		},
-		[],
+		[environmentId],
 	);
 
 	const approveToolApproval = useCallback(
@@ -3447,6 +3468,7 @@ export function useChatSession(environmentId: string) {
 				checkpointRunCount,
 				config,
 			})) as {
+				messages?: ChatMessage[];
 				sessionId?: string;
 			};
 			const nextSessionId =
@@ -3455,13 +3477,13 @@ export function useChatSession(environmentId: string) {
 				throw new Error("Checkpoint restore did not return a new session id");
 			}
 
-			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
-				"read_session_messages",
-				{
-					sessionId: nextSessionId,
-					maxMessages: MAX_MESSAGES,
-				},
-			);
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
+						sessionId: nextSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
 
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
@@ -3476,6 +3498,7 @@ export function useChatSession(environmentId: string) {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
+			environmentId,
 			postSession,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
@@ -3535,6 +3558,7 @@ export function useChatSession(environmentId: string) {
 			const response = await desktopClient.invoke<{ detachedCount?: number }>(
 				"proceed_while_running",
 				{
+					environmentId,
 					sessionId: normalizedSessionId,
 					...(toolCallId ? { toolCallId } : {}),
 				},
@@ -3543,7 +3567,7 @@ export function useChatSession(environmentId: string) {
 				throw new Error("The command finished before it could be detached.");
 			}
 		},
-		[],
+		[environmentId],
 	);
 
 	const reset = useCallback(async () => {
@@ -3853,6 +3877,7 @@ export function useChatSession(environmentId: string) {
 				config,
 				forkBeforeRunCount: options?.beforeRunCount,
 			})) as {
+				messages?: ChatMessage[];
 				sessionId?: string;
 				forkedFromSessionId?: string;
 			};
@@ -3865,16 +3890,16 @@ export function useChatSession(environmentId: string) {
 				typeof payload.forkedFromSessionId === "string"
 					? payload.forkedFromSessionId
 					: activeSessionId;
-			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
-				"read_session_messages",
-				{
-					sessionId: newSessionId,
-					maxMessages: MAX_MESSAGES,
-				},
-			);
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
+						sessionId: newSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
 			return { newSessionId, forkedFromSessionId, messages: nextMessages };
 		},
-		[config, postSession, status],
+		[config, environmentId, postSession, status],
 	);
 
 	const steerPromptInQueue = useCallback(

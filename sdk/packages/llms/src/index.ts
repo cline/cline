@@ -156,7 +156,12 @@ export {
 	resolveRealtimeProviderTransport,
 	resolveVercelAIGatewayBaseUrl,
 } from "./realtime";
-export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export { LangfuseAttributesSpanProcessor } from "./services/LangfuseAttributesSpanProcessor";
+export {
+	disposeLangfuseTelemetry,
+	type LangfuseTraceAttributes,
+	withLangfuseTraceAttributes,
+} from "./services/langfuse-telemetry";
 export {
 	DEFAULT_SPEECH_GENERATION_TIMEOUT_MS,
 	generateSpeechAudio,

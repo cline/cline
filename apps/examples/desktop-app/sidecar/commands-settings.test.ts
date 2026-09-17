@@ -90,7 +90,7 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
-				payload: { cloudAgents: true },
+				payload: { cloudAgents: true, environmentId: "local" },
 			},
 		]);
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
@@ -108,7 +108,7 @@ describe("desktop settings commands", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "feature_flags_changed",
-			payload: { cloudAgents: false },
+			payload: { cloudAgents: false, environmentId: "local" },
 		});
 	});
 

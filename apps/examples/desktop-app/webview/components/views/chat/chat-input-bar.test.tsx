@@ -364,6 +364,24 @@ describe("ChatInputBar", () => {
 		expect(onAbort).toHaveBeenCalledOnce();
 	});
 
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(BUILTIN_SLASH_COMMANDS).toContainEqual({
 			name: "handoff",
@@ -1182,6 +1200,7 @@ describe("ChatInputBar", () => {
 					>
 						<ChatInputBar
 							attachments={[]}
+							environmentId="local"
 							gitBranch="main"
 							mode="act"
 							model="test-model"
@@ -1445,6 +1464,8 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
+						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
@@ -1531,6 +1552,8 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
+						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
@@ -2668,6 +2691,8 @@ describe("ChatInputBar token ring", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
+						gitBranch="main"
 						mode="act"
 						model="test-model"
 						modelContextWindow={modelContextWindow}
@@ -2746,7 +2771,7 @@ describe("ChatInputBar token ring", () => {
 		expect(
 			Number(progressCircle?.getAttribute("stroke-dashoffset")),
 		).toBeCloseTo(circumference * 0.25);
-		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(container.querySelector("#git-branch-btn")).not.toBeNull();
 		expect(trigger?.parentElement?.classList.contains("gap-0")).toBe(true);
 		const modelSettings = container.querySelector(
 			'[aria-label="Model settings"]',

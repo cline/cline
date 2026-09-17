@@ -88,6 +88,51 @@ describe("desktop notifications", () => {
 		stop();
 	});
 
+	it("keeps the avatar running while another environment with the same session ID is active", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications();
+		for (const environmentId of ["local", "ssh-1"]) {
+			emit("chat_event", {
+				environmentId,
+				sessionId: "shared-id",
+				stream: "chat_text",
+				chunk: "Working",
+			});
+		}
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "running" },
+			),
+		);
+		mocks.emitTo.mockClear();
+		emit("chat_session_ended", {
+			environmentId: "local",
+			sessionId: "shared-id",
+			reason: "completed",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(mocks.emitTo).not.toHaveBeenCalledWith(
+			"avatar-overlay",
+			"avatar-task-status",
+			{ state: "completed" },
+		);
+		emit("chat_session_ended", {
+			environmentId: "ssh-1",
+			sessionId: "shared-id",
+			reason: "completed",
+		});
+		await vi.waitFor(() =>
+			expect(mocks.emitTo).toHaveBeenCalledWith(
+				"avatar-overlay",
+				"avatar-task-status",
+				{ state: "completed" },
+			),
+		);
+		stop();
+	});
+
 	it("ignores a stale running snapshot after the turn completes", async () => {
 		const { watchDesktopNotifications } = await importFresh();
 		const stop = watchDesktopNotifications();
@@ -126,6 +171,25 @@ describe("desktop notifications", () => {
 		expect(mocks.emitTo).not.toHaveBeenCalled();
 		stop();
 	});
+	it("does not deduplicate completion notifications across hosts", async () => {
+		const { watchDesktopNotifications } = await importFresh();
+		const stop = watchDesktopNotifications();
+		for (const environmentId of ["local", "remote"]) {
+			emit("chat_session_ended", {
+				sessionId: "same-id",
+				environmentId,
+				reason: "completed",
+			});
+			emit("chat_session_ended", {
+				sessionId: "same-id",
+				environmentId,
+				reason: "completed",
+			});
+		}
+		await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledTimes(2));
+		stop();
+	});
+
 	it("notifies once when a background approval remains in state snapshots", async () => {
 		const { watchDesktopNotifications } = await importFresh();
 		const stop = watchDesktopNotifications();

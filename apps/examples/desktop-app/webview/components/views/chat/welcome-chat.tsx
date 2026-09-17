@@ -57,6 +57,7 @@ export function WelcomeScreen({
 	body,
 	composer,
 	notice,
+	environmentSelector,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
@@ -66,7 +67,6 @@ export function WelcomeScreen({
 	onRepoUrlChange = () => undefined,
 	onCloudBranchChange = () => undefined,
 	cloudAgentsEnabled = false,
-	environmentSelector,
 	onOpenSession,
 }: {
 	active: boolean;

@@ -281,6 +281,23 @@ only after a manual dispatch from `main`. Production releases use the npm
 `latest` tag; deliberate previews use `next`. UI releases do not trigger the
 SDK release, GitHub releases, or Slack announcements.
 
+### 0.2.0-next.10 compatibility notes
+
+This preview packages the already-merged desktop UI updates for external
+consumers:
+
+- `SearchCombobox.onOpen` is an optional callback for refreshing a catalog when
+  its picker opens. Hosts still own fetching, selection, and error handling.
+- A single queued prompt is visible immediately with its existing edit/remove/
+  steer controls. Multiple prompts retain the collapsible list. This does not
+  add a runtime queue operation or an Enter-to-steer shortcut to consumers.
+- `ToolFileDiff` derives its options from the peer component, allowing the
+  published declarations to work with both `@pierre/diffs` 1.3 and 1.4.
+
+Consumers on `0.2.0-next.9` can retain existing props. Adopt the callback
+explicitly to enable catalog refresh. The version change prepares a package;
+publication still requires the separate manual workflow below.
+
 ### Publish a preview
 
 Prepare an unused `0.2.0-next.N` version in this package's `package.json`,

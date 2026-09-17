@@ -868,7 +868,7 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="h-full overflow-hidden bg-background">
+		<div className="cline-settings-content h-full overflow-hidden bg-background">
 			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);

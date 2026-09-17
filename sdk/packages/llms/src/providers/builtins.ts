@@ -801,6 +801,14 @@ const clinePass = createClineLikeSpec({
  */
 const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
+		// Keep the persisted provider ID and credentials compatible while the
+		// upstream catalog adopts the CoreWeave display name.
+		id: "wandb",
+		name: "CoreWeave",
+		description: "CoreWeave Serverless Inference",
+		docsUrl: "https://docs.wandb.ai/inference/",
+	},
+	{
 		id: "opencode-go",
 		docsUrl: "https://opencode.ai/docs/go/",
 		defaults: { headers: { "User-Agent": "Cline/SDK" } },

@@ -11,21 +11,7 @@ import {
 import type { JsonRecord, SidecarContext } from "./types";
 
 function createContext(workspaceRoot: string): SidecarContext {
-	return {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		bootId: "test-boot",
-		wsClients: new Set(),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot,
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-		hubBuildMismatch: null,
-	} as unknown as SidecarContext;
+	return createSidecarContext(workspaceRoot);
 }
 
 describe("desktop MCP settings", () => {

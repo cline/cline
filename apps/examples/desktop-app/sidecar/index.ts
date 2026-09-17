@@ -2,12 +2,17 @@ import { homedir } from "node:os";
 import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
+	ensureLoginShellPath,
 	readGlobalSettings,
 	setHomeDirIfUnset,
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { captureSdkError } from "@cline/shared";
+import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
+import {
+	captureSdkError,
+	disableCurrentDirectoryExecutableSearch,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -18,9 +23,7 @@ import {
 } from "./context";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
-import { runRemoteHelperEntrypoint } from "./remote-helper";
 import { startServer } from "./server";
-import { ensureLoginShellPath } from "./shell-path";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
@@ -233,6 +236,7 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
+	disableCurrentDirectoryExecutableSearch();
 	if (await runRemoteHelperEntrypoint()) {
 		return;
 	}

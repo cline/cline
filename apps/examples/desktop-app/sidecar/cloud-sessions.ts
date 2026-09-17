@@ -1,3 +1,14 @@
+import {
+	countPromptOccurrences,
+	readSessionRows,
+	reconcileBufferedCloudEvents,
+	sessionRowModelId,
+	submittedPromptsFromEvents,
+	updatedAt,
+} from "./cloud-session-snapshots";
+
+export { reconcileBufferedCloudEvents } from "./cloud-session-snapshots";
+
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
 import {
@@ -28,6 +39,7 @@ import {
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	getEnvironmentContext,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -69,6 +81,7 @@ export type CloudSessionRecord = {
 		createRequestTitle?: string;
 	};
 	expiredAt?: string | null;
+	lastActivityAt?: string;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -862,6 +875,7 @@ type CloudRehydrationSnapshot = {
 	status: string;
 	messages: unknown[];
 	prompts?: PromptInQueue[];
+	submittedPrompts: PromptInQueue[];
 };
 
 type CloudConnection = {
@@ -1003,7 +1017,9 @@ export function cloudSessionToDiscoveryRecord(
 		startedAt: record.createdAt,
 		endedAt: isExpiredRecord(record)
 			? (record.expiredAt ?? undefined)
-			: undefined,
+			: record.status === "failed"
+				? (record.lastActivityAt ?? record.createdAt)
+				: undefined,
 		updatedAt: record.updatedAt,
 		...(record.title?.trim() ? { title: record.title.trim() } : {}),
 		metadata: {
@@ -1016,32 +1032,6 @@ export function cloudSessionToDiscoveryRecord(
 			},
 		},
 	};
-}
-
-function readSessionRows(
-	payload: Record<string, unknown> | undefined,
-): JsonRecord[] {
-	return Array.isArray(payload?.sessions)
-		? payload.sessions.filter(
-				(item): item is JsonRecord =>
-					Boolean(item) && typeof item === "object" && !Array.isArray(item),
-			)
-		: [];
-}
-
-function updatedAt(record: JsonRecord): number {
-	const value = record.updatedAt;
-	return typeof value === "number"
-		? value
-		: Date.parse(String(value ?? "")) || 0;
-}
-
-function sessionRowModelId(record: JsonRecord | undefined): string {
-	const metadata =
-		record?.metadata && typeof record.metadata === "object"
-			? (record.metadata as JsonRecord)
-			: undefined;
-	return String(metadata?.model ?? record?.model ?? "").trim();
 }
 
 function sessionRowHandoffSourceSessionId(
@@ -1067,208 +1057,6 @@ function parseApprovalInput(value: unknown): unknown {
 	} catch {
 		return value;
 	}
-}
-
-function messageText(message: unknown): string {
-	if (!message || typeof message !== "object" || Array.isArray(message)) {
-		return "";
-	}
-	const content = (message as JsonRecord).content;
-	if (typeof content === "string") {
-		return content.trim();
-	}
-	if (!Array.isArray(content)) {
-		return "";
-	}
-	return content
-		.map((part) =>
-			part && typeof part === "object" && !Array.isArray(part)
-				? String((part as JsonRecord).text ?? "")
-				: "",
-		)
-		.join("")
-		.trim();
-}
-
-/** Normalizes pod-wrapped prompts and raw local/queue prompts. */
-function normalizeUserPrompt(text: string): string {
-	const trimmed = text.trim();
-	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
-	return (match ? match[1] : trimmed).trim();
-}
-
-function countPromptOccurrences(
-	messages: unknown[],
-	prompts: PromptInQueue[],
-	prompt: string,
-): number {
-	const expected = normalizeUserPrompt(prompt);
-	return (
-		messages.filter(
-			(message) =>
-				Boolean(message) &&
-				typeof message === "object" &&
-				!Array.isArray(message) &&
-				String((message as JsonRecord).role ?? "").toLowerCase() === "user" &&
-				normalizeUserPrompt(messageText(message)) === expected,
-		).length +
-		prompts.filter((item) => normalizeUserPrompt(item.prompt) === expected)
-			.length
-	);
-}
-
-const TERMINAL_RUN_EVENTS = new Set([
-	"run.completed",
-	"run.aborted",
-	"run.failed",
-]);
-const SUPERSEDABLE_CONTENT_EVENTS = new Set([
-	"assistant.delta",
-	"assistant.finished",
-	"reasoning.delta",
-	"reasoning.finished",
-]);
-
-function assistantTexts(messages: unknown[]): string[] {
-	return messages
-		.filter(
-			(message): message is JsonRecord =>
-				Boolean(message) &&
-				typeof message === "object" &&
-				!Array.isArray(message) &&
-				String((message as JsonRecord).role ?? "").toLowerCase() ===
-					"assistant",
-		)
-		.map(messageText)
-		.filter(Boolean);
-}
-
-function newlyPersistedAssistantTexts(
-	snapshotMessages: unknown[],
-	baselineMessages: unknown[],
-): string[] {
-	const baselineCounts = new Map<string, number>();
-	for (const text of assistantTexts(baselineMessages)) {
-		baselineCounts.set(text, (baselineCounts.get(text) ?? 0) + 1);
-	}
-	return assistantTexts(snapshotMessages).filter((text) => {
-		const count = baselineCounts.get(text) ?? 0;
-		if (count === 0) return true;
-		if (count === 1) baselineCounts.delete(text);
-		else baselineCounts.set(text, count - 1);
-		return false;
-	});
-}
-
-function collectToolCallIds(
-	value: unknown,
-	result = new Set<string>(),
-): Set<string> {
-	if (!value || typeof value !== "object") return result;
-	if (Array.isArray(value)) {
-		for (const item of value) collectToolCallIds(item, result);
-		return result;
-	}
-	const record = value as JsonRecord;
-	if (record.type === "tool_use" && typeof record.id === "string") {
-		result.add(record.id);
-	}
-	for (const key of ["toolCallId", "tool_call_id", "toolUseId"]) {
-		if (typeof record[key] === "string" && record[key]) {
-			result.add(record[key] as string);
-		}
-	}
-	for (const child of Object.values(record)) collectToolCallIds(child, result);
-	return result;
-}
-
-function streamedAssistantText(events: HubEventEnvelope[]): string {
-	// Match messageText() trimming before substring supersession.
-	for (let index = events.length - 1; index >= 0; index -= 1) {
-		const event = events[index];
-		if (
-			event.event === "assistant.finished" &&
-			typeof event.payload?.text === "string" &&
-			event.payload.text
-		) {
-			return event.payload.text.trim();
-		}
-	}
-	return events
-		.filter((event) => event.event === "assistant.delta")
-		.map((event) =>
-			typeof event.payload?.text === "string" ? event.payload.text : "",
-		)
-		.join("")
-		.trim();
-}
-
-/** Reconciles each completed run separately; tools dedupe by stable call id. */
-export function reconcileBufferedCloudEvents(
-	events: HubEventEnvelope[],
-	snapshotMessages: unknown[],
-	options: {
-		/**
-		 * Whether a fresh queue snapshot was fetched and applied during
-		 * rehydration. When it was, buffered queue events are stale and
-		 * dropped; when the fetch failed, the newest buffered queue event is
-		 * the best queue state available and must be replayed instead of
-		 * silently losing queued/steered prompts.
-		 */
-		queueSnapshotApplied?: boolean;
-		baselineMessages?: unknown[];
-	} = {},
-): HubEventEnvelope[] {
-	const queueSnapshotApplied = options.queueSnapshotApplied !== false;
-	const unclaimedAssistantTexts = newlyPersistedAssistantTexts(
-		snapshotMessages,
-		options.baselineMessages ?? [],
-	);
-	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
-	// Queue events are full snapshots, so only the newest one matters.
-	const lastQueueEvent = queueSnapshotApplied
-		? undefined
-		: events.findLast((event) => event.event === "session.pending_prompts");
-	const reconciled: HubEventEnvelope[] = [];
-	let segment: HubEventEnvelope[] = [];
-
-	const flush = (terminal: boolean) => {
-		if (segment.length === 0) return;
-		const streamed = terminal ? streamedAssistantText(segment) : "";
-		const persistedIndex = streamed
-			? unclaimedAssistantTexts.findIndex((text) => text.includes(streamed))
-			: -1;
-		const contentPersisted = persistedIndex >= 0;
-		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
-		for (const event of segment) {
-			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
-				continue;
-			}
-			// The separately fetched queue snapshot is newer than buffered
-			// copies; without one, replay the newest buffered snapshot.
-			if (
-				event.event === "session.pending_prompts" &&
-				event !== lastQueueEvent
-			) {
-				continue;
-			}
-			// Keep terminal events: run.failed may carry the only error detail.
-			if (event.event.startsWith("tool.")) {
-				const toolCallId = String(event.payload?.toolCallId ?? "").trim();
-				if (toolCallId && snapshotToolCallIds.has(toolCallId)) continue;
-			}
-			reconciled.push(event);
-		}
-		segment = [];
-	};
-
-	for (const event of events) {
-		segment.push(event);
-		if (TERMINAL_RUN_EVENTS.has(event.event)) flush(true);
-	}
-	// Never supersede an unterminated tail.
-	flush(false);
-	return reconciled;
 }
 
 export class CloudSessionManager {
@@ -1357,7 +1145,9 @@ export class CloudSessionManager {
 
 	async list(): Promise<CloudSessionRecord[]> {
 		const organizationId = await this.resolveActiveOrganizationId();
-		const listed = await this.options.api.list(organizationId);
+		const listed = (await this.options.api.list(organizationId)).map(
+			(session) => this.preserveConnectedRuntimeModel(session),
+		);
 		// Keep canonical rows available while their status checks run.
 		this.lastListedSessions = listed;
 		for (const session of listed) {
@@ -1391,13 +1181,31 @@ export class CloudSessionManager {
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
+			const live = this.ctx.liveSessions.get(session.id);
+			if (
+				live?.status === "provisioning" &&
+				session.status !== "provisioning"
+			) {
+				live.status = session.status;
+			}
 			const connection = this.connections.get(session.id);
 			if (connection) {
-				// Keep the connection's record current (title/model changes from
-				// other devices), and reap connections whose sandbox expired so
-				// they stop reconnect-looping against a dead proxy.
 				connection.remote = session;
-				if (isExpiredRecord(session)) {
+			}
+			const expired = isExpiredRecord(session);
+			if (expired || session.status === "failed") {
+				if (live) {
+					live.busy = false;
+					live.status = expired ? "expired" : "failed";
+					live.endedAt = expired
+						? Date.parse(session.expiredAt ?? "") || Date.now()
+						: Math.max(
+								live.endedAt ?? 0,
+								Date.parse(session.lastActivityAt ?? session.createdAt) || 0,
+							) || undefined;
+				}
+				if (connection) {
+					// Unavailable sandboxes must stop reconnecting.
 					void this.disposeConnection(session.id).catch(() => undefined);
 				}
 			}
@@ -1425,6 +1233,21 @@ export class CloudSessionManager {
 			}
 			throw error;
 		}
+	}
+
+	private preserveConnectedRuntimeModel(
+		session: CloudSessionRecord,
+	): CloudSessionRecord {
+		const runtimeModel = this.connections
+			.get(session.id)
+			?.remote.metadata.modelId?.trim();
+		if (!runtimeModel || runtimeModel === session.metadata.modelId) {
+			return session;
+		}
+		return {
+			...session,
+			metadata: { ...session.metadata, modelId: runtimeModel },
+		};
 	}
 
 	private async resolveActiveOrganizationId(options?: {
@@ -1503,7 +1326,12 @@ export class CloudSessionManager {
 			const result = await Promise.race([
 				refresh.then(
 					(value) => ({ value }),
-					() => ({ value: this.lastListedSessions }),
+					(error) => {
+						this.ctx.logger?.error?.("Cloud session discovery failed", {
+							error,
+						});
+						return { value: this.lastListedSessions };
+					},
 				),
 				new Promise<{ value: CloudSessionRecord[] }>((resolve) => {
 					timeout = setTimeout(
@@ -1560,6 +1388,91 @@ export class CloudSessionManager {
 	}
 
 	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
+		const key = input.requestId?.trim();
+		if (!key) return await this.createOnce(input);
+		const existing = this.createRequests.get(key);
+		if (existing) return await existing;
+		const creating = this.createOnce(input).finally(() => {
+			if (this.createRequests.get(key) === creating) {
+				this.createRequests.delete(key);
+			}
+		});
+		this.createRequests.set(key, creating);
+		return await creating;
+	}
+
+	private async createOnce(
+		input: CreateCloudSessionInput,
+	): Promise<JsonRecord> {
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
+		const organizationId =
+			input.organizationId === null
+				? undefined
+				: (input.organizationId ??
+					(await this.resolveActiveOrganizationId({ fresh: true })));
+		const created = await this.options.api.create({ ...input, organizationId });
+		if (!created?.sessionId?.trim()) {
+			throw new CloudSessionError(
+				"request_failed",
+				"The cloud session service returned an unexpected response; please try again.",
+			);
+		}
+		if (this.disposed) {
+			await this.deleteProvisionedSessionAfterDispose(
+				created.sessionId,
+				created.cleanupAuthToken,
+			);
+			throw new Error(
+				"Cline account changed while the cloud session was starting",
+			);
+		}
+		const record: CloudSessionRecord = {
+			id: created.sessionId,
+			status: created.status,
+			sandboxUrl: created.sandboxUrl,
+			repoContext: {
+				repoUrl: input.repoUrl,
+				...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
+			},
+			metadata: { modelId: input.modelId },
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		this.knownSessions.set(record.id, record);
+		const live = recordToLiveSession(record);
+		live.prompt = input.initialPrompt?.trim() || undefined;
+		// REST does not round-trip the client-side approval preference.
+		if (typeof input.autoApproveTools === "boolean") {
+			live.config.autoApproveTools = input.autoApproveTools;
+		}
+		if (typeof input.thinking === "boolean") {
+			live.config.thinking = input.thinking;
+		}
+		if (input.reasoningEffort) {
+			live.config.reasoningEffort = input.reasoningEffort;
+		}
+		this.ctx.liveSessions.set(record.id, live);
+		sendEvent(this.ctx, "chat_session_status", {
+			sessionId: record.id,
+			status: live.status,
+		});
+		return {
+			sessionId: record.id,
+			origin: "cloud",
+			executionTarget: "cloud",
+			status: record.status,
+			provider: "cline",
+			model: input.modelId,
+			repoUrl: input.repoUrl,
+			branch: input.branch ?? "",
+			cwd: CLOUD_WORKSPACE_ROOT,
+			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			...(live.prompt ? { prompt: live.prompt } : {}),
+		};
+	}
+
+	/** Creates, provisions, and attaches the beta cloud session in one operation. */
+	async createAndAttach(input: CreateCloudSessionInput): Promise<JsonRecord> {
 		const key = [
 			input.organizationId === null
 				? "personal"
@@ -1576,7 +1489,7 @@ export class CloudSessionManager {
 		].join("\u0000");
 		const existing = this.createRequests.get(key);
 		if (existing) return await existing;
-		const creating = this.createOnce(input).finally(() => {
+		const creating = this.createAttachedOnce(input).finally(() => {
 			if (this.createRequests.get(key) === creating) {
 				this.createRequests.delete(key);
 			}
@@ -1641,7 +1554,7 @@ export class CloudSessionManager {
 		connection.transcriptKnown = true;
 	}
 
-	private async createOnce(
+	private async createAttachedOnce(
 		input: CreateCloudSessionInput,
 	): Promise<JsonRecord> {
 		if (this.disposed) {
@@ -2020,7 +1933,7 @@ export class CloudSessionManager {
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
-					snapshot.prompts ?? [],
+					[...(snapshot.prompts ?? []), ...snapshot.submittedPrompts],
 					prompt,
 				);
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
@@ -2151,6 +2064,7 @@ export class CloudSessionManager {
 				throw new Error("Cloud Hub returned an invalid transcript snapshot");
 			}
 			const messages = messagesReply.payload.messages;
+			const messagesSnapshotEventCutoff = connection.bufferedEvents.length;
 			const queueReply = await connection.client
 				.command(
 					"session.pending_prompts",
@@ -2158,6 +2072,7 @@ export class CloudSessionManager {
 					innerSessionId,
 				)
 				.catch(() => undefined);
+			const queueSnapshotEventCutoff = connection.bufferedEvents.length;
 
 			if (live) {
 				const statusChanged = live.status !== status;
@@ -2215,7 +2130,12 @@ export class CloudSessionManager {
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,
-				{ queueSnapshotApplied: queueSnapshotValid, baselineMessages },
+				{
+					queueSnapshotApplied: queueSnapshotValid,
+					baselineMessages,
+					messagesSnapshotEventCutoff,
+					queueSnapshotEventCutoff,
+				},
 			);
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;
@@ -2223,7 +2143,12 @@ export class CloudSessionManager {
 			for (const event of buffered) {
 				this.forwardEvent(outerSessionId, connection, event);
 			}
-			return { status, messages, prompts };
+			return {
+				status,
+				messages,
+				prompts,
+				submittedPrompts: submittedPromptsFromEvents(buffered),
+			};
 		} catch (error) {
 			// Preserve the current view and release the full tail on snapshot failure.
 			const buffered = connection.bufferedEvents;
@@ -3093,6 +3018,7 @@ export class CloudSessionManager {
 export function getCloudSessionManager(
 	ctx: SidecarContext,
 ): CloudSessionManager {
+	ctx = getEnvironmentContext(ctx, "local");
 	const existing = ctx.cloudSessionManager;
 	if (existing instanceof CloudSessionManager) {
 		return existing;

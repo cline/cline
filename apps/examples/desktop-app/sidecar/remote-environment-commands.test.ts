@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
 	mkdirSync,
 	mkdtempSync,
@@ -7,13 +8,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	RemoteEnvironmentConnection,
 	RemoteEnvironmentProfile,
 	RemoteEnvironmentService,
 	RemoteEnvironmentStatus,
-} from "./remote-environments";
+} from "@cline/core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionRuntimeBinding, SidecarContext } from "./types";
 
 const coreCreateMock = vi.hoisted(() => vi.fn());
@@ -47,6 +48,7 @@ vi.mock("@cline/core", async () => {
 			}
 		},
 		NodeHubClient: class {
+			public async updateCapabilities(): Promise<void> {}
 			public constructor(options: unknown) {
 				hubClientConstructorMock(options);
 			}
@@ -250,12 +252,53 @@ describe("remote environment command routing", () => {
 		sessionStoreDeleteMock.mockReturnValue(false);
 	});
 
+	it("routes proceed-while-running exclusively to the requested SSH Hub", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/local/project");
+		const remoteCommand = vi.fn(async () => ({
+			ok: true,
+			payload: { detachedCount: 1 },
+		}));
+		const localCommand = vi.fn();
+		ctx.runtimeBindings.set("local", {
+			...createExistingRemoteBinding("local"),
+			kind: "local",
+			hubClient: { command: localCommand },
+		} as unknown as SessionRuntimeBinding);
+		ctx.runtimeBindings.set(profile.id, {
+			...createExistingRemoteBinding(profile.id),
+			hubClient: { command: remoteCommand },
+		} as unknown as SessionRuntimeBinding);
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				environmentId: profile.id,
+				sessionId: "same-id",
+				toolCallId: "tool-1",
+			}),
+		).resolves.toEqual({ detachedCount: 1 });
+		expect(remoteCommand).toHaveBeenCalledWith(
+			"run.proceed_while_running",
+			{ sessionId: "same-id", toolCallId: "tool-1" },
+			"same-id",
+		);
+		expect(localCommand).not.toHaveBeenCalled();
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				environmentId: "disconnected",
+				sessionId: "same-id",
+			}),
+		).rejects.toThrow();
+		expect(localCommand).not.toHaveBeenCalled();
+	});
+
 	it("routes list, upsert, and SSH test commands through the configured service", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
 		const fake = createFakeService();
 		const ctx = createSidecarContext("/local/project");
 		ctx.remoteEnvironments = fake.service;
+		const send = attachEventRecorder(ctx);
 
 		await expect(
 			handleCommand(ctx, "list_remote_environments"),
@@ -275,6 +318,9 @@ describe("remote environment command routing", () => {
 			handleCommand(ctx, "upsert_remote_environment", { profile: input }),
 		).resolves.toEqual({ profile });
 		expect(fake.upsert).toHaveBeenCalledWith(input);
+		expect(readEvent(send, 0)).toMatchObject({
+			event: { name: "remote_environment_profiles_changed" },
+		});
 
 		await expect(
 			handleCommand(ctx, "test_remote_environment", { id: ` ${profile.id} ` }),
@@ -561,6 +607,9 @@ describe("remote environment command routing", () => {
 		);
 		expect(binding.hubClient.dispose).toHaveBeenCalledOnce();
 		expect(fake.delete).toHaveBeenCalledWith(profile.id);
+		expect(
+			send.mock.calls.map((call) => JSON.parse(String(call[0])).event.name),
+		).toContain("remote_environment_profiles_changed");
 		expect(ctx.runtimeBindings.has(profile.id)).toBe(false);
 		expect(ctx.activeEnvironmentId).toBe("local");
 		expect(readEvent(send, 0)).toEqual({
@@ -595,14 +644,14 @@ describe("remote environment command routing", () => {
 			if (input.command === "pwd") {
 				return { stdout: "/srv/code\n", stderr: "", exitCode: 0 };
 			}
-			if (input.command === "sh") {
+			if (input.command === "sh" && !input.args[1]?.includes("ls-files")) {
 				return {
 					stdout: "/srv/code/zeta\0/srv/code/project\0",
 					stderr: "",
 					exitCode: 0,
 				};
 			}
-			if (input.command === "git" && input.args[0] === "ls-files") {
+			if (input.command === "sh" && input.args[1]?.includes("ls-files")) {
 				return {
 					stdout: "src/remote.ts\nREADME.md\n",
 					stderr: "",
@@ -668,8 +717,8 @@ describe("remote environment command routing", () => {
 			}),
 		).resolves.toEqual(["src/remote.ts"]);
 		expect(fake.run).toHaveBeenCalledWith(profile.id, {
-			command: "git",
-			args: ["ls-files", "--cached", "--others", "--exclude-standard"],
+			command: "sh",
+			args: ["-c", expect.stringContaining("head -c 262144")],
 			cwd: "/srv/code/project",
 		});
 
@@ -687,6 +736,43 @@ describe("remote environment command routing", () => {
 			args: ["branch", "--show-current"],
 			cwd: "/srv/code/project",
 		});
+	});
+
+	it("bounds remote search output before transfer and drops a truncated filename", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const root = mkdtempSync(join(tmpdir(), "remote-search-limit-"));
+		try {
+			for (let i = 0; i < 2800; i++)
+				writeFileSync(join(root, `${i}-${"x".repeat(100)}.ts`), "");
+			const ctx = createSidecarContext(root);
+			const fake = createFakeService();
+			ctx.remoteEnvironments = fake.service;
+			ctx.runtimeBindings.set(
+				profile.id,
+				createExistingRemoteBinding(profile.id),
+			);
+			let transferredBytes = 0;
+			fake.run.mockImplementation(async (_id, input) => {
+				const stdout = execFileSync(input.command, input.args, {
+					cwd: input.cwd,
+					encoding: "utf8",
+				});
+				transferredBytes = Buffer.byteLength(stdout);
+				return { stdout, stderr: "", exitCode: 0 };
+			});
+			const result = (await handleCommand(ctx, "search_workspace_files", {
+				environmentId: profile.id,
+				workspaceRoot: root,
+				limit: 200,
+			})) as string[];
+			expect(transferredBytes).toBe(262144);
+			expect(result.length).toBeGreaterThan(0);
+			expect(result.length).toBeLessThanOrEqual(200);
+			expect(result.every((path) => path.endsWith(".ts"))).toBe(true);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
 	});
 
 	it("lists and bounds local workspace directories through the local binding", async () => {
@@ -735,6 +821,66 @@ describe("remote environment command routing", () => {
 		}
 	});
 
+	it("lists duplicate session IDs separately and rejects ambiguous routing", async () => {
+		const { handleCommand } = await import("./commands");
+		const {
+			createSidecarContext,
+			getEnvironmentContext,
+			findSessionRuntimeBinding,
+			emitChunk,
+		} = await import("./context");
+		const ctx = createSidecarContext("/local/project");
+		for (const environmentId of [profile.id, secondProfile.id]) {
+			const record = {
+				id: "same-id",
+				sessionId: "same-id",
+				status: "idle",
+				createdAt: "2026-09-14T00:00:00Z",
+			};
+			ctx.runtimeBindings.set(environmentId, {
+				...createExistingRemoteBinding(environmentId),
+				sessionManager: {
+					list: vi.fn(async () => [record]),
+					get: vi.fn(async () => record),
+				} as unknown as SessionRuntimeBinding["sessionManager"],
+			});
+		}
+		const sessions = (await handleCommand(
+			ctx,
+			"list_discovered_sessions",
+			{},
+		)) as Array<{ sessionId: string; environmentId: string }>;
+		expect(
+			sessions
+				.filter((session) => session.sessionId === "same-id")
+				.map((session) => session.environmentId)
+				.sort(),
+		).toEqual([profile.id, secondProfile.id]);
+		await expect(findSessionRuntimeBinding(ctx, "same-id")).rejects.toThrow(
+			"environmentId is required",
+		);
+		await expect(
+			findSessionRuntimeBinding(ctx, "same-id", secondProfile.id),
+		).resolves.toMatchObject({ environmentId: secondProfile.id });
+		const first = getEnvironmentContext(ctx, profile.id);
+		const second = getEnvironmentContext(ctx, secondProfile.id);
+		const send = attachEventRecorder(ctx);
+		emitChunk(first, "same-id", "chat_text", "first host");
+		emitChunk(second, "same-id", "chat_text", "second host");
+		expect(readEvent(send, 0).event.payload).toMatchObject({
+			sessionId: "same-id",
+			environmentId: profile.id,
+			index: 1,
+			chunk: "first host",
+		});
+		expect(readEvent(send, 1).event.payload).toMatchObject({
+			sessionId: "same-id",
+			environmentId: secondProfile.id,
+			index: 1,
+			chunk: "second host",
+		});
+	});
+
 	it("routes session reads, title updates, and deletes to the requested environment", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
@@ -745,7 +891,6 @@ describe("remote environment command routing", () => {
 		const update = vi.fn(async () => ({ updated: true }));
 		const deleteSession = vi.fn(async () => true);
 		const sessionManager = {
-			get: vi.fn(async () => ({ sessionId: "remote-session", metadata: {} })),
 			readMessages,
 			update,
 			delete: deleteSession,

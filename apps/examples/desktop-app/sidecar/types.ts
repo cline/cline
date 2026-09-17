@@ -5,17 +5,14 @@ import type {
 	ITelemetryService,
 	ManagedHubBuildMismatchEvent,
 	NodeHubClient,
+	RemoteEnvironmentConnection,
+	RemoteEnvironmentService,
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import type {
-	RemoteEnvironmentConnection,
-	RemoteEnvironmentService,
-} from "./remote-environments";
+import type { UserContext } from "@cline/shared";
 
 export const LOCAL_ENVIRONMENT_ID = "local";
-
-import type { UserContext } from "@cline/shared";
 
 export type JsonRecord = Record<string, unknown>;
 
