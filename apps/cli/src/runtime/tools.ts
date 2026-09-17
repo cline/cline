@@ -13,6 +13,7 @@ export function getToolCatalog(
 ): ToolCatalogEntry[] {
 	const modelToolSettings = resolveModelToolSettings();
 	return getCoreBuiltinToolCatalog({
+		clientType: "cli",
 		disabledToolIds: resolveDisabledToolNames(),
 		enabledModelToolIds: new Set(
 			Object.entries(modelToolSettings)

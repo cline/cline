@@ -44,7 +44,11 @@ export default meta;
 
 type Story = StoryObj<typeof AgentPromptQueue>;
 
-function InteractiveQueue({ initialItems }: { initialItems: AgentPromptQueueItem[] }) {
+function InteractiveQueue({
+	initialItems,
+}: {
+	initialItems: AgentPromptQueueItem[];
+}) {
 	const [items, setItems] = useState(initialItems);
 
 	const props: AgentPromptQueueProps = {

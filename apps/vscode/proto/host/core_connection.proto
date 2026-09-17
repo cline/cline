@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package host;
+
+option go_package = "github.com/cline/grpc-go/host";
+option java_multiple_files = true;
+option java_package = "bot.cline.host.proto";
+
+// Carries calls from an external host to the core over the connection that the
+// core opens to the host bridge. This avoids a second listening socket in the
+// core process while preserving unary and response-streaming ProtoBus calls.
+service CoreConnectionService {
+  rpc connect(stream CoreConnectionMessage) returns (stream CoreConnectionMessage);
+}
+
+message CoreConnectionMessage {
+  oneof payload {
+    CoreConnectionHello hello = 1;
+    CoreConnectionRequest request = 2;
+    CoreConnectionResponse response = 3;
+    CoreConnectionCancel cancel = 4;
+    CoreConnectionReady ready = 5;
+  }
+}
+
+// The first message from a core. The host accepts it only when token matches
+// the current spawn expectation; instance_id is the core's cross-process lock
+// owner identity and is unique for that spawn.
+message CoreConnectionHello {
+  string token = 1;
+  string instance_id = 2;
+}
+
+message CoreConnectionRequest {
+  string request_id = 1;
+  string service = 2;
+  string method = 3;
+  string message_json = 4;
+  bool is_streaming = 5;
+}
+
+message CoreConnectionResponse {
+  string request_id = 1;
+  // Logical response payload. A legal wire encoding for small payloads,
+  // though the current core always sends message_json_chunk instead and the
+  // host reconstructs this field after all bounded chunks arrive. Receivers
+  // must accept both encodings; a response may not mix them.
+  optional string message_json = 2;
+  optional string error = 3;
+  // Ends this request. A streaming response may carry its final payload in one
+  // message and then send a payload-free completed response.
+  bool completed = 4;
+  optional bytes message_json_chunk = 5;
+  // Marks the final chunk of one logical response payload.
+  bool message_json_complete = 6;
+}
+
+message CoreConnectionCancel {
+  string request_id = 1;
+}
+
+// Sent by the host only after it authenticates the hello and installs this
+// stream as the current core connection.
+message CoreConnectionReady {}

@@ -282,6 +282,33 @@ jobs:
           echo "$CONTENT" >> $GITHUB_OUTPUT
           echo "${DELIMITER}" >> $GITHUB_OUTPUT
 
+          # Slack section blocks reject text longer than 3000 characters, and the
+          # Slack action logs that rejection WITHOUT failing the step - so an
+          # over-long changelog silently drops the release announcement while the
+          # run stays green. Post a trimmed copy to Slack and link out to the full
+          # notes. The GitHub release body stays whole.
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/sdk/sdk/v${{ steps.version.outputs.version }}"
+          SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+          import os
+          content = os.environ["CONTENT"]
+          more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+          if len(content) <= 3000:
+              print(content, end="")
+          else:
+              budget = 3000 - len(more)
+              kept, used = [], 0
+              for line in content.splitlines(keepends=True):
+                  if used + len(line) > budget:
+                      break
+                  kept.append(line)
+                  used += len(line)
+              body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+              print(body + more, end="")
+          ')
+          echo "slack_content<<${DELIMITER}" >> $GITHUB_OUTPUT
+          echo "$SLACK_CONTENT" >> $GITHUB_OUTPUT
+          echo "${DELIMITER}" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'
         uses: softprops/action-gh-release@v1
@@ -333,7 +360,7 @@ jobs:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: ${{ toJSON(steps.changelog.outputs.content) }}
+                  text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
               - type: "context"
                 elements:
                   - type: "mrkdwn"

@@ -1,0 +1,50 @@
+name: desktop-test
+
+on:
+  push:
+    branches:
+      - main
+      - desktop-experimental
+    paths:
+      - "apps/examples/desktop-app/package.json"
+      - "apps/examples/desktop-app/scripts/dmg-background.ts"
+      - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
+      - "apps/examples/desktop-app/src-tauri/dmg/background.png"
+      - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
+      - ".github/workflows/desktop-test.yml"
+  pull_request:
+    branches:
+      - main
+      - desktop-experimental
+    paths:
+      - "apps/examples/desktop-app/package.json"
+      - "apps/examples/desktop-app/scripts/dmg-background.ts"
+      - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
+      - "apps/examples/desktop-app/src-tauri/dmg/background.png"
+      - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
+      - ".github/workflows/desktop-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dmg-background:
+    name: Test DMG background tooling
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/examples/desktop-app
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      # The suite only uses Bun/Node built-ins and committed artwork, so it does
+      # not need a workspace dependency install or macOS runner.
+      - name: Test DMG background tooling
+        run: bun run test:dmg-background

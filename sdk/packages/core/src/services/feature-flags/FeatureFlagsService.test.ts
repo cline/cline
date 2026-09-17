@@ -100,11 +100,43 @@ describe("FeatureFlagsService", () => {
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(2);
 	});
 
+	it("does not expose cached flags after the account context changes", async () => {
+		const service = new FeatureFlagsService({
+			provider: createProvider(),
+			context: { userId: "user-1" },
+		});
+		await service.poll();
+
+		service.setContext({ userId: "user-2" });
+
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
+		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
+	});
+
 	it("returns false or undefined before polling", () => {
 		const service = new FeatureFlagsService({ provider: createProvider() });
 
 		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
 		expect(service.getFlagPayload(TEST_PAYLOAD_FLAG)).toBeUndefined();
+	});
+
+	it("preserves the hydrated cache when the same account resolves and polling fails", async () => {
+		const service = new FeatureFlagsService({
+			provider: createProvider({
+				getAllFlagsAndPayloads: vi.fn().mockRejectedValue(new Error("offline")),
+			}),
+			cacheTtlMs: 0,
+		});
+		service.hydrateCache({
+			userId: "user-1",
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { [TEST_BOOLEAN_FLAG]: true } },
+		});
+
+		service.setContext({ userId: "user-1" });
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
+		await expect(service.poll()).rejects.toThrow("offline");
+		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
 	});
 
 	it("hydrates from a persistent cache file before polling", () => {
@@ -117,7 +149,7 @@ describe("FeatureFlagsService", () => {
 		writeFileSync(
 			cacheFilePath,
 			`${JSON.stringify({
-				version: 1,
+				version: 2,
 				updatedAt: Date.now(),
 				userId: "user-1",
 				flagsPayload: {
@@ -163,7 +195,7 @@ describe("FeatureFlagsService", () => {
 			};
 		};
 		expect(cache).toMatchObject({
-			version: 1,
+			version: 2,
 			updatedAt: Date.now(),
 			userId: "user-1",
 			flagsPayload: {

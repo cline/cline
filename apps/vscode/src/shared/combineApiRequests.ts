@@ -23,12 +23,29 @@ export function combineApiRequests(messages: ClineMessage[]): ClineMessage[] {
 
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].type === "say" && messages[i].say === "api_req_started") {
-			const startedRequest = JSON.parse(messages[i].text || "{}")
+			// Malformed payloads are tolerated everywhere else that reads this row
+			// (see messageUtils, RequestStartRow, getApiMetrics) because this runs
+			// inside the render pipeline. A JSON.parse throw here would crash the
+			// whole chat view, so degrade to keeping the original row instead.
+			let startedRequest: Record<string, unknown>
+			try {
+				startedRequest = JSON.parse(messages[i].text || "{}")
+			} catch {
+				continue
+			}
+
 			let j = i + 1
 
 			while (j < messages.length) {
 				if (messages[j].type === "say" && messages[j].say === "api_req_finished") {
-					const finishedRequest = JSON.parse(messages[j].text || "{}")
+					let finishedRequest: Record<string, unknown>
+					try {
+						finishedRequest = JSON.parse(messages[j].text || "{}")
+					} catch {
+						// Unparseable finish payload — nothing to merge, keep the
+						// started row as-is but still consume the pair.
+						finishedRequest = {}
+					}
 					const combinedRequest = {
 						...startedRequest,
 						...finishedRequest,

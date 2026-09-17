@@ -3,10 +3,14 @@
 import { type AppZoomAction, isAppZoomAction } from "@/lib/app-font-size";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 
-export const DESKTOP_MENU_ACTION_PENDING_EVENT = "desktop-menu-action-pending";
+export const DESKTOP_ACTION_PENDING_EVENT = "desktop-action-pending";
 const TRAY_STATUS_REFRESH_INTERVAL_MS = 5_000;
 
-export type DesktopMenuAction = "new-session" | "open-settings" | AppZoomAction;
+export type DesktopAction =
+	| { type: "new-session" }
+	| { type: "open-settings" }
+	| { type: AppZoomAction }
+	| { type: "open-session"; sessionId: string };
 
 type ProcessContext = {
 	runningSessionCount?: unknown;
@@ -15,16 +19,27 @@ type ProcessContext = {
 	};
 };
 
-function isDesktopMenuAction(value: unknown): value is DesktopMenuAction {
+function isDesktopAction(value: unknown): value is DesktopAction {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return false;
+	}
+	const action = value as { type?: unknown; sessionId?: unknown };
+	if (
+		action.type === "new-session" ||
+		action.type === "open-settings" ||
+		isAppZoomAction(action.type)
+	) {
+		return true;
+	}
 	return (
-		value === "new-session" ||
-		value === "open-settings" ||
-		isAppZoomAction(value)
+		action.type === "open-session" &&
+		typeof action.sessionId === "string" &&
+		action.sessionId.trim().length > 0
 	);
 }
 
-export function subscribeToDesktopMenuActions(
-	onAction: (action: DesktopMenuAction) => void,
+export function subscribeToDesktopActions(
+	onAction: (action: DesktopAction) => void,
 ): () => void {
 	if (!isTauriAvailable()) {
 		return () => {};
@@ -49,13 +64,13 @@ export function subscribeToDesktopMenuActions(
 			do {
 				drainRequested = false;
 				const pending = await desktopClient.invoke<unknown>(
-					"drain_desktop_menu_actions",
+					"drain_desktop_actions",
 				);
 				if (!Array.isArray(pending)) {
 					continue;
 				}
 				for (const action of pending) {
-					if (isDesktopMenuAction(action)) {
+					if (isDesktopAction(action)) {
 						onAction(action);
 					}
 				}
@@ -73,7 +88,7 @@ export function subscribeToDesktopMenuActions(
 	void import("@tauri-apps/api/event")
 		.then(async ({ listen }) => {
 			const stopListening = await listen<void>(
-				DESKTOP_MENU_ACTION_PENDING_EVENT,
+				DESKTOP_ACTION_PENDING_EVENT,
 				() => void drainPendingActions(),
 			);
 			if (disposed) {
@@ -142,6 +157,26 @@ export function watchDesktopTrayStatus(): () => void {
 	};
 
 	void refresh();
+	const unsubscribeStatus = desktopClient.subscribe(
+		"chat_session_status",
+		() => void refresh(),
+	);
+	const unsubscribeEnded = desktopClient.subscribe(
+		"chat_session_ended",
+		() => void refresh(),
+	);
+	const unsubscribeChatEvents = desktopClient.subscribe(
+		"chat_event",
+		(payload) => {
+			if (
+				payload &&
+				typeof payload === "object" &&
+				(payload as { stream?: unknown }).stream === "chat_done"
+			) {
+				void refresh();
+			}
+		},
+	);
 	const interval = window.setInterval(
 		() => void refresh(),
 		TRAY_STATUS_REFRESH_INTERVAL_MS,
@@ -149,6 +184,9 @@ export function watchDesktopTrayStatus(): () => void {
 
 	return () => {
 		stopped = true;
+		unsubscribeStatus();
+		unsubscribeEnded();
+		unsubscribeChatEvents();
 		window.clearInterval(interval);
 	};
 }

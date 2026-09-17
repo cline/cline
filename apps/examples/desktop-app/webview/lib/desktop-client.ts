@@ -1,7 +1,15 @@
 "use client";
 
 import type {
+	AgendaAutomationPolicy,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
 	DesktopDebugLogPayload,
+	HubTaskCreateInput,
+	HubTaskUpdateInput,
+} from "@cline/shared";
+import type {
 	DesktopTransportEvent,
 	DesktopTransportMessage,
 	DesktopTransportRequest,
@@ -100,6 +108,22 @@ export type DesktopInvokeOptions = {
 	 * response represents completion of a legitimately long-running operation.
 	 */
 	timeoutMs?: number | null;
+};
+
+export type AgendaTaskIdInput = {
+	taskId: string;
+};
+
+export type AgendaTaskRevisionInput = AgendaTaskIdInput & {
+	expectedRevision: number;
+};
+
+export type AgendaTaskCancelInput = AgendaTaskRevisionInput & {
+	reason?: string;
+};
+
+export type AgendaAutomationSetInput = {
+	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
 };
 
 export type DesktopErrorReport = {
@@ -211,8 +235,11 @@ const NATIVE_COMMANDS = new Set([
 	"restart_to_apply_update",
 	"check_for_update_now",
 	"set_app_icon",
-	"drain_desktop_menu_actions",
+	"show_session_notification",
+	"drain_desktop_actions",
 	"set_tray_status",
+	"relaunch_app",
+	"quit_app",
 ]);
 
 class DesktopClient {
@@ -396,8 +423,15 @@ class DesktopClient {
 			RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 4),
 			RECONNECT_MAX_DELAY_MS,
 		);
+		// Re-resolve the endpoint on every attempt: a sidecar the Tauri shell
+		// respawned listens on the same port but issues a new approval token,
+		// and one that was still booting only publishes its endpoint later.
+		this.endpoint = null;
+		resolvedEndpointCache = null;
 		this.reconnectTimer = setTimeout(() => {
-			void this.ensureConnected(true);
+			void this.ensureConnected(true).catch(() => {
+				// The failure path already scheduled the next attempt.
+			});
 		}, delayMs);
 	}
 
@@ -460,6 +494,11 @@ class DesktopClient {
 				if (!this.hasConnectedOnce) {
 					this.setTransportState("unavailable");
 				}
+				// A failed connect usually means the sidecar is still booting
+				// (the Tauri endpoint command gives up after a fixed poll) or is
+				// being respawned by the shell's health check. Keep trying rather
+				// than parking the UI on "unavailable" until the app is relaunched.
+				this.scheduleReconnect();
 				throw error;
 			})
 			.finally(() => {
@@ -589,6 +628,89 @@ class DesktopClient {
 
 	getTransportError(): string | null {
 		return this.transportError;
+	}
+
+	async createAgendaTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.create",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async listAgendaTasks(
+		input: AgendaTaskListInput = {},
+	): Promise<AgendaTaskRecord[]> {
+		const response = await this.invoke<{ tasks: AgendaTaskRecord[] }>(
+			"task.list",
+			{ ...input },
+		);
+		return response.tasks ?? [];
+	}
+
+	async getAgendaTask(taskId: string): Promise<AgendaTaskRecord | undefined> {
+		const response = await this.invoke<{ task?: AgendaTaskRecord }>(
+			"task.get",
+			{
+				taskId,
+			},
+		);
+		return response.task;
+	}
+
+	async updateAgendaTask(input: HubTaskUpdateInput): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.update",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async approveAgendaTask(
+		input: AgendaTaskRevisionInput,
+	): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.approve",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async cancelAgendaTask(
+		input: AgendaTaskCancelInput,
+	): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.cancel",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async runAgendaTask(input: AgendaTaskRevisionInput): Promise<{
+		task: AgendaTaskRecord;
+		run?: AgendaTaskRunRecord;
+	}> {
+		return await this.invoke<{
+			task: AgendaTaskRecord;
+			run?: AgendaTaskRunRecord;
+		}>("task.run", { ...input });
+	}
+
+	async getAgendaAutomationPolicy(): Promise<AgendaAutomationPolicy> {
+		const response = await this.invoke<{ policy: AgendaAutomationPolicy }>(
+			"task.automation.get",
+		);
+		return response.policy;
+	}
+
+	async setAgendaAutomationPolicy(
+		input: AgendaAutomationSetInput,
+	): Promise<AgendaAutomationPolicy> {
+		const response = await this.invoke<{ policy: AgendaAutomationPolicy }>(
+			"task.automation.set",
+			{ ...input },
+		);
+		return response.policy;
 	}
 }
 

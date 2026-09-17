@@ -103,6 +103,59 @@ describe("CronReconciler", () => {
 		expect(all[0]?.removed).toBe(true);
 	});
 
+	it("does not remove hub-managed schedules with virtual source paths", async () => {
+		const created = store.createHubSchedule({
+			name: "Daily digest",
+			cronPattern: "0 9 * * *",
+			prompt: "Summarize the day",
+			workspaceRoot: "/ws",
+		});
+
+		// Simulates hub startup (e.g. after an app update) with no cron spec
+		// files on disk: DB-native hub schedules must survive reconciliation.
+		const summary = await reconciler.reconcileAll();
+		expect(summary.removed).toBe(0);
+
+		const schedule = requireValue(store.getSpec(created.specId));
+		expect(schedule.removed).toBe(false);
+		expect(schedule.enabled).toBe(true);
+		expect(store.listHubSchedules().map((s) => s.specId)).toContain(
+			created.specId,
+		);
+	});
+
+	it("still removes deleted file specs that spoof the hub-schedule source", async () => {
+		writeSpec(
+			"impostor.cron.md",
+			`---\nid: impostor\nworkspaceRoot: /ws\nschedule: "0 9 * * *"\nsource: hub-schedule\n---\nBody`,
+		);
+		await reconciler.reconcileAll();
+		const spec = requireValue(store.getSpecBySourcePath("impostor.cron.md"));
+		expect(spec.source).toBe("hub-schedule");
+
+		rmSync(join(cronDir, "impostor.cron.md"));
+		const summary = await reconciler.reconcileAll();
+		expect(summary.removed).toBe(1);
+		expect(requireValue(store.getSpec(spec.specId)).removed).toBe(true);
+	});
+
+	it("still removes deleted spoofing files inside a physical hub/schedules directory", async () => {
+		writeSpec(
+			"hub/schedules/nested-impostor.cron.md",
+			`---\nid: nested-impostor\nworkspaceRoot: /ws\nschedule: "0 9 * * *"\nsource: hub-schedule\n---\nBody`,
+		);
+		await reconciler.reconcileAll();
+		const spec = requireValue(
+			store.getSpecBySourcePath("hub/schedules/nested-impostor.cron.md"),
+		);
+		expect(spec.source).toBe("hub-schedule");
+
+		rmSync(join(cronDir, "hub/schedules/nested-impostor.cron.md"));
+		const summary = await reconciler.reconcileAll();
+		expect(summary.removed).toBe(1);
+		expect(requireValue(store.getSpec(spec.specId)).removed).toBe(true);
+	});
+
 	it("cancels queued runs when spec is removed", async () => {
 		writeSpec("cleanup.md", `---\nid: cleanup\nworkspaceRoot: /ws\n---\nBody`);
 		await reconciler.reconcileAll();

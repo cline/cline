@@ -614,6 +614,13 @@ export interface AgentPrepareTurnContext {
 	 * compaction rather than trust its token estimates.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Input tokens the provider actually counted for the previous request this
+	 * run, when available. Compaction uses it as a floor on its own char-based
+	 * estimate, which under-counts dense content (disassembly, pixel dumps) and
+	 * can otherwise let the real context grow past the window without triggering.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -684,6 +691,8 @@ export const AgentResultSchema = z.object({
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
+	/** Stable end-user identity used for provider and observability metadata. */
+	distinctId?: string;
 	/**
 	 * Core/hub runtime session identifier.
 	 *
@@ -911,6 +920,7 @@ export interface AgentConfig {
 }
 
 export const AgentConfigSchema = z.object({
+	distinctId: z.string().optional(),
 	sessionId: z.string().optional(),
 	// Provider Settings
 	providerId: z.string(),

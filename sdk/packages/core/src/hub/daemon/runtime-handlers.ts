@@ -87,7 +87,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 	});
 
 	return {
-		async startSession(request) {
+		async startSession(request, options) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
 			const started = await sessionHost.startSession({
 				source: SessionSource.CORE,
@@ -95,10 +95,13 @@ export function createLocalHubScheduleRuntimeHandlers(
 				// Record the spec-defined trigger source (e.g. "hub-schedule"
 				// or a custom label from spec frontmatter) as provenance; the
 				// top-level `source` is reserved for the client surface.
-				sessionMetadata: withSessionHistoryOriginMetadata(undefined, {
-					mode: "automation",
-					trigger: request.source,
-				}),
+				sessionMetadata: withSessionHistoryOriginMetadata(
+					options?.sessionMetadata,
+					{
+						mode: "automation",
+						trigger: request.source,
+					},
+				),
 				interactive: false,
 				config: {
 					providerId: normalizeProviderId(request.provider),
@@ -113,6 +116,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 					enableSpawnAgent: request.enableSpawn !== false,
 					enableAgentTeams: request.enableTeams !== false,
 					disableMcpSettingsTools: request.disableMcpSettingsTools,
+					agentPluginPaths: request.agentPluginPaths,
 					missionLogIntervalSteps: request.missionStepInterval,
 					missionLogIntervalMs: request.missionTimeIntervalMs,
 				},

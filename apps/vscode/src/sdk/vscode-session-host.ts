@@ -32,7 +32,13 @@ import {
 	type StartSessionResult,
 	type ToolExecutors,
 } from "@cline/core"
-import { type AgentToolContext, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import {
+	type AgentToolContext,
+	RUNTIME_CONFIG_EXTENSION_KINDS,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolPolicy,
+} from "@cline/shared"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -75,6 +81,8 @@ export interface VscodeSessionHostOptions {
 	toolPolicies?: Record<string, ToolPolicy>
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
+	/** Resolves once the applicable remote config is ready for a new SDK session. */
+	beforeStartSession?: () => Promise<void>
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/**
@@ -90,10 +98,15 @@ export interface VscodeSessionHostOptions {
 export class VscodeSessionHost implements SdkSessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
+	private readonly prepareStartSessionInput?: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>
 
-	private constructor(inner: ClineCore) {
+	private constructor(
+		inner: ClineCore,
+		prepareStartSessionInput?: (input: ClineCoreStartInput) => Promise<ClineCoreStartInput>,
+	) {
 		this.inner = inner
 		this.runtimeAddress = inner.runtimeAddress
+		this.prepareStartSessionInput = prepareStartSessionInput
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
@@ -124,6 +137,47 @@ export class VscodeSessionHost implements SdkSessionHost {
 			;(toolExecutors as Record<string, unknown>).bash = undefined
 		}
 
+		// Single funnel for session-start preparation: waits on the remote-config
+		// readiness/policy gate, applies the remote-config integration, and adds
+		// the VSCode extra tools. Used by ClineCore's prepare hook for normal
+		// starts AND by restore() for checkpoint-restore replacement sessions,
+		// which ClineCore starts without running the prepare hook.
+		const prepareStartSessionInput = async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
+			await options.beforeStartSession?.()
+			// Read only after the readiness gate: it may have atomically replaced
+			// the integration that must be captured by this session.
+			const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
+			const inputWithRemoteConfig = remoteConfigIntegration
+				? await remoteConfigIntegration.applyToStartSessionInput(input)
+				: input
+			const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
+			const extraTools = await createVscodeExtraTools(options.mcpHub, {
+				cwd: inputWithRemoteConfig.config.cwd,
+				getTerminalManager: options.getTerminalManager,
+				vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
+				foregroundCommands: options.foregroundCommands,
+			})
+			return {
+				...inputWithRemoteConfig,
+				source: inputWithRemoteConfig.source ?? "vscode",
+				// The extension runs file hooks through its own hooks adapter
+				// (status chips, hooksEnabled setting, HookFactory discovery).
+				// Exclude the SDK core's file-hook extension or every hook
+				// would execute twice per event.
+				localRuntime: {
+					...(inputWithRemoteConfig.localRuntime ?? {}),
+					configExtensions: (
+						inputWithRemoteConfig.localRuntime?.configExtensions ?? RUNTIME_CONFIG_EXTENSION_KINDS
+					).filter((kind) => kind !== "hooks"),
+				},
+				config: {
+					...inputWithRemoteConfig.config,
+					telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
+					extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
+				},
+			}
+		}
+
 		const inner = await ClineCore.create({
 			backendMode: "local",
 			capabilities: {
@@ -136,28 +190,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 			telemetry: options.telemetry,
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
-				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
-					const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
-					const inputWithRemoteConfig = remoteConfigIntegration
-						? await remoteConfigIntegration.applyToStartSessionInput(input)
-						: input
-					const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
-					const extraTools = await createVscodeExtraTools(options.mcpHub, {
-						cwd: inputWithRemoteConfig.config.cwd,
-						getTerminalManager: options.getTerminalManager,
-						vscodeTerminalExecutionMode: getEffectiveTerminalExecutionMode(requestedTerminalExecutionMode),
-						foregroundCommands: options.foregroundCommands,
-					})
-					return {
-						...inputWithRemoteConfig,
-						source: inputWithRemoteConfig.source ?? "vscode",
-						config: {
-							...inputWithRemoteConfig.config,
-							telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
-							extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
-						},
-					}
-				},
+				applyToStartSessionInput: prepareStartSessionInput,
 			}),
 		})
 
@@ -165,7 +198,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 		if (options.getTerminalManager) {
 			Logger.log("[VscodeSessionHost] SDK run_commands suppressed; using custom foreground/background terminal tool")
 		}
-		return new VscodeSessionHost(inner)
+		return new VscodeSessionHost(inner, prepareStartSessionInput)
 	}
 
 	async start(input: StartSessionInput): Promise<StartSessionResult>
@@ -245,6 +278,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
+		// ClineCore.restore starts the checkpoint-restore replacement session
+		// WITHOUT running the prepare hook, which would bypass the remote-config
+		// session gate and integration. Run the same preparation here.
+		if (input.start && this.prepareStartSessionInput) {
+			input = { ...input, start: await this.prepareStartSessionInput(input.start) }
+		}
 		return this.inner.restore(input)
 	}
 

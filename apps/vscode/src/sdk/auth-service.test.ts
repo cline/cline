@@ -130,18 +130,26 @@ vi.mock("@cline/core", async () => ({
 	loginOpenAICodex: vi.fn(),
 	refreshClineToken: vi.fn(),
 	getValidClineCredentials: vi.fn(),
+	// Mirrors the SDK registry: cline-pass stores credentials under "cline".
+	getProviderAuthStorageId: (providerId: string) =>
+		providerId === "cline" || providerId === "cline-pass" ? "cline" : undefined,
 }))
 
 // Stateful in-memory provider-settings store. Cline credentials are persisted
 // to providers.json (via the SDK's ProviderSettingsManager), not to secrets, so
 // the credential round-trip tests exercise this store.
 const mockProviderSettings = new Map<string, Record<string, unknown>>()
+let mockLastUsedProvider: string | undefined
 vi.mock("./provider-migration", () => ({
 	getProviderSettingsManager: () => ({
 		getProviderSettings: (provider: string) => mockProviderSettings.get(provider),
-		saveProviderSettings: (settings: Record<string, unknown>) => {
+		read: () => ({ lastUsedProvider: mockLastUsedProvider }),
+		saveProviderSettings: (settings: Record<string, unknown>, options?: { setLastUsed?: boolean }) => {
 			const provider = settings.provider as string
 			mockProviderSettings.set(provider, { ...settings })
+			if (options?.setLastUsed !== false) {
+				mockLastUsedProvider = provider
+			}
 		},
 	}),
 }))
@@ -237,6 +245,7 @@ describe("AuthService", () => {
 		mockSecrets.clear()
 		mockGlobalState.clear()
 		mockProviderSettings.clear()
+		mockLastUsedProvider = undefined
 		vi.clearAllMocks()
 	})
 
@@ -588,6 +597,53 @@ describe("AuthService", () => {
 				sessionStartedAtMs: 1_700_000_000_000,
 				tokenType: "Bearer",
 			})
+		})
+
+		it("keeps a ClinePass last-used selection when credentials are refreshed on restore (#13501)", async () => {
+			mockLastUsedProvider = "cline-pass"
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:persisted-access-token",
+					refreshToken: "persisted-refresh-token",
+					accountId: "user-123",
+				},
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				access: "refreshed-access-token",
+				refresh: "refreshed-refresh-token",
+				expires: Date.now() + 3600 * 1000,
+				accountId: "user-123",
+				email: "test@example.com",
+			})
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(true)
+			expect(mockLastUsedProvider).toBe("cline-pass")
+		})
+
+		it("claims the last-used slot on restore when no cline-backed provider is selected", async () => {
+			mockLastUsedProvider = undefined
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:persisted-access-token",
+					refreshToken: "persisted-refresh-token",
+					accountId: "user-123",
+				},
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				access: "refreshed-access-token",
+				refresh: "refreshed-refresh-token",
+				expires: Date.now() + 3600 * 1000,
+				accountId: "user-123",
+				email: "test@example.com",
+			})
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(mockLastUsedProvider).toBe("cline")
 		})
 
 		it("sets unauthenticated state when providers.json has no Cline auth", async () => {

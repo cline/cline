@@ -1,5 +1,6 @@
 export type {
 	AvailableRuntimeCommand,
+	ResolveRuntimeSlashCommandOptions,
 	RuntimeCommandKind,
 } from "./runtime-commands";
 // Skill frontmatter mutation is intentionally not exported from this barrel.
@@ -43,4 +44,7 @@ export type {
 	UserInstructionConfigRecord,
 	UserInstructionConfigService,
 } from "./user-instruction-service";
-export { createUserInstructionConfigService } from "./user-instruction-service";
+export {
+	combineUserInstructionConfigServices,
+	createUserInstructionConfigService,
+} from "./user-instruction-service";

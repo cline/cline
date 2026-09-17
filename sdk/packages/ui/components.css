@@ -3,9 +3,11 @@
 @import "./components/agent-ask-question.css";
 @import "./components/agent-aurora.css";
 @import "./components/agent-hero-heading.css";
+@import "./components/agent-welcome-hero.css";
 @import "./components/agent-prompt-queue.css";
 @import "./components/agent-quick-actions.css";
 @import "./components/search-combobox.css";
 @import "./components/session-status.css";
+@import "./components/switch.css";
 
 @source "./components";

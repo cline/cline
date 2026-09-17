@@ -33,7 +33,9 @@ const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SIDEBAR_WIDTH_COOKIE_NAME = "sidebar_width";
-const SIDEBAR_MIN_WIDTH = 224;
+// Floor keeps session rows legible: below this the thread titles are fully
+// truncated away and row metadata (timestamps, pins) starts clipping.
+const SIDEBAR_MIN_WIDTH = 260;
 const SIDEBAR_MAX_WIDTH = 560;
 
 function clampSidebarWidth(value: number): number {

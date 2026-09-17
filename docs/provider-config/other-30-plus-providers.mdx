@@ -11,8 +11,11 @@ Use this page for providers that follow the same setup pattern.
 - [Providers](#providers)
   - [AIHubMix](#aihubmix)
   - [AskSage](#asksage)
+  - [Avian](#avian)
   - [Baseten](#baseten)
   - [Cerebras](#cerebras)
+  - [CoreWeave](#coreweave)
+  - [Crusoe](#crusoe)
   - [Dify.ai](#difyai)
   - [Doubao](#doubao)
   - [Fireworks AI](#fireworks-ai)
@@ -68,6 +71,19 @@ AskSage is focused on enterprise and government AI access with compliance-orient
 2. Confirm your workspace/organization has model access enabled.
 3. In Cline, select **AskSage** and enter the key.
 
+### Avian
+Avian is an OpenAI-compatible inference provider offering fast, affordable LLM access.
+
+**Website:** [https://avian.io](https://avian.io)
+
+#### Basic Setup
+
+1. Sign up or sign in at [avian.io](https://avian.io) and generate an API key.
+2. In Cline, choose **OpenAI Compatible** from the API Provider dropdown.
+3. Set the base URL to `https://api.avian.io/v1`, paste your API key, and enter a model ID (e.g., `deepseek/deepseek-v3.2`).
+
+See the [Avian models page](https://avian.io/models) for the current model list with pricing and capabilities. Not every model supports every optional feature (e.g., tool calling, reasoning).
+
 ### Baseten
 Baseten provides hosted model APIs and deployment infrastructure for production inference.
 
@@ -89,6 +105,30 @@ Cerebras offers very fast hosted inference for supported model families.
 1. Sign in to Cerebras Cloud.
 2. Create or retrieve your API key.
 3. In Cline, select **Cerebras** and enter the key.
+
+### CoreWeave
+CoreWeave provides serverless inference for open-weight models through an OpenAI-compatible API.
+
+**Documentation:** [CoreWeave Serverless Inference](https://docs.wandb.ai/inference/)
+
+#### Basic Setup
+
+1. Follow the [account and API key prerequisites](https://docs.wandb.ai/inference/prerequisites). The service currently uses a W&B account and API key.
+2. In Cline, select **CoreWeave** and paste your API key. Older releases may list the provider as **Weights & Biases** or **W&B**.
+3. Choose a model from the [current model catalog](https://docs.wandb.ai/inference/models). Model availability and capabilities vary.
+
+For manual configuration, select **OpenAI Compatible**, set the base URL to `https://api.inference.wandb.ai/v1`, enter your W&B API key, and use an exact model ID from the catalog. See the [Cline integration guide](https://docs.wandb.ai/inference/tutorials/integration-cline) for further setup instructions.
+
+### Crusoe
+Crusoe offers managed inference for open-weight models on renewable-powered GPU infrastructure.
+
+**Website:** [https://www.crusoe.ai/cloud/managed-inference](https://www.crusoe.ai/cloud/managed-inference)
+
+#### Basic Setup
+
+1. Create/sign in to the [Crusoe Cloud Console](https://console.crusoecloud.com/).
+2. Generate an Inference API key in the **Security** tab.
+3. In Cline, choose **Crusoe** and provide the key.
 
 ### Dify.ai
 Dify.ai is a workflow-centric AI platform with app and pipeline capabilities.

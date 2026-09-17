@@ -188,6 +188,16 @@ export function expandSlashCommands(
 				continue
 			}
 		}
+		// Configured skills are not expanded into the prompt: the SDK session
+		// registers the `skills` tool, whose description requires the model to
+		// invoke it when the user references a slash command, so the
+		// instructions arrive as a tool result and the transcript keeps the
+		// typed command. Builtins (e.g. /deep-planning) are declared as kind
+		// "skill" but are not served by that tool, so they keep expanding —
+		// as do workflows.
+		if (command.kind === "skill" && !command.id.startsWith("builtin:")) {
+			continue
+		}
 		const start = (match.index ?? 0) + match[1].length
 		const end = start + token.length
 		return text.slice(0, start) + command.instructions + text.slice(end)

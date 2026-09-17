@@ -61,6 +61,28 @@ export function handleClientUpdate(
 	if (metadata) {
 		client.metadata = JSON.parse(JSON.stringify(metadata));
 	}
+	if (Array.isArray(envelope.payload?.capabilities)) {
+		client.capabilities = envelope.payload.capabilities.flatMap((value) => {
+			if (!value || typeof value !== "object" || Array.isArray(value))
+				return [];
+			const capability = value as Record<string, unknown>;
+			if (typeof capability.name !== "string" || !capability.name.trim()) {
+				return [];
+			}
+			return [
+				{
+					name: capability.name.trim(),
+					...(typeof capability.description === "string"
+						? { description: capability.description }
+						: {}),
+					...(Array.isArray(capability.scopes) &&
+					capability.scopes.every((scope) => typeof scope === "string")
+						? { scopes: capability.scopes }
+						: {}),
+				},
+			];
+		});
+	}
 	return okReply(envelope);
 }
 

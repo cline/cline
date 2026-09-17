@@ -17,13 +17,23 @@ import {
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
-import type {
-	ModelInfo,
-	ProviderClient,
-	ProviderConfig,
-	ProviderProtocol,
-	ProviderSettings,
+import {
+	applyClineFeaturedModels,
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+} from "../../services/llms/cline-recommended-models";
+import {
+	getLiveModelsCatalog,
+	isPrivateModelCatalogProvider,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
+import {
+	type ModelInfo,
+	type ProviderClient,
+	type ProviderConfig,
+	type ProviderProtocol,
+	type ProviderSettings,
+	toProviderConfig,
 } from "../../services/llms/provider-settings";
 import type { ProviderTokenSource } from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -38,9 +48,11 @@ import {
 	fetchModelIdsFromSource,
 	resolveModelsSourceUrl,
 } from "./model-source";
+import { isProviderSettingsUsable } from "./provider-readiness";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
+const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
 export interface ListLocalProvidersOptions {
@@ -148,17 +160,26 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
+	options: { loadLatest?: boolean } = {},
 ): Promise<Record<string, ModelInfo>> {
-	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
+	const [registeredModels, registeredModelOverrides] = await Promise.all([
+		LlmsModels.getModelsForProvider(providerId),
+		LlmsModels.getModelOverridesForProvider(providerId),
+	]);
+	// All shared-catalog providers refresh when their model list is loaded.
+	// The catalog cache deduplicates concurrent loads across providers; the
+	// initial listLocalProviders snapshot remains entirely network-free.
+	// Endpoint-owned lists do not use the shared catalog.
+	const provider = await LlmsModels.getProvider(providerId);
+	const shouldLoadLiveCatalog =
+		!isPrivateModelCatalogProvider(providerId) && !provider?.modelsSourceUrl;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !isClinePass) {
-		return registeredModels;
-	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: isClinePass,
+			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
+			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -176,6 +197,7 @@ async function resolveProviderModelMap(
 		? {
 				...registeredModels,
 				...resolved.knownModels,
+				...registeredModelOverrides,
 			}
 		: registeredModels;
 }
@@ -726,6 +748,13 @@ export async function listLocalProviders(
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
 
+	// The catalog is built for every provider at startup and must not wait on
+	// the network, so featured tiers come from a synchronous peek (cached live
+	// feed, else the bundled fallback). This keeps even the very first picker
+	// paint after a cold boot sectioned; the per-provider model-list path
+	// (getLocalProviderModels) then refreshes with live feed data.
+	const featuredData = peekClineRecommendedModels();
+
 	const providerEntries = await Promise.all(
 		ids.map(
 			async (id): Promise<{ provider: ProviderListItem; rank: number }> => {
@@ -733,8 +762,21 @@ export async function listLocalProviders(
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
 				]);
-				const modelList = toSortedProviderModels(registeredModels);
+				const modelList = applyClineFeaturedModels(
+					id,
+					toSortedProviderModels(registeredModels),
+					featuredData,
+				);
 				const directSettings = state.providers[id]?.settings;
+				// Providers that store their credentials under another provider
+				// (ClinePass signs in as "cline") are enabled whenever that
+				// provider is: one Cline sign-in configures both, so both must
+				// show wherever `enabled` gates a picker.
+				const storageProviderId = getProviderAuthHandler(id)?.storageProviderId;
+				const sharedSettings =
+					storageProviderId && storageProviderId !== id
+						? state.providers[storageProviderId]?.settings
+						: undefined;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
@@ -751,7 +793,20 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(directSettings),
+						enabled: Boolean(directSettings ?? sharedSettings),
+						// Distinct from `enabled` (any persisted entry, which
+						// migrations and empty saves can create): true only when
+						// the saved settings hold real credentials or a usable
+						// keyless endpoint, mirroring the CLI's readiness check.
+						configured: isProviderSettingsUsable(
+							id,
+							persistedSettings,
+							persistedSettings
+								? toProviderConfig(persistedSettings, {
+										includeKnownModels: false,
+									})
+								: undefined,
+						),
 						apiKey: persistedSettings
 							? resolveVisibleApiKey(persistedSettings)
 							: undefined,
@@ -814,10 +869,29 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	options?: { loadLatest?: boolean },
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await resolveProviderModelMap(id, config);
-	const models = toSortedProviderModels(modelMap);
+	const modelMap = await resolveProviderModelMap(id, config, options);
+	let models = toSortedProviderModels(modelMap);
+	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+		// Stamp the recommended-feed tiers onto the list so every client's
+		// picker gets Recommended/Free/Subscribed data without fetching and
+		// joining the feed itself. A miss only means models without tier
+		// decoration.
+		models = applyClineFeaturedModels(
+			id,
+			models,
+			await getCachedClineRecommendedModels(
+				options?.loadLatest
+					? {
+							catalogLoader: () =>
+								getLiveModelsCatalog({ includeClineCloudModels: true }),
+						}
+					: undefined,
+			),
+		);
+	}
 	return { providerId: id, models };
 }
 

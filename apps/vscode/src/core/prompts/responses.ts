@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { TOOL_REJECTION_SUFFIX, USER_REJECTED_TOOL_REASON } from "@cline/shared"
 import * as diff from "diff"
 import * as path from "path"
 import { Mode } from "@/shared/storage/types"
@@ -20,7 +21,8 @@ export const formatResponse = {
 	condense: () =>
 		`The user has accepted the condensed conversation summary you generated. This summary covers important details of the historical conversation with the user which has been truncated.\n<explicit_instructions type="condense_response">It's crucial that you respond by ONLY asking the user what you should work on next. You should NOT take any initiative or make any assumptions about continuing with work. For example you should NOT suggest file changes or attempt to read any files.\nWhen asking the user what you should work on next, you can reference information in the summary which was just generated. However, you should NOT reference information outside of what's contained in the summary for this response. Keep this response CONCISE.</explicit_instructions>`,
 
-	toolDenied: () => `The user denied this operation.`,
+	// Not routed through the agent runtime, so the guidance suffix is included here.
+	toolDenied: () => `${USER_REJECTED_TOOL_REASON} -- ${TOOL_REJECTION_SUFFIX}`,
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 

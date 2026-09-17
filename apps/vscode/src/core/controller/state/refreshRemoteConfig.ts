@@ -1,5 +1,4 @@
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { Controller } from ".."
 
 /**
@@ -9,7 +8,7 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function refreshRemoteConfig(controller: Controller, _: EmptyRequest): Promise<Empty> {
-	await fetchRemoteConfig(controller)
+	await controller.refreshRemoteConfig()
 
 	return Empty.create()
 }

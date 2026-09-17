@@ -9,9 +9,9 @@ import {
 	type AgentToolContext,
 	createTool,
 	getDefaultShell,
+	getPowerShellEdition,
 	getShellKind,
 	type ITelemetryService,
-	type ShellKind,
 	validateWithZod,
 	zodToJsonSchema,
 } from "@cline/shared";
@@ -192,46 +192,64 @@ async function executeShellCommands(
 		options;
 
 	return Promise.all(
-		commands.map(async (command): Promise<ToolOperationResult> => {
-			const startedAt = Date.now();
-			const query = formatRunCommandQueryPreview(command);
-			try {
-				const output = await withTimeout(
-					executor(command, cwd, context),
-					timeoutMs,
-					`Command timed out after ${timeoutMs}ms`,
-				);
-				return {
-					query,
-					result: output,
-					success: true,
-				};
-			} catch (error) {
-				if (error instanceof TimeoutError) {
-					captureRunCommandsTimeoutFromContext(telemetry, context, {
-						effectiveTimeoutMs: error.timeoutMs,
-						timeoutSource,
-						commandCount: commands.length,
-						durationMs: Date.now() - startedAt,
-					});
-				}
-				if (error instanceof CommandExitError) {
+		commands.map(
+			async (command, commandIndex): Promise<ToolOperationResult> => {
+				const startedAt = Date.now();
+				const query = formatRunCommandQueryPreview(command);
+				const commandContext: AgentToolContext = context.emitUpdate
+					? {
+							...context,
+							emitUpdate: (update) => {
+								const payload =
+									update && typeof update === "object" && !Array.isArray(update)
+										? (update as Record<string, unknown>)
+										: { update };
+								context.emitUpdate?.({
+									...payload,
+									commandIndex,
+									query,
+								});
+							},
+						}
+					: context;
+				try {
+					const output = await withTimeout(
+						executor(command, cwd, commandContext),
+						timeoutMs,
+						`Command timed out after ${timeoutMs}ms`,
+					);
 					return {
 						query,
-						result: error.output,
-						error: error.message,
+						result: output,
+						success: true,
+					};
+				} catch (error) {
+					if (error instanceof TimeoutError) {
+						captureRunCommandsTimeoutFromContext(telemetry, context, {
+							effectiveTimeoutMs: error.timeoutMs,
+							timeoutSource,
+							commandCount: commands.length,
+							durationMs: Date.now() - startedAt,
+						});
+					}
+					if (error instanceof CommandExitError) {
+						return {
+							query,
+							result: error.output,
+							error: error.message,
+							success: false,
+						};
+					}
+					const msg = formatError(error);
+					return {
+						query,
+						result: "",
+						error: `Command failed: ${msg}`,
 						success: false,
 					};
 				}
-				const msg = formatError(error);
-				return {
-					query,
-					result: "",
-					error: `Command failed: ${msg}`,
-					success: false,
-				};
-			}
-		}),
+			},
+		),
 	);
 }
 
@@ -409,22 +427,40 @@ const RUN_COMMANDS_EXECUTION_INSTRUCTIONS =
 
 /**
  * Build the run_commands tool description for the shell that will actually
- * execute the commands. The shell kind decides the syntax guidance (quoting,
- * sequencing, heredocs), and isWindows adds environment context for POSIX
- * shells running on a Windows host (e.g. Git Bash).
+ * execute the commands. Derive the edition and wrapper guidance from the
+ * same executable, without probing a version or adding volatile prompt text.
+ * isWindows describes the host, not the shell's edition.
  */
 export function buildRunCommandsDescription(
-	shellKind: ShellKind,
+	shell: string,
 	isWindows: boolean,
 ): string {
+	const shellKind = getShellKind(shell);
 	if (shellKind === "powershell" || shellKind === "cmd") {
-		const shellName = shellKind === "powershell" ? "PowerShell" : "cmd.exe";
+		const edition = getPowerShellEdition(shell);
+		const executable =
+			edition === "windows"
+				? "powershell.exe"
+				: edition === "core"
+					? isWindows
+						? "pwsh.exe"
+						: "pwsh"
+					: "cmd.exe";
+		const shellName =
+			edition === "windows"
+				? `Windows PowerShell (${executable})`
+				: edition === "core"
+					? `PowerShell (${executable})`
+					: executable;
+		const wrapper = `${executable} ${shellKind === "powershell" ? "-Command" : "/c"}`;
 		const sequencingOperator = shellKind === "powershell" ? "';'" : "'&&'";
 		return (
-			"Run non-interactive shell commands from the root of the workspace in Windows environment. " +
+			`Run non-interactive shell commands from the root of the workspace${isWindows ? " in Windows environment" : ""}. ` +
 			RUN_COMMANDS_SHARED_INSTRUCTIONS +
 			`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); filter output when you need specific sections. ` +
-			`Commands run through ${shellName}; use ${sequencingOperator} to sequence commands. ` +
+			`Commands run through ${shellName}; quote paths and arguments for ${executable} and use ${sequencingOperator} to sequence commands. ` +
+			`Write commands directly; do not wrap them in another ${wrapper} invocation. ` +
+			"Only start another shell when you intentionally need a different shell or a separate process. " +
 			RUN_COMMANDS_EXECUTION_INSTRUCTIONS +
 			"Include multiple commands in the same call when they are independent and safe to run concurrently. When independent reads, searches, or edits are also needed, call those tools in the same response."
 		);
@@ -480,8 +516,7 @@ export function createShellTool(
 		typeof configShell === "function"
 			? configShell
 			: () => configShell ?? getDefaultShell(process.platform);
-	const describe = () =>
-		buildRunCommandsDescription(getShellKind(resolveShell()), isWindows);
+	const describe = () => buildRunCommandsDescription(resolveShell(), isWindows);
 
 	const tool = createTool<unknown, ToolOperationResult[]>({
 		name: "run_commands",
@@ -767,7 +802,7 @@ export function createSkillsTool(
 		get() {
 			const skills = executor.configuredSkills
 				?.filter((s) => !s.disabled)
-				.map((s) => s.name);
+				.map((s) => (s.id.includes(":") ? s.id : s.name));
 			if (skills && skills.length > 0) {
 				return `${baseDescription} Available skills: ${skills.join(", ")}.`;
 			}
@@ -817,8 +852,10 @@ export function createSubmitAndExitTool(
 		description:
 			"Submit the final answer and exit the conversation. " +
 			"For example, submit a summary of the investigation and confirm the issue is resolved. " +
-			"You should only submit once all necessary steps are completed. " +
-			"Make sure to verify your output matches the expected format, data types, and file locations specified. " +
+			"You should only submit once all necessary steps are completed AND you have verified the result by execution. " +
+			"Before calling this, re-read the task, then confirm from your own tool output that every required file exists at the specified path and that its contents match the expected format, data types, and values. " +
+			"If the task provides tests, run them and confirm they pass; if it does not, run your own solution end to end and read the output back as evidence. " +
+			"Do not submit on the assumption that your solution works — submit because you have observed evidence that it does. " +
 			"Provide a summary of the investigation and confirm the issue is resolved.",
 		inputSchema: zodToJsonSchema(SubmitInputSchema),
 		lifecycle: {

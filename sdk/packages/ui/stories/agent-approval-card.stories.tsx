@@ -51,7 +51,8 @@ export const Rejecting: Story = {
 
 export const ErrorState: Story = {
 	args: {
-		error: "The command could not be approved. Check your workspace permissions.",
+		error:
+			"The command could not be approved. Check your workspace permissions.",
 	},
 	render: Default.render,
 };

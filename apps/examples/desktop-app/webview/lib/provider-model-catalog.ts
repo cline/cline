@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatCompatibleModel } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -13,6 +14,10 @@ export type ProviderModelCatalog = {
 	providers: Provider[];
 	enabledProviderIds: string[];
 	providerModels: Record<string, string[]>;
+	/** Full chat-model entries per provider (display names, capabilities). */
+	providerModelDetails: Record<string, ProviderModel[]>;
+	/** Display name per provider id, for pickers that show providers. */
+	providerNames: Record<string, string>;
 	providerReasoningModels: Record<string, string[]>;
 	voiceInput: TranscriptionModelTarget | null;
 };
@@ -39,8 +44,22 @@ export function supportsAudio(model: ProviderModel): boolean {
 export function filterChatModels(
 	models: ProviderModel[] | undefined,
 ): ProviderModel[] {
-	return (models ?? []).filter(
-		(model) => !isDedicatedTranscriptionModel(model),
+	return (models ?? []).filter(isChatModel);
+}
+
+export function isChatModel(model: ProviderModel): boolean {
+	return (
+		// Desktop supports image generation directly from its composer. Other
+		// chat-only clients intentionally use isChatCompatibleModel without this
+		// operation-specific exception.
+		model.operation === "image-generation" ||
+		isChatCompatibleModel({
+			operation: model.operation,
+			modalities: {
+				input: model.inputModalities,
+				output: model.outputModalities,
+			},
+		})
 	);
 }
 
@@ -68,35 +87,45 @@ export function selectTranscriptionModel(
 		: null;
 }
 
-function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return filterChatModels(models).map((model) => model.id);
-}
-
-function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
-	return filterChatModels(models)
-		.filter((model) => model.supportsReasoning)
-		.map((model) => model.id);
-}
-
 export function buildProviderModelCatalog(
 	providers: Provider[],
 	voiceInput?: VoiceInputSelection,
 ): ProviderModelCatalog {
+	const providerEntries = providers.map((provider) => {
+		const chatModels = filterChatModels(provider.modelList);
+		return {
+			provider,
+			chatModels,
+			modelIds: chatModels.map((model) => model.id),
+			reasoningModelIds: chatModels
+				.filter((model) => model.supportsReasoning)
+				.map((model) => model.id),
+		};
+	});
+
 	return {
 		providers,
-		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
-			.map((provider) => provider.id),
+		enabledProviderIds: providerEntries
+			.filter(
+				({ provider, modelIds }) => provider.enabled && modelIds.length > 0,
+			)
+			.map(({ provider }) => provider.id),
 		providerModels: Object.fromEntries(
-			providers.map((provider) => [
+			providerEntries.map(({ provider, modelIds }) => [provider.id, modelIds]),
+		),
+		providerModelDetails: Object.fromEntries(
+			providerEntries.map(({ provider, chatModels }) => [
 				provider.id,
-				toModelIds(provider.modelList),
+				chatModels,
 			]),
 		),
+		providerNames: Object.fromEntries(
+			providers.map((provider) => [provider.id, provider.name]),
+		),
 		providerReasoningModels: Object.fromEntries(
-			providers.map((provider) => [
+			providerEntries.map(({ provider, reasoningModelIds }) => [
 				provider.id,
-				toReasoningModelIds(provider.modelList),
+				reasoningModelIds,
 			]),
 		),
 		voiceInput: selectTranscriptionModel(providers, voiceInput),

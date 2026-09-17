@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentEvent } from "@cline/shared";
+import type { AgentConfig, AgentEvent, AgentResult } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	AgentTeamsRuntime,
@@ -37,6 +37,60 @@ vi.mock("../../../runtime/orchestration/session-runtime-orchestrator", () => {
 		SessionRuntime: createSessionRuntimeMock,
 	};
 });
+
+type TestSessionRuntimeMock = ReturnType<typeof createSessionRuntimeMock>;
+
+function mockNextSessionRuntime(
+	overrides: Partial<TestSessionRuntimeMock> = {},
+): void {
+	// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+	createSessionRuntimeMock.mockImplementationOnce(function () {
+		return {
+			abort: vi.fn(),
+			run: vi.fn(),
+			continue: vi.fn(),
+			canStartRun: vi.fn(() => true),
+			getAgentId: vi.fn(() => "teammate-1"),
+			getConversationId: vi.fn(() => "conv-1"),
+			getMessages: vi.fn(() => []),
+			subscribeEvents: vi.fn(() => () => {}),
+			...overrides,
+		};
+	});
+}
+
+function spawnTestTeammate(runtime: AgentTeamsRuntime, agentId: string): void {
+	runtime.spawnTeammate({
+		agentId,
+		config: {
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-5-20250929",
+			systemPrompt: `Helper teammate ${agentId}`,
+			tools: [],
+		},
+	});
+}
+
+function createAbortedResult(): AgentResult {
+	return {
+		text: "cancelled",
+		iterations: 1,
+		finishReason: "aborted",
+		durationMs: 1,
+		usage: {
+			inputTokens: 1,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 0,
+		},
+		messages: [],
+		toolCalls: [],
+		model: { id: "mock-model", provider: "mock-provider" },
+		startedAt: new Date("2026-01-01T00:00:00.000Z"),
+		endedAt: new Date("2026-01-01T00:00:00.001Z"),
+	};
+}
 
 describe("AgentTeamsRuntime teammate lifecycle events", () => {
 	it("spawns teammates with a 10 minute API timeout", () => {
@@ -263,6 +317,246 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			}),
 			reason: "This operation was aborted",
 		});
+	});
+
+	it("cancels an active synchronous teammate run without shutting down the teammate", async () => {
+		const events: TeamEvent[] = [];
+		let resolveRun: ((result: AgentResult) => void) | undefined;
+		const abort = vi.fn(() => {
+			resolveRun?.(createAbortedResult());
+		});
+		mockNextSessionRuntime({
+			abort,
+			run: vi.fn(
+				() =>
+					new Promise((resolve) => {
+						resolveRun = resolve;
+					}),
+			),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			onTeamEvent: (event) => events.push(event),
+		});
+		spawnTestTeammate(runtime, "python-poet");
+
+		const routePromise = runtime.routeToTeammate(
+			"python-poet",
+			"write something",
+		);
+		await vi.waitFor(() => {
+			expect(
+				events.filter((event) => event.type === TeamMessageType.TaskStart),
+			).toHaveLength(1);
+		});
+
+		runtime.cancelOutstandingWork("parent_session_abort");
+
+		await expect(routePromise).resolves.toEqual(
+			expect.objectContaining({ finishReason: "aborted" }),
+		);
+		expect(abort).toHaveBeenCalledTimes(1);
+		expect(runtime.isTeammateActive("python-poet")).toBe(true);
+		expect(runtime.getSnapshot().members).toContainEqual(
+			expect.objectContaining({ agentId: "python-poet", status: "idle" }),
+		);
+		expect(
+			events.filter((event) => event.type === TeamMessageType.TeammateShutdown),
+		).toHaveLength(0);
+		expect(
+			events.filter((event) => event.type === TeamMessageType.TaskEnd),
+		).toEqual([
+			expect.objectContaining({
+				agentId: "python-poet",
+				status: "cancelled",
+			}),
+		]);
+		expect(
+			events.filter(
+				(event) =>
+					event.type === TeamMessageType.TeamMissionLog &&
+					event.entry.summary.includes("Completed a delegated run"),
+			),
+		).toHaveLength(0);
+	});
+
+	it("cancels running and queued async runs exactly once", async () => {
+		const events: TeamEvent[] = [];
+		let resolveRun: ((result: AgentResult) => void) | undefined;
+		const abort = vi.fn(() => {
+			resolveRun?.(createAbortedResult());
+		});
+		mockNextSessionRuntime({
+			abort,
+			run: vi.fn(
+				() =>
+					new Promise((resolve) => {
+						resolveRun = resolve;
+					}),
+			),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			maxConcurrentRuns: 1,
+			onTeamEvent: (event) => events.push(event),
+		});
+		spawnTestTeammate(runtime, "python-poet");
+
+		const running = runtime.startTeammateRun("python-poet", "first task");
+		const queued = runtime.startTeammateRun("python-poet", "second task");
+		await vi.waitFor(() => {
+			expect(runtime.getRun(running.id)?.status).toBe("running");
+			expect(runtime.getRun(queued.id)?.status).toBe("queued");
+		});
+
+		runtime.cancelOutstandingWork("parent_session_abort");
+		runtime.cancelOutstandingWork("parent_session_abort");
+
+		await expect(runtime.awaitAllRuns(1)).resolves.toEqual([
+			expect.objectContaining({ id: running.id, status: "cancelled" }),
+			expect.objectContaining({ id: queued.id, status: "cancelled" }),
+		]);
+		await vi.waitFor(() => {
+			expect(runtime.getSnapshot().members).toContainEqual(
+				expect.objectContaining({ agentId: "python-poet", status: "idle" }),
+			);
+		});
+		expect(abort).toHaveBeenCalledTimes(1);
+		for (const run of [running, queued]) {
+			expect(
+				events.filter(
+					(event) =>
+						event.type === TeamMessageType.RunCancelled &&
+						event.run.id === run.id,
+				),
+			).toHaveLength(1);
+		}
+		expect(
+			events.filter((event) => event.type === TeamMessageType.RunCompleted),
+		).toHaveLength(0);
+		expect(
+			events.filter((event) => event.type === TeamMessageType.RunFailed),
+		).toHaveLength(0);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: TeamMessageType.TeamMissionLog,
+				entry: expect.objectContaining({
+					summary: expect.stringContaining("Completed a delegated run"),
+				}),
+			}),
+		);
+	});
+
+	it("does not inherit stale abort state on a replacement async run", async () => {
+		const events: TeamEvent[] = [];
+		let busy = false;
+		let resolveRun: (() => void) | undefined;
+		mockNextSessionRuntime({
+			abort: vi.fn(),
+			canStartRun: vi.fn(() => !busy),
+			run: vi.fn(() => {
+				busy = true;
+				return new Promise<AgentResult>((resolve) => {
+					resolveRun = () => {
+						busy = false;
+						resolve(createAbortedResult());
+					};
+				});
+			}),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			maxConcurrentRuns: 1,
+			onTeamEvent: (event) => events.push(event),
+		});
+		spawnTestTeammate(runtime, "python-poet");
+
+		const predecessor = runtime.startTeammateRun("python-poet", "first task");
+		await vi.waitFor(() => {
+			expect(runtime.getRun(predecessor.id)?.status).toBe("running");
+		});
+		runtime.cancelOutstandingWork("parent_session_abort");
+
+		const replacement = runtime.startTeammateRun(
+			"python-poet",
+			"replacement task",
+			{ maxRetries: 1 },
+		);
+		await vi.waitFor(() => {
+			expect(runtime.getRun(replacement.id)).toEqual(
+				expect.objectContaining({
+					status: "queued",
+					error:
+						"Cannot start a new run while another run is already in progress",
+					retryCount: 1,
+				}),
+			);
+		});
+		expect(
+			events.filter(
+				(event) =>
+					event.type === TeamMessageType.RunCancelled &&
+					event.run.id === replacement.id,
+			),
+		).toHaveLength(0);
+
+		resolveRun?.();
+		await vi.waitFor(() => {
+			expect(runtime.getSnapshot().members).toContainEqual(
+				expect.objectContaining({ agentId: "python-poet", status: "idle" }),
+			);
+		});
+		runtime.cancelOutstandingWork("test_cleanup");
+	});
+
+	it("does not cancel idle teammates or work owned by another team runtime", async () => {
+		const activeAborts = vi.fn();
+		const idleAborts = vi.fn();
+		const unrelatedAborts = vi.fn();
+		let rejectActive: ((error: Error) => void) | undefined;
+		mockNextSessionRuntime({
+			abort: vi.fn(() => {
+				activeAborts();
+				rejectActive?.(
+					new DOMException("This operation was aborted", "AbortError"),
+				);
+			}),
+			run: vi.fn(
+				() =>
+					new Promise((_, reject) => {
+						rejectActive = reject;
+					}),
+			),
+		});
+		mockNextSessionRuntime({ abort: idleAborts });
+		mockNextSessionRuntime({ abort: unrelatedAborts });
+
+		const runtime = new AgentTeamsRuntime({ teamName: "target-team" });
+		spawnTestTeammate(runtime, "active");
+		spawnTestTeammate(runtime, "idle");
+		const unrelatedRuntime = new AgentTeamsRuntime({
+			teamName: "unrelated-team",
+		});
+		spawnTestTeammate(unrelatedRuntime, "unrelated");
+
+		const routePromise = runtime.routeToTeammate("active", "keep working");
+		const routeResult = routePromise.catch((error: unknown) => error);
+		await vi.waitFor(() => {
+			expect(runtime.getSnapshot().members).toContainEqual(
+				expect.objectContaining({ agentId: "active", status: "running" }),
+			);
+		});
+
+		runtime.cancelOutstandingWork("parent_session_abort");
+
+		expect(await routeResult).toEqual(
+			expect.objectContaining({ message: "This operation was aborted" }),
+		);
+		expect(activeAborts).toHaveBeenCalledTimes(1);
+		expect(idleAborts).not.toHaveBeenCalled();
+		expect(unrelatedAborts).not.toHaveBeenCalled();
+		expect(runtime.getTeammateIds()).toEqual(["active", "idle"]);
+		expect(unrelatedRuntime.getTeammateIds()).toEqual(["unrelated"]);
 	});
 
 	it("prepends unread mailbox notification to teammate message", async () => {
@@ -701,6 +995,13 @@ describe("AgentTeamsRuntime run failure reporting", () => {
 			expect.objectContaining({
 				type: TeamMessageType.RunFailed,
 				run: expect.objectContaining({ id: run.id, status: "failed" }),
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: TeamMessageType.TaskEnd,
+				agentId: "alice",
+				status: "failed",
 			}),
 		);
 	});

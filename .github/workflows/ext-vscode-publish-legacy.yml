@@ -21,20 +21,17 @@ on:
                 options:
                     - pre-release
                     - release
-            branch:
-                description: "Branch holding the legacy extension code"
-                required: true
-                default: "legacy-extension"
-                type: string
 
+# Read-only by default. The publish job elevates itself to contents: write for
+# the tag push and GitHub release; nothing here needs packages/checks/PR
+# write. Keeping the default minimal matters doubly in this workflow because
+# the test job runs BEFORE any environment approval — it must never hold a
+# write token while executing checked-out code.
 permissions:
-    contents: write
-    packages: write
-    checks: write
-    pull-requests: write
+    contents: read
 
 concurrency:
-    group: ext-vscode-publish-legacy-${{ github.event.inputs.branch }}
+    group: ext-vscode-publish-legacy
     cancel-in-progress: false
 
 jobs:
@@ -50,18 +47,23 @@ jobs:
           run:
             working-directory: apps/vscode
         steps:
+            # Always the protected legacy-extension branch — deliberately not
+            # an input. This job runs full npm lifecycle scripts from the
+            # checked-out code with no environment approval, and the publish
+            # job below does the same next to the marketplace PATs; an
+            # arbitrary ref here would hand both of them attacker-controlled
+            # code. Hardcoding the branch makes its protection rules
+            # load-bearing for releases.
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.branch }}
+                  ref: legacy-extension
 
+            # Deliberately no dependency cache here: publish workflows do clean
+            # installs and should not restore actions caches.
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      apps/vscode/package-lock.json
-                      apps/vscode/webview-ui/package-lock.json
 
             - name: Install extension dependencies
               working-directory: ${{ github.workspace }}
@@ -99,16 +101,20 @@ jobs:
         name: Publish Legacy Extension
         runs-on: ubuntu-latest
         environment: publish
+        # For the tag push in Resolve Release Tag and the GitHub release.
+        permissions:
+            contents: write
         defaults:
           run:
             working-directory: apps/vscode
 
         steps:
-            # Check out the legacy branch (NOT main). fetch-depth: 0 + tags so we
-            # can create/push the release tag and compute the previous tag.
+            # Check out the legacy branch (NOT main; hardcoded — see the test
+            # job's checkout comment). fetch-depth: 0 + tags so we can
+            # create/push the release tag and compute the previous tag.
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.branch }}
+                  ref: legacy-extension
                   fetch-depth: 0
                   fetch-tags: true
                   lfs: true
@@ -117,7 +123,7 @@ jobs:
               id: resolve_tag
               working-directory: ${{ github.workspace }}
               env:
-                  BRANCH: ${{ github.event.inputs.branch }}
+                  BRANCH: legacy-extension
               run: |
                   # Tag is derived from the package version on the legacy branch.
                   VERSION=$(node -p "require('./apps/vscode/package.json').version")
@@ -258,6 +264,33 @@ jobs:
                   echo "$CONTENT" >> $GITHUB_OUTPUT
                   echo "EOF" >> $GITHUB_OUTPUT
 
+                  # Slack section blocks reject text longer than 3000 characters, and
+                  # the Slack action logs that rejection WITHOUT failing the step - so
+                  # an over-long changelog silently drops the release announcement
+                  # while the run stays green. Post a trimmed copy to Slack and link
+                  # out to the full notes. The GitHub release body stays whole.
+                  RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ steps.resolve_tag.outputs.tag }}"
+                  SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+                  import os
+                  content = os.environ["CONTENT"]
+                  more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+                  if len(content) <= 3000:
+                      print(content, end="")
+                  else:
+                      budget = 3000 - len(more)
+                      kept, used = [], 0
+                      for line in content.splitlines(keepends=True):
+                          if used + len(line) > budget:
+                              break
+                          kept.append(line)
+                          used += len(line)
+                      body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+                      print(body + more, end="")
+                  ')
+                  echo "slack_content<<SLACK_EOF" >> $GITHUB_OUTPUT
+                  echo "$SLACK_CONTENT" >> $GITHUB_OUTPUT
+                  echo "SLACK_EOF" >> $GITHUB_OUTPUT
+
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
@@ -287,7 +320,7 @@ jobs:
                       - type: "section"
                         text:
                           type: "mrkdwn"
-                          text: ${{ toJSON(steps.changelog.outputs.content) }}
+                          text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
                       - type: "context"
                         elements:
                           - type: "mrkdwn"

@@ -9,6 +9,7 @@ import type {
 	OrganizationUsageTransaction,
 	PaymentTransaction,
 	UsageTransaction,
+	UserRemoteConfigDiscoveryResponse,
 	UserResponse,
 } from "@shared/ClineAccount"
 import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios"
@@ -48,10 +49,14 @@ export class ClineAccountService {
 	 * Helper function to make authenticated requests to the Cline API.
 	 * Uses the SDK-backed AuthService for token management.
 	 */
-	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
+	private async authenticatedRequest<T>(
+		endpoint: string,
+		config: AxiosRequestConfig = {},
+		options?: { allowNullData?: boolean; authToken?: string },
+	): Promise<T> {
 		const url = new URL(endpoint, this.baseUrl).toString()
 		// IMPORTANT: Prefixed with 'workos:' so backend can route verification to WorkOS provider
-		const clineAccountAuthToken = await this._authService.getAuthToken()
+		const clineAccountAuthToken = options?.authToken ?? (await this._authService.getAuthToken())
 		if (!clineAccountAuthToken) {
 			throw new Error("No Cline account auth token found")
 		}
@@ -65,7 +70,7 @@ export class ClineAccountService {
 			},
 			...getAxiosSettings(),
 		}
-		const response: AxiosResponse<{ data?: T; error: string; success: boolean }> = await axios.request({
+		const response: AxiosResponse<{ data?: T | null; error: string; success: boolean }> = await axios.request({
 			url,
 			method: "GET",
 			...requestConfig,
@@ -74,16 +79,21 @@ export class ClineAccountService {
 		if (status < 200 || status >= 300) {
 			throw new Error(`Request to ${endpoint} failed with status ${status}`)
 		}
-		if (response.statusText !== "No Content" && (!response.data || !response.data.data)) {
-			throw new Error(`Invalid response from ${endpoint} API`)
-		}
 		if (typeof response.data === "object" && !response.data.success) {
 			throw new Error(`API error: ${response.data.error}`)
 		}
 		if (response.statusText === "No Content") {
 			return {} as T
 		}
-		return response.data.data as T
+
+		const payload = response.data?.data
+		if (!response.data || typeof payload === "undefined") {
+			throw new Error(`Invalid response from ${endpoint} API`)
+		}
+		if (payload === null && !options?.allowNullData) {
+			throw new Error(`Invalid response from ${endpoint} API`)
+		}
+		return payload as T
 	}
 
 	/**
@@ -210,6 +220,25 @@ export class ClineAccountService {
 			Logger.error("Failed to fetch organization transactions (RPC):", error)
 			return undefined
 		}
+	}
+
+	/**
+	 * Returns undefined when no auth token is available (signed out or token
+	 * refresh failed), and null when the server answered but distributes no
+	 * remote config for this user. Callers rely on the distinction: only the
+	 * server's answer may be treated as "explicitly no config".
+	 */
+	async fetchUserRemoteConfig(): Promise<UserRemoteConfigDiscoveryResponse | null | undefined> {
+		const token = await this._authService.getAuthToken()
+		if (!token) {
+			return undefined
+		}
+
+		return await this.authenticatedRequest<UserRemoteConfigDiscoveryResponse | null>(
+			CLINE_API_ENDPOINT.USER_REMOTE_CONFIG,
+			{},
+			{ allowNullData: true, authToken: token },
+		)
 	}
 
 	/**

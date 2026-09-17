@@ -15,6 +15,7 @@ import {
 	PlugIcon,
 	RotateCcwIcon,
 	RssIcon,
+	SearchIcon,
 	ServerIcon,
 	SettingsIcon,
 	Trash2Icon,
@@ -63,6 +64,7 @@ import type {
 import { PageFrame, PageHeader } from "./components/views/page-layout";
 import type { CustomizationSection } from "./components/views/settings/extensions-view";
 import type { SettingsSection } from "./components/views/settings/settings-view";
+import { desktopClient } from "./lib/desktop-client";
 import { syncHubTheme } from "./lib/theme";
 import { postToHost } from "./vscode";
 
@@ -740,7 +742,18 @@ function SessionsView({
 	onRenameSession: (sessionId: string, title: string) => Promise<void> | void;
 	sessions: WebviewSessionSummary[];
 }) {
+	type SearchHit = {
+		sessionId: string;
+		documentId: string;
+		title: string;
+		workspaceRoot: string;
+		role: string;
+		snippet: string;
+	};
 	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
+	const [searching, setSearching] = useState(false);
 	const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 	const [editingTitle, setEditingTitle] = useState("");
 	const [deleteSessionCandidate, setDeleteSessionCandidate] =
@@ -771,6 +784,34 @@ function SessionsView({
 			return sortDirection === "newest" ? bTime - aTime : aTime - bTime;
 		});
 	}, [sessions, sessionFilters, sortDirection]);
+
+	useEffect(() => {
+		const query = searchQuery.trim();
+		if (!query) {
+			setSearchHits([]);
+			setSearching(false);
+			return;
+		}
+		let cancelled = false;
+		setSearching(true);
+		const timer = setTimeout(() => {
+			void desktopClient
+				.invoke<SearchHit[]>("search_sessions", { query, limit: 50 })
+				.then((hits) => {
+					if (!cancelled) setSearchHits(hits);
+				})
+				.catch(() => {
+					if (!cancelled) setSearchHits([]);
+				})
+				.finally(() => {
+					if (!cancelled) setSearching(false);
+				});
+		}, 200);
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+		};
+	}, [searchQuery]);
 
 	const startRenameSession = (session: WebviewSessionSummary) => {
 		setEditingSessionId(session.sessionId);
@@ -894,6 +935,52 @@ function SessionsView({
 					</>
 				}
 			/>
+			<div className="relative mb-3">
+				<SearchIcon className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
+				<Input
+					aria-label="Search all session history"
+					className="pl-9"
+					onChange={(event) => setSearchQuery(event.target.value)}
+					placeholder="Search messages, commands, errors, and file paths across all sessions…"
+					value={searchQuery}
+				/>
+			</div>
+
+			{searchQuery.trim() ? (
+				<section className="mb-4 overflow-hidden rounded-lg border bg-card">
+					{searching ? (
+						<p className="px-4 py-5 text-sm text-muted-foreground">
+							Searching…
+						</p>
+					) : searchHits.length === 0 ? (
+						<p className="px-4 py-5 text-sm text-muted-foreground">
+							No matching session history.
+						</p>
+					) : (
+						searchHits.map((hit) => (
+							<button
+								className="block w-full border-b px-4 py-3 text-left last:border-b-0 hover:bg-accent/40"
+								key={hit.documentId}
+								onClick={() => onOpenSession(hit.sessionId)}
+								type="button"
+							>
+								<div className="flex items-center gap-2 text-sm font-medium">
+									<span className="truncate">{hit.title}</span>
+									<span className="text-xs font-normal text-muted-foreground">
+										{hit.role}
+									</span>
+								</div>
+								<p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+									{hit.snippet}
+								</p>
+								<p className="mt-1 truncate text-xs text-muted-foreground">
+									{hit.workspaceRoot}
+								</p>
+							</button>
+						))
+					)}
+				</section>
+			) : null}
 
 			<section className="w-full min-w-0 overflow-x-auto">
 				<div className="grid w-full min-w-[56rem] grid-cols-[minmax(12rem,1.35fr)_minmax(7rem,0.85fr)_minmax(10rem,1.1fr)_5rem_5rem_4.5rem_5.5rem_2rem] gap-x-4 bg-muted/40 px-4 py-3 text-[15px] font-medium text-muted-foreground">

@@ -5,7 +5,15 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cpu,
+	Paperclip,
+	Plus,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -33,9 +41,15 @@ import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
+	buildModelPickerData,
+	type ModelPickerData,
+} from "@/lib/featured-models";
+import { imageAttachmentMediaType } from "@/lib/image-attachments";
+import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
+import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
@@ -44,9 +58,12 @@ import {
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
+import type { ProviderModel } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
+import { PullRequestBar } from "./pull-request-bar";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -272,6 +289,7 @@ export type PromptDraft = {
 type ChatInputBarProps = {
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
+	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
 	modelContextWindow?: number;
@@ -296,13 +314,13 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
+	onSteerPromptInQueue: (promptId?: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
 		prompt: string,
 	) => Promise<void> | void;
 	onRemovePromptInQueue: (promptId: string) => Promise<void> | void;
-	onOpenVoiceInputSettings?: () => void;
+	onOpenModelSettings?: () => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -315,6 +333,7 @@ type ChatInputBarProps = {
 function ChatInputBarImpl({
 	variant = "conversation",
 	status,
+	hasRunningAgents = false,
 	provider,
 	model,
 	modelContextWindow,
@@ -339,7 +358,7 @@ function ChatInputBarImpl({
 	onSteerPromptInQueue,
 	onEditPromptInQueue,
 	onRemovePromptInQueue,
-	onOpenVoiceInputSettings,
+	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -357,6 +376,15 @@ function ChatInputBarImpl({
 	const latestDraftVersionRef = useRef(promptDraft.version);
 	latestDraftVersionRef.current = promptDraft.version;
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+	// The sidebar's "New" action asks the prompt input to grab focus through a
+	// window event (see lib/prompt-input-focus.ts).
+	useEffect(
+		() =>
+			subscribeToPromptInputFocus(() => {
+				promptInputRef.current?.focus();
+			}),
+		[],
+	);
 	const batchTranscriptSessionRef = useRef<{
 		start: number;
 		end: number;
@@ -401,7 +429,8 @@ function ChatInputBarImpl({
 	}, [promptDraft, setPromptInput]);
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
-	const canAbort = status === "running" || status === "stopping";
+	const canAbort =
+		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
 	const [speechInputActive, setSpeechInputActive] = useState(false);
 	const speechInputActiveRef = useRef(false);
@@ -432,13 +461,84 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
+	const [imageCapability, setImageCapability] = useState<{
+		provider: string;
+		model: string;
+		supported: boolean | null;
+	} | null>(null);
+	const imagesUnsupported =
+		imageCapability?.provider === provider &&
+		imageCapability.model === model &&
+		imageCapability.supported === false;
+	const handleModelSupportsImagesChange = useCallback(
+		(supported: boolean | null) => {
+			setImageCapability({ provider, model, supported });
+		},
+		[provider, model],
+	);
+	const reportUnsupportedImages = useCallback(() => {
+		toast({
+			title: "This model doesn’t support image input",
+			description:
+				"Choose a model that supports images or remove the images before sending. Other files can still be attached.",
+		});
+	}, []);
+	const handleAttachFiles = useCallback(
+		(files: File[]) => {
+			const allowed = imagesUnsupported
+				? files.filter((file) => !imageAttachmentMediaType(file))
+				: files;
+			if (allowed.length !== files.length) reportUnsupportedImages();
+			if (allowed.length > 0) onAttachFiles(allowed);
+		},
+		[imagesUnsupported, onAttachFiles, reportUnsupportedImages],
+	);
+	const unsupportedDraftImageCount = imagesUnsupported
+		? attachments.filter((attachment) => attachment.isImage).length
+		: 0;
 	const canSend = hasDraft && !speechInputActive;
+	const steeringPromptRef = useRef(false);
+	const steerFirstQueuedPrompt = async () => {
+		const firstPrompt = promptsInQueue[0];
+		if (!firstPrompt || firstPrompt.steer || steeringPromptRef.current) return;
+		steeringPromptRef.current = true;
+		try {
+			await onSteerPromptInQueue();
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not steer queued message",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			steeringPromptRef.current = false;
+		}
+	};
 	const handleSend = useCallback(() => {
 		if (speechInputActive) return;
+		if (unsupportedDraftImageCount > 0) {
+			reportUnsupportedImages();
+			return;
+		}
 		const prompt = promptInput.trim();
+		if (!prompt) {
+			toast({
+				title: "Add a message to go with your attachments",
+				description:
+					"Describe what you want Cline to do with the attached files before sending.",
+			});
+			return;
+		}
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput, speechInputActive]);
+	}, [
+		onSend,
+		promptInput,
+		setPromptInput,
+		speechInputActive,
+		unsupportedDraftImageCount,
+		reportUnsupportedImages,
+	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -735,6 +835,10 @@ function ChatInputBarImpl({
 	);
 
 	const handleSpeechInputError = useCallback((error: unknown) => {
+		// Keep recording and provider failures in chat so the user can see
+		// the actual error and retry with their configured voice model.
+		const isMicrophoneError =
+			error instanceof DOMException || error instanceof Event;
 		const message =
 			error instanceof Error
 				? error.message
@@ -749,7 +853,9 @@ function ChatInputBarImpl({
 		toast({
 			variant: "destructive",
 			title: "Speech input failed",
-			description: message,
+			description: isMicrophoneError
+				? "Check the microphone permission for Cline and try again."
+				: message,
 		});
 	}, []);
 
@@ -1000,10 +1106,15 @@ function ChatInputBarImpl({
 			)}
 		>
 			{/* Input area */}
+			<PullRequestBar cwd={workspaceRoot} branch={gitBranch} />
 			<div
 				className={cn(
 					"px-4 py-3",
-					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+					variant === "welcome"
+						? "pb-2 pt-4"
+						: promptsInQueue.length > 0
+							? "pb-4 pt-0"
+							: "py-4",
 				)}
 			>
 				<AgentPromptQueue
@@ -1169,10 +1280,16 @@ function ChatInputBarImpl({
 									// Attach the image instead of pasting its fallback
 									// text representation (e.g. a file path or URL).
 									e.preventDefault();
-									onAttachFiles(images);
+									handleAttachFiles(images);
 								}
 							}}
 							onKeyDown={(e) => {
+								// While an IME (e.g. Chinese/Japanese) is composing, Enter
+								// commits the composition and arrows move between candidates,
+								// so leave those keys to the IME. WebKit can fire the committing
+								// Enter after compositionend with isComposing already false but
+								// the legacy keyCode 229, hence the second check.
+								if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
 									if (e.key === "ArrowDown") {
@@ -1241,6 +1358,15 @@ function ChatInputBarImpl({
 									e.preventDefault();
 									if (canSend) {
 										handleSend();
+									} else if (
+										!hasDraft &&
+										!speechInputActive &&
+										!e.ctrlKey &&
+										!e.metaKey &&
+										!e.altKey &&
+										!e.repeat
+									) {
+										void steerFirstQueuedPrompt();
 									}
 								}
 							}}
@@ -1255,7 +1381,9 @@ function ChatInputBarImpl({
 									: variant === "welcome"
 										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
 										: isBusy
-											? "Agent is working... submit to queue another message"
+											? promptsInQueue.length > 0
+												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+												: "Agent is working... submit to queue another message"
 											: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive}
@@ -1288,44 +1416,34 @@ function ChatInputBarImpl({
 									<CircleStop className="size-3" />
 								</button>
 							)}
-							<SpeechInput
-								allowUnavailableClick={!transcriptionTarget}
-								key={
-									transcriptionTarget
-										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
-										: "unconfigured"
-								}
-								onActiveChange={handleSpeechInputActiveChange}
-								onAudioRecorded={handleAudioRecorded}
-								onClick={(event) => {
-									if (!transcriptionTarget) {
-										event.preventDefault();
-										onOpenVoiceInputSettings?.();
+							{/* The mic button only appears once a voice model is
+							    configured in Settings → Voice; unconfigured users
+							    don't get a dead control. */}
+							{transcriptionTarget ? (
+								<SpeechInput
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`}
+									onActiveChange={handleSpeechInputActiveChange}
+									onAudioRecorded={handleAudioRecorded}
+									onError={handleSpeechInputError}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={
+										transcriptionTarget.supportsStreaming
+											? handleStartStreamingTranscription
+											: undefined
 									}
-								}}
-								onError={handleSpeechInputError}
-								onProcessingChange={setSpeechInputProcessing}
-								onStartStreaming={
-									transcriptionTarget?.supportsStreaming
-										? handleStartStreamingTranscription
-										: undefined
-								}
-								onStreamingEnd={handleStreamingTranscriptionEnd}
-								onStreamingStart={handleStreamingTranscriptionStart}
-								onTranscriptionChange={
-									transcriptionTarget?.supportsStreaming
-										? undefined
-										: handleTranscriptionChange
-								}
-								recordingMode={
-									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
-								}
-								title={
-									transcriptionTarget
-										? `${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`
-										: "Configure voice input in Settings → Models"
-								}
-							/>
+									onStreamingEnd={handleStreamingTranscriptionEnd}
+									onStreamingStart={handleStreamingTranscriptionStart}
+									onTranscriptionChange={
+										transcriptionTarget.supportsStreaming
+											? undefined
+											: handleTranscriptionChange
+									}
+									recordingMode={
+										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
+									}
+									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+								/>
+							) : null}
 							{(!isBusy || canSend) && (
 								<button
 									aria-label="Send message"
@@ -1346,6 +1464,12 @@ function ChatInputBarImpl({
 						</div>
 					</div>
 				</div>
+				{unsupportedDraftImageCount > 0 && (
+					<output className="block px-2 text-sm text-destructive">
+						This model doesn’t support the attached images. Remove them or
+						choose a model that supports images before sending.
+					</output>
+				)}
 				{attachments.length > 0 && (
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{attachments.map((attachment) => (
@@ -1373,6 +1497,11 @@ function ChatInputBarImpl({
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
+						title={
+							imagesUnsupported
+								? "Attach files (this model doesn’t support images)"
+								: "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -1385,7 +1514,7 @@ function ChatInputBarImpl({
 						multiple
 						onChange={(event) => {
 							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) onAttachFiles(files);
+							if (files.length > 0) handleAttachFiles(files);
 							event.currentTarget.value = "";
 						}}
 						ref={fileInputRef}
@@ -1428,9 +1557,11 @@ function ChatInputBarImpl({
 							isBusy={isBusy}
 							model={model}
 							onModelChange={onModelChange}
+							onModelSupportsImagesChange={handleModelSupportsImagesChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
+							onOpenModelSettings={onOpenModelSettings}
 							onProviderChange={onProviderChange}
 							provider={provider}
 						/>
@@ -1505,6 +1636,9 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
+/** Sentinel provider-picker row that opens Settings → API Providers instead of selecting. */
+const ADD_PROVIDER_OPTION_VALUE = "__add-provider__";
+
 const ModelSelector = memo(function ModelSelector({
 	provider,
 	model,
@@ -1512,6 +1646,8 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
+	onModelSupportsImagesChange,
+	onOpenModelSettings,
 }: {
 	provider: string;
 	model: string;
@@ -1519,6 +1655,9 @@ const ModelSelector = memo(function ModelSelector({
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
+	onModelSupportsImagesChange: (supported: boolean | null) => void;
+	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
+	onOpenModelSettings?: () => void;
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1531,10 +1670,53 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [providerNames, setProviderNames] = useState<Record<string, string>>(
+		{},
+	);
+	const [modelDetails, setModelDetails] = useState<
+		Record<string, ProviderModel[]>
+	>({});
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
 	const [mobileOpen, setMobileOpen] = useState(false);
+	const applyProviderModels = useCallback(
+		(providerId: string, models: ProviderModel[]) => {
+			setProviderModels((current) => ({
+				...current,
+				[providerId]: models.map((entry) => entry.id),
+			}));
+			setProviderReasoningModels((current) => ({
+				...current,
+				[providerId]: models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id),
+			}));
+			setModelDetails((current) => ({
+				...current,
+				[providerId]: models,
+			}));
+			setEnabledProviderIds((current) =>
+				current.includes(providerId) ? current : [...current, providerId],
+			);
+		},
+		[],
+	);
+	// Re-fetch only the live list on picker open so the Recommended/Free tiers
+	// stay current. Re-running the full load would first re-apply the bundled
+	// catalog and briefly flash a stale name in the trigger.
+	const refreshActiveProviderModels = useCallback(() => {
+		if (!normalizedProvider) return;
+		loadProviderModels(normalizedProvider)
+			.then((models) => {
+				if (models.length === 0) return;
+				applyProviderModels(normalizedProvider, models);
+				setReasoningCapabilitySource("catalog");
+			})
+			.catch(() => {
+				// Keep the current list when the refresh fails.
+			});
+	}, [applyProviderModels, normalizedProvider]);
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
@@ -1564,25 +1746,117 @@ const ModelSelector = memo(function ModelSelector({
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
 	);
+	// Sectioned picker data: display names plus the Recommended/Free tiers the
+	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
+	const pickerDataForProvider = useCallback(
+		(providerId: string): ModelPickerData => {
+			const detailsById = new Map(
+				(modelDetails[providerId] ?? []).map(
+					(entry) => [entry.id, entry] as const,
+				),
+			);
+			const models = (visibleProviderModels[providerId] ?? []).map(
+				(id) => detailsById.get(id) ?? { id, name: id },
+			);
+			return buildModelPickerData(providerId, models);
+		},
+		[modelDetails, visibleProviderModels],
+	);
+	useEffect(() => {
+		const selected = modelDetails[normalizedProvider]?.find(
+			(entry) => entry.id === model,
+		);
+		onModelSupportsImagesChange(
+			selected?.inputModalities !== undefined
+				? selected.inputModalities.includes("image")
+				: (selected?.supportsVision ?? null),
+		);
+	}, [modelDetails, normalizedProvider, model, onModelSupportsImagesChange]);
+
+	const modelPicker = useMemo(
+		() => pickerDataForProvider(resolvedProvider),
+		[pickerDataForProvider, resolvedProvider],
+	);
+	const pickerModelIds = useMemo(
+		() => new Set(modelPicker.options.map((option) => option.value)),
+		[modelPicker],
+	);
 	const resolvedModel = useMemo(() => {
-		if (modelsForProvider.length === 0) {
-			return "";
-		}
 		const rememberedModel =
 			lastSelection.lastModelByProvider[resolvedProvider] ??
-			lastSelection.lastModelByProvider[rememberedLastProvider];
-		if (model && modelsForProvider.includes(model)) {
+			(normalizeProviderId(rememberedLastProvider) === resolvedProvider
+				? lastSelection.lastModelByProvider[rememberedLastProvider]
+				: undefined);
+		// Catalogs are discovery data, not validation: the bundled catalog can
+		// omit live ClinePass models, and refreshes can return partial lists.
+		// Keep the configured model for the current provider even if absent;
+		// otherwise loading the catalog silently changes the session's model.
+		if (
+			model &&
+			(normalizedProvider === resolvedProvider ||
+				modelsForProvider.includes(model))
+		) {
 			return model;
 		}
-		if (rememberedModel && modelsForProvider.includes(rememberedModel)) {
+		// Missing remembered models may also be live-only. Models present in
+		// the catalog but deliberately hidden from the offer still fall back.
+		if (
+			rememberedModel &&
+			(pickerModelIds.has(rememberedModel) ||
+				!modelsForProvider.includes(rememberedModel))
+		) {
 			return rememberedModel;
 		}
-		return modelsForProvider[0] ?? "";
+		return (
+			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
+			modelsForProvider[0] ??
+			""
+		);
 	}, [
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		normalizedProvider,
+		pickerModelIds,
 		rememberedLastProvider,
+		resolvedProvider,
+	]);
+	// The picker can intentionally hide catalog models (the ClinePass offer
+	// is exactly its subscribed/free tiers), but the active model must stay
+	// visible and selectable — e.g. a hydrated session configured with a
+	// model outside the current offer or missing from the catalog. Surface it
+	// under its own section so the selected value always exists in the list.
+	const visibleModelPicker = useMemo((): ModelPickerData => {
+		if (!resolvedModel || pickerModelIds.has(resolvedModel)) {
+			return modelPicker;
+		}
+		const detail = (modelDetails[resolvedProvider] ?? []).find(
+			(entry) => entry.id === resolvedModel,
+		);
+		const hasSections = (modelPicker.sections?.length ?? 0) > 0;
+		return {
+			options: [
+				...modelPicker.options,
+				{
+					label: detail?.name?.trim() || resolvedModel,
+					...(hasSections ? { section: "current" } : {}),
+					value: resolvedModel,
+				},
+			],
+			...(hasSections
+				? {
+						sections: [
+							...(modelPicker.sections ?? []),
+							{ id: "current", label: "Current model" },
+						],
+					}
+				: {}),
+		};
+	}, [
+		modelDetails,
+		modelPicker,
+		pickerModelIds,
+		resolvedModel,
 		resolvedProvider,
 	]);
 
@@ -1598,6 +1872,14 @@ const ModelSelector = memo(function ModelSelector({
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
+				setProviderNames((current) => ({
+					...current,
+					...(payload.providerNames ?? {}),
+				}));
+				setModelDetails((current) => ({
+					...current,
+					...(payload.providerModelDetails ?? {}),
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
@@ -1623,24 +1905,8 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const modelIds = models.map((entry) => entry.id);
-				const reasoningModelIds = models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id);
-				setProviderModels((current) => ({
-					...current,
-					[normalizedProvider]: modelIds,
-				}));
-				setProviderReasoningModels((current) => ({
-					...current,
-					[normalizedProvider]: reasoningModelIds,
-				}));
+				applyProviderModels(normalizedProvider, models);
 				setReasoningCapabilitySource("catalog");
-				setEnabledProviderIds((current) =>
-					current.includes(normalizedProvider)
-						? current
-						: [...current, normalizedProvider],
-				);
 			} catch {
 				// Keep the catalog values when provider-specific loading fails.
 			}
@@ -1650,26 +1916,13 @@ const ModelSelector = memo(function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, [normalizedProvider]);
+	}, [applyProviderModels, normalizedProvider]);
 
 	useEffect(() => {
 		return subscribeToProviderModels((providerId, models) => {
-			const normalizedId = normalizeProviderId(providerId);
-			setProviderModels((current) => ({
-				...current,
-				[normalizedId]: models.map((entry) => entry.id),
-			}));
-			setProviderReasoningModels((current) => ({
-				...current,
-				[normalizedId]: models
-					.filter((entry) => entry.supportsReasoning)
-					.map((entry) => entry.id),
-			}));
-			setEnabledProviderIds((current) =>
-				current.includes(normalizedId) ? current : [...current, normalizedId],
-			);
+			applyProviderModels(normalizeProviderId(providerId), models);
 		});
-	}, []);
+	}, [applyProviderModels]);
 
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
@@ -1760,13 +2013,26 @@ const ModelSelector = memo(function ModelSelector({
 
 	const handleProviderSelect = useCallback(
 		(value: string) => {
+			if (value === ADD_PROVIDER_OPTION_VALUE) {
+				setMobileOpen(false);
+				onOpenModelSettings?.();
+				return;
+			}
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
+			// Preserve live-only remembered models missing from the bundled
+			// catalog. Only fall back when a known model is hidden by the offer.
+			const providerOptionIds = new Set(
+				pickerDataForProvider(value).options.map((option) => option.value),
+			);
 			const nextModel =
-				rememberedModel && providerModelIds.includes(rememberedModel)
+				rememberedModel &&
+				(providerOptionIds.has(rememberedModel) ||
+					!providerModelIds.includes(rememberedModel))
 					? rememberedModel
-					: providerModelIds[0];
+					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
+						providerModelIds[0]);
 			rememberSelection(value, nextModel);
 			if (nextModel && nextModel !== model) {
 				onModelChange(nextModel);
@@ -1776,7 +2042,9 @@ const ModelSelector = memo(function ModelSelector({
 			lastSelection.lastModelByProvider,
 			model,
 			onModelChange,
+			onOpenModelSettings,
 			onProviderChange,
+			pickerDataForProvider,
 			rememberSelection,
 			visibleProviderModels,
 		],
@@ -1788,6 +2056,29 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	// The picker only lists providers with saved settings, so it is also the
+	// natural place to reach the rest of the catalog.
+	const providerOptions = useMemo(
+		() => [
+			...providers.map((value) => ({
+				label: providerNames[value]?.trim() || value,
+				value,
+			})),
+			...(onOpenModelSettings
+				? [
+						{
+							icon: <Plus className="size-3 shrink-0 text-muted-foreground" />,
+							label: "Set up another provider",
+							value: ADD_PROVIDER_OPTION_VALUE,
+						},
+					]
+				: []),
+		],
+		[onOpenModelSettings, providerNames, providers],
+	);
+	const selectedModelLabel =
+		visibleModelPicker.options.find((option) => option.value === resolvedModel)
+			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
 			ariaLabel="Provider"
@@ -1795,7 +2086,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || providers.length === 0}
 			emptyText="No providers found."
 			onValueChange={handleProviderSelect}
-			options={providers.map((value) => ({ label: value, value }))}
+			options={providerOptions}
 			placeholder="Provider"
 			placement="top"
 			searchPlaceholder="Search providers"
@@ -1809,16 +2100,19 @@ const ModelSelector = memo(function ModelSelector({
 		<SearchCombobox
 			ariaLabel="Model"
 			className={triggerClassName}
-			disabled={isBusy || modelsForProvider.length === 0}
+			disabled={isBusy || visibleModelPicker.options.length === 0}
 			emptyText="No models found."
+			onOpen={refreshActiveProviderModels}
 			onValueChange={(value) => {
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
-			options={modelsForProvider.map((value) => ({ label: value, value }))}
+			options={visibleModelPicker.options}
+			panelWidth="20rem"
 			placeholder="Model"
 			placement="top"
 			searchPlaceholder="Search models"
+			sections={visibleModelPicker.sections}
 			value={resolvedModel}
 		/>
 	);
@@ -1832,7 +2126,7 @@ const ModelSelector = memo(function ModelSelector({
 				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
-				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
+				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
 				type="button"
 			>
 				<Cpu className="size-3.5" />
@@ -1846,9 +2140,9 @@ const ModelSelector = memo(function ModelSelector({
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
@@ -1856,7 +2150,7 @@ const ModelSelector = memo(function ModelSelector({
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
@@ -1869,7 +2163,9 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28")}
+				{/* Wide enough for the longest built-in provider names ("Cline
+				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
+				{renderProviderSelect("max-w-56")}
 				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>

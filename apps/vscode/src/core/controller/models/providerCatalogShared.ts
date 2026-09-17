@@ -1,4 +1,5 @@
 import type { ApiConfiguration, ModelInfo } from "@shared/api"
+import { filterChatModelMap, resolveChatModelDefault } from "@/sdk/model-catalog/chat-models"
 import type {
 	EffectiveProviderConfig,
 	Mode,
@@ -195,16 +196,30 @@ export function toProviderModelsResponse(
 	requestId: string,
 	result: ProviderModelsResult,
 ): ProviderModelsResponse {
+	if (!result.ok) {
+		return ProviderModelsResponse.create({
+			providerId,
+			requestId,
+			configFingerprint: result.configFingerprint,
+			fetchedAt: result.fetchedAt,
+			ok: false,
+			models: {},
+			error: toCatalogErrorInfo(result.error),
+		})
+	}
+
+	const chatModels = filterChatModelMap(result.models)
+	const defaultModelId = resolveChatModelDefault(result.defaultModelId, chatModels)
+
 	return ProviderModelsResponse.create({
 		providerId,
 		requestId,
 		configFingerprint: result.configFingerprint,
 		fetchedAt: result.fetchedAt,
-		ok: result.ok,
-		models: result.ok ? toProtobufModels(result.models) : {},
-		defaultModelId: result.ok ? result.defaultModelId : undefined,
-		source: result.ok ? result.source : undefined,
-		error: result.ok ? undefined : toCatalogErrorInfo(result.error),
+		ok: true,
+		models: toProtobufModels(chatModels),
+		defaultModelId,
+		source: result.source,
 	})
 }
 

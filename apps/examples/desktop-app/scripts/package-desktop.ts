@@ -15,7 +15,7 @@ const BOOLEAN_FLAGS = new Set(["--allow-unsigned-mac", "--skip-build"]);
 const VALUE_FLAGS = new Set(["--platform", "--target"]);
 const VALID_FLAGS = [...BOOLEAN_FLAGS, ...VALUE_FLAGS];
 
-const APP_NAME = "Cline Code";
+const APP_NAME = "Cline";
 const APP_ROOT = path.resolve(import.meta.dir, "..");
 const BUNDLE_ROOT = path.join(
 	APP_ROOT,

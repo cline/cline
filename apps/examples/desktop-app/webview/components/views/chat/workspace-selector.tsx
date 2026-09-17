@@ -9,7 +9,7 @@ import {
 	Plus,
 	Search,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
 import { cn } from "@/lib/utils";
 import {
 	looksLikeFolderPath,
@@ -72,6 +73,15 @@ export function WorkspaceSelector({
 	const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 	const [showCreateBranch, setShowCreateBranch] = useState(false);
 	const [newBranchName, setNewBranchName] = useState("");
+	const workspaceListRef = useRef<HTMLDivElement>(null);
+	const branchListRef = useRef<HTMLDivElement>(null);
+
+	// Start freshly opened lists at the current workspace/branch, not the top.
+	useEffect(() => {
+		if (!open || loadingBranches) return;
+		scrollCurrentOptionIntoView(workspaceListRef.current);
+		scrollCurrentOptionIntoView(branchListRef.current);
+	}, [open, loadingBranches]);
 
 	const workspaceName = useMemo(() => {
 		if (isChatWorkspacePath(workspaceRoot)) {
@@ -307,24 +317,19 @@ export function WorkspaceSelector({
 							setSearch("");
 						}}
 					/>
-					<div className="absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-popover shadow-xl">
-						{/* Search */}
-						<div className="p-2 border-b border-border">
-							<div className="flex items-center gap-2 rounded-md bg-background px-2.5 py-1.5">
-								<Search className="size-3 text-muted-foreground shrink-0" />
-								{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-								<Input
-									autoFocus
-									value={search}
-									onChange={(e) => setSearch(e.target.value)}
-									placeholder={
-										hasGit
-											? "Search workspaces & branches"
-											: "Search workspaces"
-									}
-									className="flex-1 h-auto border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
-								/>
-							</div>
+					<div className="absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none">
+						{/* Search row, styled to match the composer's model picker */}
+						<div className="flex items-center gap-2 border-b border-border px-3">
+							<Search className="size-3 text-muted-foreground shrink-0" />
+							<Input
+								autoFocus
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								placeholder={
+									hasGit ? "Search workspaces & branches" : "Search workspaces"
+								}
+								className="h-8 flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
+							/>
 						</div>
 
 						{loadingBranches ? (
@@ -353,7 +358,10 @@ export function WorkspaceSelector({
 											</span>
 										</Button>
 									)}
-									<div className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
+									<div
+										ref={workspaceListRef}
+										className="flex flex-col gap-0.5 max-h-28 overflow-y-auto"
+									>
 										{filteredWorkspaces.length === 0 ? (
 											<div className="px-2 py-2 text-xs text-muted-foreground">
 												{looksLikeFolderPath(search)
@@ -369,6 +377,7 @@ export function WorkspaceSelector({
 													<Button
 														variant="ghost"
 														key={wp}
+														data-current={isActive || undefined}
 														disabled={switchingWorkspace}
 														onClick={() => {
 															void handleWorkspaceSelect(wp);
@@ -376,8 +385,8 @@ export function WorkspaceSelector({
 														className={cn(
 															"flex items-center justify-between h-auto rounded-md p-2 text-left w-full",
 															isActive
-																? "bg-surface-hover"
-																: "hover:bg-surface-hover-lighter",
+																? "bg-(--accent-4) hover:bg-(--accent-4)"
+																: "hover:bg-surface-hover",
 														)}
 													>
 														<div className="flex items-center gap-2 min-w-0 w-full">
@@ -453,7 +462,10 @@ export function WorkspaceSelector({
 										<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 											Branches
 										</div>
-										<div className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
+										<div
+											ref={branchListRef}
+											className="flex flex-col gap-0.5 max-h-36 overflow-y-auto"
+										>
 											{filteredBranches.length === 0 ? (
 												<div className="px-2 py-2 text-xs text-muted-foreground">
 													No branches found
@@ -463,6 +475,7 @@ export function WorkspaceSelector({
 													<Button
 														variant="ghost"
 														key={branch}
+														data-current={currentBranch === branch || undefined}
 														disabled={switching}
 														onClick={() => {
 															void handleSelectBranch(branch);
@@ -470,8 +483,8 @@ export function WorkspaceSelector({
 														className={cn(
 															"flex items-start gap-2 h-auto rounded-md px-2 py-2 text-left",
 															currentBranch === branch
-																? "bg-surface-hover"
-																: "hover:bg-surface-hover-lighter",
+																? "bg-(--accent-4) hover:bg-(--accent-4)"
+																: "hover:bg-surface-hover",
 														)}
 													>
 														<GitBranch className="mt-0.5 size-3 shrink-0 text-muted-foreground" />

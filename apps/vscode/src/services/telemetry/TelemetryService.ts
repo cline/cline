@@ -9,6 +9,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { getDeviceId, setDistinctId } from "../logging/distinctId"
+import { type CoreSpawnTelemetryMetadata, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import {
 	getRolloutErrorProperties,
@@ -91,6 +92,13 @@ export enum TerminalHangStage {
 	BUFFER_STUCK = "buffer_stuck",
 }
 
+/**
+ * Which hook fired `ui.panel_opened`. "sidebar_resolved" / "sidebar_visible" come from
+ * VscodeWebviewProvider and are VS Code-only; "webview_initialized" comes from the webview's
+ * mount-time initializeWebview RPC and fires on every host.
+ */
+export type PanelOpenedSource = "sidebar_resolved" | "sidebar_visible" | "webview_initialized"
+
 export type TelemetryMetadata = {
 	/**
 	 * The extension or cline-core version. JetBrains and CLI have different
@@ -110,6 +118,9 @@ export type TelemetryMetadata = {
 	 * `extension_version`). Absent when the host does not report one (e.g. CLI).
 	 */
 	host_plugin_version?: string
+	// Spawn-time facts from an out-of-process host; see core-spawn-metadata.ts.
+	core_spawn_ordinal?: CoreSpawnTelemetryMetadata["core_spawn_ordinal"]
+	core_spawn_reason?: CoreSpawnTelemetryMetadata["core_spawn_reason"]
 	/** The name of the host IDE or environment e.g. VSCode, Cursor, IntelliJ Professional Edition, etc. */
 	platform: string
 	/** The version of the host environment */
@@ -251,6 +262,13 @@ export class TelemetryService {
 			// Track multi-root checkpoint operations
 			MULTI_ROOT_CHECKPOINT: "workspace.multi_root_checkpoint",
 		},
+		// Organization remote-config lifecycle events
+		REMOTE_CONFIG: {
+			// Tracks the outcome of every remote-config refresh attempt
+			REFRESH: "remote_config.refresh",
+			// Tracks the session-start policy gate decision
+			SESSION_GATE: "remote_config.session_gate",
+		},
 		TASK: {
 			// Tracks user feedback on completed tasks
 			FEEDBACK: "task.feedback",
@@ -317,7 +335,9 @@ export class TelemetryService {
 			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 			// Tracks when a button is clicked
 			BUTTON_CLICKED: "ui.button_clicked",
-			// Tracks when the Cline panel becomes visible
+			// Tracks when the Cline panel becomes visible; `source` (PanelOpenedSource) says
+			// which hook fired. On JetBrains "webview_initialized" also fires on every webview
+			// reload, e.g. after a core restart, so a crash-restart loop emits one per restart.
 			PANEL_OPENED: "ui.panel_opened",
 			// Tracks when the user explicitly starts a new task flow
 			NEW_TASK_CLICKED: "ui.new_task_clicked",
@@ -354,6 +374,7 @@ export class TelemetryService {
 			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
+			...getCoreSpawnTelemetryMetadata(),
 			...getRolloutTelemetryMetadata(),
 		}
 		return new TelemetryService(providers, metadata)
@@ -375,8 +396,19 @@ export class TelemetryService {
 		this.providers.push(provider)
 	}
 
-	public removeProvider(name: string) {
+	public async removeProvider(name: string): Promise<void> {
+		const removed = this.providers.filter((p) => p.name === name)
+		// Stop routing events before waiting for exporters to shut down.
 		this.providers = this.providers.filter((p) => p.name !== name)
+		await Promise.all(
+			removed.map(async (provider) => {
+				try {
+					await provider.dispose()
+				} catch (error) {
+					Logger.error(`[TelemetryService] Failed to dispose provider ${name}`, error)
+				}
+			}),
+		)
 	}
 
 	/**
@@ -582,6 +614,54 @@ export class TelemetryService {
 				actual_bundle: input.actualBundle,
 				fallback: input.fallback,
 				...(input.fallback ? getRolloutErrorProperties(input.error) : {}),
+			},
+		})
+	}
+
+	/**
+	 * Volume guard for the remote-config events: they fire on every session
+	 * start and refresh for ALL users, but the signal is managed-org behavior
+	 * and failures. The unmanaged happy path ("nothing to enforce, allowed")
+	 * would dominate event volume with no informational value, so it is dropped.
+	 */
+	private static shouldCaptureRemoteConfigEvent(managed: boolean, outcome: string): boolean {
+		return managed || outcome === "failed" || outcome === "blocked" || outcome === "last_known_good"
+	}
+
+	public captureRemoteConfigRefresh(input: {
+		outcome: "applied" | "cleared" | "failed" | "superseded"
+		durationMs: number
+		managed: boolean
+		configVersion?: string
+	}): void {
+		if (!TelemetryService.shouldCaptureRemoteConfigEvent(input.managed, input.outcome)) {
+			return
+		}
+		this.capture({
+			event: TelemetryService.EVENTS.REMOTE_CONFIG.REFRESH,
+			properties: {
+				outcome: input.outcome,
+				duration_ms: Math.max(0, Math.round(input.durationMs)),
+				managed: input.managed,
+				...(input.configVersion ? { config_version: input.configVersion.slice(0, 100) } : {}),
+			},
+		})
+	}
+
+	public captureRemoteConfigSessionGate(input: {
+		outcome: "refreshed" | "last_known_good" | "unmanaged" | "blocked"
+		durationMs: number
+		managed: boolean
+	}): void {
+		if (!TelemetryService.shouldCaptureRemoteConfigEvent(input.managed, input.outcome)) {
+			return
+		}
+		this.capture({
+			event: TelemetryService.EVENTS.REMOTE_CONFIG.SESSION_GATE,
+			properties: {
+				outcome: input.outcome,
+				duration_ms: Math.max(0, Math.round(input.durationMs)),
+				managed: input.managed,
 			},
 		})
 	}
@@ -873,7 +953,7 @@ export class TelemetryService {
 		})
 	}
 
-	public capturePanelOpened(source?: string) {
+	public capturePanelOpened(source: PanelOpenedSource) {
 		this.capture({
 			event: TelemetryService.EVENTS.UI.PANEL_OPENED,
 			properties: { source },

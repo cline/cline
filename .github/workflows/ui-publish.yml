@@ -46,6 +46,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # @cline/ui imports @cline/shared/browser (generated-media), which
+      # resolves to dist output — build it before anything typechecks or
+      # builds the ui package.
+      - name: Build shared package
+        run: bun -F @cline/shared build
+
       - name: Typecheck UI
         run: bun -F @cline/ui typecheck
 
@@ -57,11 +63,6 @@ jobs:
 
       - name: Build UI package
         run: bun -F @cline/ui build
-
-      # The desktop chat test imports @cline/shared/browser, which resolves to
-      # dist output that nothing else in this job builds.
-      - name: Build shared package
-        run: bun -F @cline/shared build
 
       - name: Test desktop chat integration
         run: bun -F @cline/code test:chat-ui

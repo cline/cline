@@ -369,6 +369,57 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		);
 	});
 
+	it("composes tool-conditional rules only when the tool is enabled", async () => {
+		const conditionalRuleExtension: AgentExtension = {
+			name: "conditional-tool-rule",
+			manifest: { capabilities: ["rules"] },
+			setup: (api) => {
+				api.registerRule({
+					id: "conditional-tool-rule:guidance",
+					content: "Use tasks for durable follow-up work.",
+					whenToolAvailable: "tasks",
+				});
+			},
+		};
+		const todoListTool: AgentTool = {
+			name: "tasks",
+			description: "Manage durable agenda items.",
+			inputSchema: { type: "object", properties: {} },
+			execute: async () => ({ ok: true }),
+		};
+
+		const enabledCapture = withCapturingFakeRuntime();
+		const enabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+			}),
+			enabledCapture.deps,
+		);
+		await enabledSession.run("go");
+
+		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
+			"Base prompt.\n\nUse tasks for durable follow-up work.",
+		);
+		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
+
+		const disabledCapture = withCapturingFakeRuntime();
+		const disabledSession = new SessionRuntime(
+			makeAgentConfig({
+				systemPrompt: "Base prompt.",
+				tools: [todoListTool],
+				extensions: [conditionalRuleExtension],
+				toolPolicies: { tasks: { enabled: false } },
+			}),
+			disabledCapture.deps,
+		);
+		await disabledSession.run("go");
+
+		expect(disabledCapture.configs[0]?.systemPrompt).toBe("Base prompt.");
+		expect(disabledCapture.configs[0]?.tools).toEqual([]);
+	});
+
 	it("passes session, caller, and logger context into extension setup()", async () => {
 		const logger = {
 			debug: vi.fn(),
@@ -742,6 +793,44 @@ describe("SessionRuntime message preparation", () => {
 		expect(Object.hasOwn(result ?? {}, "systemPrompt")).toBe(false);
 	});
 
+	it("forwards the previous request's actual input token count to prepareTurn", async () => {
+		// Compaction triggers on the provider's real input count for the previous
+		// request, so this bridge must not drop the field while rebuilding the
+		// context — otherwise the estimate is the only signal in production.
+		const prepareTurn = vi.fn(() => ({
+			systemPrompt: "rewritten system prompt",
+		}));
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig({ prepareTurn }), deps);
+
+		await session.run("go");
+		const runtimePrepareTurn = configs[0]?.prepareTurn;
+		expect(runtimePrepareTurn).toBeDefined();
+
+		await runtimePrepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "<user_input>task</user_input>" }],
+					createdAt: 1,
+				},
+			],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+			previousRequestInputTokens: 123_456,
+		});
+
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ previousRequestInputTokens: 123_456 }),
+		);
+	});
+
 	it("allows prepareTurn to return only a system prompt", async () => {
 		const prepareTurn = vi.fn(() => ({
 			systemPrompt: "rewritten system prompt",
@@ -853,6 +942,51 @@ it("derives tool image support metadata from resolved provider model catalog", a
 		telemetry,
 	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
+});
+
+it.each([
+	["absent", undefined],
+	["empty", []],
+])("keeps image support enabled when the capability list is %s", async (_label, capabilities) => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					...(capabilities === undefined ? {} : { capabilities }),
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: true }),
+	);
+});
+
+it("disables image support when a populated capability list omits images", async () => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			knownModels: {
+				"claude-3-5-sonnet": {
+					id: "claude-3-5-sonnet",
+					capabilities: ["tools", "prompt-cache"],
+				},
+			},
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs[0]?.toolContextMetadata).toEqual(
+		expect.objectContaining({ modelSupportsImages: false }),
+	);
 });
 
 describe("SessionRuntime.run", () => {
@@ -1666,6 +1800,119 @@ describe("SessionRuntime real AgentRuntime smoke", () => {
 		expect(typeof lastContent === "object" ? lastContent.type : undefined).toBe(
 			"tool_result",
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// external abort signal
+// ---------------------------------------------------------------------------
+
+describe("SessionRuntime external abort signal", () => {
+	it("observes the parent signal only while a run is active", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const removeEventListener = vi.spyOn(
+			controller.signal,
+			"removeEventListener",
+		);
+		const { deps } = withFakeRuntime();
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			deps,
+		);
+
+		expect(addEventListener).not.toHaveBeenCalled();
+		await session.run("delegated task");
+
+		expect(addEventListener).toHaveBeenCalledOnce();
+		expect(removeEventListener).toHaveBeenCalledOnce();
+	});
+
+	it("does not retain the parent signal when extension startup fails", async () => {
+		const controller = new AbortController();
+		const addEventListener = vi.spyOn(controller.signal, "addEventListener");
+		const extension: AgentExtension = {
+			name: "failing-startup",
+			manifest: { capabilities: ["tools"] },
+			setup: () => {
+				throw new Error("startup failed");
+			},
+		};
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				abortSignal: controller.signal,
+				extensions: [extension],
+				hookErrorMode: "throw",
+			}),
+		);
+
+		await expect(session.run("delegated task")).rejects.toThrow(
+			"startup failed",
+		);
+		expect(addEventListener).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"before",
+		"during",
+	] as const)("retains a parent abort received %s delegated startup", async (timing) => {
+		const controller = new AbortController();
+		let releaseStartup: (() => void) | undefined;
+		// AgentRuntime plugin setup has no cancellation contract. Release this
+		// finite startup explicitly and verify the retained abort is applied before
+		// the model runs; making arbitrary plugin initialization abortable is not
+		// part of SessionRuntime cancellation propagation.
+		const startupGate = new Promise<void>((resolve) => {
+			releaseStartup = resolve;
+		});
+		let markStartupEntered: (() => void) | undefined;
+		const startupEntered = new Promise<void>((resolve) => {
+			markStartupEntered = resolve;
+		});
+		const modelStream = vi.fn(async () =>
+			(async function* () {
+				yield { type: "text-delta" as const, text: "should not run" };
+				yield { type: "finish" as const, reason: "stop" as const };
+			})(),
+		);
+		const scriptedModel: AgentModel = { stream: modelStream };
+
+		if (timing === "before") {
+			controller.abort("parent session aborted");
+		}
+		const session = new SessionRuntime(
+			makeAgentConfig({ abortSignal: controller.signal }),
+			{
+				createAgentRuntimeImpl: (config) =>
+					createAgentRuntime({
+						...config,
+						model: scriptedModel,
+						plugins: [
+							...(config.plugins ?? []),
+							{
+								name: "delayed-startup",
+								async setup() {
+									markStartupEntered?.();
+									await startupGate;
+									return {};
+								},
+							},
+						],
+					}),
+			},
+		);
+		const runPromise = session.run("delegated task");
+		await startupEntered;
+		if (timing === "during") {
+			controller.abort("parent session aborted");
+		}
+		releaseStartup?.();
+
+		await expect(runPromise).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		expect(modelStream).not.toHaveBeenCalled();
+		await session.shutdown();
 	});
 });
 

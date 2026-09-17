@@ -1,5 +1,173 @@
 # Changelog
 
+## [4.1.19]
+
+### Added
+
+- Images attached to a model that cannot read them are now flagged instead of silently discarded. Thumbnails get a warning badge and the composer explains that the images will be ignored, with a button to switch to an image-capable model. Previously the thumbnail looked normal and the image was replaced with a text placeholder just before the request, so there was no way to tell it had been dropped. Model info and the attachment picker also report image support accurately for models that declare text-only input without listing capabilities.
+
+### Changed
+
+- Cline's logo and icons have been refreshed throughout the extension, including the activity bar and panel icons.
+- The W&B Inference provider is now listed as CoreWeave, with its sign-up and API-key links updated to match CoreWeave's current documentation.
+
+### Fixed
+
+- Long tasks now compact when they actually need to rather than running out of room. The trigger compared a character-based estimate of the conversation (~3 characters per token) against the model's context limit, so content that tokenizes far denser than that — disassembly, image dumps, minified sources — could fill the real context window while the estimate stayed under the threshold and compaction never fired; the turn was then squeezed down to a handful of output tokens. The trigger now also uses the token count the provider itself reports, and how much history is kept is scaled by how far off the estimate turned out to be. The summarizer's output budget also doubled, so a model that reasons before answering can no longer spend the whole budget thinking and return no summary at all.
+- On Windows, opening a repository that contains a file named `rg.exe`, `git.exe`, or `powershell.exe` no longer runs that file in place of the real program. Bare program names were resolved through the workspace directory before PATH, so a planted executable ran with your privileges as soon as the workspace was indexed. Cline now sets Windows' `NoDefaultCurrentDirectoryInExePath` opt-out at startup, in both the VS Code extension and the JetBrains core. Processes Cline launches inherit it, so inside a Command Prompt shell a program in the current directory now needs `.\` as it already does in PowerShell.
+- A model turn that fails mid-stream with a transient provider error is now retried up to three times with backoff instead of ending the task. A single rate-limit response forwarded by a gateway previously surfaced as a failed task. A turn that has already streamed output is never retried, so nothing is duplicated.
+- Terminal commands that succeed without printing anything (`git add -A` on a clean tree, for example) are now reported as empty output. They were treated as a shell-integration failure, which fed the model a snapshot of unrelated terminal scrollback prefixed with a warning that the output could not be captured, so silent commands intermittently looked like failures.
+- Checkpoints no longer re-hash every untracked file on each message. In workspaces holding large untracked directories this delayed every message by seconds to minutes; a persistent per-task index now lets git skip files it has already seen.
+- `run_commands` no longer hangs until its timeout after a command that backgrounds a child process. The command had finished, but the backgrounded process held the output pipes open.
+- `apply_patch` no longer silently overwrites an existing file when the model uses "Add File" on a path that already exists. The file's contents were replaced with no error and no record of what was lost.
+- PowerShell commands the model wrapped in another `powershell -Command "..."` are no longer parsed twice. The outer shell consumed `$_` before the inner command ran, so pipelines using it emitted an error for every item processed while still reporting success.
+- Opening your home directory as a workspace no longer drives the extension host to exhaustion. Typing an `@` mention indexed every file beneath it and re-ranked the whole index on each keystroke.
+- The "Supports Images" checkbox in OpenAI Compatible model settings now stays where you put it. The checkbox rendered the last committed value, and the re-sync that arrived during the save round-trip was re-emitted as a change event that wrote the old value back over your edit.
+- The error shown to the model when an `editor` call omits the text to replace now names the file and explains how to recover. The previous message was terse enough that some models re-sent the identical call until the task stopped.
+- Credentials are now stripped of invisible characters when saved, not only when pasted, and the cleanup covers AWS, GCP, and SAP fields and custom header values in addition to API keys.
+- Cline Pass now defaults to a model from your subscription rather than a free one. Its model list contains both tiers and the default was whichever model was published most recently, so a subscriber who never picked a model could be left on the free tier.
+- Cline Pass and free models now show no cost rather than the underlying market price, which is not what you are billed for.
+- Model pickers now fall back to the full Recommended, Free, and Subscribed lists when the models endpoint cannot be reached. The offline fallback was a short hardcoded list with no subscription tier at all.
+- Model lists for providers sharing the built-in catalog now refresh from the live catalog, so newly published models appear without an extension update, with timeouts so an unresponsive provider endpoint cannot stall the list.
+- Claude Code and OpenCode no longer ask for an API key they never read. Both authenticate from their own local CLI's credentials, but they were treated as key-based providers; the workaround was storing a dummy key. A missing CLI on `PATH` now warns rather than blocking, since a configured path or bundled binary also works.
+- The OpenAI Codex (ChatGPT subscription) model list no longer offers models the backend rejects, and Codex context limits are applied to every Codex model instead of being inherited from the OpenAI API catalog, which inflated both the context budget and the usage figures derived from it.
+- Models served by OpenCode Go are now sent over the wire protocol each one actually speaks. Every model was sent over the OpenAI chat-completions adapter, so models on that endpoint speaking other protocols failed or misbehaved.
+- Task history no longer goes blank when a task spawns many subagents. Subagent rows crowded out the tasks that created them, hiding the parent task and everything older.
+- Langfuse tracing, when configured, is now limited to the Cline and Cline Pass providers. The provider was ignored, so prompts and responses sent to third-party and bring-your-own-key providers were exported too.
+
+### Changed
+
+- Web search is now enabled by default on models that support it, outside YOLO mode. It can still be turned off in settings, and a settings file that cannot be read leaves it disabled rather than silently on.
+- The `run_commands` tool description now names the PowerShell edition in use — `Windows PowerShell (powershell.exe)` versus `PowerShell (pwsh.exe)` — quotes its guidance against that executable, and tells the model to run commands directly rather than wrapping them in another shell invocation. It also no longer describes the environment as Windows when `pwsh` is the configured shell on macOS or Linux.
+- Refreshed the built-in model catalog. Adds four providers (Infer by Flow7, Melious, NaN, and Wallaby) and takes the catalog from 5,788 to 6,079 models. This is a wide refresh: the resolved default model changes for 44 providers, most of them landing on DeepSeek V4.1 Flash — among them Hugging Face, Fireworks, Requesty, Nebius, Cortecs, CrossModel, DigitalOcean, Eden AI, and OpenCode Go. Gemini and Vertex now resolve to Gemini 3.8 Flash, GitHub Copilot and Vivgrid to GPT-6 Astra, and NVIDIA to GLM 5.3 Flash. If you use a provider without pinning a model, expect a different default.
+
+## [4.1.17]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Added
+
+- ClinePass is now surfaced across the app: a card on the account page describing what the plan covers, a hint in provider settings, and a banner on the home screen. Dismissed banners stay dismissed.
+
+### Fixed
+
+- Fixed the background Hub process ballooning in memory during long sessions. Session status updates broadcast a full copy of the conversation transcript to every connected client, so on a large task each status change shipped megabytes and could grow the process to tens of gigabytes. Snapshots now carry state only.
+- Hook scripts that fail to spawn no longer crash the extension's core process and take the running task down with them.
+- Fixed a chat render crash on malformed `api_req` payloads.
+- Cost estimates no longer appear in task history for subscription-billed tasks (ClinePass, ChatGPT via Codex, and Claude Code), matching the task header.
+- Pasted provider API keys are now stripped of the invisible characters clipboards smuggle in (newlines, zero-width spaces, BOM). A key corrupted that way was hidden by the masked field and rejected by the provider with a 401 indistinguishable from a genuinely wrong key. Credential rejections now say that the API key is the problem and point at its configuration, keeping the provider's raw response as a diagnostic tail.
+- Signing in to OpenAI Codex (ChatGPT subscription) now fails with a clear "port in use" error when callback port 1455 is occupied. Previously the button opened a browser to a flow whose callback could never arrive, and nothing else happened. OAuth redirect errors such as `access_denied` are surfaced instead of being reported as a missing authorization code.
+- A transient network failure while refreshing OpenAI Codex or OpenAI-compatible-account tokens no longer signs you out. Only a genuinely rejected refresh token now requires re-authentication.
+- Fixed tool calling being silently disabled for Dify, SAP AI Core, opencode, and Codex CLI models. Their catalog entries declare no capabilities, and the empty list was read as an authoritative denial that stripped every tool from the request.
+- Fixed images being dropped from file reads on models whose capability list is empty.
+- Restoring a checkpoint now refuses to run when commits were made after it, instead of silently knocking them off the branch where only the reflog could recover them. Chat-only restore is unaffected.
+- `apply_patch` now preserves a file's existing CRLF line endings.
+- Global rules are now also read from `~/Cline/Rules`, which is where the Rules tab writes them on WSL and headless installs whose Documents folder resolves to the home directory.
+- An enabled but unreachable remote (SSE or streamable HTTP) MCP server no longer stalls session startup; remote connects now have a 10 second budget.
+- Aborting a task now also cancels the delegated subagents and teammates it spawned, instead of leaving their work running.
+- Langfuse tracing now works in released builds. Detection identified the OpenTelemetry provider by class name, which minification renames, so tracing silently initialized as not ready in every published build while working in development.
+- Cline provider models are now read from the live catalog, so newly published models appear without an extension update.
+- Hook execution telemetry now fires; the task id was not threaded into hook runner creation, so those events were dropped.
+
+### Changed
+
+- Refreshed the built-in model catalog. Adds ten providers (Bothub, OpenReason, SenseNova (China), TokenGo, TokenRouter, Vancine, Volcengine Ark, Volcengine Ark Coding Plan, above.dev, and klokintegration.se) and updates model lists and pricing throughout. This is an unusually wide refresh: the resolved default model changes for 57 providers, most consequentially Anthropic, which now resolves to Claude Fable 5.1 instead of Claude Opus 5, with Amazon Bedrock, Vertex, OpenRouter, Vercel AI Gateway, Kilo Gateway, LLM Gateway, DevPass, DigitalOcean, CrossModel, Eden AI, and NanoGPT following. If you use a provider without pinning a model, expect a different default.
+- The message the model receives when you reject a tool call now names the rejected tool and reads as your decision rather than an error.
+
+## [4.1.16]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Cost estimates are no longer shown for providers billed by a flat-rate subscription (ClinePass, ChatGPT via Codex, and Claude Code). The task header and model pricing rows rendered API-rate dollar figures that read as real charges on top of the subscription, including a flash of them on every chat-view mount while provider listings were loading.
+- Signing back in no longer moves your last-used provider off ClinePass on credential refresh.
+- Hooks now resolve their workspace from the VS Code window instead of shared global state in `~/.cline`. With a second window open on another project, a workspace's `.clinerules/hooks` scripts were never discovered, and hook cwd and the workspace paths passed to hook scripts resolved against whatever project some other or older Cline instance last recorded.
+- New files are now created with your platform's native line endings.
+- Fixed the codebase search tool crashing on files containing a single enormous line.
+- Credentials embedded in git remote URLs are now redacted from the workspace information sent to the model, which also now carries richer workspace metadata.
+- Installing an MCP server from the marketplace no longer misreads the catalog's `--` separator as part of the server command.
+- The hub's event log can no longer grow until it fills your disk.
+
+### Changed
+
+- The per-tool MCP auto-approve checkboxes are hidden. MCP auto-approval is governed solely by the global "Use MCP servers" toggle — the per-tool checkboxes were no-ops that implied granularity the approval path does not have.
+
+## [4.1.15]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Auto-approve every MCP tool call while the "Use MCP servers" toggle is on. The toggle only took effect on tools that had also been opted in individually, so turning it on appeared to do nothing; it now governs all MCP tools on its own.
+
+## [4.1.14]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Added
+
+- Refresh the built-in model catalog. New entries include Claude Fable 5, Grok 4.6 on Vertex, several DeepSeek V4 Flash variants (including the vision preview), MiMo v2.5, Qwen3.8 27B, Gemma 4 26B, LongCat 2.0, Nemotron 3.5 Lightning, and Thinking Machines' Inkling models.
+
+### Fixed
+
+- Restore task completion telemetry for interactive sessions. A share of interactive stops routed through a teardown path that never reported completion after 4.1.11 changed how session status is tracked; every session now reports it exactly once.
+
+## [4.1.13]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Restore tool calling for custom OpenAI-Compatible models whose capability list was inferred from convenience flags like `supportsReasoning`. The inferred list read as an authoritative denial and stripped every tool from the request; an explicitly authored capability list still decides.
+- Keep Hub-backed sessions intact across a Hub restart or upgrade. Clients replay the events they missed while disconnected, and the same event is no longer delivered twice when the replay and live streams overlap.
+- Carry session and client identity into Langfuse traces for Hub-backed and delegated-agent runs, which previously arrived without their session grouping or client version.
+
+## [4.1.12]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Enforce enterprise MCP controls on the Customize marketplace. MCP entries are now hidden when remote config disables the marketplace, and limited to `allowedMCPServers` when an allowlist is configured.
+- Restore tool calling for custom OpenAI-Compatible models whose stored capability list was empty.
+
+## [4.1.11]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle — except the last section, which is a legacy-bundle fix.
+
+### Added
+
+- Let models that support it generate images during a task. Generated images render inline in the conversation.
+
+### Fixed
+
+- Fix code actions failing with "command not found" on VS Code 1.134.
+- Fix `@` file mentions breaking on paths that contain spaces.
+- Show the diff edit view for multi-line edits in files with CRLF line endings.
+- Continue the surviving session when resuming a task, instead of rebuilding it from the original task text.
+- Clear the task-scoped settings overlay when the task view is cleared or switched, so one task's overrides no longer leak into the next.
+- Honor the classic truncation range when migrating legacy tasks.
+- Preserve LiteLLM input token limits instead of overwriting them with catalog values.
+- Restore custom base URLs for Gemini, and normalize legacy host-root values so they keep working.
+- Point provider signup links at each provider's API key page instead of a generic landing page.
+- Load skill slash commands through the skills tool instead of pasting their instructions into your message, which previously delivered them twice.
+- Stop offering image, voice, and other non-chat models in chat model pickers.
+- Deliver a `PreToolUse` hook's `contextModification` to the model again, and wait for `PostToolUse` hooks so their output and `cancel` control are honored.
+- Show tool activity a provider runs itself — every tool the Claude Code provider executes inside its own session — instead of dropping it from the conversation.
+- Fix `run_commands` failing with ENOENT when a structured command carried a full command line with no arguments.
+- Run PowerShell commands fail-fast, so a pipeline erroring per item stops at the first error instead of flooding output and still reporting success.
+- Keep remote configuration in step with the SDK: coordinated refreshes, session gating, and a fail-closed opt-out.
+
+### Changed
+
+- Show the billed cost for Cline gateway usage.
+- Refresh the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists, pricing, and per-provider default models across the board.
+
+### Fixed (legacy bundle)
+
+- Only treat an Anthropic `invalid_request_error` as a context-overflow when its message says so. An unrelated invalid request (bad tool schema, oversized image, unknown model id) no longer triggers context-overflow recovery.
+
 ## [4.1.10]
 
 Everything in this release lands through the SDK bundle, so it applies to windows running that bundle and not the legacy one. The legacy bundle is unchanged from 4.1.9.

@@ -22,17 +22,17 @@ afterEach(async () => {
 });
 
 describe("AgentHeader title bar", () => {
-	it("makes non-interactive header space draggable", async () => {
+	it("leaves drag-region ownership to the persistent window title bar", async () => {
 		await act(async () => {
 			root.render(<AgentHeader status="completed" title="A session" />);
 		});
 
 		expect(
-			container.querySelector("header")?.getAttribute("data-tauri-drag-region"),
-		).toBe("deep");
+			container.querySelector("header")?.hasAttribute("data-tauri-drag-region"),
+		).toBe(false);
 	});
 
-	it("renders a read-only title as draggable text", async () => {
+	it("renders a read-only title as non-interactive text", async () => {
 		await act(async () => {
 			root.render(<AgentHeader status="completed" title="Read-only session" />);
 		});

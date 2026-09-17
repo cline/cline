@@ -2,8 +2,7 @@ import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useEffect, useRef, useState } from "react";
-import { useThemeController } from "../../hooks/use-theme";
-import { palette } from "../../palette";
+import { useDialogPalette, useThemeController } from "../../hooks/use-theme";
 import { getThemeSwatchColors, THEMES } from "../../themes";
 
 const SWATCH_BLOCK = "\u25a0";
@@ -12,6 +11,7 @@ export function ThemePickerContent(props: ChoiceContext<string>) {
 	const { resolve, dismiss, dialogId } = props;
 	const { height } = useTerminalDimensions();
 	const controller = useThemeController();
+	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(() => {
 		const index = THEMES.findIndex(
 			(theme) => theme.id === controller.selectedThemeId,

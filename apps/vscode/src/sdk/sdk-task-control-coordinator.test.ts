@@ -87,6 +87,38 @@ describe("SdkTaskControlCoordinator", () => {
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 	})
 
+	it("drops the task-scoped settings overlay when the task is cleared (#13260)", async () => {
+		// autoApprovalSettings written via setTaskSettings while a task is open
+		// shadow global settings in getGlobalSettingsKey(). If the overlay
+		// survives "New Task", later global updates are accepted but never
+		// reach the webview (the stale overlay version wins), freezing the
+		// auto-approve checkboxes.
+		const { coordinator, options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			task: makeTask("task-1"),
+		})
+
+		await coordinator.clearTask()
+
+		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
+	})
+
+	it("drops the outgoing task's settings overlay when switching to another task", async () => {
+		const { coordinator, options } = makeCoordinator({
+			activeSession: makeActiveSession(),
+			task: makeTask("old-task"),
+			hasHistoryItem: true,
+			clineMessages: [{ ts: 1, type: "say", say: "task", text: "hello" }],
+			sessionStatus: "completed",
+		})
+
+		await coordinator.showTaskWithId("task-1")
+
+		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
+		// The overlay must be gone before the new proxy is installed.
+		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(options.setTask.mock.invocationCallOrder[0])
+	})
+
 	it("shows a task by creating a proxy, loading messages, and appending a fresh resume ask", async () => {
 		const existingTask = makeTask("old-task")
 		const activeSession = makeActiveSession()
@@ -461,6 +493,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		raiseCancelFence: vi.fn(),
 		setTurnPhase: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
+		clearTaskSettings: vi.fn().mockResolvedValue(undefined),
 	} as unknown as SdkTaskControlCoordinatorOptions & {
 		sessions: SdkTaskControlCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -484,6 +517,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		setTurnPhase: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		clearTaskSettings: ReturnType<typeof vi.fn>
 	}
 
 	return {

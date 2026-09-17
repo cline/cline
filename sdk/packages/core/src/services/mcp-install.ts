@@ -90,6 +90,13 @@ function splitTargetArgsAndHeaders(input: {
 	const args = input.targetArgs ?? [];
 	for (let index = 0; index < args.length; index++) {
 		const arg = args[index];
+		// Marketplace-style args use "--" to end option parsing (matching how
+		// commander handles the CLI form); everything after it is the verbatim
+		// stdio command. Without this the separator itself becomes the command.
+		if (input.parseTransport && arg === "--") {
+			targetArgs.push(...args.slice(index + 1));
+			break;
+		}
 		if (input.parseTransport && arg === "--transport") {
 			const value = args[index + 1];
 			if (!value) {

@@ -66,6 +66,10 @@ export const ModelMetadataSchema = z
 	// Keep metadata open for catalog-defined facts while typing routing fields.
 	.object({
 		reasoningDefaultOn: z.boolean().optional(),
+		/** Per-model wire protocol for gateways that serve multiple API formats. */
+		apiProtocol: z
+			.enum(["openai-chat", "openai-responses", "anthropic", "gemini"])
+			.optional(),
 	})
 	.catchall(z.unknown());
 
@@ -88,6 +92,29 @@ export const ModelModalitiesSchema = z.object({
 
 export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
 
+export type ChatModelModalities = {
+	readonly input?: readonly ModelModality[];
+	readonly output?: readonly ModelModality[];
+};
+
+/**
+ * Returns whether a model can participate in a text chat turn.
+ *
+ * Missing modality metadata is treated as chat-compatible for backwards
+ * compatibility. When a catalog does provide modalities, the model must both
+ * accept text and produce text; dedicated transcription and media-generation
+ * endpoints therefore stay available in the shared catalog without leaking
+ * into chat model pickers.
+ */
+export function supportsChatModalities(
+	modalities: ChatModelModalities | undefined,
+): boolean {
+	return (
+		(modalities?.input === undefined || modalities.input.includes("text")) &&
+		(modalities?.output === undefined || modalities.output.includes("text"))
+	);
+}
+
 /**
  * Provider operation used to execute a model request.
  *
@@ -105,6 +132,26 @@ export const ModelOperationSchema = z.enum([
 ]);
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
+
+export type ChatCompatibleModelDescriptor = {
+	readonly operation?: ModelOperation;
+	readonly modalities?: ChatModelModalities;
+};
+
+/**
+ * Returns whether a model uses the language operation and supports a text chat
+ * turn. Missing operation and modality metadata remain chat-compatible for
+ * backwards compatibility, while any explicitly non-language operation is
+ * excluded even when its modalities are absent.
+ */
+export function isChatCompatibleModel(
+	model: ChatCompatibleModelDescriptor,
+): boolean {
+	return (
+		(model.operation === undefined || model.operation === "language") &&
+		supportsChatModalities(model.modalities)
+	);
+}
 
 /**
  * Execution modes supported by a non-language model operation.
@@ -176,6 +223,20 @@ export function modelSupportsToolCalling(model: {
 }): boolean {
 	return modelHasCapability(model, "tools", { assumeWhenUnspecified: true });
 }
+
+/**
+ * Whether a model can receive image parts in a request. Fails open on the
+ * same grounds as `modelSupportsToolCalling`: a host boundary that reports no
+ * capabilities at all has not declared the model text-only, and stripping
+ * images from a vision-capable model loses user content silently. A populated
+ * list without `images` is authoritative.
+ */
+export function modelSupportsImageInput(model: {
+	capabilities?: readonly string[];
+}): boolean {
+	return modelHasCapability(model, "images", { assumeWhenUnspecified: true });
+}
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),

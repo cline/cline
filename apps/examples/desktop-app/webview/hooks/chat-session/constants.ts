@@ -11,11 +11,7 @@ export const CHAT_WS_ENDPOINT_RETRY_DELAY_MS = 100;
 export const CHAT_WS_RECONNECT_BASE_DELAY_MS = 300;
 export const CHAT_WS_RECONNECT_MAX_DELAY_MS = 3000;
 export const CHAT_WS_REQUEST_TIMEOUT_MS = 120000;
-export const OAUTH_MANAGED_PROVIDERS = new Set([
-	"cline",
-	"oca",
-	"openai-codex",
-]);
+export { OAUTH_PROVIDER_IDS as OAUTH_MANAGED_PROVIDERS } from "@/lib/provider-connection";
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,

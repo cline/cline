@@ -268,8 +268,8 @@ function summarizeClient(client: TrackedClient): {
 	) {
 		return {
 			key: "code-app",
-			label: "Code App",
-			name: "Code App",
+			label: "Cline Desktop",
+			name: "Cline Desktop",
 		};
 	}
 	return {

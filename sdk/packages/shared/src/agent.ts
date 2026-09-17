@@ -244,6 +244,13 @@ export interface AgentRuntimePrepareTurnContext {
 	 * compaction rather than trust its token estimates.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Input tokens the provider actually counted for the previous request this
+	 * run, when available. Compaction uses it as a floor on its char-based
+	 * estimate, which under-counts dense content (disassembly, image dumps) and
+	 * can otherwise let the real context grow past the window without triggering.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -266,9 +273,12 @@ export type AgentModelFinishReason =
  * Coarse classification of a provider error, derived from the raw provider
  * error object before it is flattened into a display string. Shared by the
  * runtime's recovery policy and telemetry (`error_class`). Extend with new
- * classes (auth, rate_limit, billing, ...) as consumers need them.
+ * classes (rate_limit, billing, ...) as consumers need them.
+ *
+ * `auth`: the provider rejected the request's credentials (HTTP 401/403) —
+ * hosts should point the user at their API key configuration.
  */
-export type ProviderErrorClass = "context_window_exceeded" | "unknown";
+export type ProviderErrorClass = "context_window_exceeded" | "auth" | "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
@@ -293,7 +303,11 @@ export type AgentModelEvent =
 	| {
 			type: "tool-result";
 			toolCallId: string;
-			toolName: import("./llms/model-tools").ModelToolName;
+			/**
+			 * Declared model tools carry a ModelToolName; provider-executed tools
+			 * (e.g. the Claude Code CLI's own tools) carry arbitrary names.
+			 */
+			toolName: string;
 			input?: unknown;
 			output: unknown;
 			isError?: boolean;
@@ -308,6 +322,14 @@ export type AgentModelEvent =
 			reason: AgentModelFinishReason;
 			error?: string;
 			errorClass?: ProviderErrorClass;
+			/**
+			 * Whether the underlying provider error was transient and worth
+			 * retrying, decided at the model boundary from the AI SDK's typed
+			 * `isRetryable` flag while the structured error is still in hand
+			 * (`error` is a flattened string, so the agent loop cannot re-derive
+			 * this). When absent, the agent loop classifies from the message.
+			 */
+			errorRetryable?: boolean;
 			/**
 			 * The model layer already recorded `sdk.error` telemetry for this
 			 * failure at its own error boundary. `error` is a flattened string,
@@ -366,6 +388,13 @@ export interface AgentBeforeToolResult {
 	reason?: string;
 	input?: unknown;
 	policy?: ToolPolicy;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after this
+	 * iteration's tool results as a `<hook_context>` user message, so the
+	 * model sees it on the next request.
+	 */
+	appendContext?: string;
 }
 
 export interface AgentAfterToolContext {
@@ -383,6 +412,13 @@ export interface AgentAfterToolResult {
 	stop?: boolean;
 	reason?: string;
 	result?: AgentToolResult;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after this
+	 * iteration's tool results as a `<hook_context>` user message, so the
+	 * model sees it on the next request.
+	 */
+	appendContext?: string;
 }
 
 export interface AgentRunLifecycleContext {
@@ -458,6 +494,17 @@ export interface AgentRuntimePlugin {
 // =============================================================================
 
 export interface AgentRuntimeConfig {
+	/**
+	 * Stable end-user distinct ID used for provider and observability metadata.
+	 * This is intentionally separate from the host-owned session id.
+	 */
+	distinctId?: string;
+	/** Calling client surface, for example `cline-vscode` or `cline-sdk`. */
+	clientName?: string;
+	/** Calling client version, such as the VS Code extension version. */
+	clientVersion?: string;
+	/** Version of the Cline Core SDK executing the runtime. */
+	clineCoreVersion?: string;
 	/**
 	 * Core/hub runtime session identifier.
 	 *

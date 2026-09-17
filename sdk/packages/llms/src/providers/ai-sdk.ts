@@ -43,7 +43,11 @@ import {
 	wrapLanguageModel,
 } from "ai";
 import { nanoid } from "nanoid";
-import { classifyProviderError } from "./error-classification";
+import type { AiSdkTelemetryDecision } from "../services/langfuse-telemetry";
+import {
+	classifyProviderError,
+	isRetryableBeyondSdkRetries,
+} from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
@@ -588,15 +592,134 @@ function shouldIncludeReasoningHistory(
 	return !isCerebrasProvider(request, context);
 }
 
-async function ensureGatewayLangfuseTelemetry(
+async function resolveGatewayAiSdkTelemetry(
 	providerId: string,
-): Promise<boolean> {
+	request: GatewayStreamRequest,
+): Promise<AiSdkTelemetryDecision> {
 	try {
 		const runtime = await import("../services/langfuse-telemetry");
-		return runtime.ensureLangfuseTelemetry(providerId);
+		return await runtime.resolveAiSdkTelemetry(
+			providerId,
+			resolveTraceSamplingKey(request),
+		);
 	} catch {
-		return false;
+		return { isEnabled: false };
 	}
+}
+
+/**
+ * Whole-task sampling key: prefer the session/task id so every request in a
+ * task gets the same sampling decision and traces stay complete.
+ */
+function resolveTraceSamplingKey(
+	request: GatewayStreamRequest,
+): string | undefined {
+	const metadata =
+		request.metadata && typeof request.metadata === "object"
+			? (request.metadata as Record<string, unknown>)
+			: {};
+	for (const key of ["sessionId", "conversationId", "distinctId"]) {
+		const value = metadata[key];
+		if (typeof value === "string" && value.trim().length > 0) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+async function withAiSdkLangfuseTraceContext<T>(
+	enabled: boolean,
+	request: GatewayStreamRequest,
+	callback: () => T | Promise<T>,
+): Promise<T> {
+	const metadata =
+		request.metadata && typeof request.metadata === "object"
+			? request.metadata
+			: {};
+	const tags = Array.isArray(metadata.tags)
+		? metadata.tags.filter(
+				(value): value is string =>
+					typeof value === "string" && value.trim().length > 0,
+			)
+		: undefined;
+	const distinctId =
+		typeof metadata.distinctId === "string" ? metadata.distinctId : undefined;
+	const sessionId =
+		typeof metadata.sessionId === "string" ? metadata.sessionId : undefined;
+
+	if (!enabled || (!distinctId && !sessionId && !tags?.length)) {
+		return await callback();
+	}
+
+	const runtime = await import("../services/langfuse-telemetry");
+	return await runtime.withLangfuseTraceAttributes(
+		true,
+		{
+			...(distinctId ? { userId: distinctId } : {}),
+			...(sessionId ? { sessionId } : {}),
+			...(tags?.length ? { tags } : {}),
+			metadata: {
+				...(typeof metadata.conversationId === "string"
+					? { conversationId: metadata.conversationId }
+					: {}),
+				...(typeof metadata.runId === "string"
+					? { runId: metadata.runId }
+					: {}),
+			},
+		},
+		callback,
+	);
+}
+
+function buildAiSdkRuntimeContext(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): Record<string, unknown> {
+	const requestMetadata = request.metadata;
+	const metadata =
+		requestMetadata && typeof requestMetadata === "object"
+			? requestMetadata
+			: {};
+	const tags = Array.isArray(metadata.tags)
+		? metadata.tags.filter(
+				(value): value is string =>
+					typeof value === "string" && value.trim().length > 0,
+			)
+		: undefined;
+	const distinctId =
+		typeof metadata.distinctId === "string" ? metadata.distinctId : undefined;
+
+	return {
+		// `distinctId` is Cline's canonical identity field. Langfuse's data
+		// model calls the same value `userId`, so expose both in runtime
+		// context and explicitly map distinctId to Langfuse's userId below.
+		...(distinctId ? { distinctId, userId: distinctId } : {}),
+		...(typeof metadata.sessionId === "string"
+			? { sessionId: metadata.sessionId }
+			: {}),
+		...(typeof metadata.clientName === "string"
+			? { clientName: metadata.clientName }
+			: {}),
+		...(typeof metadata.clientVersion === "string"
+			? { clientVersion: metadata.clientVersion }
+			: {}),
+		...(typeof metadata.clineCoreVersion === "string"
+			? { clineCoreVersion: metadata.clineCoreVersion }
+			: {}),
+		...(tags && tags.length > 0 ? { tags } : {}),
+		// Keep Cline correlation fields available even when the integration
+		// does not promote them to first-class Langfuse fields.
+		...(typeof metadata.conversationId === "string"
+			? { conversationId: metadata.conversationId }
+			: {}),
+		...(typeof metadata.runId === "string" ? { runId: metadata.runId } : {}),
+		...(typeof metadata.iteration === "number"
+			? { iteration: metadata.iteration }
+			: {}),
+		providerId: request.providerId,
+		modelId: request.modelId,
+		resolvedModelId: context.model.id,
+	};
 }
 
 function toAiSdkMessages(
@@ -939,6 +1062,23 @@ function getNestedUsageValue(
 	return getNumericValue(current) ?? 0;
 }
 
+/**
+ * AI SDK request-level retries for each model call (the SDK default is 2). The
+ * SDK retries the *initial* request on transient failures — 429/5xx/network —
+ * with exponential backoff that honors `retry-after` headers. It never sees an
+ * error the provider emits *mid-stream* (OpenRouter's "Provider returned error"
+ * arrives as a stream part after a 200), so the agent loop keeps its own
+ * turn-level retry for those.
+ *
+ * Each failure class has exactly one retrying layer, so the counts never
+ * multiply: request-start failures belong to this setting (a `RetryError` is
+ * terminal for the turn-level retry, see `isRetryableBeyondSdkRetries`);
+ * pre-output socket deaths and empty responses belong to
+ * `withEmptyResponseRetry`, which never sees request-start rejections; and
+ * mid-stream provider errors belong to the turn-level retry alone.
+ */
+const MODEL_REQUEST_MAX_RETRIES = 5;
+
 type UsagePath = readonly [string] | readonly [string, string];
 
 const REASONING_TOKEN_PATHS: UsagePath[] = [
@@ -1031,6 +1171,9 @@ function calculateUsageCostFromPricing(
  * Accepts both AI SDK's normalized shapes (AiSdkStreamTotalUsage, AiSdkStreamUsage)
  * and raw provider responses. Handles multiple naming conventions (camelCase vs snake_case),
  * extracts costs from provider-specific fields, and falls back to pricing-based calculation.
+ * Provider-reported billed cost takes precedence over market cost so gateway discounts
+ * are reflected in user-facing totals. Market cost remains a fallback when no billed
+ * cost is available.
  *
  * @param usageValue - AI SDK normalized usage or raw provider response object
  * @param providerMetadata - Provider-specific metadata for cost extraction
@@ -1044,6 +1187,7 @@ export function normalizeUsage(
 		| undefined,
 	providerMetadata?: unknown,
 	pricingValue?: unknown,
+	selection?: Pick<GatewayStreamRequest, "providerId" | "modelId">,
 ): GatewayNormalizedUsage {
 	const usage =
 		usageValue && typeof usageValue === "object"
@@ -1091,9 +1235,13 @@ export function normalizeUsage(
 		baseCost !== undefined && baseCost > 0
 			? baseCost
 			: (upstreamInferenceCost ?? baseCost);
+	const billedCost = shouldAddUpstreamCost
+		? baseCost + upstreamInferenceCost
+		: costOrUpstream;
 	const totalCost =
-		marketCost ??
-		(shouldAddUpstreamCost ? baseCost + upstreamInferenceCost : costOrUpstream);
+		billedCost !== undefined && billedCost !== 0
+			? billedCost
+			: (marketCost ?? billedCost);
 	const normalizedUsage = {
 		inputTokens:
 			getNestedUsageValue(usage, "inputTokens", "total") ||
@@ -1164,8 +1312,22 @@ export function normalizeUsage(
 		[usage, rawUsage, providerUsage ?? {}],
 		REASONING_TOKEN_PATHS,
 	);
-	const resolvedTotalCost =
-		totalCost !== undefined
+	const pricing = pricingValue as Record<string, unknown> | undefined;
+	// Cline's included models have no per-request charge, even when the
+	// response includes the upstream inference or market cost.
+	const includedClineUsage =
+		selection?.providerId === "cline-pass" ||
+		(selection?.providerId === "cline" &&
+			(selection.modelId.startsWith("cline-pass/") ||
+				selection.modelId.startsWith("cline-free/") ||
+				selection.modelId.endsWith(":free") ||
+				(pricing?.input === 0 &&
+					pricing?.output === 0 &&
+					(pricing.cacheRead ?? 0) === 0 &&
+					(pricing.cacheWrite ?? 0) === 0)));
+	const resolvedTotalCost = includedClineUsage
+		? 0
+		: totalCost !== undefined
 			? totalCost
 			: hasExplicitCost
 				? undefined
@@ -1268,6 +1430,16 @@ interface CapturedStreamError {
 	message: string;
 	errorClass: ProviderErrorClass;
 	/**
+	 * Whether the agent loop's turn-level retry may re-run this turn, decided
+	 * while the structured error is still in hand and forwarded as
+	 * `errorRetryable` on the `finish` event (the flattened message the agent
+	 * loop receives cannot carry it). Transient by the AI SDK's own typed
+	 * `isRetryable` flag, except that a `RetryError` is terminal: the SDK
+	 * already spent its request-start retries, and the turn-level retry must
+	 * not multiply them.
+	 */
+	retryable: boolean;
+	/**
 	 * This layer already recorded `sdk.error` telemetry for the failure.
 	 * Forwarded as `errorReported` on the `finish` event so the agent loop
 	 * does not report the same failure a second time.
@@ -1279,6 +1451,7 @@ function captureStreamError(error: unknown): CapturedStreamError {
 	return {
 		message: extractErrorMessage(error),
 		errorClass: classifyProviderError(error),
+		retryable: isRetryableBeyondSdkRetries(error),
 	};
 }
 
@@ -1307,6 +1480,12 @@ async function* emitAiSdkEvents(
 	const projectedModelToolResults = new Map<string, ProjectedModelToolResult>();
 	const pendingProjectedModelToolOutputs = new Map<string, unknown>();
 	const projectedModelToolErrors = new Map<string, string>();
+	// Tool calls the provider executed inside this inference request (e.g. the
+	// Claude Code CLI's own tools). They surface as observational activity and
+	// must never enter AgentRuntime's local execution/approval loop. Result and
+	// error parts are matched by ID because some providers omit the
+	// providerExecuted flag on the result half of the pair.
+	const observationalProviderToolCallIds = new Set<string>();
 
 	try {
 		if (stream.fullStream) {
@@ -1425,6 +1604,22 @@ async function* emitAiSdkEvents(
 						};
 						continue;
 					}
+					if (part.providerExecuted === true) {
+						const toolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined) ??
+							`provider_tool_${nanoid()}`;
+						observationalProviderToolCallIds.add(toolCallId);
+						sawVisibleContent = true;
+						yield {
+							type: "tool-call-delta",
+							toolCallId,
+							toolName,
+							execution: "provider",
+							input: part.input ?? part.args,
+						};
+						continue;
+					}
 					sawToolCalls = true;
 					sawVisibleContent = true;
 					const toolCallId =
@@ -1500,6 +1695,26 @@ async function* emitAiSdkEvents(
 						}
 						continue;
 					}
+					const toolCallId =
+						(part.toolCallId as string | undefined) ??
+						(part.id as string | undefined);
+					if (
+						part.providerExecuted === true ||
+						(toolCallId && observationalProviderToolCallIds.has(toolCallId))
+					) {
+						if (part.preliminary !== true) {
+							sawVisibleContent = true;
+							yield {
+								type: "tool-result",
+								toolCallId: toolCallId ?? `provider_tool_${nanoid()}`,
+								toolName,
+								execution: "provider",
+								input: part.input ?? part.args,
+								output: part.output ?? part.result,
+							};
+						}
+						continue;
+					}
 				}
 
 				if (part.type === "tool-error") {
@@ -1539,6 +1754,27 @@ async function* emitAiSdkEvents(
 							isError: true,
 						};
 						continue;
+					}
+					{
+						const errorToolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined);
+						if (
+							part.providerExecuted === true ||
+							(errorToolCallId &&
+								observationalProviderToolCallIds.has(errorToolCallId))
+						) {
+							yield {
+								type: "tool-result",
+								toolCallId: errorToolCallId ?? `provider_tool_${nanoid()}`,
+								toolName,
+								execution: "provider",
+								input: part.input ?? part.args,
+								output: { error: extractErrorMessage(part.error) },
+								isError: true,
+							};
+							continue;
+						}
 					}
 					sawToolCalls = true;
 					const toolCallId =
@@ -1725,7 +1961,7 @@ async function* emitAiSdkEvents(
 	if (usageToEmit) {
 		yield {
 			type: "usage",
-			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue),
+			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, request),
 		};
 	}
 
@@ -1734,6 +1970,7 @@ async function* emitAiSdkEvents(
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
+		errorRetryable: streamError?.retryable,
 		errorReported: streamError?.reported,
 	};
 }
@@ -1854,9 +2091,14 @@ export function withEmptyResponseRetry(
 	});
 }
 
-function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
+function createAiSdkProvider(
+	defaultKind: ProviderModuleKind,
+): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
+			// Multi-protocol HTTP gateways declare model adapters in models.dev.
+			// Keep native and local CLI transports authoritative for their models.
+			const kind = resolveModelProviderKind(defaultKind, context);
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
 			const capturedError: { current: CapturedStreamError | undefined } = {
@@ -1982,14 +2224,16 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								result.usage as Record<string, unknown>,
 								result.providerMetadata,
 								context.model.metadata?.pricing,
+								request,
 							),
 						};
 					}
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
-				const langfuse = await ensureGatewayLangfuseTelemetry(
+				const aiSdkTelemetry = await resolveGatewayAiSdkTelemetry(
 					config.providerId,
+					request,
 				);
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
@@ -2040,57 +2284,80 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					},
 				});
-				stream = streamText({
-					model: withEmptyResponseRetry(
-						provider.operations.language(context.model.id),
-						provider.retryEmptyResponses,
-						context.logger,
-					) as never,
-					messages: messages as never,
-					...(useSystemOption ? { system: systemPrompt } : {}),
-					...(tools ? { tools } : {}),
-					abortSignal: request.signal,
-					experimental_repairToolCall: repairMalformedToolCall as never,
-					experimental_telemetry: {
-						isEnabled: langfuse,
-					},
-					providerOptions: providerOptions as never,
-					...(provider.executesModelTools && activeModelTools.length
-						? { stopWhen: stepCountIs(8) }
-						: {}),
-					...requestConfig,
-					...(portableReasoning ? { reasoning: portableReasoning } : {}),
-					onError: ({ error: streamError }) => {
-						const captured = captureStreamError(streamError);
-						const msg = captured.message;
-						capturedError.current = captured;
-						if (log?.error) {
-							log.error("[ai-sdk] stream error", {
-								providerId: request.providerId,
-								error: streamError,
-								severity: "error",
-							});
-						} else if (log) {
-							log.log(`[ai-sdk] stream error: ${msg}`, {
-								providerId: request.providerId,
-								severity: "error",
-							});
-						}
-						captured.reported = captureSdkError(context.telemetry, {
-							component: "llms",
-							operation: "provider.stream",
-							error: streamError,
-							errorMessage: msg,
-							severity: "error",
-							handled: true,
-							context: {
-								providerId: request.providerId,
-								modelId: request.modelId,
-								providerKind: kind,
+				stream = await withAiSdkLangfuseTraceContext(
+					aiSdkTelemetry.isEnabled,
+					request,
+					() =>
+						streamText({
+							model: withEmptyResponseRetry(
+								provider.operations.language(context.model.id),
+								provider.retryEmptyResponses,
+								context.logger,
+							) as never,
+							messages: messages as never,
+							...(useSystemOption ? { system: systemPrompt } : {}),
+							...(tools ? { tools } : {}),
+							abortSignal: request.signal,
+							maxRetries: MODEL_REQUEST_MAX_RETRIES,
+							experimental_repairToolCall: repairMalformedToolCall as never,
+							telemetry: {
+								...aiSdkTelemetry,
+								functionId: "cline-agent-turn",
+								includeRuntimeContext: {
+									distinctId: true,
+									userId: true,
+									sessionId: true,
+									clientName: true,
+									clientVersion: true,
+									clineCoreVersion: true,
+									tags: true,
+									conversationId: true,
+									runId: true,
+									iteration: true,
+									providerId: true,
+									modelId: true,
+									resolvedModelId: true,
+								},
 							},
-						});
-					},
-				}) as unknown as AiSdkStreamResult;
+							runtimeContext: buildAiSdkRuntimeContext(request, context),
+							providerOptions: providerOptions as never,
+							...(provider.executesModelTools && activeModelTools.length
+								? { stopWhen: stepCountIs(8) }
+								: {}),
+							...requestConfig,
+							...(portableReasoning ? { reasoning: portableReasoning } : {}),
+							onError: ({ error: streamError }) => {
+								const captured = captureStreamError(streamError);
+								const msg = captured.message;
+								capturedError.current = captured;
+								if (log?.error) {
+									log.error("[ai-sdk] stream error", {
+										providerId: request.providerId,
+										error: streamError,
+										severity: "error",
+									});
+								} else if (log) {
+									log.log(`[ai-sdk] stream error: ${msg}`, {
+										providerId: request.providerId,
+										severity: "error",
+									});
+								}
+								captured.reported = captureSdkError(context.telemetry, {
+									component: "llms",
+									operation: "provider.stream",
+									error: streamError,
+									errorMessage: msg,
+									severity: "error",
+									handled: true,
+									context: {
+										providerId: request.providerId,
+										modelId: request.modelId,
+										providerKind: kind,
+									},
+								});
+							},
+						}) as unknown as AiSdkStreamResult,
+				);
 
 				// Suppress dangling promise rejections (finishReason, totalUsage, steps, etc.)
 				// BEFORE iterating. The AI SDK rejects these DelayedPromises inside the stream's
@@ -2142,11 +2409,33 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					reason: "error",
 					error: msg,
 					errorClass: captured.errorClass,
+					errorRetryable: captured.retryable,
 					errorReported: reported || captured.reported,
 				};
 			}
 		},
 	});
+}
+
+function resolveModelProviderKind(
+	defaultKind: ProviderModuleKind,
+	context: GatewayProviderContext,
+): ProviderModuleKind {
+	if (
+		defaultKind !== "openai-compatible" ||
+		!context.provider.metadata?.routing?.modelApiProtocol
+	)
+		return defaultKind;
+	switch (context.model.metadata?.apiProtocol) {
+		case "openai-responses":
+			return "openai";
+		case "anthropic":
+			return "anthropic";
+		case "gemini":
+			return "google";
+		default:
+			return defaultKind;
+	}
 }
 
 export const createOpenAIProvider = createAiSdkProvider("openai");

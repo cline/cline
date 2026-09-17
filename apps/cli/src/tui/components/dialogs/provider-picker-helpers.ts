@@ -3,7 +3,6 @@ import {
 	type ProviderSettingsManager,
 	saveLocalProviderSettings,
 } from "@cline/core";
-import { CLI_PROMO_CODE } from "../../../utils/cline-pass-errors";
 import {
 	type DialogDismissKey,
 	isAnyKeyDismiss,
@@ -77,8 +76,5 @@ export function buildClinePassSubscriptionPageUrl(
 		appBaseUrl || DEFAULT_APP_BASE_URL,
 	);
 	url.searchParams.set("personal", "true");
-	if (CLI_PROMO_CODE) {
-		url.searchParams.set("code", CLI_PROMO_CODE);
-	}
 	return url.toString();
 }

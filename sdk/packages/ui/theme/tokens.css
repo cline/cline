@@ -38,6 +38,10 @@
 	--text-sm: 0.86667rem;
 	--text-sm--line-height: 1.25rem;
 	--text-sm--letter-spacing: 0em;
+	/* 14px at 15px root */
+	--text-md: 0.93333rem;
+	--text-md--line-height: 1.4rem;
+	--text-md--letter-spacing: 0em;
 	--text-base: 1rem;
 	--text-base--line-height: 1.5rem;
 	--text-base--letter-spacing: 0em;

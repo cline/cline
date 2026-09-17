@@ -25,6 +25,7 @@ import type {
 	BasicLogger,
 	ITelemetryService,
 } from "@cline/shared";
+import { version as clineCoreVersion } from "../../../package.json";
 
 /**
  * Inputs required to assemble an `AgentRuntimeConfig`. Distinct from
@@ -96,6 +97,10 @@ export function createAgentRuntimeConfig(
 	const toolExecution = resolveToolExecution(agentConfig.maxParallelToolCalls);
 
 	const config: AgentRuntimeConfig = {
+		distinctId: agentConfig.distinctId,
+		clientName: agentConfig.extensionContext?.client?.name,
+		clientVersion: agentConfig.extensionContext?.client?.version,
+		clineCoreVersion,
 		sessionId: input.sessionId ?? agentConfig.sessionId,
 		agentId: input.agentId,
 		conversationId: input.conversationId,

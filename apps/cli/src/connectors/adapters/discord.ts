@@ -2,7 +2,8 @@ import {
 	createDiscordAdapter,
 	type DiscordAdapter,
 } from "@chat-adapter/discord";
-// TODO: Remove the root Undici 6 override when discord.js no longer requires Undici ^6.27.0.
+// Note: discord.js@14 declares undici ^6.27.0, but the root package.json
+// override ("undici": ">=7.29.0 <8") forces undici 7.x for CVE-2026-1525.
 import type { ChatStartSessionRequest } from "@cline/core";
 import {
 	createUserInstructionConfigService,
