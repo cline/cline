@@ -1711,14 +1711,17 @@ async function handleSteerPrompt(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	const promptId = request.promptId?.trim();
-	if (!sessionId || !promptId)
-		throw new Error("sessionId and promptId are required");
+	if (!sessionId) throw new Error("sessionId is required");
+	if (request.promptId !== undefined && !promptId)
+		throw new Error("promptId cannot be empty");
 	const manager = getSessionManager(ctx);
-	const result = await manager.pendingPrompts.update({
-		sessionId,
-		promptId,
-		delivery: "steer",
-	});
+	const result = promptId
+		? await manager.pendingPrompts.update({
+				sessionId,
+				promptId,
+				delivery: "steer",
+			})
+		: await manager.pendingPrompts.steerFirst({ sessionId });
 	return {
 		sessionId,
 		updated: result.updated === true,
