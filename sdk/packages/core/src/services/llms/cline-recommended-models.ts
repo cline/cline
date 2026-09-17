@@ -259,7 +259,11 @@ export async function getCachedClineRecommendedModels(
 	const cached = feedCaches.get(key);
 	if (cached && cached.expiresAt > Date.now())
 		return cloneRecommendedModels(cached.data);
-	let request = feedRequests.get(key);
+	const pendingKey = JSON.stringify([
+		key,
+		options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+	]);
+	let request = feedRequests.get(pendingKey);
 	if (!request) {
 		const generation = feedGeneration;
 		request = fetchClineRecommendedModels(options)
@@ -272,9 +276,9 @@ export async function getCachedClineRecommendedModels(
 				return data;
 			})
 			.finally(() => {
-				if (generation === feedGeneration) feedRequests.delete(key);
+				if (generation === feedGeneration) feedRequests.delete(pendingKey);
 			});
-		feedRequests.set(key, request);
+		feedRequests.set(pendingKey, request);
 	}
 	return cloneRecommendedModels(await request);
 }

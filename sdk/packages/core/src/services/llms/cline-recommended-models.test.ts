@@ -569,3 +569,58 @@ describe("generated offline featured models", () => {
 		}
 	});
 });
+
+describe("cached recommendation deadlines", () => {
+	it.each([
+		true,
+		false,
+	])("preserves each timeout through the display-name cache (short first: %s)", async (shortFirst) => {
+		resetClineRecommendedModelsCacheForTests();
+		const short = new AbortController();
+		const long = new AbortController();
+		const timeout = vi
+			.spyOn(AbortSignal, "timeout")
+			.mockImplementation((ms) => (ms === 100 ? short.signal : long.signal));
+		const releases = new Map<AbortSignal, (response: Response) => void>();
+		const fetchImpl = vi.fn(
+			(_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+				new Promise<Response>((resolve, reject) => {
+					const signal = init?.signal;
+					if (!signal) throw new Error("Expected a bounded request");
+					releases.set(signal, resolve);
+					signal.addEventListener("abort", () => reject(signal.reason), {
+						once: true,
+					});
+				}),
+		);
+		try {
+			const options = {
+				baseUrl: BASE_URL,
+				fetchImpl,
+				catalogLoader: async () => CATALOG,
+			};
+			const first = getCachedClineRecommendedModels({
+				...options,
+				timeoutMs: shortFirst ? 100 : 5_000,
+			});
+			const second = getCachedClineRecommendedModels({
+				...options,
+				timeoutMs: shortFirst ? 5_000 : 100,
+			});
+			expect(fetchImpl).toHaveBeenCalledTimes(2);
+			short.abort(new Error("Short deadline"));
+			expect(await (shortFirst ? first : second)).toEqual(
+				FALLBACK_CLINE_RECOMMENDED_MODELS,
+			);
+			releases.get(long.signal)?.(Response.json(ENDPOINT_PAYLOAD));
+			const data = await (shortFirst ? second : first);
+			expect(data.recommended.map((model) => model.id)).toEqual(
+				ENDPOINT_PAYLOAD.recommended.map((model) => model.id),
+			);
+			expect(long.signal.aborted).toBe(false);
+		} finally {
+			timeout.mockRestore();
+			resetClineRecommendedModelsCacheForTests();
+		}
+	});
+});

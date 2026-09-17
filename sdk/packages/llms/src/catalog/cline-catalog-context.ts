@@ -9,9 +9,14 @@ export interface ClineCatalogContext {
 const transports = new WeakMap<typeof fetch, number>();
 let nextTransport = 0;
 export function clineCatalogBaseUrl(context: ClineCatalogContext): string {
-	return (context.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl)
-		.replace(/\/+$/, "")
-		.replace(/\/api\/v1$/, "");
+	const baseUrl =
+		context.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+	let end = baseUrl.length;
+	while (end > 0 && baseUrl[end - 1] === "/") end--;
+	const normalized = baseUrl.slice(0, end);
+	return normalized.endsWith("/api/v1")
+		? normalized.slice(0, -"/api/v1".length)
+		: normalized;
 }
 export function clineCatalogCacheKey(context: ClineCatalogContext): string {
 	const transport = context.fetchImpl ?? globalThis.fetch;

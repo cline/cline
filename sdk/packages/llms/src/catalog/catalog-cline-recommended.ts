@@ -203,7 +203,9 @@ export async function getClineRecommendedModelsPayload(
 	const cached = payloadCache.get(key);
 	if (cached && cached.expiresAt > Date.now())
 		return structuredClone(cached.data);
-	let pending = pendingPayloads.get(key);
+	// Requests with different deadlines must not share an abort signal.
+	const pendingKey = JSON.stringify([key, timeoutMs]);
+	let pending = pendingPayloads.get(pendingKey);
 	if (!pending) {
 		const generation = payloadGeneration;
 		const fetcher = context.fetchImpl ?? globalThis.fetch;
@@ -220,9 +222,10 @@ export async function getClineRecommendedModelsPayload(
 				return data;
 			})
 			.finally(() => {
-				if (generation === payloadGeneration) pendingPayloads.delete(key);
+				if (generation === payloadGeneration)
+					pendingPayloads.delete(pendingKey);
 			});
-		pendingPayloads.set(key, pending);
+		pendingPayloads.set(pendingKey, pending);
 	}
 	return structuredClone(await pending);
 }
