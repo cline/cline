@@ -156,6 +156,7 @@ export function createConfiguredAgentTools(
 		({ toolName, config }) => {
 			const tool = createTool<ConfiguredAgentInput, SpawnAgentOutput>({
 				name: toolName,
+				executionMode: "parallel",
 				description: `Use the "${config.name}" subagent: ${config.description}`,
 				inputSchema: zodToJsonSchema(ConfiguredAgentInputSchema),
 				execute: async (input, context) => {

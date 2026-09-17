@@ -124,7 +124,64 @@ agent-spawned child (run_commands, MCP servers) inherits. Only `PATH` is
 imported, deliberately; other login-environment variables (`SSH_AUTH_SOCK`,
 API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
 `CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
-[`sidecar/shell-path.ts`](./sidecar/shell-path.ts).
+[`core shell-path.ts`](../../../sdk/packages/core/src/remote/shell-path.ts).
+
+## SSH Remote Environments
+
+Open **Settings → Remote** to add and test an SSH host. Saving or testing a
+profile does not activate it. From the welcome chat, open the environment
+selector beside the workspace picker and choose the saved host; that selection
+starts the SSH connection at the remote user's home directory. Choose **Add
+project…** from the normal workspace selector to browse that machine and select
+a project, or choose **Local** in the environment selector to disconnect. Recent
+and last-used workspaces are remembered separately for each SSH host and for
+the local machine.
+
+SSH config aliases are supported. Leave **Port** blank to use the alias's SSH
+configuration (including its configured port), or enter a port to override it.
+The desktop keeps its webview and native integration local; only the
+authenticated Cline Hub protocol is forwarded through SSH. Agent tools,
+workspace discovery, Git metadata, and session persistence therefore run on the
+SSH host, while approvals and live session events return to the desktop.
+
+The shared `@cline/core` `RemoteEnvironmentService` owns this feature; other
+clients can use the same service and `ClineCore` remote backend (see `sdk/DOC.md`).
+Desktop owns the settings UI and packaged helper resource lookup.
+
+The service stores host metadata at
+`~/.cline/data/settings/remote-environments.json` with mode `0600`. It stores an
+identity-file path, never private-key contents. On first connect it uploads a
+content-addressed, branch-matched, self-contained Hub helper under
+`~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
+random local loopback port. Linux x64 and arm64 helpers are bundled by
+`bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
+supported. macOS SSH targets need a locally built helper passed through
+`CLINE_REMOTE_HELPER_BINARY` until the bundled helpers are codesigned for
+notarization. The helper includes its own runtime. It is copied once per matching desktop build and cached, with no
+`apt`, `npm`, root access,
+global CLI install, or public Hub port. Disconnecting stops the desktop-owned
+remote Hub but leaves the helper cached for a faster reconnect. The helper
+imports the remote login-shell `PATH`, so user-installed Git, GitHub CLI, and
+MCP executables remain visible.
+
+Each service instance uses its own discovery record, so an existing Cline CLI/Hub on the
+same account is neither replaced nor stopped. Both Hub processes can coexist
+while the desktop is connected; this isolation keeps the remote helper separate from the default CLI Hub.
+
+The desktop currently leaves file attachments and opening a remote file in a local
+editor disabled. Text, images, file mentions/search, Git branch operations,
+session history, and remote agent tools are supported. The current desktop
+provider access/API token is sent through the authenticated tunnel for the
+session; reusable OAuth refresh credentials are not copied into remote provider
+settings.
+
+For a real SSH acceptance run, `scripts/verify-ssh-poc.ts` accepts
+`CLINE_SSH_TEST_HOST`, `CLINE_SSH_TEST_USER`, `CLINE_SSH_TEST_KEY`,
+`CLINE_SSH_TEST_WORKSPACE`, and `CLINE_SSH_TEST_HELPER`. It starts a remote
+connection at the SSH user's home, starts an agent session in the test
+workspace with the selected desktop provider, asks the agent to read
+`REMOTE_MARKER.txt`, then verifies the session appears in remote history and
+that its messages can be read back.
 
 ## Web Visual System
 
@@ -289,3 +346,5 @@ credentials, request headers, recorded audio, or transcript contents.
   The sidecar mints a short-lived transcription token; the long-lived gateway
   credential is never sent to the webview. Batch models such as
   `openai/whisper-1` continue to transcribe after recording stops.
+
+SSH requires an already-trusted host key. Before first connection, verify the server fingerprint through a trusted channel and enroll it with your SSH client. Unknown or changed keys are rejected.

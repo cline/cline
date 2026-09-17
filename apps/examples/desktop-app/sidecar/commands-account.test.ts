@@ -104,7 +104,14 @@ describe("provider settings cloud session lifecycle", () => {
 		expect(ctx.cloudSessionManager).toBe(resets ? null : cloudManager);
 		expect(dispose).toHaveBeenCalledTimes(resets ? 1 : 0);
 		expect(send.mock.calls.map(([raw]) => JSON.parse(raw).event)).toEqual(
-			resets ? [{ name: "cloud_sessions_changed", payload: {} }] : [],
+			resets
+				? [
+						{
+							name: "cloud_sessions_changed",
+							payload: { environmentId: "local" },
+						},
+					]
+				: [],
 		);
 	});
 

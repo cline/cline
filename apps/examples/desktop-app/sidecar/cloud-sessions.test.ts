@@ -7,7 +7,7 @@ import {
 	CloudSessionManager,
 	type CloudSessionRecord,
 } from "./cloud-sessions";
-import { disposeSidecarContext } from "./context";
+import { createSidecarContext, disposeSidecarContext } from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
@@ -26,11 +26,8 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx = {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		coreStreamActivity: new Map(),
+	const ctx: SidecarContext = {
+		...createSidecarContext("/local/workspace"),
 		bootId: "cloud-test-boot",
 		wsClients: new Set([
 			{
@@ -44,15 +41,7 @@ function createContext(): {
 				},
 			},
 		]),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		hubBuildMismatch: null,
-		workspaceRoot: "/local/workspace",
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-	} as SidecarContext;
+	};
 	return { ctx, events };
 }
 
@@ -242,7 +231,11 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				sessionId: "ses-outer",
+				status: "running",
+				environmentId: "local",
+			},
 		});
 	});
 

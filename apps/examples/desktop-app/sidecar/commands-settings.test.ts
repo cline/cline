@@ -7,6 +7,7 @@ import {
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleCommand } from "./commands";
+import { createSidecarContext } from "./context";
 import type { SidecarContext } from "./types";
 
 function createContext(): {
@@ -14,10 +15,8 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx = {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
+	const ctx: SidecarContext = {
+		...createSidecarContext("/local/workspace"),
 		wsClients: new Set([
 			{
 				send(message: string) {
@@ -28,14 +27,7 @@ function createContext(): {
 				},
 			},
 		]),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot: "/local/workspace",
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-	} as SidecarContext;
+	};
 	return { ctx, events };
 }
 
@@ -117,7 +109,11 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
-				payload: { cloudAgents: false, cloudAgentsAvailable: false },
+				payload: {
+					cloudAgents: false,
+					cloudAgentsAvailable: false,
+					environmentId: "local",
+				},
 			},
 		]);
 		await expect(

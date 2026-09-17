@@ -36,9 +36,11 @@ import type {
 	PendingAskQuestion,
 	PendingToolApproval,
 	PromptInQueue,
+	SessionRuntimeBinding,
 	SidecarContext,
 	SidecarWebSocketClient,
 } from "./types";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
 const hubClientInitialization = new WeakMap<
@@ -50,6 +52,73 @@ const approvalReadinessUpdates = new WeakMap<SidecarContext, Promise<void>>();
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
 // ---------------------------------------------------------------------------
+
+// Session state belongs to a runtime environment, not to a globally unique ID.
+const environmentContexts = new WeakMap<
+	SidecarContext,
+	Map<string, SidecarContext>
+>();
+const contextOwners = new WeakMap<SidecarContext, SidecarContext>();
+
+export function getEnvironmentContext(
+	ctx: SidecarContext,
+	environmentId: string,
+): SidecarContext {
+	const owner = contextOwners.get(ctx) ?? ctx;
+	let contexts = environmentContexts.get(owner);
+	if (!contexts) {
+		contexts = new Map();
+		environmentContexts.set(owner, contexts);
+	}
+	const existing = contexts.get(environmentId);
+	if (existing) return existing;
+	const local = environmentId === LOCAL_ENVIRONMENT_ID;
+	// Shared services are inherited so later initialization remains visible;
+	// session state and event identity are owned by this environment.
+	const scoped: SidecarContext = Object.assign(Object.create(owner), {
+		activeEnvironmentId: environmentId,
+		liveSessions: local ? owner.liveSessions : new Map(),
+		streamIndices: local ? owner.streamIndices : new Map(),
+		sessionEnvironmentIds: local ? owner.sessionEnvironmentIds : new Map(),
+		restoringWorkspacePaths: local ? owner.restoringWorkspacePaths : new Set(),
+		pendingApprovals: local ? owner.pendingApprovals : new Map(),
+		pendingQuestions: local ? owner.pendingQuestions : new Map(),
+	});
+	contextOwners.set(scoped, owner);
+	contexts.set(environmentId, scoped);
+	return scoped;
+}
+
+export function getEnvironmentContexts(ctx: SidecarContext): SidecarContext[] {
+	const owner = contextOwners.get(ctx) ?? ctx;
+	getEnvironmentContext(owner, LOCAL_ENVIRONMENT_ID);
+	return [...(environmentContexts.get(owner)?.values() ?? [])];
+}
+function clearEnvironmentSessions(ctx: SidecarContext, reason: string): void {
+	for (const [id, session] of ctx.liveSessions)
+		discardAllTrackedAttachments(id, session);
+	ctx.liveSessions.clear();
+	ctx.streamIndices.clear();
+	ctx.sessionEnvironmentIds.clear();
+	ctx.restoringWorkspacePaths.clear();
+	for (const pending of ctx.pendingApprovals.values())
+		pending.resolve({ approved: false, reason });
+	ctx.pendingApprovals.clear();
+	for (const pending of ctx.pendingQuestions.values()) {
+		if (pending.timeoutId) clearTimeout(pending.timeoutId);
+		pending.reject(new Error(reason));
+	}
+	ctx.pendingQuestions.clear();
+}
+
+function sessionEventPayload(ctx: SidecarContext, payload: unknown): unknown {
+	return payload && typeof payload === "object"
+		? {
+				environmentId: ctx.activeEnvironmentId ?? LOCAL_ENVIRONMENT_ID,
+				...payload,
+			}
+		: payload;
+}
 
 function nowMs(): number {
 	return Date.now();
@@ -63,7 +132,7 @@ export function encodeSidecarEvent(name: string, payload: unknown): string {
 }
 
 function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
-	const encoded = encodeSidecarEvent(name, payload);
+	const encoded = encodeSidecarEvent(name, sessionEventPayload(ctx, payload));
 	for (const client of ctx.wsClients) {
 		try {
 			client.send(encoded);
@@ -84,7 +153,7 @@ export function sendEventToClient(
 	payload: unknown,
 ): boolean {
 	try {
-		client.send(encodeSidecarEvent(name, payload));
+		client.send(encodeSidecarEvent(name, sessionEventPayload(ctx, payload)));
 		return true;
 	} catch {
 		ctx.wsClients.delete(client);
@@ -100,13 +169,15 @@ export function cancelSidecarToolApprovalsForOwner(
 	ctx: SidecarContext,
 	owner: SidecarWebSocketClient,
 ): void {
-	for (const [requestId, pending] of ctx.pendingApprovals) {
-		if (pending.owner !== owner) continue;
-		ctx.pendingApprovals.delete(requestId);
-		pending.resolve({
-			approved: false,
-			reason: "Desktop approval surface disconnected",
-		});
+	for (const scoped of getEnvironmentContexts(ctx)) {
+		for (const [requestId, pending] of scoped.pendingApprovals) {
+			if (pending.owner !== owner) continue;
+			scoped.pendingApprovals.delete(requestId);
+			pending.resolve({
+				approved: false,
+				reason: "Desktop approval surface disconnected",
+			});
+		}
 	}
 }
 
@@ -117,21 +188,21 @@ export function syncSidecarApprovalReadiness(
 	const update = previous
 		.catch(() => undefined)
 		.then(async () => {
-			const hubClient = ctx.hubClient;
-			if (!hubClient) return;
-			await hubClient.updateCapabilities(
-				[...ctx.wsClients].some(
-					(client) => client.data?.canApproveTools === true,
-				)
-					? [
-							{
-								name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
-								description:
-									"Cline Code has a live user surface for tool review.",
-							},
-						]
-					: [],
-			);
+			for (const { hubClient } of ctx.runtimeBindings.values()) {
+				await hubClient.updateCapabilities(
+					[...ctx.wsClients].some(
+						(client) => client.data?.canApproveTools === true,
+					)
+						? [
+								{
+									name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+									description:
+										"Cline Code has a live user surface for tool review.",
+								},
+							]
+						: [],
+				);
+			}
 		});
 	approvalReadinessUpdates.set(ctx, update);
 	return update.finally(() => {
@@ -178,7 +249,8 @@ function emitChunk(
 	chunk: string,
 ): void {
 	const ts = nowMs();
-	appendSessionChunk(sessionId, stream, chunk, ts);
+	if (ctx.activeEnvironmentId === LOCAL_ENVIRONMENT_ID)
+		appendSessionChunk(sessionId, stream, chunk, ts);
 	const nextIndex = (ctx.streamIndices.get(sessionId) ?? 0) + 1;
 	ctx.streamIndices.set(sessionId, nextIndex);
 	sendEvent(ctx, "chat_event", {
@@ -593,13 +665,14 @@ export function createSidecarContext(
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot,
+		runtimeBindings: new Map(),
+		sessionEnvironmentIds: new Map(),
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		telemetryUser: observability.telemetryUser,
-		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
 		hubBuildMismatch: null,
 	};
@@ -612,13 +685,22 @@ export async function disposeSidecarContext(
 	const cleanup: Array<Promise<unknown>> = [];
 	const approvalCleanup: Array<Promise<unknown>> = [];
 
-	ctx.unsubscribeSessionEvents?.();
-	ctx.unsubscribeSessionEvents = null;
-
-	for (const [sessionId, session] of ctx.liveSessions) {
-		discardAllTrackedAttachments(sessionId, session);
+	for (const scoped of getEnvironmentContexts(ctx)) {
+		for (const pending of scoped.pendingApprovals.values()) {
+			if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
+				continue;
+			}
+			try {
+				approvalCleanup.push(
+					Promise.resolve(pending.resolve({ approved: false, reason })),
+				);
+			} catch (error) {
+				approvalCleanup.push(Promise.reject(error));
+			}
+		}
+		scoped.pendingApprovals.clear();
+		clearEnvironmentSessions(scoped, reason);
 	}
-	ctx.liveSessions.clear();
 
 	for (const client of ctx.wsClients) {
 		try {
@@ -628,26 +710,6 @@ export async function disposeSidecarContext(
 		}
 	}
 	ctx.wsClients.clear();
-	for (const pending of ctx.pendingApprovals.values()) {
-		// Drop remote approvals locally without denying them: the pod outlives
-		// this app, and another client can still answer.
-		if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
-			continue;
-		}
-		try {
-			approvalCleanup.push(
-				Promise.resolve(pending.resolve({ approved: false, reason })),
-			);
-		} catch (error) {
-			approvalCleanup.push(Promise.reject(error));
-		}
-	}
-	ctx.pendingApprovals.clear();
-	for (const pending of ctx.pendingQuestions.values()) {
-		if (pending.timeoutId) clearTimeout(pending.timeoutId);
-		pending.reject(new Error(reason));
-	}
-	ctx.pendingQuestions.clear();
 	// Approval callbacks may need the Hub/cloud clients that are disposed below.
 	const approvalResults = await Promise.allSettled(approvalCleanup);
 
@@ -657,16 +719,16 @@ export async function disposeSidecarContext(
 		cleanup.push(cloudSessionManager.dispose());
 	}
 
-	const hubClient = ctx.hubClient;
-	ctx.hubClient = null;
-	if (hubClient) {
-		cleanup.push(hubClient.dispose());
+	for (const binding of ctx.runtimeBindings.values()) {
+		binding.unsubscribeSessionEvents();
+		cleanup.push(binding.hubClient.dispose());
+		cleanup.push(binding.sessionManager.dispose(reason));
 	}
-
-	const sessionManager = ctx.sessionManager;
-	ctx.sessionManager = null;
-	if (sessionManager) {
-		cleanup.push(sessionManager.dispose(reason));
+	ctx.runtimeBindings.clear();
+	ctx.sessionEnvironmentIds.clear();
+	if (ctx.remoteEnvironments) {
+		cleanup.push(ctx.remoteEnvironments.dispose());
+		ctx.remoteEnvironments = null;
 	}
 
 	// Shuts down the PostHog client the feature flags service owns, flushing
@@ -905,7 +967,11 @@ export function handleHubLiveEvent(
 	// of start/send/pending_prompts and unsubscribes on stop); once it is,
 	// `handleCoreSessionEvent` carries everything below and a second copy here
 	// would double every delta, tool row, and status change.
-	if (ctx.sessionManager?.hasSessionSubscription(sessionId)) {
+	if (
+		ctx.runtimeBindings
+			.get(ctx.activeEnvironmentId ?? LOCAL_ENVIRONMENT_ID)
+			?.sessionManager.hasSessionSubscription(sessionId)
+	) {
 		return;
 	}
 
@@ -1202,7 +1268,7 @@ async function handleHubApprovalRequest(
 				? (event.payload.policy as ToolApprovalRequest["policy"])
 				: { autoApprove: false },
 	});
-	const client = ctx.hubClient;
+	const client = getSessionRuntimeBinding(ctx, sessionId).hubClient;
 	if (!client)
 		throw new Error("Hub client disconnected before approval response");
 	await client.command(
@@ -1223,7 +1289,9 @@ export async function initializeSessionManager(
 	const sessionManager = await ClineCore.create({
 		clientName: "cline-code",
 		backendMode: "hub",
-		capabilities: createSidecarRuntimeCapabilities(ctx),
+		capabilities: createSidecarRuntimeCapabilities(
+			getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
+		),
 		logger: ctx.logger,
 		telemetry: ctx.telemetry,
 		featureFlags: getDesktopFeatureFlagsService({
@@ -1232,8 +1300,8 @@ export async function initializeSessionManager(
 		}),
 		hub: {
 			strategy: "require-hub",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
 			clientType: "code-sidecar",
 			displayName: "Cline Desktop sidecar",
 		},
@@ -1241,27 +1309,193 @@ export async function initializeSessionManager(
 
 	// Subscribe to all session events and relay them to WS clients
 	const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
-		handleCoreSessionEvent(ctx, event);
+		handleCoreSessionEvent(
+			getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
+			event,
+		);
 	});
 
+	let hubClient: NodeHubClient;
 	try {
-		await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+		hubClient = await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
 	} catch (error) {
 		unsubscribe();
 		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
 		throw error;
 	}
 
-	ctx.sessionManager = sessionManager;
-	ctx.unsubscribeSessionEvents = unsubscribe;
+	ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+		environmentId: LOCAL_ENVIRONMENT_ID,
+		kind: "local",
+		workspaceRoot: ctx.localWorkspaceRoot,
+		sessionManager,
+		hubClient,
+		unsubscribeSessionEvents: unsubscribe,
+	});
+	await syncSidecarApprovalReadiness(ctx);
+}
+
+export function getRuntimeBinding(
+	ctx: SidecarContext,
+	environmentId = ctx.activeEnvironmentId,
+): SessionRuntimeBinding {
+	const binding = ctx.runtimeBindings.get(environmentId);
+	if (!binding) {
+		throw new Error(`Environment ${environmentId} is not connected.`);
+	}
+	return binding;
+}
+
+export function getSessionRuntimeBinding(
+	ctx: SidecarContext,
+	sessionId?: string,
+	requestedEnvironmentId?: string,
+): SessionRuntimeBinding {
+	const environmentId =
+		requestedEnvironmentId?.trim() ||
+		(sessionId ? ctx.liveSessions.get(sessionId)?.environmentId : undefined) ||
+		(sessionId ? ctx.sessionEnvironmentIds.get(sessionId) : undefined) ||
+		ctx.activeEnvironmentId;
+	return getRuntimeBinding(ctx, environmentId);
+}
+
+export async function findSessionRuntimeBinding(
+	ctx: SidecarContext,
+	sessionId: string,
+	preferredEnvironmentId?: string,
+): Promise<SessionRuntimeBinding | undefined> {
+	if (preferredEnvironmentId?.trim())
+		return getRuntimeBinding(ctx, preferredEnvironmentId.trim());
+	const matches: SessionRuntimeBinding[] = [];
+	for (const binding of ctx.runtimeBindings.values()) {
+		try {
+			if (await binding.sessionManager.get(sessionId)) matches.push(binding);
+		} catch {
+			// Other connected runtimes remain readable.
+		}
+	}
+	if (matches.length > 1)
+		throw new Error(
+			`Session ${sessionId} exists in multiple environments; environmentId is required.`,
+		);
+	return matches[0];
+}
+
+async function disposeRuntimeBinding(
+	binding: SessionRuntimeBinding,
+	reason: string,
+): Promise<void> {
+	try {
+		binding.unsubscribeSessionEvents();
+	} catch {
+		// Continue disposing the Hub clients even if an event source has already
+		// torn down its subscription.
+	}
+	await Promise.allSettled([
+		binding.hubClient.dispose(),
+		binding.sessionManager.dispose(reason),
+	]);
+}
+
+export async function connectRemoteSessionRuntime(
+	ctx: SidecarContext,
+	connection: NonNullable<SessionRuntimeBinding["remote"]>,
+): Promise<SessionRuntimeBinding> {
+	const environmentId = connection.profile.id;
+	const existing = ctx.runtimeBindings.get(environmentId);
+	const sessionManager = await ClineCore.create({
+		clientName: "cline-code",
+		backendMode: "remote",
+		capabilities: createSidecarRuntimeCapabilities(
+			getEnvironmentContext(ctx, environmentId),
+		),
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
+		remote: {
+			endpoint: connection.endpoint,
+			authToken: connection.authToken,
+			workspaceRoot: connection.workspaceRoot,
+			cwd: connection.workspaceRoot,
+			clientType: "code-sidecar-ssh",
+			displayName: `Code App (${connection.profile.name})`,
+		},
+	});
+	let unsubscribe: (() => void) | undefined;
+	let hubClient: NodeHubClient | undefined;
+	try {
+		unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
+			handleCoreSessionEvent(getEnvironmentContext(ctx, environmentId), event);
+		});
+		hubClient = new NodeHubClient({
+			url: connection.endpoint,
+			authToken: connection.authToken,
+			clientType: "code-sidecar-ssh-observer",
+			displayName: `Code App observer (${connection.profile.name})`,
+			workspaceRoot: connection.workspaceRoot,
+			cwd: connection.workspaceRoot,
+		});
+		await hubClient.connect();
+		hubClient.subscribe((event) =>
+			handleHubLiveEvent(getEnvironmentContext(ctx, environmentId), event),
+		);
+	} catch (error) {
+		try {
+			unsubscribe?.();
+		} catch {
+			// Best effort; the failed runtime still needs to be disposed below.
+		}
+		const disposals: Promise<unknown>[] = [
+			sessionManager.dispose("code_sidecar_remote_initialization_failed"),
+		];
+		if (hubClient) disposals.push(hubClient.dispose());
+		await Promise.allSettled(disposals);
+		throw error;
+	}
+
+	const binding: SessionRuntimeBinding = {
+		environmentId,
+		kind: "ssh",
+		workspaceRoot: connection.workspaceRoot,
+		sessionManager,
+		hubClient,
+		unsubscribeSessionEvents: unsubscribe,
+		remote: connection,
+	};
+	ctx.runtimeBindings.set(environmentId, binding);
+	await syncSidecarApprovalReadiness(ctx);
+	ctx.activeEnvironmentId = environmentId;
+	if (existing) {
+		await disposeRuntimeBinding(existing, "code_sidecar_remote_reconnect");
+	}
+	return binding;
+}
+
+export async function disconnectRemoteSessionRuntime(
+	ctx: SidecarContext,
+	environmentId: string,
+): Promise<void> {
+	const binding = ctx.runtimeBindings.get(environmentId);
+	const owner = contextOwners.get(ctx) ?? ctx;
+	const scoped = environmentContexts.get(owner)?.get(environmentId);
+	if (scoped)
+		clearEnvironmentSessions(scoped, "Remote environment disconnected");
+	environmentContexts.get(owner)?.delete(environmentId);
+	if (binding?.kind === "ssh") {
+		ctx.runtimeBindings.delete(environmentId);
+		await disposeRuntimeBinding(binding, "code_sidecar_remote_disconnect");
+	}
+	if (ctx.activeEnvironmentId === environmentId) {
+		ctx.activeEnvironmentId = LOCAL_ENVIRONMENT_ID;
+	}
 }
 
 export async function ensureSharedHubClient(
 	ctx: SidecarContext,
 	preferredUrl?: string,
 ): Promise<NodeHubClient> {
-	if (ctx.hubClient) {
-		return ctx.hubClient;
+	const existing = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+	if (existing) {
+		return existing;
 	}
 	const pending = hubClientInitialization.get(ctx);
 	if (pending) {
@@ -1273,8 +1507,8 @@ export async function ensureSharedHubClient(
 			preferredUrl?.trim() ||
 			(await ensureCompatibleLocalHubUrl({
 				strategy: "require-hub",
-				workspaceRoot: ctx.workspaceRoot,
-				cwd: ctx.workspaceRoot,
+				workspaceRoot: ctx.localWorkspaceRoot,
+				cwd: ctx.localWorkspaceRoot,
 			}));
 		if (!url) {
 			throw new Error("Unable to start or connect to the shared Cline Hub.");
@@ -1284,16 +1518,17 @@ export async function ensureSharedHubClient(
 			url,
 			clientType: "code-sidecar-observer",
 			displayName: "Cline Desktop observer",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
 		});
 		try {
 			await client.connect();
 			client.subscribe((event) => {
-				handleHubLiveEvent(ctx, event);
+				handleHubLiveEvent(
+					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
+					event,
+				);
 			});
-			ctx.hubClient = client;
-			await syncSidecarApprovalReadiness(ctx);
 			return client;
 		} catch (error) {
 			await client.dispose().catch(() => undefined);
