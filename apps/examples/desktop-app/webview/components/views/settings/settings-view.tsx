@@ -75,6 +75,7 @@ import {
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
+import { UsageContent } from "./usage-view";
 import { VoiceInputContent } from "./voice-input-view";
 
 // Nav categories live in ./sections so the always-mounted sidebar can import
@@ -625,6 +626,8 @@ export function SettingsView({
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Import" ? (
 			<ImportContent />
+		) : activeNav === "Usage" ? (
+			<UsageContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
