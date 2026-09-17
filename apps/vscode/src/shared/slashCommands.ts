@@ -31,6 +31,3 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 	},
 ]
-
-// VS Code-only slash commands
-export const VSCODE_ONLY_COMMANDS: SlashCommand[] = []
