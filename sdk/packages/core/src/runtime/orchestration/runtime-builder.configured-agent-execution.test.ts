@@ -293,6 +293,54 @@ Write a concise commit message.`,
 		expect(executeSkill).toHaveBeenCalledTimes(1);
 		expect(requestToolApproval).not.toHaveBeenCalled();
 
+		// Approval remains enforced at the parent delegation boundary.
+		const executeDelegation = vi.spyOn(reviewer, "execute");
+		for (const approved of [false, true]) {
+			executeDelegation.mockClear();
+			agentConstructorSpy.mockClear();
+			requestToolApproval.mockClear();
+			requestToolApproval.mockResolvedValue({ approved });
+			let parentTurns = 0;
+			const parentModel: AgentModel = {
+				async *stream() {
+					if (parentTurns++ === 0) {
+						yield {
+							type: "tool-call-delta",
+							toolCallId: "delegate-review",
+							toolName: reviewer.name,
+							inputText: JSON.stringify({ prompt: "review this change" }),
+						};
+						yield { type: "finish", reason: "tool-calls" };
+					} else {
+						yield { type: "text-delta", text: "done" };
+						yield { type: "finish", reason: "stop" };
+					}
+				},
+			};
+			const parent = new AgentRuntime(
+				createAgentRuntimeConfig({
+					agentConfig: {
+						providerId: "test",
+						modelId: "test",
+						systemPrompt: "test",
+						tools: [reviewer],
+						toolPolicies: effectiveToolPolicies,
+						requestToolApproval,
+					},
+					agentId: "parent-agent",
+					model: parentModel,
+					tools: [reviewer],
+					completionPolicy: null,
+				}),
+			);
+			expect((await parent.run("Delegate review")).status).toBe("completed");
+			expect(requestToolApproval).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({ toolName: reviewer.name }),
+			);
+			expect(executeDelegation).toHaveBeenCalledTimes(approved ? 1 : 0);
+			expect(agentConstructorSpy).toHaveBeenCalledTimes(approved ? 1 : 0);
+		}
+
 		await runtime.shutdown("test");
 	});
 

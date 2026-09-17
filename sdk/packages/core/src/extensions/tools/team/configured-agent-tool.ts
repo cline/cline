@@ -160,6 +160,8 @@ export function createConfiguredAgentTools(
 					const tools = options.createSubAgentTools
 						? await options.createSubAgentTools(config, input, context)
 						: [];
+					// The parent approves delegation; child tools run autonomously,
+					// matching generic subagents and teammates. Do not inherit approval policy.
 					const subAgent = createDelegatedAgent({
 						kind: "subagent",
 						prompt: config.systemPrompt,
