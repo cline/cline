@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { SessionSource } from "../../types/common";
+import { ConversationSnapshot } from "../models/conversation-snapshot";
 import { createSessionCompactionState } from "../models/session-compaction";
 import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
@@ -177,7 +178,7 @@ describe("UnifiedSessionPersistenceService", () => {
 			{ id: "summary", role: "user" as const, content: "summary" },
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages,
 			conversationId: "conv-1",
 			updatedAt: "2026-01-01T00:00:01.000Z",
@@ -235,7 +236,7 @@ describe("UnifiedSessionPersistenceService", () => {
 			{ id: "u1", role: "user" as const, content: "full transcript" },
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages: [
 				{ id: "summary", role: "user" as const, content: "summary" },
 			],
@@ -288,9 +289,9 @@ describe("UnifiedSessionPersistenceService", () => {
 			"utf8",
 		);
 		const state = createSessionCompactionState({
-			sourceMessages: [
+			source: ConversationSnapshot.capture([
 				{ id: "u1", role: "user" as const, content: "full transcript" },
-			],
+			]),
 			compactedMessages: [
 				{ id: "summary", role: "user" as const, content: "summary" },
 			],

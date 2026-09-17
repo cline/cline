@@ -484,6 +484,7 @@ export type {
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionCompactionResult,
 	SessionUsageSummary,
 	StartSessionConfig,
 	StartSessionInput,
@@ -1074,6 +1075,7 @@ export {
 	TelemetryService,
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";
+export { ConversationSnapshot } from "./session/models/conversation-snapshot";
 export {
 	createSessionCompactionState,
 	parseSessionCompactionState,

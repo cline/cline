@@ -2,7 +2,7 @@ import { projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
-	type MessageWithMetadata,
+	type SessionHistoryEntry,
 	type ToolResultContent,
 	type ToolUseContent,
 } from "@cline/shared";
@@ -11,7 +11,7 @@ import { formatStructuredCommand } from "../utils/helpers";
 export interface ConversationHistory {
 	version: number;
 	updated_at: string;
-	messages: MessageWithMetadata[];
+	messages: SessionHistoryEntry[];
 	systemPrompt?: string;
 	system_prompt?: string;
 	sessionId?: string;
@@ -648,7 +648,7 @@ export function generateConversationHTML(
 }
 
 function generateMessageHTML(
-	message: MessageWithMetadata,
+	message: SessionHistoryEntry,
 	isUser: boolean,
 	hideHeader: boolean,
 	toolResultsMap: Map<string, ToolResultContent>,
@@ -670,7 +670,7 @@ function generateMessageHTML(
         <div class="avatar ${isUser ? "user" : "assistant"}">
           ${isUser ? "U" : "A"}
         </div>
-        <span class="role">${isUser ? "User" : "Assistant"}</span>
+        <span class="role">${isUser ? "User" : message.role === "error" ? "Error" : "Assistant"}</span>
         ${message.modelInfo?.id ? `<span class="model">${escapeHtml(message.modelInfo.id)}</span>` : ""}
       </div>
       <div class="content">

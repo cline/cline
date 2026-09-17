@@ -38,11 +38,11 @@ export class SessionVersioningError extends Error {
 
 export interface SessionCheckpointRestoreContext {
 	sourceSession: SessionRecord;
-	sourceMessages?: LlmsProviders.MessageWithMetadata[];
+	sourceMessages?: LlmsProviders.SessionHistoryEntry[];
 	sourceSnapshot: CoreSessionSnapshot;
 	plan: CheckpointRestorePlan;
 	restoredCheckpointMetadata?: CheckpointMetadata;
-	initialMessages: LlmsProviders.MessageWithMetadata[];
+	initialMessages: LlmsProviders.SessionHistoryEntry[];
 	restoreMessages: boolean;
 	restoreWorkspace: boolean;
 	checkpointRunCount: number;
@@ -51,7 +51,7 @@ export interface SessionCheckpointRestoreContext {
 export interface SessionCheckpointRestoreResult<TStartResult = unknown> {
 	sessionId?: string;
 	startResult?: TStartResult;
-	messages?: LlmsProviders.MessageWithMetadata[];
+	messages?: LlmsProviders.SessionHistoryEntry[];
 	checkpoint: CheckpointEntry;
 	sourceSnapshot: CoreSessionSnapshot;
 	restoredSnapshot?: CoreSessionSnapshot;
@@ -68,7 +68,7 @@ export interface SessionCheckpointRestoreInput<
 	restore?: RestoreSessionInput["restore"];
 	start?: TRestoreStartInput;
 	getSession(sessionId: string): Promise<SessionRecord | undefined>;
-	readMessages(sessionId: string): Promise<LlmsProviders.MessageWithMetadata[]>;
+	readMessages(sessionId: string): Promise<LlmsProviders.SessionHistoryEntry[]>;
 	buildStartInput?: (
 		context: SessionCheckpointRestoreContext,
 		start: TRestoreStartInput,
@@ -173,7 +173,7 @@ export class SessionVersioningService {
 		};
 
 		let sourceSession: SessionRecord;
-		let sourceMessages: LlmsProviders.MessageWithMetadata[] | undefined;
+		let sourceMessages: LlmsProviders.SessionHistoryEntry[] | undefined;
 		let plan: CheckpointRestorePlan;
 		try {
 			const sourceSessionId = validateRestoreOptions({
@@ -219,7 +219,7 @@ export class SessionVersioningService {
 			messages: sourceMessages,
 		});
 		let restoredCheckpointMetadata: CheckpointMetadata | undefined;
-		let initialMessages: LlmsProviders.MessageWithMetadata[] = [];
+		let initialMessages: LlmsProviders.SessionHistoryEntry[] = [];
 		let startInput: TStartInput | undefined;
 		let messageRestoreOperations:
 			| {

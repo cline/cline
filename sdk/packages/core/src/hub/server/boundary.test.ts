@@ -8,6 +8,7 @@ import {
 	type StartSessionInput,
 	type StartSessionResult,
 } from "../../runtime/host/runtime-host";
+import { ConversationSnapshot } from "../../session/models/conversation-snapshot";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionVersioningService } from "../../session/session-versioning-service";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
@@ -1323,7 +1324,9 @@ describe("HubServerTransport boundaries", () => {
 
 	it("does not grant compaction sidecar ownership from session attach", async () => {
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "session-1",
 		});
@@ -1386,7 +1389,9 @@ describe("HubServerTransport boundaries", () => {
 
 	it("allows a creator to claim ownerless compaction sidecar ownership", async () => {
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "session-1",
 		});
@@ -1423,6 +1428,34 @@ describe("HubServerTransport boundaries", () => {
 			payload: { state },
 		});
 		expect(readSessionCompactionState).toHaveBeenCalledWith("session-1");
+	});
+
+	it("runs core-owned compaction only for the owning session client", async () => {
+		const result = {
+			compacted: true,
+			messagesBefore: 5,
+			messagesAfter: 5,
+			workingContextMessagesAfter: 1,
+		};
+		const compactSession = vi.fn().mockResolvedValue(result);
+		const transport = createTransport({ sessionHost: { compactSession } });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+		const request = {
+			version: "v1" as const,
+			requestId: "compact",
+			command: "session.compact" as const,
+			sessionId: "session-1",
+		};
+		expect(
+			await transport.handleCommand({ ...request, clientId: "viewer-client" }),
+		).toMatchObject({ ok: false });
+		expect(compactSession).not.toHaveBeenCalled();
+		expect(
+			await transport.handleCommand({ ...request, clientId: "owner-client" }),
+		).toMatchObject({ ok: true, payload: result });
+		expect(compactSession).toHaveBeenCalledExactlyOnceWith("session-1");
 	});
 
 	it("clears compaction sidecar ownership when the owner detaches", async () => {
@@ -1506,7 +1539,9 @@ describe("HubServerTransport boundaries", () => {
 
 	it("returns compaction sidecar state to the server-owned session client", async () => {
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "session-1",
 		});
@@ -1630,7 +1665,9 @@ describe("HubServerTransport boundaries", () => {
 
 	it("publishes session updates after successful compaction sidecar updates", async () => {
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "session-1",
 		});
@@ -1674,7 +1711,9 @@ describe("HubServerTransport boundaries", () => {
 
 	it("does not publish session updates when compaction sidecar update is stale", async () => {
 		const state = createSessionCompactionState({
-			sourceMessages: [{ role: "user", content: "source" }],
+			source: ConversationSnapshot.capture([
+				{ role: "user", content: "source" },
+			]),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			conversationId: "session-1",
 		});

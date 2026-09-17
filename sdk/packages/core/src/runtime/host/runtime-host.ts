@@ -157,7 +157,7 @@ export interface StartSessionInput {
 	prompt?: string;
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
-	initialMessages?: LlmsProviders.MessageWithMetadata[];
+	initialMessages?: LlmsProviders.SessionHistoryEntry[];
 	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
@@ -355,7 +355,7 @@ export interface RestoreSessionInput {
 export interface RestoreSessionResult {
 	sessionId?: string;
 	startResult?: StartSessionResult;
-	messages?: LlmsProviders.MessageWithMetadata[];
+	messages?: LlmsProviders.SessionHistoryEntry[];
 	checkpoint: CheckpointEntry;
 }
 
@@ -369,7 +369,16 @@ export interface ListSessionsOptions {
  * Callers must normalize broad local config into `RuntimeSessionConfig`
  * plus optional named `localRuntime` bootstrap fields before invoking a host.
  */
+export interface SessionCompactionResult {
+	notice?: Record<string, unknown>;
+	compacted: boolean;
+	messagesBefore: number;
+	messagesAfter: number;
+	workingContextMessagesAfter?: number;
+}
+
 export interface RuntimeHost {
+	compactSession(sessionId: string): Promise<SessionCompactionResult>;
 	readonly runtimeAddress?: string;
 	startSession(input: StartSessionInput): Promise<StartSessionResult>;
 	runTurn(input: SendSessionInput): Promise<AgentResult | undefined>;
@@ -400,7 +409,7 @@ export interface RuntimeHost {
 	): Promise<SessionCompactionState | undefined>;
 	readSessionMessages(
 		sessionId: string,
-	): Promise<LlmsProviders.MessageWithMetadata[]>;
+	): Promise<LlmsProviders.SessionHistoryEntry[]>;
 	/**
 	 * Like {@link readSessionMessages}, but prefers the resident session's
 	 * in-memory conversation over the persisted transcript. Disk persistence
@@ -412,7 +421,7 @@ export interface RuntimeHost {
 	 */
 	readLiveSessionMessages?(
 		sessionId: string,
-	): Promise<LlmsProviders.MessageWithMetadata[]>;
+	): Promise<LlmsProviders.SessionHistoryEntry[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,

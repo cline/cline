@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ConversationSnapshot } from "./conversation-snapshot";
 import {
 	createSessionCompactionState,
 	parseSessionCompactionState,
@@ -9,12 +10,12 @@ describe("session compaction state", () => {
 	it("rejects fallback boundary keys when a message role contains the delimiter", () => {
 		expect(() =>
 			createSessionCompactionState({
-				sourceMessages: [
+				source: ConversationSnapshot.capture([
 					{
 						role: "user:custom",
 						content: "invalid role",
 					} as never,
-				],
+				]),
 				compactedMessages: [
 					{ id: "summary", role: "user" as const, content: "summary" },
 				],
@@ -63,7 +64,7 @@ describe("session compaction state", () => {
 			{ id: "summary", role: "user" as const, content: "summary" },
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages,
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
@@ -77,9 +78,12 @@ describe("session compaction state", () => {
 			toolResult("c", "tool-a_tool_c", 30),
 		];
 
-		expect(projectSessionCompactionState(state, resumedMessages)).toEqual(
-			compactedMessages,
-		);
+		expect(
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture(resumedMessages),
+			).messages,
+		).toEqual(compactedMessages);
 	});
 
 	it("rejects projection when the canonical prefix was edited before the boundary", () => {
@@ -88,7 +92,7 @@ describe("session compaction state", () => {
 			{ id: "a1", role: "assistant" as const, content: "answer" },
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages: [
 				{ id: "summary", role: "user" as const, content: "summary" },
 			],
@@ -101,7 +105,12 @@ describe("session compaction state", () => {
 			{ id: "u2", role: "user" as const, content: "tail" },
 		];
 
-		expect(projectSessionCompactionState(state, editedPrefix)).toBeUndefined();
+		expect(
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture(editedPrefix),
+			).messages,
+		).toBeUndefined();
 	});
 
 	it("projects compacted state when the canonical prefix matches exactly", () => {
@@ -114,13 +123,16 @@ describe("session compaction state", () => {
 		];
 		const tail = { id: "u2", role: "user" as const, content: "tail" };
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages,
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 
 		expect(
-			projectSessionCompactionState(state, [...sourceMessages, tail]),
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture([...sourceMessages, tail]),
+			).messages,
 		).toEqual([...compactedMessages, tail]);
 	});
 
@@ -138,15 +150,18 @@ describe("session compaction state", () => {
 			{ id: "summary", role: "user" as const, content: "summary" },
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages,
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 		const reloadedMessages = JSON.parse(JSON.stringify(sourceMessages));
 
-		expect(projectSessionCompactionState(state, reloadedMessages)).toEqual(
-			compactedMessages,
-		);
+		expect(
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture(reloadedMessages),
+			).messages,
+		).toEqual(compactedMessages);
 	});
 
 	it("rejects projection when canonical message metadata changed", () => {
@@ -159,7 +174,7 @@ describe("session compaction state", () => {
 			},
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages: [
 				{ id: "summary", role: "user" as const, content: "summary" },
 			],
@@ -167,9 +182,12 @@ describe("session compaction state", () => {
 		});
 
 		expect(
-			projectSessionCompactionState(state, [
-				{ ...sourceMessages[0], metadata: { stable: false } },
-			]),
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture([
+					{ ...sourceMessages[0], metadata: { stable: false } },
+				]),
+			).messages,
 		).toBeUndefined();
 	});
 
@@ -205,15 +223,17 @@ describe("session compaction state", () => {
 			{ id: "summary", role: "user" as const, content: "summary" },
 		];
 		const state = createSessionCompactionState({
-			sourceMessages,
+			source: ConversationSnapshot.capture(sourceMessages),
 			compactedMessages,
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
 
-		expect(projectSessionCompactionState(state, resumedMessages)).toEqual([
-			...compactedMessages,
-			resumedMessages[3],
-		]);
+		expect(
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture(resumedMessages),
+			).messages,
+		).toEqual([...compactedMessages, resumedMessages[3]]);
 	});
 
 	it("rejects anchor-free sidecars even when the source count is zero", () => {
@@ -231,9 +251,12 @@ describe("session compaction state", () => {
 			throw new Error("expected parsed compaction state");
 		}
 		expect(
-			projectSessionCompactionState(state, [
-				{ id: "u1", role: "user", content: "canonical" },
-			]),
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture([
+					{ id: "u1", role: "user", content: "canonical" },
+				]),
+			).messages,
 		).toBeUndefined();
 	});
 
@@ -256,7 +279,10 @@ describe("session compaction state", () => {
 			throw new Error("expected parsed compaction state");
 		}
 		expect(
-			projectSessionCompactionState(state, [...sourceMessages, tail]),
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture([...sourceMessages, tail]),
+			).messages,
 		).toEqual([{ id: "summary", role: "user", content: "summary" }, tail]);
 	});
 
@@ -270,5 +296,60 @@ describe("session compaction state", () => {
 		});
 
 		expect(state).toBeUndefined();
+	});
+});
+
+describe("display-only history and compaction", () => {
+	const conversation = [
+		{ id: "u1", role: "user" as const, content: "first" },
+		{ id: "u2", role: "user" as const, content: "retry" },
+		{ id: "a2", role: "assistant" as const, content: "answer" },
+	];
+	const error = {
+		id: "error",
+		role: "error" as const,
+		content: "provider failed",
+	};
+	const history = [conversation[0], error, ...conversation.slice(1)];
+	const summary = [{ role: "user" as const, content: "summary" }];
+
+	it("uses the same anchors for persisted and runtime history", () => {
+		const fromHistory = createSessionCompactionState({
+			source: ConversationSnapshot.capture(history),
+			compactedMessages: summary,
+		});
+		const fromRuntime = createSessionCompactionState({
+			source: ConversationSnapshot.capture(conversation),
+			compactedMessages: summary,
+		});
+		expect(fromHistory.source_message_count).toBe(conversation.length);
+		expect(fromHistory.source_prefix_hash).toBe(fromRuntime.source_prefix_hash);
+		expect(
+			projectSessionCompactionState(
+				fromHistory,
+				ConversationSnapshot.capture(conversation),
+			).messages,
+		).toEqual(summary);
+		expect(
+			projectSessionCompactionState(
+				fromRuntime,
+				ConversationSnapshot.capture(history),
+			).messages,
+		).toEqual(summary);
+	});
+
+	it("excludes display-only entries from the boundary and appended tail", () => {
+		const state = createSessionCompactionState({
+			source: ConversationSnapshot.capture([...conversation, error]),
+			compactedMessages: summary,
+		});
+		expect(state.source_last_message_key).toBe("id:a2");
+		const tail = { role: "user" as const, content: "continue" };
+		expect(
+			projectSessionCompactionState(
+				state,
+				ConversationSnapshot.capture([...history, error, tail]),
+			).messages,
+		).toEqual([...summary, tail]);
 	});
 });

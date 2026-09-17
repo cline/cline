@@ -6,6 +6,7 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	ConversationSnapshot,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
@@ -21,7 +22,7 @@ import {
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { MessageWithMetadata } from "@cline/llms";
+import type { SessionHistoryEntry } from "@cline/llms";
 import {
 	buildClineSystemPrompt,
 	type ConsecutiveMistakeLimitContext,
@@ -311,7 +312,7 @@ export function refreshWorkspaceMetadata(cwd: string): void {
 
 function readPersistedChatMessages(
 	sessionId: string,
-): MessageWithMetadata[] | null {
+): SessionHistoryEntry[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -320,8 +321,8 @@ function readPersistedChatMessages(
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
-			| { messages?: MessageWithMetadata[] }
-			| MessageWithMetadata[];
+			| { messages?: SessionHistoryEntry[] }
+			| SessionHistoryEntry[];
 		if (Array.isArray(parsed)) return parsed;
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
@@ -989,12 +990,20 @@ async function startRebuiltSession(
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
-	messages: MessageWithMetadata[],
+	messages: SessionHistoryEntry[],
 	compactionState: SessionCompactionState | undefined,
 ): Promise<void> {
-	const projectedMessages = compactionState
-		? projectSessionCompactionState(compactionState, messages)
+	const compactionSource = ConversationSnapshot.capture(messages);
+	const projection = compactionState
+		? projectSessionCompactionState(compactionState, compactionSource)
 		: undefined;
+	if (projection?.status === "invalid") {
+		ctx.logger?.log?.("Discarding invalid compaction state", {
+			severity: "warn",
+			reason: projection.reason,
+		});
+	}
+	const projectedMessages = projection?.messages;
 	const restarted = await manager.start({
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig(
@@ -1013,7 +1022,7 @@ async function startRebuiltSession(
 		...(projectedMessages
 			? {
 					initialCompactionState: createSessionCompactionState({
-						sourceMessages: messages,
+						source: compactionSource,
 						compactedMessages: projectedMessages,
 						systemPrompt: compactionState?.system_prompt,
 					}),

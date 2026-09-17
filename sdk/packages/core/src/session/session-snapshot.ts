@@ -47,7 +47,7 @@ export interface CoreSessionSnapshot {
 	artifacts?: {
 		messagesPath?: string;
 	};
-	messages?: LlmsProviders.MessageWithMetadata[];
+	messages?: LlmsProviders.SessionHistoryEntry[];
 	usage?: SessionAccumulatedUsage;
 	aggregateUsage?: SessionAccumulatedUsage;
 	checkpoint?: CoreSessionCheckpointSnapshot;
@@ -60,12 +60,12 @@ function cloneJsonObject<T extends Record<string, unknown>>(
 }
 
 function cloneMessages(
-	messages: LlmsProviders.MessageWithMetadata[] | undefined,
-): LlmsProviders.MessageWithMetadata[] | undefined {
+	messages: LlmsProviders.SessionHistoryEntry[] | undefined,
+): LlmsProviders.SessionHistoryEntry[] | undefined {
 	return messages
 		? (JSON.parse(
 				JSON.stringify(messages),
-			) as LlmsProviders.MessageWithMetadata[])
+			) as LlmsProviders.SessionHistoryEntry[])
 		: undefined;
 }
 
@@ -118,7 +118,7 @@ function readCheckpointSnapshot(
 
 export function createCoreSessionSnapshot(input: {
 	session: SessionRecord;
-	messages?: LlmsProviders.MessageWithMetadata[];
+	messages?: LlmsProviders.SessionHistoryEntry[];
 	usage?: SessionAccumulatedUsage;
 	aggregateUsage?: SessionAccumulatedUsage;
 }): CoreSessionSnapshot {

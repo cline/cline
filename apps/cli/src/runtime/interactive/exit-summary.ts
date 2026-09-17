@@ -1,5 +1,5 @@
 import type { SessionAccumulatedUsage, SessionRecord } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { SessionHistoryEntry } from "@cline/shared";
 import { c, formatUsd } from "../../utils/output";
 import { shouldShowCliUsageCost } from "../../utils/usage-cost-display";
 
@@ -45,7 +45,7 @@ function formatDuration(startedAt: string | undefined): string {
 export function createInteractiveExitSummary(input: {
 	sessionId: string;
 	row?: SessionRecord;
-	messages?: Message[];
+	messages?: SessionHistoryEntry[];
 	usage?: SessionAccumulatedUsage;
 }): InteractiveExitSummary | undefined {
 	const sessionId = trim(input.sessionId);

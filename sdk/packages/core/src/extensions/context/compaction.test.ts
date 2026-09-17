@@ -4,6 +4,7 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ConversationSnapshot } from "../../session/models/conversation-snapshot";
 import {
 	createSessionCompactionState,
 	projectSessionCompactionState,
@@ -4355,7 +4356,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "summary of the session so far" },
 		];
 		const existingState = createSessionCompactionState({
-			sourceMessages: originalMessages,
+			source: ConversationSnapshot.capture(originalMessages),
 			compactedMessages,
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
@@ -4399,7 +4400,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "original" },
 		];
 		const existingState = createSessionCompactionState({
-			sourceMessages: originalMessages,
+			source: ConversationSnapshot.capture(originalMessages),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
@@ -4479,9 +4480,13 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(saveState).toHaveBeenCalledTimes(1);
 		const [savedState, sourceMessages] = saveState.mock.calls[0];
-		expect(sourceMessages).toBe(currentMessages);
+		expect(sourceMessages).toBeInstanceOf(ConversationSnapshot);
+		expect(sourceMessages.messages).toEqual(currentMessages);
 		expect(
-			projectSessionCompactionState(savedState, currentMessages),
+			projectSessionCompactionState(
+				savedState,
+				ConversationSnapshot.capture(currentMessages),
+			).messages,
 		).toBeDefined();
 	});
 });

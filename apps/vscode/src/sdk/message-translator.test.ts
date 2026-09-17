@@ -1,6 +1,6 @@
 import type { CoreSessionEvent } from "@cline/core"
-import type { Message as SdkMessage } from "@cline/llms"
-import type { AgentEvent, MessageWithMetadata } from "@cline/shared"
+import type { SessionHistoryEntry as SdkMessage } from "@cline/llms"
+import type { AgentEvent, SessionHistoryEntry } from "@cline/shared"
 import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { getDesktopDir } from "@/utils/path"
@@ -4156,7 +4156,7 @@ describe("tool display paths are relativized to the cwd", () => {
 	})
 
 	it("renders provider model activities through the persisted local-tool path", () => {
-		const messages: MessageWithMetadata[] = [
+		const messages: SessionHistoryEntry[] = [
 			{
 				role: "assistant",
 				content: "Bun 1.3.14 is current.",
@@ -4187,5 +4187,18 @@ describe("tool display paths are relativized to the cwd", () => {
 				text: "Bun 1.3.14 is current.",
 			}),
 		)
+	})
+})
+
+describe("persisted display-only errors", () => {
+	it("restores a failed task with error recovery UI, not completion UI", () => {
+		const messages: SessionHistoryEntry[] = [
+			{ role: "user", content: "hi" },
+			{ role: "error", content: "API key expired." },
+		]
+		const rendered = sdkMessagesToClineMessages(messages)
+		expect(rendered.at(-1)).toMatchObject({ type: "ask", ask: "api_req_failed" })
+		expect(rendered.at(-1)?.text).toContain("API key expired")
+		expect(rendered.some((message) => message.say === "completion_result" || message.ask === "completion_result")).toBe(false)
 	})
 })

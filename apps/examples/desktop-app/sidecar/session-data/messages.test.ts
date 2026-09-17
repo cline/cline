@@ -2,6 +2,31 @@ import { describe, expect, it } from "vitest";
 import { readSessionMessages } from "./messages";
 
 describe("readSessionMessages", () => {
+	it("restores persisted errors with the error display role", async () => {
+		const sessionId = "persisted-error";
+		const messages = JSON.parse(
+			JSON.stringify([
+				{
+					id: "error-1",
+					role: "error",
+					ts: 123,
+					content: [{ type: "text", text: "Provider unavailable" }],
+				},
+			]),
+		);
+		const liveSessions = new Map([[sessionId, { messages }]]);
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "error",
+				content: "Provider unavailable",
+			}),
+		]);
+	});
 	it("continues past malformed persisted entries", async () => {
 		const sessionId = `malformed-projection-${Date.now()}`;
 		const liveSessions = new Map([

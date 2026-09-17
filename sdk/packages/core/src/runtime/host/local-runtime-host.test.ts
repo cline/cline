@@ -30,6 +30,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TeamEvent } from "../../extensions/tools/team";
 import { CORE_TELEMETRY_EVENTS } from "../../services/telemetry/core-events";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
+import { ConversationSnapshot } from "../../session/models/conversation-snapshot";
 import {
 	createSessionCompactionState,
 	type SessionCompactionState,
@@ -218,6 +219,207 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			await manager.dispose();
 			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	async function manualCompactionHarness(
+		compact: NonNullable<CoreSessionConfig["compaction"]>["compact"],
+		overrides: Partial<CoreSessionConfig> = {},
+	) {
+		const sessionId = "manual-core";
+		const history: import("@cline/shared").SessionHistoryEntry[] = [
+			{ role: "user", content: "first" },
+			{ role: "error", content: "provider failed" },
+			{ role: "user", content: "retry" },
+			{ role: "assistant", content: "answer" },
+		];
+		const agent = {
+			getMessages: () => history,
+			getAgentId: () => "root",
+			getConversationId: () => sessionId,
+			canStartRun: vi.fn(() => true),
+			restore: vi.fn(),
+			subscribeEvents: () => () => {},
+			abort: vi.fn(),
+			shutdown: vi.fn(),
+		};
+		const service = new FileSessionService(
+			join(isolatedHomeDir, "manual-sessions"),
+		);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: service,
+			runtimeBuilder: {
+				build: () => ({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: { enabled: false, compact },
+					...overrides,
+				}),
+				initialMessages: history,
+				interactive: true,
+			}),
+		);
+		return { manager, history, agent, sessionId };
+	}
+
+	it("owns manual compaction, preserves errors, and reuses its sidecar after a retry", async () => {
+		const compact = vi.fn(
+			(context: import("../../types/config").CoreCompactionContext) => {
+				expect(context.messages.map((message) => message.role)).toEqual([
+					"user",
+					"user",
+					"assistant",
+				]);
+				expect(JSON.stringify(context.messages)).not.toContain(
+					"provider failed",
+				);
+				expect(context.budget.request.maxInputTokens).toBe(64_000);
+				return { messages: [{ role: "user" as const, content: "summary" }] };
+			},
+		);
+		const { manager, history, sessionId } =
+			await manualCompactionHarness(compact);
+		try {
+			expect(await manager.compactSession(sessionId)).toMatchObject({
+				compacted: true,
+				messagesBefore: 4,
+				messagesAfter: 4,
+				workingContextMessagesAfter: 1,
+			});
+			const state = await manager.readSessionCompactionState(sessionId);
+			expect(state?.source_message_count).toBe(3);
+			expect(await manager.readSessionMessages(sessionId)).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						role: "error",
+						content: "provider failed",
+					}),
+				]),
+			);
+			if (!state) throw new Error("sidecar missing");
+			const { projectSessionCompactionState } = await import(
+				"../../session/models/session-compaction"
+			);
+			const tail = { role: "user" as const, content: "continue" };
+			const persisted = JSON.parse(JSON.stringify([...history, tail]));
+			const runtime = persisted.filter(
+				(entry: { role: string }) => entry.role !== "error",
+			);
+			expect(
+				projectSessionCompactionState(
+					state,
+					ConversationSnapshot.capture(persisted),
+				),
+			).toEqual(
+				projectSessionCompactionState(
+					state,
+					ConversationSnapshot.capture(runtime),
+				),
+			);
+			expect(
+				projectSessionCompactionState(
+					state,
+					ConversationSnapshot.capture(persisted),
+				).messages,
+			).toEqual([{ role: "user", content: "summary" }, tail]);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		{
+			modelInfo: { id: "mock-model", maxInputTokens: 400_000 },
+			expected: 400_000,
+		},
+		{
+			modelInfo: { id: "mock-model", contextWindow: 400_000 },
+			expected: 360_000,
+		},
+	])("uses the active model budget for manual compaction ($expected)", async ({
+		modelInfo,
+		expected,
+	}) => {
+		const compact = vi.fn(
+			(context: import("../../types/config").CoreCompactionContext) => {
+				expect(context.budget.request.maxInputTokens).toBe(expected);
+				return { messages: [{ role: "user" as const, content: "summary" }] };
+			},
+		);
+		const { manager, sessionId } = await manualCompactionHarness(compact, {
+			knownModels: { "mock-model": modelInfo },
+		});
+		try {
+			await manager.compactSession(sessionId);
+			await manager.compactSession(sessionId);
+			expect(compact).toHaveBeenCalledTimes(2);
+			// Repeated manual compaction always summarizes original conversation,
+			// never a previous summary; history and source anchors remain intact.
+			for (const [context] of compact.mock.calls)
+				expect(context.messages).toHaveLength(3);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it("rejects competing turns and cancels manual compaction without saving", async () => {
+		let entered!: () => void;
+		const started = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const { manager, sessionId } = await manualCompactionHarness(async () => {
+			entered();
+			await pending;
+			return { messages: [{ role: "user", content: "summary" }] };
+		});
+		const operation = manager.compactSession(sessionId);
+		const rejected = expect(operation).rejects.toThrow("cancel manual");
+		try {
+			await started;
+			await expect(manager.compactSession(sessionId)).rejects.toThrow(
+				"running",
+			);
+			await expect(
+				manager.runTurn({ sessionId, prompt: "race" }),
+			).rejects.toThrow("compaction is running");
+			await manager.abort(sessionId, new Error("cancel manual"));
+			release();
+			await rejected;
+			expect(
+				await manager.readSessionCompactionState(sessionId),
+			).toBeUndefined();
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
+	it("rejects a manual summary if its source is edited while summarizing", async () => {
+		let history: import("@cline/shared").SessionHistoryEntry[];
+		const harness = await manualCompactionHarness(() => {
+			history[0] = { role: "user", content: "edited" };
+			return { messages: [{ role: "user", content: "stale summary" }] };
+		});
+		history = harness.history;
+		try {
+			await expect(
+				harness.manager.compactSession(harness.sessionId),
+			).rejects.toThrow("source_changed");
+			expect(
+				await harness.manager.readSessionCompactionState(harness.sessionId),
+			).toBeUndefined();
+		} finally {
+			await harness.manager.dispose();
 		}
 	});
 
@@ -5987,7 +6189,7 @@ describe("LocalRuntimeHost", () => {
 			{ role: "user", content: "large source" },
 		];
 		const initialCompactionState = createSessionCompactionState({
-			sourceMessages: initialMessages,
+			source: ConversationSnapshot.capture(initialMessages),
 			compactedMessages: [{ role: "user", content: "summary" }],
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		});
@@ -6081,7 +6283,7 @@ describe("LocalRuntimeHost", () => {
 			{ role: "user", content: "canonical source" },
 		];
 		const initialCompactionState = createSessionCompactionState({
-			sourceMessages: initialMessages,
+			source: ConversationSnapshot.capture(initialMessages),
 			compactedMessages: [{ role: "user", content: "projected summary" }],
 			conversationId: sessionId,
 			updatedAt: "2026-01-01T00:00:00.000Z",
@@ -6362,7 +6564,7 @@ describe("LocalRuntimeHost", () => {
 			{ importedFrom: { tool: "claude-code", sourceSessionId: "abc" } },
 			{
 				initialCompactionState: createSessionCompactionState({
-					sourceMessages: initialMessages,
+					source: ConversationSnapshot.capture(initialMessages),
 					compactedMessages: [
 						{
 							role: "user",
@@ -6444,7 +6646,7 @@ describe("LocalRuntimeHost", () => {
 				messages_path: messagesPath,
 			};
 			const incoming = createSessionCompactionState({
-				sourceMessages: persistedMessages,
+				source: ConversationSnapshot.capture(persistedMessages),
 				compactedMessages: [{ role: "user", content: "summary" }],
 				conversationId: sessionId,
 				updatedAt: "2026-01-01T00:00:00Z",
@@ -6654,10 +6856,10 @@ describe("LocalRuntimeHost", () => {
 		// MORE messages than the live transcript (so it can never project), and
 		// under a count-first stale guard it would block every replacement.
 		const staleState = createSessionCompactionState({
-			sourceMessages: [
+			source: ConversationSnapshot.capture([
 				...runtimeMessages,
 				{ role: "assistant", content: "old extra message", id: "m4", ts: 4 },
-			],
+			]),
 			compactedMessages: [{ role: "user", content: "stale summary" }],
 			conversationId: sessionId,
 			updatedAt: "2026-01-01T00:00:00.000Z",
@@ -6717,13 +6919,13 @@ describe("LocalRuntimeHost", () => {
 			];
 			writeFileSync(messagesPath, JSON.stringify(sourceMessages), "utf8");
 			const current = createSessionCompactionState({
-				sourceMessages,
+				source: ConversationSnapshot.capture(sourceMessages),
 				compactedMessages: [{ role: "user", content: "current" }],
 				conversationId: sessionId,
 				updatedAt: "2026-01-01T00:00:00.500Z",
 			});
 			const incoming = createSessionCompactionState({
-				sourceMessages,
+				source: ConversationSnapshot.capture(sourceMessages),
 				compactedMessages: [{ role: "user", content: "incoming" }],
 				conversationId: sessionId,
 				updatedAt: "2026-01-01T00:00:00Z",

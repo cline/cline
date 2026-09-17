@@ -155,7 +155,7 @@ class LocalFileSessionService {
 
 	persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.Message[],
+		messages: LlmsProviders.SessionHistoryEntry[],
 		systemPrompt?: string,
 	): void {
 		const row = this.rows.get(sessionId);
@@ -166,7 +166,7 @@ class LocalFileSessionService {
 			version: number;
 			updated_at: string;
 			systemPrompt?: string;
-			messages: LlmsProviders.Message[];
+			messages: LlmsProviders.SessionHistoryEntry[];
 		} = { version: 1, updated_at: nowIso(), messages };
 		if (systemPrompt !== undefined && systemPrompt !== "") {
 			payload.systemPrompt = systemPrompt;
@@ -313,7 +313,7 @@ describe("LocalRuntimeHost e2e", () => {
 			}),
 		};
 
-		let messages: LlmsProviders.Message[] = [];
+		let messages: LlmsProviders.SessionHistoryEntry[] = [];
 		let turn = 0;
 		const run = vi.fn(async (prompt: string) => {
 			turn += 1;
@@ -327,7 +327,7 @@ describe("LocalRuntimeHost e2e", () => {
 					role: "assistant",
 					content: [{ type: "text", text: `reply:${turn}:${prompt}` }],
 				},
-			] as LlmsProviders.Message[];
+			] as LlmsProviders.SessionHistoryEntry[];
 			return createResult({
 				text: `reply:${turn}:${prompt}`,
 				messages: [...messages],
@@ -345,7 +345,7 @@ describe("LocalRuntimeHost e2e", () => {
 					role: "assistant",
 					content: [{ type: "text", text: `reply:${turn}:${prompt}` }],
 				},
-			] as LlmsProviders.Message[];
+			] as LlmsProviders.SessionHistoryEntry[];
 			return createResult({
 				text: `reply:${turn}:${prompt}`,
 				messages: [...messages],
@@ -366,7 +366,7 @@ describe("LocalRuntimeHost e2e", () => {
 					canStartRun: vi.fn().mockReturnValue(true),
 					getAgentId: vi.fn().mockReturnValue("agent-e2e-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-e2e-1"),
-					restore: vi.fn((baseline: LlmsProviders.Message[]) => {
+					restore: vi.fn((baseline: LlmsProviders.SessionHistoryEntry[]) => {
 						messages = [...baseline];
 					}),
 					updateConnection: vi.fn(),
@@ -521,7 +521,7 @@ describe("LocalRuntimeHost e2e", () => {
 							cost: 0.13,
 						},
 					},
-				] satisfies LlmsProviders.MessageWithMetadata[] as LlmsProviders.Message[],
+				] satisfies LlmsProviders.MessageWithMetadata[] as LlmsProviders.SessionHistoryEntry[],
 			}),
 		);
 
@@ -659,7 +659,7 @@ describe("LocalRuntimeHost e2e", () => {
 			enableAgentTeams: false,
 		});
 
-		let messages: LlmsProviders.Message[] = [];
+		let messages: LlmsProviders.SessionHistoryEntry[] = [];
 		let running = false;
 		let rejectRun: ((error: Error) => void) | undefined;
 		let markRunStarted: (() => void) | undefined;
@@ -673,7 +673,7 @@ describe("LocalRuntimeHost e2e", () => {
 					role: "user",
 					content: [{ type: "text", text: prompt }],
 				},
-			] as LlmsProviders.Message[];
+			] as LlmsProviders.SessionHistoryEntry[];
 		};
 		const run = vi.fn(async (prompt: string) => {
 			appendUser(prompt);
@@ -683,7 +683,7 @@ describe("LocalRuntimeHost e2e", () => {
 					role: "assistant",
 					content: [{ type: "text", text: "the auth flow works like this" }],
 				},
-			] as LlmsProviders.Message[];
+			] as LlmsProviders.SessionHistoryEntry[];
 			return createResult({ text: "the auth flow works like this", messages });
 		});
 		// The real agent appends the user turn before the provider stream
@@ -711,7 +711,7 @@ describe("LocalRuntimeHost e2e", () => {
 					role: "assistant",
 					content: [{ type: "text", text: "tests added" }],
 				},
-			] as LlmsProviders.Message[];
+			] as LlmsProviders.SessionHistoryEntry[];
 			return Promise.resolve(createResult({ text: "tests added", messages }));
 		});
 		const abort = vi.fn(() => rejectRun?.(new Error("user cancelled")));

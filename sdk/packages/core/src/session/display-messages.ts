@@ -1,7 +1,7 @@
 import type {
 	AgentModelToolActivity,
-	MessageWithMetadata,
 	ModelToolExecution,
+	SessionHistoryEntry,
 	ToolUseContent,
 } from "@cline/shared";
 import { toPersistedToolResultContent } from "./persisted-tool-result-content";
@@ -20,7 +20,7 @@ export interface SessionDisplayMessage {
 	kind: "session_display_message";
 	origin: "history" | "model_tool_activity";
 	execution?: ModelToolExecution;
-	message: MessageWithMetadata;
+	message: SessionHistoryEntry;
 	/** Index of the canonical message that produced this display entry. */
 	sourceIndex: number;
 }
@@ -30,7 +30,7 @@ type ProjectableModelToolActivity = AgentModelToolActivity & {
 };
 
 function readModelToolActivities(
-	message: MessageWithMetadata,
+	message: SessionHistoryEntry,
 ): ProjectableModelToolActivity[] {
 	if (message.role !== "assistant") {
 		return [];
@@ -74,8 +74,8 @@ function readModelToolActivities(
 }
 
 function withoutModelToolActivities(
-	metadata: MessageWithMetadata["metadata"],
-): MessageWithMetadata["metadata"] {
+	metadata: SessionHistoryEntry["metadata"],
+): SessionHistoryEntry["metadata"] {
 	if (
 		!metadata ||
 		!Object.hasOwn(metadata, MODEL_TOOL_ACTIVITIES_METADATA_KEY)
@@ -88,7 +88,7 @@ function withoutModelToolActivities(
 }
 
 function asDisplayMessage(
-	message: MessageWithMetadata,
+	message: SessionHistoryEntry,
 	sourceIndex: number,
 	origin: SessionDisplayMessage["origin"],
 	execution?: ModelToolExecution,
@@ -113,7 +113,7 @@ function asDisplayMessage(
  * immediately before the assistant message that owns them.
  */
 export function projectSessionMessagesForDisplay(
-	messages: readonly MessageWithMetadata[],
+	messages: readonly SessionHistoryEntry[],
 ): SessionDisplayMessage[] {
 	const projected: SessionDisplayMessage[] = [];
 
@@ -124,11 +124,13 @@ export function projectSessionMessagesForDisplay(
 			!rawMessage ||
 			typeof rawMessage !== "object" ||
 			Array.isArray(rawMessage) ||
-			(rawMessage.role !== "user" && rawMessage.role !== "assistant")
+			(rawMessage.role !== "user" &&
+				rawMessage.role !== "assistant" &&
+				rawMessage.role !== "error")
 		) {
 			continue;
 		}
-		const message = rawMessage as MessageWithMetadata;
+		const message = rawMessage as SessionHistoryEntry;
 		const activities = readModelToolActivities(message);
 		if (activities.length === 0) {
 			projected.push(asDisplayMessage(message, messageIndex, "history"));

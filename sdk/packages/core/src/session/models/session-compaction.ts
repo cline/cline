@@ -4,6 +4,7 @@ import {
 	type MessageWithMetadata,
 } from "@cline/shared";
 import { z } from "zod";
+import type { ConversationSnapshot } from "./conversation-snapshot";
 
 function isMessageWithMetadata(value: unknown): value is MessageWithMetadata {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -73,7 +74,7 @@ function assertBoundaryRole(role: MessageWithMetadata["role"]): void {
 	}
 }
 
-// Hash the persisted message shape in a fixed top-level field order. Nested
+// Hash the normalized conversation in a fixed top-level field order. Nested
 // objects keep their persisted JSON order because transcript writes are append-only.
 //
 // `id` and `ts` are deliberately NOT hashed: they are transport identity that
@@ -89,11 +90,7 @@ function sourceMessageHashInput(message: MessageWithMetadata): unknown[] {
 	return [
 		["role", normalized.role],
 		["content", normalized.content],
-		["agent", normalized.agent ?? null],
-		["sessionId", normalized.sessionId ?? null],
 		["metadata", normalized.metadata ?? null],
-		["modelInfo", normalized.modelInfo ?? null],
-		["metrics", normalized.metrics ?? null],
 	];
 }
 
@@ -119,10 +116,10 @@ function sourcePrefixHash(
 	count = messages.length,
 ): string {
 	const hash = createHash("sha256");
-	// v2: dropped volatile id/ts from the per-message hash input. Sidecars
-	// written with v1 fail projection once and are replaced by the next
-	// compaction (the stale-write guard permits replacing unprojectable state).
-	hash.update("cline-session-compaction-source-v2\n");
+	// v3 uses a codec-normalized conversation snapshot and excludes accounting
+	// and model labels. A changed fingerprint invalidates only derived state;
+	// the full session history remains available for fresh compaction.
+	hash.update("cline-session-compaction-source-v3\n");
 	hash.update(`${count}\n`);
 	for (const message of messages.slice(0, count)) {
 		hash.update(JSON.stringify(sourceMessageHashInput(message)));
@@ -132,13 +129,14 @@ function sourcePrefixHash(
 }
 
 export function createSessionCompactionState(input: {
-	sourceMessages: readonly MessageWithMetadata[];
+	source: ConversationSnapshot;
 	compactedMessages: readonly MessageWithMetadata[];
 	conversationId?: string;
 	systemPrompt?: string;
 	updatedAt?: string;
 }): SessionCompactionState {
-	const lastSourceMessage = input.sourceMessages.at(-1);
+	const sourceMessages = input.source.messages;
+	const lastSourceMessage = sourceMessages.at(-1);
 	const sourceLastMessageKey = messageBoundaryKey(lastSourceMessage);
 	return SessionCompactionStateSchema.parse({
 		version: 1,
@@ -146,8 +144,8 @@ export function createSessionCompactionState(input: {
 		...(input.conversationId?.trim()
 			? { conversation_id: input.conversationId.trim() }
 			: {}),
-		source_message_count: input.sourceMessages.length,
-		source_prefix_hash: sourcePrefixHash(input.sourceMessages),
+		source_message_count: sourceMessages.length,
+		source_prefix_hash: sourcePrefixHash(sourceMessages),
 		...(sourceLastMessageKey
 			? { source_last_message_key: sourceLastMessageKey }
 			: {}),
@@ -158,14 +156,23 @@ export function createSessionCompactionState(input: {
 	});
 }
 
+export type CompactionProjection =
+	| { status: "projected"; messages: MessageWithMetadata[]; reason?: never }
+	| {
+			status: "invalid";
+			reason: "source_truncated" | "source_changed";
+			messages?: never;
+	  };
+
 export function projectSessionCompactionState(
 	state: SessionCompactionState,
-	sourceMessages: readonly MessageWithMetadata[],
-): MessageWithMetadata[] | undefined {
+	source: ConversationSnapshot,
+): CompactionProjection {
+	const sourceMessages = source.messages;
 	const hasEnoughSourceMessages =
 		state.source_message_count <= sourceMessages.length;
 	if (!hasEnoughSourceMessages) {
-		return undefined;
+		return { status: "invalid", reason: "source_truncated" };
 	}
 
 	const hasMatchingSourcePrefix =
@@ -180,13 +187,16 @@ export function projectSessionCompactionState(
 		messageBoundaryKey(boundary) === state.source_last_message_key;
 	const canProjectState = hasMatchingSourcePrefix || hasMatchingLegacyBoundary;
 	if (!canProjectState) {
-		return undefined;
+		return { status: "invalid", reason: "source_changed" };
 	}
 
-	return [
-		...cloneMessages(state.messages),
-		...cloneMessages(sourceMessages.slice(state.source_message_count)),
-	];
+	return {
+		status: "projected",
+		messages: [
+			...cloneMessages(state.messages),
+			...cloneMessages(sourceMessages.slice(state.source_message_count)),
+		],
+	};
 }
 
 export function parseSessionCompactionState(

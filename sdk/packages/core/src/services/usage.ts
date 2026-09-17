@@ -47,11 +47,12 @@ function asNumber(value: unknown): number {
 }
 
 export function summarizeUsageFromMessages(
-	messages: LlmsProviders.Message[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 ): SessionAccumulatedUsage {
 	let usage = createInitialAccumulatedUsage();
 	for (const message of messages) {
-		const metrics = (message as LlmsProviders.MessageWithMetadata).metrics;
+		if (message.role === "error") continue;
+		const metrics = (message as LlmsProviders.SessionHistoryEntry).metrics;
 		if (!metrics) {
 			continue;
 		}
@@ -73,11 +74,11 @@ export function summarizeUsageFromMessages(
  * fields back on top.
  */
 export function getCurrentContextSize(
-	messages: readonly LlmsProviders.Message[],
+	messages: readonly LlmsProviders.SessionHistoryEntry[],
 ): number | undefined {
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as
-			| LlmsProviders.MessageWithMetadata
+			| LlmsProviders.SessionHistoryEntry
 			| undefined;
 		if (message?.role !== "assistant") continue;
 		const inputTokens = asNumber(message.metrics?.inputTokens);

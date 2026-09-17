@@ -13,6 +13,7 @@ import type {
 	RestoreResult,
 	SendSessionInput,
 	SessionAccumulatedUsage,
+	SessionCompactionResult,
 	SessionCompactionState,
 	SessionHistoryRecord,
 	SessionPendingPrompt,
@@ -42,6 +43,7 @@ export interface SdkSessionHost {
 	 * lost to the persisted transcript lagging behind.
 	 */
 	readLiveMessages?(sessionId: string): Promise<SdkInitialMessages>
+	compactSession(sessionId: string): Promise<SessionCompactionResult>
 	updateSessionCompactionState?(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }>
 	restore(input: RestoreInput): Promise<RestoreResult>
 	/** Diffs a checkpoint snapshot against the current working tree. */

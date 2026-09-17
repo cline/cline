@@ -65,3 +65,10 @@ helpers produce an explicit error, without installing a runtime from the network
 The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
+
+
+### Manual session compaction
+
+`await cline.compactSession(sessionId)` compacts an active, idle session, including when automatic compaction is disabled. Core captures the conversation and saves the resulting sidecar without replacing session history. The result reports `compacted`, `messagesBefore`, `messagesAfter` (unchanged history), optional `workingContextMessagesAfter`, and optional compaction notice counters. `cline.abort(sessionId)` cancels manual compaction. A concurrent turn or compaction is rejected.
+
+History APIs return `SessionHistoryEntry[]`: ordinary user/assistant messages or a typed `role: "error"` session entry. Provider requests and compaction summaries exclude error entries. Low-level sidecar APIs require `ConversationSnapshot.capture(history)`; projection returns a discriminated `projected`/`invalid` result with a reason on invalidation. Snapshot capture normalizes string/text-block and tool-result representations and isolates the source from mutations by compaction callbacks.

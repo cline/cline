@@ -1290,3 +1290,42 @@ export async function handleSessionRemovePendingPrompt(
 		result as unknown as Record<string, JsonValue | undefined>,
 	);
 }
+
+export async function handleSessionCompact(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId)
+		return errorReply(
+			envelope,
+			"invalid_session_id",
+			"session.compact requires a session id",
+		);
+	const session = await readHubSessionRecord(ctx, sessionId);
+	if (!session)
+		return errorReply(
+			envelope,
+			"session_not_found",
+			`Unknown session: ${sessionId}`,
+		);
+	const unauthorized = authorizeSessionCompactionAccess({
+		sessionId,
+		ctx,
+		clientId: envelope.clientId?.trim() || "hub-client",
+		envelope,
+	});
+	if (unauthorized) return unauthorized;
+	const result = await ctx.sessionHost.compactSession(sessionId);
+	if (result.compacted) {
+		const updatedSession = await readHubSessionRecord(ctx, sessionId);
+		ctx.publish(
+			ctx.buildEvent(
+				"session.updated",
+				{ session: updatedSession ?? session },
+				sessionId,
+			),
+		);
+	}
+	return okReply(envelope, { ...result });
+}

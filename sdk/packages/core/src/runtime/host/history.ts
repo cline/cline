@@ -253,7 +253,7 @@ function truncateText(text: string, limit: number): string {
 }
 
 function inferTitleFromMessages(
-	messages: LlmsProviders.Message[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 ): string | undefined {
 	for (const role of ["user", "assistant"] as const) {
 		for (const raw of messages) {
@@ -275,7 +275,9 @@ function inferTitleFromMessages(
 	return undefined;
 }
 
-function summarizeCostFromMessages(messages: LlmsProviders.Message[]): number {
+function summarizeCostFromMessages(
+	messages: LlmsProviders.SessionHistoryEntry[],
+): number {
 	let total = 0;
 	for (const message of messages as StoredSessionMessage[]) {
 		total += asFiniteNumber(message.metrics?.cost) ?? 0;
@@ -283,7 +285,9 @@ function summarizeCostFromMessages(messages: LlmsProviders.Message[]): number {
 	return total;
 }
 
-function inferProviderAndModelFromMessages(messages: LlmsProviders.Message[]): {
+function inferProviderAndModelFromMessages(
+	messages: LlmsProviders.SessionHistoryEntry[],
+): {
 	provider?: string;
 	model?: string;
 } {
@@ -387,7 +391,7 @@ function messageContainsToolCall(message: LlmsProviders.Message): boolean {
 
 function shouldProjectLegacyRunningSessionAsIdle(
 	row: SessionRecord,
-	messages: LlmsProviders.Message[],
+	messages: LlmsProviders.SessionHistoryEntry[],
 ): boolean {
 	if (row.status !== "running" || row.interactive !== true) {
 		return false;
@@ -523,7 +527,7 @@ export async function listSessionHistoryFromBackend(
 		},
 		readSessionMessages: async (
 			sessionId: string,
-		): Promise<LlmsProviders.MessageWithMetadata[]> => {
+		): Promise<LlmsProviders.SessionHistoryEntry[]> => {
 			const messagesPath =
 				rowsById.get(sessionId)?.messagesPath ??
 				(await readManifestMessagesPath(sessionId));

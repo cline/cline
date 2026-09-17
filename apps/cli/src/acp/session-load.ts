@@ -6,7 +6,7 @@ import { projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
-	type MessageWithMetadata,
+	type SessionHistoryEntry,
 	type ToolResultContent,
 } from "@cline/shared";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../runtime/interactive/mode";
@@ -30,7 +30,7 @@ function isSyntheticUserText(text: string): boolean {
 export async function replaySessionHistory(
 	conn: AgentSideConnection,
 	sessionId: string,
-	messages: MessageWithMetadata[],
+	messages: SessionHistoryEntry[],
 ): Promise<void> {
 	for (const message of messages) {
 		for (const update of translateHistoricalMessage(message)) {
@@ -40,7 +40,7 @@ export async function replaySessionHistory(
 }
 
 export function translateHistoricalMessage(
-	message: MessageWithMetadata,
+	message: SessionHistoryEntry,
 ): SessionUpdate[] {
 	return projectSessionMessagesForDisplay([message]).flatMap(({ message }) =>
 		translateProjectedHistoricalMessage(message),
@@ -48,8 +48,9 @@ export function translateHistoricalMessage(
 }
 
 function translateProjectedHistoricalMessage(
-	message: MessageWithMetadata,
+	message: SessionHistoryEntry,
 ): SessionUpdate[] {
+	if (message.role === "error") return [];
 	const blocks: ContentBlock[] =
 		typeof message.content === "string"
 			? [{ type: "text", text: message.content }]

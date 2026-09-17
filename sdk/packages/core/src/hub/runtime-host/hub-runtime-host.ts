@@ -1447,6 +1447,42 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 	}
 
+	async compactSession(
+		sessionId: string,
+	): Promise<
+		import("../../runtime/host/runtime-host").SessionCompactionResult
+	> {
+		const reply = await this.client.command(
+			"session.compact",
+			{ sessionId },
+			sessionId,
+			{ timeoutMs: null },
+		);
+		if (!reply.ok)
+			throw new Error(hubReplyErrorMessage(reply, "session.compact"));
+		const payload = reply.payload;
+		if (
+			typeof payload?.compacted !== "boolean" ||
+			typeof payload.messagesBefore !== "number" ||
+			typeof payload.messagesAfter !== "number"
+		) {
+			throw new Error("Invalid session.compact response");
+		}
+		return {
+			...(payload.notice &&
+			typeof payload.notice === "object" &&
+			!Array.isArray(payload.notice)
+				? { notice: payload.notice as Record<string, unknown> }
+				: {}),
+			compacted: payload.compacted,
+			messagesBefore: payload.messagesBefore,
+			messagesAfter: payload.messagesAfter,
+			...(typeof payload.workingContextMessagesAfter === "number"
+				? { workingContextMessagesAfter: payload.workingContextMessagesAfter }
+				: {}),
+		};
+	}
+
 	async updateSessionCompactionState(
 		sessionId: string,
 		state: SessionCompactionState,
@@ -1497,7 +1533,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").MessageWithMetadata[]> {
+	): Promise<import("@cline/llms").SessionHistoryEntry[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1525,7 +1561,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").MessageWithMetadata[])
+			? (messages as import("@cline/llms").SessionHistoryEntry[])
 			: [];
 	}
 

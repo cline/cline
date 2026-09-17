@@ -19,7 +19,7 @@ import {
 } from "../../types/common";
 import type {
 	SessionPersistenceAdapter,
-	StoredMessageWithMetadata,
+	StoredSessionHistoryEntry,
 } from "../../types/session";
 import {
 	readSessionHistoryOriginMetadata,
@@ -50,10 +50,10 @@ export class TeamChildSessionManager {
 		private readonly adapter: SessionPersistenceAdapter,
 		private readonly manifestStore: SessionManifestStore,
 		private readonly toPersistedMessages: (
-			messages: LlmsProviders.MessageWithMetadata[] | undefined,
+			messages: LlmsProviders.SessionHistoryEntry[] | undefined,
 			result?: AgentResult,
-			previousMessages?: LlmsProviders.MessageWithMetadata[],
-		) => StoredMessageWithMetadata[] | undefined,
+			previousMessages?: LlmsProviders.SessionHistoryEntry[],
+		) => StoredSessionHistoryEntry[] | undefined,
 		private readonly heartbeatLogIntervalMs: number,
 	) {}
 
@@ -310,7 +310,7 @@ export class TeamChildSessionManager {
 		status: SessionStatus,
 		_summary?: string,
 		result?: AgentResult,
-		messages?: LlmsProviders.MessageWithMetadata[],
+		messages?: LlmsProviders.SessionHistoryEntry[],
 	): Promise<void> {
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key);

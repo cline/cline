@@ -2,15 +2,15 @@ import { type AgentMode, projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	formatDisplayUserInput,
 	type GeneratedMedia,
-	type MessageWithMetadata,
 	parseUserInputMode,
+	type SessionHistoryEntry,
 } from "@cline/shared";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { materializeGeneratedMedia } from "../../utils/generated-media";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
-function getDisplayRole(msg: MessageWithMetadata): string | undefined {
+function getDisplayRole(msg: SessionHistoryEntry): string | undefined {
 	const role = msg.metadata?.displayRole;
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
 }
@@ -52,7 +52,7 @@ function stringifyToolError(content: unknown): string {
 }
 
 export function hydrateSessionMessages(
-	messages: MessageWithMetadata[],
+	messages: SessionHistoryEntry[],
 ): ChatEntry[] {
 	const entries: ChatEntry[] = [];
 	const toolUseMap = new Map<string, number>();
@@ -65,6 +65,17 @@ export function hydrateSessionMessages(
 
 	for (const { message: msg } of projectSessionMessagesForDisplay(messages)) {
 		const displayRole = getDisplayRole(msg);
+		if (msg.role === "error") {
+			const text =
+				typeof msg.content === "string"
+					? msg.content
+					: msg.content
+							.filter((block) => block.type === "text")
+							.map((block) => block.text)
+							.join("\n");
+			entries.push({ kind: "error", text });
+			continue;
+		}
 		if (displayRole === "system" || displayRole === "status") {
 			continue;
 		}
