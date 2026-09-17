@@ -74,7 +74,10 @@ export async function fetchModelIdsFromSource(
 			headers.set(name, value);
 		}
 	}
-	const hasHeaders = [...headers].length > 0;
+	let hasHeaders = false;
+	headers.forEach(() => {
+		hasHeaders = true;
+	});
 	const response = await fetch(url, {
 		method: "GET",
 		...(hasHeaders ? { headers, redirect: "error" as const } : {}),
