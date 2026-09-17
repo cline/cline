@@ -223,6 +223,32 @@ async function buildCompiledBinary(input: {
 
 	await $`cp ${tmpOutfile} ${input.outfile} && chmod 755 ${input.outfile}`;
 	await $`rm -rf ${tmpDir}`;
+
+	// Bun's downloaded-template code-signing path emits a CodeDirectory
+	// whose last page hash is computed over a zero-padded full page, so
+	// cross-compiled darwin binaries fail AMFI validation ("Killed: 9").
+	// Re-signing replaces the broken signature. oven-sh/bun#32159
+	if (input.bunTarget.startsWith("bun-darwin")) {
+		console.log(`  Re-signing ${input.outfile}`);
+		await resignMacOSBinary(input.outfile);
+	}
+}
+
+async function resignMacOSBinary(outfile: string): Promise<void> {
+	if (process.platform === "darwin") {
+		await $`codesign --force --sign - ${outfile}`;
+		await $`codesign --verify --strict ${outfile}`;
+		return;
+	}
+	const rcodesign = process.env.RCODESIGN || Bun.which("rcodesign");
+	if (!rcodesign) {
+		throw new Error(
+			`Cannot re-sign ${outfile}: rcodesign not found. ` +
+				"Install a prebuilt rcodesign from https://github.com/indygreg/apple-platform-rs/releases " +
+				"or set the RCODESIGN env var to its path.",
+		);
+	}
+	await $`${rcodesign} sign ${outfile}`;
 }
 
 for (const item of targets) {
