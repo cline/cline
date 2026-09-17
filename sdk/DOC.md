@@ -1,4 +1,51 @@
 
+## Experimental cloud session client
+
+Import `CloudSessionApi`, `CloudSessionController` and cloud DTOs from
+`@cline/core/cloud`. This surface is intentionally absent from the root barrel.
+
+Construct the API with `apiBaseUrl`, `appBaseUrl`, and a refresh-aware `getAuthToken`.
+Construct the controller with that API, `apiBaseUrl`, the same token resolver, and
+`getActiveOrganizationId`. Hosts must recreate their client on identity/scope changes.
+`clientIdentity` identifies the viewing host; `lateCreateDisposition: "preserve"`
+keeps late successful creations recoverable when the viewer has closed.
+
+- `create(input)` creates an outer sandbox; it does **not** send `initialPrompt`.
+- `attach(id, creationOptions?)` connects; `readMessages(id)` hydrates the authoritative
+  transcript and queue. Restore an explicit approval policy for a recovered fresh sandbox.
+- `getSnapshot(id)` and `subscribe(listener, id?)` expose copied, frozen state including
+  `messages`, `promptsInQueue`, `approvals`, `busy`, `connectionState`, and `transcriptKnown`.
+- `prompt_accepted` confirms dispatch from a matching Hub request ID and client ID, or
+  the successful command reply, before a long-running `send()` resolves. Hosts can retire
+  saved drafts at that point without confusing accepted work with an uncertain send.
+- Turns started by another viewer hydrate the transcript on first progress and at
+  completion, using the same buffered reconciliation as reconnects.
+- `send`, `abort`, `updatePendingPrompt`, and `removePendingPrompt` operate on cloud IDs.
+- `respondApproval(id, approvalId, {approved})` answers a server-owned approval. Detach,
+  viewer dismissal, or another viewer's response never imply rejection.
+- `detach(id)` / `dispose()` close viewing connections without aborting hosted work.
+  `delete(id)` is a separate destructive action.
+- `api.recoverCreation(input)` locates a creation by its stable request marker without
+  issuing a new POST. Hosts must retain ambiguous outcomes and require explicit resend.
+
+`CloudHandoffCoordinator` orchestrates local-to-cloud transfer. Supply a
+`CloudHandoffSource` adapter, cloud controller, live model loader, scope key,
+availability check, and optional progress handler. Call `prepare()`, display its
+repository/branch/model (including any fallback), then pass that result to
+`execute()`. The coordinator revalidates the source and returns the verified outer
+session ID, which the host can attach. It does not send a follow-up prompt.
+
+Lower-level `create({handoff, ...})` persists the outer ID through the host callback
+before resolving source messages and creating the seeded Hub session.
+`seedHandoff(id, seed)` resumes a known workspace; `verifyHandoffTranscript` checks
+the authoritative read-back. Hosts must durably record `onSeeding` before it returns
+and set `recoverOnly` after an unconfirmed seed dispatch. That mode adopts only a
+matching existing source conversation and refuses to create a replacement.
+
+`createHubEventProjector(onEvent)` maps reconciled Hub envelopes to session events.
+Call `reset(sessionId)` when replacing an authoritative transcript baseline and
+`dispose()` when the viewer closes. This mapper never executes tools or answers approvals.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH

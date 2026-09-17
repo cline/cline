@@ -3,7 +3,7 @@ import {
 	CloudSessionApi,
 	CloudSessionError,
 	type CloudSessionRecord,
-} from "./cloud-sessions";
+} from "./api";
 
 const REMOTE_SESSION: CloudSessionRecord = {
 	id: "ses-outer",
@@ -35,6 +35,53 @@ function jwtFor(subject: string, nonce: string): string {
 }
 
 describe("CloudSessionApi", () => {
+	it.each([
+		"rotated",
+		"changed",
+		"revoked",
+	] as const)("rechecks scoped credentials before lost-create recovery: %s", async (mode) => {
+		let token: string | undefined = jwtFor("original-user", "initial");
+		const original = token;
+		const rotated = jwtFor("original-user", "rotated");
+		const requests: Array<{ method: string; authorization: string }> = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => token,
+			fetch: async (_input, init) => {
+				requests.push({
+					method: init?.method ?? "GET",
+					authorization: new Headers(init?.headers).get("Authorization") ?? "",
+				});
+				if (init?.method === "POST") {
+					token =
+						mode === "rotated"
+							? rotated
+							: mode === "changed"
+								? jwtFor("other-user", "new")
+								: undefined;
+					throw new Error("POST response lost");
+				}
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+		await expect(
+			api.create({ modelId: "model", repoUrl: "repo" }),
+		).rejects.toThrow("POST response lost");
+		expect(requests).toEqual([
+			{ method: "POST", authorization: `Bearer ${original}` },
+			...(mode === "rotated"
+				? [{ method: "GET", authorization: `Bearer ${rotated}` }]
+				: []),
+		]);
+		// Explicit credentials remain available solely for caller-authorized cleanup.
+		await api.delete("created-id", original);
+		expect(requests.at(-1)).toEqual({
+			method: "DELETE",
+			authorization: `Bearer ${original}`,
+		});
+	});
+
 	it("resolves a fresh bearer token for every REST request", async () => {
 		const tokens = ["workos:first", "workos:second"];
 		const authorizations: string[] = [];

@@ -329,13 +329,13 @@ function readCheckpointEntriesByRunCount(
 	return entries;
 }
 
-export async function readSessionMessages(
+export function readSessionMessagesSync(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
 	/** Explicit authoritative source for remote sessions; bypasses local disk. */
 	sourceMessages?: unknown[],
-): Promise<unknown[]> {
+): unknown[] {
 	const persisted = sourceMessages
 		? undefined
 		: (readPersistedChatMessages(sessionId) ??
@@ -718,4 +718,14 @@ export function persistSessionMessages(
 			2,
 		),
 	);
+}
+
+/** Async compatibility for existing sidecar callers. */
+export async function readSessionMessages(
+	ctx: Pick<SidecarContext, "liveSessions">,
+	sessionId: string,
+	maxMessages = 800,
+	sourceMessages?: unknown[],
+): Promise<unknown[]> {
+	return readSessionMessagesSync(ctx, sessionId, maxMessages, sourceMessages);
 }
