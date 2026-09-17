@@ -179,8 +179,7 @@ export async function handleDesktopCommand(
 	}
 	if (command === "cline_account") {
 		const settings = providerSettingsManager.getProviderSettings("cline");
-		const apiBaseUrl =
-			settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
+		const apiBaseUrl = getClineEnvironmentConfig().apiBaseUrl;
 		const authToken = await resolveHubClineAccountAuthToken({
 			settings,
 			apiBaseUrl,

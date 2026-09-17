@@ -56,8 +56,7 @@ async function loginProviderForDesktop(
 		deviceCode: device.deviceCode,
 		expiresInSeconds: device.expiresInSeconds,
 		pollIntervalSeconds: device.pollIntervalSeconds,
-		apiBaseUrl:
-			existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		apiBaseUrl: getClineEnvironmentConfig().apiBaseUrl,
 		provider: providerId,
 	});
 }
