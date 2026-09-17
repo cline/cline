@@ -4,6 +4,7 @@ import { isMainThread } from "node:worker_threads";
 import {
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
+	disableCurrentDirectoryExecutableSearch,
 	disposeAll,
 	initVcr,
 	setConnectorCliLaunchSpec,
@@ -20,6 +21,9 @@ import { writeErr } from "./utils/output";
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.
 initVcr(process.env.CLINE_VCR);
+
+// Before any personality below can spawn a child with the workspace as cwd.
+disableCurrentDirectoryExecutableSearch();
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
