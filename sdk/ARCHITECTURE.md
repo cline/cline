@@ -925,3 +925,11 @@ Workspace and session reads route by environment identity. System-prompt
 bootstrap happens on the remote host when the caller omits a prompt, so local
 filesystem metadata is not embedded in remote sessions. Login-shell PATH
 resolution also lives in core and is reused by the helper and desktop startup.
+
+### Configured subagent approvals
+
+Configured subagents execute their available tools without inheriting the parent
+session’s tool approval policies or approval callback, matching generic subagents
+and teammates. The parent’s `subagent_<name>` delegation call still follows the
+parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
+effect when constructing child tools. Inherited runtime hooks are unchanged.

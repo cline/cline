@@ -5,9 +5,6 @@ import {
 	type AgentToolContext,
 	createTool,
 	type HookErrorMode,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-	type ToolPolicy,
 	zodToJsonSchema,
 } from "@cline/shared";
 import { z } from "zod";
@@ -48,10 +45,6 @@ export interface ConfiguredAgentToolConfig {
 	) => AgentTool[] | Promise<AgentTool[]>;
 	onSubAgentEvent?: (event: AgentEvent) => void;
 	hookErrorMode?: HookErrorMode;
-	toolPolicies?: Record<string, ToolPolicy>;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
 	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 }
@@ -177,8 +170,6 @@ export function createConfiguredAgentTools(
 						abortSignal: context.signal,
 						onEvent: options.onSubAgentEvent,
 						hookErrorMode: options.hookErrorMode,
-						toolPolicies: options.toolPolicies,
-						requestToolApproval: options.requestToolApproval,
 					});
 					const subAgentId = subAgent.getAgentId();
 					const conversationId = subAgent.getConversationId();
