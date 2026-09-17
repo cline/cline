@@ -358,6 +358,12 @@ export default function Home() {
 	const handleSelectEnvironment = useCallback(
 		async (environmentId: string) => {
 			environmentSelectionRevision.current += 1;
+			if (environmentId === activeRemoteEnvironment?.id) {
+				// Already connected (e.g. after navigating Back to a local draft);
+				// reconnecting would tear down and rebuild the remote runtime.
+				selectEnvironmentDraft(environmentId);
+				return;
+			}
 			try {
 				if (environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID) {
 					if (activeRemoteEnvironment) {
@@ -783,7 +789,6 @@ export default function Home() {
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}
-											activeEnvironmentId={activeEnvironmentId}
 											environmentId={activeThread.environmentId}
 											environmentProfiles={remoteEnvironmentProfiles}
 											environmentProfilesLoading={
@@ -892,7 +897,6 @@ let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
 	threadId,
-	activeEnvironmentId,
 	environmentId,
 	environmentProfiles,
 	environmentProfilesLoading,
@@ -916,7 +920,6 @@ function ChatThreadPane({
 	onThreadStarted,
 }: {
 	threadId: string;
-	activeEnvironmentId: string;
 	environmentId: string;
 	environmentProfiles: RemoteEnvironmentProfile[];
 	environmentProfilesLoading: boolean;
@@ -2055,7 +2058,7 @@ function ChatThreadPane({
 					composer={composer}
 					environmentSelector={
 						<EnvironmentSelector
-							activeEnvironmentId={activeEnvironmentId}
+							activeEnvironmentId={environmentId}
 							loading={environmentProfilesLoading}
 							onAddSshHost={onAddSshHost}
 							onSelectEnvironment={onSelectEnvironment}
