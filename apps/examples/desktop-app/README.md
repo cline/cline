@@ -153,9 +153,11 @@ The service stores host metadata at
 identity-file path, never private-key contents. On first connect it uploads a
 content-addressed, branch-matched, self-contained Hub helper under
 `~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
-random local loopback port. Linux and macOS x64 and arm64 helpers are bundled by
+random local loopback port. Linux x64 and arm64 helpers are bundled by
 `bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
-supported. The helper includes its own runtime. It is copied once per matching desktop build and cached, with no
+supported. macOS SSH targets need a locally built helper passed through
+`CLINE_REMOTE_HELPER_BINARY` until the bundled helpers are codesigned for
+notarization. The helper includes its own runtime. It is copied once per matching desktop build and cached, with no
 `apt`, `npm`, root access,
 global CLI install, or public Hub port. Disconnecting stops the desktop-owned
 remote Hub but leaves the helper cached for a faster reconnect. The helper

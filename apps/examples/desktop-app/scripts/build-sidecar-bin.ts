@@ -73,12 +73,13 @@ const buildSidecar = async (
 // SSH environments run the same Hub build as the desktop in a dedicated
 // bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
 // command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
+// macOS helpers are deliberately not bundled: they are Mach-O files under
+// Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
+// in the bundle fails notarization. Shipping them needs a signing step first.
 const buildRemoteHelpers = async (): Promise<void> => {
 	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",
 		"aarch64-unknown-linux-gnu",
-		"x86_64-apple-darwin",
-		"aarch64-apple-darwin",
 	]) {
 		await buildSidecar(
 			targetTriple,
