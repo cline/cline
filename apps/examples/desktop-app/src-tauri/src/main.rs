@@ -615,23 +615,35 @@ fn ensure_desktop_backend_started_locked(
     Ok(())
 }
 
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// Mirrors `resolveMcpSettingsPath()` in `@cline/shared/storage` (the resolver
+/// the sidecar and the hub runtime use): explicit path override, then the data
+/// dir override, then the cline dir override, then `~/.cline/data`. Keeping the
+/// same precedence here means the "Open MCP settings" window action opens the
+/// exact file the runtime reads (cline/cline#14152).
 fn resolve_mcp_settings_path() -> Result<PathBuf, String> {
-    if let Ok(value) = std::env::var("CLINE_MCP_SETTINGS_PATH") {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Ok(PathBuf::from(trimmed));
-        }
+    if let Some(explicit) = non_empty_env("CLINE_MCP_SETTINGS_PATH") {
+        return Ok(PathBuf::from(explicit));
     }
-    // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
-    // homedir() resolves there); HOME is usually unset on Windows.
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
-    Ok(PathBuf::from(home)
-        .join(".cline")
-        .join("data")
-        .join("settings")
-        .join("cline_mcp_settings.json"))
+    let data_dir = if let Some(data_dir) = non_empty_env("CLINE_DATA_DIR") {
+        PathBuf::from(data_dir)
+    } else if let Some(cline_dir) = non_empty_env("CLINE_DIR") {
+        PathBuf::from(cline_dir).join("data")
+    } else {
+        // USERPROFILE is the Windows equivalent of HOME (and what the sidecar's
+        // homedir() resolves there); HOME is usually unset on Windows.
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .map_err(|_| "neither HOME nor USERPROFILE is set".to_string())?;
+        PathBuf::from(home).join(".cline").join("data")
+    };
+    Ok(data_dir.join("settings").join("cline_mcp_settings.json"))
 }
 
 fn open_path_with_default_app(path: &Path) -> Result<(), String> {

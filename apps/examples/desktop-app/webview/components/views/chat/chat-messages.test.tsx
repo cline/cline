@@ -2276,7 +2276,14 @@ describe("ChatMessages credential failures", () => {
 					...failure,
 					id: "error-claude-code",
 					createdAt: 3,
-					meta: { reason: "credentials", providerId: "claude-code" },
+					meta: {
+						reason: "credentials",
+						providerId: "claude-code",
+						providerAuth: {
+							providerId: "claude-code",
+							localCli: { command: "claude" },
+						},
+					},
 				},
 			],
 			{ onFixCredentials, status: "failed" },

@@ -312,6 +312,11 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";

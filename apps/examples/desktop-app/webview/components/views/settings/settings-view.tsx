@@ -1,4 +1,3 @@
-import { providerOffersModelTool } from "@cline/llms/browser";
 import { Switch } from "@cline/ui";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -723,7 +722,7 @@ function GeneralSettingsContent({
 							.filter(
 								(provider) =>
 									provider.enabled &&
-									providerOffersModelTool(provider.id, "web_search"),
+									provider.modelTools?.includes("web_search"),
 							)
 							.map((provider) => provider.name),
 					);

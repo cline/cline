@@ -38,10 +38,6 @@ export {
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
 export { buildClineClientHeaders } from "./providers/cline-client-headers";
-export {
-	type ProviderLocalCli,
-	resolveProviderLocalCli,
-} from "./providers/local-cli";
 export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,

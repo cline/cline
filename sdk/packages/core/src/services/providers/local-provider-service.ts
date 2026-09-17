@@ -10,6 +10,7 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { MODEL_TOOL_NAMES, resolveProviderLocalCli } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
@@ -366,6 +367,9 @@ function buildProviderModels(
 
 async function resolveModelIds(params: {
 	providerId: string;
+	baseUrl: string;
+	apiKey?: string;
+	headers?: Record<string, string>;
 	explicitModels?: string[];
 	modelsSourceUrl?: string;
 	fallbackModelIds?: string[];
@@ -375,7 +379,11 @@ async function resolveModelIds(params: {
 		return params.fallbackModelIds ?? [];
 	}
 	const fetchedModels = params.modelsSourceUrl
-		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId)
+		? await fetchModelIdsFromSource(
+				params.modelsSourceUrl,
+				params.providerId,
+				params,
+			)
 		: [];
 	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
 }
@@ -451,10 +459,14 @@ export async function addLocalProvider(
 
 	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
+	const normalizedHeaders = normalizeHeaders(request.headers);
 	const modelIds = await resolveModelIds({
 		providerId,
 		explicitModels: typedModels,
 		modelsSourceUrl: sourceUrl,
+		baseUrl,
+		apiKey,
+		headers: normalizedHeaders,
 		shouldRecompute: true,
 	});
 	if (modelIds.length === 0) {
@@ -472,7 +484,6 @@ export async function addLocalProvider(
 	const capabilities = request.capabilities?.length
 		? [...new Set(request.capabilities)]
 		: undefined;
-	const normalizedHeaders = normalizeHeaders(request.headers);
 
 	manager.saveProviderSettings(
 		{
@@ -600,14 +611,31 @@ export async function updateLocalProvider(
 			? existingEntry.provider.client
 			: (request.client ?? undefined);
 
+	const existingSettings = manager.getProviderSettings(providerId);
+	const apiKey =
+		request.apiKey === undefined
+			? existingSettings?.apiKey
+			: request.apiKey?.trim() || undefined;
+	const headers =
+		request.headers === undefined
+			? existingSettings?.headers
+			: normalizeHeaders(request.headers);
 	const explicitModels = uniqueTrimmed(request.models);
 	const nextModelsSourceUrl =
 		request.modelsSourceUrl === undefined
-			? existingEntry.provider.modelsSourceUrl
+			? resolveModelsSourceUrl(
+					baseUrl,
+					existingEntry.provider.baseUrl,
+					existingEntry.provider.modelsSourceUrl,
+				)
 			: request.modelsSourceUrl?.trim() || undefined;
 	const shouldRecomputeModels =
 		request.models !== undefined ||
-		(request.modelsSourceUrl !== undefined && !!nextModelsSourceUrl);
+		(!!nextModelsSourceUrl &&
+			(request.modelsSourceUrl !== undefined ||
+				request.apiKey !== undefined ||
+				request.headers !== undefined ||
+				request.baseUrl !== undefined));
 	const existingModelIds = Object.keys(existingEntry.models ?? {})
 		.map((id) => id.trim())
 		.filter(Boolean);
@@ -615,6 +643,9 @@ export async function updateLocalProvider(
 		providerId,
 		explicitModels,
 		modelsSourceUrl: nextModelsSourceUrl,
+		baseUrl,
+		apiKey,
+		headers,
 		fallbackModelIds: existingModelIds,
 		shouldRecompute: shouldRecomputeModels,
 	});
@@ -633,7 +664,6 @@ export async function updateLocalProvider(
 			? defaultModelCandidate
 			: modelIds[0];
 
-	const existingSettings = manager.getProviderSettings(providerId);
 	const nextSettings: Record<string, unknown> = {
 		...(existingSettings ?? {}),
 		provider: providerId,
@@ -645,13 +675,11 @@ export async function updateLocalProvider(
 	if (client) nextSettings.client = client;
 	else delete nextSettings.client;
 	if (request.apiKey !== undefined) {
-		const apiKey = request.apiKey?.trim() ?? "";
 		if (apiKey) nextSettings.apiKey = apiKey;
 		else delete nextSettings.apiKey;
 	}
 	if (request.headers !== undefined) {
-		const normalizedHeaders = normalizeHeaders(request.headers);
-		if (normalizedHeaders) nextSettings.headers = normalizedHeaders;
+		if (headers) nextSettings.headers = headers;
 		else delete nextSettings.headers;
 	}
 	if (request.timeoutMs !== undefined) {
@@ -818,6 +846,14 @@ export async function listLocalProviders(
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
 						capabilities,
+						modelTools: MODEL_TOOL_NAMES.filter((tool) =>
+							LlmsModels.providerOffersModelTool(id, tool),
+						),
+						auth: {
+							providerId: id,
+							capabilities,
+							localCli: resolveProviderLocalCli(info),
+						},
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",
@@ -1052,10 +1088,10 @@ function applySettingsObjectPatch(
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-export function saveLocalProviderSettings(
+export async function saveLocalProviderSettings(
 	manager: ProviderSettingsManager,
 	request: Omit<SaveProviderSettingsActionRequest, "action">,
-): { providerId: string; enabled: boolean; settingsPath: string } {
+): Promise<{ providerId: string; enabled: boolean; settingsPath: string }> {
 	const providerId = request.providerId.trim();
 
 	if (request.enabled === false) {
@@ -1113,6 +1149,33 @@ export function saveLocalProviderSettings(
 			const merged = applySettingsObjectPatch(next[key], request[key]);
 			if (merged) next[key] = merged;
 			else delete next[key];
+		}
+	}
+
+	// Credential forms use this path rather than updateLocalProvider. Refresh
+	// source-backed catalogs before persisting credentials, so a failed fetch
+	// leaves the previous credentials and catalog together.
+	if (
+		request.apiKey !== undefined ||
+		request.headers !== undefined ||
+		request.baseUrl !== undefined
+	) {
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		const entry = modelsState.providers[providerId];
+		if (entry?.provider?.modelsSourceUrl) {
+			await updateLocalProvider(manager, {
+				providerId,
+				baseUrl:
+					typeof next.baseUrl === "string"
+						? next.baseUrl
+						: entry.provider.baseUrl,
+				apiKey: typeof next.apiKey === "string" ? next.apiKey : null,
+				headers: (next.headers as Record<string, string> | undefined) ?? null,
+				defaultModelId: typeof next.model === "string" ? next.model : undefined,
+			});
+			next.model = manager.getProviderSettings(providerId)?.model;
 		}
 	}
 

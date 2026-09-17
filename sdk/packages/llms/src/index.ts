@@ -99,6 +99,8 @@ export {
 	type ProviderApiLine,
 	registerAsyncHandler,
 	registerHandler,
+	resolveGatewayProviderRegistration,
+	resolveGatewayProviderRegistrationSync,
 	resolveProviderApiLineBaseUrl,
 } from "./providers";
 export {
@@ -109,10 +111,6 @@ export {
 export { buildClineClientHeaders } from "./providers/cline-client-headers";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
-export {
-	type ProviderLocalCli,
-	resolveProviderLocalCli,
-} from "./providers/local-cli";
 export { toGatewayModelCapabilities } from "./providers/model-capabilities";
 export {
 	BUILTIN_MODEL_OPERATION_CAPABILITIES,

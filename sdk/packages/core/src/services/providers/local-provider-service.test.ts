@@ -465,6 +465,106 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 	afterEach(() => cleanup());
 
+	it("authenticates model discovery on create, update, and refresh", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation(
+				async () =>
+					new Response(JSON.stringify({ data: [{ id: "agent_test" }] })),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "authenticated-model-source";
+		const modelsSourceUrl = "https://librechat.example/api/agents/v1/models";
+		const expectAuth = (token: string | null, tenant: string | null) => {
+			const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+			const headers = new Headers(init.headers);
+			expect(headers.get("authorization")).toBe(token);
+			expect(headers.get("x-tenant")).toBe(tenant);
+		};
+		await addLocalProvider(manager, {
+			providerId,
+			name: "LibreChat",
+			baseUrl: "https://librechat.example/api/agents/v1",
+			modelsSourceUrl,
+			apiKey: " initial-key ",
+			headers: { "X-Tenant": "first" },
+			models: [],
+		});
+		expectAuth("Bearer initial-key", "first");
+		await updateLocalProvider(manager, { providerId, modelsSourceUrl });
+		expectAuth("Bearer initial-key", "first");
+		await updateLocalProvider(manager, {
+			providerId,
+			modelsSourceUrl,
+			apiKey: " replacement-key ",
+			headers: { "X-Tenant": "second" },
+		});
+		expectAuth("Bearer replacement-key", "second");
+		await refreshProviderModelsFromSource(manager, providerId);
+		expectAuth("Bearer replacement-key", "second");
+		await updateLocalProvider(manager, {
+			providerId,
+			modelsSourceUrl,
+			apiKey: null,
+			headers: null,
+		});
+		expectAuth(null, null);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+	});
+
+	it.each([
+		"update",
+		"settings",
+	] as const)("refreshes tenant catalogs through %s on credential-only and endpoint-only changes", async (path) => {
+		const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+			const headers = new Headers(init.headers);
+			const id = `${new URL(url).host}:${headers.get("authorization")}:${headers.get("x-tenant")}`;
+			return new Response(JSON.stringify({ data: [{ id }] }));
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "tenant-switch";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Tenant Switch",
+			baseUrl: "https://first.example/v1",
+			modelsSourceUrl: "https://first.example/v1/models",
+			apiKey: "first",
+			models: [],
+		});
+		const save = async (patch: {
+			apiKey?: string;
+			baseUrl?: string;
+			headers?: Record<string, string>;
+		}) => {
+			if (path === "update")
+				await updateLocalProvider(manager, { providerId, ...patch });
+			else await saveLocalProviderSettings(manager, { providerId, ...patch });
+		};
+		const expectCatalog = async (id: string) => {
+			const state = await readModelsFile(resolveModelsRegistryPath(manager));
+			expect(Object.keys(state.providers[providerId].models ?? {})).toEqual([
+				id,
+			]);
+			expect(manager.getProviderSettings(providerId)?.model).toBe(id);
+		};
+		await save({ apiKey: "second" });
+		await expectCatalog("first.example:Bearer second:null");
+		await save({ headers: { "X-Tenant": "new-tenant" } });
+		await expectCatalog("first.example:Bearer second:new-tenant");
+		await save({ baseUrl: "https://second.example/api/v1" });
+		await expectCatalog("second.example:Bearer second:new-tenant");
+		expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(
+			"https://second.example/api/v1/models",
+		);
+		await save({ apiKey: "" });
+		await expectCatalog("second.example:null:new-tenant");
+		const previousSettings = manager.getProviderSettings(providerId);
+		fetchMock.mockRejectedValueOnce(new Error("unauthorized"));
+		await expect(save({ apiKey: "invalid" })).rejects.toThrow("unauthorized");
+		expect(manager.getProviderSettings(providerId)).toEqual(previousSettings);
+		await expectCatalog("second.example:null:new-tenant");
+	});
+
 	it("parses a flat array payload from modelsSourceUrl", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true,
@@ -1525,12 +1625,12 @@ describe("saveLocalProviderSettings", () => {
 
 	afterEach(() => cleanup());
 
-	it("disabling a provider removes it from settings", () => {
+	it("disabling a provider removes it from settings", async () => {
 		manager.setVoiceInputSettings({
 			providerId: "test-provider",
 			modelId: "m1",
 		});
-		const result = saveLocalProviderSettings(manager, {
+		const result = await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
 		});
@@ -1540,8 +1640,8 @@ describe("saveLocalProviderSettings", () => {
 		expect(manager.getVoiceInputSettings()).toBeUndefined();
 	});
 
-	it("updates apiKey", () => {
-		saveLocalProviderSettings(manager, {
+	it("updates apiKey", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			apiKey: "new-key",
@@ -1552,15 +1652,15 @@ describe("saveLocalProviderSettings", () => {
 		);
 	});
 
-	it("clears apiKey when empty string is provided", () => {
+	it("clears apiKey when empty string is provided", async () => {
 		// First set a key
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			apiKey: "some-key",
 		});
 		// Then clear it
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			apiKey: "",
@@ -1570,13 +1670,13 @@ describe("saveLocalProviderSettings", () => {
 		expect(settings).not.toHaveProperty("apiKey");
 	});
 
-	it("merges auth object rather than replacing it", () => {
-		saveLocalProviderSettings(manager, {
+	it("merges auth object rather than replacing it", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			auth: { accessToken: "tok1" },
 		});
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			auth: { refreshToken: "ref1" },
@@ -1591,13 +1691,13 @@ describe("saveLocalProviderSettings", () => {
 		expect(auth?.refreshToken).toBe("ref1");
 	});
 
-	it("merges and clears nested provider config fields", () => {
-		saveLocalProviderSettings(manager, {
+	it("merges and clears nested provider config fields", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			gcp: { projectId: "project-a", region: "us-central1" },
 		});
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			gcp: { projectId: "" },
@@ -1608,8 +1708,8 @@ describe("saveLocalProviderSettings", () => {
 		expect(settings?.gcp?.region).toBe("us-central1");
 	});
 
-	it("passes through scalar fields like maxTokens and timeout", () => {
-		saveLocalProviderSettings(manager, {
+	it("passes through scalar fields like maxTokens and timeout", async () => {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: true,
 			maxTokens: 4096,
@@ -1634,7 +1734,7 @@ describe("saveLocalProviderSettings", () => {
 			"test-provider",
 		);
 
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "test-provider",
 			enabled: false,
 		});
@@ -1875,6 +1975,52 @@ describe("listLocalProviders", () => {
 	});
 
 	afterEach(() => cleanup());
+
+	it("sends authentication facts for builtins and registered providers", async () => {
+		LlmsModels.registerProvider({
+			provider: {
+				id: "custom-auth-cli",
+				source: "file",
+				name: "Custom CLI",
+				protocol: "openai-chat",
+				client: "openai",
+				defaultModelId: "test",
+				capabilities: ["local-auth"],
+				metadata: { localCliCommand: " custom " },
+				docsUrl: "https://example.com/cli",
+			},
+			models: { test: { id: "test", name: "Test" } },
+		});
+		try {
+			const { providers } = await listLocalProviders(manager);
+			expect(
+				providers.find((p) => p.id === "custom-auth-cli")?.modelTools,
+			).toEqual([]);
+			expect(providers.find((p) => p.id === "anthropic")?.modelTools).toContain(
+				"web_search",
+			);
+			expect(providers.find((p) => p.id === "custom-auth-cli")?.auth).toEqual({
+				providerId: "custom-auth-cli",
+				capabilities: expect.arrayContaining(["local-auth"]),
+				localCli: { command: "custom", docsUrl: "https://example.com/cli" },
+			});
+			expect(
+				providers.find((p) => p.id === "claude-code")?.auth.localCli?.command,
+			).toBe("claude");
+			expect(
+				providers.find((p) => p.id === "openai-codex-cli")?.auth.localCli
+					?.command,
+			).toBe("codex");
+			expect(
+				providers.find((p) => p.id === "opencode")?.auth.localCli?.command,
+			).toBe("opencode");
+			expect(
+				providers.find((p) => p.id === "anthropic")?.auth.localCli,
+			).toBeUndefined();
+		} finally {
+			LlmsModels.unregisterProvider("custom-auth-cli");
+		}
+	});
 
 	it("includes all registered providers", async () => {
 		await addLocalProvider(manager, {
@@ -2337,7 +2483,7 @@ describe("refreshProviderModelsFromSource", () => {
 			json: async () => ({ models: [{ name: "remote-llama" }] }),
 		});
 		vi.stubGlobal("fetch", fetchMock);
-		saveLocalProviderSettings(manager, {
+		await saveLocalProviderSettings(manager, {
 			providerId: "ollama",
 			baseUrl: "http://tailscale-host:11434/v1",
 		});

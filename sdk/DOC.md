@@ -66,6 +66,16 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
+provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
+registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
+data to the shared helper. `listLocalProviders` includes the resulting facts in
+each `ProviderListItem.auth`, allowing browser clients to render authentication
+guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
@@ -87,3 +97,14 @@ parallel group starts. A before-tool `skip` blocks its own call; a before-tool
 `stop` prevents the entire response's execution, as before. Pending approvals
 can delay sibling execution. No background-run handles or new concurrency
 limit are introduced.
+
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved custom
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. A failed model fetch rejects the save and retains the prior settings
+and catalog.
