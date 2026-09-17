@@ -1604,6 +1604,16 @@ export async function handleCommand(
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
 	}
 
+	// ── Usage patterns (Settings → Usage) ─────────────────────────────
+	if (
+		command === "get_usage_patterns" ||
+		command === "export_usage_share_card" ||
+		command === "reveal_usage_share_card"
+	) {
+		const { handleUsageCommand } = await import("./commands-usage");
+		return await handleUsageCommand(ctx, command, args);
+	}
+
 	// ── Session import from other coding tools ────────────────────────
 	if (command === "list_importable_sessions") {
 		const backend = await resolveSessionBackend({ backendMode: "local" });

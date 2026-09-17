@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	Activity,
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
@@ -147,6 +148,7 @@ const SETTINGS_SECTION_ICONS = {
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
+	Usage: Activity,
 	Account: CircleUserRound,
 	Customize: Blocks,
 	Marketplace: Store,

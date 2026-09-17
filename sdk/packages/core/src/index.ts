@@ -807,6 +807,11 @@ export {
 	getCurrentContextSize,
 	summarizeUsageFromMessages,
 } from "./services/usage";
+export {
+	type UsagePatternsOptions,
+	type UsagePatternsReport,
+	UsagePatternsService,
+} from "./services/usage-patterns";
 export type {
 	FastFileIndexOptions,
 	MentionEnricherOptions,
