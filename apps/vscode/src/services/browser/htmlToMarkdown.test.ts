@@ -137,6 +137,62 @@ describe("htmlToMarkdown", () => {
 		])
 	})
 
+	it("writes a header row and its body with no blank line between them", () => {
+		const html =
+			"<table><thead><tr><th>Plan</th><th>Price</th></tr></thead>" +
+			"<tbody><tr><td>Starter</td><td>9 EUR</td></tr><tr><td>Pro</td><td>29 EUR</td></tr></tbody></table>"
+
+		expect(htmlToMarkdown(html)).toBe("| Plan | Price |\n| --- | --- |\n| Starter | 9 EUR |\n| Pro | 29 EUR |")
+	})
+
+	it("does not let a span attribute grow the output", () => {
+		// colspan="1000000" produced ten million characters from a few bytes of page.
+		const page = (span: number) => `<table><tr><td colspan="${span}">x</td></tr><tr><td>a</td></tr></table><p>after</p>`
+		const huge = htmlToMarkdown(page(1_000_000))
+
+		expect(huge).toBe(htmlToMarkdown(page(1000)))
+		expect(huge.length).toBeLessThan(100)
+		expect(huge).toContain("after")
+	})
+
+	it("survives spans that would cover millions of grid cells", () => {
+		// Tracking that many slots threw "RangeError: Set maximum size exceeded".
+		const html = `<table>${'<tr><td rowspan="65534" colspan="1000">x</td></tr>'.repeat(3)}</table>`
+
+		expect(() => htmlToMarkdown(html)).not.toThrow()
+	})
+
+	it("keeps the table whole around a row that has no cells", () => {
+		// Turndown writes a cell-less row as a blank line, which ended the table.
+		const html = "<table><tr><th>A</th><th>B</th></tr><tr></tr><tr><td>1</td><td>2</td></tr></table>"
+
+		expect(htmlToMarkdown(html)).toBe("| A | B |\n| --- | --- |\n| 1 | 2 |")
+	})
+
+	it("puts the delimiter under the first row that has cells", () => {
+		const html = "<table><tr></tr><tr><td>a</td><td>b</td></tr><tr><td>1</td><td>2</td></tr></table>"
+
+		expect(htmlToMarkdown(html)).toBe("| a | b |\n| --- | --- |\n| 1 | 2 |")
+	})
+
+	it(
+		"folds a long run of non-breaking spaces without backtracking",
+		() => {
+			// A `\s*\n\s*` fold took 4.7 s for 80,000 of them and grows with the square of the run.
+			const html = `<table><tr><th>A</th></tr><tr><td>x${"\u00a0".repeat(200_000)}</td></tr></table>`
+
+			expect(tableRows(htmlToMarkdown(html))[2]).toEqual(["x"])
+		},
+		{ timeout: 5_000 },
+	)
+
+	it("keeps a pipe inside a code span from splitting the cell", () => {
+		// The code span already has one backslash; a second made an even run, which GFM splits at.
+		const html = "<table><tr><th>Regex</th><th>Use</th></tr><tr><td><code>a\\|b</code></td><td>alt</td></tr></table>"
+
+		expect(htmlToMarkdown(html).split("\n")[2]).toBe("| `a\\|b` | alt |")
+	})
+
 	it("leaves markup without a table alone", () => {
 		const html = "<p>hello</p><ul><li>a</li><li>b</li></ul>"
 
