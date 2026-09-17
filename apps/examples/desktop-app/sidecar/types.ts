@@ -66,6 +66,8 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Last Hub lifecycle sequence applied to this session. */
+	lastHubStatusSequence?: number;
 	/** Iterations already in flight when the user supplied recovery guidance. */
 	mistakeRecovery?: {
 		latestIteration: number;
@@ -103,8 +105,9 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
-	owner: SidecarWebSocketClient;
-	resolve: (result: ToolApprovalResult) => void;
+	/** Cloud approvals have no local WebSocket owner and may resolve remotely. */
+	owner?: SidecarWebSocketClient;
+	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
 export type AskQuestionRequestItem = {
@@ -154,6 +157,10 @@ export type SidecarContext = {
 	telemetry?: ITelemetryService;
 	/** Analytics identity and explicit account state forwarded with each session. */
 	telemetryUser?: UserContext;
+	cloudSessionManager: {
+		dispose(): Promise<void>;
+		isCloudSession(sessionId: string): boolean;
+	} | null;
 	/**
 	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and
 	 * replayed to webviews that connect after the event fired.

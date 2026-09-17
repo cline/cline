@@ -333,11 +333,11 @@ export async function readSessionMessages(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
-	remoteMessages?: MessageWithMetadata[],
+	remoteMessages?: unknown[],
 ): Promise<unknown[]> {
 	const isRemoteRead = remoteMessages !== undefined;
 	const persisted = isRemoteRead
-		? remoteMessages
+		? (remoteMessages as MessageWithMetadata[])
 		: (readPersistedChatMessages(sessionId) ??
 			// A child agent's transcript is not stored under its own session
 			// directory — it lives beside the root session's artifacts — so opening a
