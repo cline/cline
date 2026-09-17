@@ -355,6 +355,92 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it("batches full streaming snapshots while forwarding every delta immediately", async () => {
+		const f = await attached();
+		vi.useFakeTimers();
+		const snapshotSpy = vi.spyOn(f.controller, "getSnapshot");
+		f.events.length = 0;
+		try {
+			for (let index = 0; index < 50; index++)
+				f.emit("assistant.delta", { text: "x" });
+			expect(
+				f.events.filter((event) => event.type === "hub_event"),
+			).toHaveLength(50);
+			expect(snapshotSpy).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(100);
+			expect(snapshotSpy).toHaveBeenCalledTimes(1);
+			const snapshotEvent = f.events.find((event) => event.type === "snapshot");
+			if (snapshotEvent?.type !== "snapshot")
+				throw new Error("Missing snapshot");
+			expect(snapshotEvent.snapshot).toBe(snapshotSpy.mock.results[0]?.value);
+			expect(Object.isFrozen(snapshotEvent)).toBe(true);
+			expect(Object.isFrozen(snapshotEvent.snapshot.messages)).toBe(true);
+			expect(JSON.stringify(snapshotEvent.snapshot.messages)).toContain(
+				"x".repeat(50),
+			);
+			f.emit("assistant.delta", { text: "tail" });
+			f.emit("run.completed", {});
+			expect(snapshotSpy).toHaveBeenCalledTimes(2);
+			await vi.advanceTimersByTimeAsync(100);
+			expect(snapshotSpy).toHaveBeenCalledTimes(2);
+			f.emit("assistant.delta", { text: "pending" });
+			await f.controller.detach(record.id);
+			const callsAfterDetach = snapshotSpy.mock.calls.length;
+			await vi.advanceTimersByTimeAsync(100);
+			expect(snapshotSpy).toHaveBeenCalledTimes(callsAfterDetach);
+		} finally {
+			await f.controller.dispose();
+			vi.useRealTimers();
+		}
+	});
+	it("keeps discovery rows separate from attached session snapshots", async () => {
+		const f = fixture();
+		try {
+			expect(await f.controller.list()).toHaveLength(1);
+			expect(f.events).toEqual([]);
+			await f.controller.attach(record.id);
+			f.events.length = 0;
+			await f.controller.list();
+			expect(f.events.some((event) => event.type === "snapshot")).toBe(true);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("waits for provisioning and connects without requiring another attach", async () => {
+		const f = fixture();
+		let status = "provisioning";
+		let finish!: () => void;
+		const ready = new Promise<void>((resolve) => {
+			finish = resolve;
+		});
+		f.api.list.mockImplementation(async () => [{ ...record, status }]);
+		f.api.status.mockImplementation(async () => ({ status }));
+		f.api.waitUntilReady.mockImplementation(async () => {
+			await ready;
+			status = "ready";
+		});
+		try {
+			const attaching = f.controller.attach(record.id);
+			await vi.waitFor(() =>
+				expect(f.api.waitUntilReady).toHaveBeenCalledOnce(),
+			);
+			expect(
+				f.events.some(
+					(event) =>
+						event.type === "snapshot" &&
+						event.snapshot.status === "provisioning",
+				),
+			).toBe(true);
+			finish();
+			await attaching;
+			expect(f.controller.getSnapshot(record.id)?.connectionState).toBe(
+				"connected",
+			);
+		} finally {
+			finish();
+			await f.controller.dispose();
+		}
+	});
 	it("owns frozen snapshots and reconciled live messages without leaking inner IDs", async () => {
 		const f = await attached();
 		const baseline = f.controller.getSnapshot(record.id)!;

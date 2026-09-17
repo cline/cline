@@ -485,7 +485,9 @@ export class CloudSessionController {
 	}
 
 	private publish(event: CloudSessionEvent): void {
-		const value = immutableCopy(event);
+		// getSnapshot already owns and freezes the complete snapshot tree.
+		const value =
+			event.type === "snapshot" ? Object.freeze(event) : immutableCopy(event);
 		for (const listener of this.listeners) {
 			try {
 				listener(value);
@@ -502,10 +504,31 @@ export class CloudSessionController {
 		replace = false,
 		cause?: "status" | "ended" | "queue" | "approvals",
 	): void {
+		this.cancelScheduledSnapshot(sessionId);
 		const snapshot = this.getSnapshot(sessionId);
 		if (snapshot)
 			this.publish({ type: "snapshot", sessionId, snapshot, replace, cause });
 		else this.publish({ type: "removed", sessionId });
+	}
+
+	private readonly snapshotTimers = new Map<
+		string,
+		ReturnType<typeof setTimeout>
+	>();
+	private cancelScheduledSnapshot(sessionId: string): void {
+		clearTimeout(this.snapshotTimers.get(sessionId));
+		this.snapshotTimers.delete(sessionId);
+	}
+	private scheduleSnapshot(sessionId: string): void {
+		if (
+			this.disposed ||
+			this.detachedSessions.has(sessionId) ||
+			this.snapshotTimers.has(sessionId)
+		)
+			return;
+		const timer = setTimeout(() => this.publishSnapshot(sessionId), 100);
+		timer.unref?.();
+		this.snapshotTimers.set(sessionId, timer);
 	}
 
 	private notify(name: string, payload: JsonRecord): void {
@@ -685,7 +708,8 @@ export class CloudSessionController {
 			}
 		}
 		this.lastListedSessions = scoped;
-		for (const record of scoped) this.publishSnapshot(record.id);
+		for (const record of scoped)
+			if (this.sessions.has(record.id)) this.publishSnapshot(record.id);
 		return immutableCopy(scoped);
 	}
 
@@ -1084,13 +1108,14 @@ export class CloudSessionController {
 			throw new Error("Cloud viewer detached during attachment");
 		if (!this.sessions.has(outerSessionId))
 			this.sessions.set(outerSessionId, this.stateFromRecord(known));
-		if (known.status === "provisioning" || known.status === "failed") {
+		if (known.status === "failed") {
 			return attachResultPayload(
 				known,
 				known.status,
 				this.sessions.get(outerSessionId)?.prompt,
 			);
 		}
+		if (known.status === "provisioning") this.publishSnapshot(outerSessionId);
 		if (isExpiredRecord(known)) {
 			// A connection left over from before expiry would reconnect-loop
 			// against a dead sandbox forever.
@@ -1838,6 +1863,8 @@ export class CloudSessionController {
 
 	async dispose(): Promise<void> {
 		this.disposed = true;
+		for (const sessionId of this.snapshotTimers.keys())
+			this.cancelScheduledSnapshot(sessionId);
 		this.sendAbortTokens.clear();
 		for (const controller of this.provisioningControllers.values())
 			controller.abort();
@@ -2595,7 +2622,14 @@ export class CloudSessionController {
 			sessionId: outerSessionId,
 			event: { ...event, sessionId: outerSessionId },
 		});
-		this.publishSnapshot(outerSessionId);
+		// UI deltas stream immediately; only the full cached transcript is batched.
+		if (
+			event.event === "assistant.delta" ||
+			event.event === "reasoning.delta" ||
+			event.event === "tool.updated"
+		)
+			this.scheduleSnapshot(outerSessionId);
+		else this.publishSnapshot(outerSessionId);
 	}
 
 	private handleApprovalRequested(
@@ -2752,6 +2786,7 @@ export class CloudSessionController {
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {
+		this.cancelScheduledSnapshot(outerSessionId);
 		const connection = this.connections.get(outerSessionId);
 		this.connections.delete(outerSessionId);
 		if (!connection) {
