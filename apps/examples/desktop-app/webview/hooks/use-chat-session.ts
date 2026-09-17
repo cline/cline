@@ -2178,6 +2178,19 @@ export function useChatSession() {
 		],
 	);
 
+	const answerAskQuestion = useCallback(
+		async (requestId: string, answer: string) => {
+			await desktopClient.invoke("respond_ask_question", {
+				requestId,
+				answer,
+			});
+			setPendingAskQuestions((prev) =>
+				prev.filter((item) => item.requestId !== requestId),
+			);
+		},
+		[],
+	);
+
 	// Resolves to false when the runtime never took the prompt (a failure
 	// before dispatch, or a provider switch / OAuth refresh that threw before
 	// the turn began) so the caller can hand the text back to the composer.
@@ -2185,6 +2198,33 @@ export function useChatSession() {
 		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
+
+			// The agent is blocked on its question until it is answered, so a
+			// typed message is the answer rather than a follow-up prompt to
+			// queue behind it (which left the question card up indefinitely).
+			const pendingQuestion = pendingAskQuestions[0];
+			if (pendingQuestion) {
+				// Rejections here are composer errors only: the runtime is still
+				// running and blocked on the unchanged question, so the session
+				// status and transcript must not be flipped into an error state.
+				// The ask_question tool result is a string, so attachments cannot
+				// ride along with the answer; hand them back rather than silently
+				// dropping them or queueing the message behind the blocked agent.
+				if (attachedFiles.length > 0) {
+					setError(
+						"Question answers are text only. Remove the attachments to answer, or pick an option first and send the files afterwards.",
+					);
+					return false;
+				}
+				try {
+					setError(null);
+					await answerAskQuestion(pendingQuestion.requestId, trimmed);
+					return true;
+				} catch (err) {
+					setError(errorMessage(err));
+					return false;
+				}
+			}
 
 			setError(null);
 			setIsHydratingSession(false);
@@ -2872,6 +2912,7 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			answerAskQuestion,
 			appendTurnFailureMessage,
 			applyCanonicalHistory,
 			applyPromptsInQueue,
@@ -2881,6 +2922,7 @@ export function useChatSession() {
 			finalizeSettledTurn,
 			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
+			pendingAskQuestions,
 			refreshSessionDiffSummary,
 			reportSessionStartFailure,
 			sessionId,
@@ -2919,19 +2961,6 @@ export function useChatSession() {
 	const rejectToolApproval = useCallback(
 		(requestId: string) => respondToolApproval(requestId, false),
 		[respondToolApproval],
-	);
-
-	const answerAskQuestion = useCallback(
-		async (requestId: string, answer: string) => {
-			await desktopClient.invoke("respond_ask_question", {
-				requestId,
-				answer,
-			});
-			setPendingAskQuestions((prev) =>
-				prev.filter((item) => item.requestId !== requestId),
-			);
-		},
-		[],
 	);
 
 	const restoreCheckpoint = useCallback(

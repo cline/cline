@@ -289,6 +289,8 @@ export type PromptDraft = {
 type ChatInputBarProps = {
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
+	/** The agent is blocked on an ask_question; a submission answers it instead of queueing. */
+	hasPendingQuestion?: boolean;
 	hasRunningAgents?: boolean;
 	provider: string;
 	model: string;
@@ -333,6 +335,7 @@ type ChatInputBarProps = {
 function ChatInputBarImpl({
 	variant = "conversation",
 	status,
+	hasPendingQuestion = false,
 	hasRunningAgents = false,
 	provider,
 	model,
@@ -1380,11 +1383,13 @@ function ChatInputBarImpl({
 									? "Transcribing voice input…"
 									: variant === "welcome"
 										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-										: isBusy
-											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
-											: "Enter your question or type / for commands or @ for context"
+										: hasPendingQuestion
+											? "Type an answer to the question above, or pick an option"
+											: isBusy
+												? promptsInQueue.length > 0
+													? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+													: "Agent is working... submit to queue another message"
+												: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive}
 							ref={promptInputRef}
