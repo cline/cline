@@ -1005,6 +1005,7 @@ export {
 	getProviderConfig,
 	isPrivateModelCatalogProvider,
 	OPENAI_COMPATIBLE_PROVIDERS,
+	providerModelInfoRequiresLiveRefresh,
 	resolveProviderConfig,
 } from "./services/llms/provider-defaults";
 export type {
