@@ -76,6 +76,12 @@ const buildSidecar = async (
 // macOS helpers are deliberately not bundled: they are Mach-O files under
 // Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
 // in the bundle fails notarization. Shipping them needs a signing step first.
+//
+// On a Windows host, Bun fails to extract the downloaded Linux runtime these
+// cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").
+// Bun skips the download when `$BUN_INSTALL_CACHE_DIR/bun-<target>-v<version>`
+// already exists, so seed those two files from the @oven/bun-<target> npm
+// packages first; desktop-publish.yml does exactly that in its Windows job.
 const buildRemoteHelpers = async (): Promise<void> => {
 	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",
