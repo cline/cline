@@ -52,12 +52,32 @@ export function extractModelIdsFromPayload(
 	return [];
 }
 
+export interface ModelSourceAuth {
+	baseUrl?: string;
+	apiKey?: string;
+	headers?: Record<string, string>;
+}
+
 export async function fetchModelIdsFromSource(
 	url: string,
 	providerId: string,
+	auth: ModelSourceAuth = {},
 ): Promise<string[]> {
+	// A model source may be a third-party public catalog. Only send provider
+	// credentials to its own origin, and do not follow authenticated redirects.
+	const headers = new Headers();
+	if (auth.baseUrl && new URL(url).origin === new URL(auth.baseUrl).origin) {
+		if (auth.apiKey?.trim()) {
+			headers.set("Authorization", `Bearer ${auth.apiKey.trim()}`);
+		}
+		for (const [name, value] of Object.entries(auth.headers ?? {})) {
+			headers.set(name, value);
+		}
+	}
+	const hasHeaders = [...headers].length > 0;
 	const response = await fetch(url, {
 		method: "GET",
+		...(hasHeaders ? { headers, redirect: "error" as const } : {}),
 		signal: AbortSignal.timeout(5_000),
 	});
 	if (!response.ok) {

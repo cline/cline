@@ -465,6 +465,53 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 	afterEach(() => cleanup());
 
+	it("authenticates model discovery on create, update, and refresh", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockImplementation(
+				async () =>
+					new Response(JSON.stringify({ data: [{ id: "agent_test" }] })),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "authenticated-model-source";
+		const modelsSourceUrl = "https://librechat.example/api/agents/v1/models";
+		const expectAuth = (token: string | null, tenant: string | null) => {
+			const init = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+			const headers = new Headers(init.headers);
+			expect(headers.get("authorization")).toBe(token);
+			expect(headers.get("x-tenant")).toBe(tenant);
+		};
+		await addLocalProvider(manager, {
+			providerId,
+			name: "LibreChat",
+			baseUrl: "https://librechat.example/api/agents/v1",
+			modelsSourceUrl,
+			apiKey: " initial-key ",
+			headers: { "X-Tenant": "first" },
+			models: [],
+		});
+		expectAuth("Bearer initial-key", "first");
+		await updateLocalProvider(manager, { providerId, modelsSourceUrl });
+		expectAuth("Bearer initial-key", "first");
+		await updateLocalProvider(manager, {
+			providerId,
+			modelsSourceUrl,
+			apiKey: " replacement-key ",
+			headers: { "X-Tenant": "second" },
+		});
+		expectAuth("Bearer replacement-key", "second");
+		await refreshProviderModelsFromSource(manager, providerId);
+		expectAuth("Bearer replacement-key", "second");
+		await updateLocalProvider(manager, {
+			providerId,
+			modelsSourceUrl,
+			apiKey: null,
+			headers: null,
+		});
+		expectAuth(null, null);
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+	});
+
 	it("parses a flat array payload from modelsSourceUrl", async () => {
 		const mockFetch = vi.fn().mockResolvedValue({
 			ok: true,
