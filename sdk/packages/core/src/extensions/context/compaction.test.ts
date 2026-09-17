@@ -1184,9 +1184,11 @@ describe("createContextCompactionPrepareTurn", () => {
 			// Same under-the-trigger estimate, but the provider reports that the
 			// PREVIOUS (smaller) request already consumed more than the estimate
 			// claims the current one does — the estimator is under-counting.
+			// 1.5x sits comfortably past the 1.05x trigger; a count right at the
+			// multiple would only cross it by rounding.
 			const result = await run({
 				maxInputTokensMultiple: 1.05,
-				previousRequestInputTokens: Math.ceil(estimate() * 1.05),
+				previousRequestInputTokens: Math.ceil(estimate() * 1.5),
 			});
 			expect(result).toBeDefined();
 			// The retention target must tighten with the trigger, not stay on the
