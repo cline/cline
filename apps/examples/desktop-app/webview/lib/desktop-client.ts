@@ -159,6 +159,13 @@ function finiteReportNumber(value: unknown): number | undefined {
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
 const RECONNECT_MAX_DELAY_MS = 4_000;
+// How long a command waits for the transport before failing. At launch the
+// sidecar may still be booting, or may have died on its first start (hub
+// daemon not ready in time) and be getting respawned by the Tauri shell; each
+// endpoint lookup can itself block for the shell's 15s readiness poll, so this
+// covers a failed first start plus a full second startup.
+const CONNECT_WAIT_TIMEOUT_MS = 60_000;
+const CONNECT_RETRY_DELAY_MS = 500;
 const DESKTOP_DEBUG_LOG_EVENT = "desktop_debug_log";
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
@@ -436,15 +443,11 @@ class DesktopClient {
 	}
 
 	private async ensureConnected(isReconnect = false): Promise<void> {
-		if (
-			this.socket &&
-			(this.socket.readyState === WebSocket.OPEN ||
-				this.socket.readyState === WebSocket.CONNECTING)
-		) {
-			return;
-		}
 		if (this.connectPromise) {
 			return this.connectPromise;
+		}
+		if (this.socket?.readyState === WebSocket.OPEN) {
+			return;
 		}
 
 		this.setTransportState(
@@ -508,6 +511,47 @@ class DesktopClient {
 		return this.connectPromise;
 	}
 
+	/**
+	 * Wait for an open transport, retrying failed connect attempts until the
+	 * deadline. A command must not fail just because its connect attempt raced
+	 * a sidecar that was still booting or being respawned; every retry
+	 * re-resolves the endpoint (see scheduleReconnect), so a later-published
+	 * endpoint or fresh approval token is picked up. Rethrows the last connect
+	 * error so a genuine failure keeps its cause.
+	 */
+	private async connectForCommand(command: string): Promise<WebSocket> {
+		const deadline = Date.now() + CONNECT_WAIT_TIMEOUT_MS;
+		let lastError: unknown;
+		for (;;) {
+			try {
+				await this.ensureConnected();
+				const socket = this.socket;
+				if (socket?.readyState === WebSocket.OPEN) {
+					return socket;
+				}
+				lastError = new Error("Desktop backend transport unavailable");
+			} catch (error) {
+				lastError = error;
+			}
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				break;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, Math.min(CONNECT_RETRY_DELAY_MS, remaining)),
+			);
+		}
+		const error =
+			lastError instanceof Error ? lastError : new Error(String(lastError));
+		this.reportError({
+			operation: "webview.transport_unavailable",
+			error,
+			command,
+			timeoutMs: CONNECT_WAIT_TIMEOUT_MS,
+		});
+		throw error;
+	}
+
 	async invoke<T>(
 		command: string,
 		args?: Record<string, unknown>,
@@ -529,17 +573,7 @@ class DesktopClient {
 			}
 		}
 
-		await this.ensureConnected();
-		const socket = this.socket;
-		if (!socket || socket.readyState !== WebSocket.OPEN) {
-			const error = new Error("Desktop backend transport unavailable");
-			this.reportError({
-				operation: "webview.transport_unavailable",
-				error,
-				command,
-			});
-			throw error;
-		}
+		const socket = await this.connectForCommand(command);
 
 		const id = `desktop_${Date.now()}_${this.requestCounter++}`;
 		const request: DesktopTransportRequest = {

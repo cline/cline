@@ -408,6 +408,63 @@ describe("DesktopClient endpoint resolution", () => {
 		expect(desktopClient.getTransportError()).toBeNull();
 	});
 
+	it("holds a command until the shell respawns a sidecar that exited before publishing", async () => {
+		tauriInvoke
+			.mockRejectedValueOnce(
+				new Error("desktop backend exited before publishing its endpoint"),
+			)
+			.mockResolvedValue("ws://127.0.0.1:3126/transport?approval_token=fresh");
+		const { desktopClient } = await import("./desktop-client");
+		let settled = false;
+		const invocation = desktopClient
+			.invoke<{ ok: boolean }>("run_provider_oauth_login", {
+				provider: "cline",
+			})
+			.finally(() => {
+				settled = true;
+			});
+
+		await vi.waitFor(() =>
+			expect(desktopClient.getTransportError()).toContain(
+				"exited before publishing its endpoint",
+			),
+		);
+		expect(sockets).toHaveLength(0);
+		expect(settled).toBe(false);
+
+		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		expect(settled).toBe(false);
+		const socket = sockets[0];
+		if (!socket) throw new Error("expected a socket");
+		socket.open();
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+		expect(socket.lastRequest()).toMatchObject({
+			command: "run_provider_oauth_login",
+			args: { provider: "cline" },
+		});
+
+		socket.respond({ ok: true });
+		await expect(invocation).resolves.toEqual({ ok: true });
+	});
+
+	it("fails a command with the last connect error once the transport budget is spent", async () => {
+		tauriInvoke.mockRejectedValue(
+			new Error("desktop backend endpoint not ready"),
+		);
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke("get_process_context");
+		const rejection = expect(invocation).rejects.toThrow(
+			"desktop backend endpoint not ready",
+		);
+
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(sockets).toHaveLength(0);
+		await vi.advanceTimersByTimeAsync(30_000);
+		await rejection;
+		expect(tauriInvoke.mock.calls.length).toBeGreaterThan(1);
+	});
+
 	it("re-resolves the endpoint when reconnecting after the transport drops", async () => {
 		tauriInvoke
 			.mockResolvedValueOnce("ws://127.0.0.1:3126/transport?approval_token=old")
