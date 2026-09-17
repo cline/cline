@@ -1,10 +1,8 @@
 "use client";
 
 import { Loader2, Store } from "lucide-react";
-import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { fetchComposioToolkitCatalog } from "@/lib/composio";
 import type { ComposioIntegrationSummary } from "@/lib/composio-types";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 import {
@@ -12,13 +10,7 @@ import {
 	ConnectorLogo,
 } from "./composio-connector-browser";
 
-/**
- * Installed > Connectors: the connected accounts. Gmail, Google Calendar,
- * and GitHub are pinned as recommended; the full catalog is browsed from the
- * Marketplace's Connectors tab. The Cline API proxy holds the Composio key;
- * the whole tab is hidden unless the account has Composio beta access.
- */
-
+/** Installed connectors and active installations; browse new apps in Marketplace. */
 export function ComposioConnectorsView({
 	onChanged,
 	onOpenMarketplace,
@@ -36,38 +28,6 @@ export function ComposioConnectorsView({
 		cancelConnect,
 		disconnect,
 	} = useComposioConnections({ onChanged });
-
-	// Official logos come from the Composio catalog; summaries only carry one
-	// once a toolkit is connected, so join the catalog for the rest.
-	const [logoBySlug, setLogoBySlug] = useState<Map<string, string>>(
-		() => new Map(),
-	);
-
-	useEffect(() => {
-		if (!configured) {
-			return;
-		}
-		let cancelled = false;
-		void fetchComposioToolkitCatalog()
-			.then((response) => {
-				if (cancelled) {
-					return;
-				}
-				const next = new Map<string, string>();
-				for (const entry of response.toolkits) {
-					if (entry.logo) {
-						next.set(entry.slug, entry.logo);
-					}
-				}
-				setLogoBySlug(next);
-			})
-			.catch(() => {
-				// Logos are cosmetic; the themed fallback icons cover this.
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [configured]);
 
 	if (loadError) {
 		return (
@@ -97,83 +57,54 @@ export function ComposioConnectorsView({
 		);
 	}
 
-	const recommended = status.integrations.filter(
-		(integration) => integration.recommended,
+	const installed = status.integrations.filter(
+		(integration) => integration.status !== "not_connected",
 	);
-	const otherConnected = status.integrations.filter(
-		(integration) =>
-			!integration.recommended && integration.status !== "not_connected",
-	);
+	const marketplaceButton = onOpenMarketplace ? (
+		<Button
+			onClick={onOpenMarketplace}
+			size="sm"
+			type="button"
+			variant="default"
+		>
+			<Store className="size-4" />
+			See more Connectors in the Marketplace
+		</Button>
+	) : null;
+
+	if (installed.length === 0) {
+		return (
+			<div className="flex min-h-64 items-center justify-center">
+				{marketplaceButton}
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div>
-				<p className="text-sm text-muted-foreground">
-					Connect your accounts to give Cline tools for your favorite apps.
-					Connected tools become available in new sessions.
-				</p>
+			<p className="text-sm text-muted-foreground">
+				Connected tools become available in new sessions.
+			</p>
+			<div className="flex flex-col gap-3">
+				{installed.map((integration) => (
+					<ConnectorCard
+						actionError={
+							actionError?.toolkit === integration.toolkit
+								? actionError.message
+								: undefined
+						}
+						busy={busyToolkit === integration.toolkit}
+						configured={configured}
+						integration={integration}
+						key={integration.toolkit}
+						logo={integration.logo}
+						onCancel={() => void cancelConnect(integration.toolkit)}
+						onConnect={() => void connect(integration.toolkit)}
+						onDisconnect={() => void disconnect(integration.toolkit)}
+					/>
+				))}
 			</div>
-
-			<section>
-				<h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-					Recommended
-				</h3>
-				<div className="flex flex-col gap-3">
-					{recommended.map((integration) => (
-						<ConnectorCard
-							actionError={
-								actionError?.toolkit === integration.toolkit
-									? actionError.message
-									: undefined
-							}
-							busy={busyToolkit === integration.toolkit}
-							configured={configured}
-							integration={integration}
-							key={integration.toolkit}
-							logo={integration.logo ?? logoBySlug.get(integration.toolkit)}
-							onCancel={() => void cancelConnect(integration.toolkit)}
-							onConnect={() => void connect(integration.toolkit)}
-							onDisconnect={() => void disconnect(integration.toolkit)}
-						/>
-					))}
-				</div>
-			</section>
-
-			{otherConnected.length > 0 ? (
-				<section>
-					<h3 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-						Also connected
-					</h3>
-					<div className="flex flex-col gap-3">
-						{otherConnected.map((integration) => (
-							<ConnectorCard
-								busy={busyToolkit === integration.toolkit}
-								configured={configured}
-								integration={integration}
-								key={integration.toolkit}
-								logo={integration.logo ?? logoBySlug.get(integration.toolkit)}
-								onCancel={() => void cancelConnect(integration.toolkit)}
-								onConnect={() => void connect(integration.toolkit)}
-								onDisconnect={() => void disconnect(integration.toolkit)}
-							/>
-						))}
-					</div>
-				</section>
-			) : null}
-
-			{onOpenMarketplace ? (
-				<div>
-					<Button
-						onClick={onOpenMarketplace}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Store className="size-4" />
-						Browse all connectors in the Marketplace
-					</Button>
-				</div>
-			) : null}
+			{marketplaceButton ? <div>{marketplaceButton}</div> : null}
 		</div>
 	);
 }
