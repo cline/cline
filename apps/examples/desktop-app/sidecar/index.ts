@@ -7,7 +7,11 @@ import {
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
+import {
+	captureSdkError,
+	claimHubDaemonProcess,
+	disableCurrentDirectoryExecutableSearch,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -232,6 +236,7 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
+	disableCurrentDirectoryExecutableSearch();
 	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
 	// from handing it to every process they spawn.
 	if (claimHubDaemonProcess()) {
