@@ -66,6 +66,7 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
+import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
@@ -116,7 +117,6 @@ import {
 import {
 	findArtifactUnderDir,
 	readSessionManifest,
-	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
