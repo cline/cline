@@ -5,7 +5,7 @@
 <h1 align="center">Cline</h1>
 
 <p align="center">
-The open source coding agent in your IDE, terminal, and desktop.
+The open source coding agent in your IDE, terminal, & desktop.
 </p>
 
 <div align="center">
