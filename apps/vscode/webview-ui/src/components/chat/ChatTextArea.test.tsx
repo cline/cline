@@ -143,3 +143,21 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		expect(screen.queryByTestId("images-unsupported-notice")).not.toBeInTheDocument()
 	})
 })
+
+describe("ChatTextArea Plan/Act mode toggle accessibility", () => {
+	it("exposes Plan/Act as a radiogroup with roving tabindex", () => {
+		renderTextArea()
+
+		const group = screen.getByRole("radiogroup", { name: "Plan or Act mode" })
+		expect(group).toBeInTheDocument()
+
+		const plan = screen.getByRole("radio", { name: "Plan mode" })
+		const act = screen.getByRole("radio", { name: "Act mode" })
+
+		expect(plan).toHaveAttribute("aria-checked", "false")
+		expect(act).toHaveAttribute("aria-checked", "true")
+
+		expect(plan).toHaveAttribute("tabindex", "-1")
+		expect(act).toHaveAttribute("tabindex", "0")
+	})
+})
