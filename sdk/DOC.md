@@ -97,3 +97,14 @@ parallel group starts. A before-tool `skip` blocks its own call; a before-tool
 `stop` prevents the entire response's execution, as before. Pending approvals
 can delay sibling execution. No background-run handles or new concurrency
 limit are introduced.
+
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved custom
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. A failed model fetch rejects the save and retains the prior settings
+and catalog.

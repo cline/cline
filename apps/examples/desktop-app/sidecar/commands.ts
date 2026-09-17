@@ -2679,7 +2679,7 @@ export async function handleCommand(
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
-		const saved = saveLocalProviderSettings(manager, {
+		const saved = await saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -2693,7 +2693,7 @@ export async function handleCommand(
 				getProviderAuthHandler(saved.providerId)?.storageProviderId ??
 				saved.providerId;
 			if (storageProviderId !== saved.providerId) {
-				saveLocalProviderSettings(manager, {
+				await saveLocalProviderSettings(manager, {
 					providerId: storageProviderId,
 					enabled: false,
 				});

@@ -623,11 +623,19 @@ export async function updateLocalProvider(
 	const explicitModels = uniqueTrimmed(request.models);
 	const nextModelsSourceUrl =
 		request.modelsSourceUrl === undefined
-			? existingEntry.provider.modelsSourceUrl
+			? resolveModelsSourceUrl(
+					baseUrl,
+					existingEntry.provider.baseUrl,
+					existingEntry.provider.modelsSourceUrl,
+				)
 			: request.modelsSourceUrl?.trim() || undefined;
 	const shouldRecomputeModels =
 		request.models !== undefined ||
-		(request.modelsSourceUrl !== undefined && !!nextModelsSourceUrl);
+		(!!nextModelsSourceUrl &&
+			(request.modelsSourceUrl !== undefined ||
+				request.apiKey !== undefined ||
+				request.headers !== undefined ||
+				request.baseUrl !== undefined));
 	const existingModelIds = Object.keys(existingEntry.models ?? {})
 		.map((id) => id.trim())
 		.filter(Boolean);
@@ -1080,10 +1088,10 @@ function applySettingsObjectPatch(
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-export function saveLocalProviderSettings(
+export async function saveLocalProviderSettings(
 	manager: ProviderSettingsManager,
 	request: Omit<SaveProviderSettingsActionRequest, "action">,
-): { providerId: string; enabled: boolean; settingsPath: string } {
+): Promise<{ providerId: string; enabled: boolean; settingsPath: string }> {
 	const providerId = request.providerId.trim();
 
 	if (request.enabled === false) {
@@ -1141,6 +1149,33 @@ export function saveLocalProviderSettings(
 			const merged = applySettingsObjectPatch(next[key], request[key]);
 			if (merged) next[key] = merged;
 			else delete next[key];
+		}
+	}
+
+	// Credential forms use this path rather than updateLocalProvider. Refresh
+	// source-backed catalogs before persisting credentials, so a failed fetch
+	// leaves the previous credentials and catalog together.
+	if (
+		request.apiKey !== undefined ||
+		request.headers !== undefined ||
+		request.baseUrl !== undefined
+	) {
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		const entry = modelsState.providers[providerId];
+		if (entry?.provider?.modelsSourceUrl) {
+			await updateLocalProvider(manager, {
+				providerId,
+				baseUrl:
+					typeof next.baseUrl === "string"
+						? next.baseUrl
+						: entry.provider.baseUrl,
+				apiKey: typeof next.apiKey === "string" ? next.apiKey : null,
+				headers: (next.headers as Record<string, string> | undefined) ?? null,
+				defaultModelId: typeof next.model === "string" ? next.model : undefined,
+			});
+			next.model = manager.getProviderSettings(providerId)?.model;
 		}
 	}
 
