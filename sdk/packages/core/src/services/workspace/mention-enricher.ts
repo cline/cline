@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { type FastFileIndexOptions, getFileIndex } from "./file-indexer";
 
-const TRAILING_PUNCTUATION_CHARS = new Set("),.:;!?`'\"");
+const TRAILING_PUNCTUATION_CHARS = new Set("]),.:;!?`'\"");
 const LEADING_WRAPPERS = /^[(`'"]+/;
 
 export interface MentionEnricherOptions extends FastFileIndexOptions {
@@ -27,7 +27,7 @@ function stripTrailingPunctuation(input: string): string {
 }
 
 function extractMentionTokens(input: string): string[] {
-	const matches = input.matchAll(/(^|[\s])@([^\s]+)/g);
+	const matches = input.matchAll(/(^|[\s(\[{'\"`])@([^\s]+)/g);
 	const mentions: string[] = [];
 	for (const match of matches) {
 		const token = (match[2] ?? "").trim();
