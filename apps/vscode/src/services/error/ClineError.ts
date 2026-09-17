@@ -67,9 +67,77 @@ interface ErrorDetails {
 	 * The error message associated with the error, if applicable.
 	 */
 	message?: string
+	/**
+	 * How long the provider asked us to wait, in seconds, when it said so.
+	 *
+	 * A 429 alone does not say whether to wait or to stop; the header does. Read
+	 * here, where the response is, so no consumer has to re-parse the message
+	 * text to find out.
+	 */
+	retryAfterSeconds?: number
 	// Additional details that might be present in the error
 	// This can include things like current balance, error messages, etc.
 	details?: any
+}
+
+/**
+ * Reads a header off whatever shape the provider's error carried them in: a
+ * `Headers` instance has `.get`, a serialized error has a plain object, and
+ * casing differs between the two.
+ */
+function readHeader(headers: any, name: string): string | undefined {
+	if (!headers) {
+		return undefined
+	}
+	if (typeof headers.get === "function") {
+		const value = headers.get(name)
+		return typeof value === "string" ? value : undefined
+	}
+	if (typeof headers !== "object") {
+		return undefined
+	}
+	const wanted = name.toLowerCase()
+	for (const [key, value] of Object.entries(headers)) {
+		if (key.toLowerCase() === wanted && typeof value === "string") {
+			return value
+		}
+	}
+	return undefined
+}
+
+/**
+ * The provider's own answer to "how long", in seconds.
+ *
+ * Handles both forms RFC 9110 allows -- delay-seconds and an HTTP-date -- plus
+ * the `retry-after-ms` some providers send instead. A date already in the past
+ * yields 0 rather than a negative wait. Returns undefined when nothing was
+ * said, which is the difference between "wait this long" and "we do not know".
+ */
+export function parseRetryAfterSeconds(headers: any): number | undefined {
+	const millis = readHeader(headers, "retry-after-ms")
+	if (millis !== undefined) {
+		const parsed = Number(millis)
+		if (Number.isFinite(parsed) && parsed >= 0) {
+			return parsed / 1000
+		}
+	}
+
+	const value = readHeader(headers, "retry-after")?.trim()
+	if (!value) {
+		return undefined
+	}
+	// Digits only: Number() also accepts "0x10" and "1e3", which are not
+	// delay-seconds and would produce a wrong wait rather than falling through
+	// to the date branch.
+	if (/^\d+(\.\d+)?$/.test(value)) {
+		const seconds = Number(value)
+		return Number.isFinite(seconds) ? seconds : undefined
+	}
+	const retryAt = Date.parse(value)
+	if (Number.isNaN(retryAt)) {
+		return undefined
+	}
+	return Math.max(0, (retryAt - Date.now()) / 1000)
 }
 
 const RATE_LIMIT_PATTERNS = [/status code 429/i, /rate limit/i, /too many requests/i, /quota exceeded/i, /resource exhausted/i]
@@ -109,6 +177,7 @@ export class ClineError extends Error {
 				error.response?.request_id ||
 				error.response?.headers?.["x-request-id"],
 			code: error.code || error?.cause?.code,
+			retryAfterSeconds: parseRetryAfterSeconds(error.response?.headers ?? error.headers),
 			modelId: this.modelId,
 			providerId: this.providerId,
 			details: error.details || error.error, // Additional details provided by the server
@@ -128,6 +197,7 @@ export class ClineError extends Error {
 			code: this._error.code,
 			modelId: this.modelId,
 			providerId: this.providerId,
+			retryAfterSeconds: this._error.retryAfterSeconds,
 			details: this._error.details,
 		})
 	}
@@ -138,6 +208,15 @@ export class ClineError extends Error {
 
 	public get requestId(): string | undefined {
 		return this._error.request_id
+	}
+
+	/**
+	 * How long the provider asked us to wait, when it said. Undefined means it
+	 * did not -- which is a different answer from zero, and the one that decides
+	 * whether a 429 is worth waiting out or worth surfacing.
+	 */
+	public get retryAfterSeconds(): number | undefined {
+		return this._error.retryAfterSeconds
 	}
 
 	/**
