@@ -106,6 +106,10 @@ jobs:
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
               run: bun -F @cline/code test:settings-ui
 
+            - name: Run Desktop Transport Client Tests
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
+              run: bun -F @cline/code test:desktop-client
+
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               timeout-minutes: 10
