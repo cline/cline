@@ -130,6 +130,24 @@ export function createInteractiveSessionRuntime(input: {
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
 	let manualCompactionAbortController: AbortController | undefined;
+	let sessionTransitionTail: Promise<void> = Promise.resolve();
+	let acceptsSessionTransitions = true;
+
+	const serializeSessionTransition = <T>(
+		transition: () => Promise<T>,
+	): Promise<T> => {
+		if (!acceptsSessionTransitions) {
+			return Promise.reject(
+				new Error("interactive runtime shutdown requested"),
+			);
+		}
+		const result = sessionTransitionTail.catch(() => {}).then(transition);
+		sessionTransitionTail = result.then(
+			() => {},
+			() => {},
+		);
+		return result;
+	};
 
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
@@ -328,30 +346,31 @@ export function createInteractiveSessionRuntime(input: {
 		return await manager.settings.toggle(settingsInput);
 	};
 
-	const readCurrentMessages = async (): Promise<CurrentMessagesRead> => {
-		const manager = sessionManager;
-		const sessionId = activeSessionId;
-		if (!manager || !sessionId) {
-			return { messages: [], status: "read" };
-		}
-		try {
-			const messages = (await manager.readMessages(sessionId)) ?? [];
-			return {
-				messages,
-				status: activeSessionId === sessionId ? "read" : "stale",
-			};
-		} catch (error) {
-			if (
-				abortRequested ||
-				shutdownRequested ||
-				!isSessionNotFoundError(error)
-			) {
-				throw error;
+	const readCurrentMessagesUnserialized =
+		async (): Promise<CurrentMessagesRead> => {
+			const manager = sessionManager;
+			const sessionId = activeSessionId;
+			if (!manager || !sessionId) {
+				return { messages: [], status: "read" };
 			}
-			const recovery = await recoverMissingActiveSession(error);
-			return { messages: recovery.messages, status: "recovered" };
-		}
-	};
+			try {
+				const messages = (await manager.readMessages(sessionId)) ?? [];
+				return {
+					messages,
+					status: activeSessionId === sessionId ? "read" : "stale",
+				};
+			} catch (error) {
+				if (
+					abortRequested ||
+					shutdownRequested ||
+					!isSessionNotFoundError(error)
+				) {
+					throw error;
+				}
+				const recovery = await recoverMissingActiveSessionUnserialized(error);
+				return { messages: recovery.messages, status: "recovered" };
+			}
+		};
 
 	const readCompactionState = async (
 		sessionId: string,
@@ -372,7 +391,7 @@ export function createInteractiveSessionRuntime(input: {
 		}
 	};
 
-	const recoverMissingActiveSession = async (
+	const recoverMissingActiveSessionUnserialized = async (
 		error: unknown,
 	): Promise<MissingSessionRecovery> => {
 		if (missingSessionRecoveryPromise) {
@@ -449,7 +468,7 @@ export function createInteractiveSessionRuntime(input: {
 		});
 	};
 
-	const restartWithMessages = async (
+	const restartWithMessagesUnserialized = async (
 		messages: MessageWithMetadata[],
 		sessionMetadata?: Record<string, unknown>,
 		initialCompactionState?: SessionCompactionState,
@@ -500,9 +519,9 @@ export function createInteractiveSessionRuntime(input: {
 		}
 	};
 
-	const restartWithCurrentMessages = async (): Promise<void> => {
+	const restartWithCurrentMessagesUnserialized = async (): Promise<void> => {
 		const [{ messages, status }, compactionState] = await Promise.all([
-			readCurrentMessages(),
+			readCurrentMessagesUnserialized(),
 			readCurrentCompactionState(),
 		]);
 		if (status !== "read") {
@@ -514,7 +533,7 @@ export function createInteractiveSessionRuntime(input: {
 		const projectedMessages = compactionState
 			? projectSessionCompactionState(compactionState, messages)
 			: undefined;
-		await restartWithMessages(
+		await restartWithMessagesUnserialized(
 			messages,
 			undefined,
 			projectedMessages
@@ -528,7 +547,7 @@ export function createInteractiveSessionRuntime(input: {
 		);
 	};
 
-	const changeWorkingDirectory = async (
+	const changeWorkingDirectoryUnserialized = async (
 		next: ChatCommandState,
 		userInstructionService = input.userInstructionService,
 	): Promise<void> => {
@@ -541,7 +560,7 @@ export function createInteractiveSessionRuntime(input: {
 
 		const [{ messages, status }, compactionState, systemPrompt] =
 			await Promise.all([
-				readCurrentMessages(),
+				readCurrentMessagesUnserialized(),
 				readCurrentCompactionState(),
 				resolveSystemPrompt({
 					cwd: next.cwd,
@@ -595,10 +614,15 @@ export function createInteractiveSessionRuntime(input: {
 		runtimeHooks = nextRuntimeHooks;
 
 		try {
-			await restartWithMessages(messages, undefined, initialCompactionState, {
-				preserveSessionId: true,
-				userInstructionService,
-			});
+			await restartWithMessagesUnserialized(
+				messages,
+				undefined,
+				initialCompactionState,
+				{
+					preserveSessionId: true,
+					userInstructionService,
+				},
+			);
 		} catch (error) {
 			Object.assign(input.chatCommandState, previousState);
 			input.config.cwd = previousConfig.cwd;
@@ -608,9 +632,12 @@ export function createInteractiveSessionRuntime(input: {
 			runtimeHooks = previousRuntimeHooks;
 			await nextRuntimeHooks.shutdown().catch(() => {});
 			try {
-				await restartWithMessages(messages, undefined, initialCompactionState, {
-					sessionId: previousSessionId || undefined,
-				});
+				await restartWithMessagesUnserialized(
+					messages,
+					undefined,
+					initialCompactionState,
+					{ sessionId: previousSessionId || undefined },
+				);
 			} catch (recoveryError) {
 				throw new AggregateError(
 					[error, recoveryError],
@@ -637,11 +664,11 @@ export function createInteractiveSessionRuntime(input: {
 		await manager.updateSessionConnection(sessionId, update);
 	};
 
-	const restartEmpty = async (): Promise<void> => {
-		await restartWithMessages([]);
+	const restartEmptyUnserialized = async (): Promise<void> => {
+		await restartWithMessagesUnserialized([]);
 	};
 
-	const resetForNewSession = async (): Promise<void> => {
+	const resetForNewSessionUnserialized = async (): Promise<void> => {
 		sessionStartGeneration += 1;
 		pendingResumeSessionId = undefined;
 		startupPromise = undefined;
@@ -654,13 +681,13 @@ export function createInteractiveSessionRuntime(input: {
 		}
 	};
 
-	const applyMode = async (mode: "plan" | "act"): Promise<void> => {
+	const applyModeUnserialized = async (mode: "plan" | "act"): Promise<void> => {
 		await applyInteractiveModeConfig({
 			config: input.config,
 			mode,
 			switchToActModeTool: input.switchToActModeTool,
 		});
-		await restartWithCurrentMessages();
+		await restartWithCurrentMessagesUnserialized();
 	};
 
 	const sendCurrentTurn = async (
@@ -730,7 +757,7 @@ export function createInteractiveSessionRuntime(input: {
 		return usageSummary?.aggregateUsage ?? usageSummary?.usage ?? fallback;
 	};
 
-	const forkCurrentSession = async (): Promise<
+	const forkCurrentSessionUnserialized = async (): Promise<
 		ForkSessionResult | undefined
 	> => {
 		const manager = sessionManager;
@@ -788,7 +815,7 @@ export function createInteractiveSessionRuntime(input: {
 		};
 	};
 
-	const resumeSession = async (
+	const resumeSessionUnserialized = async (
 		sessionId: string,
 	): Promise<MessageWithMetadata[]> => {
 		const manager = await ensureSessionManager();
@@ -805,7 +832,7 @@ export function createInteractiveSessionRuntime(input: {
 		return messages;
 	};
 
-	const compactCurrentSession = async (): Promise<{
+	const compactCurrentSessionUnserialized = async (): Promise<{
 		messagesBefore: number;
 		messagesAfter: number;
 		workingContextMessagesAfter?: number;
@@ -821,7 +848,7 @@ export function createInteractiveSessionRuntime(input: {
 		if (!manager || !sourceSessionId) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const { messages, status } = await readCurrentMessages();
+		const { messages, status } = await readCurrentMessagesUnserialized();
 		if (status === "stale" || (status === "recovered" && !activeSessionId)) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
@@ -905,7 +932,7 @@ export function createInteractiveSessionRuntime(input: {
 		return { messages, checkpointHistory };
 	};
 
-	const restoreCheckpoint = async (
+	const restoreCheckpointUnserialized = async (
 		runCount: number,
 		restoreWorkspace: boolean,
 	): Promise<
@@ -980,13 +1007,59 @@ export function createInteractiveSessionRuntime(input: {
 		return true;
 	};
 
+	const readCurrentMessages = (): Promise<CurrentMessagesRead> =>
+		serializeSessionTransition(readCurrentMessagesUnserialized);
+	const recoverMissingActiveSession = (
+		error: unknown,
+	): Promise<MissingSessionRecovery> =>
+		serializeSessionTransition(() =>
+			recoverMissingActiveSessionUnserialized(error),
+		);
+	const restartWithMessages = (
+		...args: Parameters<typeof restartWithMessagesUnserialized>
+	): Promise<void> =>
+		serializeSessionTransition(() => restartWithMessagesUnserialized(...args));
+	const restartWithCurrentMessages = (): Promise<void> =>
+		serializeSessionTransition(restartWithCurrentMessagesUnserialized);
+	const changeWorkingDirectory = (
+		...args: Parameters<typeof changeWorkingDirectoryUnserialized>
+	): Promise<void> =>
+		serializeSessionTransition(() =>
+			changeWorkingDirectoryUnserialized(...args),
+		);
+	const restartEmpty = (): Promise<void> =>
+		serializeSessionTransition(restartEmptyUnserialized);
+	const resetForNewSession = (): Promise<void> =>
+		serializeSessionTransition(resetForNewSessionUnserialized);
+	const applyMode = (mode: "plan" | "act"): Promise<void> =>
+		serializeSessionTransition(() => applyModeUnserialized(mode));
+	const forkCurrentSession = (): ReturnType<
+		typeof forkCurrentSessionUnserialized
+	> => serializeSessionTransition(forkCurrentSessionUnserialized);
+	const resumeSession = (
+		sessionId: string,
+	): ReturnType<typeof resumeSessionUnserialized> =>
+		serializeSessionTransition(() => resumeSessionUnserialized(sessionId));
+	const compactCurrentSession = (): ReturnType<
+		typeof compactCurrentSessionUnserialized
+	> => serializeSessionTransition(compactCurrentSessionUnserialized);
+	const restoreCheckpoint = (
+		...args: Parameters<typeof restoreCheckpointUnserialized>
+	): ReturnType<typeof restoreCheckpointUnserialized> =>
+		serializeSessionTransition(() => restoreCheckpointUnserialized(...args));
+
 	let cleanupPromise: Promise<InteractiveExitSummary | undefined> | undefined;
 	const cleanup = async (): Promise<InteractiveExitSummary | undefined> => {
 		if (cleanupPromise) {
 			return await cleanupPromise;
 		}
 		cleanupPromise = (async () => {
+			acceptsSessionTransitions = false;
 			shutdownRequested = true;
+			manualCompactionAbortController?.abort(
+				new Error("Interactive runtime shutdown requested"),
+			);
+			await sessionTransitionTail;
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
 				await startupPromise?.catch(() => {});

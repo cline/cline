@@ -402,13 +402,18 @@ export async function runInteractive(
 		cleanupPromise = (async () => {
 			process.off("SIGINT", handleSigint);
 			process.off("SIGTERM", handleSigterm);
+			// Stop accepting workspace changes and drain any active transition while
+			// its session runtime is still available for replacement or rollback.
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
-				exitSummary = await sessionRuntime.cleanup();
-			} finally {
 				await workspaceResources?.dispose();
-				setActiveRuntimeAbort(undefined);
-				setActiveRuntimeCleanup(undefined);
+			} finally {
+				try {
+					exitSummary = await sessionRuntime.cleanup();
+				} finally {
+					setActiveRuntimeAbort(undefined);
+					setActiveRuntimeCleanup(undefined);
+				}
 			}
 			return exitSummary;
 		})();
