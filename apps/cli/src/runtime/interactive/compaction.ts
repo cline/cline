@@ -8,7 +8,7 @@ import {
 	type SessionCompactionState,
 	toProviderConfig,
 } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { MessageWithMetadata } from "@cline/shared";
 import type { Config } from "../../utils/types";
 
 const FALLBACK_MANUAL_COMPACTION_MAX_INPUT_TOKENS = 64_000;
@@ -53,11 +53,11 @@ export async function compactInteractiveMessages(input: {
 	config: Config;
 	providerSettingsManager: ProviderSettingsManager;
 	sessionId: string;
-	messages: Message[];
+	messages: MessageWithMetadata[];
 	abortSignal?: AbortSignal;
 }): Promise<{
 	compacted: boolean;
-	canonicalMessages: Message[];
+	canonicalMessages: MessageWithMetadata[];
 	compactionState?: SessionCompactionState;
 }> {
 	const modelInfo = input.config.knownModels?.[input.config.modelId];
