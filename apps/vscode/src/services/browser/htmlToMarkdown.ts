@@ -161,13 +161,17 @@ function measure(table: Element): TableGrid {
 	if (layout) {
 		return { header, headerWidth: layout.width, ...layout }
 	}
-	return {
-		header,
-		headerWidth: headerIndex >= 0 ? cells[headerIndex].length : 0,
-		before: new Map(),
-		colspan: new Map(),
-		after: new Map(),
+	// Past the budget the spans are ignored, so a row is as wide as its own
+	// cells. The header still has to reach the widest row, or the cells beyond
+	// it fall out of the table. A shorter body row is fine as it is, because GFM
+	// fills it with empty cells, and padding every row is exactly the growth the
+	// budget exists to prevent.
+	const width = cells.reduce((widest, rowCells) => Math.max(widest, rowCells.length), 0)
+	const after = new Map<Element, number>()
+	if (header) {
+		after.set(header, width - cells[headerIndex].length)
 	}
+	return { header, headerWidth: width, before: new Map(), colspan: new Map(), after }
 }
 
 /**

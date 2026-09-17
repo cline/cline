@@ -175,6 +175,32 @@ describe("htmlToMarkdown", () => {
 		expect(() => htmlToMarkdown(html)).not.toThrow()
 	})
 
+	it("keeps the widest row inside the table when the spans are over budget", () => {
+		// Past the budget the delimiter counted only the header's own cells, so
+		// the third cell of the last row fell outside the table.
+		const html =
+			"<table><tr><th>A</th><th>B</th></tr>" +
+			'<tr><td colspan="1000">wide</td></tr>' +
+			"<tr><td>1</td><td>2</td><td>3</td></tr></table>"
+
+		expect(htmlToMarkdown(html)).toBe("| A | B | |\n| --- | --- | --- |\n| wide |\n| 1 | 2 | 3 |")
+	})
+
+	it("pads only the header when padding every row would outgrow the budget", () => {
+		// GFM fills a short body row with empty cells itself. Padding every row
+		// instead grows with the square of the table: one wide row under many
+		// narrow ones.
+		const width = 2000
+		const html = "<table>" + "<tr><td>h</td></tr>".repeat(width) + `<tr>${"<td>w</td>".repeat(width)}</tr></table>`
+
+		const markdown = htmlToMarkdown(html)
+		const lines = markdown.split("\n")
+
+		expect(lines[1]).toBe(`|${" --- |".repeat(width)}`)
+		expect(lines[lines.length - 1]).toBe(`|${" w |".repeat(width)}`)
+		expect(markdown.length).toBeLessThan(40 * width)
+	})
+
 	it("keeps the table whole around a row that has no cells", () => {
 		// Turndown writes a cell-less row as a blank line, which ended the table.
 		const html = "<table><tr><th>A</th><th>B</th></tr><tr></tr><tr><td>1</td><td>2</td></tr></table>"
