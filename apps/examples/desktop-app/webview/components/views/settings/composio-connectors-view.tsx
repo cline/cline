@@ -1,7 +1,7 @@
 "use client";
 
 import { GitHubIcon } from "@cline/ui";
-import { CalendarDays, Loader2, Mail, Search } from "lucide-react";
+import { CalendarDays, Loader2, Mail, Search, Store } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,12 +181,16 @@ export function ConnectorActionButton({
 }
 
 export function ComposioConnectorsView({
+	variant = "catalog",
+	onOpenMarketplace,
 	onChanged,
 	searchQuery,
 	onCatalogCountChange,
 	renderItem,
 	appendOnScroll = false,
 }: {
+	variant?: "catalog" | "installed";
+	onOpenMarketplace?: () => void;
 	onChanged?: () => void;
 	appendOnScroll?: boolean;
 	/** Use the host page search instead of rendering a separate search field. */
@@ -225,7 +229,7 @@ export function ComposioConnectorsView({
 		let cancelled = false;
 		setCatalog(null);
 		setCatalogError(null);
-		if (!configured) return;
+		if (!configured || variant === "installed") return;
 		setCatalogLoading(true);
 		void fetchComposioToolkitCatalog()
 			.then((response) => {
@@ -243,12 +247,25 @@ export function ComposioConnectorsView({
 		return () => {
 			cancelled = true;
 		};
-	}, [configured, retry]);
+	}, [configured, retry, variant]);
 
 	useEffect(() => {
 		// listToolkits resolves only after every backend page has been fetched.
 		onCatalogCountChange?.(catalog?.length ?? null);
 	}, [catalog, onCatalogCountChange]);
+
+	const entries = useMemo<ComposioCatalogToolkit[]>(() => {
+		if (variant === "catalog") return catalog ?? [];
+		return (status?.integrations ?? [])
+			.filter((integration) => integration.status !== "not_connected")
+			.map((integration) => ({
+				slug: integration.toolkit,
+				name: integration.name,
+				description: integration.description,
+				logo: integration.logo,
+				recommended: integration.recommended,
+			}));
+	}, [variant, catalog, status]);
 
 	const trimmedQuery = query.trim().toLowerCase();
 	const [page, setPage] = useState({
@@ -259,18 +276,19 @@ export function ComposioConnectorsView({
 		setPage({ query: trimmedQuery, limit: CATALOG_PREVIEW_COUNT });
 	}
 	const matchingCatalog = useMemo(() => {
-		const entries = catalog ?? [];
 		return trimmedQuery
 			? entries.filter((entry) => connectorMatchesQuery(entry, trimmedQuery))
 			: entries;
-	}, [catalog, trimmedQuery]);
+	}, [entries, trimmedQuery]);
 	const visibleCatalog = matchingCatalog.slice(
 		0,
-		appendOnScroll
-			? page.limit
-			: trimmedQuery
-				? CATALOG_SEARCH_RESULT_LIMIT
-				: CATALOG_PREVIEW_COUNT,
+		variant === "installed"
+			? matchingCatalog.length
+			: appendOnScroll
+				? page.limit
+				: trimmedQuery
+					? CATALOG_SEARCH_RESULT_LIMIT
+					: CATALOG_PREVIEW_COUNT,
 	);
 	const hasMore =
 		appendOnScroll && visibleCatalog.length < matchingCatalog.length;
@@ -303,10 +321,12 @@ export function ComposioConnectorsView({
 
 	const hiddenCount = trimmedQuery
 		? 0
-		: Math.max(0, (catalog?.length ?? 0) - CATALOG_PREVIEW_COUNT);
+		: variant === "installed"
+			? 0
+			: Math.max(0, (catalog?.length ?? 0) - CATALOG_PREVIEW_COUNT);
 
 	const detailEntry = detailSlug
-		? (catalog?.find((entry) => entry.slug === detailSlug) ?? null)
+		? (entries.find((entry) => entry.slug === detailSlug) ?? null)
 		: null;
 	const detailStatus = detailSlug ? statusBySlug.get(detailSlug) : undefined;
 
@@ -338,6 +358,25 @@ export function ComposioConnectorsView({
 		);
 	}
 
+	const marketplaceButton = onOpenMarketplace ? (
+		<Button
+			onClick={onOpenMarketplace}
+			size="sm"
+			type="button"
+			variant="outline"
+		>
+			<Store className="size-4" />
+			Browse all connectors in the Marketplace
+		</Button>
+	) : null;
+	if (variant === "installed" && entries.length === 0) {
+		return (
+			<div className="flex min-h-64 items-center justify-center">
+				{marketplaceButton}
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-4 select-text">
 			{!renderItem ? (
@@ -361,14 +400,14 @@ export function ComposioConnectorsView({
 				</div>
 			) : null}
 
-			{catalogLoading && !catalog ? (
+			{variant === "catalog" && catalogLoading && !catalog ? (
 				<output
 					aria-label="Loading connector catalog"
 					className="flex items-center justify-center py-10"
 				>
 					<Loader2 className="size-5 animate-spin text-muted-foreground" />
 				</output>
-			) : catalogError ? (
+			) : variant === "catalog" && catalogError ? (
 				<div className="flex flex-wrap items-center gap-3">
 					<p className="text-xs text-destructive" role="alert">
 						{catalogError}
@@ -448,6 +487,10 @@ export function ComposioConnectorsView({
 					) : null}
 				</>
 			)}
+
+			{variant === "installed" && marketplaceButton ? (
+				<div>{marketplaceButton}</div>
+			) : null}
 
 			<ConnectorDetailDialog
 				actionError={

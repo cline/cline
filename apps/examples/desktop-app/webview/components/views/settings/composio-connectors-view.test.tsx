@@ -3,7 +3,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ComposioIntegrationSummary } from "@/lib/composio-types";
+
 const mocks = vi.hoisted(() => ({
+	integrations: [] as ComposioIntegrationSummary[],
 	catalog: vi.fn(),
 	connect: vi.fn(),
 	disconnect: vi.fn(),
@@ -15,7 +18,7 @@ vi.mock("@/lib/composio", () => ({
 vi.mock("@/lib/use-composio-connections", () => ({
 	useComposioConnections: () => ({
 		configured: true,
-		status: { integrations: [] },
+		status: { integrations: mocks.integrations },
 		statusBySlug: new Map([
 			[
 				"gmail",
@@ -39,6 +42,7 @@ let container: HTMLDivElement;
 beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
+	mocks.integrations = [];
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -125,5 +129,62 @@ describe("Customize connector catalog", () => {
 		await act(async () => button("Retry")?.click());
 		expect(container.textContent).toContain("Gmail");
 		expect(container.querySelector('[role="alert"]')).toBeNull();
+	});
+});
+
+describe("installed connectors", () => {
+	it("shows only the Marketplace button when no connectors are installed", async () => {
+		mocks.integrations = [
+			{
+				toolkit: "gmail",
+				name: "Gmail",
+				description: "Email",
+				recommended: true,
+				status: "not_connected",
+			},
+		];
+		const openMarketplace = vi.fn();
+		await act(async () =>
+			root.render(
+				<ComposioConnectorsView
+					variant="installed"
+					onOpenMarketplace={openMarketplace}
+				/>,
+			),
+		);
+		expect(container.textContent).toBe(
+			"Browse all connectors in the Marketplace",
+		);
+		expect(mocks.catalog).not.toHaveBeenCalled();
+		await act(async () =>
+			button("Browse all connectors in the Marketplace")?.click(),
+		);
+		expect(openMarketplace).toHaveBeenCalledOnce();
+	});
+
+	it("lists installed connectors without fetching or showing recommendations", async () => {
+		mocks.integrations = [
+			{
+				toolkit: "gmail",
+				name: "Gmail",
+				description: "Email",
+				recommended: true,
+				status: "connected",
+			},
+			{
+				toolkit: "github",
+				name: "GitHub",
+				description: "Code",
+				recommended: true,
+				status: "not_connected",
+			},
+		];
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		expect(container.textContent).toContain("Gmail");
+		expect(container.textContent).not.toContain("GitHub");
+		expect(container.textContent).not.toContain("Recommended");
+		expect(mocks.catalog).not.toHaveBeenCalled();
 	});
 });
