@@ -1,14 +1,9 @@
 import { randomUUID } from "node:crypto";
-import {
-	type CoreSessionEvent,
-	fetchClineRecommendedModels,
-} from "@cline/core";
+import type { CoreSessionEvent } from "@cline/core";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
 	CloudRepositoryListResult,
-	CloudSessionApi,
-	CloudSessionController,
 	CloudSessionRecord,
 	CloudSessionSnapshot,
 	CreateCloudSessionInput,
@@ -18,6 +13,9 @@ import {
 	CloudHandoffCoordinator,
 	type CloudHandoffProgress,
 	type CloudHandoffSource,
+	CloudSessionApi,
+	CloudSessionController,
+	createHubEventProjector,
 	loadCloudHandoffModels,
 	type PreparedCloudHandoff,
 } from "@cline/core/cloud";
@@ -95,6 +93,7 @@ export class CliCloudRuntime {
 	private epoch = 0;
 	private navigation = 0;
 	private identityRequest = 0;
+	private identityPending?: Promise<void>;
 	private clients?: Clients;
 	private authorizeClient?: () => Promise<string | undefined>;
 	private clientsPending?: Promise<Clients>;
@@ -165,8 +164,16 @@ export class CliCloudRuntime {
 			this.timer.unref?.();
 		})());
 	}
-	async refreshIdentity(): Promise<void> {
+	refreshIdentity(): Promise<void> {
+		if (this.identityPending) return this.identityPending;
 		const request = ++this.identityRequest;
+		const pending = this.resolveIdentity(request).finally(() => {
+			if (this.identityPending === pending) this.identityPending = undefined;
+		});
+		this.identityPending = pending;
+		return pending;
+	}
+	private async resolveIdentity(request: number): Promise<void> {
 		let identity: CloudIdentity | undefined;
 		try {
 			identity = await (this.options.resolveIdentity ?? resolveCloudIdentity)();
@@ -204,10 +211,16 @@ export class CliCloudRuntime {
 				error: undefined,
 			});
 		}
+		if (!this.disposed && request !== this.identityRequest)
+			throw new Error(
+				"Cloud account check was superseded. Retry in the current account.",
+			);
 	}
+
 	/** Retire the old scope before an account-switch request can complete. */
 	invalidateIdentity(): void {
 		++this.identityRequest;
+		this.identityPending = undefined;
 		this.detach();
 		this.closeClients();
 		this.identity = undefined;
@@ -289,10 +302,7 @@ export class CliCloudRuntime {
 						scope: identity.scope,
 						getAuthToken,
 					})
-				: await (async () => {
-						const { CloudSessionApi, CloudSessionController } = await import(
-							"@cline/core/cloud"
-						);
+				: (() => {
 						const api = new CloudSessionApi({
 							apiBaseUrl: identity.scope.apiBaseUrl,
 							appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
@@ -318,13 +328,6 @@ export class CliCloudRuntime {
 							}),
 						};
 					})();
-			try {
-				this.assertCurrent(epoch);
-			} catch (error) {
-				await clients.controller.dispose();
-				throw error;
-			}
-			const { createHubEventProjector } = await import("@cline/core/cloud");
 			try {
 				this.assertCurrent(epoch);
 			} catch (error) {
@@ -408,14 +411,22 @@ export class CliCloudRuntime {
 	}
 	async models(): Promise<Array<{ id: string; name: string }>> {
 		await this.ready();
-		const models = await fetchClineRecommendedModels({
-			baseUrl: this.identity!.scope.apiBaseUrl,
+		const epoch = this.epoch;
+		const scope = this.identity!.scope;
+		const models = await loadCloudHandoffModels(scope.apiBaseUrl);
+		this.assertCurrent(epoch);
+		const seen = new Set<string>();
+		return models.filter((model) => {
+			// Filter before deduplicating so a personal Pass recommendation does
+			// not hide the same ID's organization-compatible catalog entry.
+			if (scope.organizationId && model.catalogId === "cline-pass")
+				return false;
+			if (seen.has(model.id)) return false;
+			seen.add(model.id);
+			return true;
 		});
-		return [...models.recommended, ...models.free].filter(
-			(model, index, all) =>
-				all.findIndex((item) => item.id === model.id) === index,
-		);
 	}
+
 	hasHandoffSource(): boolean {
 		return Boolean(this.options.handoffSource?.());
 	}
@@ -840,36 +851,29 @@ export class CliCloudRuntime {
 					);
 				return token;
 			};
-			let api = existingApi ?? this.clients?.api;
-			if (!api) {
-				if (this.options.createClients) {
+			// Production cleanup always uses one resolver scoped to the recorded
+			// account, even when the interactive client's rollout gate was revoked.
+			let api: CloudSessionApi;
+			if (this.options.createClients) {
+				const existing = existingApi ?? this.clients?.api;
+				if (existing) api = existing;
+				else {
 					const clients = await this.options.createClients({
 						scope: row.scope,
 						getAuthToken,
 					});
 					api = clients.api;
 					await clients.controller.dispose();
-				} else {
-					const { CloudSessionApi } = await import("@cline/core/cloud");
-					api = new CloudSessionApi({
-						apiBaseUrl: row.scope.apiBaseUrl,
-						appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
-						getAuthToken,
-					});
 				}
+			} else {
+				api = new CloudSessionApi({
+					apiBaseUrl: row.scope.apiBaseUrl,
+					appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
+					getAuthToken,
+				});
 			}
 			if (!row.outerSessionId) {
-				// Use a cleanup-scoped resolver even if the interactive API was revoked.
-				const recoveryApi = !this.options.createClients
-					? new (await import("@cline/core/cloud")).CloudSessionApi({
-							apiBaseUrl: row.scope.apiBaseUrl,
-							appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
-							getAuthToken,
-						})
-					: api;
-				const found = await recoveryApi.recoverCreation(
-					this.creationInput(row),
-				);
+				const found = await api.recoverCreation(this.creationInput(row));
 				assertScope();
 				if (!found)
 					throw new Error(

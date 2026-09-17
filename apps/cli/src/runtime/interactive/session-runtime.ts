@@ -127,18 +127,19 @@ export function createInteractiveSessionRuntime(input: {
 	let activeLocalSends = 0;
 	let activeLocalMutations = 0;
 	const assertHandoffMutationAllowed = async (
-		allowCompleted = false,
+		allowSourceDetach = false,
 	): Promise<void> => {
 		if (handoffLocked) throw new Error("Wait for the cloud handoff to finish.");
 		if (!sessionManager || !activeSessionId) return;
 		const row = await sessionManager.get(activeSessionId);
 		if (handoffLocked) throw new Error("Wait for the cloud handoff to finish.");
+		// New/fork/resume operations leave the original handoff metadata fenced.
+		if (allowSourceDetach) return;
 		const handoff = readCloudHandoffMetadata(row?.metadata);
 		if (handoff?.status === "complete") {
-			if (!allowCompleted)
-				throw new Error(
-					`This conversation continued in cloud: ${handoff.dashboardUrl}. Use /cloud to open it, or fork locally.`,
-				);
+			throw new Error(
+				`This conversation continued in cloud: ${handoff.dashboardUrl}. Use /cloud to open it, or fork locally.`,
+			);
 		} else if (handoff || row?.metadata?.cloudHandoffIntent) {
 			throw new Error(
 				"Cloud handoff is unresolved. Use /cloud to recover it before changing this conversation.",
@@ -483,7 +484,7 @@ export function createInteractiveSessionRuntime(input: {
 		initialCompactionState?: SessionCompactionState,
 		options?: { preserveSessionId?: boolean },
 	): Promise<void> => {
-		await assertHandoffMutationAllowed(true);
+		await assertHandoffMutationAllowed(!options?.preserveSessionId);
 		if (handoffLocked) throw new Error("Wait for the cloud handoff to finish.");
 		activeLocalMutations++;
 		try {
@@ -760,7 +761,7 @@ export function createInteractiveSessionRuntime(input: {
 	const resumeSession = async (
 		sessionId: string,
 	): Promise<MessageWithMetadata[]> => {
-		await assertHandoffMutationAllowed(true);
+		await assertHandoffMutationAllowed(sessionId !== activeSessionId);
 		if (handoffLocked) throw new Error("Wait for the cloud handoff to finish.");
 		activeLocalMutations++;
 		try {

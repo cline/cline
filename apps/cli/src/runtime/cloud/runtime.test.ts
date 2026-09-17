@@ -22,6 +22,7 @@ function deferred<T>() {
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
 	for (const fn of cleanup.splice(0)) await fn();
+	vi.unstubAllGlobals();
 });
 async function fixture(
 	enabled = true,
@@ -151,12 +152,136 @@ describe("CLI cloud isolation and creation lifecycle", () => {
 		expect(source).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		false,
+		true,
+	])("includes catalog-only models and filters Pass before deduplication for organization=%s", async (organization) => {
+		const f = await fixture();
+		const identity = (await f.resolveIdentity())!;
+		f.resolveIdentity.mockResolvedValue({
+			...identity,
+			scope: {
+				...identity.scope,
+				...(organization ? { organizationId: "org" } : {}),
+			},
+		});
+		const fetcher = vi.fn(
+			async (url: string) =>
+				new Response(
+					JSON.stringify(
+						url.endsWith("/models")
+							? {
+									data: [
+										{ id: "duplicate", name: "Catalog duplicate" },
+										{ id: "catalog-only", name: "Catalog only" },
+									],
+								}
+							: {
+									data: {
+										clinePass: [
+											{ id: "duplicate", name: "Pass duplicate" },
+											{ id: "pass-only", name: "Pass only" },
+										],
+										clineCloud: [{ id: "cloud", name: "Cloud" }],
+									},
+								},
+					),
+				),
+		);
+		vi.stubGlobal("fetch", fetcher);
+		const models = await f.runtime.models();
+		expect(models.map(({ id, name }) => ({ id, name }))).toEqual(
+			organization
+				? [
+						{ id: "cloud", name: "Cloud" },
+						{ id: "duplicate", name: "Catalog duplicate" },
+						{ id: "catalog-only", name: "Catalog only" },
+					]
+				: [
+						{ id: "duplicate", name: "Pass duplicate" },
+						{ id: "pass-only", name: "Pass only" },
+						{ id: "cloud", name: "Cloud" },
+						{ id: "catalog-only", name: "Catalog only" },
+					],
+		);
+		expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+			"https://example.test/api/v1/ai/cline/models",
+			"https://example.test/api/v1/ai/cline/recommended-models",
+		]);
+	});
+
+	it("rejects model catalog results after the account changes", async () => {
+		const f = await fixture();
+		const catalog = deferred<Response>();
+		const fetcher = vi.fn(async (url: string) =>
+			url.endsWith("/models")
+				? await catalog.promise
+				: new Response(JSON.stringify({ data: {} })),
+		);
+		vi.stubGlobal("fetch", fetcher);
+		const models = f.runtime.models();
+		await until(() => fetcher.mock.calls.length > 0);
+		f.runtime.invalidateIdentity();
+		f.setAccount("b");
+		await f.runtime.refreshIdentity();
+		catalog.resolve(
+			new Response(JSON.stringify({ data: [{ id: "old-account-model" }] })),
+		);
+		await expect(models).rejects.toThrow("account or connection changed");
+	});
+
+	it("coalesces concurrent account checks for session and repository lists", async () => {
+		const f = await fixture();
+		const identity = await f.resolveIdentity();
+		const lookup = deferred<typeof identity>();
+		f.resolveIdentity.mockClear().mockReturnValueOnce(lookup.promise);
+		f.controller.listRepositories.mockResolvedValue({
+			repositories: [],
+			truncated: false,
+		});
+		const sessions = f.runtime.list();
+		const repositories = f.runtime.listRepositories();
+		expect(f.resolveIdentity).toHaveBeenCalledOnce();
+		lookup.resolve(identity);
+		await expect(Promise.all([sessions, repositories])).resolves.toEqual([
+			[],
+			{ repositories: [], truncated: false },
+		]);
+		expect(f.factory).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		"timer",
+		"manual",
+	])("coalesces overlapping timer and manual account checks when %s starts first", async (first) => {
+		vi.useFakeTimers();
+		try {
+			const f = await fixture();
+			const identity = await f.resolveIdentity();
+			const lookup = deferred<typeof identity>();
+			f.resolveIdentity.mockClear().mockReturnValueOnce(lookup.promise);
+			if (first === "timer") await vi.advanceTimersByTimeAsync(60_000);
+			const manual = f.runtime.refreshIdentity();
+			if (first === "manual") await vi.advanceTimersByTimeAsync(60_000);
+			const sessions = f.runtime.list();
+			expect(f.resolveIdentity).toHaveBeenCalledOnce();
+			lookup.resolve(identity);
+			await expect(manual).resolves.toBeUndefined();
+			await expect(sessions).resolves.toEqual([]);
+			await f.runtime.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("a superseded identity lookup cannot authorize a creation from stale cached scope", async () => {
 		const f = await fixture();
 		const identity = await f.resolveIdentity();
 		const old = deferred<typeof identity>();
 		f.resolveIdentity.mockReturnValueOnce(old.promise);
 		const creating = f.runtime.create(input);
+		f.runtime.invalidateIdentity();
+		f.setAccount("b");
 		await f.runtime.refreshIdentity();
 		old.resolve(identity);
 		await expect(creating).rejects.toThrow("superseded");

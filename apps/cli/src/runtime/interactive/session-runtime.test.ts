@@ -1000,6 +1000,9 @@ describe("createInteractiveSessionRuntime", () => {
 		).rejects.toThrow("handoff");
 		await expect(runtime.resetForNewSession()).rejects.toThrow("handoff");
 		await expect(runtime.forkCurrentSession()).rejects.toThrow("handoff");
+		await expect(runtime.resumeSession("another-session")).rejects.toThrow(
+			"handoff",
+		);
 		expect(manager.send).not.toHaveBeenCalled();
 		release();
 		await runtime.resetForNewSession();
@@ -1100,6 +1103,70 @@ describe("createInteractiveSessionRuntime", () => {
 		checking.resolve(undefined);
 		await expect(changing).rejects.toThrow("mutation failed");
 		expect(() => runtime.getHandoffSource()!.lock()()).not.toThrow();
+	});
+
+	it.each([
+		"new",
+		"fork",
+		"resume",
+	])("allows %s away from an unresolved handoff without removing the source fence", async (action) => {
+		const manager = makeManager();
+		const metadata = {
+			cloudHandoffIntent: { fingerprint: { requestId: "pending" } },
+		};
+		const originalMetadata = structuredClone(metadata);
+		const messages: Message[] = [{ role: "user", content: "existing history" }];
+		manager.get.mockImplementation(async (id) => ({
+			status: "idle",
+			metadata: id === "session-1" ? metadata : {},
+		}));
+		manager.readMessages.mockResolvedValue(messages);
+		const runtime = await makeRuntime(manager);
+		await runtime.ensureReady();
+		loadInteractiveResumeMessagesMock.mockResolvedValue(messages);
+		if (action === "new") {
+			await runtime.resetForNewSession();
+			await runtime.ensureReady();
+		} else if (action === "fork") {
+			await runtime.forkCurrentSession();
+			expect(manager.start.mock.calls[1]?.[0]).toMatchObject({
+				sessionMetadata: { fork: { forkedFromSessionId: "session-1" } },
+			});
+			expect(
+				(
+					manager.start.mock.calls[1]?.[0] as {
+						sessionMetadata: Record<string, unknown>;
+					}
+				).sessionMetadata.cloudHandoffIntent,
+			).toBeUndefined();
+		} else await runtime.resumeSession("other-session");
+		expect(runtime.getActiveSessionId()).not.toBe("session-1");
+		expect(metadata).toEqual(originalMetadata);
+		expect(manager.update).not.toHaveBeenCalled();
+		manager.start.mockResolvedValueOnce({
+			sessionId: "session-1",
+			manifest: createManifest("session-1"),
+			manifestPath: "/tmp/session-1.json",
+			messagesPath: "/tmp/session-1.messages.json",
+		});
+		await runtime.resumeSession("session-1");
+		await expect(
+			runtime.sendCurrentTurn({ prompt: "duplicate" }),
+		).rejects.toThrow("unresolved");
+		await expect(runtime.resumeSession("session-1")).rejects.toThrow(
+			"unresolved",
+		);
+		await expect(
+			runtime.restartWithMessages(messages, undefined, undefined, {
+				preserveSessionId: true,
+			}),
+		).rejects.toThrow("unresolved");
+		await expect(runtime.restoreCheckpoint(1, false)).rejects.toThrow(
+			"unresolved",
+		);
+		expect(manager.send).not.toHaveBeenCalled();
+		expect(manager.restore).not.toHaveBeenCalled();
+		expect(metadata).toEqual(originalMetadata);
 	});
 
 	it("requires a durable source metadata update", async () => {
