@@ -1,5 +1,13 @@
 # Cline Desktop Changelog
 
+## 0.0.30
+
+- Windows updates no longer fail with "Error opening file for writing". The installer hook meant to stop the running backend never terminated anything: Tauri ships a 32-bit NSIS installer, so its PowerShell ran under WOW64, where `Get-Process` reports an empty path for every 64-bit process — the filter matched no sidecar on any x64 machine. The installer then wrote over an executable the detached Hub daemon still held open, which is why updating from 0.0.25 through 0.0.28 failed exactly as 0.0.24 did. The installer now asks the Windows Restart Manager which processes hold this install's files and shuts those down; that is bitness-independent, covers the connector processes the Hub spawns, and leaves a side-by-side Cline Beta alone. If Restart Manager itself fails you get a Retry/Cancel prompt rather than a half-replaced install
+- On Windows, Cline no longer runs a program out of your workspace when it means to run the system one. Windows resolves a bare program name through the child process's working directory before it searches PATH, and Cline runs `rg`, `git`, and `powershell` with your workspace as that directory — so a repository that happened to contain its own `rg.exe` would have that copy executed as soon as the workspace was indexed. Cline now opts out of current-directory executable search at startup, and every process it spawns inherits the setting
+- A tool that streams its output no longer keeps spinning after it has finished. When a tool streamed everything as it went, its completion event carried no final output, which chat read as "still running" — so the tool kept its running presentation, spinner included, for the rest of the turn
+- Refreshed Cline's logo and app icons throughout the app, the Dock and taskbar, and the installer
+- The CoreWeave provider's branding and setup links now match CoreWeave's current documentation, and Weights & Biases gained a direct link to its API key page from provider setup
+
 ## 0.0.29
 
 - Queued messages can now be sent into the running turn with Enter. While the agent is working, pressing Enter with an empty composer steers the first message in the queue, so it is picked up at the next turn boundary instead of waiting for the whole task to finish; the composer placeholder says so whenever the queue is non-empty. The queue head is claimed atomically, so a fast second Enter can't steer a message that has already left the queue, and a steer that fails now surfaces as a toast rather than silently doing nothing
