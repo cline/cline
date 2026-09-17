@@ -35,7 +35,7 @@ async function readDirectoryRecursive(
 }
 
 /**
- * Gets the up to date toggles
+ * Gets the up to date toggles for rules stored in a single directory
  */
 export async function synchronizeRuleToggles(
 	rulesDirectoryPath: string,
@@ -43,61 +43,83 @@ export async function synchronizeRuleToggles(
 	allowedFileExtension = "",
 	excludedPaths: string[][] = [],
 ): Promise<ClineRulesToggles> {
+	return synchronizeRuleTogglesAcrossDirectories(
+		[{ directoryPath: rulesDirectoryPath, excludedPaths }],
+		currentToggles,
+		allowedFileExtension,
+	)
+}
+
+export type RuleDirectoryScan = {
+	directoryPath: string
+	excludedPaths?: string[][]
+}
+
+/**
+ * Gets the up to date toggles for rules that live in more than one directory.
+ *
+ * Project rules are supported in both `.clinerules` and `.cline/rules` (the two
+ * workspace roots the SDK resolves for a task), and toggles are keyed by absolute
+ * file path, so the roots are scanned into one combined set of paths. A root that
+ * is missing must not prune the toggles of a root that exists; toggles are only
+ * pruned once no scanned root contains them anymore.
+ */
+export async function synchronizeRuleTogglesAcrossDirectories(
+	scans: ReadonlyArray<RuleDirectoryScan>,
+	currentToggles: ClineRulesToggles,
+	allowedFileExtension = "",
+): Promise<ClineRulesToggles> {
 	// Create a copy of toggles to modify
 	const updatedToggles = { ...currentToggles }
 
 	try {
-		const pathExists = await fileExistsAtPath(rulesDirectoryPath)
+		const existingRulePaths = new Set<string>()
+		let anyDirectoryExists = false
 
-		if (pathExists) {
-			const isDir = await isDirectory(rulesDirectoryPath)
+		for (const scan of scans) {
+			const pathExists = await fileExistsAtPath(scan.directoryPath)
 
-			if (isDir) {
-				// DIRECTORY CASE
-				const filePaths = await readDirectoryRecursive(rulesDirectoryPath, allowedFileExtension, excludedPaths)
-				const existingRulePaths = new Set<string>()
+			if (!pathExists) {
+				continue
+			}
+			anyDirectoryExists = true
 
+			if (await isDirectory(scan.directoryPath)) {
+				const filePaths = await readDirectoryRecursive(scan.directoryPath, allowedFileExtension, scan.excludedPaths ?? [])
 				for (const filePath of filePaths) {
-					const ruleFilePath = path.resolve(rulesDirectoryPath, filePath)
-					existingRulePaths.add(ruleFilePath)
-
-					const pathHasToggle = ruleFilePath in updatedToggles
-					if (!pathHasToggle) {
-						updatedToggles[ruleFilePath] = true
-					}
-				}
-
-				// Clean up toggles for non-existent files
-				for (const togglePath in updatedToggles) {
-					const pathExists = existingRulePaths.has(togglePath)
-					if (!pathExists) {
-						delete updatedToggles[togglePath]
-					}
+					existingRulePaths.add(path.resolve(scan.directoryPath, filePath))
 				}
 			} else {
-				// FILE CASE
-				// Add toggle for this file
-				const pathHasToggle = rulesDirectoryPath in updatedToggles
-				if (!pathHasToggle) {
-					updatedToggles[rulesDirectoryPath] = true
-				}
-
-				// Remove toggles for any other paths
-				for (const togglePath in updatedToggles) {
-					if (togglePath !== rulesDirectoryPath) {
-						delete updatedToggles[togglePath]
-					}
-				}
+				// FILE CASE: the root itself is a rule file (legacy `.clinerules` file)
+				existingRulePaths.add(scan.directoryPath)
 			}
-		} else {
+		}
+
+		if (!anyDirectoryExists) {
 			// PATH DOESN'T EXIST CASE
-			// Clear all toggles since the path doesn't exist
+			// Clear all toggles since no rule path exists
 			for (const togglePath in updatedToggles) {
+				delete updatedToggles[togglePath]
+			}
+			return updatedToggles
+		}
+
+		for (const ruleFilePath of existingRulePaths) {
+			const pathHasToggle = ruleFilePath in updatedToggles
+			if (!pathHasToggle) {
+				updatedToggles[ruleFilePath] = true
+			}
+		}
+
+		// Clean up toggles for non-existent files
+		for (const togglePath in updatedToggles) {
+			const pathExists = existingRulePaths.has(togglePath)
+			if (!pathExists) {
 				delete updatedToggles[togglePath]
 			}
 		}
 	} catch (error) {
-		Logger.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
+		Logger.error(`Failed to synchronize rule toggles for paths: ${scans.map((scan) => scan.directoryPath).join(", ")}`, error)
 	}
 
 	return updatedToggles
