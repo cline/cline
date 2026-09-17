@@ -11,6 +11,8 @@ on:
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
       - "apps/examples/desktop-app/scripts/windows-installer.test.ts"
       - "apps/examples/desktop-app/src-tauri/nsis/**"
+      # windows-installer.test.ts pins the @tauri-apps/cli version bun.lock resolves.
+      - "bun.lock"
       - "apps/examples/desktop-app/src-tauri/dmg/background.png"
       - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
@@ -24,6 +26,8 @@ on:
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
       - "apps/examples/desktop-app/scripts/windows-installer.test.ts"
       - "apps/examples/desktop-app/src-tauri/nsis/**"
+      # windows-installer.test.ts pins the @tauri-apps/cli version bun.lock resolves.
+      - "bun.lock"
       - "apps/examples/desktop-app/src-tauri/dmg/background.png"
       - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
