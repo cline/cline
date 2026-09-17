@@ -29,7 +29,14 @@ it("finds SSH helpers in the installed Linux resource layout", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const target = { platform: "linux", arch: "arm64" } as const;
-		const directory = join(root, "usr", "lib", "Cline Beta", "bin", "remote-helpers");
+		const directory = join(
+			root,
+			"usr",
+			"lib",
+			"Cline Beta",
+			"bin",
+			"remote-helpers",
+		);
 		mkdirSync(directory, { recursive: true });
 		const helper = join(directory, remoteHelperBinaryFilename(target));
 		writeFileSync(helper, "helper");
