@@ -12,6 +12,7 @@ import { StateManager } from "./core/storage/StateManager"
 import { AgentConfigLoader } from "./core/task/tools/subagent/AgentConfigLoader"
 import { ExtensionRegistryInfo } from "./registry"
 import { registerVsCodeLmHandler } from "./sdk/vscode-lm/register-vscode-lm"
+import { registerClineClientIdentity } from "./services/ClineClientIdentity"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { getDistinctId } from "./services/logging/distinctId"
@@ -62,6 +63,11 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 			message: "Failed to initialize storage. Please check logs for details or try restarting the client.",
 		})
 	}
+
+	// Publish the client identity the SDK stamps on session-less Cline API
+	// calls. Fire-and-forget: it resolves well before any model feed is
+	// fetched, and a slow host bridge must not delay activation.
+	void registerClineClientIdentity()
 
 	// Register host-only SDK provider handlers (e.g. VS Code Language Model API),
 	// which depend on the `vscode` module and cannot live in the SDK package.

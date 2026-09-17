@@ -7,8 +7,13 @@ import {
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
+import {
+	captureSdkError,
+	claimHubDaemonProcess,
+	setClineClientIdentity,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
+import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
 	broadcastEvent,
@@ -232,6 +237,11 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
+	// Cline API calls made outside a session (e.g. the recommended-models feed)
+	// read the client identity from the SDK rather than the session config, so
+	// publish it before anything — sidecar or daemon — can fetch.
+	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
+
 	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
 	// from handing it to every process they spawn.
 	if (claimHubDaemonProcess()) {
