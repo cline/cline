@@ -162,6 +162,22 @@ function finiteReportNumber(value: unknown): number | undefined {
 		: undefined;
 }
 
+/**
+ * Settle with `promise`, or reject with `onTimeout()` once `timeoutMs` has
+ * elapsed. The underlying promise is left running; only this waiter gives up.
+ */
+function raceDeadline<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+	onTimeout: () => Error,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => reject(onTimeout()), timeoutMs);
+	});
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
 const RECONNECT_MAX_DELAY_MS = 4_000;
@@ -175,6 +191,13 @@ const RECONNECT_MAX_DELAY_MS = 4_000;
  */
 const CONNECT_WAIT_TIMEOUT_MS = 90_000;
 const CONNECT_RETRY_DELAY_MS = 500;
+/**
+ * Upper bound on a single WebSocket handshake. A socket that never leaves
+ * CONNECTING (and so never fires onclose) would otherwise keep the shared
+ * connect promise pending forever and wedge every command behind it; closing
+ * it fails the attempt so the normal reconnect path takes over.
+ */
+const WS_HANDSHAKE_TIMEOUT_MS = 15_000;
 const DESKTOP_DEBUG_LOG_EVENT = "desktop_debug_log";
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
@@ -472,7 +495,15 @@ class DesktopClient {
 			await new Promise<void>((resolve, reject) => {
 				const socket = new WebSocket(endpoint);
 				this.socket = socket;
+				const handshakeTimer = setTimeout(() => {
+					if (socket.readyState === WebSocket.CONNECTING) {
+						// close() on a CONNECTING socket fails the handshake and
+						// fires onclose, which rejects this attempt below.
+						socket.close();
+					}
+				}, WS_HANDSHAKE_TIMEOUT_MS);
 				socket.onopen = () => {
+					clearTimeout(handshakeTimer);
 					this.hasConnectedOnce = true;
 					this.transportError = null;
 					this.setTransportState("connected");
@@ -485,6 +516,7 @@ class DesktopClient {
 					// Wait for onclose to reject or reconnect.
 				};
 				socket.onclose = () => {
+					clearTimeout(handshakeTimer);
 					if (this.socket === socket) {
 						this.socket = null;
 					}
@@ -531,39 +563,64 @@ class DesktopClient {
 	 * resolution is retried here (and each retry re-resolves the endpoint,
 	 * see scheduleReconnect) until the sidecar comes up or the budget runs
 	 * out. Rethrows the last connect error so a real failure keeps its cause.
+	 *
+	 * The deadline is a hard bound: an attempt still in flight when it lapses
+	 * (an endpoint lookup blocked in the Tauri shell, a handshake that has not
+	 * settled) is abandoned by this caller. The shared connect attempt itself
+	 * keeps running so a later command, or the reconnect loop, can still use
+	 * its result.
 	 */
 	private async connectForCommand(
 		command: string,
 		timeoutMs: number,
 	): Promise<void> {
 		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
 		for (;;) {
-			let lastError: unknown;
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				break;
+			}
+			let timedOut = false;
 			try {
-				await this.ensureConnected();
+				await raceDeadline(this.ensureConnected(), remaining, () => {
+					timedOut = true;
+					const cause = this.transportError ?? "still connecting";
+					return new Error(
+						`Desktop backend transport did not become ready within ${timeoutMs}ms (${cause})`,
+					);
+				});
 				if (this.socket?.readyState === WebSocket.OPEN) {
 					return;
 				}
 				lastError = new Error("Desktop backend transport unavailable");
 			} catch (error) {
 				lastError = error;
+				if (timedOut) {
+					break;
+				}
 			}
-			const remaining = deadline - Date.now();
-			if (remaining <= 0) {
-				const error =
-					lastError instanceof Error ? lastError : new Error(String(lastError));
-				this.reportError({
-					operation: "webview.transport_unavailable",
-					error,
-					command,
-					timeoutMs,
-				});
-				throw error;
+			const delay = Math.min(CONNECT_RETRY_DELAY_MS, deadline - Date.now());
+			if (delay <= 0) {
+				break;
 			}
-			await new Promise((resolve) =>
-				setTimeout(resolve, Math.min(CONNECT_RETRY_DELAY_MS, remaining)),
-			);
+			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
+		const error =
+			lastError instanceof Error
+				? lastError
+				: new Error(
+						lastError === undefined
+							? "Desktop backend transport unavailable"
+							: String(lastError),
+					);
+		this.reportError({
+			operation: "webview.transport_unavailable",
+			error,
+			command,
+			timeoutMs,
+		});
+		throw error;
 	}
 
 	async invoke<T>(
