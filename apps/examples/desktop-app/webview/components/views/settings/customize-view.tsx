@@ -1,9 +1,13 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { fetchComposioStatus } from "@/lib/composio";
+import {
+	fetchComposioStatus,
+	getComposioAvailability,
+	subscribeComposioAvailability,
+} from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -65,7 +69,12 @@ export function CustomizeView({
 	const [counts, setCounts] = useState<TabCounts>({});
 	// Connectors are an org-provisioned feature: the tab only exists when the
 	// account has Composio beta access.
-	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
+	const connectorsAvailable =
+		useSyncExternalStore(
+			subscribeComposioAvailability,
+			getComposioAvailability,
+			() => null,
+		) === true;
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -74,7 +83,6 @@ export function CustomizeView({
 				.catch(() => null),
 			fetchComposioStatus().catch(() => null),
 		]);
-		setConnectorsAvailable(composioStatus?.configured === true);
 		const connectedIntegrations = composioStatus
 			? composioStatus.integrations.filter(
 					(integration) => integration.status === "connected",

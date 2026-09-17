@@ -15,13 +15,57 @@ import { desktopClient } from "./desktop-client";
  * the connection) before it can return the OAuth URL — give it headroom. */
 const CONNECT_TIMEOUT_MS = 60_000;
 
-export function fetchComposioStatus(options?: {
+// Availability is UI state, not authorization. Retain it across page mounts;
+// the sidecar still checks account access for every connector operation.
+let availability: boolean | null = null;
+let availabilityGeneration = 0;
+let observingSettings = false;
+const availabilityListeners = new Set<() => void>();
+
+function publishAvailability(next: boolean | null) {
+	if (availability === next) return;
+	availability = next;
+	for (const listener of availabilityListeners) listener();
+}
+
+function observeAvailabilitySettings() {
+	if (observingSettings) return;
+	observingSettings = true;
+	// Keep observing while pages are unmounted so signing out elsewhere also
+	// invalidates the cached value. This subscription lives with the client.
+	desktopClient.subscribe("settings.changed", () => {
+		availabilityGeneration++;
+		publishAvailability(null);
+	});
+}
+
+export function getComposioAvailability(): boolean | null {
+	return availability;
+}
+
+export function subscribeComposioAvailability(listener: () => void) {
+	observeAvailabilitySettings();
+	availabilityListeners.add(listener);
+	return () => {
+		availabilityListeners.delete(listener);
+	};
+}
+
+export async function fetchComposioStatus(options?: {
 	refresh?: boolean;
 }): Promise<ComposioStatusResponse> {
-	return desktopClient.invoke<ComposioStatusResponse>("composio_integrations", {
-		operation: "status",
-		refresh: options?.refresh === true,
-	});
+	observeAvailabilitySettings();
+	const generation = availabilityGeneration;
+	const status = await desktopClient.invoke<ComposioStatusResponse>(
+		"composio_integrations",
+		{
+			operation: "status",
+			refresh: options?.refresh === true,
+		},
+	);
+	if (generation === availabilityGeneration)
+		publishAvailability(status.configured);
+	return status;
 }
 
 export function fetchComposioToolkitCatalog(): Promise<ComposioCatalogResponse> {
