@@ -76,3 +76,24 @@ data to the shared helper. `listLocalProviders` includes the resulting facts in
 each `ProviderListItem.auth`, allowing browser clients to render authentication
 guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
 carries provider-level native tool availability for settings indicators.
+
+## Concurrent subagent tool calls
+
+`spawn_agent` and configured `subagent_*` tools declare
+`executionMode: "parallel"`. Consecutive calls to these tools in one model
+response run concurrently even when the parent runtime uses its default
+sequential mode. Each call still returns its child's completed answer, and tool
+results remain in the model's original call order.
+
+A tool's optional `executionMode` overrides the runtime's `toolExecution` setting.
+Unmarked tools inherit the runtime setting. Sequential calls form ordering
+boundaries: `read_file → [spawn A, spawn B] → edit_file` executes the read first,
+then both child runs together, then the edit after both finish. This does not
+change the execution mode of tools inside the child agents.
+
+Preparation remains serial for the whole response, before any tool executes.
+All before-tool hooks and required approvals therefore complete before the
+parallel group starts. A before-tool `skip` blocks its own call; a before-tool
+`stop` prevents the entire response's execution, as before. Pending approvals
+can delay sibling execution. No background-run handles or new concurrency
+limit are introduced.

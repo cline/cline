@@ -16,6 +16,7 @@ export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
 	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
+	environmentId: z.string().trim().min(1),
 	provider: z.string().min(1),
 	providerAuth: ProviderAuthInfoSchema.optional(),
 	model: z.string().min(1),
