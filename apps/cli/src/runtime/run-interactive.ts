@@ -49,7 +49,9 @@ import {
 	isAbortInProgress,
 	setActiveRuntimeAbort,
 	setActiveRuntimeCleanup,
+	setActiveRuntimeSignalHandler,
 } from "./active-runtime";
+import { CliCloudRuntime } from "./cloud/runtime";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
@@ -100,6 +102,7 @@ export function resolveReasoningForModelChange(
 
 export async function applyInteractiveModelChange(input: {
 	config: Config;
+	nextConfig?: Config;
 	providerSettingsManager: Pick<
 		ProviderSettingsManager,
 		"getProviderSettings" | "saveProviderSettings"
@@ -109,37 +112,77 @@ export async function applyInteractiveModelChange(input: {
 		| "ensureReady"
 		| "restartWithCurrentMessages"
 		| "updateCurrentSessionConnection"
+		| "withLocalMutation"
 	>;
 }): Promise<void> {
 	const { config, providerSettingsManager, sessionRuntime } = input;
-	await sessionRuntime.ensureReady();
-	await onProviderChange({
-		config,
-		providerId: config.providerId,
-	});
-	const existing = providerSettingsManager.getProviderSettings(
-		config.providerId,
-	) ?? {
-		provider: config.providerId,
-	};
-	const reasoning = resolveReasoningForModelChange(config, existing);
-	providerSettingsManager.saveProviderSettings({
-		...existing,
-		model: config.modelId,
-		...(reasoning === undefined ? {} : { reasoning }),
-	});
+	await sessionRuntime.withLocalMutation(async () => {
+		if (input.nextConfig) {
+			const {
+				providerId,
+				modelId,
+				apiKey,
+				knownModels,
+				thinking,
+				reasoningEffort,
+			} = input.nextConfig;
+			Object.assign(config, {
+				providerId,
+				modelId,
+				apiKey,
+				knownModels,
+				thinking,
+				reasoningEffort,
+			});
+		}
+		await sessionRuntime.ensureReady();
+		await onProviderChange({
+			config,
+			providerId: config.providerId,
+		});
+		const existing = providerSettingsManager.getProviderSettings(
+			config.providerId,
+		) ?? {
+			provider: config.providerId,
+		};
+		const reasoning = resolveReasoningForModelChange(config, existing);
+		providerSettingsManager.saveProviderSettings({
+			...existing,
+			model: config.modelId,
+			...(reasoning === undefined ? {} : { reasoning }),
+		});
 
-	// Provider changes affect more than the model connection: startup resolves
-	// the endpoint, headers, provider-specific options, tools, and plugins. Rebuild
-	// the runtime with the existing transcript so all of that state changes
-	// together. restartWithCurrentMessages preserves the session ID.
-	await sessionRuntime.restartWithCurrentMessages();
-	// A same-ID restart reuses the existing manifest. Sync its connection label
-	// after the fully configured runtime is live so session history reflects the
-	// provider/model that will handle subsequent turns.
-	await sessionRuntime.updateCurrentSessionConnection({
-		providerId: config.providerId,
-		modelId: config.modelId,
+		// Provider changes affect more than the model connection: startup resolves
+		// the endpoint, headers, provider-specific options, tools, and plugins. Rebuild
+		// the runtime with the existing transcript so all of that state changes
+		// together. restartWithCurrentMessages preserves the session ID.
+		await sessionRuntime.restartWithCurrentMessages();
+		// A same-ID restart reuses the existing manifest. Sync its connection label
+		// after the fully configured runtime is live so session history reflects the
+		// provider/model that will handle subsequent turns.
+		await sessionRuntime.updateCurrentSessionConnection({
+			providerId: config.providerId,
+			modelId: config.modelId,
+		});
+	});
+}
+
+export async function applyInteractiveAutoApproveChange(input: {
+	enabled: boolean;
+	chatCommandState: ChatCommandState;
+	setInteractiveAutoApprove: (enabled: boolean) => void;
+	persistAutoApprove: (enabled: boolean) => void;
+	refreshPolicies: () => Promise<void>;
+	sessionRuntime: Pick<
+		ReturnType<typeof createInteractiveSessionRuntime>,
+		"withLocalMutation"
+	>;
+}): Promise<void> {
+	await input.sessionRuntime.withLocalMutation(async () => {
+		input.setInteractiveAutoApprove(input.enabled);
+		input.chatCommandState.autoApproveTools = input.enabled;
+		input.persistAutoApprove(input.enabled);
+		await input.refreshPolicies();
 	});
 }
 
@@ -348,11 +391,24 @@ export async function runInteractive(
 	};
 
 	let isRunning = false;
+	const cloud = new CliCloudRuntime({
+		handoffSource: sessionRuntime.getHandoffSource,
+	});
 	setActiveRuntimeAbort(sessionRuntime.abortAll);
 
 	let cleanupPromise: Promise<InteractiveExitSummary | undefined> | undefined;
 
 	const handleSigint = () => {
+		const state = cloud.getSnapshot();
+		if (state.target || state.creating) {
+			if (state.session?.busy && !state.stopping) {
+				void cloud.stop().catch(() => {});
+				return;
+			}
+			cloud.detach();
+			tuiApp?.destroy();
+			return;
+		}
 		if (isRunning) {
 			if (sessionRuntime.abortAll()) {
 				return;
@@ -366,10 +422,7 @@ export async function runInteractive(
 		tuiApp?.destroy();
 	};
 	const handleSigterm = () => {
-		if (isRunning) {
-			sessionRuntime.abortAll();
-			return;
-		}
+		cloud.detach();
 		tuiApp?.destroy();
 	};
 	const cleanupRuntime = async (): Promise<
@@ -379,8 +432,8 @@ export async function runInteractive(
 			return await cleanupPromise;
 		}
 		cleanupPromise = (async () => {
-			process.off("SIGINT", handleSigint);
-			process.off("SIGTERM", handleSigterm);
+			setActiveRuntimeSignalHandler(undefined);
+			await cloud.dispose();
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
 				exitSummary = await sessionRuntime.cleanup();
@@ -450,11 +503,13 @@ export async function runInteractive(
 	): Promise<
 		Awaited<ReturnType<typeof configDataLoader.onToggleConfigItem>>
 	> => {
-		const data = await configDataLoader.onToggleConfigItem(item, options);
-		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
-			await refreshInteractiveSessionPolicies();
-		}
-		return data;
+		return await sessionRuntime.withLocalMutation(async () => {
+			const data = await configDataLoader.onToggleConfigItem(item, options);
+			if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
+				await refreshInteractiveSessionPolicies();
+			}
+			return data;
+		});
 	};
 	const onDeleteConfigItem = async (
 		item: InteractiveConfigItem,
@@ -462,11 +517,13 @@ export async function runInteractive(
 	): Promise<
 		Awaited<ReturnType<typeof configDataLoader.onDeleteConfigItem>>
 	> => {
-		const data = await configDataLoader.onDeleteConfigItem(item, options);
-		if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
-			await refreshInteractiveSessionPolicies();
-		}
-		return data;
+		return await sessionRuntime.withLocalMutation(async () => {
+			const data = await configDataLoader.onDeleteConfigItem(item, options);
+			if (data && shouldRefreshInteractiveSessionForConfigItem(item)) {
+				await refreshInteractiveSessionPolicies();
+			}
+			return data;
+		});
 	};
 	const toQueuedPromptItem = (prompt: {
 		id: string;
@@ -480,8 +537,9 @@ export async function runInteractive(
 		attachmentCount: prompt.attachmentCount,
 	});
 
-	process.on("SIGINT", handleSigint);
-	process.on("SIGTERM", handleSigterm);
+	setActiveRuntimeSignalHandler((signal) =>
+		signal === "SIGINT" ? handleSigint() : handleSigterm(),
+	);
 
 	disableOpenTuiGraphicsProbe();
 	const { renderOpenTui } = await import("../tui/index");
@@ -489,6 +547,8 @@ export async function runInteractive(
 	// eslint-disable-next-line prefer-const
 	let tuiApp: Awaited<ReturnType<typeof renderOpenTui>> | undefined;
 	setActiveRuntimeCleanup(() => {
+		cloud.detach();
+		void cloud.dispose();
 		tuiApp?.destroy();
 	});
 	let startupErrorReported = false;
@@ -517,6 +577,7 @@ export async function runInteractive(
 
 	tuiApp = await renderOpenTui({
 		config,
+		cloud,
 		startupTarget: options?.startupTarget,
 		initialPrompt: options?.initialPrompt,
 		initialNotice: options?.initialNotice,
@@ -542,12 +603,15 @@ export async function runInteractive(
 				clineApiBaseUrl: options?.clineApiBaseUrl,
 				clineProviderSettings: options?.clineProviderSettings,
 			}),
-		switchClineAccount: async (organizationId) =>
+		switchClineAccount: async (organizationId) => {
+			cloud.invalidateIdentity();
 			await switchClineAccount({
 				config,
 				organizationId,
 				clineApiBaseUrl: options?.clineApiBaseUrl,
-			}),
+			});
+			await cloud.refreshIdentity();
+		},
 		loadConfigData: configDataLoader.loadConfigData,
 		onToggleConfigItem,
 		onDeleteConfigItem,
@@ -766,36 +830,45 @@ export async function runInteractive(
 			}
 		},
 		onTurnErrorReported: () => {},
-		onAutoApproveChange: (enabled) => {
-			setInteractiveAutoApprove(enabled);
-			setToolAutoApproveGlobally(enabled);
-			void refreshInteractiveSessionPolicies();
-		},
+		onAutoApproveChange: (enabled) =>
+			applyInteractiveAutoApproveChange({
+				enabled,
+				chatCommandState,
+				setInteractiveAutoApprove,
+				persistAutoApprove: setToolAutoApproveGlobally,
+				refreshPolicies: refreshInteractiveSessionPolicies,
+				sessionRuntime,
+			}),
 		onCompactionModeChange: async (mode) => {
-			await sessionRuntime.ensureReady();
-			applyCliCompactionMode(config, mode);
-			setCompactionModeGlobally(mode);
-			await sessionRuntime.restartWithCurrentMessages();
+			await sessionRuntime.withLocalMutation(async () => {
+				await sessionRuntime.ensureReady();
+				applyCliCompactionMode(config, mode);
+				setCompactionModeGlobally(mode);
+				await sessionRuntime.restartWithCurrentMessages();
+			});
 		},
 		onModeChange: async (mode) => {
 			if (!isInteractiveMode(mode)) return;
-			// Persist the user's choice immediately, even when the switch is
-			// deferred until the current turn aborts, so it survives restarts.
-			setPlanActModeGlobally(mode);
-			if (isRunning) {
-				pendingModeChange.current = mode;
-				pendingModeChange.source = "ui";
-				sessionRuntime.abortAll();
-				return;
-			}
-			await applyModeChange(mode);
+			await sessionRuntime.withLocalMutation(async () => {
+				// Persist the user's choice immediately, even when the switch is
+				// deferred until the current turn aborts, so it survives restarts.
+				setPlanActModeGlobally(mode);
+				if (isRunning) {
+					pendingModeChange.current = mode;
+					pendingModeChange.source = "ui";
+					sessionRuntime.abortAll();
+					return;
+				}
+				await applyModeChange(mode);
+			});
 		},
 		onNewSession: async () => {
 			await sessionRuntime.resetForNewSession();
 		},
-		onModelChange: () =>
+		onModelChange: (nextConfig) =>
 			applyInteractiveModelChange({
 				config,
+				nextConfig,
 				providerSettingsManager,
 				sessionRuntime,
 			}),
@@ -804,6 +877,8 @@ export async function runInteractive(
 			await sessionRuntime.restartEmpty();
 		},
 		onAccountChange: async () => {
+			cloud.invalidateIdentity();
+			await cloud.refreshIdentity();
 			await sessionRuntime.ensureReady();
 			await loadClineAccountSnapshot({
 				config,
