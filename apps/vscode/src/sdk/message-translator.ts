@@ -1047,6 +1047,7 @@ export function extractToolOutputText(output: unknown): string {
 	// Handle ToolOperationResult[] from SDK tools (run_commands, search_codebase, etc.)
 	if (Array.isArray(output)) {
 		const parts: string[] = []
+		let sawEmptyResult = false
 		for (const item of output) {
 			if (typeof item === "string") {
 				parts.push(item)
@@ -1057,10 +1058,16 @@ export function extractToolOutputText(output: unknown): string {
 					parts.push(record.result)
 				} else if ("error" in record && typeof record.error === "string" && record.error) {
 					parts.push(record.error)
+				} else if (typeof record.result === "string") {
+					// A command that legitimately printed nothing (`git add -A`,
+					// `mkdir`). Recognized as a ToolOperationResult so it must not
+					// fall through to the JSON fallback below and leak the envelope
+					// into the chat.
+					sawEmptyResult = true
 				}
 			}
 		}
-		if (parts.length > 0) {
+		if (parts.length > 0 || sawEmptyResult) {
 			return parts.join("\n")
 		}
 	}
