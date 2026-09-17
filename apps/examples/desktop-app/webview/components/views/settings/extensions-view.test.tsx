@@ -183,6 +183,71 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 	});
 });
 
+describe("rule scope grouping", () => {
+	it("classifies rules from both .clinerules and .cline/rules as Project", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_marketplace_installed_entries")
+				return { installedKeys: [] };
+			if (command === "list_user_instruction_configs") {
+				return {
+					workspaceRoot: "/workspace",
+					rules: [
+						{
+							name: "legacy-rule",
+							instructions: "Legacy layout",
+							path: "/workspace/.clinerules/legacy-rule.md",
+						},
+						{
+							name: "new-rule",
+							instructions: "New layout",
+							path: "/workspace/.cline/rules/new-rule.md",
+						},
+						{
+							name: "home-rule",
+							instructions: "Global rule",
+							path: "/home/user/.cline/rules/home-rule.md",
+						},
+					],
+					workflows: [],
+					skills: [],
+					agents: [],
+					plugins: [],
+					tools: [],
+					hooks: [],
+					mcp: { servers: [] },
+					warnings: [],
+				};
+			}
+			throw new Error(`Unexpected command: ${command}`);
+		});
+
+		await act(async () => {
+			root.render(<CustomizationSectionView section="Rules" />);
+		});
+
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("legacy-rule");
+			expect(container.textContent).toContain("new-rule");
+			expect(container.textContent).toContain("home-rule");
+		});
+
+		const scopeByRule = new Map<string, string>();
+		for (const row of container.querySelectorAll<HTMLElement>(
+			'[role="switch"][aria-label^="Toggle "]',
+		)) {
+			const card = row.closest("div.grid");
+			const name = row.getAttribute("aria-label")?.replace(/^Toggle /, "");
+			const badge = card
+				?.querySelector('[data-slot="badge"]')
+				?.textContent?.trim();
+			if (name) scopeByRule.set(name, badge ?? "");
+		}
+		expect(scopeByRule.get("legacy-rule")).toBe("Project");
+		expect(scopeByRule.get("new-rule")).toBe("Project");
+		expect(scopeByRule.get("home-rule")).toBe("Global");
+	});
+});
+
 describe("tool state controls", () => {
 	it.each([
 		true,

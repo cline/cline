@@ -871,10 +871,13 @@ export function CustomizationSectionView({
 		const global: RuleItem[] = [];
 		for (const rule of rules) {
 			const normalized = normalizePath(rule.path);
+			// Both supported workspace rule layouts: the legacy `.clinerules`
+			// directory and `.cline/rules` (cline/cline#14186).
 			if (
 				normalizedRoot &&
 				normalized.startsWith(`${normalizedRoot}/`) &&
-				normalized.includes("/.clinerules/")
+				(normalized.includes("/.clinerules/") ||
+					normalized.includes("/.cline/rules/"))
 			) {
 				project.push(rule);
 			} else {
