@@ -2,14 +2,15 @@ import { homedir } from "node:os";
 import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
+	ensureLoginShellPath,
 	readGlobalSettings,
 	setHomeDirIfUnset,
 	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
+import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
 import {
 	captureSdkError,
-	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
@@ -23,7 +24,6 @@ import {
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
-import { ensureLoginShellPath } from "./shell-path";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
@@ -237,10 +237,7 @@ async function runEntrypoint(): Promise<void> {
 		return;
 	}
 	disableCurrentDirectoryExecutableSearch();
-	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
-	// from handing it to every process they spawn.
-	if (claimHubDaemonProcess()) {
-		await import("@cline/core/hub/daemon-entry");
+	if (await runRemoteHelperEntrypoint()) {
 		return;
 	}
 	await main();

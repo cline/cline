@@ -73,6 +73,7 @@ import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
+import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
@@ -630,6 +631,8 @@ export function SettingsView({
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Import" ? (
 			<ImportContent />
+		) : activeNav === "Remote" ? (
+			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -645,7 +648,7 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="h-full overflow-hidden bg-background">
+		<div className="cline-settings-content h-full overflow-hidden bg-background">
 			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);

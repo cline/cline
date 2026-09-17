@@ -680,7 +680,7 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 
 /// How long one `get_desktop_backend_endpoint` call waits for the sidecar's
 /// ready line. Sidecar startup includes login-shell PATH resolution (bounded
-/// at ~7.5s worst case, see sidecar/shell-path.ts) plus session-manager init,
+/// at ~7.5s worst case, see sdk/packages/core/src/remote/shell-path.ts) plus session-manager init,
 /// and a first spawn that dies (e.g. no compatible hub runtime yet, see
 /// cline/cline#14129) is respawned inside the wait — the window must cover a
 /// failed first start plus a full second startup. The wait returns as soon as
