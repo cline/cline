@@ -9,7 +9,7 @@ import {
 	resolveGeneratedProviderIdForModelsDevKey,
 } from "../providers/provider-keys";
 import {
-	fetchClineRecommendedModelsPayload,
+	getClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
 import {
@@ -540,14 +540,20 @@ export async function fetchModelsDevCatalog(
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
 	fetcher: typeof fetch = fetch,
-	options: { includeClineCloudModels?: boolean } = {},
+	options: {
+		includeClineCloudModels?: boolean;
+		context?: import("./cline-catalog-context").ClineCatalogContext;
+	} = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
 	const [providerModels, clineRecommendedPayload] = await Promise.all([
 		fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
 			() => emptyProviderModels,
 		),
-		fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
+		getClineRecommendedModelsPayload({
+			...options.context,
+			fetchImpl: options.context?.fetchImpl ?? fetcher,
+		}).catch(() => undefined),
 	]);
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(

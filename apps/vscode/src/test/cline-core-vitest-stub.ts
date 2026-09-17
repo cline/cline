@@ -315,6 +315,9 @@ interface ProviderSettingsState {
 const providerSettingsStores = new Map<string, ProviderSettingsState>()
 
 export class ProviderSettingsManager {
+	async getRecommendedModels() {
+		return { recommended: [], free: [], clinePass: [] }
+	}
 	private readonly filePath: string
 	private readonly state: ProviderSettingsState
 
@@ -492,13 +495,6 @@ export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
 			tags: [],
 		},
 	],
-}
-
-export async function fetchClineRecommendedModels(_options?: {
-	baseUrl?: string
-	fetchImpl?: typeof fetch
-}): Promise<ClineRecommendedModelsData> {
-	return { recommended: [], free: [] }
 }
 
 export function createOAuthClientCallbacks() {

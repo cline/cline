@@ -8,6 +8,10 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname } from "node:path";
+import {
+	type ClineCatalogContext,
+	getClineRecommendedModelsPayload,
+} from "@cline/llms";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { hashSecret, sdkDebug } from "../../logging/early-logger";
@@ -24,18 +28,29 @@ import {
 	type VoiceInputSettings,
 	VoiceInputSettingsSchema,
 } from "../../types/provider-settings";
-import { getLiveModelsCatalog } from "../llms/provider-defaults";
+import {
+	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
+} from "../llms/cline-recommended-models";
+import {
+	getLiveModelsCatalog,
+	resolveProviderConfig,
+} from "../llms/provider-defaults";
 import {
 	ensureCustomProvidersLoadedSync,
 	registerConfiguredProvidersFromSettings,
 } from "../providers/local-provider-registry";
+import {
+	getLocalProviderModels,
+	listLocalProviders,
+} from "../providers/local-provider-service";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {
 	return new Date().toISOString();
 }
 
-export interface ProviderSettingsManagerOptions {
+export interface ProviderSettingsManagerOptions extends ClineCatalogContext {
 	filePath?: string;
 	dataDir?: string;
 }
@@ -131,9 +146,15 @@ function inferLegacyDataDir(filePath: string): string | undefined {
 
 export class ProviderSettingsManager {
 	private readonly filePath: string;
+	private readonly catalogContext: ClineCatalogContext;
 	private readonly dataDir?: string;
 
 	constructor(options: ProviderSettingsManagerOptions = {}) {
+		this.catalogContext = {
+			client: options.client ? { ...options.client } : undefined,
+			baseUrl: options.baseUrl,
+			fetchImpl: options.fetchImpl,
+		};
 		this.filePath = options.filePath ?? resolveProviderSettingsPath();
 		this.dataDir = options.dataDir ?? inferLegacyDataDir(this.filePath);
 		if (this.dataDir || !options.filePath) {
@@ -170,7 +191,7 @@ export class ProviderSettingsManager {
 			const result = StoredProviderSettingsSchema.safeParse(parsed);
 			if (result.success) {
 				registerConfiguredProvidersFromSettings(result.data);
-				const clineAuth = result.data.providers["cline"]?.settings?.auth;
+				const clineAuth = result.data.providers.cline?.settings?.auth;
 				sdkDebug(
 					`providers.read providers=[${Object.keys(result.data.providers).join(",")}] lastUsed=${result.data.lastUsedProvider ?? "none"} clineAuthPresent=${!!clineAuth?.accessToken} clineAccessTokenHash=${hashSecret(clineAuth?.accessToken)} clineRefreshTokenHash=${hashSecret(clineAuth?.refreshToken)}`,
 				);
@@ -241,11 +262,11 @@ export class ProviderSettingsManager {
 				: previous.lastUsedProvider,
 		};
 		this.write(next);
-		const prevClineAuth = previous.providers["cline"]?.settings?.auth;
+		const prevClineAuth = previous.providers.cline?.settings?.auth;
 		const nextClineAuth =
 			validatedSettings.provider === "cline"
 				? validatedSettings.auth
-				: next.providers["cline"]?.settings?.auth;
+				: next.providers.cline?.settings?.auth;
 		const authDropped =
 			!!prevClineAuth?.accessToken && !nextClineAuth?.accessToken;
 		sdkDebug(
@@ -349,9 +370,61 @@ export class ProviderSettingsManager {
 		return toProviderConfig(settings, options);
 	}
 
+	/** Request context is derived from current settings so endpoint edits take effect immediately. */
+	getCatalogContext(): ClineCatalogContext {
+		return {
+			...this.catalogContext,
+			client: this.catalogContext.client
+				? { ...this.catalogContext.client }
+				: undefined,
+			baseUrl:
+				this.catalogContext.baseUrl ??
+				this.getProviderSettings("cline")?.baseUrl,
+		};
+	}
+	async getFreeModelIds(): Promise<string[]> {
+		try {
+			const payload = await getClineRecommendedModelsPayload(
+				this.getCatalogContext(),
+			);
+			return (payload.free ?? []).flatMap((model) =>
+				typeof model?.id === "string" ? [model.id] : [],
+			);
+		} catch {
+			return [];
+		}
+	}
+	getRecommendedModels() {
+		return getCachedClineRecommendedModels(this.getCatalogContext());
+	}
+	peekRecommendedModels() {
+		return peekClineRecommendedModels(this.getCatalogContext());
+	}
+	resolveModelsConfig(
+		providerId: string,
+		modelCatalog?: Parameters<typeof resolveProviderConfig>[1],
+		config = this.getProviderConfig(providerId, { includeKnownModels: false }),
+	) {
+		return resolveProviderConfig(
+			providerId,
+			modelCatalog,
+			config,
+			this.getCatalogContext(),
+		);
+	}
+	getModels(providerId: string, options?: { loadLatest?: boolean }) {
+		return getLocalProviderModels(
+			providerId,
+			this.getProviderConfig(providerId, { includeKnownModels: false }),
+			{ ...options, context: this.getCatalogContext() },
+		);
+	}
+	listProviders(options?: Parameters<typeof listLocalProviders>[1]) {
+		return listLocalProviders(this, options);
+	}
 	async refreshCatalog(): Promise<void> {
 		try {
-			await getLiveModelsCatalog({});
+			await getLiveModelsCatalog({}, this.getCatalogContext());
 		} catch {
 			// Ignore errors
 		}

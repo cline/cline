@@ -2,7 +2,6 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@cline/core";
-
 import { registerDisposable } from "@cline/shared";
 import type { Command } from "commander";
 import { registerHistoryCommand } from "./commands/history-command";
@@ -18,7 +17,6 @@ import {
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import type { TuiStartupTarget } from "./tui/types";
 import { filterChatModels } from "./utils/chat-models";
-import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -74,8 +72,10 @@ export function stdinHasPipedInput(): boolean {
 }
 
 async function createProviderSettingsManager() {
-	const { ProviderSettingsManager } = await import("@cline/core");
-	return new ProviderSettingsManager();
+	const { getCliProviderSettingsManager } = await import(
+		"./utils/provider-settings"
+	);
+	return getCliProviderSettingsManager();
 }
 
 async function loadCliRuntimeModules() {
@@ -147,7 +147,6 @@ function startupTargetTakesPrecedenceOverMigrationNotice(
 }
 
 export async function runCli(): Promise<void> {
-	registerClineClientIdentity("cline-cli");
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
 
@@ -1020,11 +1019,12 @@ export async function runCli(): Promise<void> {
 						failOnError: false,
 					}
 				: undefined;
-			const resolvedProviderConfig = await coreServer.resolveProviderConfig(
-				provider,
-				catalogOptions,
-				persistedProviderConfig,
-			);
+			const resolvedProviderConfig =
+				await providerSettingsManager.resolveModelsConfig(
+					provider,
+					catalogOptions,
+					persistedProviderConfig,
+				);
 			knownModels = resolvedProviderConfig?.knownModels;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);

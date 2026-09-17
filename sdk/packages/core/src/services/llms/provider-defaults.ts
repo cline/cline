@@ -817,6 +817,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 	includeClineCloudModels: boolean,
+	context: Llms.ClineCatalogContext = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	// Bound both catalog sources, including response-body reads, while keeping
 	// any cancellation supplied by the source fetcher.
@@ -829,12 +830,16 @@ async function fetchLiveModelsCatalog(
 			const signal = init?.signal
 				? AbortSignal.any([init.signal, timeout])
 				: timeout;
-			return globalThis.fetch(input, { ...init, signal });
+			return (context.fetchImpl ?? globalThis.fetch)(input, {
+				...init,
+				signal,
+			});
 		},
 		globalThis.fetch,
 	);
 	return Llms.fetchLiveProviderModels(url, fetchWithTimeout, {
 		includeClineCloudModels,
+		context: { ...context, fetchImpl: context.fetchImpl ?? globalThis.fetch },
 	});
 }
 
@@ -843,11 +848,12 @@ export async function getLiveModelsCatalog(
 		ModelCatalogConfig,
 		"url" | "cacheTtlMs" | "includeClineCloudModels"
 	> = {},
+	context: Llms.ClineCatalogContext = {},
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const url = options.url ?? DEFAULT_MODELS_CATALOG_URL;
 	const cacheTtlMs = options.cacheTtlMs ?? DEFAULT_MODELS_CATALOG_CACHE_TTL_MS;
 	const includeClineCloudModels = options.includeClineCloudModels === true;
-	const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
+	const cacheKey = `${url}\0cloud=${includeClineCloudModels}\0${Llms.clineCatalogCacheKey(context)}`;
 	const now = Date.now();
 
 	const cached = MODELS_CATALOG_CACHE.get(cacheKey);
@@ -860,7 +866,7 @@ export async function getLiveModelsCatalog(
 		return inFlight;
 	}
 
-	const request = fetchLiveModelsCatalog(url, includeClineCloudModels)
+	const request = fetchLiveModelsCatalog(url, includeClineCloudModels, context)
 		.then((data) => {
 			MODELS_CATALOG_CACHE.set(cacheKey, {
 				data,
@@ -877,17 +883,15 @@ export async function getLiveModelsCatalog(
 }
 
 export function clearLiveModelsCatalogCache(url?: string): void {
-	if (url) {
-		for (const includeClineCloudModels of [false, true]) {
-			const cacheKey = `${url}\0cloud=${includeClineCloudModels}`;
-			MODELS_CATALOG_CACHE.delete(cacheKey);
-			MODELS_CATALOG_IN_FLIGHT.delete(cacheKey);
+	for (const key of new Set([
+		...MODELS_CATALOG_CACHE.keys(),
+		...MODELS_CATALOG_IN_FLIGHT.keys(),
+	])) {
+		if (!url || key.startsWith(`${url}\0`)) {
+			MODELS_CATALOG_CACHE.delete(key);
+			MODELS_CATALOG_IN_FLIGHT.delete(key);
 		}
-		return;
 	}
-
-	MODELS_CATALOG_CACHE.clear();
-	MODELS_CATALOG_IN_FLIGHT.clear();
 }
 
 export function clearPrivateModelsCatalogCache(): void {
@@ -933,6 +937,7 @@ export async function resolveProviderConfig(
 	providerId: string,
 	modelCatalog?: ModelCatalogConfig,
 	config?: ProviderConfig,
+	context: Llms.ClineCatalogContext = {},
 ): Promise<ProviderDefaults | undefined> {
 	const defaults = getProviderConfig(providerId);
 	if (!defaults) {
@@ -941,7 +946,7 @@ export async function resolveProviderConfig(
 
 	try {
 		const liveCatalog = modelCatalog?.loadLatestOnInit
-			? await getLiveModelsCatalog(modelCatalog)
+			? await getLiveModelsCatalog(modelCatalog, context)
 			: undefined;
 		const liveModels = liveCatalog
 			? resolveCatalogModels(providerId, liveCatalog)

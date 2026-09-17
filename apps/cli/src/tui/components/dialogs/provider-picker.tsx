@@ -6,7 +6,7 @@ import {
 	loginLocalProvider,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFieldRequirement,
-	ProviderSettingsManager,
+	type ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 	startClineDeviceAuth,
@@ -22,6 +22,7 @@ import {
 } from "../../../utils/local-cli";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
+import { getCliProviderSettingsManager } from "../../../utils/provider-settings";
 import { useDialogPalette } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
@@ -71,7 +72,7 @@ export function ProviderPickerContent(
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
-		const manager = new ProviderSettingsManager();
+		const manager = getCliProviderSettingsManager();
 		listLocalProviders(manager)
 			.then(({ providers: list }) => {
 				const providerItems = list.map((p) => ({
@@ -796,7 +797,7 @@ export function OAuthLoginContent(
 		setDeviceVerifyUrl("");
 		setDeviceError("");
 
-		const manager = new ProviderSettingsManager();
+		const manager = getCliProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
 		const apiBaseUrl =
 			existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
@@ -851,7 +852,7 @@ export function OAuthLoginContent(
 		}
 
 		const attempt = startAuthAttempt();
-		const manager = new ProviderSettingsManager();
+		const manager = getCliProviderSettingsManager();
 		const existing = manager.getProviderSettings(providerId);
 
 		loginLocalProvider(providerId, existing, (url: string) => {

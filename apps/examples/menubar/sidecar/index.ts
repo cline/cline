@@ -421,7 +421,9 @@ function resolveProviderLaunchAuth(
 
 async function main(): Promise<void> {
 	const workspaceRoot = process.cwd();
-	const providerSettingsManager = new ProviderSettingsManager();
+	const providerSettingsManager = new ProviderSettingsManager({
+		client: { name: "cline-menubar" },
+	});
 	configureMenubarConnectorCliLaunch(workspaceRoot);
 	// Discover or start a detached shared hub
 	let hubUrl: string;

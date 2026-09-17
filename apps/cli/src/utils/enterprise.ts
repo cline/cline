@@ -3,7 +3,6 @@ import {
 	ClineAccountService,
 	type ClineCoreStartInput,
 	createRemoteConfigSessionMessagesArtifactUploader,
-	ProviderSettingsManager,
 	prepareRemoteConfigCoreIntegration,
 	REMOTE_CONFIG_SESSION_BLOB_UPLOAD_METADATA_KEY,
 	readRemoteConfigSessionBlobUploadMetadata,
@@ -16,6 +15,7 @@ import {
 	type RemoteConfigBundle,
 	RemoteConfigSchema,
 } from "@cline/shared";
+import { getCliProviderSettingsManager } from "./provider-settings";
 import { getCliTelemetryService } from "./telemetry";
 
 const initializedRemoteConfigKeys = new Set<string>();
@@ -37,7 +37,7 @@ async function loadCliRemoteConfigBundle(): Promise<
 async function loadCliRemoteConfigBundleUncached(): Promise<
 	RemoteConfigBundle | undefined
 > {
-	const manager = new ProviderSettingsManager();
+	const manager = getCliProviderSettingsManager();
 	const settings = manager.getProviderSettings("cline");
 	const authToken = resolveLocalClineAuthToken(settings)?.trim();
 	if (!authToken) {

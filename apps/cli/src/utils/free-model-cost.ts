@@ -1,13 +1,20 @@
-import { type AgentEvent, buildClineClientHeaders } from "@cline/core";
+import { type AgentEvent, ProviderSettingsManager } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { getCliProviderSettingsManager } from "./provider-settings";
 import type { Config } from "./types";
 
-const CLINE_RECOMMENDED_MODELS_TIMEOUT_MS = 5_000;
-const freeModelIdsByBaseUrl = new Map<
-	string,
-	Promise<readonly string[] | undefined>
->();
-
+const managers = new Map<string, ProviderSettingsManager>();
+function getManager(baseUrl: string): ProviderSettingsManager {
+	let manager = managers.get(baseUrl);
+	if (!manager) {
+		manager = new ProviderSettingsManager({
+			...getCliProviderSettingsManager().getCatalogContext(),
+			baseUrl,
+		});
+		managers.set(baseUrl, manager);
+	}
+	return manager;
+}
 function normalizeModelId(modelId: string | undefined): string {
 	return modelId?.trim().toLowerCase() ?? "";
 }
@@ -17,58 +24,6 @@ function modelIdsMatch(selectedModelId: string, freeModelId: string): boolean {
 	const free = normalizeModelId(freeModelId);
 	if (!selected || !free) return false;
 	return selected === free;
-}
-
-function resolveClineRecommendedModelsUrl(baseUrl: string): string {
-	const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-	const apiBaseUrl = normalizedBaseUrl.endsWith("/api/v1")
-		? normalizedBaseUrl.slice(0, -"/api/v1".length)
-		: normalizedBaseUrl;
-	return `${apiBaseUrl}/api/v1/ai/cline/recommended-models`;
-}
-
-async function fetchClineFreeModelIds(
-	baseUrl: string,
-): Promise<readonly string[] | undefined> {
-	const controller = new AbortController();
-	const timeout = setTimeout(
-		() => controller.abort(),
-		CLINE_RECOMMENDED_MODELS_TIMEOUT_MS,
-	);
-	try {
-		const response = await fetch(resolveClineRecommendedModelsUrl(baseUrl), {
-			headers: buildClineClientHeaders(),
-			signal: controller.signal,
-		});
-		if (!response.ok) return undefined;
-		const json = (await response.json()) as { free?: unknown };
-		return Array.isArray(json.free)
-			? json.free
-					.map((model) =>
-						model && typeof model === "object"
-							? (model as Record<string, unknown>).id
-							: undefined,
-					)
-					.filter((id): id is string => typeof id === "string" && id.length > 0)
-			: [];
-	} catch {
-		return undefined;
-	} finally {
-		clearTimeout(timeout);
-	}
-}
-
-function getClineFreeModelIds(baseUrl: string): Promise<readonly string[]> {
-	const cacheKey = baseUrl.trim();
-	let cached = freeModelIdsByBaseUrl.get(cacheKey);
-	if (!cached) {
-		cached = fetchClineFreeModelIds(cacheKey).then((ids) => {
-			if (!ids) freeModelIdsByBaseUrl.delete(cacheKey);
-			return ids;
-		});
-		freeModelIdsByBaseUrl.set(cacheKey, cached);
-	}
-	return cached.then((ids) => ids ?? []);
 }
 
 export async function shouldZeroClineFreeModelCost(
@@ -82,7 +37,7 @@ export async function shouldZeroClineFreeModelCost(
 
 	const baseUrl =
 		config.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl;
-	const freeModelIds = await getClineFreeModelIds(baseUrl);
+	const freeModelIds = await getManager(baseUrl).getFreeModelIds();
 	return freeModelIds.some((freeModelId) =>
 		modelIdsMatch(modelId, freeModelId),
 	);
@@ -122,5 +77,5 @@ export function zeroCliAgentEventCost(
 }
 
 export function clearClineFreeModelCostCache(): void {
-	freeModelIdsByBaseUrl.clear();
+	managers.clear();
 }

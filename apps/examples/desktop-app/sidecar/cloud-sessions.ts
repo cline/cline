@@ -4,7 +4,6 @@ import {
 	isHubCommandTimeoutError,
 	isHubReconnectableTransportError,
 	NodeHubClient,
-	ProviderSettingsManager,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
@@ -32,6 +31,7 @@ import {
 	sendEvent,
 	sendPromptsInQueueSnapshot,
 } from "./context";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 import { resolveSessionListTitle } from "./session-data/common";
 import { readSessionMessages } from "./session-data/messages";
 import type {
@@ -2560,7 +2560,7 @@ export function getCloudSessionManager(
 		return existing;
 	}
 	const environment = getClineEnvironmentConfig();
-	const providerSettingsManager = new ProviderSettingsManager();
+	const providerSettingsManager = getDesktopProviderSettingsManager();
 	const getAuthToken = () =>
 		resolveFreshClineAuthToken(providerSettingsManager, ctx);
 	const api = new CloudSessionApi({

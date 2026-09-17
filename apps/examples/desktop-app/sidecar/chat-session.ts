@@ -11,7 +11,6 @@ import {
 	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
 	isSkillsToolAvailable,
-	ProviderSettingsManager,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
 	readGlobalSettings,
@@ -50,6 +49,7 @@ import {
 	sendEvent,
 } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -879,7 +879,7 @@ async function withRemoteProviderCredentials(
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
 	if (!providerId) return config;
 
-	const manager = new ProviderSettingsManager();
+	const manager = getDesktopProviderSettingsManager();
 	const settings = manager.getProviderSettings(providerId);
 	if (!settings) return config;
 	const modelId = String(

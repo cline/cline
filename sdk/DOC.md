@@ -1,3 +1,30 @@
+## Provider settings and model catalogs
+
+Configure `ProviderSettingsManager` once per client runtime with the same
+`ClientContext` used for inference. Pass `fetchImpl` for host-specific transports
+(such as the extension's proxy-aware fetch), and optionally `baseUrl` to override
+the Cline API endpoint. Otherwise the manager reads the endpoint from current
+provider settings.
+
+```ts
+const providers = new ProviderSettingsManager({
+  client: { name: "my-client", version: "1.0.0", isMultiRoot: false },
+});
+const catalog = await providers.listProviders({ isClinePassEnabled: true });
+const models = await providers.getModels("cline");
+const featured = await providers.getRecommendedModels();
+```
+
+`getModels()` includes featured tiers on each model; `getRecommendedModels()`
+returns the recommended, free, and ClinePass buckets with display-ready names.
+`peekRecommendedModels()` is synchronous and falls back to bundled data.
+`resolveModelsConfig()` resolves live model metadata for a provider configuration.
+`getFreeModelIds()` shares the recommendation request but returns an empty list
+on failure, rather than using the UI fallback for usage-cost decisions.
+Recommendation payloads, catalog results, and in-flight requests are isolated by
+client identity, API endpoint, and transport. Clients do not register process-wide
+identity or fetch recommendation endpoints independently.
+
 
 ## SSH remote environments
 

@@ -484,11 +484,6 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
-export type { ClineClientIdentity } from "./runtime/cline-client-identity";
-export {
-	getClineClientIdentity,
-	setClineClientIdentity,
-} from "./runtime/cline-client-identity";
 export type {
 	ClineEnvironment,
 	ClineEnvironmentConfig,

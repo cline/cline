@@ -1,9 +1,7 @@
 import process from "node:process";
 import {
 	ensureCustomProvidersLoaded,
-	getLocalProviderModels,
 	Llms,
-	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
@@ -83,12 +81,7 @@ export async function loadModels(
 ): Promise<void> {
 	const provider = providerId.trim();
 	if (!provider) return;
-	const payload = await getLocalProviderModels(
-		provider,
-		providerSettingsManager.getProviderConfig(provider, {
-			includeKnownModels: false,
-		}),
-	);
+	const payload = await providerSettingsManager.getModels(provider);
 	const models: WebviewProviderModel[] = payload.models
 		.filter((model) =>
 			isChatCompatibleModel({
@@ -116,7 +109,7 @@ export async function sendProviderCatalog(
 	peer: BrowserPeer,
 ): Promise<void> {
 	await ensureCustomProvidersLoaded(providerSettingsManager);
-	const payload = await listLocalProviders(providerSettingsManager, {
+	const payload = await providerSettingsManager.listProviders({
 		isClinePassEnabled: true,
 	});
 	ctx.send(peer, {

@@ -1,7 +1,5 @@
 import type { AgentEvent } from "@cline/core";
-import { setClineClientIdentity } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { registerClineClientIdentity } from "./cline-client-identity";
 import {
 	clearClineFreeModelCostCache,
 	shouldZeroClineFreeModelCost,
@@ -11,7 +9,6 @@ import {
 
 afterEach(() => {
 	clearClineFreeModelCostCache();
-	setClineClientIdentity(undefined);
 	vi.unstubAllGlobals();
 });
 
@@ -52,7 +49,6 @@ describe("shouldZeroClineFreeModelCost", () => {
 			},
 		);
 		vi.stubGlobal("fetch", fetchMock);
-		registerClineClientIdentity("cline-cli");
 
 		await shouldZeroClineFreeModelCost({
 			providerId: "cline",

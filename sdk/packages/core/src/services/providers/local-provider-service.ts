@@ -20,7 +20,6 @@ import {
 import {
 	applyClineFeaturedModels,
 	getCachedClineRecommendedModels,
-	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
 import {
 	getLiveModelsCatalog,
@@ -160,7 +159,10 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
-	options: { loadLatest?: boolean } = {},
+	options: {
+		loadLatest?: boolean;
+		context?: LlmsModels.ClineCatalogContext;
+	} = {},
 ): Promise<Record<string, ModelInfo>> {
 	const [registeredModels, registeredModelOverrides] = await Promise.all([
 		LlmsModels.getModelsForProvider(providerId),
@@ -184,6 +186,7 @@ async function resolveProviderModelMap(
 			failOnError: false,
 		},
 		config,
+		options.context,
 	);
 
 	if (providerId === "litellm" && resolved?.knownModels) {
@@ -753,7 +756,7 @@ export async function listLocalProviders(
 	// feed, else the bundled fallback). This keeps even the very first picker
 	// paint after a cold boot sectioned; the per-provider model-list path
 	// (getLocalProviderModels) then refreshes with live feed data.
-	const featuredData = peekClineRecommendedModels();
+	const featuredData = manager.peekRecommendedModels();
 
 	const providerEntries = await Promise.all(
 		ids.map(
@@ -869,7 +872,7 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
-	options?: { loadLatest?: boolean },
+	options?: { loadLatest?: boolean; context?: LlmsModels.ClineCatalogContext },
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config, options);
@@ -882,14 +885,14 @@ export async function getLocalProviderModels(
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(
-				options?.loadLatest
-					? {
-							catalogLoader: () =>
-								getLiveModelsCatalog({ includeClineCloudModels: true }),
-						}
-					: undefined,
-			),
+			await getCachedClineRecommendedModels({
+				...options?.context,
+				catalogLoader: () =>
+					getLiveModelsCatalog(
+						{ includeClineCloudModels: options?.loadLatest },
+						options?.context,
+					),
+			}),
 		);
 	}
 	return { providerId: id, models };
@@ -910,7 +913,7 @@ export async function transcribeLocalAudio(
 		);
 	}
 
-	const { models } = await getLocalProviderModels(providerId, config);
+	const { models } = await manager.getModels(providerId);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -952,10 +955,7 @@ export async function saveVoiceInputSettings(
 			`Voice input provider "${providerId}" must be enabled and configured`,
 		);
 	}
-	const config = manager.getProviderConfig(providerId, {
-		includeKnownModels: false,
-	});
-	const { models } = await getLocalProviderModels(providerId, config);
+	const { models } = await manager.getModels(providerId);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -1000,7 +1000,7 @@ export async function createConfiguredStreamingTranscriptionSession(
 			`Transcription provider "${selection.providerId}" is not configured in providers.json`,
 		);
 	}
-	const { models } = await getLocalProviderModels(selection.providerId, config);
+	const { models } = await manager.getModels(selection.providerId);
 	const model = models.find((candidate) => candidate.id === selection.modelId);
 	if (
 		!model ||

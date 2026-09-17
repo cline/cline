@@ -3,7 +3,6 @@ import {
 	CoreSessionService,
 	HubSessionClient,
 	Llms,
-	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@cline/core";
 import type { Thread } from "chat";
@@ -17,6 +16,7 @@ import type { CliLoggerAdapter } from "../logging/adapter";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { resolveCliSessionMetadata } from "../utils/enterprise";
 import { resolveWorkspaceRoot } from "../utils/helpers";
+import { getCliProviderSettingsManager } from "../utils/provider-settings";
 import {
 	parseLocalRowMetadata,
 	parseRowMetadata,
@@ -60,7 +60,7 @@ export async function buildConnectorStartRequest(input: {
 	systemRules: string;
 	defaultModel?: string;
 }): Promise<ChatStartSessionRequest> {
-	const providerSettingsManager = new ProviderSettingsManager();
+	const providerSettingsManager = getCliProviderSettingsManager();
 	const lastUsedProviderSettings =
 		providerSettingsManager.getLastUsedProviderSettings({
 			isClinePassEnabled: true,

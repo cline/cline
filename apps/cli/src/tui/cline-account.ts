@@ -10,7 +10,7 @@ import {
 	getProviderOAuthCredentialsFromSettings,
 	getValidClineCredentials,
 	type ProviderSettings,
-	ProviderSettingsManager,
+	type ProviderSettingsManager,
 	persistClineAccountTelemetryIdentity,
 	resolveClineAccountTelemetryIdentity,
 	saveLocalProviderOAuthCredentials,
@@ -18,6 +18,7 @@ import {
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
+import { getCliProviderSettingsManager } from "../utils/provider-settings";
 import { identifyTelemetryAccount } from "../utils/telemetry";
 import type { Config } from "../utils/types";
 
@@ -138,7 +139,7 @@ export async function createClineAccountService(input: {
 	providerSettingsManager?: ProviderSettingsManager;
 }): Promise<ClineAccountService | undefined> {
 	const manager =
-		input.providerSettingsManager ?? new ProviderSettingsManager();
+		input.providerSettingsManager ?? getCliProviderSettingsManager();
 	const settings =
 		manager.getProviderSettings("cline") ?? input.clineProviderSettings;
 	const apiBaseUrl = resolveAccountApiBaseUrl({
@@ -186,7 +187,7 @@ export async function loadClineAccountSnapshot(input: {
 	const accountContext = resolveClineAccountTelemetryIdentity(user);
 	identifyTelemetryAccount(accountContext, input.config.logger);
 	persistClineAccountTelemetryIdentity(
-		new ProviderSettingsManager(),
+		getCliProviderSettingsManager(),
 		accountContext,
 	);
 
