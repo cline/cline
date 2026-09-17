@@ -2517,8 +2517,10 @@ describe("useChatSession", () => {
 			options: ["Keep current", "Create new"],
 		};
 		await act(async () => {
+			handlerFor("chat_session_status")({ sessionId, status: "running" });
 			handlerFor("ask_question_requested")(pendingQuestion);
 		});
+		expect(current.status).toBe("running");
 
 		const attachment = new File([new Uint8Array([1, 2, 3])], "shot.png", {
 			type: "image/png",
@@ -2530,6 +2532,12 @@ describe("useChatSession", () => {
 
 		expect(promptTaken).toBe(false);
 		expect(current.error).toContain("Question answers are text only");
+		// The runtime is still blocked on the question, so the rejection is a
+		// composer error only: the session stays running with a clean transcript.
+		expect(current.status).toBe("running");
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			false,
+		);
 		expect(invokeMock).not.toHaveBeenCalledWith(
 			"respond_ask_question",
 			expect.anything(),
@@ -2544,7 +2552,58 @@ describe("useChatSession", () => {
 
 		expect(promptTaken).toBe(true);
 		expect(current.error).toBeNull();
+		expect(current.status).toBe("running");
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			false,
+		);
 		expect(current.pendingAskQuestions).toEqual([]);
+	});
+
+	it("keeps the session running when the runtime rejects a typed answer", async () => {
+		const sessionId = "session-question-rejected";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return { sessionId };
+					}
+				}
+				if (command === "respond_ask_question") {
+					throw new Error("unknown ask question request: question-rejected");
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.start(current.config));
+		const pendingQuestion = {
+			requestId: "question-rejected",
+			sessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		await act(async () => {
+			handlerFor("chat_session_status")({ sessionId, status: "running" });
+			handlerFor("ask_question_requested")(pendingQuestion);
+		});
+
+		let promptTaken: boolean | undefined;
+		await act(async () => {
+			promptTaken = await current.sendPrompt("Use the release branch");
+		});
+
+		expect(promptTaken).toBe(false);
+		expect(current.error).toContain("unknown ask question request");
+		expect(current.status).toBe("running");
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			false,
+		);
+		expect(current.pendingAskQuestions).toEqual([pendingQuestion]);
 	});
 
 	it("resets to the remembered provider/model after viewing a historical session", async () => {

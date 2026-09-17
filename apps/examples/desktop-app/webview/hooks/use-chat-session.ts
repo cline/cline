@@ -2198,13 +2198,15 @@ export function useChatSession() {
 			// queue behind it (which left the question card up indefinitely).
 			const pendingQuestion = pendingAskQuestions[0];
 			if (pendingQuestion) {
+				// Rejections here are composer errors only: the runtime is still
+				// running and blocked on the unchanged question, so the session
+				// status and transcript must not be flipped into an error state.
 				// The ask_question tool result is a string, so attachments cannot
 				// ride along with the answer; hand them back rather than silently
 				// dropping them or queueing the message behind the blocked agent.
 				if (attachedFiles.length > 0) {
-					setErrorState(
+					setError(
 						"Question answers are text only. Remove the attachments to answer, or pick an option first and send the files afterwards.",
-						sessionId ?? activeSessionIdRef.current,
 					);
 					return false;
 				}
@@ -2213,10 +2215,7 @@ export function useChatSession() {
 					await answerAskQuestion(pendingQuestion.requestId, trimmed);
 					return true;
 				} catch (err) {
-					setErrorState(
-						errorMessage(err),
-						sessionId ?? activeSessionIdRef.current,
-					);
+					setError(errorMessage(err));
 					return false;
 				}
 			}
