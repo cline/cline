@@ -65,3 +65,14 @@ helpers produce an explicit error, without installing a runtime from the network
 The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
+
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
+provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
+registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
+data to the shared helper. `listLocalProviders` includes the resulting facts in
+each `ProviderListItem.auth`, allowing browser clients to render authentication
+guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.

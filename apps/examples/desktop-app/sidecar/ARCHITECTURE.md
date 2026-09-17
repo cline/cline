@@ -155,6 +155,14 @@ five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
+The catalog also supplies `ProviderAuthInfo` (capabilities and optional local CLI
+command/docs) through the shared RPC contract. The sidecar resolves these facts
+from the registered provider catalog; chat validation and credential-error UI use
+that data rather than importing the browser LLM registry. Error-message metadata
+retains the provider facts used for that message, so changing providers does not
+change an existing message's recovery action. The same response carries
+`modelTools` for provider-level settings indicators such as web-search support.
+
 Supported commands:
 
 | Command | Implementation |

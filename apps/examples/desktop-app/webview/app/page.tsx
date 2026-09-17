@@ -1,5 +1,6 @@
 "use client";
 
+import type { ProviderAuthInfo } from "@cline/shared/browser";
 import { AttachmentDropZone } from "@cline/ui";
 import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -656,7 +657,7 @@ function ChatThreadPane({
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	const [providerCredentials, setProviderCredentials] = useState<
-		Record<string, { apiKey: string }>
+		Record<string, { apiKey: string; auth?: ProviderAuthInfo }>
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
 	const [providerModelContextWindows, setProviderModelContextWindows] =
 		useState<Record<string, Record<string, number>>>(
@@ -725,7 +726,8 @@ function ChatThreadPane({
 			if (providerCredentialsRequestRef.current !== requestId) {
 				return;
 			}
-			const next: Record<string, { apiKey: string }> = {};
+			const next: Record<string, { apiKey: string; auth?: ProviderAuthInfo }> =
+				{};
 			const nextContextWindows: Record<string, Record<string, number>> = {};
 			let anyConnected = false;
 			for (const provider of payload.providers ?? []) {
@@ -735,6 +737,7 @@ function ChatThreadPane({
 				}
 				next[id] = {
 					apiKey: provider.apiKey?.trim() ?? "",
+					auth: provider.auth,
 				};
 				if (isProviderConnected(provider)) {
 					anyConnected = true;
@@ -787,14 +790,21 @@ function ChatThreadPane({
 			return;
 		}
 		const nextApiKey = selected.apiKey;
-		if (config.apiKey === nextApiKey) {
+		if (config.apiKey === nextApiKey && config.providerAuth === selected.auth) {
 			return;
 		}
 		setConfig((prev) => ({
 			...prev,
 			apiKey: nextApiKey,
+			providerAuth: selected?.auth,
 		}));
-	}, [config.apiKey, config.provider, providerCredentials, setConfig]);
+	}, [
+		config.apiKey,
+		config.provider,
+		config.providerAuth,
+		providerCredentials,
+		setConfig,
+	]);
 
 	const getWorkspaceCwd = useCallback(
 		() =>
@@ -1367,13 +1377,18 @@ function ChatThreadPane({
 			setConfig((prev) => {
 				const selected = providerCredentials[nextProvider];
 				const nextApiKey = selected?.apiKey ?? "";
-				if (prev.provider === nextProvider && prev.apiKey === nextApiKey) {
+				if (
+					prev.provider === nextProvider &&
+					prev.apiKey === nextApiKey &&
+					prev.providerAuth === selected?.auth
+				) {
 					return prev;
 				}
 				return {
 					...prev,
 					provider: nextProvider,
 					apiKey: nextApiKey,
+					providerAuth: selected?.auth,
 				};
 			}),
 		[providerCredentials, setConfig],

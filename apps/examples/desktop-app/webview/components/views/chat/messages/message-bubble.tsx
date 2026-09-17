@@ -176,7 +176,10 @@ export const MessageBubble = memo(function MessageBubble({
 		onFixCredentials &&
 		message.meta?.reason === "credentials" &&
 		message.meta.providerId
-			? resolveCredentialFailureAction(message.meta.providerId)
+			? resolveCredentialFailureAction(
+					message.meta.providerId,
+					message.meta.providerAuth,
+				)
 			: null;
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&

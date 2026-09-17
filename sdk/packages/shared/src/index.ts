@@ -340,6 +340,11 @@ export {
 	stripModeNotices,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export {
+	type ProviderAuthInfo,
+	type ProviderLocalCli,
+	resolveProviderLocalCli,
+} from "./provider-auth";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
@@ -523,6 +528,7 @@ export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
 	CaptureTaskLifecycleEventInput,
+	CoreSpawnReason,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	SdkTelemetryErrorComponent,
@@ -533,11 +539,11 @@ export type {
 	TelemetryPrimitive,
 	TelemetryProperties,
 	TelemetryValue,
-	CoreSpawnReason,
 } from "./services/telemetry";
 export {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	CORE_SPAWN_REASONS,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,
@@ -552,7 +558,6 @@ export {
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
-	CORE_SPAWN_REASONS,
 } from "./services/telemetry";
 export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
 export {

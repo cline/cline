@@ -10,6 +10,7 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { MODEL_TOOL_NAMES, resolveProviderLocalCli } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
@@ -818,6 +819,14 @@ export async function listLocalProviders(
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
 						capabilities,
+						modelTools: MODEL_TOOL_NAMES.filter((tool) =>
+							LlmsModels.providerOffersModelTool(id, tool),
+						),
+						auth: {
+							providerId: id,
+							capabilities,
+							localCli: resolveProviderLocalCli(info),
+						},
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",

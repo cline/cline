@@ -1,11 +1,23 @@
-import { GeneratedMediaSchema } from "@cline/shared/browser";
+import {
+	GeneratedMediaSchema,
+	type ProviderAuthInfo,
+} from "@cline/shared/browser";
 import { z } from "zod";
+
+export const ProviderAuthInfoSchema = z.object({
+	providerId: z.string(),
+	capabilities: z.array(z.string()).optional(),
+	localCli: z
+		.object({ command: z.string(), docsUrl: z.string().optional() })
+		.optional(),
+}) satisfies z.ZodType<ProviderAuthInfo>;
 
 export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
 	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
 	provider: z.string().min(1),
+	providerAuth: ProviderAuthInfoSchema.optional(),
 	model: z.string().min(1),
 	mode: z.enum(["act", "plan"]).default("act"),
 	apiKey: z.string(),
@@ -78,6 +90,7 @@ export const ChatMessageSchema = z.object({
 			cacheReadTokens: z.number().int().nonnegative().optional(),
 			totalCost: z.number().nonnegative().optional(),
 			providerId: z.string().optional(),
+			providerAuth: ProviderAuthInfoSchema.optional(),
 			modelId: z.string().optional(),
 			userRunSpan: z.number().int().nonnegative().optional(),
 			runCount: z.number().int().positive().optional(),

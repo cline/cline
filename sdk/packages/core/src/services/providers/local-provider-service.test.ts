@@ -1876,6 +1876,52 @@ describe("listLocalProviders", () => {
 
 	afterEach(() => cleanup());
 
+	it("sends authentication facts for builtins and registered providers", async () => {
+		LlmsModels.registerProvider({
+			provider: {
+				id: "custom-auth-cli",
+				source: "file",
+				name: "Custom CLI",
+				protocol: "openai-chat",
+				client: "openai",
+				defaultModelId: "test",
+				capabilities: ["local-auth"],
+				metadata: { localCliCommand: " custom " },
+				docsUrl: "https://example.com/cli",
+			},
+			models: { test: { id: "test", name: "Test" } },
+		});
+		try {
+			const { providers } = await listLocalProviders(manager);
+			expect(
+				providers.find((p) => p.id === "custom-auth-cli")?.modelTools,
+			).toEqual([]);
+			expect(providers.find((p) => p.id === "anthropic")?.modelTools).toContain(
+				"web_search",
+			);
+			expect(providers.find((p) => p.id === "custom-auth-cli")?.auth).toEqual({
+				providerId: "custom-auth-cli",
+				capabilities: expect.arrayContaining(["local-auth"]),
+				localCli: { command: "custom", docsUrl: "https://example.com/cli" },
+			});
+			expect(
+				providers.find((p) => p.id === "claude-code")?.auth.localCli?.command,
+			).toBe("claude");
+			expect(
+				providers.find((p) => p.id === "openai-codex-cli")?.auth.localCli
+					?.command,
+			).toBe("codex");
+			expect(
+				providers.find((p) => p.id === "opencode")?.auth.localCli?.command,
+			).toBe("opencode");
+			expect(
+				providers.find((p) => p.id === "anthropic")?.auth.localCli,
+			).toBeUndefined();
+		} finally {
+			LlmsModels.unregisterProvider("custom-auth-cli");
+		}
+	});
+
 	it("includes all registered providers", async () => {
 		await addLocalProvider(manager, {
 			providerId: "list-provider-a",

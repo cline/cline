@@ -3655,6 +3655,11 @@ describe("useChatSession", () => {
 			current.setConfig((previous) => ({
 				...previous,
 				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
 				model: "sonnet",
 			}));
 		});
