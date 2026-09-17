@@ -116,6 +116,39 @@ describe("htmlToMarkdown", () => {
 		])
 	})
 
+	it('holds the column open for the rest of the row group on rowspan="0"', () => {
+		// rowspan="0" reaches the end of the row group, but was read as a span of
+		// one row, so every row under the first one moved a column to the left.
+		const html =
+			"<table><thead><tr><th>Product</th><th>Variant</th><th>Price</th></tr></thead>" +
+			'<tbody><tr><td rowspan="0">Cable</td><td>1 m</td><td>9 EUR</td></tr>' +
+			"<tr><td>2 m</td><td>12 EUR</td></tr>" +
+			"<tr><td>3 m</td><td>15 EUR</td></tr></tbody></table>"
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["Product", "Variant", "Price"],
+			["---", "---", "---"],
+			["Cable", "1 m", "9 EUR"],
+			["", "2 m", "12 EUR"],
+			["", "3 m", "15 EUR"],
+		])
+	})
+
+	it('stops a rowspan="0" at the end of its own row group', () => {
+		const html =
+			"<table><thead><tr><th>A</th><th>B</th></tr></thead>" +
+			'<tbody><tr><td rowspan="0">x</td><td>1</td></tr><tr><td>2</td></tr></tbody>' +
+			"<tbody><tr><td>p</td><td>q</td></tr></tbody></table>"
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["A", "B"],
+			["---", "---"],
+			["x", "1"],
+			["", "2"],
+			["p", "q"],
+		])
+	})
+
 	it("counts the header columns by their spans", () => {
 		const html =
 			'<table><tr><th colspan="2">Size</th><th>Price</th></tr>' + "<tr><td>S</td><td>M</td><td>9 EUR</td></tr></table>"

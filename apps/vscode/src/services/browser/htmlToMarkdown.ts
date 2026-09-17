@@ -183,6 +183,7 @@ function layOut(rows: Element[], cells: Element[][]): Layout | null {
 	const colspan = new Map<Element, number>()
 	const widths: number[] = []
 	const taken = new Set<string>()
+	const groupEnds = lastRowOfGroup(rows)
 	let width = 0
 	const realCells = cells.reduce((total, rowCells) => total + rowCells.length, 0)
 	const budget = Math.min(MAX_GRID_CELLS, MIN_GRID_CELLS + GRID_CELLS_PER_CELL * realCells)
@@ -200,7 +201,7 @@ function layOut(rows: Element[], cells: Element[][]): Layout | null {
 		for (const cell of cells[rowIndex]) {
 			before.set(cell, free())
 			const across = spanOf(cell, "colspan", MAX_COLSPAN)
-			const down = spanOf(cell, "rowspan", rows.length - rowIndex)
+			const down = rowspanOf(cell, groupEnds[rowIndex] - rowIndex + 1, rows.length - rowIndex)
 			if (taken.size + across * down > budget) {
 				return null
 			}
@@ -236,4 +237,32 @@ function cellsOf(row: Element): Element[] {
 function spanOf(cell: Element, attribute: "colspan" | "rowspan", max: number): number {
 	const value = Number.parseInt(cell.getAttribute(attribute) ?? "", 10)
 	return Number.isFinite(value) && value > 0 ? Math.min(value, max) : 1
+}
+
+/**
+ * `rowspan="0"` is not a span of zero rows: it reaches to the end of the cell's
+ * row group, so the cell holds its column in every row left in that group. Any
+ * other value is a span of its own, clamped to the rows left in the table.
+ */
+function rowspanOf(cell: Element, rowsLeftInGroup: number, rowsLeftInTable: number): number {
+	// `Object.is`, because a leading "-" makes the value invalid and parsing
+	// "-0" gives -0, which `=== 0` would take for a zero.
+	if (Object.is(Number.parseInt(cell.getAttribute("rowspan") ?? "", 10), 0)) {
+		return rowsLeftInGroup
+	}
+	return spanOf(cell, "rowspan", rowsLeftInTable)
+}
+
+/**
+ * For each row, the index of the last row of its row group: its `<thead>`,
+ * `<tbody>` or `<tfoot>`, or the table itself when the page wrote no group. The
+ * rows of a group are consecutive, so a change of parent starts a new group.
+ */
+function lastRowOfGroup(rows: Element[]): number[] {
+	const ends = new Array<number>(rows.length)
+	for (let index = rows.length - 1; index >= 0; index--) {
+		const sameGroup = index + 1 < rows.length && rows[index].parentNode === rows[index + 1].parentNode
+		ends[index] = sameGroup ? ends[index + 1] : index
+	}
+	return ends
 }
