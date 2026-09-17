@@ -6,6 +6,7 @@
 
 export * as Llms from "@cline/llms";
 export {
+	buildClineClientHeaders,
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
