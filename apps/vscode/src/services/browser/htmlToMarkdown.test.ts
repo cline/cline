@@ -145,6 +145,19 @@ describe("htmlToMarkdown", () => {
 		expect(htmlToMarkdown(html)).toBe("| Plan | Price |\n| --- | --- |\n| Starter | 9 EUR |\n| Pro | 29 EUR |")
 	})
 
+	it("holds a rowspan open when it covers the row's last columns", () => {
+		// No later cell forces the placeholder, so it has to come from the row's right-side padding.
+		const html =
+			"<table><tr><th>A</th><th>B</th></tr>" + '<tr><td>1</td><td rowspan="2">x</td></tr>' + "<tr><td>2</td></tr></table>"
+
+		expect(tableRows(htmlToMarkdown(html))).toEqual([
+			["A", "B"],
+			["---", "---"],
+			["1", "x"],
+			["2", ""],
+		])
+	})
+
 	it("does not let a span attribute grow the output", () => {
 		// colspan="1000000" produced ten million characters from a few bytes of page.
 		const page = (span: number) => `<table><tr><td colspan="${span}">x</td></tr><tr><td>a</td></tr></table><p>after</p>`

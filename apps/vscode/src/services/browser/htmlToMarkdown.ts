@@ -179,6 +179,7 @@ function layOut(rows: Element[], cells: Element[][]): Layout | null {
 	const colspan = new Map<Element, number>()
 	const widths: number[] = []
 	const taken = new Set<string>()
+	let width = 0
 	const realCells = cells.reduce((total, rowCells) => total + rowCells.length, 0)
 	const budget = Math.min(MAX_GRID_CELLS, MIN_GRID_CELLS + GRID_CELLS_PER_CELL * realCells)
 
@@ -207,11 +208,13 @@ function layOut(rows: Element[], cells: Element[][]): Layout | null {
 			}
 			column += across
 		}
-		free()
+		// `column` is the width the row emits cells for. Trailing slots a rowspan
+		// from above still claims widen the table, and become right-side padding.
 		widths.push(column)
+		free()
+		width = Math.max(width, column)
 	}
 
-	const width = widths.reduce((widest, rowWidth) => Math.max(widest, rowWidth), 0)
 	// A row with no cells is never written, so only the others are padded.
 	const writtenRows = cells.filter((rowCells) => rowCells.length > 0).length
 	if (width * writtenRows > budget) {
