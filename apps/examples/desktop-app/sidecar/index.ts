@@ -9,7 +9,10 @@ import {
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
 import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
-import { captureSdkError } from "@cline/shared";
+import {
+	captureSdkError,
+	disableCurrentDirectoryExecutableSearch,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
@@ -233,6 +236,7 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
+	disableCurrentDirectoryExecutableSearch();
 	if (await runRemoteHelperEntrypoint()) {
 		return;
 	}
