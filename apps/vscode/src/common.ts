@@ -64,9 +64,6 @@ export async function initialize(storageContext: StorageContext): Promise<Webvie
 		})
 	}
 
-	// Publish the client identity the SDK stamps on session-less Cline API
-	// calls. Fire-and-forget: it resolves well before any model feed is
-	// fetched, and a slow host bridge must not delay activation.
 	void registerClineClientIdentity()
 
 	// Register host-only SDK provider handlers (e.g. VS Code Language Model API),

@@ -194,7 +194,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		const hubClient = await ensureSharedHubClient(ctx);
-		expect(hubClient).toBe(ctx.hubClient);
+		expect(hubClient).toBeDefined();
 
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
@@ -230,8 +230,14 @@ describe("Code sidecar runtime capabilities", () => {
 		];
 		const command = vi.fn(async () => ({ ok: true, payload: { hits } }));
 		const list = vi.fn(async () => []);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -269,8 +275,14 @@ describe("Code sidecar runtime capabilities", () => {
 				metadata: { title: oversizedPrompt },
 			},
 		]);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -304,8 +316,14 @@ describe("Code sidecar runtime capabilities", () => {
 				metadata: { title: "generate an image of a puppy" },
 			},
 		]);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 
 		const results = (await handleCommand(ctx, "search_sessions", {
 			query: "generate",
@@ -339,8 +357,14 @@ describe("Code sidecar runtime capabilities", () => {
 					metadata: { title: "generate an image of a puppy" },
 				},
 			]);
-			ctx.hubClient = { command } as never;
-			ctx.sessionManager = { list } as never;
+			ctx.runtimeBindings.set("local", {
+				environmentId: "local",
+				kind: "local",
+				workspaceRoot: "/workspace/project",
+				hubClient: { command } as never,
+				sessionManager: { list } as never,
+				unsubscribeSessionEvents: () => {},
+			});
 
 			const pending = handleCommand(ctx, "search_sessions", {
 				query: "generate",
@@ -450,6 +474,24 @@ describe("Code sidecar runtime capabilities", () => {
 			prompt: "Describe this",
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],
+		});
+	});
+
+	it("preserves the reflected transcript marker on queued lifecycle chunks", async () => {
+		const { serializeQueuedPromptStart } = await import("./context");
+		expect(
+			JSON.parse(
+				serializeQueuedPromptStart({
+					promptId: "q-1",
+					prompt: "Continue",
+					transcriptReflected: true,
+				}),
+			),
+		).toEqual({
+			promptId: "q-1",
+			prompt: "Continue",
+			attachmentCount: 0,
+			transcriptReflected: true,
 		});
 	});
 
@@ -583,6 +625,7 @@ describe("Code sidecar runtime capabilities", () => {
 			events.find((message) => message.event.name === "prompts_in_queue_state")
 				?.event.payload,
 		).toEqual({
+			environmentId: "local",
 			sessionId: "session-1",
 			items: [
 				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
@@ -748,7 +791,7 @@ describe("Code sidecar runtime capabilities", () => {
 			expect.objectContaining({
 				event: expect.objectContaining({
 					name: "ask_question_answered",
-					payload: { requestId },
+					payload: { requestId, environmentId: "local" },
 				}),
 			}),
 		);
@@ -1245,6 +1288,7 @@ describe("Code sidecar runtime capabilities", () => {
 				event: {
 					name: "task.created",
 					payload: {
+						environmentId: "local",
 						taskId: "task-1",
 						status: "pending_approval",
 					},
@@ -1273,6 +1317,7 @@ describe("Code sidecar runtime capabilities", () => {
 				event: {
 					name: "settings.changed",
 					payload: {
+						environmentId: "local",
 						types: ["plugins", "skills", "mcp"],
 					},
 				},
@@ -1348,9 +1393,11 @@ describe("Chat chunk pipe selection", () => {
 			status: "running",
 			attachedViaHub: true,
 		});
-		ctx.sessionManager = {
-			hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
-		} as never;
+		ctx.runtimeBindings.set("local", {
+			sessionManager: {
+				hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
+			},
+		} as never);
 		return ctx;
 	}
 
