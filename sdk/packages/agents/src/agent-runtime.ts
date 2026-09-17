@@ -1868,15 +1868,33 @@ export class AgentRuntime {
 			prepared.push(await this.prepareToolExecution(toolCall));
 		}
 
-		if (this.config.toolExecution === "parallel") {
-			return Promise.all(
-				prepared.map((execution) => this.executePreparedTool(execution)),
-			);
-		}
-
 		const results: AgentMessage[] = [];
-		for (const execution of prepared) {
-			results.push(await this.executePreparedTool(execution));
+		for (let index = 0; index < prepared.length; ) {
+			const execution = prepared[index];
+			const mode = execution.tool?.executionMode ?? this.config.toolExecution;
+			if (mode === "sequential") {
+				results.push(await this.executePreparedTool(execution));
+				index += 1;
+				continue;
+			}
+
+			// Only adjacent parallel calls overlap. An ordinary sequential tool
+			// must wait for the group before it, and finish before the next group.
+			const start = index;
+			while (
+				index < prepared.length &&
+				(prepared[index].tool?.executionMode ?? this.config.toolExecution) ===
+					"parallel"
+			) {
+				index += 1;
+			}
+			results.push(
+				...(await Promise.all(
+					prepared
+						.slice(start, index)
+						.map((call) => this.executePreparedTool(call)),
+				)),
+			);
 		}
 		return results;
 	}
