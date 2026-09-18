@@ -77,8 +77,9 @@ roughly in the order they should be done.
 - Favorites and rename for cloud rows in History (favorites are local-history
   metadata today; rename exists in the API but has no UI in the extension).
 - Model picker for cloud tasks: the sandbox runs the user's Act-mode Cline
-  model, or the first recommended model when a non-Cline provider is
-  selected. A small model picker in the RUN TASK panel would make that explicit.
+  model, or the first recommended Cline model when a non-Cline provider is
+  selected. A small model picker in the RUN TASK panel would make the exact
+  model explicit before launch.
 - Plan mode for cloud tasks: cloud sessions are Act-only today (matching the
   desktop app and the dashboard; the toggle is pinned to Act with a tooltip).
   The SDK runtime fixes the tool set and Plan command guard when a session is
