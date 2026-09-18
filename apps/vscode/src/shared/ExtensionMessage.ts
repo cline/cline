@@ -8,6 +8,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
+import type { CloudTaskTargetSelection, CurrentCloudTaskInfo } from "./cloud/cloud-sessions"
 import { BannerCardData } from "./cline/banner"
 import { ClineRulesToggles } from "./cline-rules"
 import { HistoryItem } from "./HistoryItem"
@@ -143,6 +144,12 @@ export interface ExtensionState {
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
+	/** Cline Cloud sessions feature flag. */
+	cloudSessionsEnabled?: boolean
+	/** Persisted Local/Cloud choice for new tasks. */
+	cloudTaskTarget?: CloudTaskTargetSelection
+	/** Present while the displayed task runs in Cline Cloud. */
+	currentCloudTask?: CurrentCloudTaskInfo
 	openAiCodexIsAuthenticated?: boolean
 }
 

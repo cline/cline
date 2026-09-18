@@ -586,6 +586,8 @@ function hubReplyErrorMessage(
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
+	/** Header-based upgrade auth for remote proxies; see NodeHubClient. */
+	resolveConnectionHeaders?: HubClientOptions["resolveConnectionHeaders"];
 	clientType?: string;
 	displayName?: string;
 	capabilities?: RuntimeCapabilities;
@@ -787,6 +789,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.clientContext = clientContext;
 		this.clientOptions = {
 			authToken: options.authToken,
+			resolveConnectionHeaders: options.resolveConnectionHeaders,
 			clientType: options.clientType ?? "core-hub-runtime",
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
