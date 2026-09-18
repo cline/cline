@@ -142,6 +142,10 @@ Provider-field edits have two coordinated paths in the VS Code host:
    not only tools suspended for approval or `ask_question`. A connection edit
    queued during retry backoff is applied at the next request boundary;
    cancellation during backoff prevents that retry from opening a stream.
+   Steering interrupts only the current provider stream. Its next request
+   passes through the same connection-refresh boundaries while retaining the
+   active model identity and the previous provider input-token count used by
+   compaction; steering does not report a provider failure or cancel the run.
    Clearing a custom base URL carries an explicit reset marker,
    so core rebuilds the provider config with its configured default instead of
    treating an empty URL as that default. Delegated runtimes do not inherit the
@@ -538,6 +542,25 @@ Design implication:
 
 - logging is injectable and transport-agnostic, allowing host environments (CLI, VS Code, browser) to wire their own backends
 - do not hardcode logging calls; accept a `logger?: BasicLogger` parameter instead
+
+### 6.1 Langfuse telemetry ownership
+
+`@cline/llms` owns Langfuse instrumentation, trace attribute propagation, and
+the `LangfuseAttributesSpanProcessor`. `@cline/core` owns the host OpenTelemetry
+provider and installs that processor when constructing an OTLP trace pipeline.
+The processor copies context attributes onto `cline-provider-langfuse` spans;
+it does not create an exporter or require Langfuse credentials. User and session
+IDs must be span attributes, not only observation metadata, for Langfuse tracking.
+
+In the collector relay path, spans use the existing host OTLP exporter. The
+collector owns Langfuse credentials and downstream filtering and sampling.
+`llms` checks provider eligibility, client sampling, opt-out, and content policy
+per request. The host owns flushing and shutting down its provider.
+
+When no host relay is available, explicitly configured direct Langfuse export
+uses an isolated provider owned and disposed by `llms`. It does not replace or
+shut down an ambient host provider. When both routes are configured, the relay
+takes precedence so a request is not exported through both routes.
 
 ### 7. Storage Adapters
 
@@ -945,6 +968,12 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
 
+Queue steering through `pendingPrompts.steerFirst` selects and promotes the
+current queue head in one synchronous core operation. Desktop Enter sends this
+intent through the sidecar and Hub without fetching a prompt ID first; explicit
+per-prompt steering continues to update by ID. Concurrent clients therefore
+cannot make Enter promote an entry from a stale queue snapshot.
+
 ### SSH environments
 
 `core/src/remote` owns the reusable SSH environment service and standalone remote
@@ -961,3 +990,11 @@ Workspace and session reads route by environment identity. System-prompt
 bootstrap happens on the remote host when the caller omits a prompt, so local
 filesystem metadata is not embedded in remote sessions. Login-shell PATH
 resolution also lives in core and is reused by the helper and desktop startup.
+
+### Configured subagent approvals
+
+Configured subagents execute their available tools without inheriting the parent
+session’s tool approval policies or approval callback, matching generic subagents
+and teammates. The parent’s `subagent_<name>` delegation call still follows the
+parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
+effect when constructing child tools. Inherited runtime hooks are unchanged.

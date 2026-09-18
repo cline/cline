@@ -17,8 +17,10 @@ import {
 	createImportedHistoryCompactionPrepareTurn,
 } from "./compaction";
 import {
+	COMPACTION_TRIGGER_RATIO,
 	createTokenEstimator,
 	estimateTokens,
+	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 	resolveSummarizerConfig,
 	serializeMessage,
@@ -1115,6 +1117,114 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(JSON.stringify(result?.messages)).not.toContain("<user_input\n...");
 	});
 
+	describe("provider-reported input tokens", () => {
+		const systemPrompt = "You are helpful.";
+		/** Transcript with prunable assistant context and a typed user prompt. */
+		const transcript = (): LlmsProviders.Message[] => [
+			{ role: "user", content: "<user_input>original task</user_input>" },
+			{ role: "assistant", content: "older assistant context ".repeat(400) },
+			{ role: "user", content: "Continue" },
+		];
+		const estimate = () =>
+			estimateRequestInputTokens({
+				systemPrompt,
+				messages: transcript(),
+				tools: [],
+			});
+
+		/**
+		 * Runs basic compaction against a budget expressed as a multiple of the
+		 * character estimate, so the trigger arithmetic stays readable.
+		 * Returns undefined when the pipeline declined to compact.
+		 */
+		const run = async (opts: {
+			maxInputTokensMultiple: number;
+			previousRequestInputTokens?: number;
+		}) => {
+			const messages = transcript();
+			const maxInputTokens = Math.ceil(
+				(estimate() * opts.maxInputTokensMultiple) / COMPACTION_TRIGGER_RATIO,
+			);
+			const prepareTurn = createContextCompactionPrepareTurn({
+				providerId: "openrouter",
+				modelId: "test/model",
+				providerConfig: {
+					providerId: "openrouter",
+					modelId: "test/model",
+				} as LlmsProviders.ProviderConfig,
+				compaction: { enabled: true, strategy: "basic" },
+				logger: undefined,
+			});
+			return await prepareTurn?.({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				abortSignal: new AbortController().signal,
+				systemPrompt,
+				tools: [],
+				messages,
+				apiMessages: messages,
+				previousRequestInputTokens: opts.previousRequestInputTokens,
+				model: {
+					id: "test/model",
+					provider: "openrouter",
+					info: { id: "test/model", maxInputTokens },
+				},
+			});
+		};
+
+		it("leaves the transcript alone when the estimate sits under the trigger", async () => {
+			// Budget is 1.05x the estimate, so nothing should compact.
+			await expect(
+				run({ maxInputTokensMultiple: 1.05 }),
+			).resolves.toBeUndefined();
+		});
+
+		it("compacts when the provider's actual count crosses a trigger the estimate does not", async () => {
+			// Same under-the-trigger estimate, but the provider reports that the
+			// PREVIOUS (smaller) request already consumed more than the estimate
+			// claims the current one does — the estimator is under-counting.
+			// 1.5x sits comfortably past the 1.05x trigger; a count right at the
+			// multiple would only cross it by rounding.
+			const result = await run({
+				maxInputTokensMultiple: 1.05,
+				previousRequestInputTokens: Math.ceil(estimate() * 1.5),
+			});
+			expect(result).toBeDefined();
+			// The retention target must tighten with the trigger, not stay on the
+			// unscaled budget, so the compacted output is genuinely smaller.
+			expect(JSON.stringify(result?.messages).length).toBeLessThan(
+				JSON.stringify(transcript()).length,
+			);
+			expect(JSON.stringify(result?.messages)).toContain("original task");
+		});
+
+		it("ignores a provider count that agrees with or undercuts the estimate", async () => {
+			// Well-estimated models must keep their existing behavior: a count at or
+			// below the estimate cannot loosen or tighten the budget.
+			await expect(
+				run({
+					maxInputTokensMultiple: 1.05,
+					previousRequestInputTokens: Math.floor(estimate() * 0.5),
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		it("caps how far a provider count may tighten the budget", async () => {
+			// An absurd count (100x the estimate) against a budget 10x the estimate.
+			// Uncapped this would collapse the trigger to a tenth of the estimate and
+			// compact; the cap keeps the trigger at 10x/4 = 2.5x the estimate.
+			expect(MAX_INPUT_UNDERESTIMATE_FACTOR).toBeLessThan(10);
+			await expect(
+				run({
+					maxInputTokensMultiple: 10,
+					previousRequestInputTokens: estimate() * 100,
+				}),
+			).resolves.toBeUndefined();
+		});
+	});
+
 	it("can truncate an oversized first task prompt when it exceeds the trigger", () => {
 		const oversizedPrompt = "<user_input>".repeat(500);
 		const messages: LlmsProviders.Message[] = [
@@ -1183,7 +1293,7 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(codexConfig).not.toHaveProperty("maxOutputTokens");
 		expect(codexConfig.thinking).toBe(false);
-		expect(anthropicConfig.maxOutputTokens).toBe(4_096);
+		expect(anthropicConfig.maxOutputTokens).toBe(8_192);
 	});
 
 	it("resolves the summarizer output budget from explicit config, else the default clamped by model metadata", () => {
@@ -1217,7 +1327,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelInfo: { id: "local-model", maxTokens: 64_000 },
 			} as LlmsProviders.ProviderConfig,
 		});
-		expect(notRaisedByModelInfo.maxOutputTokens).toBe(4_096);
+		expect(notRaisedByModelInfo.maxOutputTokens).toBe(8_192);
 
 		const clampedByKnownModels = resolveSummarizerConfig({
 			activeProviderConfig: {
@@ -1236,7 +1346,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelId: "local-model",
 			} as LlmsProviders.ProviderConfig,
 		});
-		expect(fromDefault.maxOutputTokens).toBe(4_096);
+		expect(fromDefault.maxOutputTokens).toBe(8_192);
 	});
 
 	it("clamps an explicit summarizer's default budget by its own model info but lets its explicit value win", () => {

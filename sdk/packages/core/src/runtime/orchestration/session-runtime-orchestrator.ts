@@ -664,6 +664,10 @@ export class SessionRuntime {
 	// Abort / shutdown
 	// -------------------------------------------------------------------
 
+	notifyPendingUserMessage(): void {
+		this.activeRuntime?.notifyPendingUserMessage();
+	}
+
 	abort(reason?: unknown): void {
 		const message =
 			typeof reason === "string"
@@ -1222,6 +1226,7 @@ export class SessionRuntime {
 					settings: modelSettings,
 				},
 				overflowRecovery: context.overflowRecovery,
+				previousRequestInputTokens: context.previousRequestInputTokens,
 				emitStatusNotice: context.emitStatusNotice,
 			});
 			if (!result) {

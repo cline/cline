@@ -301,6 +301,10 @@ export interface PendingPromptsDeleteInput {
 }
 
 export interface PendingPromptsServiceApi {
+	/** Select and steer the current queue head atomically in the runtime. */
+	steerFirst(
+		input: PendingPromptsListInput,
+	): Promise<PendingPromptMutationResult>;
 	list(input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>;
 	update(
 		input: PendingPromptsUpdateInput,

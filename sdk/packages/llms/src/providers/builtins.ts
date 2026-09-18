@@ -518,7 +518,9 @@ function buildClineModels(): Record<string, ModelInfo> {
 	);
 
 	// Cline's inference backend currently rejects image-output models. Keep
-	// those models in their native OpenRouter and Vercel catalogs.
+	// those models in their native OpenRouter and Vercel catalogs. This filter
+	// is also applied to the merged runtime catalog in mergeKnownModels; remove
+	// both call sites together when the backend gains image-output support.
 	return filterImageOutputModels(models);
 }
 
@@ -762,6 +764,14 @@ const clinePass = createClineLikeSpec({
  * be duplicated here.
  */
 const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
+	{
+		// Keep the persisted provider ID and credentials compatible while the
+		// upstream catalog adopts the CoreWeave display name.
+		id: "wandb",
+		name: "CoreWeave",
+		description: "CoreWeave Serverless Inference",
+		docsUrl: "https://docs.wandb.ai/inference/",
+	},
 	{
 		id: "opencode-go",
 		docsUrl: "https://opencode.ai/docs/go/",

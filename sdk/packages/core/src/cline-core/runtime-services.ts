@@ -66,6 +66,9 @@ export function createClineCorePendingPromptsApi(
 		return service;
 	}
 	return {
+		steerFirst(input) {
+			return getService().steerFirst(input);
+		},
 		list(input) {
 			return getService().list(input);
 		},
