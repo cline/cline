@@ -911,6 +911,210 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
+	it.each([
+		undefined,
+		"parallel",
+	] as const)("preserves tool boundaries and result order with runtime mode %s", async (toolExecution) => {
+		const firstGate = Promise.withResolvers<void>();
+		const secondGate = Promise.withResolvers<void>();
+		const events: string[] = [];
+		const calls = [
+			["read", "serial"],
+			["a", "worker"],
+			["b", "worker"],
+			["edit", "serial"],
+			["c", "worker"],
+			["d", "worker"],
+			["tail", "serial"],
+		];
+		const model = new ScriptedModel([
+			() => [
+				...calls.map(([id, name]) => ({
+					type: "tool-call-delta" as const,
+					toolCallId: id,
+					toolName: name,
+					inputText: JSON.stringify({ text: id }),
+				})),
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const execute = async (input: { text: string }) => {
+			events.push(`start:${input.text}`);
+			if (input.text === "a") await firstGate.promise;
+			if (input.text === "c") await secondGate.promise;
+			events.push(`end:${input.text}`);
+			if (input.text === "b") throw new Error("worker failed");
+			return input.text;
+		};
+		const runtime = new AgentRuntime({
+			model,
+			toolExecution,
+			tools: [
+				{
+					name: "serial",
+					executionMode:
+						toolExecution === "parallel" ? "sequential" : undefined,
+					description: "ordinary tool",
+					inputSchema: { type: "object" },
+					execute,
+				},
+				{
+					name: "worker",
+					description: "concurrent tool",
+					executionMode: "parallel",
+					inputSchema: { type: "object" },
+					execute,
+				},
+			],
+		});
+		const run = runtime.run("Run tools");
+		try {
+			await vi.waitFor(() => expect(events).toContain("end:b"));
+			expect(events).toEqual([
+				"start:read",
+				"end:read",
+				"start:a",
+				"start:b",
+				"end:b",
+			]);
+			firstGate.resolve();
+			await vi.waitFor(() => expect(events).toContain("end:d"));
+			expect(events.indexOf("start:edit")).toBeGreaterThan(
+				events.indexOf("end:a"),
+			);
+			expect(events.indexOf("start:c")).toBeGreaterThan(
+				events.indexOf("end:edit"),
+			);
+			expect(events).not.toContain("start:tail");
+		} finally {
+			firstGate.resolve();
+			secondGate.resolve();
+		}
+		const result = await run;
+		expect(result.status).toBe("completed");
+		expect(events.indexOf("start:tail")).toBeGreaterThan(
+			events.indexOf("end:c"),
+		);
+		const messages = result.messages.filter(
+			(message) => message.role === "tool",
+		);
+		expect(messages.map((message) => message.content[0])).toEqual(
+			calls.map(([id]) => expect.objectContaining({ toolCallId: id })),
+		);
+		expect(messages[2].content[0]).toMatchObject({
+			isError: true,
+			output: { error: "worker failed" },
+		});
+	});
+
+	it.each([
+		"skip",
+		"stop",
+	] as const)("preserves beforeTool %s semantics for parallel tools", async (decision) => {
+		const executed: string[] = [];
+		const model = new ScriptedModel([
+			() => [
+				...["a", "b"].map((id) => ({
+					type: "tool-call-delta" as const,
+					toolCallId: id,
+					toolName: "worker",
+					inputText: JSON.stringify({ text: id }),
+				})),
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "worker",
+					description: "concurrent tool",
+					executionMode: "parallel",
+					inputSchema: { type: "object" },
+					async execute(input: { text: string }) {
+						executed.push(input.text);
+						return input.text;
+					},
+				},
+			],
+			hooks: {
+				beforeTool: ({ toolCall }) =>
+					toolCall.toolCallId === "b"
+						? { [decision]: true, reason: "blocked" }
+						: undefined,
+			},
+		});
+		const result = await runtime.run("Run tools");
+		expect(result.status).toBe(decision === "stop" ? "aborted" : "completed");
+		expect(executed).toEqual(decision === "stop" ? [] : ["a"]);
+	});
+
+	it("finishes approval preparation before executing opted-in parallel tools", async () => {
+		const gate = Promise.withResolvers<void>();
+		const approvalStarted = Promise.withResolvers<void>();
+		const events: string[] = [];
+		const runtime = new AgentRuntime({
+			model: new ScriptedModel([
+				() => [
+					...["a", "b"].map((id) => ({
+						type: "tool-call-delta" as const,
+						toolCallId: id,
+						toolName: "worker",
+						inputText: JSON.stringify({ text: id }),
+					})),
+					{ type: "finish", reason: "tool-calls" },
+				],
+				() => [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				],
+			]),
+			tools: [
+				{
+					name: "worker",
+					description: "concurrent tool",
+					executionMode: "parallel",
+					inputSchema: { type: "object" },
+					async execute(input: { text: string }) {
+						events.push(`execute:${input.text}`);
+						return input.text;
+					},
+				},
+			],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async ({ toolCallId }) => {
+				events.push(`approve:${toolCallId}`);
+				if (toolCallId === "b") {
+					approvalStarted.resolve();
+					await gate.promise;
+				}
+				return { approved: true };
+			},
+		});
+		const run = runtime.run("Run tools");
+		try {
+			await approvalStarted.promise;
+			expect(events).toEqual(["approve:a", "approve:b"]);
+		} finally {
+			gate.resolve();
+		}
+		expect((await run).status).toBe("completed");
+		expect(events).toEqual([
+			"approve:a",
+			"approve:b",
+			"execute:a",
+			"execute:b",
+		]);
+	});
+
 	it("executes a tool call and continues the loop", async () => {
 		const model = new ScriptedModel([
 			() => [
