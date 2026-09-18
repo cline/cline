@@ -36,6 +36,18 @@ vi.mock("@/lib/desktop-client", () => ({
 type ChatSessionHook = ReturnType<typeof useChatSession>;
 
 describe("mergeCloudSnapshotWithLive", () => {
+	function snapshotOptions(
+		overrides: Partial<Parameters<typeof mergeCloudSnapshotWithLive>[2]> = {},
+	): Parameters<typeof mergeCloudSnapshotWithLive>[2] {
+		return {
+			sessionId: "ses-cloud",
+			transcriptKnown: true,
+			previousUserIds: new Set(),
+			optimisticStates: new Map(),
+			...overrides,
+		};
+	}
+
 	const message = (
 		id: string,
 		role: "user" | "assistant",
@@ -57,12 +69,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 				),
 			],
 			[message("optimistic", "user", "one prompt", 1)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
+			snapshotOptions({
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(merged.filter((item) => item.role === "user")).toHaveLength(1);
@@ -77,13 +86,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("live-old", "assistant", "Done", 1),
 				message("live-new", "assistant", "Done", 2),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
+			snapshotOptions({
 				preserveUnmatchedLive: true,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["saved-old", "live-new"]);
@@ -106,12 +111,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const first = mergeCloudSnapshotWithLive(
 			[message("saved", "user", "describe this", 2)],
 			[optimistic],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
+			snapshotOptions({
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(first).toEqual([
@@ -125,12 +127,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const second = mergeCloudSnapshotWithLive(
 			[message("saved", "user", "describe this", 2)],
 			first,
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["saved"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(second[0]?.images?.[0]?.data).toBe("AQID");
 	});
@@ -153,12 +153,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 					],
 				},
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["old-saved"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(
 			merged.filter(
@@ -181,12 +179,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("older", "user", "repeat", 1)],
 			[message("failed-prompt", "user", "repeat", 2)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
+			snapshotOptions({
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["older", "failed-prompt"]);
@@ -199,12 +194,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("older", "user", "repeat", 1)],
 			[message("pending-prompt", "user", "repeat", 2)],
-			{
-				sessionId: "ses-cloud",
+			snapshotOptions({
 				transcriptKnown: false,
-				previousUserIds: new Set(),
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["older", "pending-prompt"]);
@@ -225,12 +218,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("pending-a", "user", "same prompt", 2),
 				message("pending-b", "user", "same prompt", 4),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["saved-1"]),
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(
@@ -258,13 +249,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 					createdAt: 3,
 				},
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
+			snapshotOptions({
 				preserveUnmatchedLive: false,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["saved", "error-bubble"]);
@@ -274,12 +261,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("saved", "assistant", "the complete answer", 2)],
 			[message("partial", "assistant", "the complete", 1)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
-			},
+			snapshotOptions(),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["saved"]);
@@ -307,13 +289,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 					meta: { toolCallId: "call-1" },
 				},
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
+			snapshotOptions({
 				preserveUnmatchedLive: true,
-			},
+			}),
 		);
 
 		expect(merged.map((message) => message.id)).toEqual(["saved-tool"]);
@@ -333,12 +311,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("old", "user", "Continue", 1),
 				message("optimistic-new", "user", "Continue", 1001),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["old"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(
 			merged.filter(
@@ -355,12 +331,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("canonical", "user", "saved prompt", 2)],
 			[message("pending", "user", "new prompt", 1)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["old-baseline"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(merged.map((item) => item.id)).toEqual(
 			expect.arrayContaining(["canonical", "pending"]),
@@ -379,12 +353,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("saved", "user", "repeat", 2),
 				message("pending", "user", "repeat", 3),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["saved"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(merged.map((item) => item.id)).toEqual(
 			expect.arrayContaining(["saved", "pending"]),
@@ -453,6 +425,13 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	const cloudSessionConfig = {
+		provider: "cline",
+		model: "test-model",
+		cwd: "/workspace",
+		workspaceRoot: "/workspace",
+	};
+
 	it("accepts a running snapshot when a repeated prompt has a new canonical id", async () => {
 		const sessionId = "session-repeated-status";
 		invokeMock.mockImplementation(
@@ -473,10 +452,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId,
 							status: "completed",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 				}
 				return [];
@@ -487,10 +463,7 @@ describe("useChatSession", () => {
 				sessionId,
 				origin: "cloud",
 				status: "completed",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
 		);
@@ -546,10 +519,7 @@ describe("useChatSession", () => {
 					return {
 						sessionId: "new-cloud",
 						status: "running",
-						provider: "cline",
-						model: "test-model",
-						cwd: "/workspace",
-						workspaceRoot: "/workspace",
+						...cloudSessionConfig,
 					};
 				return { promptsInQueue: [] };
 			},
@@ -573,10 +543,7 @@ describe("useChatSession", () => {
 				current.start({
 					...current.config,
 					executionTarget: "cloud",
-					provider: "cline",
-					model: "test-model",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
+					...cloudSessionConfig,
 				}),
 			);
 		}
@@ -626,10 +593,7 @@ describe("useChatSession", () => {
 				environmentId: "local",
 				origin: "cloud",
 				status: failedCommand ? "expired" : "completed",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
@@ -1536,10 +1500,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId,
 							status: "running",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 				}
 				return [];
@@ -1552,10 +1513,7 @@ describe("useChatSession", () => {
 					sessionId,
 					origin: "cloud",
 					status: "running",
-					provider: "cline",
-					model: "test-model",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
+					...cloudSessionConfig,
 					startedAt: "2026-09-01T00:00:00Z",
 				}),
 			);
@@ -2214,9 +2172,7 @@ describe("useChatSession", () => {
 		await act(async () => current.sendPrompt("build the feature"));
 		expect(startPrompt).toBe("build the feature");
 
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
 		expect(rehydratedHandler).toBeDefined();
 
 		// A rehydration snapshot that lags the just-sent prompt (assistant
@@ -2261,10 +2217,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId: "cloud-provisioning-test",
 							status: "provisioning",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 							prompt: "Fix the provisioning flow",
 						};
 					}
@@ -2279,10 +2232,7 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "provisioning",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-17T00:00:00.000Z",
 			});
 		});
@@ -2385,9 +2335,7 @@ describe("useChatSession", () => {
 		const rehydratedHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "cloud_session_rehydrated",
 		)?.[1] as ((payload: unknown) => void) | undefined;
-		const endedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_session_ended",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const endedHandler = handlerFor("chat_session_ended");
 		expect(rehydratedHandler).toBeDefined();
 
 		await act(async () => {
@@ -2456,21 +2404,14 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "running",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-06T00:00:00.000Z",
 			});
 			await requested;
 		});
 
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-		const chatEventHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_event",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
+		const chatEventHandler = handlerFor("chat_event");
 		const snapshot = [
 			{
 				id: "saved-assistant",
@@ -2532,12 +2473,8 @@ describe("useChatSession", () => {
 				repoUrl: "https://github.com/cline/test",
 			});
 		});
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-		const chatEventHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_event",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
+		const chatEventHandler = handlerFor("chat_event");
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -2671,10 +2608,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId: "ses-cloud",
 							status: "running",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 					}
 				}
@@ -2688,10 +2622,7 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "running",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-06T00:00:00.000Z",
 			});
 		});
@@ -2714,10 +2645,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId: "ses-cloud",
 							status: "completed",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 					}
 				}
@@ -2731,10 +2659,7 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "completed",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-05T00:00:00.000Z",
 				metadata: {
 					git: {
