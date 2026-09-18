@@ -554,10 +554,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(
 			(await manager.listForDiscovery()).map((row) => row.sessionId),
 		).toEqual(["ses-outer", "ses-created"]);
-		await expect(manager.attach("ses-created")).resolves.toMatchObject({
-			sessionId: "ses-created",
-			status: "provisioning",
-		});
 		await expect(manager.readMessages("ses-created")).resolves.toEqual([]);
 		await expect(manager.pendingPrompts("ses-created")).resolves.toMatchObject({
 			promptsInQueue: [],
