@@ -6,8 +6,14 @@ import {
 	CloudSessionError,
 	CloudSessionManager,
 	type CloudSessionRecord,
+	getCloudSessionManager,
+	resetCloudSessionManager,
 } from "./cloud-sessions";
-import { createSidecarContext, disposeSidecarContext } from "./context";
+import {
+	createSidecarContext,
+	disposeSidecarContext,
+	getEnvironmentContext,
+} from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
@@ -149,6 +155,24 @@ afterAll(() => {
 });
 
 describe("Cloud sessions sidecar wiring", () => {
+	it.each([
+		"local",
+		"ssh-remote",
+	])("shares cloud manager ownership with the %s context", async (environmentId) => {
+		const { ctx } = createContext();
+		const scoped = getEnvironmentContext(ctx, environmentId);
+		const manager = getCloudSessionManager(scoped);
+		const dispose = vi.spyOn(manager, "dispose");
+		expect(getCloudSessionManager(ctx)).toBe(manager);
+		await resetCloudSessionManager(ctx);
+		expect(dispose).toHaveBeenCalledOnce();
+		expect(scoped.cloudSessionManager).toBeNull();
+		const replacement = getCloudSessionManager(ctx);
+		expect(getCloudSessionManager(scoped)).toBe(replacement);
+		await resetCloudSessionManager(scoped);
+		expect(ctx.cloudSessionManager).toBeNull();
+	});
+
 	it("blocks cloud session creation when the flag is off", async () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		try {
@@ -192,11 +216,12 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 	});
 
-	it("treats a Hub pending session as an active desktop run", async () => {
+	it("keeps cloud run events local after switching to SSH", async () => {
 		const { ctx, events, hub, manager } = createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
+		ctx.activeEnvironmentId = "ssh-remote";
 		hub.events?.({
 			version: "v1",
 			event: "session.updated",
@@ -220,18 +245,19 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
-	it("updates the cloud model before sending", async () => {
+	it("updates cloud settings from an SSH-scoped command before sending", async () => {
 		const { ctx, hub, manager } = createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
-		await handleChatSessionCommand(ctx, {
+		await handleChatSessionCommand(getEnvironmentContext(ctx, "ssh-remote"), {
 			action: "send",
 			sessionId: "ses-outer",
 			prompt: "First turn",
 			config: {
 				executionTarget: "cloud",
 				model: "anthropic/claude-opus-4-1",
+				autoApproveTools: true,
 			},
 		});
 
@@ -249,9 +275,10 @@ describe("Cloud sessions sidecar wiring", () => {
 			}),
 			expect.objectContaining({ command: "session.send_input" }),
 		]);
-		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
-			"anthropic/claude-opus-4-1",
-		);
+		expect(ctx.liveSessions.get("ses-outer")?.config).toMatchObject({
+			model: "anthropic/claude-opus-4-1",
+			autoApproveTools: true,
+		});
 	});
 
 	it("forwards cloud images and continues rejecting file attachments", async () => {

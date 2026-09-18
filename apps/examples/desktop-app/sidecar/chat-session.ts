@@ -2085,6 +2085,7 @@ export async function handleChatSessionCommand(
 		(isCloudOuterSessionId(sessionId) ||
 			ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud");
 	if (executionTarget === "cloud" || existingCloudSession) {
+		ctx = getEnvironmentContext(ctx, "local");
 		const cloud = getCloudSessionManager(ctx);
 		// The approval preference lives only client-side; keep the live session
 		// current so a lazily created inner session inherits the user's choice.

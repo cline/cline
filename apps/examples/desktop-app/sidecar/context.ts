@@ -60,6 +60,10 @@ const environmentContexts = new WeakMap<
 >();
 const contextOwners = new WeakMap<SidecarContext, SidecarContext>();
 
+export function getSidecarContextOwner(ctx: SidecarContext): SidecarContext {
+	return contextOwners.get(ctx) ?? ctx;
+}
+
 export function getEnvironmentContext(
 	ctx: SidecarContext,
 	environmentId: string,
