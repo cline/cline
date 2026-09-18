@@ -516,7 +516,11 @@ function toolCallEndContext(
 			name: ctx.toolCall.toolName,
 			input: ctx.input,
 			output: ctx.result.output,
-			error: ctx.result.isError ? String(ctx.result.output) : undefined,
+			error: ctx.result.isError
+			? typeof ctx.result.output === "string"
+				? ctx.result.output
+				: JSON.stringify(ctx.result.output)
+			: undefined,
 			durationMs: ctx.durationMs,
 			startedAt: ctx.startedAt,
 			endedAt: ctx.endedAt,

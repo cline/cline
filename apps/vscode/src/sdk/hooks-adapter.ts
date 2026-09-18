@@ -200,7 +200,10 @@ export function buildAgentHooks(
 					postToolUse: {
 						toolName,
 						parameters: toStringRecord(ctx.input),
-						result: String(ctx.result.output ?? ""),
+						result:
+							typeof ctx.result.output === "string"
+								? ctx.result.output
+								: JSON.stringify(ctx.result.output),
 						success: !ctx.result.isError,
 						executionTimeMs: ctx.durationMs,
 					},
