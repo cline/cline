@@ -203,6 +203,8 @@ export interface AgentToolContext {
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/** Override the runtime execution mode. Adjacent parallel calls may overlap; sequential calls form ordering boundaries. */
+	executionMode?: "sequential" | "parallel";
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;

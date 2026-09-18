@@ -21,6 +21,12 @@ type RuntimeSpec = {
 };
 
 const WINDOWS_LINUX_RUNTIME_SPECS: Record<string, RuntimeSpec> = {
+	"bun-linux-x64-baseline": {
+		archiveName: "bun-linux-x64-baseline",
+		cacheName: "bun-linux-x64-baseline",
+		expectedMachine: 62,
+		sha256: "9d8a24292a7068090205daac0a5a223f5f69736f5287e37bf88d3b4031edc750",
+	},
 	"bun-linux-x64": {
 		archiveName: "bun-linux-x64",
 		cacheName: "bun-linux-x64",

@@ -10,6 +10,8 @@ export const FeatureFlag = {
 	/** Widens access to the internal-only Composio connectors beyond
 	 * `@cline.bot` accounts (see `internal-features.ts`). */
 	INTERNAL_COMPOSIO_CONNECTORS: InternalFeature.COMPOSIO_CONNECTORS,
+	/** Enables Composio connectors for the signed-in Cline account. */
+	CLINE_COMPOSIO_BETA: "CLINE_COMPOSIO_BETA",
 } as const;
 
 export type KnownFeatureFlag = (typeof FeatureFlag)[keyof typeof FeatureFlag];
@@ -36,9 +38,7 @@ export interface FeatureFlagsContext {
 	/** Authenticated Cline account/user ID, when available. */
 	userId?: string | null;
 	/**
-	 * Authenticated account email, when available. Used locally for
-	 * internal-feature gating (see `internal-features.ts`); providers do not
-	 * send it anywhere.
+	 * Authenticated account email, when available. Providers do not send it anywhere.
 	 */
 	email?: string | null;
 	/** Optional SDK consumer name, e.g. `my-production-app`. */
@@ -80,6 +80,7 @@ export const FeatureFlagDefaultValue: Partial<
 	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 	[FeatureFlag.INTERNAL_COMPOSIO_CONNECTORS]: false,
+	[FeatureFlag.CLINE_COMPOSIO_BETA]: false,
 };
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = Object.values(FeatureFlag);

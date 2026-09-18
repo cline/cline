@@ -477,13 +477,6 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	// Composio connector tools register in-process from persisted connection
-	// state rather than through a drop-in plugin: compiled hosts (the packaged
-	// desktop app) cannot spawn the plugin sandbox, and every host with the
-	// state file should serve the same tools.
-	const composioToolsExtension = createComposioToolsExtension({
-		logger: localConfig?.logger,
-	});
 	let loadedAgentPluginPackages:
 		| Awaited<ReturnType<typeof loadAgentPluginPackages>>
 		| undefined;
@@ -507,6 +500,13 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
+	// Composio connector tools register in-process from persisted connection
+	// state rather than through a drop-in plugin: compiled hosts (the packaged
+	// desktop app) cannot spawn the plugin sandbox, and every host with the
+	// state file should serve the same tools.
+	const composioToolsExtension = await createComposioToolsExtension({
+		logger: localConfig?.logger,
+	});
 	const builtInExtensionList = [
 		...(fileHookExtension ? [fileHookExtension] : []),
 		...(composioToolsExtension ? [composioToolsExtension] : []),

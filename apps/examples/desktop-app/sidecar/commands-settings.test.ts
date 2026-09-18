@@ -62,6 +62,7 @@ describe("desktop settings commands", () => {
 				"ext-cline-pass": false,
 				"code-cloud-agents": false,
 				"internal-composio-connectors": false,
+				CLINE_COMPOSIO_BETA: false,
 			},
 		});
 	});
@@ -100,6 +101,7 @@ describe("desktop settings commands", () => {
 				"ext-cline-pass": false,
 				"code-cloud-agents": false,
 				"internal-composio-connectors": false,
+				CLINE_COMPOSIO_BETA: false,
 			},
 		});
 
@@ -123,6 +125,7 @@ describe("desktop settings commands", () => {
 				"ext-cline-pass": false,
 				"code-cloud-agents": false,
 				"internal-composio-connectors": false,
+				CLINE_COMPOSIO_BETA: false,
 			},
 		});
 		// The toggle's stored value is reported as-is; the override only

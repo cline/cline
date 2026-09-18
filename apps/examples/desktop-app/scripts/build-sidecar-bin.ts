@@ -40,7 +40,10 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 		return "bun-darwin-arm64";
 	if (targetTriple.startsWith("x86_64-apple-darwin")) return "bun-darwin-x64";
 	if (targetTriple.startsWith("x86_64-pc-windows")) return "bun-windows-x64";
-	if (targetTriple.startsWith("x86_64-unknown-linux")) return "bun-linux-x64";
+	// SSH hosts may predate AVX2 (e.g. Ivy Bridge Xeons). The default Bun
+	// x64 runtime can SIGILL before our entrypoint runs on those CPUs.
+	if (targetTriple.startsWith("x86_64-unknown-linux"))
+		return "bun-linux-x64-baseline";
 	if (targetTriple.startsWith("aarch64-unknown-linux"))
 		return "bun-linux-arm64";
 	return undefined;
@@ -89,6 +92,12 @@ const buildSidecar = async (
 // macOS helpers are deliberately not bundled: they are Mach-O files under
 // Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
 // in the bundle fails notarization. Shipping them needs a signing step first.
+//
+// On a Windows host, Bun fails to extract the downloaded Linux runtime these
+// cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").
+// Bun skips the download when `$BUN_INSTALL_CACHE_DIR/bun-<target>-v<version>`
+// already exists, so seed those two files from the @oven/bun-<target> npm
+// packages first; desktop-publish.yml does exactly that in its Windows job.
 const buildRemoteHelpers = async (): Promise<void> => {
 	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",

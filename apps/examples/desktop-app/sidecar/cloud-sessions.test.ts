@@ -175,8 +175,24 @@ class FakeHubClient {
 		return "code-cloud-ses-outer";
 	}
 
-	subscribe(listener: (event: HubEventEnvelope) => void): () => void {
+	subscribe(
+		listener: (event: HubEventEnvelope) => void,
+		options?: { sessionId?: string },
+	): () => void {
 		this.events = listener;
+		queueMicrotask(() => {
+			if (this.events !== listener || options?.sessionId !== "inner-1") return;
+			for (const approval of this.pendingApprovals) {
+				listener({
+					version: "v1",
+					event: "approval.requested",
+					eventId: `evt-${approval.approvalId}`,
+					timestamp: 1,
+					sessionId: "inner-1",
+					payload: approval,
+				});
+			}
+		});
 		return () => {
 			this.events = undefined;
 		};
@@ -1248,7 +1264,9 @@ describe("CloudSessionManager", () => {
 			toolName: "write_to_file",
 			input: { path: "README.md" },
 		});
-		expect(events.at(-1)).toMatchObject({
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1),
+		).toMatchObject({
 			name: "tool_approval_state",
 			payload: {
 				sessionId: "ses-outer",
@@ -1921,7 +1939,7 @@ describe("CloudSessionManager", () => {
 		hub.onFailedSend = () => {};
 
 		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
-			/please send it again/,
+			/could not confirm whether this message was accepted/,
 		);
 	});
 
@@ -1951,12 +1969,11 @@ describe("CloudSessionManager", () => {
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
-		expect(hub.commands.map((entry) => entry.command).slice(-5)).toEqual([
+		expect(hub.commands.map((entry) => entry.command).slice(-4)).toEqual([
 			"session.attach",
 			"session.get",
 			"session.messages",
 			"session.pending_prompts",
-			"approval.list_pending",
 		]);
 	});
 
@@ -1974,14 +1991,14 @@ describe("CloudSessionManager", () => {
 		hub.failNextSend = true;
 
 		await expect(manager.send("ses-outer", "Lost prompt")).rejects.toThrow(
-			/not found in the cloud session.*send it again/i,
+			/could not confirm whether this message was accepted/i,
 		);
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
 	});
 
-	it("confirms a queued prompt from the recovered queue snapshot", async () => {
+	it("does not infer acceptance of a queued prompt from a matching recovered snapshot", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -2004,14 +2021,10 @@ describe("CloudSessionManager", () => {
 
 		await expect(
 			manager.send("ses-outer", "Queued during disconnect", "queue"),
-		).resolves.toMatchObject({
-			ok: true,
-			queued: true,
-			recoveredAfterDisconnect: true,
-		});
+		).rejects.toThrow(/could not confirm whether this message was accepted/i);
 	});
 
-	it("confirms a queued prompt after an ambiguous command timeout", async () => {
+	it("keeps queue delivery ambiguous after a command timeout", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -2040,11 +2053,7 @@ describe("CloudSessionManager", () => {
 
 		await expect(
 			manager.send("ses-outer", "Queued before the timeout", "queue"),
-		).resolves.toMatchObject({
-			ok: true,
-			queued: true,
-			recoveredAfterDisconnect: true,
-		});
+		).rejects.toThrow(/could not confirm whether this message was accepted/i);
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);

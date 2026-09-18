@@ -1,9 +1,13 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { fetchComposioStatus } from "@/lib/composio";
+import {
+	fetchComposioStatus,
+	getComposioAvailability,
+	subscribeComposioAvailability,
+} from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -33,12 +37,12 @@ type CustomizeTab =
 
 const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
 	{ id: "tools", label: "Tools" },
-	{ id: "integrations", label: "Connectors" },
 	{ id: "plugins", label: "Plugins" },
 	{ id: "skills", label: "Skills" },
 	{ id: "rules", label: "Rules" },
 	{ id: "mcp", label: "MCP" },
 	{ id: "hooks", label: "Hooks" },
+	{ id: "integrations", label: "Connectors" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -69,8 +73,13 @@ export function CustomizeView({
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
 	// Connectors are an org-provisioned feature: the tab only exists when the
-	// sidecar has a managed Composio API key.
-	const [connectorsAvailable, setConnectorsAvailable] = useState(false);
+	// account has Composio beta access.
+	const connectorsAvailable =
+		useSyncExternalStore(
+			subscribeComposioAvailability,
+			getComposioAvailability,
+			() => null,
+		) === true;
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, composioStatus] = await Promise.all([
@@ -79,7 +88,6 @@ export function CustomizeView({
 				.catch(() => null),
 			fetchComposioStatus().catch(() => null),
 		]);
-		setConnectorsAvailable(composioStatus?.configured === true);
 		const connectedIntegrations = composioStatus
 			? composioStatus.integrations.filter(
 					(integration) => integration.status === "connected",
@@ -210,6 +218,7 @@ export function CustomizeView({
 				<ComposioConnectorsView
 					onChanged={handleInventoryChanged}
 					onOpenMarketplace={onOpenMarketplace}
+					variant="installed"
 				/>
 			) : tab === "plugins" ? (
 				<CustomizationSectionView

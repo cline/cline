@@ -71,30 +71,25 @@ import {
 const originalApiKey = process.env.TELEMETRY_SERVICE_API_KEY;
 const originalIsTest = process.env.IS_TEST;
 const originalDataDir = process.env.CLINE_DATA_DIR;
-let dataDir: string;
+let tempDataDir: string;
 
 function accountContextPath(): string {
-	return join(dataDir, "cache", "feature-flags-account.cline-code.json");
+	return join(tempDataDir, "cache", "feature-flags-account.cline-code.json");
 }
 
 beforeEach(() => {
-	dataDir = mkdtempSync(join(tmpdir(), "cline-feature-flags-"));
-	process.env.CLINE_DATA_DIR = dataDir;
 	vi.clearAllMocks();
 	mocks.getBooleanFlagEnabled.mockReset().mockReturnValue(false);
 	resetDesktopFeatureFlagsForTesting();
 	delete process.env.IS_TEST;
 	delete process.env.E2E_TEST;
+	// Account context persists under the data dir; sandbox it per test.
+	tempDataDir = mkdtempSync(join(tmpdir(), "desktop-ff-test-"));
+	process.env.CLINE_DATA_DIR = tempDataDir;
 });
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
-	rmSync(dataDir, { recursive: true, force: true });
-	if (originalDataDir === undefined) {
-		delete process.env.CLINE_DATA_DIR;
-	} else {
-		process.env.CLINE_DATA_DIR = originalDataDir;
-	}
 	if (originalApiKey === undefined) {
 		delete process.env.TELEMETRY_SERVICE_API_KEY;
 	} else {
@@ -105,6 +100,12 @@ afterEach(() => {
 	} else {
 		process.env.IS_TEST = originalIsTest;
 	}
+	if (originalDataDir === undefined) {
+		delete process.env.CLINE_DATA_DIR;
+	} else {
+		process.env.CLINE_DATA_DIR = originalDataDir;
+	}
+	rmSync(tempDataDir, { recursive: true, force: true });
 });
 
 describe("getDesktopFeatureFlagsService", () => {

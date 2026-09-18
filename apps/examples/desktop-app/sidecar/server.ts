@@ -11,6 +11,7 @@ import {
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
+import { abandonComposioConnectsForOwner } from "./composio";
 import {
 	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
@@ -537,6 +538,10 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 			// wait so the sidecar cannot retain an abandoned authorization attempt.
 			cancelProviderOAuthLoginsForOwner(ws);
 			cancelMcpOAuthAuthorizationsForOwner(ws);
+			// Composio connects finish in the external browser; abandon (revoke
+			// + tombstone) any this connection started so a flow completed after
+			// the webview is gone cannot materialize connector tools.
+			abandonComposioConnectsForOwner(ws);
 		},
 	};
 }

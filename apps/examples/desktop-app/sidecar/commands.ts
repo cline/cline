@@ -75,7 +75,6 @@ import {
 	formatSessionSearchPreview,
 	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
-	InternalFeature,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
@@ -132,7 +131,6 @@ import {
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsEnabled,
-	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
@@ -2677,43 +2675,23 @@ export async function handleCommand(
 	if (command === "composio_integrations") {
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
-		// Connectors are an internal-only feature (@cline.bot accounts, or the
-		// internal-composio-connectors flag). Without access, the read surface
-		// reports the same "unconfigured" shapes the UI already hides on, and
-		// starting a connection is refused. cancelConnect and disconnect stay
-		// available so cleanup of pre-existing state is never blocked by a
-		// gate change; tools already materialized in composio.json also keep
-		// working in sessions until they are disconnected.
-		if (
-			!isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS, {
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			})
-		) {
-			switch (operation) {
-				case "status":
-					return { configured: false, integrations: [] };
-				case "listToolkits":
-					return { configured: false, toolkits: [] };
-				case "connect":
-					throw new Error(
-						"Composio connectors are not available on this account.",
-					);
-				default:
-					break;
-			}
-		}
+
 		switch (operation) {
 			case "status":
 				return await getComposioStatus({
 					refresh: args?.refresh === true,
 					logger: ctx.logger,
+					telemetry: ctx.telemetry,
 				});
 			case "listToolkits":
 				return await listComposioToolkits(ctx.logger);
 			case "connect": {
 				const toolkit = parseComposioToolkitSlug(args?.toolkit);
-				const result = await connectComposioToolkit(toolkit, ctx.logger);
+				// Tie the attempt to the initiating webview so it is abandoned
+				// if that connection goes away before the browser flow finishes.
+				const result = await connectComposioToolkit(toolkit, ctx.logger, {
+					owner: options?.connection,
+				});
 				if (result.redirectUrl) {
 					await openUrlInDefaultBrowser(result.redirectUrl);
 				}

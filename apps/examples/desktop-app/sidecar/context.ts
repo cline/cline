@@ -328,12 +328,14 @@ export function serializeQueuedPromptStart(input: {
 	prompt: string;
 	attachmentCount?: number;
 	userImages?: string[];
+	transcriptReflected?: boolean;
 }): string {
 	return JSON.stringify({
 		promptId: input.promptId,
 		prompt: input.prompt,
 		attachmentCount: input.attachmentCount ?? 0,
 		userImages: input.userImages,
+		...(input.transcriptReflected ? { transcriptReflected: true } : {}),
 	});
 }
 
@@ -530,6 +532,7 @@ function emitQueuedPromptStart(
 		prompt: string;
 		attachmentCount: number;
 		userImages?: string[];
+		transcriptReflected?: boolean;
 	},
 ): void {
 	if (session) {
@@ -906,6 +909,7 @@ export function handleHubLiveEvent(
 	event: {
 		event: string;
 		sessionId?: string;
+		sequence?: number;
 		payload?: Record<string, unknown>;
 	},
 	options: { relayRawAssistantText?: boolean } = {},
@@ -940,6 +944,22 @@ export function handleHubLiveEvent(
 	const session = ctx.liveSessions.get(sessionId);
 	if (!session?.attachedViaHub) {
 		return;
+	}
+	const projectsStatus =
+		event.event === "run.started" ||
+		event.event === "session.attached" ||
+		event.event === "session.updated" ||
+		event.event === "run.completed" ||
+		event.event === "run.failed" ||
+		event.event === "run.aborted";
+	if (projectsStatus && typeof event.sequence === "number") {
+		if (
+			session.lastHubStatusSequence !== undefined &&
+			event.sequence < session.lastHubStatusSequence
+		) {
+			return;
+		}
+		session.lastHubStatusSequence = event.sequence;
 	}
 	// The observer client and ClineCore's own hub client are separate sockets
 	// that both receive this session's events. This projection only exists for
@@ -1099,6 +1119,14 @@ export function handleHubLiveEvent(
 			}
 			// Pods emit periodic session.updated snapshots; re-broadcasting an
 			// unchanged status marks the session unread in the sidebar every time.
+			if (
+				event.event === "session.updated" &&
+				event.sequence === undefined &&
+				status === "running" &&
+				session.endedAt !== undefined &&
+				!session.busy
+			)
+				return;
 			const statusChanged = session.status !== status;
 			session.status = status;
 			session.busy = status === "running";

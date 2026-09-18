@@ -256,7 +256,22 @@ fn set_update_status(
     refresh_tray_status(app, update_state);
 }
 
+// An empty endpoint list disables both background and on-demand updates.
+// Nightly builds use this configuration because they are Actions artifacts only.
+fn updates_enabled(app: &tauri::AppHandle) -> bool {
+    app.config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|config| config.get("endpoints"))
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|endpoints| !endpoints.is_empty())
+}
+
 async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
+    if !updates_enabled(app) {
+        return;
+    }
     let _cycle = state.cycle.lock().await;
     // An update that already finished downloading only needs a restart; keep
     // reporting "ready" instead of flipping back to transient states unless a
@@ -1597,7 +1612,7 @@ fn main() {
             });
             // Dev builds are not installed app bundles, so there is nothing the
             // updater could meaningfully check or replace.
-            if !cfg!(debug_assertions) {
+            if !cfg!(debug_assertions) && updates_enabled(app.handle()) {
                 let update_state = app.state::<Arc<UpdateState>>().inner().clone();
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {

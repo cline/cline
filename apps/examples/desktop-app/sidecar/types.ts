@@ -73,6 +73,8 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Last Hub lifecycle sequence applied to this session. */
+	lastHubStatusSequence?: number;
 	/** Iterations already in flight when the user supplied recovery guidance. */
 	mistakeRecovery?: {
 		latestIteration: number;

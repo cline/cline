@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isClineAccountNotAuthenticatedResult } from "../webview/lib/cline-account-state";
 import type { SidecarContext } from "./types";
 
@@ -9,6 +12,7 @@ const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
 const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
+let testDataDir: string;
 
 vi.mock("./legacy-provider-credentials", () => ({
 	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
@@ -73,6 +77,11 @@ async function runClineAccountCommand(ctx: SidecarContext) {
 }
 
 beforeEach(() => {
+	// Account context is persisted across launches; never hydrate the developer's
+	// signed-in identity when a test expects an anonymous device identity.
+	testDataDir = mkdtempSync(join(tmpdir(), "commands-account-test-"));
+	vi.stubEnv("CLINE_DATA_DIR", testDataDir);
+	vi.stubEnv("CLINE_DIR", testDataDir);
 	clineAccountServiceCtorMock.mockReset();
 	executeClineAccountActionMock.mockReset();
 	getProviderSettingsMock.mockReset();
@@ -80,6 +89,11 @@ beforeEach(() => {
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
 	clearLegacyProviderCredentialsMock.mockReset();
+});
+
+afterEach(() => {
+	vi.unstubAllEnvs();
+	rmSync(testDataDir, { recursive: true, force: true });
 });
 
 describe("cline_account command auth states", () => {
