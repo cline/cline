@@ -124,6 +124,8 @@ message TaskItem {
   string cloud_status = 15;
   string cloud_repo_url = 16;
   string cloud_branch = 17;
+  // True only when token/cost fields came from an authoritative cloud runtime snapshot.
+  bool cloud_usage_available = 18;
 }
 
 // Request for ask response operation

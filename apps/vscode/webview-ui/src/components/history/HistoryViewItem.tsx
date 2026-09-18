@@ -177,32 +177,36 @@ const HistoryViewItem = ({
 								<div className="flex items-center gap-1 flex-wrap w-full">
 									<div className="flex justify-between items-center w-full gap-1 text-xs">
 										<span className="font-medium text-description">Tokens:</span>
-										<div className="flex items-center gap-1 text-description text-xs">
-											<span className="flex items-center gap-1 text-description">
-												<ArrowUpIcon className="text-description !size-1" />
-												{formatLargeNumber(item.tokensIn || 0)}
-											</span>
-											<span className="flex items-center gap-1 text-description">
-												<ArrowDownIcon className="text-description !size-1" />
-												{formatLargeNumber(item.tokensOut || 0)}
-											</span>
-											{item.cacheWrites
-												? item.cacheWrites > 0 && (
-														<span className="flex items-center gap-1 text-description">
-															<ArrowRightIcon className="text-description !size-1" />
-															{formatLargeNumber(item.cacheWrites)}
-														</span>
-													)
-												: null}
-											{item.cacheReads
-												? item.cacheReads > 0 && (
-														<span className="flex items-center gap-1 text-description">
-															<ArrowLeftIcon className="text-description !size-1" />
-															{formatLargeNumber(item.cacheReads)}
-														</span>
-													)
-												: null}
-										</div>
+										{isCloud && !item.cloudUsageAvailable ? (
+											<span className="text-description">Not available</span>
+										) : (
+											<div className="flex items-center gap-1 text-description text-xs">
+												<span className="flex items-center gap-1 text-description">
+													<ArrowUpIcon className="text-description !size-1" />
+													{formatLargeNumber(item.tokensIn || 0)}
+												</span>
+												<span className="flex items-center gap-1 text-description">
+													<ArrowDownIcon className="text-description !size-1" />
+													{formatLargeNumber(item.tokensOut || 0)}
+												</span>
+												{item.cacheWrites
+													? item.cacheWrites > 0 && (
+															<span className="flex items-center gap-1 text-description">
+																<ArrowRightIcon className="text-description !size-1" />
+																{formatLargeNumber(item.cacheWrites)}
+															</span>
+														)
+													: null}
+												{item.cacheReads
+													? item.cacheReads > 0 && (
+															<span className="flex items-center gap-1 text-description">
+																<ArrowLeftIcon className="text-description !size-1" />
+																{formatLargeNumber(item.cacheReads)}
+															</span>
+														)
+													: null}
+											</div>
+										)}
 									</div>
 
 									{item.modelId && (
@@ -222,24 +226,26 @@ const HistoryViewItem = ({
 										</div>
 									)}
 
-									<div className="flex justify-between items-center w-full gap-1 text-xs">
-										<span className="font-medium text-description">Size:</span>
-										<span className="items-center gap-2 flex text-description">
-											{formatSize(item.size)}
-											<Button
-												aria-label="Export"
-												className="m-0 p-0"
-												onClick={(e) => {
-													e.stopPropagation()
-													TaskServiceClient.exportTaskWithId(
-														StringRequest.create({ value: item.id }),
-													).catch((err) => console.error("Failed to export task:", err))
-												}}
-												variant="ghost">
-												<DownloadIcon />
-											</Button>
-										</span>
-									</div>
+									{!isCloud && (
+										<div className="flex justify-between items-center w-full gap-1 text-xs">
+											<span className="font-medium text-description">Size:</span>
+											<span className="items-center gap-2 flex text-description">
+												{formatSize(item.size)}
+												<Button
+													aria-label="Export"
+													className="m-0 p-0"
+													onClick={(e) => {
+														e.stopPropagation()
+														TaskServiceClient.exportTaskWithId(
+															StringRequest.create({ value: item.id }),
+														).catch((err) => console.error("Failed to export task:", err))
+													}}
+													variant="ghost">
+													<DownloadIcon />
+												</Button>
+											</span>
+										</div>
+									)}
 								</div>
 							</div>
 						</div>

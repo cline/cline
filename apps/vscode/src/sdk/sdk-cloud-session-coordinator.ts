@@ -13,7 +13,7 @@
 //      shape) so History, the home screen and the running-now strip list cloud
 //      tasks next to local ones.
 
-import type { ITelemetryService, SessionHistoryRecord, StartSessionInput } from "@cline/core"
+import type { ITelemetryService, SessionAccumulatedUsage, SessionHistoryRecord, StartSessionInput } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/shared"
 import {
@@ -51,6 +51,23 @@ import { createTaskProxy, type TaskProxy } from "./task-proxy"
 const LIST_CACHE_TTL_MS = 10_000
 const ACTIVE_POLL_INTERVAL_MS = 15_000
 const IDLE_CONNECTION_TTL_MS = 5 * 60_000
+const USAGE_REFRESH_TIMEOUT_MS = 2_000
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
+	return new Promise((resolve, reject) => {
+		const timeout = globalThis.setTimeout(() => resolve(undefined), timeoutMs)
+		promise.then(
+			(value) => {
+				globalThis.clearTimeout(timeout)
+				resolve(value)
+			},
+			(error) => {
+				globalThis.clearTimeout(timeout)
+				reject(error)
+			},
+		)
+	})
+}
 const SCOPE_DRAIN_TIMEOUT_MS = 15_000
 
 interface CloudTaskInput {
@@ -104,6 +121,8 @@ interface CloudSessionEntry {
 	connection?: Promise<CloudSessionHost>
 	/** Last agent status observed over the connection, kept after it is dropped. */
 	agentStatus?: CloudSessionStatus
+	/** Usage snapshot from this entry's live host. REST-only records do not expose usage. */
+	usage?: SessionAccumulatedUsage
 	title?: string
 	lastActivityAt: number
 }
@@ -188,6 +207,16 @@ export class SdkCloudSessionCoordinator {
 				repoUrl: record.repoContext.repoUrl ?? "",
 				branch: record.repoContext.branch ?? "",
 				modelId: record.metadata.modelId ?? "",
+				...(entry.usage
+					? {
+							usageAvailable: true,
+							tokensIn: entry.usage.inputTokens,
+							tokensOut: entry.usage.outputTokens,
+							cacheReads: entry.usage.cacheReadTokens,
+							cacheWrites: entry.usage.cacheWriteTokens,
+							totalCost: entry.usage.totalCost,
+						}
+					: {}),
 				git: { url: record.repoContext.repoUrl, branch: record.repoContext.branch },
 			},
 			// Keep a task the user is actively working on at the top of History.
@@ -201,7 +230,13 @@ export class SdkCloudSessionCoordinator {
 			return []
 		}
 		await this.refreshList()
-		return [...this.entries.values()].map((entry) => this.toHistoryRecord(entry))
+		const generation = this.scopeGeneration
+		const entries = [...this.entries.values()]
+		await this.refreshUsage(entries)
+		if (generation !== this.scopeGeneration) {
+			return this.listHistoryRecords()
+		}
+		return entries.map((entry) => this.toHistoryRecord(entry))
 	}
 
 	async findHistoryRecord(sessionId: string): Promise<SessionHistoryRecord | undefined> {
@@ -213,7 +248,34 @@ export class SdkCloudSessionCoordinator {
 			await this.refreshList(true)
 			entry = this.entries.get(sessionId)
 		}
-		return entry ? this.toHistoryRecord(entry) : undefined
+		if (!entry) {
+			return undefined
+		}
+		const generation = this.scopeGeneration
+		await this.refreshUsage([entry])
+		if (generation !== this.scopeGeneration || this.entries.get(sessionId) !== entry) {
+			return this.findHistoryRecord(sessionId)
+		}
+		return this.toHistoryRecord(entry)
+	}
+
+	private async refreshUsage(entries: CloudSessionEntry[]): Promise<void> {
+		await Promise.all(
+			entries.map(async (entry) => {
+				const host = entry.host
+				if (!host) {
+					return
+				}
+				try {
+					const usage = await withTimeout(host.getAccumulatedUsage(entry.record.id), USAGE_REFRESH_TIMEOUT_MS)
+					if (usage && !this.disposed && this.entries.get(entry.record.id) === entry && entry.host === host) {
+						entry.usage = usage
+					}
+				} catch (error) {
+					Logger.warn(`[CloudSessions] Failed to read usage for ${entry.record.id}:`, error)
+				}
+			}),
+		)
 	}
 
 	private async refreshList(force = false): Promise<void> {

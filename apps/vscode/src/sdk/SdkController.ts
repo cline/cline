@@ -2152,6 +2152,7 @@ export class Controller {
 				cloudStatus: metadataString(metadata, "cloudStatus") ?? "",
 				cloudRepoUrl: metadataString(metadata, "repoUrl") ?? "",
 				cloudBranch: metadataString(metadata, "branch") ?? "",
+				cloudUsageAvailable: metadataBoolean(metadata, "usageAvailable") ?? false,
 			}
 		})
 
@@ -2180,6 +2181,7 @@ export class Controller {
 					cloudStatus: currentCloudTask?.status ?? "",
 					cloudRepoUrl: currentCloudTask?.repoUrl ?? "",
 					cloudBranch: currentCloudTask?.branch ?? "",
+					cloudUsageAvailable: false,
 				})
 			}
 		}
