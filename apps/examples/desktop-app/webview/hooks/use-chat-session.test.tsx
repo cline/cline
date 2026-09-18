@@ -637,11 +637,11 @@ describe("useChatSession", () => {
 		expect(current.isCloudSessionExpired).toBe(true);
 		if (failedCommand) {
 			expect(current.error).toContain("offline");
-				expect(
-					invokeMock.mock.calls.some(
-						([command, args]) =>
-							command === "chat_session_command" &&
-							args?.request?.action === "attach",
+			expect(
+				invokeMock.mock.calls.some(
+					([command, args]) =>
+						command === "chat_session_command" &&
+						args?.request?.action === "attach",
 				),
 			).toBe(false);
 		} else {
