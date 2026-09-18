@@ -37,6 +37,7 @@ import {
 } from "./context";
 import { resolveSessionListTitle } from "./session-data/common";
 import { readSessionMessages } from "./session-data/messages";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 import type {
 	JsonRecord,
 	LiveSession,
@@ -901,6 +902,7 @@ export function cloudSessionToDiscoveryRecord(
 ): JsonRecord {
 	return {
 		sessionId: record.id,
+		environmentId: LOCAL_ENVIRONMENT_ID,
 		origin: "cloud",
 		executionTarget: "cloud",
 		status: record.status,

@@ -238,12 +238,21 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 	});
 
-	it("keeps cloud run events local after switching to SSH", async () => {
+	it("keeps cloud discovery and run events local after switching to SSH", async () => {
 		const { ctx, events, hub, manager } = createFixture();
 
 		await manager.list();
 		await manager.attach("ses-outer");
 		ctx.activeEnvironmentId = "ssh-remote";
+		for (const session of [
+			...(await manager.listForDiscovery()),
+			manager.getCachedDiscoveryRecord("ses-outer"),
+		]) {
+			expect(session).toMatchObject({
+				environmentId: "local",
+				executionTarget: "cloud",
+			});
+		}
 		hub.events?.({
 			version: "v1",
 			event: "session.updated",
