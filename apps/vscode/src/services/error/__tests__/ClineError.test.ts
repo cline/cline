@@ -1,6 +1,6 @@
 import { describe, it } from "bun:test"
 import "should"
-import { ClineError, ClineErrorType } from "../ClineError"
+import { ClineError, ClineErrorType, parseRetryAfterSeconds } from "../ClineError"
 
 describe("ClineError", () => {
 	describe("getErrorType", () => {
@@ -110,6 +110,58 @@ describe("ClineError", () => {
 
 			const result = ClineError.getErrorType(err)
 			;(result !== ClineErrorType.ClineFreePromotionEnded).should.be.true()
+		})
+	})
+	describe("retryAfterSeconds", () => {
+		// A 429 alone does not say whether to wait or to stop. The header does,
+		// and it was being dropped, so the distinction had to be guessed from
+		// the message text.
+		it("reads delay-seconds off the response headers", () => {
+			const err = new ClineError({
+				message: "rate limit",
+				status: 429,
+				response: { headers: { "retry-after": "17" } },
+			})
+			err.retryAfterSeconds!.should.equal(17)
+		})
+
+		it("reads it whatever the casing and whichever shape the headers are in", () => {
+			const plain = new ClineError({
+				message: "rate limit",
+				status: 429,
+				response: { headers: { "Retry-After": "5" } },
+			})
+			plain.retryAfterSeconds!.should.equal(5)
+
+			const fromHeaders = new ClineError({
+				message: "rate limit",
+				status: 429,
+				headers: new Headers({ "retry-after": "9" }),
+			})
+			fromHeaders.retryAfterSeconds!.should.equal(9)
+		})
+
+		it("prefers retry-after-ms when the provider sends it", () => {
+			parseRetryAfterSeconds({ "retry-after-ms": "2500", "retry-after": "60" })!.should.equal(2.5)
+		})
+
+		it("accepts an HTTP-date and never returns a negative wait", () => {
+			const future = new Date(Date.now() + 30_000).toUTCString()
+			const seconds = parseRetryAfterSeconds({ "retry-after": future })!
+			seconds.should.be.above(25)
+			seconds.should.be.below(31)
+
+			const past = new Date(Date.now() - 60_000).toUTCString()
+			parseRetryAfterSeconds({ "retry-after": past })!.should.equal(0)
+		})
+
+		it("is undefined when the provider said nothing, which is not zero", () => {
+			const err = new ClineError({ message: "rate limit", status: 429 })
+			;(err.retryAfterSeconds === undefined).should.be.true()
+			;(parseRetryAfterSeconds({ "content-type": "application/json" }) === undefined).should.be.true()
+			// Number() would read these as 16 and 1000; neither is a delay-seconds.
+			;(parseRetryAfterSeconds({ "retry-after": "0x10" }) === undefined).should.be.true()
+			;(parseRetryAfterSeconds({ "retry-after": "1e3" }) === undefined).should.be.true()
 		})
 	})
 })
