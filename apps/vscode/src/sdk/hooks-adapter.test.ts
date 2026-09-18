@@ -70,6 +70,42 @@ describe("hooks-adapter task id threading", () => {
 		expect(mocks.create).toHaveBeenCalledWith("UserPromptSubmit", "conv-1")
 	})
 
+	it("combines TaskStart and UserPromptSubmit context", async () => {
+		runner.run
+			.mockResolvedValueOnce({ cancel: false, contextModification: "task context", errorMessage: "" })
+			.mockResolvedValueOnce({ cancel: false, contextModification: "prompt context", errorMessage: "" })
+		expect(await buildAgentHooks(stateManager).beforeRun?.({ snapshot })).toEqual({
+			appendContext: "task context\n\nprompt context",
+		})
+	})
+
+	it.each(["TaskStart", "UserPromptSubmit"])("honors %s cancellation without injecting context", async (hookName) => {
+		if (hookName === "UserPromptSubmit") {
+			runner.run.mockResolvedValueOnce({ cancel: false, contextModification: "discard me", errorMessage: "" })
+		}
+		runner.run.mockResolvedValueOnce({ cancel: true, contextModification: "cancel explanation", errorMessage: "" })
+		expect(await buildAgentHooks(stateManager).beforeRun?.({ snapshot })).toEqual({
+			stop: true,
+			reason: "cancel explanation",
+		})
+		expect(mocks.create).toHaveBeenCalledTimes(hookName === "TaskStart" ? 1 : 2)
+	})
+
+	it("skips synthetic context when finding the user prompt", async () => {
+		await buildAgentHooks(stateManager).beforeRun?.({
+			snapshot: {
+				...(snapshot as object),
+				messages: [
+					{ role: "user", content: [{ type: "text", text: "real prompt" }] },
+					{ role: "user", content: [{ type: "text", text: "hook context" }], metadata: { displayRole: "system" } },
+				],
+			},
+		} as never)
+		expect(runner.run).toHaveBeenLastCalledWith(
+			expect.objectContaining({ userPromptSubmit: { prompt: "real prompt", attachments: [] } }),
+		)
+	})
+
 	it("passes the task id when creating the TaskComplete runner", async () => {
 		const hooks = buildAgentHooks(stateManager)
 		await hooks.afterRun?.({ snapshot, result: { status: "completed", outputText: "done" } } as never)
