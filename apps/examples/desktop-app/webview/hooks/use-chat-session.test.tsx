@@ -8,6 +8,7 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import { startsNewThread } from "@/lib/work-in-selection";
 import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
 	buildPreviousTimestampMap,
@@ -1501,6 +1502,50 @@ describe("useChatSession", () => {
 				([command]) => command === "chat_session_command",
 			),
 		).toBe(false);
+		// Only the error message remains, so the page still treats the
+		// thread as new and the retried prompt asks for a worktree again.
+		expect(current.sessionId).toBeNull();
+		expect(startsNewThread(current.sessionId, current.messages)).toBe(true);
+
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/cline";
+		invokeMock.mockClear();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-retry",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.sendPrompt("Start the task", [], {
+				inNewWorktree: startsNewThread(current.sessionId, current.messages),
+			}),
+		);
+
+		expect(invokeMock).toHaveBeenCalledWith("create_git_worktree", {
+			cwd: "/workspace/cline",
+		});
+		expect(current.sessionId).not.toBeNull();
+		expect(current.config).toMatchObject({
+			cwd: worktreePath,
+			workspaceRoot: worktreePath,
+		});
 	});
 
 	it("queues a prompt sent during worktree allocation behind the one session", async () => {

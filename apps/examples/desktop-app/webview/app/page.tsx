@@ -106,6 +106,7 @@ import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	readWorkInFromWindow,
+	startsNewThread,
 	TASK_WORKTREE_DELETE_WARNING,
 	type WorkIn,
 	writeWorkInToWindow,
@@ -1498,9 +1499,7 @@ function ChatThreadPane({
 		threadId,
 	]);
 
-	// "Work in" only matters for the prompt that starts a brand-new thread;
-	// later prompts (and prompts into a reopened session) stay where they are.
-	const isNewThread = !sessionId && messages.length === 0;
+	const isNewThread = startsNewThread(sessionId, messages);
 
 	const handleAttachFiles = useCallback((files: File[]) => {
 		const supportedFiles = files.filter(

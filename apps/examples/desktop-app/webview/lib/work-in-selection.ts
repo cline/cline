@@ -10,6 +10,25 @@ export type WorkIn = "local" | "worktree";
 export const TASK_WORKTREE_DELETE_WARNING =
 	"This session ran in its own git worktree. Deleting it also removes that worktree and its generated branch, including any uncommitted changes in it.";
 
+/**
+ * "Work in" only matters for the prompt that starts a brand-new thread;
+ * later prompts (and prompts into a reopened session) stay where they are.
+ * Only accepted conversation counts: a failed first launch leaves an error
+ * message in the transcript, and the retried prompt must still get its
+ * worktree.
+ */
+export function startsNewThread(
+	sessionId: string | null | undefined,
+	messages: ReadonlyArray<{ role: string }>,
+): boolean {
+	return (
+		!sessionId &&
+		!messages.some(
+			(message) => message.role === "user" || message.role === "assistant",
+		)
+	);
+}
+
 export function readWorkInFromWindow(): WorkIn {
 	if (typeof window === "undefined") {
 		return "local";
