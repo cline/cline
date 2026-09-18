@@ -2306,84 +2306,67 @@ export function useChatSession(environmentId: string) {
 				) {
 					return;
 				}
-				const rehydrationEpoch = turnEpochRef.current;
-				const applySnapshot = (rehydratedMessages: ChatMessage[]) => {
-					if (activeSessionIdRef.current !== targetSessionId) return;
-					if (turnEpochRef.current !== rehydrationEpoch) return;
-					const nextStatus = record.status?.trim();
-					// A locally submitted turn owns status and live routing until its RPC
-					// settles. A reconnect snapshot may describe the preceding turn.
-					const previousUserIds =
-						cloudTranscriptUserIdsRef.current[targetSessionId] ?? new Set();
-					const snapshotNewUserCounts = userMessageCounts(
-						rehydratedMessages.filter(
-							(message) => !previousUserIds.has(message.id),
-						),
-					);
-					const liveNewUserCounts = userMessageCounts(
-						messagesRef.current.filter(
-							(message) => !previousUserIds.has(message.id),
-						),
-					);
-					const snapshotHasNewUserMessage = Array.from(
-						snapshotNewUserCounts,
-					).some(
-						([content, count]) => count > (liveNewUserCounts.get(content) ?? 0),
-					);
-					const reflectedPromptBudget = new Map(snapshotNewUserCounts);
-					const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
-						(message) => {
-							if (!outstandingOptimisticUserIdsRef.current.has(message.id))
-								return false;
-							const content = comparableUserContent(message.content);
-							const count = reflectedPromptBudget.get(content) ?? 0;
-							if (count === 0) return true;
-							reflectedPromptBudget.set(content, count - 1);
+				if (!Array.isArray(record.messages)) return;
+				const rehydratedMessages = record.messages;
+				const nextStatus = record.status?.trim();
+				// A locally submitted turn owns status and live routing until its RPC
+				// settles. A reconnect snapshot may describe the preceding turn.
+				const previousUserIds =
+					cloudTranscriptUserIdsRef.current[targetSessionId] ?? new Set();
+				const snapshotNewUserCounts = userMessageCounts(
+					rehydratedMessages.filter(
+						(message) => !previousUserIds.has(message.id),
+					),
+				);
+				const liveNewUserCounts = userMessageCounts(
+					messagesRef.current.filter(
+						(message) => !previousUserIds.has(message.id),
+					),
+				);
+				const snapshotHasNewUserMessage = Array.from(
+					snapshotNewUserCounts,
+				).some(
+					([content, count]) => count > (liveNewUserCounts.get(content) ?? 0),
+				);
+				const reflectedPromptBudget = new Map(snapshotNewUserCounts);
+				const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
+					(message) => {
+						if (!outstandingOptimisticUserIdsRef.current.has(message.id))
 							return false;
-						},
-					);
-					const localSubmissionActive =
-						activePromptSubmissionsRef.current > 0 ||
-						hasUnreflectedOptimisticPrompt;
-					const snapshotBusy =
-						nextStatus === "running" || nextStatus === "pending";
-					applyCloudSnapshotMessages({
-						sessionId: targetSessionId,
-						messages: rehydratedMessages,
-						transcriptKnown: record.transcriptKnown,
-						preserveUnmatchedLive: snapshotBusy || localSubmissionActive,
-						preserveLiveRouting: snapshotBusy || localSubmissionActive,
-					});
-					if (!snapshotBusy && localSubmissionActive) return;
-					if (!snapshotBusy) {
-						clearLiveToolRefs();
-					}
-					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
-					if (
-						mappedStatus === "running" &&
-						turnEpochRef.current === turnSettledEpochRef.current &&
-						!snapshotHasNewUserMessage
-					) {
-						return;
-					}
-					if (mappedStatus) {
-						setStatus(mappedStatus);
-					}
-				};
-				if (Array.isArray(record.messages)) {
-					applySnapshot(record.messages);
+						const content = comparableUserContent(message.content);
+						const count = reflectedPromptBudget.get(content) ?? 0;
+						if (count === 0) return true;
+						reflectedPromptBudget.set(content, count - 1);
+						return false;
+					},
+				);
+				const localSubmissionActive =
+					activePromptSubmissionsRef.current > 0 ||
+					hasUnreflectedOptimisticPrompt;
+				const snapshotBusy =
+					nextStatus === "running" || nextStatus === "pending";
+				applyCloudSnapshotMessages({
+					sessionId: targetSessionId,
+					messages: rehydratedMessages,
+					transcriptKnown: record.transcriptKnown,
+					preserveUnmatchedLive: snapshotBusy || localSubmissionActive,
+					preserveLiveRouting: snapshotBusy || localSubmissionActive,
+				});
+				if (!snapshotBusy && localSubmissionActive) return;
+				if (!snapshotBusy) {
+					clearLiveToolRefs();
+				}
+				const mappedStatus = mapCloudRuntimeStatus(nextStatus);
+				if (
+					mappedStatus === "running" &&
+					turnEpochRef.current === turnSettledEpochRef.current &&
+					!snapshotHasNewUserMessage
+				) {
 					return;
 				}
-				void desktopClient
-					.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: targetSessionId,
-						maxMessages: MAX_MESSAGES,
-					})
-					.then(applySnapshot)
-					.catch((error) => {
-						if (activeSessionIdRef.current !== targetSessionId) return;
-						setError(humanizeCloudSessionError(errorMessage(error)));
-					});
+				if (mappedStatus) {
+					setStatus(mappedStatus);
+				}
 			},
 		);
 		const unsubscribeSyncFailed = desktopClient.subscribe(

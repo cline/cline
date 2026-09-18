@@ -14,7 +14,10 @@ import {
 	disposeSidecarContext,
 	getEnvironmentContext,
 } from "./context";
-import { discoverChatSessions } from "./session-data/discovery";
+import {
+	discoverChatSessions,
+	mergeDiscoveredSessionLists,
+} from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -197,6 +200,25 @@ describe("Cloud sessions sidecar wiring", () => {
 		} finally {
 			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 		}
+	});
+
+	it.each([
+		"lastActivityAt",
+		"updatedAt",
+		"endedAt",
+	])("keeps recently active sessions in limited discovery using %s", (activityField) => {
+		const active = {
+			sessionId: "ses-active",
+			startedAt: "2026-09-01T00:00:00Z",
+			[activityField]: "2026-09-18T00:00:00Z",
+		};
+		const newer = Array.from({ length: 50 }, (_, i) => ({
+			sessionId: `local-${i}`,
+			startedAt: "2026-09-17T00:00:00Z",
+		}));
+		const result = mergeDiscoveredSessionLists([active], newer, 50);
+		expect(result).toHaveLength(50);
+		expect(result[0]).toMatchObject({ sessionId: "ses-active" });
 	});
 
 	it("does not project a live cloud session through local discovery", () => {
