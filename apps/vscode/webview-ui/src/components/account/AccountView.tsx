@@ -387,7 +387,7 @@ const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, cl
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-				<div className="grow flex flex-col min-h-0 pb-[0px]">
+				<div className="flex flex-col pb-[0px]">
 					<CreditsHistoryTable
 						isLoading={isLoading}
 						paymentsData={paymentsData}
