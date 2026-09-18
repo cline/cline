@@ -640,6 +640,8 @@ export class SdkCloudSessionCoordinator {
 			task.taskId = record.id
 			await this.options.cloudSessions.renameSession(record.id, title).catch(() => undefined)
 			if (isStale()) return sessionId
+			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
+			if (isStale()) return sessionId
 
 			host = await this.connect(entry)
 			if (isStale()) return sessionId
@@ -663,8 +665,6 @@ export class SdkCloudSessionCoordinator {
 			const { sdkHost } = await this.options.sessions.startNewSession(startInput, host, () => !isStale())
 			if (isStale()) return sessionId
 			this.options.postStateToWebview().catch(() => {})
-			const resolvedPrompt = await this.options.resolveContextMentions(input.prompt)
-			if (isStale()) return sessionId
 			this.options.sessions.fireAndForgetSend(sdkHost, record.id, resolvedPrompt, input.images)
 			sent = true
 			Logger.log(`[CloudSessions] Cloud task started: ${record.id}`)
