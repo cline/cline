@@ -399,7 +399,10 @@ export class CloudSessionController {
 		string,
 		Promise<CloudSessionAttachment>
 	>();
-	private readonly provisioningControllers = new Map<string, AbortController>();
+	private readonly provisioningControllers = new Map<
+		string,
+		Set<AbortController>
+	>();
 	private readonly sendAbortTokens = new Map<string, symbol>();
 	private readonly titleWrites = new Map<string, Promise<void>>();
 	private readonly deletingSessions = new Set<string>();
@@ -589,9 +592,10 @@ export class CloudSessionController {
 		);
 		this.connectionPromises.delete(sessionId);
 		this.sendAbortTokens.set(sessionId, Symbol());
-		this.provisioningControllers
-			.get(sessionId)
-			?.abort(new Error("Cloud viewer detached"));
+		this.abortProvisioningControllers(
+			sessionId,
+			new Error("Cloud viewer detached"),
+		);
 		await this.disposeConnection(sessionId);
 		this.publishSnapshot(sessionId);
 	}
@@ -890,12 +894,43 @@ export class CloudSessionController {
 		return await creating;
 	}
 
+	private trackProvisioningController(
+		outerSessionId: string,
+		controller: AbortController,
+	): () => void {
+		let controllers = this.provisioningControllers.get(outerSessionId);
+		if (!controllers) {
+			controllers = new Set();
+			this.provisioningControllers.set(outerSessionId, controllers);
+		}
+		controllers.add(controller);
+		return () => {
+			controllers.delete(controller);
+			if (controllers.size === 0) {
+				this.provisioningControllers.delete(outerSessionId);
+			}
+		};
+	}
+
+	private abortProvisioningControllers(
+		outerSessionId: string,
+		reason?: unknown,
+	): boolean {
+		const controllers = this.provisioningControllers.get(outerSessionId);
+		if (!controllers?.size) return false;
+		for (const controller of controllers) controller.abort(reason);
+		return true;
+	}
+
 	/** Waits for an adopted pending handoff target before opening its Hub proxy. */
 	async waitUntilReady(outerSessionId: string): Promise<void> {
 		this.detachedSessions.delete(outerSessionId);
 		this.assertSessionActive(outerSessionId);
 		const controller = new AbortController();
-		this.provisioningControllers.set(outerSessionId, controller);
+		const releaseController = this.trackProvisioningController(
+			outerSessionId,
+			controller,
+		);
 		try {
 			await this.options.api.waitUntilReady(
 				outerSessionId,
@@ -905,8 +940,7 @@ export class CloudSessionController {
 			this.assertSessionActive(outerSessionId);
 			await this.refreshKnownSession(outerSessionId);
 		} finally {
-			if (this.provisioningControllers.get(outerSessionId) === controller)
-				this.provisioningControllers.delete(outerSessionId);
+			releaseController();
 		}
 	}
 
@@ -1595,9 +1629,12 @@ export class CloudSessionController {
 		outerSessionId: string,
 	): Promise<{ sessionId: string; ok: true }> {
 		this.sendAbortTokens.set(outerSessionId, Symbol());
-		const provisioning = this.provisioningControllers.get(outerSessionId);
-		if (provisioning) {
-			provisioning.abort(new Error("Cloud session prompt cancelled"));
+		if (
+			this.abortProvisioningControllers(
+				outerSessionId,
+				new Error("Cloud session prompt cancelled"),
+			)
+		) {
 			return { sessionId: outerSessionId, ok: true };
 		}
 		const connection = await this.ensureConnection(outerSessionId);
@@ -1828,7 +1865,7 @@ export class CloudSessionController {
 		// Tombstone the id so a concurrent attach/send/readMessages cannot dial
 		// a fresh connection for a session that is being torn down.
 		this.deletingSessions.add(outerSessionId);
-		this.provisioningControllers.get(outerSessionId)?.abort();
+		this.abortProvisioningControllers(outerSessionId);
 		try {
 			const pendingConnect = this.connectionPromises.get(outerSessionId);
 			if (pendingConnect) {
@@ -1866,8 +1903,10 @@ export class CloudSessionController {
 		for (const sessionId of this.snapshotTimers.keys())
 			this.cancelScheduledSnapshot(sessionId);
 		this.sendAbortTokens.clear();
-		for (const controller of this.provisioningControllers.values())
-			controller.abort();
+		for (const controllers of this.provisioningControllers.values()) {
+			for (const controller of controllers) controller.abort();
+		}
+		this.provisioningControllers.clear();
 		const sessionIds = new Set([
 			...this.connections.keys(),
 			...this.knownSessions.keys(),
@@ -2028,7 +2067,10 @@ export class CloudSessionController {
 			assertCurrent();
 			if (remote.status === "provisioning") {
 				const controller = new AbortController();
-				this.provisioningControllers.set(outerSessionId, controller);
+				const releaseController = this.trackProvisioningController(
+					outerSessionId,
+					controller,
+				);
 				try {
 					await this.options.api.waitUntilReady(
 						outerSessionId,
@@ -2067,7 +2109,7 @@ export class CloudSessionController {
 					}
 					throw error;
 				} finally {
-					this.provisioningControllers.delete(outerSessionId);
+					releaseController();
 				}
 			}
 			assertCurrent();

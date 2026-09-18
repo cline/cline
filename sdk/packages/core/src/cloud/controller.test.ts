@@ -441,6 +441,34 @@ describe("CloudSessionController neutral host contract", () => {
 			await f.controller.dispose();
 		}
 	});
+	it("aborts every provisioning waiter when the viewer detaches", async () => {
+		const f = fixture();
+		const signals: AbortSignal[] = [];
+		f.api.list.mockImplementation(async () => [
+			{ ...record, status: "provisioning" },
+		]);
+		f.api.status.mockImplementation(async () => ({ status: "provisioning" }));
+		f.api.waitUntilReady.mockImplementation(
+			async (_sessionId, signal: AbortSignal) => {
+				signals.push(signal);
+				await new Promise<void>((_resolve, reject) => {
+					signal.addEventListener("abort", () => reject(signal.reason), {
+						once: true,
+					});
+				});
+			},
+		);
+
+		const waiting = f.controller.waitUntilReady(record.id);
+		const attaching = f.controller.attach(record.id);
+		await vi.waitFor(() => expect(signals).toHaveLength(2));
+		await f.controller.detach(record.id);
+
+		expect(signals.every((signal) => signal.aborted)).toBe(true);
+		await expect(waiting).rejects.toThrow("detached");
+		await expect(attaching).rejects.toThrow("detached");
+		await f.controller.dispose();
+	});
 	it("owns frozen snapshots and reconciled live messages without leaking inner IDs", async () => {
 		const f = await attached();
 		const baseline = f.controller.getSnapshot(record.id)!;

@@ -337,6 +337,9 @@ export function cloudHandoffUiReducer(
 			return next;
 		}
 		case "dismiss_recovery":
+			if (current?.status === "complete" || current?.status === "progress") {
+				return state;
+			}
 			return {
 				...state,
 				[action.sourceSessionId]: {
@@ -374,7 +377,20 @@ export function cloudHandoffUiReducer(
 			}
 			return state;
 		case "retry_delivered": {
-			if (current?.status !== "complete") return state;
+			if (!current) return state;
+			if (current.status !== "complete") {
+				if (
+					current.status !== "recovery" &&
+					current.status !== "recovery_dismissed" &&
+					current.status !== "failed" &&
+					current.status !== "retry_restored"
+				) {
+					return state;
+				}
+				const next = { ...state };
+				delete next[action.sourceSessionId];
+				return next;
+			}
 			return {
 				...state,
 				[action.sourceSessionId]: {

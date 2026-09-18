@@ -75,6 +75,7 @@ import {
 	type HandoffPreflight,
 	type HandoffProgressPhase,
 	type HandoffResult,
+	isExpectedHandoffSourceActive,
 	parseHandoffCommand,
 	readHandoffReceipt,
 	readPendingHandoffRecovery,
@@ -522,8 +523,18 @@ export default function Home() {
 				silent?: boolean;
 				initialPromptDraft?: string;
 				initialAttachments?: File[];
+				expectedActiveThreadId?: string;
 			} = {},
 		): Promise<boolean> => {
+			if (
+				!isExpectedHandoffSourceActive(
+					options.expectedActiveThreadId,
+					activeLocationRef.current.activeThreadId,
+					activeLocationRef.current.view,
+				)
+			) {
+				return false;
+			}
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
@@ -542,6 +553,15 @@ export default function Home() {
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
+				}
+				if (
+					!isExpectedHandoffSourceActive(
+						options.expectedActiveThreadId,
+						activeLocationRef.current.activeThreadId,
+						activeLocationRef.current.view,
+					)
+				) {
+					return false;
 				}
 				handleOpenSession(
 					session,
@@ -2210,9 +2230,11 @@ function ChatThreadPane({
 		}
 		if (cloudAgentsEnabled) {
 			const retryDraft =
-				handoffUi?.status === "complete" ? handoffUi.retryDraft : undefined;
+				handoffUi && "retryDraft" in handoffUi
+					? handoffUi.retryDraft
+					: undefined;
 			const retryAttachments =
-				handoffUi?.status === "complete"
+				handoffUi && "retryAttachments" in handoffUi
 					? handoffUi.retryAttachments
 					: undefined;
 			const opened = await Promise.resolve(
