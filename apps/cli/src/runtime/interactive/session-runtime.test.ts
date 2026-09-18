@@ -242,6 +242,33 @@ describe("createInteractiveSessionRuntime", () => {
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
 	});
 
+	it("lets core select the backend for ordinary interactive sessions", async () => {
+		const runtime = await makeRuntime(makeManager());
+
+		await runtime.ensureReady();
+
+		expect(createCliCoreMock).toHaveBeenCalledWith(
+			expect.objectContaining({ forceLocalBackend: false }),
+		);
+		expect(createCliCoreMock).toHaveBeenCalledWith(
+			expect.not.objectContaining({ backendMode: expect.anything() }),
+		);
+	});
+
+	it.each([
+		["yolo", { mode: "yolo" }],
+		["sandbox", { sandbox: true }],
+	] as const)("forces the local backend for %s interactive sessions", async (_mode, overrides) => {
+		const config: Config = { ...createConfig(), ...overrides };
+		const runtime = await makeRuntime(makeManager(), { config });
+
+		await runtime.ensureReady();
+
+		expect(createCliCoreMock).toHaveBeenCalledWith(
+			expect.objectContaining({ forceLocalBackend: true }),
+		);
+	});
+
 	it("manual compact updates the active session sidecar without restarting", async () => {
 		const sessionId = "sess-active";
 		const messages = [
