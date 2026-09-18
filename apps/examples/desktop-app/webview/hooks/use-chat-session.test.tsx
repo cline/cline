@@ -2115,9 +2115,7 @@ describe("useChatSession", () => {
 
 		await act(async () => current.sendPrompt("Explain this validation error"));
 
-		// Error-role content goes through the turn-failure reporter, which
-		// wraps the detail in user-facing copy — assert containment, not
-		// equality, so the schema text is preserved either way.
+		// Error-role messages wrap the detail in user-facing copy.
 		expect(
 			current.messages.findLast((message) => message.role === expectedRole)
 				?.content,
