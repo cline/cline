@@ -946,6 +946,26 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.set_focus();
 }
 
+/// Hide the main window instead of destroying it so the tray and Dock can
+/// bring it back. On macOS, hiding a window that is in native fullscreen
+/// leaves its now-empty fullscreen space on screen, so leave fullscreen first.
+/// `toggleFullScreen:` is asynchronous and animated, and tao reports
+/// `is_fullscreen() == false` as soon as it is requested, so the hide is
+/// deferred until the transition has had time to finish.
+fn hide_main_window(window: &tauri::Window) {
+    #[cfg(target_os = "macos")]
+    if window.is_fullscreen().unwrap_or(false) {
+        let _ = window.set_fullscreen(false);
+        let window = window.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(1000));
+            let _ = window.hide();
+        });
+        return;
+    }
+    let _ = window.hide();
+}
+
 fn queue_desktop_action(app: &tauri::AppHandle, action: DesktopAction) {
     show_main_window(app);
     app.state::<DesktopActionState>().enqueue(action);
@@ -1294,7 +1314,7 @@ fn main() {
             if window.label() == MAIN_WINDOW_LABEL {
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
-                    let _ = window.hide();
+                    hide_main_window(window);
                 }
             }
         })
