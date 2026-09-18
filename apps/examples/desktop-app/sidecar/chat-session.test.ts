@@ -84,6 +84,42 @@ describe("rewriteDesktopTeamPrompt", () => {
 		}
 	});
 });
+function localRuntimeContext(
+	sessionManager: Record<string, unknown>,
+	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
+) {
+	const workspaceRoot = options.workspaceRoot ?? "/workspace";
+	return {
+		runtimeBindings: new Map([
+			[
+				"local",
+				{
+					environmentId: "local",
+					kind: "local" as const,
+					workspaceRoot,
+					sessionManager,
+					hubClient: {
+						command: vi.fn(async () => undefined),
+					},
+					unsubscribeSessionEvents: () => {},
+				},
+			],
+		]),
+		sessionEnvironmentIds: new Map(
+			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
+		),
+		activeEnvironmentId: "local",
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
+	};
+}
+
+function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
+	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
+		string,
+		unknown
+	>;
+}
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -238,7 +274,7 @@ describe("pathless session starts", () => {
 		const ctx = {
 			liveSessions: new Map(),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: { start },
+			...localRuntimeContext({ start }),
 			telemetryUser: {
 				distinctId: "account-1",
 				accountId: "account-1",
@@ -267,11 +303,66 @@ describe("pathless session starts", () => {
 			sessionId: "session-pathless",
 			cwd: "/home/host/.cline/data/workspaces/chat",
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
+			environmentId: "local",
 		});
 		expect(ctx.liveSessions.get("session-pathless")?.config).toMatchObject({
 			cwd: "/home/host/.cline/data/workspaces/chat",
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
+	});
+});
+
+describe("environment-bound session attach", () => {
+	it("does not fall through to another host when the requested environment lacks the session", async () => {
+		const sessionId = "same-session-id";
+		const localGet = vi.fn(async () => ({
+			sessionId,
+			status: "completed",
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			cwd: "/local/project",
+			workspaceRoot: "/local/project",
+		}));
+		const remoteGet = vi.fn(async () => undefined);
+		const ctx = {
+			liveSessions: new Map(),
+			sessionEnvironmentIds: new Map([[sessionId, "local"]]),
+			activeEnvironmentId: "local",
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						environmentId: "local",
+						kind: "local",
+						workspaceRoot: "/local/project",
+						sessionManager: { get: localGet },
+						hubClient: { command: vi.fn() },
+						unsubscribeSessionEvents: () => {},
+					},
+				],
+				[
+					"pi-host",
+					{
+						environmentId: "pi-host",
+						kind: "ssh",
+						workspaceRoot: "/home/pi",
+						sessionManager: { get: remoteGet },
+						hubClient: { command: vi.fn() },
+						unsubscribeSessionEvents: () => {},
+					},
+				],
+			]),
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "attach",
+				sessionId,
+				config: { environmentId: "pi-host" },
+			}),
+		).rejects.toThrow(`Session ${sessionId} not found`);
+		expect(remoteGet).toHaveBeenCalledWith(sessionId);
+		expect(localGet).not.toHaveBeenCalled();
 	});
 });
 
@@ -314,29 +405,32 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId: sourceSessionId,
-					source: "desktop",
-					status: "completed",
-					provider: "cline",
-					model: "anthropic/claude-sonnet-4.6",
-					cwd: "/workspace/project",
-					workspaceRoot: "/workspace/project",
-					metadata: {
-						checkpoint: {
-							latest: { ref: "second", createdAt: 2, runCount: 2 },
-							history: [
-								{ ref: "first", createdAt: 1, runCount: 1 },
-								{ ref: "second", createdAt: 2, runCount: 2 },
-							],
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId: sourceSessionId,
+						source: "desktop",
+						status: "completed",
+						provider: "cline",
+						model: "anthropic/claude-sonnet-4.6",
+						cwd: "/workspace/project",
+						workspaceRoot: "/workspace/project",
+						metadata: {
+							checkpoint: {
+								latest: { ref: "second", createdAt: 2, runCount: 2 },
+								history: [
+									{ ref: "first", createdAt: 1, runCount: 1 },
+									{ ref: "second", createdAt: 2, runCount: 2 },
+								],
+							},
 						},
-					},
-				})),
-				readMessages,
-				restore,
-				start,
-			},
+					})),
+					readMessages,
+					restore,
+					start,
+				},
+				{ sessionIds: [sourceSessionId] },
+			),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 		} as unknown as SidecarContext;
@@ -438,26 +532,29 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId: sourceSessionId,
-					source: "desktop",
-					status: "completed",
-					provider: "cline",
-					model: "anthropic/claude-sonnet-4.6",
-					cwd: "/workspace/project",
-					workspaceRoot: "/workspace/project",
-					metadata: {
-						checkpoint: {
-							latest: { ref: "first", createdAt: 1, runCount: 1 },
-							history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId: sourceSessionId,
+						source: "desktop",
+						status: "completed",
+						provider: "cline",
+						model: "anthropic/claude-sonnet-4.6",
+						cwd: "/workspace/project",
+						workspaceRoot: "/workspace/project",
+						metadata: {
+							checkpoint: {
+								latest: { ref: "first", createdAt: 1, runCount: 1 },
+								history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+							},
 						},
-					},
-				})),
-				readMessages: vi.fn(async () => sourceMessages),
-				restore,
-				send,
-			},
+					})),
+					readMessages: vi.fn(async () => sourceMessages),
+					restore,
+					send,
+				},
+				{ sessionIds: [sourceSessionId, siblingSessionId] },
+			),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 		} as unknown as SidecarContext;
@@ -524,7 +621,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: {
+			...localRuntimeContext({
 				get: vi.fn(async () => ({
 					sessionId: sourceSessionId,
 					source: "desktop",
@@ -540,7 +637,7 @@ describe("session forks", () => {
 				readMessages,
 				restore,
 				start,
-			},
+			}),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 		} as unknown as SidecarContext;
@@ -602,20 +699,23 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId: sourceSessionId,
-					source: "desktop",
-					status: "completed",
-					provider: "cline",
-					model: "anthropic/claude-sonnet-4.6",
-					cwd: "/workspace/project",
-					workspaceRoot: "/workspace/project",
-				})),
-				readMessages,
-				restore,
-				start,
-			},
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId: sourceSessionId,
+						source: "desktop",
+						status: "completed",
+						provider: "cline",
+						model: "anthropic/claude-sonnet-4.6",
+						cwd: "/workspace/project",
+						workspaceRoot: "/workspace/project",
+					})),
+					readMessages,
+					restore,
+					start,
+				},
+				{ sessionIds: [sourceSessionId] },
+			),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			pendingQuestions: new Map(),
@@ -666,7 +766,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: { restore },
+			...localRuntimeContext({ restore }, { sessionIds: [sourceSessionId] }),
 		} as unknown as SidecarContext;
 
 		await expect(
@@ -697,13 +797,16 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId: sourceSessionId,
-					status: "running",
-				})),
-				restore,
-			},
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId: sourceSessionId,
+						status: "running",
+					})),
+					restore,
+				},
+				{ sessionIds: [sourceSessionId] },
+			),
 		} as unknown as SidecarContext;
 
 		await expect(
@@ -747,15 +850,18 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId: sourceSessionId,
-					status: "completed",
-					cwd: "/workspace/project",
-					workspaceRoot: "/workspace/project",
-				})),
-				restore,
-			},
+			...localRuntimeContext(
+				{
+					get: vi.fn(async () => ({
+						sessionId: sourceSessionId,
+						status: "completed",
+						cwd: "/workspace/project",
+						workspaceRoot: "/workspace/project",
+					})),
+					restore,
+				},
+				{ sessionIds: [sourceSessionId, siblingSessionId] },
+			),
 		} as unknown as SidecarContext;
 
 		await expect(
@@ -799,7 +905,7 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				sessionManager: { restore },
+				...localRuntimeContext({ restore }),
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -862,7 +968,7 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(["/workspace/project"]),
-			sessionManager: { send },
+			...localRuntimeContext({ send }, { sessionIds: [sessionId] }),
 		} as unknown as SidecarContext;
 
 		await expect(
@@ -922,17 +1028,20 @@ describe("first-send connection updates", () => {
 			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
-			sessionManager: {
-				readMessages,
-				readSessionCompactionState,
-				send,
-				start,
-				stop,
-				updateSessionConnection,
-				pendingPrompts: {
-					list: vi.fn(async () => []),
+			...localRuntimeContext(
+				{
+					readMessages,
+					readSessionCompactionState,
+					send,
+					start,
+					stop,
+					updateSessionConnection,
+					pendingPrompts: {
+						list: vi.fn(async () => []),
+					},
 				},
-			},
+				{ sessionIds: [sessionId] },
+			),
 		} as unknown as SidecarContext;
 		return {
 			ctx,
@@ -1056,7 +1165,7 @@ describe("first-send connection updates", () => {
 				attachmentCount: number;
 				userFiles?: string[];
 			}> = [];
-			const manager = ctx.sessionManager as unknown as {
+			const manager = localSessionManager(ctx) as unknown as {
 				send: typeof send;
 				pendingPrompts: {
 					list: (input: unknown) => Promise<unknown[]>;
@@ -1188,15 +1297,13 @@ describe("first-send connection updates", () => {
 			if (!session) throw new Error("missing session");
 			const queuedMap = new Map([["pending_1", [queuedFile]]]);
 			session.queuedAttachmentFiles = queuedMap;
-			(ctx.sessionManager as unknown as { get: unknown }).get = vi.fn(
-				async () => ({
-					status: "idle",
-					provider: "cline",
-					model: "anthropic/claude-sonnet-4.6",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
-				}),
-			);
+			(localSessionManager(ctx) as { get?: unknown }).get = vi.fn(async () => ({
+				status: "idle",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+			}));
 
 			await handleChatSessionCommand(ctx, {
 				action: "attach",
@@ -1640,18 +1747,20 @@ Follow the desktop send workflow instructions.`,
 			}),
 		);
 		const ctx = {
-			workspaceRoot: workspace,
 			liveSessions: new Map([[sessionId, session]]),
 			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
-			sessionManager: {
-				send,
-				pendingPrompts: {
-					list: vi.fn(async () => []),
-					update: updatePendingPrompt,
+			...localRuntimeContext(
+				{
+					send,
+					pendingPrompts: {
+						list: vi.fn(async () => []),
+						update: updatePendingPrompt,
+					},
 				},
-			},
+				{ sessionIds: [sessionId], workspaceRoot: workspace },
+			),
 		} as unknown as SidecarContext;
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
@@ -1806,11 +1915,11 @@ describe("mistake-limit prompt", () => {
 			streamIndices: new Map(),
 			pendingQuestions: new Map(),
 			liveSessions: new Map(),
-			sessionManager: {
+			...localRuntimeContext({
 				send: steer,
 				stop: vi.fn(async () => {}),
 				abort: vi.fn(async () => {}),
-			},
+			}),
 		} as unknown as SidecarContext;
 		const readQuestionRequest = () => {
 			const raw = send.mock.calls
@@ -2017,7 +2126,7 @@ describe("mistake-limit prompt", () => {
 		const { ctx, steer, readQuestionRequest } = createPromptContext();
 		if (failure === "rejected")
 			steer.mockRejectedValueOnce(new Error("Disconnected"));
-		else ctx.sessionManager = null;
+		else ctx.runtimeBindings.clear();
 		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
 		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
 		const waiting = Promise.all([
@@ -2267,7 +2376,7 @@ describe("mistake-limit prompt", () => {
 		const ctx = {
 			liveSessions: new Map(),
 			restoringWorkspacePaths: new Set(),
-			sessionManager: { start },
+			...localRuntimeContext({ start }),
 		} as unknown as SidecarContext;
 		await handleChatSessionCommand(ctx, {
 			action: "start",
@@ -2278,5 +2387,37 @@ describe("mistake-limit prompt", () => {
 			},
 		});
 		expect(start).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("queue steering routing", () => {
+	it.each([
+		undefined,
+		"selected-prompt",
+	])("routes steering with prompt ID %s", async (promptId) => {
+		const result = { sessionId: "session", prompts: [], updated: false };
+		const steerFirst = vi.fn(async () => result);
+		const update = vi.fn(async () => result);
+		const ctx = {
+			liveSessions: new Map(),
+			wsClients: new Set(),
+			...localRuntimeContext({ pendingPrompts: { steerFirst, update } }),
+		} as unknown as SidecarContext;
+		await handleChatSessionCommand(ctx, {
+			action: "steer_prompt",
+			sessionId: "session",
+			promptId,
+		});
+		if (promptId === undefined) {
+			expect(steerFirst).toHaveBeenCalledWith({ sessionId: "session" });
+			expect(update).not.toHaveBeenCalled();
+		} else {
+			expect(update).toHaveBeenCalledWith({
+				sessionId: "session",
+				promptId,
+				delivery: "steer",
+			});
+			expect(steerFirst).not.toHaveBeenCalled();
+		}
 	});
 });

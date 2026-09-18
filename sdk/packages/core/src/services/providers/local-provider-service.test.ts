@@ -667,6 +667,51 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		});
 	});
 
+	it("adds live Cline Cloud models to the Cline provider", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(JSON.stringify({}), { status: 200 });
+			}
+
+			return new Response(
+				JSON.stringify({
+					free: [
+						{
+							id: "cline-free/live-free-model",
+							name: "Live Free Model",
+						},
+					],
+					clineCloud: [
+						{
+							id: "cline-cloud/claude-sonnet-4.6",
+							name: "Claude Sonnet 4.6",
+						},
+					],
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline", undefined, {
+			loadLatest: true,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-cloud/claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+			}),
+		);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-free/live-free-model",
+				featured: expect.objectContaining({ tier: "free" }),
+			}),
+		);
+	});
+
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.dev/api.json") {
@@ -2013,6 +2058,47 @@ describe("listLocalProviders", () => {
 			enabled: true,
 			oauthAccessTokenPresent: true,
 		});
+	});
+
+	it("enables ClinePass from a Cline sign-in that never wrote a ClinePass entry", async () => {
+		// Desktop onboarding signs in as "cline" only; the shared credentials
+		// make ClinePass usable, so it must surface as enabled without its own
+		// providers.json entry.
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(manager.read().providers["cline-pass"]).toBeUndefined();
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			configured: true,
+			oauthAccessTokenPresent: true,
+		});
+	});
+
+	it("keeps ClinePass disabled when Cline has no entry", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass?.enabled).toBe(false);
 	});
 
 	it("exposes model count", async () => {

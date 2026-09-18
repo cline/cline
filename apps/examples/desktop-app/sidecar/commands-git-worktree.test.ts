@@ -39,7 +39,7 @@ afterEach(() => {
 
 async function run(cwd: string) {
 	return (await handleCommand(
-		{ workspaceRoot: cwd } as unknown as SidecarContext,
+		{} as unknown as SidecarContext,
 		"create_git_worktree",
 		{ cwd },
 	)) as { path: string; branch: string };
@@ -126,6 +126,7 @@ describe("delete_chat_session worktree cleanup", () => {
 		const events: Array<{ name: string; payload: unknown }> = [];
 		const ctx = {
 			liveSessions: new Map(),
+			sessionEnvironmentIds: new Map(),
 			wsClients: new Set([
 				{
 					send: (raw: string) => {
@@ -133,7 +134,19 @@ describe("delete_chat_session worktree cleanup", () => {
 					},
 				},
 			]),
-			sessionManager: { delete: async () => true },
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						kind: "local",
+						environmentId: "local",
+						sessionManager: {
+							get: async () => ({}),
+							delete: async () => true,
+						},
+					},
+				],
+			]),
 			logger: { log: vi.fn(), error: vi.fn(), debug: vi.fn() },
 		} as unknown as SidecarContext;
 		const deleted = await handleCommand(ctx, "delete_chat_session", {

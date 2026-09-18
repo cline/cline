@@ -201,6 +201,8 @@ export interface AgentToolContext {
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/** Override the runtime execution mode. Adjacent parallel calls may overlap; sequential calls form ordering boundaries. */
+	executionMode?: "sequential" | "parallel";
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
@@ -244,6 +246,13 @@ export interface AgentRuntimePrepareTurnContext {
 	 * compaction rather than trust its token estimates.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Input tokens the provider actually counted for the previous request this
+	 * run, when available. Compaction uses it as a floor on its char-based
+	 * estimate, which under-counts dense content (disassembly, image dumps) and
+	 * can otherwise let the real context grow past the window without triggering.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -315,6 +324,14 @@ export type AgentModelEvent =
 			reason: AgentModelFinishReason;
 			error?: string;
 			errorClass?: ProviderErrorClass;
+			/**
+			 * Whether the underlying provider error was transient and worth
+			 * retrying, decided at the model boundary from the AI SDK's typed
+			 * `isRetryable` flag while the structured error is still in hand
+			 * (`error` is a flattened string, so the agent loop cannot re-derive
+			 * this). When absent, the agent loop classifies from the message.
+			 */
+			errorRetryable?: boolean;
 			/**
 			 * The model layer already recorded `sdk.error` telemetry for this
 			 * failure at its own error boundary. `error` is a flattened string,

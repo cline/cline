@@ -4,7 +4,6 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
-	Bot,
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
@@ -14,9 +13,11 @@ import {
 	Import,
 	Loader2,
 	Mic,
+	Network,
 	PanelLeftOpen,
 	Pencil,
 	Pin,
+	Plug,
 	Plus,
 	Radio,
 	Search,
@@ -142,11 +143,12 @@ function hubPort(url: string | null): string | null {
 
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
-	Models: Bot,
+	"API Providers": Plug,
 	Voice: Mic,
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
+	Remote: Network,
 	Account: CircleUserRound,
 	Customize: Blocks,
 	Marketplace: Store,
@@ -659,7 +661,7 @@ export function AgentSidebar({
 	);
 	// A single click flips straight to the other mode (a dropdown here would
 	// cost an extra click for a two-option choice); the icon shows the mode
-	// that is currently active.
+	// the click switches to, not the one currently active.
 	const sortToggle = (
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
@@ -676,9 +678,9 @@ export function AgentSidebar({
 			variant="ghost"
 		>
 			{sortMode === "time" ? (
-				<Clock3 className="size-3.5" />
-			) : (
 				<FolderTree className="size-3.5" />
+			) : (
+				<Clock3 className="size-3.5" />
 			)}
 		</Button>
 	);

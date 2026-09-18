@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isClineAccountNotAuthenticatedResult } from "../webview/lib/cline-account-state";
 import type { SidecarContext } from "./types";
 
@@ -8,6 +11,12 @@ const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
 const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
+const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
+let testDataDir: string;
+
+vi.mock("./legacy-provider-credentials", () => ({
+	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
+}));
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -53,12 +62,23 @@ async function runClineAccountCommand(ctx: SidecarContext) {
 }
 
 beforeEach(() => {
+	// Account context is persisted across launches; never hydrate the developer's
+	// signed-in identity when a test expects an anonymous device identity.
+	testDataDir = mkdtempSync(join(tmpdir(), "commands-account-test-"));
+	vi.stubEnv("CLINE_DATA_DIR", testDataDir);
+	vi.stubEnv("CLINE_DIR", testDataDir);
 	clineAccountServiceCtorMock.mockReset();
 	executeClineAccountActionMock.mockReset();
 	getProviderSettingsMock.mockReset();
 	saveProviderSettingsMock.mockReset();
 	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
+	clearLegacyProviderCredentialsMock.mockReset();
+});
+
+afterEach(() => {
+	vi.unstubAllEnvs();
+	rmSync(testDataDir, { recursive: true, force: true });
 });
 
 describe("cline_account command auth states", () => {
@@ -128,9 +148,28 @@ describe("cline_account command auth states", () => {
 			getAuthToken: () => Promise<string | undefined>;
 		};
 		await expect(serviceOptions.getAuthToken()).resolves.toBe(
-			"persisted-token",
+			"workos:persisted-token",
 		);
 		expect(capture).not.toHaveBeenCalled();
+	});
+
+	it("reports signed out when the refresh token is rejected even though a stale access token is persisted", async () => {
+		// The stale token would only fail the account request with a 401,
+		// which rendered an error card whose Retry failed the same way.
+		const { ctx } = createContext();
+		const { OAuthReauthRequiredError } =
+			await vi.importActual<typeof import("@cline/core")>("@cline/core");
+		resolveProviderApiKeyMock.mockRejectedValue(
+			new OAuthReauthRequiredError("cline"),
+		);
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "persisted-token" },
+		});
+
+		const result = await runClineAccountCommand(ctx);
+
+		expect(isClineAccountNotAuthenticatedResult(result)).toBe(true);
+		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
 	});
 
 	it("reports one auth refresh soft-failure event when the refresh fails and no fallback token exists", async () => {
@@ -363,6 +402,31 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 				organization_id: undefined,
 			}),
 		);
+	});
+
+	it("signs out of the shared cline entry and legacy secrets when cline-pass is disabled", async () => {
+		const { ctx } = createContext();
+		getProviderSettingsMock.mockReturnValue(undefined);
+		saveProviderSettingsMock.mockImplementation(
+			(_manager: unknown, request: { providerId: string }) => ({
+				providerId: request.providerId,
+				enabled: false,
+				settingsPath: "/tmp/settings.json",
+			}),
+		);
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline-pass",
+			enabled: false,
+		});
+
+		// Cline Pass stores its credentials under "cline", so both entries go,
+		// and the legacy secrets are cleared for the storage provider.
+		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual([
+			expect.objectContaining({ providerId: "cline-pass", enabled: false }),
+			{ providerId: "cline", enabled: false },
+		]);
+		expect(clearLegacyProviderCredentialsMock).toHaveBeenCalledWith("cline");
 	});
 
 	it("ignores settings writes for other providers", async () => {

@@ -398,17 +398,17 @@ function generatedModels(providerId: string): Record<string, ModelInfo> {
 }
 
 function firstGeneratedModelId(providerId: string): string {
-	// Use the catalog's authored order, not release-date order. The cline-pass
-	// block mirrors the recommended-models endpoint, which lists the intended
-	// default subscription model first — the newest model is not necessarily a
-	// safe default.
+	// The generated list is release-date ordered and mixes tiers (cline-pass/*,
+	// cline-free/*, :free). Only a subscribed-tier model is a safe default;
+	// fall back to the first entry only when the catalog has none.
 	const generatedModelList = Object.keys(
 		getGeneratedModelsForProvider(providerId),
 	);
-	if (!generatedModelList.length) {
-		return "";
-	}
-	return generatedModelList[0];
+	return (
+		generatedModelList.find((id) => id.startsWith(`${providerId}/`)) ??
+		generatedModelList[0] ??
+		""
+	);
 }
 
 function pickAnthropicModel(match: (id: string) => boolean): ModelInfo {
@@ -518,7 +518,9 @@ function buildClineModels(): Record<string, ModelInfo> {
 	);
 
 	// Cline's inference backend currently rejects image-output models. Keep
-	// those models in their native OpenRouter and Vercel catalogs.
+	// those models in their native OpenRouter and Vercel catalogs. This filter
+	// is also applied to the merged runtime catalog in mergeKnownModels; remove
+	// both call sites together when the backend gains image-output support.
 	return filterImageOutputModels(models);
 }
 
@@ -582,6 +584,9 @@ function modelInfoToGateway(
 	}
 	if (typeof info.metadata?.reasoningDefaultOn === "boolean") {
 		metadata.reasoningDefaultOn = info.metadata.reasoningDefaultOn;
+	}
+	if (info.metadata?.apiProtocol) {
+		metadata.apiProtocol = info.metadata.apiProtocol;
 	}
 	return {
 		id: info.id,
@@ -760,6 +765,27 @@ const clinePass = createClineLikeSpec({
  */
 const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	{
+		// Keep the persisted provider ID and credentials compatible while the
+		// upstream catalog adopts the CoreWeave display name.
+		id: "wandb",
+		name: "CoreWeave",
+		description: "CoreWeave Serverless Inference",
+		docsUrl: "https://docs.wandb.ai/inference/",
+	},
+	{
+		id: "opencode-go",
+		docsUrl: "https://opencode.ai/docs/go/",
+		defaults: { headers: { "User-Agent": "Cline/SDK" } },
+		metadata: {
+			routing: { modelApiProtocol: true },
+			stickySession: {
+				transport: "header",
+				field: "x-opencode-session",
+				metadataKey: "sessionId",
+			},
+		},
+	},
+	{
 		id: "openai-compatible",
 		name: "OpenAI Compatible",
 		description: "OpenAI-compatible chat completions endpoint",
@@ -829,6 +855,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["SAMBANOVA_API_KEY"],
 		modelsProviderId: "sambanova",
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
+	},
+	{
+		id: "crusoe",
+		name: "Crusoe",
+		description: "Managed inference on renewable-powered GPU infrastructure",
+		family: "openai-compatible",
+		defaultModelId: "zai/GLM-5.2",
+		apiKeyEnv: ["CRUSOE_API_KEY"],
+		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
 		id: "litellm",

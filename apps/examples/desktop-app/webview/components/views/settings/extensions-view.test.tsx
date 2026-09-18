@@ -101,6 +101,51 @@ afterEach(async () => {
 });
 
 describe("CustomizationSectionView Agent Plugin inventory", () => {
+	it("toggles a plugin without expanding its row and disables the switch while saving", async () => {
+		let completeSave!: (response: unknown) => void;
+		const save = new Promise((resolve) => {
+			completeSave = resolve;
+		});
+		await act(async () => {
+			root.render(
+				<CustomizationSectionView
+					catalogPrimitive="plugin"
+					chrome="embedded"
+					marketplaceVariant="installed"
+					section="Plugins"
+				/>,
+			);
+		});
+		const toggle = container.querySelector<HTMLInputElement>(
+			'[role="switch"][aria-label="Toggle agent-plugins-example"]',
+		);
+		const details = toggle?.closest("details");
+		expect(toggle?.checked).toBe(true);
+		expect(details?.open).toBe(false);
+		invoke.mockClear();
+		invoke.mockReturnValueOnce(save);
+
+		await act(async () => toggle?.click());
+		expect(invoke).toHaveBeenCalledExactlyOnceWith("set_plugin_disabled", {
+			path: AGENT_PLUGIN.path,
+			disabled: true,
+		});
+		expect(toggle?.disabled).toBe(true);
+		expect(details?.open).toBe(false);
+		await act(async () => toggle?.click());
+		expect(invoke).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			completeSave({
+				workspaceRoot: "/workspace",
+				plugins: [{ ...AGENT_PLUGIN, enabled: false }],
+			});
+		});
+		expect(toggle?.checked).toBe(false);
+		expect(toggle?.disabled).toBe(false);
+		expect(details?.open).toBe(false);
+	});
+
 	it("shows Hub-managed Agent Plugins in the installed Plugins view", async () => {
 		await act(async () => {
 			root.render(
@@ -171,7 +216,7 @@ describe("tool state controls", () => {
 		});
 		await act(async () => {
 			container
-				.querySelector<HTMLButtonElement>('[aria-label="Toggle web_search"]')
+				.querySelector<HTMLInputElement>('[aria-label="Toggle web_search"]')
 				?.click();
 		});
 		expect(enabled).toBe(!initialEnabled);
@@ -180,9 +225,9 @@ describe("tool state controls", () => {
 			disabled: initialEnabled,
 		});
 		expect(
-			container
-				.querySelector('[aria-label="Toggle web_search"]')
-				?.getAttribute("aria-checked"),
-		).toBe(String(!initialEnabled));
+			container.querySelector<HTMLInputElement>(
+				'[aria-label="Toggle web_search"]',
+			)?.checked,
+		).toBe(!initialEnabled);
 	});
 });

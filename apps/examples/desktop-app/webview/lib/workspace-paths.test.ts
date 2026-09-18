@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	filterWorkspacePaths,
@@ -8,9 +10,12 @@ import {
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
 	parseWorkspaceSelectionStorage,
+	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
 	resolveWorkspaceFilePath,
+	WORKSPACE_SELECTION_STORAGE_KEY,
 	workspacePathsFromSessions,
+	writeWorkspaceSelectionToWindow,
 } from "./workspace-paths";
 
 describe("workspace paths", () => {
@@ -24,6 +29,10 @@ describe("workspace paths", () => {
 		expect(looksLikeFolderPath("my-project")).toBe(false);
 		expect(looksLikeFolderPath("search text")).toBe(false);
 		expect(looksLikeFolderPath("")).toBe(false);
+	});
+
+	afterEach(() => {
+		window.localStorage.clear();
 	});
 
 	it("normalizes trailing separators and Windows path casing", () => {
@@ -101,17 +110,33 @@ describe("workspace paths", () => {
 	});
 
 	it("orders the catalog by the most recent session in each workspace", () => {
-		const paths = workspacePathsFromSessions([
-			{ workspaceRoot: "/projects/old", startedAt: "2026-01-05T00:00:00Z" },
-			{
-				workspaceRoot: "/projects/active",
-				startedAt: "2026-02-01T00:00:00Z",
-				endedAt: "2026-02-01T01:00:00Z",
-			},
-			{ workspaceRoot: "/projects/old", startedAt: "2026-03-01T00:00:00Z" },
-			{ workspaceRoot: "/projects/mid", startedAt: "2026-02-15T00:00:00Z" },
-			{ workspaceRoot: "/projects/undated" },
-		]);
+		const paths = workspacePathsFromSessions(
+			[
+				{
+					workspaceRoot: "/projects/old",
+					startedAt: "2026-01-05T00:00:00Z",
+					environmentId: "local",
+				},
+				{
+					workspaceRoot: "/projects/active",
+					startedAt: "2026-02-01T00:00:00Z",
+					endedAt: "2026-02-01T01:00:00Z",
+					environmentId: "local",
+				},
+				{
+					workspaceRoot: "/projects/old",
+					startedAt: "2026-03-01T00:00:00Z",
+					environmentId: "local",
+				},
+				{
+					workspaceRoot: "/projects/mid",
+					startedAt: "2026-02-15T00:00:00Z",
+					environmentId: "local",
+				},
+				{ workspaceRoot: "/projects/undated", environmentId: "local" },
+			],
+			"local",
+		);
 
 		expect(paths).toEqual([
 			"/projects/old",
@@ -124,10 +149,14 @@ describe("workspace paths", () => {
 	it("builds the project catalog from every loaded history workspace", () => {
 		const sessions = Array.from({ length: 25 }, (_, index) => ({
 			workspaceRoot: `/projects/project-${String(index + 1).padStart(2, "0")}`,
+			environmentId: "local",
 		}));
-		sessions.push({ workspaceRoot: "/projects/project-01/" });
+		sessions.push({
+			workspaceRoot: "/projects/project-01/",
+			environmentId: "local",
+		});
 
-		const paths = workspacePathsFromSessions(sessions);
+		const paths = workspacePathsFromSessions(sessions, "local");
 
 		expect(paths).toHaveLength(25);
 		expect(paths).toContain("/projects/project-25");
@@ -137,17 +166,70 @@ describe("workspace paths", () => {
 		expect(
 			parseWorkspaceSelectionStorage(
 				JSON.stringify({
-					lastWorkspace: "/projects/selected/",
-					workspaces: ["/projects/one", "/projects/selected"],
+					environments: {
+						local: {
+							lastWorkspace: "/projects/selected/",
+							workspaces: ["/projects/one", "/projects/selected"],
+						},
+					},
 				}),
+				"local",
 			),
 		).toEqual({
 			lastWorkspace: "/projects/selected/",
 			workspaces: ["/projects/one", "/projects/selected"],
 		});
-		expect(parseWorkspaceSelectionStorage("not json")).toEqual({
+		expect(parseWorkspaceSelectionStorage("not json", "local")).toEqual({
 			lastWorkspace: "",
 			workspaces: [],
+		});
+	});
+
+	it("does not interpret path-only v1 data as an environment selection", () => {
+		expect(
+			parseWorkspaceSelectionStorage(
+				JSON.stringify({
+					lastWorkspace: "/projects/legacy",
+					workspaces: ["/projects/legacy"],
+				}),
+				"local",
+			),
+		).toEqual({ lastWorkspace: "", workspaces: [] });
+	});
+
+	it("reads and writes each environment without replacing the others", () => {
+		writeWorkspaceSelectionToWindow("local", {
+			lastWorkspace: "/Users/dev/local-app",
+			workspaces: ["/Users/dev/local-app"],
+		});
+		writeWorkspaceSelectionToWindow("pi-host", {
+			lastWorkspace: "/home/pi/remote-app",
+			workspaces: ["/home/pi/other-app", "/home/pi/remote-app"],
+		});
+
+		expect(readWorkspaceSelectionFromWindow("local")).toEqual({
+			lastWorkspace: "/Users/dev/local-app",
+			workspaces: ["/Users/dev/local-app"],
+		});
+		expect(readWorkspaceSelectionFromWindow("pi-host")).toEqual({
+			lastWorkspace: "/home/pi/remote-app",
+			workspaces: ["/home/pi/other-app", "/home/pi/remote-app"],
+		});
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY) ?? "{}",
+			),
+		).toEqual({
+			environments: {
+				local: {
+					lastWorkspace: "/Users/dev/local-app",
+					workspaces: ["/Users/dev/local-app"],
+				},
+				"pi-host": {
+					lastWorkspace: "/home/pi/remote-app",
+					workspaces: ["/home/pi/other-app", "/home/pi/remote-app"],
+				},
+			},
 		});
 	});
 
@@ -184,17 +266,25 @@ describe("workspace paths", () => {
 
 		expect(isExcludedWorkspacePath(temporaryWorkspace)).toBe(true);
 		expect(
-			workspacePathsFromSessions([
-				{ workspaceRoot: temporaryWorkspace },
-				{ workspaceRoot: "/projects/app" },
-			]),
+			workspacePathsFromSessions(
+				[
+					{ workspaceRoot: temporaryWorkspace, environmentId: "local" },
+					{ workspaceRoot: "/projects/app", environmentId: "local" },
+				],
+				"local",
+			),
 		).toEqual(["/projects/app"]);
 		expect(
 			parseWorkspaceSelectionStorage(
 				JSON.stringify({
-					lastWorkspace: temporaryWorkspace,
-					workspaces: [temporaryWorkspace, "/projects/app"],
+					environments: {
+						local: {
+							lastWorkspace: temporaryWorkspace,
+							workspaces: [temporaryWorkspace, "/projects/app"],
+						},
+					},
 				}),
+				"local",
 			),
 		).toEqual({
 			lastWorkspace: "",
@@ -245,13 +335,19 @@ describe("workspace paths", () => {
 	});
 
 	it("filters excluded paths out of session-derived workspaces", () => {
-		const paths = workspacePathsFromSessions([
-			{ workspaceRoot: "/projects/app" },
-			{ workspaceRoot: "/Users/beatrix/.cline/worktrees/97815/sdk-wip" },
-			{ cwd: "/Users/beatrix/Desktop" },
-			{ cwd: "/Users/beatrix" },
-			{ cwd: "/projects/tool" },
-		]);
+		const paths = workspacePathsFromSessions(
+			[
+				{ workspaceRoot: "/projects/app", environmentId: "local" },
+				{
+					workspaceRoot: "/Users/beatrix/.cline/worktrees/97815/sdk-wip",
+					environmentId: "local",
+				},
+				{ cwd: "/Users/beatrix/Desktop", environmentId: "local" },
+				{ cwd: "/Users/beatrix", environmentId: "local" },
+				{ cwd: "/projects/tool", environmentId: "local" },
+			],
+			"local",
+		);
 
 		expect(paths).toEqual(["/projects/app", "/projects/tool"]);
 	});
@@ -260,13 +356,18 @@ describe("workspace paths", () => {
 		expect(
 			parseWorkspaceSelectionStorage(
 				JSON.stringify({
-					lastWorkspace: "/Users/beatrix/Desktop",
-					workspaces: [
-						"/projects/one",
-						"/Users/beatrix/.cline/worktrees/5e0b3/sdk-wip",
-						"/Users/beatrix",
-					],
+					environments: {
+						local: {
+							lastWorkspace: "/Users/beatrix/Desktop",
+							workspaces: [
+								"/projects/one",
+								"/Users/beatrix/.cline/worktrees/5e0b3/sdk-wip",
+								"/Users/beatrix",
+							],
+						},
+					},
 				}),
+				"local",
 			),
 		).toEqual({
 			lastWorkspace: "/Users/beatrix/Desktop",
@@ -275,5 +376,43 @@ describe("workspace paths", () => {
 		expect(
 			filterWorkspacePaths(["/projects/one", "/Users/beatrix/Desktop"]),
 		).toEqual(["/projects/one"]);
+	});
+
+	it("scopes stored and session-derived workspaces by environment", () => {
+		const raw = JSON.stringify({
+			environments: {
+				local: {
+					lastWorkspace: "/Users/dev/local-app",
+					workspaces: ["/Users/dev/local-app"],
+				},
+				"pi-host": {
+					lastWorkspace: "/home/pi/remote-app",
+					workspaces: ["/home/pi/remote-app"],
+				},
+			},
+		});
+
+		expect(parseWorkspaceSelectionStorage(raw, "local").workspaces).toEqual([
+			"/Users/dev/local-app",
+		]);
+		expect(parseWorkspaceSelectionStorage(raw, "pi-host").workspaces).toEqual([
+			"/home/pi/remote-app",
+		]);
+		expect(
+			workspacePathsFromSessions(
+				[
+					{ workspaceRoot: "/Users/dev/local-app", environmentId: "local" },
+					{
+						workspaceRoot: "/home/pi/remote-app",
+						environmentId: "pi-host",
+					},
+					{
+						workspaceRoot: "/home/other/app",
+						environmentId: "other-host",
+					},
+				],
+				"pi-host",
+			),
+		).toEqual(["/home/pi/remote-app"]);
 	});
 });

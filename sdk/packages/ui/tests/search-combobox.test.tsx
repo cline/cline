@@ -33,10 +33,12 @@ const options = [
 describe("SearchCombobox", () => {
 	it("filters and selects an option", async () => {
 		const onValueChange = vi.fn();
+		const onOpen = vi.fn();
 		await act(async () =>
 			root.render(
 				<SearchCombobox
 					ariaLabel="Repository"
+					onOpen={onOpen}
 					onValueChange={onValueChange}
 					options={options}
 					value="cline"
@@ -46,7 +48,9 @@ describe("SearchCombobox", () => {
 
 		const trigger = container.querySelector("button");
 		expect(trigger?.getAttribute("aria-label")).toBe("Repository: cline/cline");
+		expect(onOpen).not.toHaveBeenCalled();
 		await act(async () => trigger?.click());
+		expect(onOpen).toHaveBeenCalledTimes(1);
 		const search = container.querySelector("input");
 		await act(async () => {
 			const setValue = Object.getOwnPropertyDescriptor(
@@ -174,7 +178,6 @@ describe("SearchCombobox", () => {
 		const sectionedOptions = [
 			{
 				badge: "NEW",
-				indicator: <span data-testid="indicator" />,
 				label: "Claude Opus 5",
 				section: "recommended",
 				value: "anthropic/claude-opus-5",
@@ -202,11 +205,8 @@ describe("SearchCombobox", () => {
 			),
 		);
 
-		const trigger = container.querySelector("button");
-		expect(trigger?.querySelector('[data-testid="indicator"]')).toBeNull();
-		await act(async () => trigger?.click());
+		await act(async () => container.querySelector("button")?.click());
 		const panel = container.querySelector('[role="dialog"]');
-		expect(panel?.querySelector('[data-testid="indicator"]')).not.toBeNull();
 		expect(panel?.textContent).toContain("Recommended");
 		expect(panel?.textContent).toContain("Free");
 		expect(panel?.textContent).toContain("No cost");

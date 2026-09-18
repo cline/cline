@@ -1232,9 +1232,12 @@ describe("LocalRuntimeHost", () => {
 		// Seeded history is durable immediately: if the resident session is
 		// lost before the first completed turn (hub restart/crash), the
 		// missing-session recovery rebuilds from the persisted file instead of
-		// silently wiping the conversation.
+		// silently wiping the conversation. The row must also carry the live
+		// "idle" status: the service defaults to "running", and a checkpoint
+		// restore that reuses this id resumes from the persisted manifest, so
+		// a stale "running" would surface as a turn that never existed.
 		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
-			expect.objectContaining({ sessionId }),
+			expect.objectContaining({ sessionId, status: "idle" }),
 		);
 		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
 			sessionId,
@@ -2763,6 +2766,7 @@ describe("LocalRuntimeHost", () => {
 			run,
 			continue: continueFn,
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -2840,6 +2844,7 @@ describe("LocalRuntimeHost", () => {
 			run: vi.fn().mockResolvedValue(createResult()),
 			continue: vi.fn().mockResolvedValue(createResult()),
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -2915,6 +2920,7 @@ describe("LocalRuntimeHost", () => {
 			run: vi.fn().mockResolvedValue(createResult()),
 			continue: vi.fn().mockResolvedValue(createResult()),
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(false),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
@@ -2949,6 +2955,8 @@ describe("LocalRuntimeHost", () => {
 				delivery: "steer",
 			}),
 		).resolves.toBeUndefined();
+
+		expect(agent.notifyPendingUserMessage).toHaveBeenCalledOnce();
 
 		const consumed = await Promise.resolve(
 			agentConfig?.consumePendingUserMessage?.(),
@@ -3024,6 +3032,7 @@ describe("LocalRuntimeHost", () => {
 			run,
 			continue: continueTurn,
 			abort: vi.fn(),
+			notifyPendingUserMessage: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -5019,6 +5028,7 @@ describe("LocalRuntimeHost", () => {
 					continue: continueFn,
 					canStartRun: vi.fn(() => canStartRun),
 					abort: vi.fn(),
+					notifyPendingUserMessage: vi.fn(),
 					subscribeEvents: vi.fn().mockReturnValue(() => {}),
 					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -5321,6 +5331,7 @@ describe("LocalRuntimeHost", () => {
 					continue: vi.fn().mockResolvedValue(createResult({ text: "next" })),
 					canStartRun: vi.fn(() => false),
 					abort: vi.fn(),
+					notifyPendingUserMessage: vi.fn(),
 					subscribeEvents: vi.fn().mockReturnValue(() => {}),
 					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
