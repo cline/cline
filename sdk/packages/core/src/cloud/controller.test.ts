@@ -46,7 +46,9 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		delete: vi.fn(async () => {}),
 		updateTitle: vi.fn(async () => structuredClone(record)),
 		history: vi.fn(async () => null),
-		waitUntilReady: vi.fn(async () => {}),
+		waitUntilReady: vi.fn(
+			async (_sessionId: string, _signal: AbortSignal) => {},
+		),
 		listRepositories: vi.fn(async () => ({
 			connected: true,
 			connectUrl: "",
