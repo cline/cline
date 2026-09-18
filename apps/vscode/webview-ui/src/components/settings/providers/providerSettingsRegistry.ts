@@ -68,6 +68,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	"huawei-cloud-maas": {
 		signupUrl: "https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
 	},
+	melious: {
+		signupUrl: "https://melious.ai/account/api/keys",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "https://api.melious.ai/v1",
+		},
+	},
 	minimax: {
 		signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
 		baseUrlField: {
@@ -159,6 +166,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	doubao: "Doubao",
 	gemini: "Gemini",
 	"huawei-cloud-maas": "Huawei Cloud MaaS",
+	melious: "Melious",
 	minimax: "MiniMax",
 	mistral: "Mistral",
 	nousResearch: "NousResearch",
