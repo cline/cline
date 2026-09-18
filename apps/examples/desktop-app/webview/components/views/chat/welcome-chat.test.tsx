@@ -348,8 +348,6 @@ describe("WelcomeScreen", () => {
 			...cloudProps,
 		});
 
-		// Pick the new-org repository from the picker (whose fetch is scoped
-		// to the new org).
 		await clickButton("Select repository");
 		await act(async () => {
 			await Promise.resolve();
