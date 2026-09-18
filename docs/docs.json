@@ -9,13 +9,13 @@
 		"dark": "#000000"
 	},
 	"logo": {
-		"light": "/assets/Cline_Logo-complete_black.png",
-		"dark": "/assets/Cline_Logo-complete_white.png",
+		"light": "/assets/cline-wordmark-black.svg",
+		"dark": "/assets/cline-wordmark-white.svg",
 		"href": "https://cline.bot/"
 	},
 	"favicon": {
-		"light": "/assets/robot_panel_light.png",
-		"dark": "/assets/robot_panel_dark.png"
+		"light": "/assets/cline-icon-dark.svg",
+		"dark": "/assets/cline-icon-white.svg"
 	},
 	"background": {
 		"color": {
