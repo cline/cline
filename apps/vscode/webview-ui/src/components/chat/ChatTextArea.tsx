@@ -1690,23 +1690,49 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
-						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => (
-									<div
-										aria-checked={mode === m.toLowerCase()}
-										className={cn(
-											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
-										)}
-										key={m}
-										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
-										{m}
-									</div>
-								))}
+						<TooltipTrigger asChild>
+							<SwitchContainer
+								aria-label="Plan or Act mode"
+								data-testid="mode-switch"
+								disabled={false}
+								onClick={onModeToggle}
+								role="radiogroup">
+								<Slider aria-hidden="true" isAct={mode === "act"} isPlan={mode === "plan"} />
+								{["Plan", "Act"].map((m) => {
+									const isSelected = mode === m.toLowerCase()
+									const tooltipMode = m.toLowerCase() === "plan" ? "plan" : "act"
+									return (
+										<div
+											aria-checked={isSelected}
+											aria-label={`${m} mode`}
+											className={cn(
+												"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
+												isSelected ? "text-white" : "text-input-foreground",
+											)}
+											key={m}
+											onBlur={() => setShownTooltipMode(null)}
+											onClick={(e) => {
+												e.stopPropagation()
+												if (!isSelected) {
+													onModeToggle()
+												}
+											}}
+											onFocus={() => setShownTooltipMode(tooltipMode)}
+											onKeyDown={(e) => {
+												if (!isSelected && (e.key === "Enter" || e.key === " ")) {
+													e.preventDefault()
+													e.stopPropagation()
+													onModeToggle()
+												}
+											}}
+											onMouseLeave={() => setShownTooltipMode(null)}
+											onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+											role="radio"
+											tabIndex={isSelected ? 0 : -1}>
+											{m}
+										</div>
+									)
+								})}
 							</SwitchContainer>
 						</TooltipTrigger>
 					</Tooltip>
