@@ -6,6 +6,7 @@ import type { JsonRecord } from "../types";
 import {
 	compareSessionRecordsByStartedAtDesc,
 	derivePromptFromMessages,
+	parseTimestamp,
 	resolveSessionListTitle,
 } from "./common";
 import { readPersistedChatMessages } from "./messages";
@@ -163,7 +164,7 @@ export function mergeDiscoveredSessionLists(
 	cli: unknown[],
 	limit: number,
 ): unknown[] {
-	const merged = new Map<string, unknown>();
+	const merged = new Map<string, JsonRecord>();
 	for (const item of [...chat, ...cli]) {
 		if (!item || typeof item !== "object") {
 			continue;
@@ -192,12 +193,20 @@ export function mergeDiscoveredSessionLists(
 				"",
 		});
 	}
+	const activityTime = (record: JsonRecord) =>
+		Math.max(
+			...[
+				record.lastActivityAt,
+				record.updatedAt,
+				record.endedAt,
+				record.startedAt,
+			].map((value) => parseTimestamp(value as string | number | undefined)),
+		);
 	return Array.from(merged.values())
-		.sort((left, right) =>
-			compareSessionRecordsByStartedAtDesc(
-				left as JsonRecord,
-				right as JsonRecord,
-			),
+		.sort(
+			(left, right) =>
+				activityTime(right) - activityTime(left) ||
+				compareSessionRecordsByStartedAtDesc(left, right),
 		)
 		.slice(0, limit);
 }
