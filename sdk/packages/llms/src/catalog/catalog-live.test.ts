@@ -1143,6 +1143,9 @@ describe("models-dev-catalog", () => {
 		expect(fetcher).toHaveBeenCalledWith("https://models.dev/api.json");
 		expect(fetcher).toHaveBeenCalledWith(
 			"https://api.cline.bot/api/v1/ai/cline/recommended-models",
+			expect.objectContaining({
+				headers: expect.objectContaining({ "X-CLIENT-TYPE": "cline-sdk" }),
+			}),
 		);
 		expect(result.openrouter).toHaveProperty("vendor/live-base-model");
 		expect(result["cline-pass"]?.["cline-pass/live-base-model"]).toMatchObject({

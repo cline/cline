@@ -12,6 +12,7 @@ const ALL_SETTINGS_SECTIONS = [
 	"Channels",
 	"Schedules",
 	"Import",
+	"Remote",
 	"Account",
 ] as const;
 
