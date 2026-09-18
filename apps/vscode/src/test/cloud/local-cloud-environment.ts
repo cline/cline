@@ -231,7 +231,8 @@ export async function startLocalCloudEnvironment(
 			}
 			return json(res, 405, { error: "Method not allowed" })
 		} catch (error) {
-			json(res, 500, { error: error instanceof Error ? error.message : String(error) })
+			console.error("Local cloud fixture request failed:", error)
+			json(res, 500, { error: "Local cloud fixture request failed" })
 		}
 	})
 	server.on("connection", (socket) => {
