@@ -148,6 +148,66 @@ describe("resolveProviderRequestHeaders", () => {
 		).toEqual({ "x-session": "session" });
 	});
 
+	it("adds x-litellm-trace-id from the request-scoped sessionId for openai-compatible", () => {
+		expect(
+			resolveProviderRequestHeaders({
+				providerId: "openai-compatible",
+				sessionId: "session-a",
+				defaultSource: "cli",
+				coreVersion: "0.2.0",
+			}),
+		).toEqual({ "x-litellm-trace-id": "session-a" });
+	});
+
+	it("keeps per-terminal correlation when openai-compatible sessions interleave", () => {
+		for (const sessionId of ["session-a", "session-b", "session-a"]) {
+			expect(
+				resolveProviderRequestHeaders({
+					providerId: "openai-compatible",
+					sessionId,
+					defaultSource: "cli",
+					coreVersion: "0.2.0",
+				}),
+			).toEqual({ "x-litellm-trace-id": sessionId });
+		}
+	});
+
+	it("does not send x-litellm-trace-id for other providers", () => {
+		expect(
+			resolveProviderRequestHeaders({
+				providerId: "anthropic",
+				sessionId: "session-a",
+				defaultSource: "cli",
+				coreVersion: "0.2.0",
+				headers: {
+					stored: { "x-stored": "stored" },
+				},
+			}),
+		).toEqual({ "x-stored": "stored" });
+	});
+
+	it("never lets stored, config, or session layers override the openai-compatible trace id", () => {
+		expect(
+			resolveProviderRequestHeaders({
+				providerId: "openai-compatible",
+				sessionId: "session-b",
+				defaultSource: "cli",
+				coreVersion: "0.2.0",
+				headers: {
+					stored: {
+						"x-litellm-trace-id": "stale-stored",
+						"x-stored": "kept",
+					},
+					config: { "x-litellm-trace-id": "stale-config" },
+					session: { "x-litellm-trace-id": "stale-session" },
+				},
+			}),
+		).toEqual({
+			"x-litellm-trace-id": "session-b",
+			"x-stored": "kept",
+		});
+	});
+
 	it("identifies Go conversations and the client while preserving custom headers", () => {
 		for (const sessionId of ["conversation-a", "conversation-b"]) {
 			expect(
