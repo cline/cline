@@ -1,11 +1,13 @@
 name: desktop-publish
 
+# Like ext-vscode-publish-nightly, nightlies are manually dispatched because
+# PublishDesktop requires approval. Dispatch from main with channel=nightly.
 on:
   workflow_dispatch:
     inputs:
       git_tag:
-        description: "Existing release tag to publish, for example desktop-v0.1.0"
-        required: true
+        description: "Existing stable/beta tag; leave empty for nightly"
+        required: false
         type: string
       confirm_publish:
         description: 'Type "publish" to confirm the desktop release.'
@@ -18,7 +20,12 @@ on:
         options:
           - stable
           - beta
+          - nightly
         default: stable
+
+concurrency:
+  group: desktop-publish-${{ inputs.channel }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -32,10 +39,12 @@ jobs:
     name: Validate release tag
     if: |
       github.repository == 'cline/cline' &&
+      github.ref == 'refs/heads/main' &&
       github.event.inputs.confirm_publish == 'publish' &&
       !endsWith(github.actor, '[bot]')
     runs-on: ubuntu-latest
     outputs:
+      ref: ${{ steps.version.outputs.ref }}
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       channel: ${{ steps.version.outputs.channel }}
@@ -84,7 +93,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.git_tag }}
+          ref: ${{ inputs.channel == 'nightly' && github.sha || inputs.git_tag }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -103,6 +112,22 @@ jobs:
           # manifest landing on desktop-latest would auto-update every stable
           # install onto the beta. The stable regex rejects prerelease
           # suffixes for the same reason.
+          if [ "$CHANNEL" = "nightly" ]; then
+            if [ -n "$TAG" ]; then
+              echo "nightly generates its own tag; leave git_tag empty"
+              exit 1
+            fi
+            BASE=$(node -p "require('./apps/examples/desktop-app/package.json').version.split('-')[0]")
+            VERSION="${BASE}-nightly.$(date -u +%Y%m%d%H%M%S).${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+            echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "tag=desktop-v${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "channel=nightly" >> "$GITHUB_OUTPUT"
+            echo "feed=desktop-nightly" >> "$GITHUB_OUTPUT"
+            echo "product=Cline Nightly" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           case "$CHANNEL" in
             stable)
               if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -155,6 +180,7 @@ jobs:
             exit 1
           fi
 
+          echo "ref=${HEAD_COMMIT}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "channel=${CHANNEL}" >> "$GITHUB_OUTPUT"
@@ -237,7 +263,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.validate.outputs.tag }}
+          ref: ${{ needs.validate.outputs.ref }}
+
+      - name: Stamp nightly version
+        if: needs.validate.outputs.channel == 'nightly'
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          for (const file of ['apps/examples/desktop-app/package.json', 'apps/examples/desktop-app/src-tauri/tauri.conf.json']) {
+            const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+            config.version = process.env.VERSION;
+            fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          }
+          JS
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -292,7 +333,7 @@ jobs:
         # deliberately unquoted: it must word-split into separate flags.
         run: bunx tauri build --target universal-apple-darwin $CONFIG_ARGS
         env:
-          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
+          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
           # Telemetry config for the sidecar binary. Tauri's beforeBuildCommand
           # (`bun run build` -> build:sidecar:bin) compiles the sidecar during
           # this step and inlines these values into the binary via `--define`
@@ -369,11 +410,15 @@ jobs:
           case "$CHANNEL" in
             stable)
               WANT="releases/download/desktop-latest/latest.json"
-              FORBID="releases/download/desktop-beta/latest.json"
+              FORBID="releases/download/desktop-(beta|nightly)/latest.json"
               ;;
             beta)
               WANT="releases/download/desktop-beta/latest.json"
-              FORBID="releases/download/desktop-latest/latest.json"
+              FORBID="releases/download/desktop-(latest|nightly)/latest.json"
+              ;;
+            nightly)
+              WANT="releases/download/desktop-nightly/latest.json"
+              FORBID="releases/download/desktop-(latest|beta)/latest.json"
               ;;
             *)
               echo "unknown channel: ${CHANNEL}"
@@ -386,7 +431,7 @@ jobs:
           # pipefail.
           found=0
           for bin in "$APP/Contents/MacOS/"*; do
-            if strings -a "$bin" | grep "$FORBID" >/dev/null; then
+            if strings -a "$bin" | grep -E "$FORBID" >/dev/null; then
               echo "$bin embeds the other channel's feed URL (${FORBID})"
               exit 1
             fi
@@ -528,7 +573,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ needs.validate.outputs.tag }}
+          ref: ${{ needs.validate.outputs.ref }}
+
+      - name: Stamp nightly version
+        if: needs.validate.outputs.channel == 'nightly'
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          for (const file of ['apps/examples/desktop-app/package.json', 'apps/examples/desktop-app/src-tauri/tauri.conf.json']) {
+            const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+            config.version = process.env.VERSION;
+            fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          }
+          JS
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -631,7 +691,7 @@ jobs:
         # deliberately unquoted: it must word-split into separate flags.
         run: bunx tauri build --bundles nsis $CONFIG_ARGS --config "$SIGN_CONF"
         env:
-          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
+          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
           # Telemetry inlined into the sidecar at compile time, same as macOS.
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
@@ -663,11 +723,15 @@ jobs:
           case "$CHANNEL" in
             stable)
               WANT="releases/download/desktop-latest/latest.json"
-              FORBID="releases/download/desktop-beta/latest.json"
+              FORBID="releases/download/desktop-(beta|nightly)/latest.json"
               ;;
             beta)
               WANT="releases/download/desktop-beta/latest.json"
-              FORBID="releases/download/desktop-latest/latest.json"
+              FORBID="releases/download/desktop-(latest|nightly)/latest.json"
+              ;;
+            nightly)
+              WANT="releases/download/desktop-nightly/latest.json"
+              FORBID="releases/download/desktop-(latest|beta)/latest.json"
               ;;
             *)
               echo "unknown channel: ${CHANNEL}"
@@ -677,7 +741,7 @@ jobs:
 
           found=0
           for bin in src-tauri/target/release/*.exe; do
-            if grep -a "$FORBID" "$bin" >/dev/null; then
+            if grep -aE "$FORBID" "$bin" >/dev/null; then
               echo "$bin embeds the other channel's feed URL (${FORBID})"
               exit 1
             fi
@@ -782,7 +846,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.validate.outputs.tag }}
+          ref: ${{ needs.validate.outputs.ref }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -801,12 +865,17 @@ jobs:
         id: changelog
         env:
           VERSION: ${{ needs.validate.outputs.version }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
         run: |
           # Grab content between this release's "## <version>" header and the
           # next one. Exact match, not "first section": once main and
           # desktop-experimental cross-merge, stable and beta sections
           # interleave and the top section may belong to the other channel.
-          CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
+          if [ "$CHANNEL" = "nightly" ]; then
+            CONTENT="Nightly build from main at $(git rev-parse HEAD)."
+          else
+            CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
+          fi
           if [ -z "$CONTENT" ]; then
             echo "No '## ${VERSION}' section found in apps/examples/desktop-app/CHANGELOG.md"
             exit 1
@@ -860,15 +929,15 @@ jobs:
       - name: Get Previous Desktop Tag
         id: prev_tag
         env:
-          CURRENT_TAG: ${{ needs.validate.outputs.tag }}
+          SOURCE_REF: ${{ needs.validate.outputs.ref }}
           CHANNEL: ${{ needs.validate.outputs.channel }}
         run: |
           # Stable compare links skip beta tags so they read stable -> stable;
           # beta compares against whatever shipped last on either channel.
           if [ "$CHANNEL" = "stable" ]; then
-            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --exclude 'desktop-v*-beta*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --exclude 'desktop-v*-*' "$SOURCE_REF^" 2>/dev/null || echo "")
           else
-            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' "$SOURCE_REF^" 2>/dev/null || echo "")
           fi
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
@@ -876,11 +945,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
+          target_commitish: ${{ needs.validate.outputs.ref }}
           name: "Desktop v${{ needs.validate.outputs.version }}"
           # The repo-wide "latest" release stays owned by CLI releases; the
           # desktop auto-update feed is the rolling desktop-latest release.
           make_latest: "false"
-          prerelease: ${{ needs.validate.outputs.channel == 'beta' }}
+          prerelease: ${{ needs.validate.outputs.channel != 'stable' }}
           files: dist/desktop/*
           body: |
             ${{ steps.changelog.outputs.content }}
@@ -904,6 +974,7 @@ jobs:
           case "$CHANNEL" in
             stable) EXPECTED_FEED=desktop-latest ;;
             beta) EXPECTED_FEED=desktop-beta ;;
+            nightly) EXPECTED_FEED=desktop-nightly ;;
             *)
               echo "unknown channel: ${CHANNEL}"
               exit 1
@@ -915,10 +986,10 @@ jobs:
           fi
 
           if ! gh release view "$FEED" >/dev/null 2>&1; then
-            if [ "$CHANNEL" = "beta" ]; then
+            if [ "$CHANNEL" != "stable" ]; then
               gh release create "$FEED" \
-                --title "Cline desktop beta (auto-update feed)" \
-                --notes "Rolling release backing the beta desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z-beta.N release. Only beta installs poll this feed; stable installs use desktop-latest. Do not delete." \
+                --title "Cline desktop ${CHANNEL} (auto-update feed)" \
+                --notes "Rolling release backing the ${CHANNEL} desktop app auto-updater. Only ${CHANNEL} installs poll this feed. Do not delete." \
                 --latest=false \
                 --prerelease \
                 --target "$(git rev-parse HEAD)"
@@ -943,6 +1014,7 @@ jobs:
           echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
 
       - name: Post release to Slack
+        if: needs.validate.outputs.channel != 'nightly'
         uses: slackapi/slack-github-action@v3.0.1
         with:
           method: chat.postMessage

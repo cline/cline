@@ -1,0 +1,12 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Cline Nightly",
+	"identifier": "bot.cline.app.nightly",
+	"plugins": {
+		"updater": {
+			"endpoints": [
+				"https://github.com/cline/cline/releases/download/desktop-nightly/latest.json"
+			]
+		}
+	}
+}
