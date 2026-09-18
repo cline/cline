@@ -337,6 +337,9 @@ export function cloudHandoffUiReducer(
 			return next;
 		}
 		case "dismiss_recovery":
+			if (current?.status === "complete" || current?.status === "progress") {
+				return state;
+			}
 			return {
 				...state,
 				[action.sourceSessionId]: {

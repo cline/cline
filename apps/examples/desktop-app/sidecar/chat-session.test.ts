@@ -2502,6 +2502,75 @@ describe("cloud handoff gates", () => {
 		await sending;
 	});
 
+	it("rejects handoff while the source workspace is being restored", async () => {
+		const { ctx, readLiveMessages, sessionId } = createHandoffGateContext({
+			busy: false,
+		});
+		ctx.restoringWorkspacePaths.add("/workspace/project");
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Wait for the workspace restore to finish");
+		expect(readLiveMessages).not.toHaveBeenCalled();
+	});
+
+	it("does not begin a restore after handoff starts during its initial read", async () => {
+		const { ctx, get, persistedSession, sessionId } =
+			createHandoffGateContext({ busy: false });
+		let releaseRestoreRead:
+			| ((value: typeof persistedSession) => void)
+			| undefined;
+		let releaseHandoffGate:
+			| ((value: typeof persistedSession) => void)
+			| undefined;
+		get
+			.mockImplementationOnce(
+				async () =>
+					await new Promise<typeof persistedSession>((resolve) => {
+						releaseRestoreRead = resolve;
+					}),
+			)
+			.mockImplementationOnce(
+				async () =>
+					await new Promise<typeof persistedSession>((resolve) => {
+						releaseHandoffGate = resolve;
+					}),
+			);
+		const restore = vi.fn();
+		(ctx.sessionManager as { restore?: typeof restore }).restore = restore;
+
+		const restoring = handleChatSessionCommand(ctx, {
+			action: "restore_checkpoint",
+			sessionId,
+			checkpointRunCount: 1,
+			config: { cwd: "/workspace/project" },
+		});
+		await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
+		const handingOff = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+		await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+
+		releaseRestoreRead?.(persistedSession);
+		await expect(restoring).rejects.toThrow(
+			"Wait for the cloud handoff to finish before restoring a checkpoint",
+		);
+		expect(restore).not.toHaveBeenCalled();
+
+		releaseHandoffGate?.(persistedSession);
+		await expect(handingOff).rejects.toThrow();
+	});
+
 	it("trusts an authoritative idle live session over a legacy running record", async () => {
 		const { ctx, sessionId } = createHandoffGateContext({
 			busy: false,
