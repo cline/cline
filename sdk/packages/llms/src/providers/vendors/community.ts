@@ -11,6 +11,31 @@ import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
+// @sap-cloud-sdk/util, pulled in by the SAP provider, builds a winston logger
+// with `exceptionHandlers` at module load. That installs a process-wide
+// "uncaughtException" listener which, with winston's default exitOnError,
+// calls process.exit(1) three seconds after ANY uncaught exception in the host
+// process -- including ones the host's own handler already caught and chose to
+// survive. Libraries must never own process lifecycle (see
+// stripRogueSignalHandlers below). The SDK's disableExceptionLogger() is not
+// enough: @jerome-benoit/sap-ai-provider bundles a second, private copy of the
+// util module that no import can reach. winston registers its catchers as
+// `this._uncaughtException.bind(this)` / `this._unhandledRejection.bind(this)`,
+// so match them by that name and remove every instance.
+function stripWinstonProcessCatchers(): void {
+	for (const listener of process.listeners("uncaughtException")) {
+		if (listener.name === "bound _uncaughtException") {
+			process.removeListener("uncaughtException", listener);
+		}
+	}
+	for (const listener of process.listeners("unhandledRejection")) {
+		if (listener.name === "bound _unhandledRejection") {
+			process.removeListener("unhandledRejection", listener);
+		}
+	}
+}
+stripWinstonProcessCatchers();
+
 type SapModel = Record<PropertyKey, unknown>;
 const SAP_SERVICE_KEY_METHODS = new Set<PropertyKey>([
 	"doGenerate",
@@ -392,6 +417,9 @@ export async function createSapAiCoreProviderModule(
 			maxContentLength: Number.POSITIVE_INFINITY,
 		},
 	});
+	// The SAP SDK loads parts of itself lazily; make sure nothing it pulled in
+	// while building the provider re-armed an exit-on-uncaught handler.
+	stripWinstonProcessCatchers();
 	return {
 		operations: {
 			language: (modelId) =>
