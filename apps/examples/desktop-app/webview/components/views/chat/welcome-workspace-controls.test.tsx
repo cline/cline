@@ -48,6 +48,23 @@ async function click(target: HTMLElement) {
 	});
 }
 
+function mockIntersectionObserver() {
+	const observer: {
+		callback?: (entries: IntersectionObserverEntry[]) => void;
+	} = {};
+	vi.stubGlobal(
+		"IntersectionObserver",
+		class {
+			constructor(listener: (entries: IntersectionObserverEntry[]) => void) {
+				observer.callback = listener;
+			}
+			observe() {}
+			disconnect() {}
+		},
+	);
+	return observer;
+}
+
 function renderControls(
 	overrides: Partial<ComponentProps<typeof WelcomeWorkspaceControls>> = {},
 ) {
@@ -217,19 +234,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		["deleted", true, false],
 		["feature/keep", false, true],
 	] as const)("reconciles selection after all browse pages for %s (fallback=%s, unavailable=%s)", async (selectedBranch, shouldFallback, unavailable) => {
-		let intersectionCallback:
-			| ((entries: IntersectionObserverEntry[]) => void)
-			| undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersectionCallback = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		const onCloudBranchChange = vi.fn();
 		const onListCloudBranches = vi.fn(
 			async (_id: number, options?: { cursor?: string }) =>
@@ -251,9 +256,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		);
 		expect(onCloudBranchChange).not.toHaveBeenCalled();
 		await click(button(selectedBranch));
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () =>
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]),
 		);
@@ -282,17 +287,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 	});
 
 	it("ignores a pending branch page after switching repositories", async () => {
-		let intersect: ((entries: IntersectionObserverEntry[]) => void) | undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersect = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		let releasePage: (() => void) | undefined;
 		const onCloudBranchChange = vi.fn();
 		const props = renderControls({
@@ -340,7 +335,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		});
 		await click(button("deleted"));
 		await act(async () =>
-			intersect?.([{ isIntersecting: true } as IntersectionObserverEntry]),
+			observer.callback?.([{ isIntersecting: true } as IntersectionObserverEntry]),
 		);
 		expect(releasePage).toBeDefined();
 		await click(button("cline/cline"));
@@ -402,19 +397,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 	});
 
 	it("ignores a pending page from an invalidated browse request", async () => {
-		let intersectionCallback:
-			| ((entries: IntersectionObserverEntry[]) => void)
-			| undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersectionCallback = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		let releaseStalePage: (() => void) | undefined;
 		const onListCloudBranches = vi.fn(
 			async (_id: number, options?: { cursor?: string }) =>
@@ -439,9 +422,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			expect(onListCloudBranches).toHaveBeenCalledWith(42),
 		);
 		await click(button("old/first"));
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () =>
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]),
 		);
@@ -467,19 +450,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 	});
 
 	it("recovers pagination when the search changes while a page fetch is in flight", async () => {
-		let intersectionCallback:
-			| ((entries: IntersectionObserverEntry[]) => void)
-			| undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersectionCallback = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		let releaseHungPage:
 			| ((result: {
 					available: boolean;
@@ -541,9 +512,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			expect(onListCloudBranches).toHaveBeenCalledWith(42),
 		);
 		await click(button("main"));
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () => {
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]);
 		});
@@ -576,7 +547,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		});
 		expect(container.textContent).not.toContain("stale/page");
 
-		intersectionCallback = undefined;
+		observer.callback = undefined;
 		await act(async () => {
 			const valueSetter = Object.getOwnPropertyDescriptor(
 				HTMLInputElement.prototype,
@@ -585,9 +556,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			valueSetter?.call(search, "");
 			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () => {
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]);
 		});

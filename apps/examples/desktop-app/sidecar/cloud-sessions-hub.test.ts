@@ -897,24 +897,33 @@ describe("CloudSessionManager Hub runtime", () => {
 		);
 	});
 
-	it("keeps a scoped client alive after the initial WebSocket fails", async () => {
-		const { ctx } = createContext();
+	it.each([false, true])("preserves reconnect recovery without hiding history failures (archive=%s)", async (hasArchive) => {
 		const hub = new (class extends FakeHubClient {
 			override async connect(): Promise<void> {
 				throw new HubTransportError("hub_connect_failed", "pod starting");
 			}
 		})();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
+		const archive: unknown[] | null = hasArchive
+			? [{ role: "assistant", content: [{ type: "text", text: "Saved reply" }] }]
+			: null;
+		const { manager } = createFixture({
+			hub,
+			api: {
+				list: async () => [REMOTE_SESSION],
+				history: async () => archive,
+			} as CloudSessionApi,
 		});
 
 		await manager.list();
-		await expect(manager.attach("ses-outer")).resolves.toMatchObject({
-			sessionId: "ses-outer",
-		});
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			const history = manager.readMessages("ses-outer");
+			if (hasArchive) {
+				await expect(history).resolves.toEqual(archive);
+			} else {
+				await expect(history).rejects.toThrow("pod starting");
+			}
+		}
+		await expect(manager.attach("ses-outer")).rejects.toThrow("pod starting");
 		expect(hub.disposed).toBe(false);
 		expect(hub.subscriptionSessionIds.at(-1)).toBe("ses-outer");
 		await manager.dispose();

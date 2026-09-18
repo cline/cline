@@ -2141,14 +2141,15 @@ export class CloudSessionManager {
 		if (existing) {
 			this.assertSessionActive(outerSessionId, existing);
 			// Reconnect clears the id while looking up the existing root session.
-			if (options.createInner) await existing.reconnectResolution;
+			await existing.reconnectResolution;
 			this.assertSessionActive(outerSessionId, existing);
-			if (options.createInner && !existing.innerSessionId) {
+			if (!existing.innerSessionId) {
 				// An initial failed upgrade can leave a retained, unresolved client.
 				await existing.client.connect();
 				await existing.reconnectResolution;
+				this.assertSessionActive(outerSessionId, existing);
 				await this.resolveInnerSession(outerSessionId, existing);
-				await this.createInnerSession(existing);
+				if (options.createInner) await this.createInnerSession(existing);
 			}
 			this.assertSessionActive(outerSessionId, existing);
 			return existing;
@@ -2306,8 +2307,7 @@ export class CloudSessionManager {
 					!connection.disposed &&
 					!this.deletingSessions.has(outerSessionId)
 				) {
-					if (options.createInner) throw error;
-					return connection;
+					throw error;
 				}
 				this.connections.delete(outerSessionId);
 				connection.disposed = true;

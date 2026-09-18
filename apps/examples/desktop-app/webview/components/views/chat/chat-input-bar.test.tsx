@@ -33,7 +33,9 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
-	subscribeToProviderCatalogInvalidationMock: vi.fn(() => vi.fn()),
+	subscribeToProviderCatalogInvalidationMock: vi.fn<
+		(listener: () => void) => () => void
+	>(() => vi.fn()),
 	subscribeToProviderModelsMock: vi.fn<
 		(
 			listener: (providerId: string, models: ProviderModel[]) => void,
@@ -532,6 +534,7 @@ describe("ChatInputBar", () => {
 					<ChatInputBar
 						attachments={[]}
 						cloudBranch="feature/cloud"
+						environmentId="local"
 						executionTarget="cloud"
 						gitBranch="no-git"
 						hasActiveSession
@@ -664,6 +667,7 @@ describe("ChatInputBar", () => {
 						}}
 					>
 						<ChatInputBar
+							environmentId="local"
 							attachments={attachments}
 							executionTarget="cloud"
 							gitBranch="no-git"
