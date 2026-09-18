@@ -140,13 +140,30 @@ export function isExcludedWorkspacePath(path: string): boolean {
 	);
 }
 
+let taskWorktreeRoot = "";
+
 /**
- * Worktrees the app creates for tasks (`~/.cline/worktrees/<id>/<repo>`) are
+ * The sidecar creates task worktrees under `<cline dir>/worktrees`, where the
+ * Cline dir honors `CLINE_DIR`, and reports that root through
+ * `get_process_context` so the webview matches the same location it uses.
+ */
+export function registerTaskWorktreeRoot(path: string): void {
+	taskWorktreeRoot = normalizeWorkspacePath(path);
+}
+
+/**
+ * Worktrees the app creates for tasks (`<worktree root>/<id>/<repo>`) are
  * transient: a task runs there, but they are never the workspace to remember
- * or to start the next thread in.
+ * or to start the next thread in. Only the exact generated shape qualifies.
  */
 export function isTaskWorktreePath(path: string): boolean {
-	return /[\\/]\.cline[\\/]worktrees[\\/]/.test(normalizeWorkspacePath(path));
+	const normalized = normalizeWorkspacePath(path);
+	if (!taskWorktreeRoot || !normalized.startsWith(taskWorktreeRoot)) {
+		return false;
+	}
+	return /^[\\/][^\\/]+[\\/][^\\/]+$/.test(
+		normalized.slice(taskWorktreeRoot.length),
+	);
 }
 
 export function filterWorkspacePaths(paths: readonly string[]): string[] {

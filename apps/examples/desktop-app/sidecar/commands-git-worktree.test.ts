@@ -61,6 +61,43 @@ describe("create_git_worktree command", () => {
 		expect(git(repo, "worktree", "list")).toContain(result.path);
 	});
 
+	it("reports the worktree root it creates under in the process context", async () => {
+		const result = await run(repo);
+		const hubClient = {
+			getUrl: () => null,
+			isConnected: () => false,
+			getConnectionError: () => undefined,
+		};
+		const ctx = {
+			activeEnvironmentId: "local",
+			liveSessions: new Map(),
+			sessionEnvironmentIds: new Map(),
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						kind: "local",
+						environmentId: "local",
+						workspaceRoot: repo,
+						hubClient,
+						sessionManager: {},
+					},
+				],
+			]),
+		} as unknown as SidecarContext;
+
+		const context = (await handleCommand(ctx, "get_process_context")) as {
+			taskWorktreeRoot?: string;
+		};
+
+		// The webview matches task worktrees against this root, so it must be
+		// the same CLINE_DIR-aware location the worktree was created under.
+		expect(context.taskWorktreeRoot).toBe(
+			join(sandbox, "cline-dir", "worktrees"),
+		);
+		expect(dirname(dirname(result.path))).toBe(context.taskWorktreeRoot);
+	});
+
 	it("resolves the repo root from a nested cwd", async () => {
 		const nested = join(repo, "src", "deep");
 		mkdirSync(nested, { recursive: true });

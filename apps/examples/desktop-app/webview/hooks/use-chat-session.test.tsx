@@ -75,6 +75,7 @@ beforeEach(async () => {
 				environmentId: "local",
 				cwd: "/workspace/cline",
 				workspaceRoot: "/workspace/cline",
+				taskWorktreeRoot: "/home/host/cline-dir/worktrees",
 			};
 		}
 		return [];
@@ -1366,7 +1367,7 @@ describe("useChatSession", () => {
 			current.setWorkspacePath("/repos/demo");
 		});
 		invokeMock.mockClear();
-		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "create_git_worktree") {
@@ -1420,7 +1421,7 @@ describe("useChatSession", () => {
 
 	it("returns to the remembered repo when a new thread follows a worktree task", async () => {
 		const repo = "/repos/demo";
-		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
 		// The page remembers the repo, never the worktree it was cut from.
 		writeWorkspaceSelectionToWindow("local", {
 			lastWorkspace: repo,
@@ -1507,7 +1508,7 @@ describe("useChatSession", () => {
 			current.setWorkspacePath("/repos/demo");
 		});
 		invokeMock.mockClear();
-		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
 		let releaseWorktree: (() => void) | undefined;
 		const sends: string[] = [];
 		invokeMock.mockImplementation(
@@ -1578,7 +1579,7 @@ describe("useChatSession", () => {
 			current.setWorkspacePath("/repos/demo");
 		});
 		invokeMock.mockClear();
-		const worktreePath = "/home/host/.cline/worktrees/ab12c/demo";
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "create_git_worktree") {

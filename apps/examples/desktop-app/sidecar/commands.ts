@@ -848,6 +848,11 @@ async function listGitBranches(
 	return { current: current || undefined, branches };
 }
 
+/** Where task worktrees live; honors `CLINE_DIR` like the rest of the Cline dir. */
+function taskWorktreesRoot(): string {
+	return join(resolveClineDir(), "worktrees");
+}
+
 /**
  * Creates a git worktree for the repo containing `cwd` and checks out a fresh
  * branch in it, so a task can run isolated from the user's working tree.
@@ -867,8 +872,7 @@ async function createGitWorktree(
 	const id = randomUUID().replaceAll("-", "").slice(0, 5);
 	const branch = `cline/${id}`;
 	const worktreePath = join(
-		resolveClineDir(),
-		"worktrees",
+		taskWorktreesRoot(),
 		id,
 		basename(repoRoot) || "workspace",
 	);
@@ -883,10 +887,7 @@ async function createGitWorktree(
 
 /** True for paths of the exact `~/.cline/worktrees/<id>/<repo>` shape. */
 function isTaskWorktreePath(path: string): boolean {
-	return (
-		path.length > 0 &&
-		dirname(dirname(path)) === join(resolveClineDir(), "worktrees")
-	);
+	return path.length > 0 && dirname(dirname(path)) === taskWorktreesRoot();
 }
 
 /**
@@ -2104,6 +2105,8 @@ export async function handleCommand(
 			workspaceRoot: binding.workspaceRoot,
 			cwd: binding.workspaceRoot,
 			homeDir: binding.remote?.homeDir ?? homedir(),
+			taskWorktreeRoot:
+				binding.kind === "local" ? taskWorktreesRoot() : undefined,
 			platform: binding.remote?.platform ?? process.platform,
 			appVersion: packageJson.version,
 			runningSessionCount,

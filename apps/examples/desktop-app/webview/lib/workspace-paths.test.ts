@@ -12,6 +12,7 @@ import {
 	parseWorkspaceSelectionStorage,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
+	registerTaskWorktreeRoot,
 	resolveWorkspaceFilePath,
 	WORKSPACE_SELECTION_STORAGE_KEY,
 	workspacePathsFromSessions,
@@ -247,18 +248,43 @@ describe("workspace paths", () => {
 		).toBe(true);
 	});
 
-	it("recognizes task worktrees created under .cline/worktrees", () => {
-		expect(
-			isTaskWorktreePath("/Users/beatrix/.cline/worktrees/5e0b3/sdk-wip"),
-		).toBe(true);
-		expect(
-			isTaskWorktreePath("C:\\Users\\Saoud\\.cline\\worktrees\\abc12\\app\\"),
-		).toBe(true);
-		expect(isTaskWorktreePath("/Users/beatrix/projects/sdk-wip")).toBe(false);
-		expect(
-			isTaskWorktreePath("/Users/beatrix/.cline/data/workspaces/chat"),
-		).toBe(false);
-		expect(isTaskWorktreePath("")).toBe(false);
+	it("recognizes task worktrees only under the root the sidecar reports", () => {
+		try {
+			// Nothing is a task worktree until the sidecar has said where they live.
+			expect(
+				isTaskWorktreePath("/Users/beatrix/.cline/worktrees/5e0b3/sdk-wip"),
+			).toBe(false);
+
+			// A custom CLINE_DIR moves the root away from ~/.cline.
+			registerTaskWorktreeRoot("/srv/cline-dir/worktrees/");
+			expect(isTaskWorktreePath("/srv/cline-dir/worktrees/5e0b3/sdk-wip")).toBe(
+				true,
+			);
+			expect(
+				isTaskWorktreePath("/Users/beatrix/.cline/worktrees/5e0b3/sdk-wip"),
+			).toBe(false);
+			// Only the exact <root>/<id>/<repo> shape: not the <id> dir, not deeper.
+			expect(isTaskWorktreePath("/srv/cline-dir/worktrees/5e0b3")).toBe(false);
+			expect(
+				isTaskWorktreePath("/srv/cline-dir/worktrees/5e0b3/sdk-wip/packages"),
+			).toBe(false);
+			expect(isTaskWorktreePath("/srv/cline-dir/worktrees-old/5e0b3/x")).toBe(
+				false,
+			);
+			// A real project that happens to contain the literal segments.
+			expect(isTaskWorktreePath("/projects/example/.cline/worktrees/app")).toBe(
+				false,
+			);
+			expect(isTaskWorktreePath("")).toBe(false);
+
+			registerTaskWorktreeRoot("C:\\Users\\Saoud\\.cline\\worktrees");
+			expect(
+				isTaskWorktreePath("C:\\Users\\Saoud\\.cline\\worktrees\\abc12\\app\\"),
+			).toBe(true);
+			expect(isTaskWorktreePath("C:\\Users\\Saoud\\projects\\app")).toBe(false);
+		} finally {
+			registerTaskWorktreeRoot("");
+		}
 	});
 
 	it("excludes the SDK chat workspace from discovery and stored selections", () => {

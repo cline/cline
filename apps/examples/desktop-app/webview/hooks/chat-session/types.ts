@@ -5,6 +5,8 @@ export type ProcessContext = {
 	workspaceRoot: string;
 	cwd: string;
 	homeDir?: string;
+	/** Where the sidecar creates task worktrees (`<root>/<id>/<repo>`). */
+	taskWorktreeRoot?: string;
 	platform?: string;
 	appVersion?: string;
 	activeEnvironmentId?: string;

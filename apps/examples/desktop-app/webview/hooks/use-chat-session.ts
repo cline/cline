@@ -65,6 +65,7 @@ import {
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
+	registerTaskWorktreeRoot,
 } from "@/lib/workspace-paths";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
@@ -1158,6 +1159,9 @@ export function useChatSession(environmentId: string) {
 			}
 			if (ctx.homeDir) {
 				registerHostHomeDirectory(ctx.homeDir);
+			}
+			if (ctx.taskWorktreeRoot) {
+				registerTaskWorktreeRoot(ctx.taskWorktreeRoot);
 			}
 			const rememberedWorkspace =
 				readWorkspaceSelectionFromWindow(environmentId).lastWorkspace;
