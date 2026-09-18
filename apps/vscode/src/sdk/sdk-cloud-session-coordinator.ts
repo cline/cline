@@ -532,13 +532,8 @@ export class SdkCloudSessionCoordinator {
 	/** The Cline model the sandbox should run: the user's current Cline model, else the top recommendation. */
 	private async resolveCloudModelId(): Promise<string> {
 		const apiConfig = this.options.stateManager.getApiConfiguration()
-		const mode = this.getCurrentMode()
-		const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		if (provider === "cline") {
-			const modelId = mode === "plan" ? apiConfig.planModeClineModelId : apiConfig.actModeClineModelId
-			if (modelId?.trim()) {
-				return modelId.trim()
-			}
+		if (apiConfig.actModeApiProvider === "cline" && apiConfig.actModeClineModelId?.trim()) {
+			return apiConfig.actModeClineModelId.trim()
 		}
 		const recommended = await refreshClineRecommendedModels().catch(() => CLINE_RECOMMENDED_MODELS_FALLBACK)
 		return recommended.recommended[0]?.id ?? CLINE_RECOMMENDED_MODELS_FALLBACK.recommended[0].id
