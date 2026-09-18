@@ -1308,6 +1308,39 @@ describe("buildSessionConfig", () => {
 		expect(planConfig.systemPrompt).not.toContain("switch_to_act_mode")
 		expect(planConfig.systemPrompt).toContain("Plan/Act toggle")
 	})
+
+	it("builds a coherent remote runtime model and platform snapshot", async () => {
+		const config = await buildSessionConfig({
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			runtime: {
+				modelSelection: { providerId: "cline", modelId: "fixture-cloud-model" },
+				platform: "linux",
+			},
+		})
+
+		expect(config).toMatchObject({
+			providerId: "cline",
+			modelId: "fixture-cloud-model",
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "fixture-cloud-model",
+			},
+			extensionContext: {
+				workspace: {
+					rootPath: "/workspace",
+					cwd: "/workspace",
+					platform: "linux",
+					mode: "act",
+				},
+			},
+		})
+		expect(config.systemPrompt).toContain("# Plan / Act Modes")
+	})
 })
 
 // ---------------------------------------------------------------------------

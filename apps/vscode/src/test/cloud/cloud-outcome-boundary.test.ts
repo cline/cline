@@ -82,6 +82,7 @@ describe("cloud outcome → History and notifications through a real Hub", () =>
 		const options = {
 			cloudSessions: service,
 			stateManager: { getGlobalSettingsKey: () => "act" },
+			sessionConfigBuilder: { build: vi.fn() },
 			sessions: { attachExistingSession: vi.fn() },
 			messages: { finalizeMessagesForSave: (messages: unknown) => messages },
 			getMinter: () => new MessageIdMinter(),
