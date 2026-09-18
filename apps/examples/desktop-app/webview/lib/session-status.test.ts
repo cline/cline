@@ -6,14 +6,18 @@ import {
 } from "@/lib/session-status";
 
 describe("resolveSessionHeaderStatus", () => {
-	it("uses the live list status for cloud headers", () => {
+	it.each([
+		["running", "running"],
+		["provisioning", "starting"],
+		["expired", "completed"],
+	] as const)("projects cloud history status %s to header status %s", (liveHistoryStatus, expected) => {
 		expect(
 			resolveSessionHeaderStatus({
 				chatStatus: "completed",
 				isCloudSession: true,
-				liveHistoryStatus: "running",
+				liveHistoryStatus,
 			}),
-		).toBe("running");
+		).toBe(expected);
 	});
 
 	it("keeps the chat status for local headers", () => {
