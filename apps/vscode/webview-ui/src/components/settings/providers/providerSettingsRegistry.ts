@@ -68,6 +68,9 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	"huawei-cloud-maas": {
 		signupUrl: "https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
 	},
+	mindshub: {
+		signupUrl: "https://console.mindshub.ai",
+	},
 	minimax: {
 		signupUrl: "https://www.minimax.io/platform/user-center/basic-information/interface-key",
 		baseUrlField: {
@@ -170,6 +173,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	"tencent-tokenhub": "Tencent TokenHub",
 	chutes: "Chutes",
 	"zai-coding-plan": "Z.AI Coding Plan",
+	mindshub: "MindsHub",
 } as const
 
 export function getFallbackGenericProviderSettings(providerId: string): GenericProviderSettingsConfig | undefined {
