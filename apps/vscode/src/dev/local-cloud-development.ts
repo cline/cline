@@ -24,6 +24,7 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 		environment = await startLocalCloudEnvironment({ ...options, port: options.port ?? 7777, accessToken })
 		const settingsDir = path.join(dataDir, "settings")
 		await mkdir(settingsDir, { recursive: true })
+		await writeFile(path.join(dataDir, "globalState.json"), JSON.stringify({ welcomeViewCompleted: true }))
 		await writeFile(
 			path.join(settingsDir, "providers.json"),
 			JSON.stringify({
@@ -31,12 +32,16 @@ export async function startLocalCloudDevelopment(options: { port?: number; tempD
 				lastUsedProvider: "cline",
 				providers: {
 					cline: {
-						provider: "cline",
-						auth: {
-							accessToken: `workos:${accessToken}`,
-							accountId: "local-cloud-user",
-							expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+						settings: {
+							provider: "cline",
+							auth: {
+								accessToken: `workos:${accessToken}`,
+								accountId: "local-cloud-user",
+								expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+							},
 						},
+						tokenSource: "oauth",
+						updatedAt: new Date().toISOString(),
 					},
 				},
 			}),
