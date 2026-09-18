@@ -2518,8 +2518,9 @@ describe("cloud handoff gates", () => {
 	});
 
 	it("does not begin a restore after handoff starts during its initial read", async () => {
-		const { ctx, get, persistedSession, sessionId } =
-			createHandoffGateContext({ busy: false });
+		const { ctx, get, persistedSession, sessionId } = createHandoffGateContext({
+			busy: false,
+		});
 		let releaseRestoreRead:
 			| ((value: typeof persistedSession) => void)
 			| undefined;
