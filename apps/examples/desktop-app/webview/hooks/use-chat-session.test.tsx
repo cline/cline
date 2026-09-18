@@ -2395,17 +2395,6 @@ describe("useChatSession", () => {
 						workspaceRoot: "/workspace",
 					};
 				}
-				if (command === "read_session_messages") {
-					return [
-						{
-							id: "assistant-recovered",
-							sessionId: "ses-cloud",
-							role: "assistant",
-							content: "Finished while reconnecting",
-							createdAt: Date.now(),
-						},
-					];
-				}
 				return [];
 			},
 		);
@@ -2423,11 +2412,27 @@ describe("useChatSession", () => {
 		const endedHandler = handlerFor("chat_session_ended");
 		expect(rehydratedHandler).toBeDefined();
 
+		invokeMock.mockClear();
 		await act(async () => {
-			rehydratedHandler?.({ sessionId: "ses-cloud", status: "completed" });
-			await Promise.resolve();
-			await Promise.resolve();
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "completed",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "assistant-recovered",
+						sessionId: "ses-cloud",
+						role: "assistant",
+						content: "Finished while reconnecting",
+						createdAt: Date.now(),
+					},
+				],
+			});
 		});
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"read_session_messages",
+			expect.anything(),
+		);
 
 		expect(current.messages.at(-1)?.content).toBe(
 			"Finished while reconnecting",
@@ -6545,43 +6550,6 @@ describe("coerced-queue first turn vs stale send response", () => {
 					message.role === "user" && message.content === "Continue working",
 			),
 		).toBe(true);
-	});
-
-	it("ignores a rehydration read that resolves after a new turn starts", async () => {
-		mockTransport({ deferredSendCount: 0 });
-		const transport = invokeMock.getMockImplementation();
-		let resolveRead!: (messages: unknown[]) => void;
-		const read = new Promise<unknown[]>((resolve) => {
-			resolveRead = resolve;
-		});
-		invokeMock.mockImplementation(async (command, args) => {
-			if (command === "read_session_messages") return await read;
-			return await transport?.(command, args);
-		});
-		const { sendPromise } = await dispatchPrompt("first prompt");
-		await act(async () => sendPromise);
-		const sid = current.sessionId;
-		const chatEventHandler = getChatEventHandler();
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-
-		await act(async () => {
-			rehydratedHandler?.({ sessionId: sid, status: "completed" });
-		});
-		await act(async () => {
-			emitTurnEvents(chatEventHandler, sid, [
-				{
-					stream: "chat_queued_prompt_start",
-					chunk: JSON.stringify({ prompt: "first prompt" }),
-					index: 1,
-				},
-			]);
-			resolveRead([]);
-			await read;
-		});
-
-		expect(current.status).toBe("running");
 	});
 
 	it("still applies a queued response for a deliberately queued prompt", async () => {
