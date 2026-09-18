@@ -225,7 +225,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			remoteConfigSettings,
 			navigateToSettingsModelPicker,
 			mcpServers,
-			clineMessages,
+			clineMessages = [],
 			cloudSessionsEnabled,
 			cloudTaskTarget,
 			currentCloudTask,
