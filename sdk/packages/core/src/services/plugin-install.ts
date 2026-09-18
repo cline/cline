@@ -1148,7 +1148,9 @@ export async function installPlugin(
 		`${Date.now()}-${process.pid}-${hashSource(`${source}:${Math.random()}`)}`,
 	);
 	const npmCommand =
-		options.npmCommand ?? (process.env.CLINE_NPM_COMMAND?.trim() || "npm");
+		options.npmCommand ??
+		(process.env.CLINE_NPM_COMMAND?.trim() ||
+			(process.platform === "win32" ? "npm.cmd" : "npm"));
 
 	const force = options.force === true;
 	assertCanInstall(installPath, force);
