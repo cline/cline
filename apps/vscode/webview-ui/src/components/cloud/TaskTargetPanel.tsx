@@ -274,7 +274,7 @@ export function TaskTargetPanel() {
 										</button>
 									</>
 								) : (
-									"Runs in an isolated sandbox with tools auto-approved, and keeps going after you close VS Code."
+									"Uses a Cline model and Cline credits in an isolated sandbox. Tools are auto-approved so the task can keep going after you close VS Code."
 								)}
 							</p>
 						</div>

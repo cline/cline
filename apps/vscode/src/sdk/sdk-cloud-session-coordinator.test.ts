@@ -89,6 +89,24 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 }
 
 describe("SdkCloudSessionCoordinator ownership", () => {
+	it("uses the Act-mode Cline model while the local UI is in Plan mode", async () => {
+		const { coordinator } = makeCoordinator({
+			stateManager: {
+				getApiConfiguration: () => ({
+					actModeApiProvider: "cline",
+					actModeClineModelId: "act-cloud-model",
+					planModeApiProvider: "cline",
+					planModeClineModelId: "plan-local-model",
+				}),
+				getGlobalSettingsKey: () => "plan",
+			} as never,
+		})
+
+		expect(await (coordinator as unknown as { resolveCloudModelId: () => Promise<string> }).resolveCloudModelId()).toBe(
+			"act-cloud-model",
+		)
+	})
+
 	it("ignores a successful list after disposal", async () => {
 		const list = deferred<CloudSessionRecord[]>()
 		const entered = deferred<void>()
