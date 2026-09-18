@@ -297,22 +297,26 @@ const fireworksReasoningRule: ProviderOptionRule = {
 	id: "provider.fireworks.reasoning-budget",
 	phase: "provider-reasoning",
 	description:
-		"Fireworks uses its native thinking object for exact token budgets.",
+		"Fireworks uses its native thinking object for exact token budgets and reasoning_effort 'none' for explicit disable (which @ai-sdk/openai-compatible cannot express portably).",
 	applies: (input) =>
 		input.request.providerId === "fireworks" &&
-		typeof input.request.reasoning?.budgetTokens === "number",
+		(typeof input.request.reasoning?.budgetTokens === "number" ||
+			input.request.reasoning?.enabled === false),
 	suppresses: { genericThinking: true },
 	build: (input) => {
 		const reasoning = input.request.reasoning;
 		return buildProviderAndAliasPatch({
 			providerId: input.request.providerId,
 			providerOptionsKey: input.providerOptionsKey,
-			bucketOptions: {
-				thinking: {
-					type: "enabled",
-					budget_tokens: reasoning?.budgetTokens,
-				},
-			},
+			bucketOptions:
+				typeof reasoning?.budgetTokens === "number"
+					? {
+							thinking: {
+								type: "enabled",
+								budget_tokens: reasoning.budgetTokens,
+							},
+						}
+					: { reasoningEffort: "none" },
 		});
 	},
 };
