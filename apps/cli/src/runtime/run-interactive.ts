@@ -398,9 +398,9 @@ export async function runInteractive(
 
 	let cleanupPromise: Promise<InteractiveExitSummary | undefined> | undefined;
 
-	disableOpenTuiGraphicsProbe();
-	const { renderOpenTui } = await import("../tui/index");
-	let tuiApp: Awaited<ReturnType<typeof renderOpenTui>> | undefined;
+	let tuiApp:
+		| Awaited<ReturnType<typeof import("../tui/index")["renderOpenTui"]>>
+		| undefined;
 	let destroyTuiWhenReady = false;
 	const destroyTui = () => {
 		if (tuiApp) tuiApp.destroy();
@@ -548,6 +548,8 @@ export async function runInteractive(
 	setActiveRuntimeSignalHandler((signal) =>
 		signal === "SIGINT" ? handleSigint() : handleSigterm(),
 	);
+	disableOpenTuiGraphicsProbe();
+	const { renderOpenTui } = await import("../tui/index");
 
 	setActiveRuntimeCleanup(() => {
 		cloud.detach();
