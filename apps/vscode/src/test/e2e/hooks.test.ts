@@ -119,7 +119,9 @@ hooksE2e("Hooks - injected context reaches the model and later prompts stay real
 
 		// Turn 2: the injected block now sits in the conversation as a
 		// user-role message; the hook must still receive the real prompt,
-		// never its own previous output.
+		// never its own previous output, and a fresh block must follow the
+		// new prompt (the mock only answers "received" for a block placed
+		// after the latest probe, so turn 1's block in history can't satisfy it).
 		await inputbox.fill("hook context probe two")
 		await sidebar.getByTestId("send-button").click()
 		await expect(sidebar.getByText("Hook context received: the codename is ZEBRA-7.").nth(1)).toBeVisible({
