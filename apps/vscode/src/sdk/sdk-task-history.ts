@@ -221,6 +221,7 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 					cloudStatus: metadataString(metadata, "cloudStatus") as HistoryItem["cloudStatus"],
 					cloudRepoUrl: metadataString(metadata, "repoUrl"),
 					cloudBranch: metadataString(metadata, "branch"),
+					cloudUsageAvailable: metadataBoolean(metadata, "usageAvailable") ?? false,
 				}
 			: {}),
 	}

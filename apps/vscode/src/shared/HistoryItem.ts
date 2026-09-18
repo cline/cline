@@ -31,4 +31,6 @@ export type HistoryItem = {
 	cloudStatus?: CloudSessionStatus
 	cloudRepoUrl?: string
 	cloudBranch?: string
+	/** True when cloud usage came from an authoritative remote runtime snapshot. */
+	cloudUsageAvailable?: boolean
 }
