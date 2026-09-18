@@ -48,7 +48,7 @@ import {
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ProcessContext } from "@/hooks/chat-session/types";
-import { useAppUpdate } from "@/hooks/use-app-update";
+import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -692,6 +692,9 @@ export default function Home() {
 						break;
 					case "open-session":
 						void handleOpenSessionById(action.sessionId);
+						break;
+					case "check-for-updates":
+						void checkForUpdateAndNotify();
 						break;
 					case "zoom-in":
 					case "zoom-out":
