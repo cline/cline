@@ -53,7 +53,7 @@ export interface CloudSessionHostOptions {
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
 	telemetry?: ITelemetryService
 	onStatusChange?: (status: CloudSessionStatus) => void
-	/** Plan/Act mode for the next turn; the sandbox takes the mode per turn instead of by session rebuild. */
+	/** Mode attached to each turn. The cloud coordinator pins the first release to Act. */
 	getMode?: () => "plan" | "act"
 	/** Sandbox workspace root. Hosted sandboxes use /workspace. */
 	workspaceRoot?: string

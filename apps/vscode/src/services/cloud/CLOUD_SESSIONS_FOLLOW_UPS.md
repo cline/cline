@@ -84,11 +84,11 @@ roughly in the order they should be done.
   The SDK runtime fixes the tool set and Plan command guard when a session is
   built, so supporting a mid-task switch means rebuilding the sandbox
   conversation with `initialMessages`, the way local tasks do.
-- System prompt: the sandbox session is created with only the GitHub-auth
-  paragraph as its system prompt (same as the desktop sidecar), not the full
-  Cline prompt the local path builds through `SdkSessionConfigBuilder`. The
-  cloud runtime should get the normal Cline prompt (Linux, `/workspace`) plus
-  the sandbox guidance; fix in both clients or on the pod.
+- Corporate proxy support for the live WebSocket: the REST client uses the
+  repository's proxy-aware fetch path, but the SDK's header-authenticated
+  `ws` transport does not accept a proxy agent. Keep the feature disabled for
+  cohorts that require a corporate proxy until REST and WSS share the same
+  proxy resolution, authentication, bypass and certificate-trust policy.
 - Multi-root workspaces: the repository is prefilled from the primary root's
   `origin`; a root picker would help users with several GitHub repos open.
 - Telemetry: `cloud_task_started`, `cloud_task_completed`, `cloud_task_failed`,
