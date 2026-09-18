@@ -76,6 +76,42 @@ describe("local cloud development ownership", () => {
 		}
 	})
 
+	it("seeds the current provider and onboarding storage contracts", async () => {
+		const development = await startLocalCloudDevelopment({ port: 0 })
+		try {
+			const globalState = JSON.parse(
+				await fs.readFile(path.join(development.clineDir, "data", "globalState.json"), "utf8"),
+			) as Record<string, unknown>
+			const providers = JSON.parse(
+				await fs.readFile(path.join(development.clineDir, "data", "settings", "providers.json"), "utf8"),
+			) as {
+				lastUsedProvider?: string
+				providers: Record<
+					string,
+					{
+						settings?: { provider?: string; auth?: { accessToken?: string; accountId?: string } }
+						tokenSource?: string
+					}
+				>
+			}
+
+			expect(globalState.welcomeViewCompleted).toBe(true)
+			expect(providers.lastUsedProvider).toBe("cline")
+			expect(providers.providers.cline).toMatchObject({
+				settings: {
+					provider: "cline",
+					auth: {
+						accessToken: `workos:${development.environment.accessToken}`,
+						accountId: "local-cloud-user",
+					},
+				},
+				tokenSource: "oauth",
+			})
+		} finally {
+			await development.dispose()
+		}
+	})
+
 	it("removes a fixture root on invalid bind arguments as well as listener errors", async () => {
 		const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "cloud-startup-test-"))
 		try {
