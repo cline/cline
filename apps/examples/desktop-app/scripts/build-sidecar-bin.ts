@@ -28,7 +28,10 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 		return "bun-darwin-arm64";
 	if (targetTriple.startsWith("x86_64-apple-darwin")) return "bun-darwin-x64";
 	if (targetTriple.startsWith("x86_64-pc-windows")) return "bun-windows-x64";
-	if (targetTriple.startsWith("x86_64-unknown-linux")) return "bun-linux-x64";
+	// SSH hosts may predate AVX2 (e.g. Ivy Bridge Xeons). The default Bun
+	// x64 runtime can SIGILL before our entrypoint runs on those CPUs.
+	if (targetTriple.startsWith("x86_64-unknown-linux"))
+		return "bun-linux-x64-baseline";
 	if (targetTriple.startsWith("aarch64-unknown-linux"))
 		return "bun-linux-arm64";
 	return undefined;
