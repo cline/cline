@@ -63,6 +63,11 @@ export interface ClineAccountUserInfo {
 	organizations: ClineAccountOrganization[]
 	appBaseUrl?: string
 	subject?: string
+	/**
+	 * Dashboard path of the web privacy settings, advertised by GET /users/me only while the
+	 * server-side feature flag is on for this user. Absent means the client shows no link.
+	 */
+	dataPrivacyPath?: string
 }
 
 export interface ClineAccountOrganization {
@@ -522,6 +527,7 @@ export class AuthService {
 				email: userInfo?.email,
 				photoUrl: undefined,
 				appBaseUrl: userInfo?.appBaseUrl,
+				dataPrivacyPath: userInfo?.dataPrivacyPath,
 			})
 			return AuthState.create({ user })
 		}
