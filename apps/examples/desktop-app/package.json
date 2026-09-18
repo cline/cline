@@ -1,6 +1,6 @@
 {
 	"name": "@cline/code",
-	"version": "0.0.31",
+	"version": "0.0.32",
 	"private": true,
 	"scripts": {
 		"build:ui": "bun -F @cline/ui build",
@@ -32,6 +32,7 @@
 		"pretest:settings-ui": "bun run build:ui",
 		"test:settings-ui": "vitest run webview/components/views/settings webview/components/ui/switch-integration.test.tsx --config vitest.config.ts",
 		"test:sidecar": "vitest run sidecar scripts/telemetry-define-args.test.ts --config vitest.config.ts",
+		"test:sidecar-startup": "bun test scripts/desktop-startup.test.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
@@ -75,8 +76,8 @@
 		"@streamdown/cjk": "^1.0.3",
 		"@tauri-apps/api": "^2.0.0",
 		"@tauri-apps/plugin-notification": "^2.0.0",
-		"autoprefixer": "^10.4.20",
 		"ansi-to-react": "^6.2.6",
+		"autoprefixer": "^10.4.20",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "1.1.1",
@@ -101,8 +102,9 @@
 		"zod": "^3.24.1"
 	},
 	"devDependencies": {
-		"@tauri-apps/cli": "^2.0.0",
 		"@tailwindcss/postcss": "^4.2.0",
+		"@tauri-apps/cli": "^2.0.0",
+		"@types/bun": "^1.3.14",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
 		"jsdom": "^26.0.0",
@@ -110,7 +112,6 @@
 		"tailwindcss": "^4.2.0",
 		"tw-animate-css": "1.3.3",
 		"typescript": "5.7.3",
-		"vitest": "^4.0.18",
-		"@types/bun": "^1.3.14"
+		"vitest": "^4.0.18"
 	}
 }

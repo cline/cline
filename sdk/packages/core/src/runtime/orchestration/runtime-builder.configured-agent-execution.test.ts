@@ -1,10 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AgentRuntime } from "@cline/agents";
 import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentExtension,
+	type AgentModel,
 	type AgentTool,
 	createContributionRegistry,
 	type Message,
@@ -13,6 +15,7 @@ import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type { CoreSessionConfig } from "../../types/config";
+import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
 
 const runMock = vi.fn();
 const agentConstructorSpy = vi.fn();
@@ -226,8 +229,8 @@ Write a concise commit message.`,
 				modelId: "gpt-4.1",
 				maxIterations: 3,
 				parentAgentId: "parent-agent",
-				requestToolApproval,
-				toolPolicies: effectiveToolPolicies,
+				requestToolApproval: undefined,
+				toolPolicies: undefined,
 			}),
 		);
 		expect(delegatedConfig?.tools.map((tool) => tool.name).sort()).toEqual([
@@ -254,6 +257,89 @@ Write a concise commit message.`,
 				{ agentId: "configured-sub-agent", iteration: 1 },
 			),
 		).resolves.toContain('Skill "review" not found.');
+
+		// Exercise the child runtime under a parent policy requiring approval.
+		if (!delegatedConfig) {
+			throw new Error("Expected delegated config.");
+		}
+		const executeSkill = vi.spyOn(skillsTool, "execute");
+		let turns = 0;
+		const model: AgentModel = {
+			async *stream() {
+				if (turns++ === 0) {
+					yield {
+						type: "tool-call-delta",
+						toolCallId: "child-skill",
+						toolName: "skills",
+						inputText: JSON.stringify({ skill: "commit" }),
+					};
+					yield { type: "finish", reason: "tool-calls" };
+				} else {
+					yield { type: "text-delta", text: "done" };
+					yield { type: "finish", reason: "stop" };
+				}
+			},
+		};
+		const child = new AgentRuntime(
+			createAgentRuntimeConfig({
+				agentConfig: delegatedConfig,
+				agentId: "configured-sub-agent",
+				model,
+				tools: delegatedConfig.tools,
+				completionPolicy: null,
+			}),
+		);
+		expect((await child.run("Use the commit skill")).status).toBe("completed");
+		expect(executeSkill).toHaveBeenCalledTimes(1);
+		expect(requestToolApproval).not.toHaveBeenCalled();
+
+		// Approval remains enforced at the parent delegation boundary.
+		const executeDelegation = vi.spyOn(reviewer, "execute");
+		for (const approved of [false, true]) {
+			executeDelegation.mockClear();
+			agentConstructorSpy.mockClear();
+			requestToolApproval.mockClear();
+			requestToolApproval.mockResolvedValue({ approved });
+			let parentTurns = 0;
+			const parentModel: AgentModel = {
+				async *stream() {
+					if (parentTurns++ === 0) {
+						yield {
+							type: "tool-call-delta",
+							toolCallId: "delegate-review",
+							toolName: reviewer.name,
+							inputText: JSON.stringify({ prompt: "review this change" }),
+						};
+						yield { type: "finish", reason: "tool-calls" };
+					} else {
+						yield { type: "text-delta", text: "done" };
+						yield { type: "finish", reason: "stop" };
+					}
+				},
+			};
+			const parent = new AgentRuntime(
+				createAgentRuntimeConfig({
+					agentConfig: {
+						providerId: "test",
+						modelId: "test",
+						systemPrompt: "test",
+						tools: [reviewer],
+						toolPolicies: effectiveToolPolicies,
+						requestToolApproval,
+					},
+					agentId: "parent-agent",
+					model: parentModel,
+					tools: [reviewer],
+					completionPolicy: null,
+				}),
+			);
+			expect((await parent.run("Delegate review")).status).toBe("completed");
+			expect(requestToolApproval).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({ toolName: reviewer.name }),
+			);
+			expect(executeDelegation).toHaveBeenCalledTimes(approved ? 1 : 0);
+			expect(agentConstructorSpy).toHaveBeenCalledTimes(approved ? 1 : 0);
+		}
 
 		await runtime.shutdown("test");
 	});

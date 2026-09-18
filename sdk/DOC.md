@@ -87,3 +87,11 @@ parallel group starts. A before-tool `skip` blocks its own call; a before-tool
 `stop` prevents the entire response's execution, as before. Pending approvals
 can delay sibling execution. No background-run handles or new concurrency
 limit are introduced.
+
+### Configured subagent approvals
+
+Configured agents do not expose a tool approval policy setting. The parent’s
+`subagent_<name>` call follows the parent session’s approval policy; the child
+executes its available tools without inheriting that policy or approval callback.
+Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
+hooks remain inherited and can block tool execution.
