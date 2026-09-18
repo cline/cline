@@ -1540,20 +1540,191 @@ function truncateMiddleByChars(
 	if (text.length <= maxChars) {
 		return text;
 	}
-	// Two-pass: marker length depends on the removed-char count, which depends
-	// on the marker length. Compute a tentative marker, derive the final
-	// removed count, then build the real marker.
-	const tentativeMarker = makeMarker(text.length - maxChars);
-	const tentativeKeep = Math.max(
-		0,
-		Math.floor((maxChars - tentativeMarker.length) / 2),
+	const read = splitReadFooter(text);
+	if (!read) {
+		return joinMiddleCut(cutMiddleByChars(text, maxChars, makeMarker));
+	}
+	// A read footer asserts a contiguous line range. Eliding the middle of the
+	// body it describes makes that claim false, so the footer is rebuilt from
+	// the lines that actually survived. Reserving the rewritten footer's
+	// worst-case length before cutting keeps the result inside `maxChars`.
+	const reserve = readFooterReserve(read);
+	if (maxChars <= reserve) {
+		// No room for both an excerpt and a footer. Drop the footer rather than
+		// ship a range claim over a body that no longer backs it.
+		return joinMiddleCut(cutMiddleByChars(read.body, maxChars, makeMarker));
+	}
+	if (read.body.length <= maxChars - reserve) {
+		return text;
+	}
+	const cut = cutMiddleByChars(read.body, maxChars - reserve, makeMarker);
+	return `${joinMiddleCut(cut)}${rewriteReadFooter(cut, read, reserve)}`;
+}
+
+interface MiddleCut {
+	head: string;
+	marker: string;
+	tail: string;
+}
+
+function joinMiddleCut(cut: MiddleCut): string {
+	return `${cut.head}${cut.marker}${cut.tail}`;
+}
+
+/**
+ * Elides the middle of `text` (which the caller has checked is longer than
+ * `maxChars`), snapping both edges to line boundaries so a numbered read never
+ * resumes mid-line with its line-number prefix shorn off.
+ *
+ * `keep` is derived from the widest marker the caller's formatter could
+ * produce, so the marker's final digit count can never push the result past
+ * `maxChars`, and snapping only ever discards more characters.
+ */
+function cutMiddleByChars(
+	text: string,
+	maxChars: number,
+	makeMarker: (removed: number) => string,
+): MiddleCut {
+	const widestMarker = makeMarker(text.length);
+	const keep = Math.max(0, Math.floor((maxChars - widestMarker.length) / 2));
+	const head = snapToLineEnd(text.slice(0, keep));
+	const tail = keep > 0 ? snapToLineStart(text.slice(text.length - keep)) : "";
+	return {
+		head,
+		marker: makeMarker(text.length - head.length - tail.length),
+		tail,
+	};
+}
+
+/** Trims a head slice back to its last complete line. */
+function snapToLineEnd(head: string): string {
+	const lastNewline = head.lastIndexOf("\n");
+	// A slice with no newline is one long (often minified) line; snapping would
+	// discard all of it, so keep the raw slice.
+	return lastNewline <= 0 ? head : head.slice(0, lastNewline);
+}
+
+/** Advances a tail slice to its first complete line. */
+function snapToLineStart(tail: string): string {
+	const firstNewline = tail.indexOf("\n");
+	return firstNewline < 0 || firstNewline === tail.length - 1
+		? tail
+		: tail.slice(firstNewline + 1);
+}
+
+// Footer emitted by the file-read executor for a windowed read; see
+// extensions/tools/executors/file-read.ts.
+const READ_FOOTER_GUIDANCE = "Use start_line/end_line to read other sections.";
+const READ_FOOTER_PATTERN = new RegExp(
+	String.raw`\n\n\[Showing lines (\d+)-(\d+) of ([^.\]]+)\. ${READ_FOOTER_GUIDANCE.replace(/[./]/g, "\\$&")}\]$`,
+);
+const READ_LINE_NUMBER_PATTERN = /^\s*(\d+) \| /;
+const NON_CONTIGUOUS_READ_FOOTER =
+	`\n\n[Showing a non-contiguous excerpt: an interior section was omitted ` +
+	`to fit the request budget. ${READ_FOOTER_GUIDANCE}]`;
+
+interface ReadFooter {
+	body: string;
+	footer: string;
+	startLine: number;
+	endLine: number;
+	totalText: string;
+}
+
+function splitReadFooter(text: string): ReadFooter | null {
+	// Cheap reject first: the pattern is anchored, but the regex engine would
+	// still scan multi-MB command output looking for the opening bracket.
+	if (!text.endsWith(`${READ_FOOTER_GUIDANCE}]`)) {
+		return null;
+	}
+	const match = READ_FOOTER_PATTERN.exec(text);
+	if (!match) {
+		return null;
+	}
+	return {
+		body: text.slice(0, match.index),
+		footer: match[0],
+		startLine: Number(match[1]),
+		endLine: Number(match[2]),
+		totalText: match[3],
+	};
+}
+
+/** Upper bound on the length of any footer `rewriteReadFooter` may emit. */
+function readFooterReserve(read: ReadFooter): number {
+	// Rendering every line number one wider than it can actually be bounds the
+	// digit counts of all four numbers the split footer interpolates.
+	const widest = read.endLine + 1;
+	return Math.max(
+		formatSplitReadFooter(read, widest, widest).length,
+		NON_CONTIGUOUS_READ_FOOTER.length,
+		read.footer.length,
 	);
-	const removed = Math.max(0, text.length - tentativeKeep * 2);
-	const marker = makeMarker(removed);
-	const keep = Math.max(0, Math.floor((maxChars - marker.length) / 2));
-	const start = text.slice(0, keep);
-	const end = keep > 0 ? text.slice(-keep) : "";
-	return `${start}${marker}${end}`;
+}
+
+function formatSplitReadFooter(
+	read: ReadFooter,
+	headEnd: number,
+	tailStart: number,
+): string {
+	return (
+		`\n\n[Showing lines ${read.startLine}-${headEnd} and ${tailStart}-${read.endLine} ` +
+		`of ${read.totalText}; lines ${headEnd + 1}-${tailStart - 1} were omitted ` +
+		`to fit the request budget. ${READ_FOOTER_GUIDANCE}]`
+	);
+}
+
+/**
+ * Restates the footer over the excerpt that survived. When the read carried
+ * line numbers the exact surviving and omitted ranges are named; otherwise the
+ * excerpt is simply flagged as non-contiguous, which is all we can honestly say.
+ */
+function rewriteReadFooter(
+	cut: MiddleCut,
+	read: ReadFooter,
+	maxLength: number,
+): string {
+	const headEnd = lastReadLineNumber(cut.head);
+	const tailStart = firstReadLineNumber(cut.tail);
+	if (
+		headEnd !== null &&
+		tailStart !== null &&
+		headEnd >= read.startLine &&
+		tailStart <= read.endLine &&
+		headEnd + 1 < tailStart
+	) {
+		const rewritten = formatSplitReadFooter(read, headEnd, tailStart);
+		if (rewritten.length <= maxLength) {
+			return rewritten;
+		}
+	}
+	return NON_CONTIGUOUS_READ_FOOTER;
+}
+
+function lastReadLineNumber(text: string): number | null {
+	const lines = text.split("\n");
+	for (let i = lines.length - 1; i >= 0; i--) {
+		const lineNumber = parseReadLineNumber(lines[i]);
+		if (lineNumber !== null) {
+			return lineNumber;
+		}
+	}
+	return null;
+}
+
+function firstReadLineNumber(text: string): number | null {
+	for (const line of text.split("\n")) {
+		const lineNumber = parseReadLineNumber(line);
+		if (lineNumber !== null) {
+			return lineNumber;
+		}
+	}
+	return null;
+}
+
+function parseReadLineNumber(line: string): number | null {
+	const match = READ_LINE_NUMBER_PATTERN.exec(line);
+	return match ? Number(match[1]) : null;
 }
 
 function truncateMiddleToBytes(
