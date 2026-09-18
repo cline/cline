@@ -2502,10 +2502,14 @@ describe("cloud handoff gates", () => {
 		await sending;
 	});
 
-	it("rejects handoff while the source workspace is being restored", async () => {
+	it.each([
+		true,
+		false,
+	])("rejects handoff while the source workspace is being restored (live=%s)", async (hasLiveSession) => {
 		const { ctx, readLiveMessages, sessionId } = createHandoffGateContext({
 			busy: false,
 		});
+		if (!hasLiveSession) ctx.liveSessions.clear();
 		ctx.restoringWorkspacePaths.add("/workspace/project");
 
 		await expect(
