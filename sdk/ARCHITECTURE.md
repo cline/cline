@@ -143,6 +143,8 @@ field.
 
 ### Hub-Backed Runtime
 
+Session-search disposal stops new refreshes, drains the active refresh, then closes its database. Late session-ended events during hub shutdown cannot restart indexing.
+
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
 3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
