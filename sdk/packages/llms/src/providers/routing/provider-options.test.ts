@@ -1595,6 +1595,22 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
+			name: "openai-compatible deepseek-flash-free family reasoning.enabled=true -> thinking.type=enabled",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "deepseek-v4-flash-free",
+				reasoning: { enabled: true },
+			},
+			context: { family: "deepseek-flash-free" },
+			expect: [
+				{
+					bucket: "openai-compatible",
+					has: { thinking: { type: "enabled" } },
+				},
+				{ bucket: "openaiCompatible", has: { thinking: { type: "enabled" } } },
+			],
+		},
+		{
 			name: "openai-compatible deepseek family reasoning.enabled=true -> thinking.type=enabled",
 			request: {
 				providerId: "openai-compatible",
@@ -1617,6 +1633,22 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{ bucket: "openai-compatible", lacks: ["thinking"] },
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
+			],
+		},
+		{
+			name: "openai-compatible future non-thinking DeepSeek V4 family -> generic adaptive thinking",
+			request: {
+				providerId: "openai-compatible",
+				modelId: "deepseek-v4-chat",
+				reasoning: { enabled: true },
+			},
+			context: { family: "deepseek-v4-chat" },
+			expect: [
+				{
+					bucket: "openai-compatible",
+					has: { thinking: { type: "adaptive" } },
+				},
+				{ bucket: "openaiCompatible", has: { thinking: { type: "adaptive" } } },
 			],
 		},
 		{
