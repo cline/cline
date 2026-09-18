@@ -76,7 +76,6 @@ function renderControls(
 		onCloudBranchChange: vi.fn(),
 		signedIn: true,
 		signingIn: false,
-		onExecutionTargetChange: vi.fn(),
 		onRepoUrlChange: vi.fn(),
 		onListCloudRepositories: vi.fn(async () => ({
 			connected: true,
@@ -116,10 +115,9 @@ function renderControls(
 }
 
 describe("WelcomeWorkspaceControls cloud mode", () => {
-	it("selects Cloud from the same workspace control row", async () => {
-		const props = renderControls();
-		await click(button("Cloud"));
-		expect(props.onExecutionTargetChange).toHaveBeenCalledWith("cloud");
+	it("does not duplicate the environment menu with Local/Cloud tabs", () => {
+		renderControls();
+		expect(container.querySelector("fieldset")).toBeNull();
 	});
 
 	it("hides the Local/Cloud selector when the feature flag is off", () => {
@@ -335,7 +333,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		});
 		await click(button("deleted"));
 		await act(async () =>
-			observer.callback?.([{ isIntersecting: true } as IntersectionObserverEntry]),
+			observer.callback?.([
+				{ isIntersecting: true } as IntersectionObserverEntry,
+			]),
 		);
 		expect(releasePage).toBeDefined();
 		await click(button("cline/cline"));

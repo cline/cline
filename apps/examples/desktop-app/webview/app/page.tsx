@@ -2423,6 +2423,9 @@ function ChatThreadPane({
 					environmentSelector={
 						<EnvironmentSelector
 							activeEnvironmentId={environmentId}
+							cloudEnabled={cloudAgentsEnabled}
+							executionTarget={isCloudSession ? "cloud" : "local"}
+							onSelectExecutionTarget={handleExecutionTargetChange}
 							loading={environmentProfilesLoading}
 							onAddSshHost={onAddSshHost}
 							onSelectEnvironment={onSelectEnvironment}
@@ -2447,7 +2450,6 @@ function ChatThreadPane({
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}
 					cloudBranch={config.branch ?? ""}
-					onExecutionTargetChange={handleExecutionTargetChange}
 					onRepoUrlChange={handleCloudRepoUrlChange}
 					onCloudBranchChange={handleCloudBranchChange}
 					cloudAgentsEnabled={cloudAgentsEnabled}
