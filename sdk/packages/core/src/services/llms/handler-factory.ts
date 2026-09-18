@@ -183,6 +183,7 @@ export function createAgentModelFromConfig(
 		knownModels: resolveKnownModelsFromConfig(config),
 		maxOutputTokens: config.maxTokensPerTurn,
 		temperature: config.temperature,
+		serviceTier: config.serviceTier,
 		reasoningEffort: config.reasoningEffort,
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,
@@ -237,6 +238,7 @@ export function createAgentModelFromConfig(
 			modelId: normalizedProviderConfig.modelId,
 		},
 		{
+			serviceTier: normalizedProviderConfig.serviceTier,
 			maxTokens: normalizedProviderConfig.maxOutputTokens,
 			temperature: normalizedProviderConfig.temperature,
 		},

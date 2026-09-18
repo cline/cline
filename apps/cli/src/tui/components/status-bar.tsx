@@ -91,12 +91,17 @@ export function resolveModelDisplayName(config: {
 	knownModels?: Record<string, unknown>;
 	thinking?: boolean;
 	reasoningEffort?: string;
+	serviceTier?: "priority";
 }): string {
 	const info = lookupModelInfo(config.modelId, config.knownModels);
 	const modelIdTail = config.modelId.split("/").pop() ?? config.modelId;
 	let displayName = info?.name ?? modelIdTail;
 	if (config.thinking && config.reasoningEffort) {
 		displayName = `${displayName} (${config.reasoningEffort})`;
+	}
+	if (config.providerId === "openai-codex") {
+		displayName +=
+			config.serviceTier === "priority" ? " [Fast: On]" : " [Fast: Off]";
 	}
 	if (config.providerId === "cline-pass") {
 		displayName = `ClinePass: ${displayName}`;

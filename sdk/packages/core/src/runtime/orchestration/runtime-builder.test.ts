@@ -75,6 +75,42 @@ describe("DefaultRuntimeBuilder", () => {
 		}
 	});
 
+	it.each([
+		{
+			serviceTier: undefined,
+			providerConfig: { serviceTier: "priority" as const },
+			expected: "priority",
+		},
+		{
+			serviceTier: "priority" as const,
+			providerConfig: {},
+			expected: "priority",
+		},
+		{ serviceTier: undefined, providerConfig: {}, expected: undefined },
+	])("projects the effective service tier into delegated runtime config: %j", async ({
+		serviceTier,
+		providerConfig,
+		expected,
+	}) => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				enableTools: false,
+				serviceTier,
+				providerConfig: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-6",
+					...providerConfig,
+				},
+			}),
+		});
+		expect(
+			runtime.delegatedAgentConfigProvider?.getRuntimeConfig().serviceTier,
+		).toBe(expected);
+		expect(
+			runtime.delegatedAgentConfigProvider?.getConnectionConfig().serviceTier,
+		).toBe(expected);
+	});
+
 	it("includes builtin tools when enabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig(),
