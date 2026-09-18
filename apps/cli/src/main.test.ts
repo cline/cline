@@ -642,6 +642,26 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("keeps config-like prompt text after -- out of startup configuration", async () => {
+		forcePromptModeInput();
+		const prompt = "--config=explain this option";
+		process.argv = ["bun", "src/index.ts", "--", prompt];
+
+		const storage = await import("@cline/shared/storage");
+		const setClineDir = vi
+			.spyOn(storage, "setClineDir")
+			.mockImplementation(() => undefined);
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(setClineDir).not.toHaveBeenCalled();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledExactlyOnceWith(
+			prompt,
+			expect.any(Object),
+			expect.anything(),
+		);
+	});
+
 	it("rejects unknown root flags before loading runtime modules", async () => {
 		const consoleError = vi
 			.spyOn(console, "error")
@@ -1950,6 +1970,23 @@ describe("stdinHasPipedInput", () => {
 });
 
 describe("resolveConfigDirArg", () => {
+	it.each([
+		["--", "--config", "./example"],
+		["--", "--config=explain this option"],
+		["--", "--", "--config=./example"],
+	])("ignores config arguments after the separator: %j", async (...argv) => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(argv)).toBeUndefined();
+	});
+
+	it.each([
+		["--config", "./real", "--", "--config=./example"],
+		["--config=./real", "--", "--config", "./example"],
+	])("preserves config arguments before the separator: %j", async (...argv) => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(argv)).toBe("./real");
+	});
+
 	it("returns undefined when --config is not present", async () => {
 		const { resolveConfigDirArg } = await import("./main");
 		expect(resolveConfigDirArg([])).toBeUndefined();
