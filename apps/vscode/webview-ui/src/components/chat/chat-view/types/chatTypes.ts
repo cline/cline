@@ -104,6 +104,7 @@ export interface ScrollBehavior {
  * Welcome section props
  */
 export interface WelcomeSectionProps {
+	isVisible: boolean
 	showAnnouncement: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void

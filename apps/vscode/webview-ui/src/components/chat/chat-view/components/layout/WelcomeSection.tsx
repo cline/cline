@@ -32,6 +32,7 @@ const CLINE_PASS_PROMO_BANNER_ID = "cline-pass-home-promo-v2"
  * Includes info banner, announcements, home header, and history preview
  */
 export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
+	isVisible,
 	showAnnouncement,
 	hideAnnouncement,
 	showHistoryView,
@@ -381,7 +382,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				)}
 			</div>
 			<SuggestedTasks shouldShowQuickWins={shouldShowQuickWins} />
-			{cloudSessionsEnabled && (
+			{cloudSessionsEnabled && isVisible && (
 				<div className="mt-auto pt-2">
 					<TaskTargetPanel />
 				</div>
