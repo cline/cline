@@ -475,6 +475,24 @@ jobs:
             exit 1
           fi
 
+      # Boot the sidecar that will actually ship — built with the production
+      # --target, --minify and telemetry defines, on the OS it will run on —
+      # against an isolated Hub, and require its ready line plus a healthy
+      # /health. Desktop 0.0.31 shipped a sidecar whose Hub daemon loaded a
+      # second copy of @cline/core with a different build id, so the app
+      # retired its own Hub on every launch and never got past "backend
+      # unavailable". PR CI runs this same test on ubuntu against a plain
+      # `bun build --compile`, which catches that resolution class but not a
+      # break specific to the shipped flags or platform; this is the
+      # release-time half. The test isolates CLINE_DIR and the Hub discovery
+      # path, so it cannot reach anything else on the runner. Telemetry is
+      # inlined into the binary, so expect one activation event per publish.
+      - name: Smoke-test the packaged sidecar against an isolated Hub
+        working-directory: apps/examples/desktop-app
+        env:
+          CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-universal-apple-darwin
+        run: bun test scripts/desktop-startup.test.ts
+
       - name: Collect artifacts
         working-directory: apps/examples/desktop-app
         env:
@@ -778,6 +796,14 @@ jobs:
             echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
             exit 1
           fi
+
+      # Same release-time gate as the macOS job; see the comment there.
+      - name: Smoke-test the packaged sidecar against an isolated Hub
+        shell: bash
+        working-directory: apps/examples/desktop-app
+        env:
+          CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe
+        run: bun test scripts/desktop-startup.test.ts
 
       - name: Collect artifacts
         shell: bash
