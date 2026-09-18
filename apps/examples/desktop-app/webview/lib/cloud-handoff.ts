@@ -125,6 +125,17 @@ export function shouldOpenHandoffInApp(
 	return destination === "in_app" && isSourceStillActive;
 }
 
+export function isExpectedHandoffSourceActive(
+	expectedThreadId: string | undefined,
+	activeThreadId: string,
+	view: string,
+): boolean {
+	return (
+		!expectedThreadId ||
+		(expectedThreadId === activeThreadId && view === "chat")
+	);
+}
+
 export type HandoffWarningToast = {
 	title: string;
 	description: string;

@@ -42,6 +42,26 @@ describe("cloudHandoffUiReducer", () => {
 		expect(resolveHandoffReceipt(undefined, persisted)).toBe(persisted);
 	});
 
+	it("clears a live recovery override after its payload reaches the target", () => {
+		const recovery = {
+			"local-1": {
+				status: "recovery" as const,
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				retryDraft: "/cloud continue",
+				retryAttachments: [
+					new File(["image"], "diagram.png", { type: "image/png" }),
+				],
+			},
+		};
+
+		expect(
+			cloudHandoffUiReducer(recovery, {
+				type: "retry_delivered",
+				sourceSessionId: "local-1",
+			}),
+		).toEqual({});
+	});
+
 	it("carries the event's warningKind into the completed entry", () => {
 		const next = cloudHandoffUiReducer(
 			{},
@@ -355,7 +375,7 @@ describe("cloudHandoffUiReducer", () => {
 			},
 		);
 
-			expect(dismissed["local-1"]).toEqual({
+		expect(dismissed["local-1"]).toEqual({
 			status: "recovery_dismissed",
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			retryDraft: "/cloud continue",
