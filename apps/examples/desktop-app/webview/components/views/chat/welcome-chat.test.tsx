@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
 import type { AgendaTaskRecord } from "@cline/shared";
-import type { ComponentProps } from "react";
-import { act } from "react";
+import { act, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
@@ -81,6 +80,7 @@ async function renderWelcomeScreen({
 	workspaceRoot,
 	workspaces,
 	gitBranch = "main",
+	environmentSelector = null,
 	selectChat = vi.fn(async () => true),
 	onListGitBranches = vi.fn(async () => ({
 		current: "main",
@@ -92,6 +92,7 @@ async function renderWelcomeScreen({
 	workspaceRoot: string;
 	workspaces: string[];
 	gitBranch?: string | null;
+	environmentSelector?: ReactNode;
 	selectChat?: () => Promise<boolean>;
 	onListGitBranches?: () => Promise<{
 		current: string;
@@ -117,6 +118,7 @@ async function renderWelcomeScreen({
 					body={null}
 					composer={null}
 					gitBranch={gitBranch}
+					environmentSelector={environmentSelector}
 					onListGitBranches={onListGitBranches}
 					onOpenSession={onOpenSession}
 					onSwitchGitBranch={vi.fn(async () => true)}
@@ -176,6 +178,31 @@ describe("WelcomeScreen", () => {
 			"https://github.com/apps/cline/installations/new",
 		);
 		accountRef.user = null;
+	});
+
+	it("places the environment selector before the workspace selector", async () => {
+		await renderWelcomeScreen({
+			environmentSelector: (
+				<button data-testid="environment-selector" type="button">
+					Local
+				</button>
+			),
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		const environmentSelector = container.querySelector(
+			'[data-testid="environment-selector"]',
+		);
+		const workspaceSelector = container.querySelector(
+			'button[title="project-1"]',
+		);
+		expect(environmentSelector).not.toBeNull();
+		expect(workspaceSelector).not.toBeNull();
+		expect(
+			environmentSelector?.compareDocumentPosition(workspaceSelector as Node) ??
+				0,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 	});
 
 	it("does not render static prompt suggestions", async () => {

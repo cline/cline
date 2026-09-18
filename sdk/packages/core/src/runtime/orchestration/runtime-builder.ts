@@ -668,8 +668,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 										)
 									: [],
 							hookErrorMode: config.hookErrorMode,
-							toolPolicies: effectiveToolPolicies,
-							requestToolApproval: input.requestToolApproval,
 							onSubAgentEvent: input.onSubAgentEvent,
 							onSubAgentStart: input.onSubAgentStart,
 							onSubAgentEnd: input.onSubAgentEnd,

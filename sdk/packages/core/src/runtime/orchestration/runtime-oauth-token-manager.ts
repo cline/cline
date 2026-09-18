@@ -1,12 +1,13 @@
 import type { ITelemetryService } from "@cline/shared";
-import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	getProviderAuthHandler,
 	getProviderOAuthCredentialsFromSettings,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import type { ProviderSettings } from "../../types/provider-settings";
+import { withOAuthRefreshLock } from "./oauth-refresh-lock";
 
 type ManagedOAuthProviderId = string;
 
@@ -87,17 +88,35 @@ export class RuntimeOAuthTokenManager {
 		if (currentInFlight) {
 			return currentInFlight;
 		}
-		const pending = this.resolveProviderApiKeyInternal(
-			providerId,
+		const initialSettings =
+			this.providerSettingsManager.getProviderSettings(storageProviderId);
+		if (
+			!initialSettings ||
+			!getProviderOAuthCredentialsFromSettings(providerId, initialSettings)
+		) {
+			return null;
+		}
+		const originalAuth = initialSettings.auth;
+		const pending = withOAuthRefreshLock(
+			this.providerSettingsManager.getFilePath(),
 			storageProviderId,
-			forceRefresh,
-		)
-			.catch((error) => {
-				throw error;
-			})
-			.finally(() => {
-				this.refreshInFlight.delete(storageProviderId);
-			});
+			() =>
+				this.resolveProviderApiKeyInternal(
+					providerId,
+					storageProviderId,
+					// Another holder may already have rotated the token while we
+					// waited. Read disk under the lock and reuse that fresh token.
+					forceRefresh &&
+						authSettingsEqual(
+							originalAuth,
+							this.providerSettingsManager.getProviderSettings(
+								storageProviderId,
+							)?.auth,
+						),
+				),
+		).finally(() => {
+			this.refreshInFlight.delete(storageProviderId);
+		});
 		this.refreshInFlight.set(storageProviderId, pending);
 		return pending;
 	}
@@ -141,6 +160,13 @@ export class RuntimeOAuthTokenManager {
 			forceRefresh,
 			telemetry: this.telemetry,
 		});
+		// A settings write (sign-out or a new sign-in) need not wait for an
+		// HTTP refresh. Never resurrect/overwrite credentials it replaced.
+		const latestSettings =
+			this.providerSettingsManager.getProviderSettings(storageProviderId);
+		if (!authSettingsEqual(settings.auth, latestSettings?.auth)) {
+			return null;
+		}
 		if (!nextCredentials) {
 			sdkDebug(
 				`oauth.resolve providerId=${providerId} outcome=refresh_returned_null`,
@@ -151,7 +177,7 @@ export class RuntimeOAuthTokenManager {
 		const nextSettings: ProviderSettings = saveProviderOAuthCredentials({
 			manager: this.providerSettingsManager,
 			providerId,
-			settings,
+			settings: { ...settings, ...latestSettings },
 			credentials: nextCredentials,
 			setLastUsed: false,
 			save: false,

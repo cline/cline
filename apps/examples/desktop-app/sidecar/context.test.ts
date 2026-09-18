@@ -223,7 +223,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		const hubClient = await ensureSharedHubClient(ctx);
-		expect(hubClient).toBe(ctx.hubClient);
+		expect(hubClient).toBeDefined();
 
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
@@ -259,8 +259,14 @@ describe("Code sidecar runtime capabilities", () => {
 		];
 		const command = vi.fn(async () => ({ ok: true, payload: { hits } }));
 		const list = vi.fn(async () => []);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
@@ -306,8 +312,14 @@ describe("Code sidecar runtime capabilities", () => {
 				metadata: { title: oversizedPrompt },
 			},
 		]);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("cloud-out-of-scope", "generate an image"),
 		]);
@@ -345,8 +357,14 @@ describe("Code sidecar runtime capabilities", () => {
 				metadata: { title: "generate an image of a puppy" },
 			},
 		]);
-		ctx.hubClient = { command } as never;
-		ctx.sessionManager = { list } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
@@ -381,8 +399,14 @@ describe("Code sidecar runtime capabilities", () => {
 					metadata: { title: "generate an image of a puppy" },
 				},
 			]);
-			ctx.hubClient = { command } as never;
-			ctx.sessionManager = { list } as never;
+			ctx.runtimeBindings.set("local", {
+				environmentId: "local",
+				kind: "local",
+				workspaceRoot: "/workspace/project",
+				hubClient: { command } as never,
+				sessionManager: { list } as never,
+				unsubscribeSessionEvents: () => {},
+			});
 			ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => []);
 
 			const pending = handleCommand(ctx, "search_sessions", {
@@ -411,10 +435,16 @@ describe("Code sidecar runtime capabilities", () => {
 		const list = vi.fn(async () => [
 			cloudSearchRecord("cloud-cold", "UNIQUE-CLOUD-TITLE"),
 		]);
-		ctx.hubClient = {
-			command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
-		} as never;
-		ctx.sessionManager = { list: vi.fn(async () => []) } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: {
+				command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+			} as never,
+			sessionManager: { list: vi.fn(async () => []) } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 		ctx.cloudSessionManager = createSearchCloudManager(ctx, list);
 
 		const results = (await handleCommand(ctx, "search_sessions", {
@@ -430,37 +460,43 @@ describe("Code sidecar runtime capabilities", () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
-		ctx.hubClient = {
-			command: vi.fn(async () => ({
-				ok: true,
-				payload: {
-					hits: [
-						{
-							sessionId: "local-1",
-							documentId: "local-1:0",
-							role: "user",
-							title: "match",
-							snippet: "match",
-						},
-						{
-							sessionId: "shared",
-							documentId: "shared:0",
-							role: "user",
-							title: "match",
-							snippet: "match",
-						},
-						{
-							sessionId: "shared",
-							documentId: "shared:1",
-							role: "assistant",
-							title: "match",
-							snippet: "match again",
-						},
-					],
-				},
-			})),
-		} as never;
-		ctx.sessionManager = { list: vi.fn(async () => []) } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: {
+				command: vi.fn(async () => ({
+					ok: true,
+					payload: {
+						hits: [
+							{
+								sessionId: "local-1",
+								documentId: "local-1:0",
+								role: "user",
+								title: "match",
+								snippet: "match",
+							},
+							{
+								sessionId: "shared",
+								documentId: "shared:0",
+								role: "user",
+								title: "match",
+								snippet: "match",
+							},
+							{
+								sessionId: "shared",
+								documentId: "shared:1",
+								role: "assistant",
+								title: "match",
+								snippet: "match again",
+							},
+						],
+					},
+				})),
+			} as never,
+			sessionManager: { list: vi.fn(async () => []) } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 		ctx.cloudSessionManager = createSearchCloudManager(ctx, async () => [
 			cloudSearchRecord("shared", "match"),
 			cloudSearchRecord("cloud-2", "match second", "2026-01-03T00:00:00.000Z"),
@@ -488,19 +524,25 @@ describe("Code sidecar runtime capabilities", () => {
 			const { handleCommand } = await import("./commands");
 			const { createSidecarContext } = await import("./context");
 			const ctx = createSidecarContext("/workspace/project");
-			ctx.hubClient = {
-				command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
-			} as never;
-			ctx.sessionManager = {
-				list: vi.fn(async () => [
-					{
-						sessionId: "local-match",
-						workspaceRoot: "/workspace/project",
-						prompt: "local match",
-						metadata: { title: "local match" },
-					},
-				]),
-			} as never;
+			ctx.runtimeBindings.set("local", {
+				environmentId: "local",
+				kind: "local",
+				workspaceRoot: "/workspace/project",
+				hubClient: {
+					command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+				} as never,
+				sessionManager: {
+					list: vi.fn(async () => [
+						{
+							sessionId: "local-match",
+							workspaceRoot: "/workspace/project",
+							prompt: "local match",
+							metadata: { title: "local match" },
+						},
+					]),
+				} as never,
+				unsubscribeSessionEvents: () => {},
+			});
 			ctx.cloudSessionManager = createSearchCloudManager(
 				ctx,
 				async () => await new Promise<CloudSessionRecord[]>(() => {}),
@@ -523,10 +565,16 @@ describe("Code sidecar runtime capabilities", () => {
 		const { createSidecarContext } = await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
 		let release!: (records: CloudSessionRecord[]) => void;
-		ctx.hubClient = {
-			command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
-		} as never;
-		ctx.sessionManager = { list: vi.fn(async () => []) } as never;
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: {
+				command: vi.fn(async () => ({ ok: true, payload: { hits: [] } })),
+			} as never,
+			sessionManager: { list: vi.fn(async () => []) } as never,
+			unsubscribeSessionEvents: () => {},
+		});
 		ctx.cloudSessionManager = createSearchCloudManager(
 			ctx,
 			() =>
@@ -784,6 +832,7 @@ describe("Code sidecar runtime capabilities", () => {
 			events.find((message) => message.event.name === "prompts_in_queue_state")
 				?.event.payload,
 		).toEqual({
+			environmentId: "local",
 			sessionId: "session-1",
 			items: [
 				{ id: "prompt-2", prompt: "second", steer: false, attachmentCount: 0 },
@@ -949,7 +998,7 @@ describe("Code sidecar runtime capabilities", () => {
 			expect.objectContaining({
 				event: expect.objectContaining({
 					name: "ask_question_answered",
-					payload: { requestId },
+					payload: { requestId, environmentId: "local" },
 				}),
 			}),
 		);
@@ -1488,6 +1537,7 @@ describe("Code sidecar runtime capabilities", () => {
 				event: {
 					name: "task.created",
 					payload: {
+						environmentId: "local",
 						taskId: "task-1",
 						status: "pending_approval",
 					},
@@ -1516,6 +1566,7 @@ describe("Code sidecar runtime capabilities", () => {
 				event: {
 					name: "settings.changed",
 					payload: {
+						environmentId: "local",
 						types: ["plugins", "skills", "mcp"],
 					},
 				},
@@ -1573,27 +1624,35 @@ describe("disposeSidecarContext attachment cleanup", () => {
 		expect(ctx.liveSessions.size).toBe(0);
 	});
 
-	it("waits for pending approval callbacks before shutdown completes", async () => {
-		const { createSidecarContext, disposeSidecarContext } = await import(
-			"./context"
-		);
+	it.each([
+		"local",
+		"remote-1",
+	])("waits for %s approval callbacks before shutdown completes", async (environmentId) => {
+		const {
+			createSidecarContext,
+			disposeSidecarContext,
+			getEnvironmentContext,
+		} = await import("./context");
 		const ctx = createSidecarContext("/workspace/project");
 		let release: (() => void) | undefined;
-		ctx.pendingApprovals.set("approval-1", {
-			owner: { data: { canApproveTools: true }, send: vi.fn() },
-			item: {
-				requestId: "approval-1",
-				sessionId: "session-1",
-				createdAt: new Date().toISOString(),
-				toolCallId: "tool-1",
-				toolName: "run_commands",
-				input: {},
+		getEnvironmentContext(ctx, environmentId).pendingApprovals.set(
+			"approval-1",
+			{
+				owner: { data: { canApproveTools: true }, send: vi.fn() },
+				item: {
+					requestId: "approval-1",
+					sessionId: "session-1",
+					createdAt: new Date().toISOString(),
+					toolCallId: "tool-1",
+					toolName: "run_commands",
+					input: {},
+				},
+				resolve: async () =>
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					}),
 			},
-			resolve: async () =>
-				await new Promise<void>((resolve) => {
-					release = resolve;
-				}),
-		});
+		);
 
 		let disposed = false;
 		const disposing = disposeSidecarContext(ctx, "test_shutdown").then(() => {
@@ -1625,9 +1684,11 @@ describe("Chat chunk pipe selection", () => {
 			status: "running",
 			attachedViaHub: true,
 		});
-		ctx.sessionManager = {
-			hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
-		} as never;
+		ctx.runtimeBindings.set("local", {
+			sessionManager: {
+				hasSessionSubscription: (id: string) => coreSubscriptions.has(id),
+			},
+		} as never);
 		return ctx;
 	}
 

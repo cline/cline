@@ -64,6 +64,9 @@ jobs:
       - name: Build UI package
         run: bun -F @cline/ui build
 
+      - name: Build LLM package for desktop chat tests
+        run: bun -F @cline/llms build
+
       - name: Test desktop chat integration
         run: bun -F @cline/code test:chat-ui
 

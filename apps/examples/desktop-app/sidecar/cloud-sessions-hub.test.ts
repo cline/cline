@@ -8,6 +8,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import { createSidecarContext } from "./context";
 import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
@@ -33,11 +34,8 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx = {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		coreStreamActivity: new Map(),
+	const ctx: SidecarContext = {
+		...createSidecarContext("/local/workspace"),
 		bootId: "cloud-test-boot",
 		wsClients: new Set([
 			{
@@ -51,15 +49,7 @@ function createContext(): {
 				},
 			},
 		]),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot: "/local/workspace",
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-		hubBuildMismatch: null,
-	} as SidecarContext;
+	};
 	return { ctx, events };
 }
 
@@ -264,7 +254,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(events).toEqual([
 			{
 				name: "tool_approval_state",
-				payload: { items: [], sessionId: "ses-outer" },
+				payload: { items: [], sessionId: "ses-outer", environmentId: "local" },
 			},
 		]);
 	});
@@ -728,7 +718,11 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				sessionId: "ses-outer",
+				status: "running",
+				environmentId: "local",
+			},
 		});
 	});
 
@@ -793,7 +787,11 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(events).toContainEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				sessionId: "ses-outer",
+				status: "running",
+				environmentId: "local",
+			},
 		});
 		hub.events?.({
 			...envelope,

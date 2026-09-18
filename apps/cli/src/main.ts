@@ -18,6 +18,7 @@ import {
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import type { TuiStartupTarget } from "./tui/types";
 import { filterChatModels } from "./utils/chat-models";
+import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -146,6 +147,7 @@ function startupTargetTakesPrecedenceOverMigrationNotice(
 }
 
 export async function runCli(): Promise<void> {
+	registerClineClientIdentity("cline-cli");
 	installStreamErrorGuards();
 	autoUpdateOnStartup();
 

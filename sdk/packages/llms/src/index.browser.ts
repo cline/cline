@@ -37,6 +37,7 @@ export {
 	resolveProviderUsageCostDisplay,
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
+export { buildClineClientHeaders } from "./providers/cline-client-headers";
 export {
 	type ProviderLocalCli,
 	resolveProviderLocalCli,
