@@ -89,6 +89,13 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 		mocks.navigateToSettingsModelPicker.mockReset()
 	})
 
+	it("renders before optional cloud state has hydrated", () => {
+		renderTextArea()
+
+		expect(screen.getByPlaceholderText("Type a message")).toBeInTheDocument()
+		expect(screen.getByTestId("mode-switch")).toHaveAttribute("aria-disabled", "false")
+	})
+
 	it("still takes the image attach path on paste for a text-only model, without a refusal message", () => {
 		mocks.supportsImages = false
 		const { textarea } = renderTextArea()
