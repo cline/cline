@@ -10,7 +10,10 @@ import { createTaskProxy } from "./task-proxy"
 
 vi.mock("@/hosts/host-provider", () => ({ HostProvider: { window: { showMessage: vi.fn(async () => ({})) } } }))
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+	vi.useRealTimers()
+	vi.restoreAllMocks()
+})
 
 function deferred<T>() {
 	let resolve!: (value: T) => void
@@ -350,5 +353,88 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(result).toBeUndefined()
 		expect(cloudSessions.createSession).not.toHaveBeenCalled()
 		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+	})
+
+	it("projects an authoritative usage snapshot from its live cloud host", async () => {
+		const getAccumulatedUsage = vi.fn(async () => ({
+			inputTokens: 101,
+			outputTokens: 202,
+			cacheReadTokens: 303,
+			cacheWriteTokens: 404,
+			totalCost: 0.5,
+		}))
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		;(coordinator as unknown as { entries: Map<string, unknown> }).entries.set(record.id, {
+			record,
+			host: { getAccumulatedUsage },
+			lastActivityAt: 0,
+		})
+
+		const [history] = await coordinator.listHistoryRecords()
+
+		expect(getAccumulatedUsage).toHaveBeenCalledWith(record.id)
+		expect(history.metadata).toMatchObject({
+			usageAvailable: true,
+			tokensIn: 101,
+			tokensOut: 202,
+			cacheReads: 303,
+			cacheWrites: 404,
+			totalCost: 0.5,
+		})
+	})
+
+	it("leaves usage unavailable when REST has no authoritative usage", async () => {
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+
+		const [history] = await coordinator.listHistoryRecords()
+
+		expect(history.metadata).not.toHaveProperty("usageAvailable")
+		expect(history.metadata).not.toHaveProperty("tokensIn")
+	})
+
+	it("restarts History in the new account scope when old usage resolves late", async () => {
+		const usage = deferred<undefined>()
+		const entered = deferred<void>()
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		;(coordinator as unknown as { entries: Map<string, unknown> }).entries.set(record.id, {
+			record,
+			host: {
+				getAccumulatedUsage: () => {
+					entered.resolve()
+					return usage.promise
+				},
+				dispose: vi.fn(async () => undefined),
+			},
+			lastActivityAt: 0,
+		})
+
+		const pending = coordinator.listHistoryRecords()
+		await entered.promise
+		await coordinator.reset()
+		const current = { ...record, id: "ses-current" }
+		cloudSessions.listSessions.mockResolvedValue([current])
+		usage.resolve(undefined)
+
+		expect(await pending).toMatchObject([{ sessionId: current.id }])
+	})
+
+	it("does not block History on a non-responsive usage RPC", async () => {
+		vi.useFakeTimers()
+		const { coordinator, cloudSessions } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([record])
+		;(coordinator as unknown as { entries: Map<string, unknown> }).entries.set(record.id, {
+			record,
+			host: { getAccumulatedUsage: () => new Promise(() => {}) },
+			lastActivityAt: 0,
+		})
+
+		const pending = coordinator.listHistoryRecords()
+		await vi.advanceTimersByTimeAsync(2_000)
+		const [history] = await pending
+
+		expect(history.metadata).not.toHaveProperty("usageAvailable")
 	})
 })
