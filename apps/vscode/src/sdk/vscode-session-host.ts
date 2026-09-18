@@ -45,7 +45,7 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
-import type { SdkSessionHost } from "./session-host"
+import type { SdkSessionHost, SessionConnectionUpdate } from "./session-host"
 import { createVscodeExtraTools } from "./vscode-runtime-builder"
 import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-mode"
 
@@ -110,6 +110,9 @@ export class VscodeSessionHost implements SdkSessionHost {
 	}
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void> {
 		return this.inner.updateSessionModel(sessionId, modelId)
+	}
+	updateSessionConnection?(sessionId: string, updates: SessionConnectionUpdate): Promise<void> {
+		return this.inner.updateSessionConnection(sessionId, updates)
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
