@@ -2099,6 +2099,41 @@ describe("translateSessionEvent — agent_event notice", () => {
 		})
 	})
 
+	it("translates overflow-recovery compaction notices into a divider row", () => {
+		const state = new MessageTranslatorState()
+
+		const started = translateSessionEvent(
+			noticeEvent("overflow-recovery-compacting", { kind: "overflow_recovery_compaction", phase: "started" }),
+			state,
+		).messages
+		expect(started).toHaveLength(1)
+		expect(started[0].say).toBe("compaction")
+		expect(JSON.parse(started[0].text ?? "{}")).toMatchObject({ status: "started", mode: "auto" })
+
+		const completed = translateSessionEvent(
+			noticeEvent("overflow-recovery-compacted", {
+				kind: "overflow_recovery_compaction",
+				phase: "completed",
+				tokensBefore: 120_000,
+				tokensAfter: 40_000,
+				messagesBefore: 80,
+				messagesAfter: 12,
+			}),
+			state,
+		).messages
+		expect(completed).toHaveLength(1)
+		expect(completed[0].say).toBe("compaction")
+		expect(completed[0].ts).toBe(started[0].ts)
+		expect(JSON.parse(completed[0].text ?? "{}")).toMatchObject({
+			status: "completed",
+			mode: "auto",
+			tokensBefore: 120_000,
+			tokensAfter: 40_000,
+			messagesBefore: 80,
+			messagesAfter: 12,
+		})
+	})
+
 	it("suppresses known-internal status notices instead of rendering raw slugs", () => {
 		const state = new MessageTranslatorState()
 		const result = translateSessionEvent(
