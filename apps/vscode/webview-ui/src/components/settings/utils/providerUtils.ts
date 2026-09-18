@@ -70,6 +70,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
 			awsBedrockCustomModelBaseId: undefined,
+			awsBedrockUsePromptCache: undefined,
 
 			// Huawei Cloud Maas Model Info
 			huaweiCloudMaasModelInfo: undefined,
@@ -153,6 +154,10 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan"
 				? apiConfiguration.planModeAwsBedrockCustomModelBaseId
 				: apiConfiguration.actModeAwsBedrockCustomModelBaseId,
+		awsBedrockUsePromptCache:
+			(mode === "plan"
+				? apiConfiguration.planModeAwsBedrockUsePromptCache
+				: apiConfiguration.actModeAwsBedrockUsePromptCache) ?? apiConfiguration.awsBedrockUsePromptCache,
 
 		// Huawei Cloud Maas Model Info
 		huaweiCloudMaasModelInfo:
@@ -198,6 +203,8 @@ export async function syncModeConfigurations(
 		actModeThinkingBudgetTokens: sourceFields.thinkingBudgetTokens,
 		planModeReasoningEffort: sourceFields.reasoningEffort,
 		actModeReasoningEffort: sourceFields.reasoningEffort,
+		planModeAwsBedrockUsePromptCache: sourceFields.awsBedrockUsePromptCache,
+		actModeAwsBedrockUsePromptCache: sourceFields.awsBedrockUsePromptCache,
 	}
 
 	// Handle provider-specific fields

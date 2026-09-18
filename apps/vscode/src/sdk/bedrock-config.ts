@@ -31,6 +31,28 @@ function trimToUndefined(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined
 }
 
+function selectedBedrockBaseModelId(configuration: ApiConfiguration, mode: Mode): string | undefined {
+	return trimToUndefined(
+		mode === "plan" ? configuration.planModeAwsBedrockCustomModelBaseId : configuration.actModeAwsBedrockCustomModelBaseId,
+	)
+}
+
+function shouldUseBedrockPromptCache(configuration: ApiConfiguration, mode: Mode): boolean | undefined {
+	const modeSetting =
+		mode === "plan" ? configuration.planModeAwsBedrockUsePromptCache : configuration.actModeAwsBedrockUsePromptCache
+	const usePromptCache = modeSetting ?? configuration.awsBedrockUsePromptCache
+
+	if (usePromptCache !== true) {
+		return usePromptCache
+	}
+
+	const baseModelId = selectedBedrockBaseModelId(configuration, mode)?.toLowerCase()
+	if (baseModelId?.includes("claude") && baseModelId.includes("haiku")) {
+		return false
+	}
+
+	return true
+}
 /**
  * Map the webview's `awsAuthentication` radio value onto the SDK's
  * `AwsConfig.authentication` spelling.
@@ -70,7 +92,7 @@ export function buildBedrockProviderConfig(configuration: ApiConfiguration, mode
 		sessionToken: trimToUndefined(configuration.awsSessionToken),
 		authentication,
 		profile: usesProfile ? trimToUndefined(configuration.awsProfile) : undefined,
-		usePromptCache: configuration.awsBedrockUsePromptCache,
+		usePromptCache: shouldUseBedrockPromptCache(configuration, mode),
 		endpoint: trimToUndefined(configuration.awsBedrockEndpoint),
 		customModelBaseId: trimToUndefined(
 			mode === "plan"

@@ -93,6 +93,55 @@ describe("buildBedrockProviderConfig", () => {
 		expect(buildBedrockProviderConfig(config, "act").aws?.customModelBaseId).toBe("act-base")
 	})
 
+	it("does not carry prompt cache from plan mode into an act-mode Haiku base model", () => {
+		const config: ApiConfiguration = {
+			awsAuthentication: "apikey",
+			awsBedrockUsePromptCache: true,
+			planModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-3-haiku-20240307-v1:0",
+		}
+
+		expect(buildBedrockProviderConfig(config, "plan").aws?.usePromptCache).toBe(true)
+		expect(buildBedrockProviderConfig(config, "act").aws?.usePromptCache).toBe(false)
+	})
+
+	it("keeps Plan and Act prompt-cache settings independent", () => {
+		const config: ApiConfiguration = {
+			awsBedrockUsePromptCache: true,
+			planModeAwsBedrockUsePromptCache: true,
+			actModeAwsBedrockUsePromptCache: false,
+			planModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		}
+
+		expect(buildBedrockProviderConfig(config, "plan").aws?.usePromptCache).toBe(true)
+		expect(buildBedrockProviderConfig(config, "act").aws?.usePromptCache).toBe(false)
+	})
+
+	it("falls back to the legacy shared prompt-cache setting after upgrade", () => {
+		const config: ApiConfiguration = {
+			awsBedrockUsePromptCache: true,
+			planModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		}
+
+		expect(buildBedrockProviderConfig(config, "plan").aws?.usePromptCache).toBe(true)
+		expect(buildBedrockProviderConfig(config, "act").aws?.usePromptCache).toBe(true)
+	})
+
+	it("preserves prompt cache for non-Haiku or unknown Bedrock base models", () => {
+		const sonnetConfig: ApiConfiguration = {
+			awsBedrockUsePromptCache: true,
+			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+		}
+		const unknownConfig: ApiConfiguration = {
+			awsBedrockUsePromptCache: true,
+			actModeAwsBedrockCustomModelBaseId: "custom.vendor-model",
+		}
+
+		expect(buildBedrockProviderConfig(sonnetConfig, "act").aws?.usePromptCache).toBe(true)
+		expect(buildBedrockProviderConfig(unknownConfig, "act").aws?.usePromptCache).toBe(true)
+	})
 	it("forwards cross-region and global inference flags", () => {
 		const result = buildBedrockProviderConfig(
 			{
