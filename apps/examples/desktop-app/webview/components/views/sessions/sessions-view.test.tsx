@@ -10,6 +10,8 @@ import {
 } from "@/components/views/sessions/sessions-view";
 import type { SessionThread } from "@/hooks/use-session-history";
 import type { SessionHistoryItem } from "@/lib/session-history";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { registerTaskWorktreeRoot } from "@/lib/workspace-paths";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -288,6 +290,46 @@ describe("SessionsView table", () => {
 		});
 
 		expect(view.loadAllSessions).toHaveBeenCalledOnce();
+	});
+
+	it("warns that deleting a task-worktree session also removes its worktree", async () => {
+		registerTaskWorktreeRoot("/home/host/cline-dir/worktrees");
+		try {
+			const view = renderView({
+				threads: [
+					{
+						...thread,
+						workspacePath: "/home/host/cline-dir/worktrees/ab12c/ai-data-suite",
+					},
+				],
+			});
+			await view.render();
+
+			const actions = container.querySelector<HTMLButtonElement>(
+				`button[aria-label="Session actions for ${thread.title}"]`,
+			);
+			await act(async () => {
+				actions?.dispatchEvent(
+					new MouseEvent("pointerdown", {
+						bubbles: true,
+						cancelable: true,
+						button: 0,
+					}),
+				);
+			});
+			const deleteItem = Array.from(
+				document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
+			).find((item) => item.textContent === "Delete");
+			expect(deleteItem).not.toBeUndefined();
+			await act(async () => {
+				deleteItem?.click();
+			});
+
+			expect(document.body.textContent).toContain("Delete session?");
+			expect(document.body.textContent).toContain(TASK_WORKTREE_DELETE_WARNING);
+		} finally {
+			registerTaskWorktreeRoot("");
+		}
 	});
 });
 

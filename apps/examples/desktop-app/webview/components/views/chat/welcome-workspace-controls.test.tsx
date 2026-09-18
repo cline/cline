@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkIn } from "@/lib/work-in-selection";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 let container: HTMLDivElement;
@@ -145,9 +146,12 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		const onCloudBranchChange = vi.fn();
 		const props = renderControls({
 			executionTarget: "cloud",
+			workIn: "worktree",
+			onWorkInChange: vi.fn(),
 			onRepoUrlChange,
 			onCloudBranchChange,
 		});
+		expect(container.querySelector('[aria-label="Work in"]')).toBeNull();
 		await act(async () => {
 			button("Select repository").click();
 			await Promise.resolve();
@@ -747,10 +751,14 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 async function renderBranchChipControls(overrides: {
 	currentBranch: string;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 }): Promise<void> {
 	renderControls({
 		cloudEnabled: false,
 		currentBranch: overrides.currentBranch,
+		workIn: overrides.workIn,
+		onWorkInChange: overrides.onWorkInChange,
 		onListGitBranches: vi.fn(async () => ({
 			current: overrides.currentBranch,
 			branches:
@@ -794,5 +802,47 @@ describe("WelcomeWorkspaceControls branch chip", () => {
 			expect(container.textContent).toContain("Open folder...");
 		});
 		expect(container.textContent).not.toContain("Add project");
+	});
+});
+
+describe("WelcomeWorkspaceControls work-in chip", () => {
+	it("sits right of the branch chip and switches to Worktree", async () => {
+		const onWorkInChange = vi.fn();
+		await renderBranchChipControls({
+			currentBranch: "main",
+			workIn: "local",
+			onWorkInChange,
+		});
+
+		const labels = [...container.querySelectorAll("button")].map(
+			(button) => button.textContent,
+		);
+		expect(labels).toEqual(["recipes", "main", "Local"]);
+
+		await clickButton("Local");
+		await clickButton("Worktree");
+
+		expect(onWorkInChange).toHaveBeenCalledWith("worktree");
+		expect(container.textContent).not.toContain("Work in");
+	});
+
+	it("reflects the selected value in the chip", async () => {
+		await renderBranchChipControls({
+			currentBranch: "main",
+			workIn: "worktree",
+			onWorkInChange: vi.fn(),
+		});
+		expect(container.querySelector('[aria-label="Work in"]')?.textContent).toBe(
+			"Worktree",
+		);
+	});
+
+	it("is hidden for a plain (non-git) folder where a worktree is impossible", async () => {
+		await renderBranchChipControls({
+			currentBranch: "no-git",
+			workIn: "local",
+			onWorkInChange: vi.fn(),
+		});
+		expect(container.querySelector('[aria-label="Work in"]')).toBeNull();
 	});
 });

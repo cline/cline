@@ -25,6 +25,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
+import type { WorkIn } from "@/lib/work-in-selection";
 import {
 	CloudOnboardingCard,
 	type CloudOnboardingVariant,
@@ -67,6 +68,8 @@ export function WelcomeScreen({
 	onRepoUrlChange = noop,
 	onCloudBranchChange = noop,
 	cloudAgentsEnabled = false,
+	workIn,
+	onWorkInChange,
 	onOpenSession,
 }: {
 	active: boolean;
@@ -85,6 +88,8 @@ export function WelcomeScreen({
 	onRepoUrlChange?: (repoUrl: string) => void;
 	onCloudBranchChange?: (branch: string) => void;
 	cloudAgentsEnabled?: boolean;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
@@ -403,6 +408,8 @@ export function WelcomeScreen({
 									repoUrl={repoUrl}
 									signedIn={signedIn}
 									signingIn={signingIn}
+									onWorkInChange={onWorkInChange}
+									workIn={workIn}
 									workspaceRoot={workspaceRoot}
 									workspaces={workspaces}
 								/>
