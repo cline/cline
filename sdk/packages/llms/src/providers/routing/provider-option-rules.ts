@@ -2,6 +2,7 @@ import { isClineProvider } from "@cline/shared";
 import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import {
 	getModelReasoningControls,
+	isBedrockOpenAIRequest,
 	isDeepSeekFamily,
 	isGlmModel,
 	isKimiK26Family as isKimiK26FamilyFact,
@@ -502,6 +503,37 @@ const routedGlmReasoningRule: ProviderOptionRule = {
 		),
 };
 
+const bedrockOpenAIReasoningRule: ProviderOptionRule = {
+	id: "provider.bedrock.openai-reasoning",
+	phase: "provider-reasoning",
+	description:
+		"Bedrock OpenAI inference profiles use reasoning_effort, not reasoningConfig.",
+	applies: (input) => isBedrockOpenAIRequest(input.request),
+	suppresses: { genericFanout: true, genericThinking: true },
+	build: ({ request, context }) => {
+		const reasoning = request.reasoning;
+		const controls = getModelReasoningControls(context.model.reasoningOptions);
+		const effort =
+			reasoning?.enabled === false
+				? controls?.effort?.values.includes("none")
+					? "none"
+					: undefined
+				: (reasoning?.effort ??
+					(reasoning?.enabled === true &&
+					!controls &&
+					reasoning.budgetTokens === undefined
+						? "medium"
+						: undefined));
+		return effort
+			? {
+					bedrock: {
+						additionalModelRequestFields: { reasoning_effort: effort },
+					},
+				}
+			: undefined;
+	},
+};
+
 /**
  * The table is the provider/family behavior matrix. Adding a new exception
  * should mean adding a named rule here, not adding a branch in the composer.
@@ -509,6 +541,7 @@ const routedGlmReasoningRule: ProviderOptionRule = {
  * `sdk/packages/llms/AGENTS.md` for the sources-of-truth boundary.
  */
 export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
+	bedrockOpenAIReasoningRule,
 	directAnthropicProviderRule,
 	directGoogleProviderRule,
 	openAiAdapterRule,
