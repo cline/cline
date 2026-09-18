@@ -513,6 +513,22 @@ describe("network interruption retry", () => {
 		expect(Date.now() - startedAt).toBeLessThan(5_000);
 	});
 
+	it("stops retrying when the user aborts during the empty-response backoff sleep", async () => {
+		const abort = new AbortController();
+		const doStream = vi.fn(async () => streamOf(emptyParts));
+		setTimeout(() => abort.abort(), 20);
+
+		const startedAt = Date.now();
+		const { error } = await collectWithError(
+			await run(doStream, { retryDelayMs: 30_000 }, abort.signal),
+		);
+
+		expect(doStream).toHaveBeenCalledTimes(1);
+		expect(error).toBe(abort.signal.reason);
+		// Resolved by the abort, not by waiting out the 30s backoff.
+		expect(Date.now() - startedAt).toBeLessThan(5_000);
+	});
+
 	it("propagates the final failure after the attempt budget is exhausted", async () => {
 		const failures = [
 			undiciSocketClosed(),
@@ -623,6 +639,122 @@ describe("network interruption retry", () => {
 			expect.stringContaining("network interruption"),
 			expect.objectContaining({ severity: "warn", attempt: 1 }),
 		);
+	});
+});
+
+describe("downstream cancellation", () => {
+	/**
+	 * A provider attempt that emits `parts` and then stays open — a generation
+	 * still in flight — recording whether and why it was cancelled.
+	 */
+	function openEndedStream(parts: LanguageModelV4StreamPart[]) {
+		const cancelledWith = vi.fn();
+		let index = 0;
+		const result = {
+			stream: new ReadableStream<LanguageModelV4StreamPart>({
+				pull(controller) {
+					if (index < parts.length) {
+						controller.enqueue(parts[index++]);
+						return;
+					}
+					// Stay open: the model is still generating.
+					return new Promise<void>(() => {});
+				},
+				cancel(reason) {
+					cancelledWith(reason);
+				},
+			}),
+		} as LanguageModelV4StreamResult;
+		return { result, cancelledWith };
+	}
+
+	it("cancels the in-flight provider attempt when the consumer cancels", async () => {
+		const { result, cancelledWith } = openEndedStream([
+			streamStart,
+			{ type: "text-start", id: "t" },
+			{ type: "text-delta", id: "t", delta: "hello" },
+		]);
+		const doStream = vi.fn().mockResolvedValue(result);
+		const wrapped = await run(doStream);
+
+		const reader = wrapped.stream.getReader();
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				throw new Error("stream ended before delivering the delta");
+			}
+			if (value.type === "text-delta") {
+				break;
+			}
+		}
+
+		const reason = new Error("consumer cancelled");
+		await reader.cancel(reason);
+
+		expect(cancelledWith).toHaveBeenCalledWith(reason);
+		// Give any (buggy) retry scheduling a chance to surface.
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(doStream).toHaveBeenCalledTimes(1);
+	});
+
+	// Both backoff tests observe well past the backoff deadline: a missing
+	// cancel guard re-dials when the sleep elapses, so the doStream count
+	// check at ~1.5× the backoff catches the regression. setTimeout only
+	// fires late, never early, so the margins are one-sided.
+	it("does not re-dial after the consumer cancels during the empty-response backoff", async () => {
+		const doStream = vi.fn().mockResolvedValue(streamOf(emptyParts));
+		const wrapped = await run(doStream, { retryDelayMs: 800 });
+
+		// Let the first (empty) attempt drain and enter the backoff sleep.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		await wrapped.stream.cancel(new Error("consumer cancelled"));
+		await new Promise((resolve) => setTimeout(resolve, 1_150));
+
+		expect(doStream).toHaveBeenCalledTimes(1);
+	});
+
+	it("cancels a retry attempt whose doStream() resolves after the consumer cancelled", async () => {
+		const { result: retryAttempt, cancelledWith } = openEndedStream([
+			streamStart,
+		]);
+		let resolveRetry: (value: LanguageModelV4StreamResult) => void;
+		const doStream = vi
+			.fn()
+			.mockResolvedValueOnce(streamOf(emptyParts))
+			.mockImplementationOnce(
+				() =>
+					new Promise<LanguageModelV4StreamResult>((resolve) => {
+						resolveRetry = resolve;
+					}),
+			);
+		const wrapped = await run(doStream);
+
+		// Let the empty first attempt drain and the re-dial start.
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(doStream).toHaveBeenCalledTimes(2);
+
+		// Cancel while the retry's doStream() is still pending, then let it
+		// resolve: the fresh provider stream must be cancelled, not drained.
+		await wrapped.stream.cancel(new Error("consumer cancelled"));
+		// biome-ignore lint/style/noNonNullAssertion: assigned by the mock above
+		resolveRetry!(retryAttempt);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(cancelledWith).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not re-dial after the consumer cancels during the network backoff", async () => {
+		const doStream = vi.fn(async () =>
+			streamThatDies([streamStart], undiciSocketClosed()),
+		);
+		const wrapped = await run(doStream, { networkRetryDelayMs: 800 });
+
+		// Let the first attempt die and enter the backoff sleep.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		await wrapped.stream.cancel(new Error("consumer cancelled"));
+		await new Promise((resolve) => setTimeout(resolve, 1_150));
+
+		expect(doStream).toHaveBeenCalledTimes(1);
 	});
 });
 
