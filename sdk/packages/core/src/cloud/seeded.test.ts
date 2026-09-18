@@ -554,6 +554,55 @@ describe("seeded cloud provisioning recovery", () => {
 		expect(persist).toHaveBeenCalledWith(record.id, { created: false });
 		expect(fetch.mock.calls).toHaveLength(1);
 	});
+	it("removes a terminal recovered marker before allowing an explicit retry", async () => {
+		const methods: string[] = [];
+		const removed = vi.fn(async () => {});
+		let failedMarkerVisible = false;
+		let posts = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken: async () => "token",
+			fetch: async (_url, init) => {
+				const method = init?.method ?? "GET";
+				methods.push(method);
+				if (method === "DELETE") {
+					failedMarkerVisible = false;
+					return response(undefined);
+				}
+				if (method === "POST") {
+					posts++;
+					if (posts === 1) {
+						failedMarkerVisible = true;
+						throw new Error("lost create reply");
+					}
+					return response({ sessionId: "ses-retry", status: "ready" });
+				}
+				return response(
+					failedMarkerVisible
+						? [
+								{
+									...record,
+									status: "failed",
+									title: "__cline_create_request__:handoff:source:sha",
+								},
+							]
+						: [],
+				);
+			},
+		});
+
+		await expect(
+			api.create(input({ onOuterSessionRemoved: removed })),
+		).rejects.toMatchObject({ code: "session_failed" });
+		expect(methods).toEqual(["GET", "POST", "GET", "DELETE"]);
+		expect(removed).toHaveBeenCalledWith(record.id);
+
+		await expect(api.create(input())).resolves.toMatchObject({
+			sessionId: "ses-retry",
+		});
+		expect(posts).toBe(2);
+	});
 	it("fences an invisible accepted POST instead of issuing another create", async () => {
 		let posts = 0;
 		const api = new CloudSessionApi({

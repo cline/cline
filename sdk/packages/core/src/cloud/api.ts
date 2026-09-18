@@ -570,10 +570,32 @@ export class CloudSessionApi {
 				record.status === "failed" ||
 				(record.expiredAt && Date.parse(record.expiredAt) <= Date.now())
 			) {
-				throw new CloudSessionError(
+				const terminalError = new CloudSessionError(
 					record.status === "failed" ? "session_failed" : "session_expired",
 					"The recovered cloud handoff workspace is no longer usable.",
 				);
+				try {
+					await this.deleteWithAuth(record.id, creationAuth);
+				} catch (cleanupError) {
+					if (
+						!(
+							cleanupError instanceof CloudSessionError &&
+							(cleanupError.code === "session_not_found" ||
+								cleanupError.code === "session_expired")
+						)
+					) {
+						throw new AggregateError(
+							[terminalError, cleanupError],
+							"The unusable recovered cloud handoff workspace could not be removed.",
+						);
+					}
+				}
+				if (handoffKey) {
+					this.unconfirmedHandoffCreates.delete(handoffKey);
+					this.completedHandoffCreates.delete(handoffKey);
+				}
+				await input.handoff?.onOuterSessionRemoved?.(record.id);
+				throw terminalError;
 			}
 			await input.handoff?.onOuterSessionCreated(record.id, { created: false });
 			const result = {
