@@ -97,6 +97,43 @@ describe("handleEvent text formatting", () => {
 		expect(output).toMatch(/⎿.*ok/s);
 	});
 
+	it("prints the error instead of ok when a read_files operation failed", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				input: { path: "/tmp/missing.txt" },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "read_files",
+				// A failed read reports success:false inside the payload and
+				// leaves `result` empty; the error is derived from the payload.
+				output: [
+					{
+						query: "/tmp/missing.txt",
+						result: "",
+						error:
+							"Error reading file: ENOENT: no such file or directory, statx '/tmp/missing.txt'",
+						success: false,
+					},
+				],
+				error:
+					"Error reading file: ENOENT: no such file or directory, statx '/tmp/missing.txt'",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain("error:");
+		expect(output).toContain("ENOENT");
+		expect(output).not.toMatch(/⎿.*ok/s);
+	});
+
 	it("prints adjacent tool starts on separate lines", () => {
 		handleEvent(
 			{
