@@ -51,6 +51,8 @@ type RepoSelectionItem = {
 
 const PROMPT = {
 	system: "You are a helpful assistant that generates informative git commit messages based on git diffs output. Skip preamble and remove all backticks surrounding the commit message.",
+	rulesPreamble:
+		"The user's rules follow. Apply any that concern commit messages, their language, format, or content; the rest describe how code is written and are not relevant here.",
 	user: "Notes from developer (ignore if not relevant): {{USER_CURRENT_INPUT}}",
 	instruction: `Based on the provided git diff, generate a concise and descriptive commit message.
 
@@ -59,6 +61,21 @@ The commit message should:
 2. The commit message should adhere to the conventional commit format
 3. Describe what was changed and why
 4. Be clear and informative`,
+}
+
+/**
+ * System prompt for commit message generation: the base instructions plus the
+ * user's enabled rules, rendered the same way a session's system prompt renders
+ * them (see `Controller.getRulesForSystemPrompt`). Without this the button
+ * ignored `.clinerules` entirely — commit conventions users had written down
+ * were applied in chat and dropped here.
+ */
+export function buildCommitMessageSystemPrompt(rulesSection: string): string {
+	const rules = rulesSection.trim()
+	if (!rules) {
+		return PROMPT.system
+	}
+	return `${PROMPT.system}\n\n${PROMPT.rulesPreamble}${rulesSection}`
 }
 
 export async function generateCommitMsg(controller: Controller, scm?: vscode.SourceControl) {
@@ -217,8 +234,8 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 		// some providers (e.g. OpenRouter) reject.
 		const apiHandler = buildApiHandler(apiConfiguration, currentMode, { disableReasoning: true })
 
-		// Create a system prompt
-		const systemPrompt = PROMPT.system
+		// Create a system prompt, including the user's rules.
+		const systemPrompt = buildCommitMessageSystemPrompt(await controller.getRulesForSystemPrompt())
 
 		// Create a message for the API
 		const messages = [{ role: "user" as const, content: prompt }]
