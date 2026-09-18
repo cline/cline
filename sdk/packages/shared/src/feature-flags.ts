@@ -3,6 +3,8 @@ export const FeatureFlag = {
 	CLINE_PASS: "ext-cline-pass",
 	/** Makes the Cloud sessions opt-in visible in the Cline Code desktop app. */
 	CODE_CLOUD_AGENTS: "code-cloud-agents",
+	/** Independent rollout for cloud tasks in the interactive CLI. */
+	CLI_CLOUD_AGENTS: "cli-cloud-agents",
 	/** Shows the GitHub integration step in the desktop app */
 	CODE_ONBOARDING_GITHUB: "code-onboarding-github",
 } as const;
@@ -67,6 +69,7 @@ export const FeatureFlagDefaultValue: Partial<
 > = {
 	[FeatureFlag.CLINE_PASS]: false,
 	[FeatureFlag.CODE_CLOUD_AGENTS]: false,
+	[FeatureFlag.CLI_CLOUD_AGENTS]: false,
 	[FeatureFlag.CODE_ONBOARDING_GITHUB]: false,
 };
 

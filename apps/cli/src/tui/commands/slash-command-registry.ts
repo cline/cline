@@ -11,6 +11,7 @@ export type SlashCommandSource =
 export type SlashCommandExecution = "local" | "runtime" | "user-command";
 
 export type LocalSlashCommandName =
+	| "cloud"
 	| "settings"
 	| "config"
 	| "mcp"
@@ -50,6 +51,7 @@ const TUI_LOCAL_COMMANDS: Array<{
 	visible?: boolean;
 	preserveInput?: boolean;
 }> = [
+	{ name: "cloud", description: "Open cloud agents" },
 	{
 		name: "settings",
 		description: "Modify agent configuration",
@@ -115,6 +117,7 @@ const TUI_LOCAL_COMMANDS: Array<{
 ];
 
 const SYSTEM_COMMAND_ORDER = [
+	"cloud",
 	"settings",
 	"model",
 	"theme",
@@ -187,13 +190,16 @@ export function buildSlashCommandRegistry(input: {
 	workflowSlashCommands?: InteractiveSlashCommand[];
 	additionalSlashCommands?: InteractiveSlashCommand[];
 	canFork?: boolean;
+	cloudEnabled?: boolean;
 }): SlashCommandRegistry {
 	const byName = new Map<string, SlashCommandRegistryEntry>();
 
 	for (const command of TUI_LOCAL_COMMANDS) {
 		const isFork = command.name === "fork";
 		const visible =
-			(command.visible ?? true) && (!isFork || input.canFork === true);
+			(command.visible ?? true) &&
+			(!isFork || input.canFork === true) &&
+			(command.name !== "cloud" || input.cloudEnabled === true);
 		addEntry(byName, {
 			name: command.name,
 			description: command.description,
@@ -329,4 +335,17 @@ export function getInvokableUserSlashCommands(
 	registry: SlashCommandRegistry,
 ): SlashCommandRegistryEntry[] {
 	return registry.entries.filter((entry) => entry.execution === "user-command");
+}
+
+/** Cloud navigation is always client-owned, including while a local run queues input. */
+export function shouldDispatchTuiSlashCommand(
+	input: string,
+	delivery?: "queue" | "steer",
+): boolean {
+	const prompt = input.trim();
+	return (
+		prompt.startsWith("/") &&
+		(!delivery ||
+			normalizeCommandName(prompt.split(/\s+/)[0] ?? "") === "cloud")
+	);
 }

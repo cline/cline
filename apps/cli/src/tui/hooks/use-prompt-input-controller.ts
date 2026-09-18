@@ -6,6 +6,7 @@ import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import {
 	expandUserCommandPrompt,
 	resolveSlashCommand,
+	shouldDispatchTuiSlashCommand,
 } from "../commands/slash-command-registry";
 import type { TextareaHandle } from "../components/input-bar";
 import { useSession } from "../contexts/session-context";
@@ -175,7 +176,8 @@ export function usePromptInputController(input: {
 			cmd: string,
 			invocation?: LocalSlashCommandInvocation,
 		): Promise<boolean> => {
-			if (localCommandInFlightRef.current) return false;
+			if (localCommandInFlightRef.current)
+				return cmd.replace(/^\/+/, "").toLowerCase() === "cloud";
 			localCommandInFlightRef.current = true;
 			try {
 				return await Promise.resolve(handleSlashCommand(cmd, invocation));
@@ -267,7 +269,7 @@ export function usePromptInputController(input: {
 			const prompt = inputValueRef.current.trim();
 			if (!prompt) return;
 
-			if (!delivery && prompt.startsWith("/")) {
+			if (shouldDispatchTuiSlashCommand(prompt, delivery)) {
 				const parts = prompt.split(/\s+/);
 				const cmd = (parts[0] ?? "").slice(1);
 				const command = resolveSlashCommand(slashCommandRegistry, cmd);

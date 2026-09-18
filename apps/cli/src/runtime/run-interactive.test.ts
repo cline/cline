@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../utils/types";
 import {
+	applyInteractiveAutoApproveChange,
 	applyInteractiveModelChange,
 	assertHistorySessionIsDeletable,
 	resolveReasoningForModelChange,
@@ -64,7 +65,7 @@ describe("applyInteractiveModelChange", () => {
 	it("restarts with the current transcript so a provider switch reloads its complete configuration", async () => {
 		const config = {
 			providerId: "openai-compatible",
-			modelId: "custom-model",
+			modelId: "old-model",
 			apiKey: "new-key",
 			thinking: undefined,
 			reasoningEffort: undefined,
@@ -89,11 +90,13 @@ describe("applyInteractiveModelChange", () => {
 
 		await applyInteractiveModelChange({
 			config,
+			nextConfig: { ...config, modelId: "custom-model" },
 			providerSettingsManager: {
 				getProviderSettings,
 				saveProviderSettings,
 			},
 			sessionRuntime: {
+				withLocalMutation: async (mutate) => await mutate(),
 				ensureReady,
 				restartWithCurrentMessages,
 				updateCurrentSessionConnection,
@@ -195,5 +198,94 @@ describe("resumeInteractiveSession", () => {
 		).rejects.toThrow("resume failed");
 
 		expect(process.env.CLINE_HOOK_AGENT_RESUME).toBeUndefined();
+	});
+});
+
+describe("handoff config mutation guards", () => {
+	it("leaves approval state and policies unchanged when the source is locked", async () => {
+		const state = {
+			autoApproveTools: false,
+		} as import("../utils/chat-commands").ChatCommandState;
+		const setInteractiveAutoApprove = vi.fn();
+		const persistAutoApprove = vi.fn();
+		const refreshPolicies = vi.fn();
+		await expect(
+			applyInteractiveAutoApproveChange({
+				enabled: true,
+				chatCommandState: state,
+				setInteractiveAutoApprove,
+				persistAutoApprove,
+				refreshPolicies,
+				sessionRuntime: {
+					withLocalMutation: async () => {
+						throw new Error("handoff locked");
+					},
+				},
+			}),
+		).rejects.toThrow("handoff locked");
+		expect(state.autoApproveTools).toBe(false);
+		expect(setInteractiveAutoApprove).not.toHaveBeenCalled();
+		expect(persistAutoApprove).not.toHaveBeenCalled();
+		expect(refreshPolicies).not.toHaveBeenCalled();
+	});
+
+	it("keeps the approval mutation reserved until the policy refresh finishes", async () => {
+		let finishRefresh!: () => void;
+		const refresh = new Promise<void>((resolve) => {
+			finishRefresh = resolve;
+		});
+		let reserved = false;
+		const state = {
+			autoApproveTools: false,
+		} as import("../utils/chat-commands").ChatCommandState;
+		const refreshPolicies = vi.fn(() => refresh);
+		const changing = applyInteractiveAutoApproveChange({
+			enabled: true,
+			chatCommandState: state,
+			setInteractiveAutoApprove: vi.fn(),
+			persistAutoApprove: vi.fn(),
+			refreshPolicies,
+			sessionRuntime: {
+				withLocalMutation: async (mutate) => {
+					reserved = true;
+					try {
+						return await mutate();
+					} finally {
+						reserved = false;
+					}
+				},
+			},
+		});
+		await vi.waitFor(() => expect(refreshPolicies).toHaveBeenCalled());
+		expect(reserved).toBe(true);
+		expect(state.autoApproveTools).toBe(true);
+		finishRefresh();
+		await changing;
+		expect(reserved).toBe(false);
+	});
+
+	it("rejects a model selection before changing the shared config or provider settings", async () => {
+		const config = { providerId: "old", modelId: "old-model" } as Config;
+		const saveProviderSettings = vi.fn();
+		await expect(
+			applyInteractiveModelChange({
+				config,
+				nextConfig: { ...config, providerId: "new", modelId: "new-model" },
+				providerSettingsManager: {
+					getProviderSettings: vi.fn(),
+					saveProviderSettings,
+				},
+				sessionRuntime: {
+					withLocalMutation: async () => {
+						throw new Error("handoff locked");
+					},
+					ensureReady: vi.fn(),
+					restartWithCurrentMessages: vi.fn(),
+					updateCurrentSessionConnection: vi.fn(),
+				},
+			}),
+		).rejects.toThrow("handoff locked");
+		expect(config).toEqual({ providerId: "old", modelId: "old-model" });
+		expect(saveProviderSettings).not.toHaveBeenCalled();
 	});
 });

@@ -53,6 +53,7 @@ function stringifyToolError(content: unknown): string {
 
 export function hydrateSessionMessages(
 	messages: MessageWithMetadata[],
+	options: { materializeMedia?: boolean } = {},
 ): ChatEntry[] {
 	const entries: ChatEntry[] = [];
 	const toolUseMap = new Map<string, number>();
@@ -104,7 +105,10 @@ export function hydrateSessionMessages(
 								source: { type: "base64", data: block.data },
 							};
 				if (media.source.type !== "base64" || media.source.data.length > 0) {
-					const saved = materializeGeneratedMedia(media);
+					const saved =
+						options.materializeMedia === false
+							? undefined
+							: materializeGeneratedMedia(media);
 					entries.push({
 						kind: "assistant_media",
 						modality: media.modality,
