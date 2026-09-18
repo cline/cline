@@ -613,6 +613,55 @@ export function resolveVertexProviderConfig(config: ApiConfiguration): Pick<Prov
 	}
 }
 
+/**
+ * Resolve Azure OpenAI settings (API version / Entra ID auth) for the OpenAI
+ * Compatible provider. The webview saves them only to legacy state
+ * (`azureApiVersion` / `azureIdentity`); the providers.json `azure` block is
+ * the fallback for entries written by the CLI onboarding or the one-shot
+ * legacy migration. Without this mapping the SDK gateway never appends
+ * `?api-version=` to Azure deployment URLs and Azure rejects every request
+ * with "Resource not found" (#13655).
+ *
+ * Values resolved from legacy state are also mirrored into providers.json so
+ * the CLI — which reads only providers.json — sees the same Azure
+ * configuration the extension uses. The legacy migration never updates
+ * existing entries, so this mirror is the only ongoing sync for these fields.
+ */
+export function resolveAzureProviderConfig(config: ApiConfiguration): Pick<ProviderSettings, "azure"> | undefined {
+	const apiVersion = config.azureApiVersion?.trim() || undefined
+	const useIdentity = typeof config.azureIdentity === "boolean" ? config.azureIdentity : undefined
+
+	let stored: ProviderSettings | undefined
+	try {
+		stored = getProviderSettingsManager().getProviderSettings("openai-compatible")
+	} catch {
+		Logger.warn("[SessionFactory] Failed to read OpenAI Compatible Azure settings from providers.json")
+	}
+
+	if (apiVersion === undefined && useIdentity === undefined) {
+		return stored?.azure ? { azure: stored.azure } : undefined
+	}
+
+	const azure: NonNullable<ProviderSettings["azure"]> = {
+		...(stored?.azure ?? {}),
+		...(apiVersion !== undefined ? { apiVersion } : {}),
+		...(useIdentity !== undefined ? { useIdentity } : {}),
+	}
+
+	if (stored?.azure?.apiVersion !== azure.apiVersion || stored?.azure?.useIdentity !== azure.useIdentity) {
+		try {
+			getProviderSettingsManager().saveProviderSettings(
+				{ ...(stored ?? {}), provider: "openai-compatible", azure },
+				{ setLastUsed: false },
+			)
+		} catch {
+			Logger.warn("[SessionFactory] Failed to mirror Azure settings into providers.json")
+		}
+	}
+
+	return { azure }
+}
+
 type OllamaProviderConfig = {
 	modelInfo?: { id: string; name: string; contextWindow: number }
 	timeoutMs?: number
@@ -787,6 +836,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let vertexProviderConfig: Pick<ProviderSettings, "gcp" | "region"> | undefined
 	let sapProviderConfig: SapProviderConfig | undefined
 	let ollamaProviderConfig: ReturnType<typeof resolveOllamaProviderConfig> | undefined
+	let azureProviderConfig: Pick<ProviderSettings, "azure"> | undefined
 
 	try {
 		const stateManager = StateManager.get()
@@ -832,6 +882,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			if (providerId === "ollama") {
 				ollamaProviderConfig = resolveOllamaProviderConfig(apiConfig, modelId)
+			}
+
+			// The OpenAI Compatible provider is spelled "openai" after the
+			// legacy fold above; keep the SDK spelling as a defensive alias.
+			if (providerId === "openai" || providerId === "openai-compatible") {
+				azureProviderConfig = resolveAzureProviderConfig(apiConfig)
 			}
 
 			Logger.log(
@@ -994,6 +1050,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	// proxy/CA-aware fetch — can never be clobbered if those types gain matching keys.
 	const providerConfig = {
 		...(cloudProviderConfig ?? {}),
+		// Only spread when defined: an explicit `azure: undefined` key would
+		// clobber the providers.json azure block core merges in downstream
+		// (buildProviderConfig spreads this session config over stored settings).
+		...(azureProviderConfig ?? {}),
 		providerId: sdkProviderId,
 		modelId,
 		...(apiKey ? { apiKey } : {}),
