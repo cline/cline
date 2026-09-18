@@ -1289,3 +1289,145 @@ describe("resolveLegacyClineAuth", () => {
 		expect(result?.accountId).toBe("uid");
 	});
 });
+
+describe("migrateLegacyProviderSettings timeout refresh (cline/cline#13843)", () => {
+	const tempDirs: string[] = [];
+
+	afterEach(() => {
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("refreshes a stale 30s per-provider timeout from the legacy global requestTimeoutMs", () => {
+		// Regression: a providers.json entry seeded before the 5-minute default
+		// still carries timeout = 30_000. The runtime reads the per-provider
+		// `timeout`, so that stale value wins over the user's current
+		// globalState.requestTimeoutMs. Migration used to skip providers that
+		// already exist, leaving the stale timeout in place.
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), "core-legacy-provider-"));
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		manager.saveProviderSettings({
+			provider: "ollama",
+			model: "qwen3:8b",
+			baseUrl: "http://localhost:11434",
+			timeout: 30_000,
+		});
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "ollama",
+					actModeOllamaModelId: "qwen3:8b",
+					ollamaBaseUrl: "http://localhost:11434",
+					requestTimeoutMs: 600_000,
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(true);
+		const settings = manager.getProviderSettings("ollama");
+		expect(settings?.timeout).toBe(600_000);
+		// Everything else on the existing entry is preserved.
+		expect(settings?.model).toBe("qwen3:8b");
+		expect(settings?.baseUrl).toBe("http://localhost:11434");
+		expect(manager.read().providers.ollama?.tokenSource).toBe("manual");
+	});
+
+	it("does not touch an existing per-provider timeout when legacy global has no requestTimeoutMs", () => {
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), "core-legacy-provider-"));
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		manager.saveProviderSettings({
+			provider: "ollama",
+			model: "qwen3:8b",
+			baseUrl: "http://localhost:11434",
+			timeout: 45_000,
+		});
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "ollama",
+					actModeOllamaModelId: "qwen3:8b",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(false);
+		expect(manager.getProviderSettings("ollama")?.timeout).toBe(45_000);
+	});
+});
+
+describe("migrateLegacyProviderSettings custom timeout preservation (cline/cline#13843)", () => {
+	const tempDirs: string[] = [];
+
+	afterEach(() => {
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("does not overwrite a deliberate non-stale per-provider timeout", () => {
+		// Only the exact stale 30s default (STALE_LEGACY_REQUEST_TIMEOUT_MS)
+		// is refreshed. A user who configured a different timeout in the new
+		// UI keeps it even when the legacy global requestTimeoutMs differs.
+		const tempDir = mkdtempSync(path.join(os.tmpdir(), "core-legacy-provider-"));
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		manager.saveProviderSettings({
+			provider: "ollama",
+			model: "qwen3:8b",
+			baseUrl: "http://localhost:11434",
+			timeout: 45_000,
+		});
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "ollama",
+					actModeOllamaModelId: "qwen3:8b",
+					ollamaBaseUrl: "http://localhost:11434",
+					requestTimeoutMs: 600_000,
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(false);
+		expect(manager.getProviderSettings("ollama")?.timeout).toBe(45_000);
+	});
+});
