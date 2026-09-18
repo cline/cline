@@ -898,7 +898,10 @@ export default function Home() {
 												sessionHistory.sessions.find(
 													(session) =>
 														session.sessionId ===
-														activeThread.historySession?.sessionId,
+															activeThread.historySession?.sessionId &&
+														(session.environmentId ??
+															LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
+															activeThread.environmentId,
 												)?.status ?? activeThread.historySession?.status
 											}
 											initialPromptDraft={activeThread.initialPromptDraft}
@@ -1108,7 +1111,9 @@ function ChatThreadPane({
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
-	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
+	const [cloudAgentsFlagEnabled, setCloudAgentsFlagEnabled] = useState(false);
+	const cloudAgentsEnabled =
+		cloudAgentsFlagEnabled && environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
 	const { user: accountUser, activeOrganization } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
 	const openGitHubConnect = useCallback(
@@ -1131,7 +1136,7 @@ function ChatThreadPane({
 				.invoke("get_feature_flags", {})
 				.then((flags) => {
 					if (!cancelled) {
-						setCloudAgentsEnabled(
+						setCloudAgentsFlagEnabled(
 							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
 						);
 					}
@@ -1149,7 +1154,7 @@ function ChatThreadPane({
 			"feature_flags_changed",
 			(payload) => {
 				if (!cancelled) {
-					setCloudAgentsEnabled(
+					setCloudAgentsFlagEnabled(
 						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
 					);
 				}
