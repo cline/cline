@@ -17,6 +17,7 @@ import {
 } from "../../types/common";
 import type { SessionRecord } from "../../types/sessions";
 import type { SessionStore } from "../../types/storage";
+import { stringifyJsonRecord } from "../../utils/json-record";
 
 export interface SqliteSessionStoreOptions {
 	sessionsDir?: string;
@@ -113,7 +114,7 @@ export class SqliteSessionStore implements SessionStore {
 				record.conversationId ?? null,
 				toBoolInt(record.isSubagent),
 				record.prompt ?? null,
-				record.metadata ? JSON.stringify(record.metadata) : null,
+				stringifyJsonRecord(record.metadata),
 				"",
 				record.hookPath ?? "",
 				record.messagesPath ?? null,
@@ -143,7 +144,7 @@ export class SqliteSessionStore implements SessionStore {
 		}
 		if (record.metadata !== undefined) {
 			fields.push("metadata_json = ?");
-			params.push(record.metadata ? JSON.stringify(record.metadata) : null);
+			params.push(stringifyJsonRecord(record.metadata));
 		}
 		if (record.parentSessionId !== undefined) {
 			fields.push("parent_session_id = ?");
