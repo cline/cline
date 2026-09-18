@@ -20,6 +20,8 @@ import {
 	getSessionSource,
 	PINNED_METADATA_KEY,
 } from "@/lib/session-history";
+import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 	status: string;
@@ -85,20 +87,24 @@ type SessionUsage = {
 };
 
 type SessionTitleUpdatedEvent = CustomEvent<{
+	environmentId?: string;
 	sessionId: string;
 	title: string;
 }>;
 
 type SessionDeletedEvent = CustomEvent<{
+	environmentId?: string;
 	sessionId: string;
 }>;
 
 type SidecarSessionStateEvent = {
+	environmentId?: string;
 	sessionId?: string;
 	status?: string;
 };
 
 type SidecarChatEvent = {
+	environmentId?: string;
 	sessionId?: string;
 	stream?: string;
 };
@@ -111,10 +117,11 @@ export type SessionPendingAction = {
 export type UseSessionHistoryOptions = {
 	activeSessionId?: string | null;
 	onOpenSession?: (session: SessionHistoryItem) => void;
-	onDeleteSession?: (sessionId: string) => void;
+	onDeleteSession?: (sessionId: string, environmentId: string) => void;
 	onUpdateSessionMetadata?: (
 		sessionId: string,
 		metadata: SessionMetadata,
+		environmentId?: string,
 	) => void;
 };
 
@@ -299,7 +306,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 			: (session.workspaceRoot || session.cwd).trim();
 	const schedule = getSessionMetadataSchedule(session.metadata);
 	return {
-		id: session.sessionId,
+		id: sessionKey(session),
 		origin: session.origin,
 		repoUrl: session.repoUrl,
 		title: toTitle(session),
@@ -439,6 +446,7 @@ function areSessionsEquivalent(
 				getSessionMetadataSchedule(a.metadata),
 				getSessionMetadataSchedule(b.metadata),
 			) ||
+			a.environmentId !== b.environmentId ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -515,7 +523,7 @@ function updateSessionById(
 ): SessionHistoryItem[] {
 	let changed = false;
 	const next = current.map((session) => {
-		if (session.sessionId !== sessionId) {
+		if (sessionKey(session) !== sessionId) {
 			return session;
 		}
 		const updated = updater(session);
@@ -535,10 +543,10 @@ function mergeDiscoveredSessions(
 		return discovered;
 	}
 	const currentById = new Map(
-		current.map((session) => [session.sessionId, session]),
+		current.map((session) => [sessionKey(session), session]),
 	);
 	return discovered.map((session) => {
-		const existing = currentById.get(session.sessionId);
+		const existing = currentById.get(sessionKey(session));
 		if (!existing) {
 			return session;
 		}
@@ -707,7 +715,7 @@ export function useSessionHistory({
 					typeof execution?.scheduleId === "string"
 						? execution.scheduleId.trim()
 						: "";
-				links.set(sessionId, {
+				links.set(sessionKey({ sessionId }), {
 					...(scheduleId ? { scheduleId } : {}),
 					...(scheduleId && scheduleNames.has(scheduleId)
 						? { scheduleName: scheduleNames.get(scheduleId) }
@@ -823,7 +831,7 @@ export function useSessionHistory({
 				const mapped = mergedSessions.map(toThread);
 				const metadataTitleById = new Map(
 					mergedSessions.map((session) => [
-						session.sessionId,
+						sessionKey(session),
 						getSessionMetadataTitle(session.metadata),
 					]),
 				);
@@ -968,18 +976,18 @@ export function useSessionHistory({
 		// and the chat tracks its usage live.
 		const inactiveSessions = sessions.filter(
 			(session) =>
-				session.sessionId !== activeSessionId && session.origin !== "cloud",
+				sessionKey(session) !== activeSessionId && session.origin !== "cloud",
 		);
 		const targets = inactiveSessions.slice(0, USAGE_HYDRATION_WINDOW);
 		if (requestedUsageIds.size > 0) {
-			const queued = new Set(targets.map((session) => session.sessionId));
+			const queued = new Set(targets.map(sessionKey));
 			for (const session of inactiveSessions) {
 				if (
-					requestedUsageIds.has(session.sessionId) &&
-					!queued.has(session.sessionId)
+					requestedUsageIds.has(sessionKey(session)) &&
+					!queued.has(sessionKey(session))
 				) {
 					targets.push(session);
-					queued.add(session.sessionId);
+					queued.add(sessionKey(session));
 				}
 			}
 		}
@@ -994,7 +1002,7 @@ export function useSessionHistory({
 			const usageFetchVerdict = (
 				session: SessionHistoryItem,
 			): "fetch" | "defer" | "skip" => {
-				const sessionId = session.sessionId;
+				const sessionId = sessionKey(session);
 				if (!sessionId) {
 					return "skip";
 				}
@@ -1010,11 +1018,12 @@ export function useSessionHistory({
 			};
 
 			const startUsageFetch = (session: SessionHistoryItem): void => {
-				const sessionId = session.sessionId;
+				const sessionId = sessionKey(session);
 				usageLoadingRef.current.set(sessionId, session.status);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
-						sessionId,
+						environmentId: session.environmentId,
+						sessionId: session.sessionId,
 						maxMessages: 1200,
 					})
 					.then(async (sessionMessages): Promise<SessionUsage> => {
@@ -1023,7 +1032,8 @@ export function useSessionHistory({
 							const events = await desktopClient.invoke<SessionHookEvent[]>(
 								"read_session_hooks",
 								{
-									sessionId,
+									environmentId: session.environmentId,
+									sessionId: session.sessionId,
 									limit: 1200,
 								},
 							);
@@ -1143,7 +1153,9 @@ export function useSessionHistory({
 	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
 			const detail = (event as SessionTitleUpdatedEvent).detail;
-			const sessionId = detail?.sessionId?.trim();
+			const sessionId = detail?.sessionId?.trim()
+				? sessionKey(detail)
+				: undefined;
 			if (!sessionId) {
 				return;
 			}
@@ -1167,7 +1179,9 @@ export function useSessionHistory({
 
 		const handleSessionDeleted = (event: Event) => {
 			const detail = (event as SessionDeletedEvent).detail;
-			const sessionId = detail?.sessionId?.trim();
+			const sessionId = detail?.sessionId?.trim()
+				? sessionKey(detail)
+				: undefined;
 			if (!sessionId) {
 				return;
 			}
@@ -1179,7 +1193,7 @@ export function useSessionHistory({
 			usageByIdRef.current.delete(sessionId);
 			messageHydratedStatusRef.current.delete(sessionId);
 			setSessions((current) =>
-				current.filter((session) => session.sessionId !== sessionId),
+				current.filter((session) => sessionKey(session) !== sessionId),
 			);
 			setThreads((current) =>
 				current.filter((thread) => thread.id !== sessionId),
@@ -1210,7 +1224,7 @@ export function useSessionHistory({
 				}
 				handleSessionDeleted(
 					new CustomEvent("cline:session-deleted", {
-						detail: { sessionId },
+						detail: { sessionId, environmentId: eventEnvironmentId(payload) },
 					}),
 				);
 			},
@@ -1222,12 +1236,17 @@ export function useSessionHistory({
 					return;
 				}
 				const record = payload as SidecarSessionStateEvent;
-				const sessionId = record.sessionId?.trim();
+				const sessionId = record.sessionId?.trim()
+					? sessionKey({
+							sessionId: record.sessionId,
+							environmentId: record.environmentId,
+						})
+					: undefined;
 				if (!sessionId) {
 					return;
 				}
 				const known = sessionsRef.current.some(
-					(session) => session.sessionId === sessionId,
+					(session) => sessionKey(session) === sessionId,
 				);
 				const status = normalizeDiscoveredStatus(
 					record.status,
@@ -1290,7 +1309,10 @@ export function useSessionHistory({
 					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
 						force: true,
 					});
-					const sessionId = record.sessionId.trim();
+					const sessionId = sessionKey({
+						sessionId: record.sessionId.trim(),
+						environmentId: record.environmentId,
+					});
 					if (sessionId !== activeSessionId) {
 						setUnreadSessionIds((current) => {
 							const next = new Set(current);
@@ -1322,12 +1344,17 @@ export function useSessionHistory({
 					return;
 				}
 				const record = payload as SidecarChatEvent;
-				const sessionId = record.sessionId?.trim();
+				const sessionId = record.sessionId?.trim()
+					? sessionKey({
+							sessionId: record.sessionId,
+							environmentId: record.environmentId,
+						})
+					: undefined;
 				if (!sessionId) {
 					return;
 				}
 				const known = sessionsRef.current.some(
-					(session) => session.sessionId === sessionId,
+					(session) => sessionKey(session) === sessionId,
 				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
@@ -1363,7 +1390,7 @@ export function useSessionHistory({
 		const recent = sessions
 			.filter(
 				(session) =>
-					session.sessionId !== activeSessionId && session.origin !== "cloud",
+					sessionKey(session) !== activeSessionId && session.origin !== "cloud",
 			)
 			.slice(0, 4);
 		let cancelled = false;
@@ -1372,7 +1399,7 @@ export function useSessionHistory({
 				if (cancelled) {
 					return;
 				}
-				const sessionId = session.sessionId;
+				const sessionId = sessionKey(session);
 				if (!sessionId) {
 					continue;
 				}
@@ -1402,7 +1429,8 @@ export function useSessionHistory({
 				titleLoadingRef.current.add(sessionId);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
-						sessionId,
+						environmentId: session.environmentId,
+						sessionId: session.sessionId,
 						maxMessages: 80,
 					})
 					.then((messages) => {
@@ -1452,7 +1480,7 @@ export function useSessionHistory({
 
 	const getSessionByThreadId = useCallback(
 		(threadId: string) =>
-			sessionsRef.current.find((session) => session.sessionId === threadId),
+			sessionsRef.current.find((session) => sessionKey(session) === threadId),
 		[],
 	);
 
@@ -1487,20 +1515,28 @@ export function useSessionHistory({
 			}
 			setPendingAction({ sessionId: threadId, action: "rename" });
 			try {
+				const sourceSession = getSessionByThreadId(threadId);
+				if (!sourceSession) return false;
 				await desktopClient.invoke("update_chat_session_title", {
-					sessionId: threadId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					sessionId: sourceSession?.sessionId,
 					title: normalizedTitle,
 				});
-				const sourceSession = getSessionByThreadId(threadId);
 				const metadata = {
 					...(sourceSession?.metadata ?? {}),
 					title: normalizedTitle || undefined,
 				};
-				onUpdateSessionMetadata?.(threadId, metadata);
+				onUpdateSessionMetadata?.(
+					sourceSession.sessionId,
+					metadata,
+					sourceSession.environmentId,
+				);
 				window.dispatchEvent(
 					new CustomEvent("cline:session-title-updated", {
 						detail: {
-							sessionId: threadId,
+							sessionId: sourceSession.sessionId,
+							environmentId: sourceSession.environmentId,
 							title: normalizedTitle,
 						},
 					}),
@@ -1548,15 +1584,22 @@ export function useSessionHistory({
 			// if the write fails rather than blocking the row on a round trip.
 			applyPinned(pinned);
 			try {
+				const sourceSession = getSessionByThreadId(threadId);
+				if (!sourceSession) return false;
 				await desktopClient.invoke("update_chat_session_metadata", {
-					sessionId: threadId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					sessionId: sourceSession?.sessionId,
 					metadata: { [PINNED_METADATA_KEY]: pinned ? true : null },
 				});
-				const sourceSession = getSessionByThreadId(threadId);
-				onUpdateSessionMetadata?.(threadId, {
-					...(sourceSession?.metadata ?? {}),
-					[PINNED_METADATA_KEY]: pinned || undefined,
-				});
+				onUpdateSessionMetadata?.(
+					sourceSession.sessionId,
+					{
+						...(sourceSession?.metadata ?? {}),
+						[PINNED_METADATA_KEY]: pinned || undefined,
+					},
+					sourceSession.environmentId,
+				);
 				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS);
 				return true;
 			} catch (error) {
@@ -1582,6 +1625,7 @@ export function useSessionHistory({
 				return false;
 			}
 			const sourceSession = getSessionByThreadId(threadId);
+			if (!sourceSession) return false;
 			setPendingAction({ sessionId: threadId, action: "fork" });
 			try {
 				const payload = await desktopClient.invoke<{
@@ -1590,8 +1634,10 @@ export function useSessionHistory({
 				}>("chat_session_command", {
 					request: {
 						action: "fork",
-						sessionId: threadId,
+						sessionId: sourceSession?.sessionId,
 						config: {
+							environmentId:
+								sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 							provider: sourceSession?.provider || thread.provider,
 							model: sourceSession?.model || thread.model,
 							cwd: sourceSession?.cwd || sourceSession?.workspaceRoot || "",
@@ -1606,6 +1652,8 @@ export function useSessionHistory({
 				}
 				const forkedSession: SessionHistoryItem = {
 					sessionId: newSessionId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
 					status: "completed",
 					provider: sourceSession?.provider || thread.provider,
 					model: sourceSession?.model || thread.model,
@@ -1642,12 +1690,16 @@ export function useSessionHistory({
 
 	const deleteThread = useCallback(
 		async (threadId: string) => {
+			const sourceSession = getSessionByThreadId(threadId);
+			if (!sourceSession) return false;
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
-					sessionId: threadId,
+					environmentId:
+						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					sessionId: sourceSession?.sessionId,
 				});
 				const deleted =
 					typeof deleteResult === "boolean"
@@ -1658,11 +1710,12 @@ export function useSessionHistory({
 						"The session could not be removed from local history.",
 					);
 				}
-				onDeleteSession?.(threadId);
+				onDeleteSession?.(sourceSession.sessionId, sourceSession.environmentId);
 				window.dispatchEvent(
 					new CustomEvent("cline:session-deleted", {
 						detail: {
-							sessionId: threadId,
+							sessionId: sourceSession.sessionId,
+							environmentId: sourceSession.environmentId,
 						},
 					}),
 				);
@@ -1682,7 +1735,7 @@ export function useSessionHistory({
 				setPendingAction(null);
 			}
 		},
-		[onDeleteSession],
+		[getSessionByThreadId, onDeleteSession],
 	);
 
 	const loadMoreSessions = useCallback(
@@ -1761,7 +1814,7 @@ export function useSessionHistory({
 	}, [loadMoreSessions, refreshSessions]);
 
 	const sessionById = useMemo(
-		() => new Map(sessions.map((session) => [session.sessionId, session])),
+		() => new Map(sessions.map((session) => [sessionKey(session), session])),
 		[sessions],
 	);
 

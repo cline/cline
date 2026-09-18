@@ -171,11 +171,15 @@ export function mergeDiscoveredSessionLists(
 		const sessionId = String(
 			(item as JsonRecord).sessionId ?? (item as JsonRecord).session_id ?? "",
 		).trim();
-		if (!sessionId || merged.has(sessionId)) {
+		const key = JSON.stringify([
+			(item as JsonRecord).environmentId ?? "local",
+			sessionId,
+		]);
+		if (!sessionId || merged.has(key)) {
 			continue;
 		}
 		const normalized = item as JsonRecord;
-		merged.set(sessionId, {
+		merged.set(key, {
 			...normalized,
 			sessionId,
 			startedAt:

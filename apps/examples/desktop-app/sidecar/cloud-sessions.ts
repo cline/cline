@@ -28,6 +28,8 @@ import {
 	updatedAt,
 } from "./cloud-session-snapshots";
 import {
+	getEnvironmentContext,
+	getSidecarContextOwner,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -971,6 +973,7 @@ export class CloudSessionManager {
 		private readonly ctx: SidecarContext,
 		private readonly options: CloudSessionManagerOptions,
 	) {
+		this.ctx = getEnvironmentContext(ctx, "local");
 		this.createHubClient =
 			options.createHubClient ??
 			((clientOptions) => new NodeHubClient(clientOptions));
@@ -2562,6 +2565,7 @@ export class CloudSessionManager {
 export function getCloudSessionManager(
 	ctx: SidecarContext,
 ): CloudSessionManager {
+	ctx = getSidecarContextOwner(ctx);
 	const existing = ctx.cloudSessionManager;
 	if (existing instanceof CloudSessionManager) {
 		return existing;
@@ -2614,6 +2618,7 @@ export function getCloudSessionManager(
 export async function resetCloudSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
+	ctx = getSidecarContextOwner(ctx);
 	const manager = ctx.cloudSessionManager;
 	ctx.cloudSessionManager = null;
 	await manager?.dispose();
