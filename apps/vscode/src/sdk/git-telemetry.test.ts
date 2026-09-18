@@ -6,7 +6,7 @@ import { promisify } from "node:util"
 import type { ClineCoreStartInput, ITelemetryService, TelemetryProperties } from "@cline/core"
 import type { AgentRuntimeEvent } from "@cline/shared"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { readGitSnapshot, sanitizeGitRemote, VscodeGitTelemetry } from "./git-telemetry"
+import { readGitSnapshot, sanitizeGitRemote, VscodeGitTelemetry, VscodeGitTelemetryManager } from "./git-telemetry"
 
 const vscodeGit = vi.hoisted(() => ({
 	workspaceFolders: undefined as { uri: { fsPath: string } }[] | undefined,
@@ -255,6 +255,36 @@ describe("Git snapshots", () => {
 		]) {
 			expect(sanitizeGitRemote(value)).toBeUndefined()
 		}
+	})
+})
+
+describe("Git telemetry manager", () => {
+	it("disposes late observers without opening them and rejects initialization after disposal", () => {
+		const manager = new VscodeGitTelemetryManager(telemetry)
+		const input: ClineCoreStartInput = {
+			config: {
+				cwd,
+				providerId: "cline",
+				modelId: "test",
+				systemPrompt: "test",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+		}
+		const observer = manager.init(input)
+		if (!observer) throw new Error("observer missing")
+		const open = vi.spyOn(observer, "open")
+		const dispose = vi.spyOn(observer, "dispose")
+		manager.dispose()
+		manager.start("late-session", observer)
+		expect(open).not.toHaveBeenCalled()
+		expect(dispose).toHaveBeenCalledTimes(1)
+		const config = input.config
+		expect(manager.init(input)).toBeUndefined()
+		expect(input.config).toBe(config)
+		manager.dispose()
+		expect(dispose).toHaveBeenCalledTimes(1)
 	})
 })
 

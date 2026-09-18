@@ -94,12 +94,14 @@ export async function readGitSnapshot(cwd: string): Promise<GitSnapshot> {
 
 /** Owns Git observers for the sessions sharing a VS Code host. */
 export class VscodeGitTelemetryManager {
+	private disposed = false
 	private readonly observers = new Map<string, VscodeGitTelemetry>()
 
 	constructor(private readonly telemetry: ITelemetryService | undefined) {}
 
 	/** Attach hooks to a freshly prepared input, not the caller's original input. */
 	init(input: ClineCoreStartInput): VscodeGitTelemetry | undefined {
+		if (this.disposed) return
 		const { config } = input
 		if (!config.cwd || (config.providerId !== "cline" && config.providerId !== "cline-pass") || !this.telemetry) return
 		// Use host consent, not an organization telemetry override.
@@ -112,6 +114,10 @@ export class VscodeGitTelemetryManager {
 
 	start(sessionId: string, observer: VscodeGitTelemetry | undefined): void {
 		if (!observer) return
+		if (this.disposed) {
+			observer.dispose()
+			return
+		}
 		this.stop(sessionId)
 		observer.open(sessionId)
 		if (observer.hasOpened) this.observers.set(sessionId, observer)
@@ -123,6 +129,7 @@ export class VscodeGitTelemetryManager {
 	}
 
 	dispose(): void {
+		this.disposed = true
 		for (const observer of this.observers.values()) observer.dispose()
 		this.observers.clear()
 	}
