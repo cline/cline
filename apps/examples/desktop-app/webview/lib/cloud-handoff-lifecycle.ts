@@ -325,6 +325,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			const receipt = { targetSessionId, dashboardUrl };
 			const destination = result.destination ?? "in_app";
 			const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
+			const sourceThreadId = sourceThreadIds.get(key);
 			completions.set(key, {
 				targetSessionId,
 				dashboardUrl,
@@ -376,6 +377,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 								: {}),
 							...(undeliveredAttachments
 								? { initialAttachments: undeliveredAttachments }
+								: {}),
+							...(sourceThreadId
+								? { expectedActiveThreadId: sourceThreadId }
 								: {}),
 						}),
 					).catch(() => false);
@@ -435,6 +439,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 		): Promise<void> {
 			const { error, nextCommand, sourceAttachments } = ctx;
 			const key = attemptKey(sourceSessionId, ctx.handoffAttemptId);
+			const sourceThreadId = sourceThreadIds.get(key);
 			// The authoritative completion event may have landed while the
 			// RPC transport failed; the handoff succeeded, so a destructive
 			// "failed" toast would contradict the visible receipt.
@@ -496,6 +501,9 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 									: {}),
 								...(restoreAttachments
 									? { initialAttachments: restoreAttachments }
+									: {}),
+								...(sourceThreadId
+									? { expectedActiveThreadId: sourceThreadId }
 									: {}),
 							}),
 						)
