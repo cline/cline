@@ -3,6 +3,7 @@ import {
 	buildHandoffWarningToast,
 	claimHandoffWarningSurface,
 	formatHandoffModelFallback,
+	isExpectedHandoffSourceActive,
 	parseHandoffCommand,
 	readHandoffReceipt,
 	readPendingHandoffRecovery,
@@ -86,6 +87,21 @@ describe("cloud handoff helpers", () => {
 		expect(shouldOpenHandoffInApp("in_app", true)).toBe(true);
 		expect(shouldOpenHandoffInApp("in_app", false)).toBe(false);
 		expect(shouldOpenHandoffInApp("external", true)).toBe(false);
+	});
+
+	it("only restores a late handoff into the expected active chat thread", () => {
+		expect(
+			isExpectedHandoffSourceActive(undefined, "thread-b", "settings"),
+		).toBe(true);
+		expect(isExpectedHandoffSourceActive("thread-a", "thread-a", "chat")).toBe(
+			true,
+		);
+		expect(isExpectedHandoffSourceActive("thread-a", "thread-b", "chat")).toBe(
+			false,
+		);
+		expect(
+			isExpectedHandoffSourceActive("thread-a", "thread-a", "settings"),
+		).toBe(false);
 	});
 });
 

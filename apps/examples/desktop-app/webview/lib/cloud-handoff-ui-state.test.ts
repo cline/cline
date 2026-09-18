@@ -42,6 +42,26 @@ describe("cloudHandoffUiReducer", () => {
 		expect(resolveHandoffReceipt(undefined, persisted)).toBe(persisted);
 	});
 
+	it("clears a live recovery override after its payload reaches the target", () => {
+		const recovery = {
+			"local-1": {
+				status: "recovery" as const,
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				retryDraft: "/cloud continue",
+				retryAttachments: [
+					new File(["image"], "diagram.png", { type: "image/png" }),
+				],
+			},
+		};
+
+		expect(
+			cloudHandoffUiReducer(recovery, {
+				type: "retry_delivered",
+				sourceSessionId: "local-1",
+			}),
+		).toEqual({});
+	});
+
 	it("carries the event's warningKind into the completed entry", () => {
 		const next = cloudHandoffUiReducer(
 			{},
@@ -361,6 +381,29 @@ describe("cloudHandoffUiReducer", () => {
 			retryDraft: "/cloud continue",
 			retryAttachments: [attachment],
 		});
+	});
+
+	it("ignores a stale recovery dismissal after completion", () => {
+		const completed = cloudHandoffUiReducer(
+			{},
+			{
+				type: "complete",
+				sourceSessionId: "local-1",
+				receipt: {
+					targetSessionId: "cloud-1",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				},
+				externalPresentation: false,
+			},
+		);
+
+		expect(
+			cloudHandoffUiReducer(completed, {
+				type: "dismiss_recovery",
+				sourceSessionId: "local-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			}),
+		).toBe(completed);
 	});
 
 	it("keeps the temporary handoff prompt ahead of a live response", () => {
