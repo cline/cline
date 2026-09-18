@@ -631,7 +631,9 @@ jobs:
           BUN_VERSION="$(bun --version)"
           CACHE_DIR="${RUNNER_TEMP//\\//}/bun-install-cache"
           mkdir -p "$CACHE_DIR"
-          for target in linux-x64 linux-aarch64; do
+          # Keep these runtimes aligned with build-sidecar-bin.ts, including
+          # the baseline x64 runtime needed by SSH hosts without AVX2.
+          for target in linux-x64-baseline linux-aarch64; do
             dest="$CACHE_DIR/bun-$target-v$BUN_VERSION"
             work="$(mktemp -d)"
             (cd "$work" && npm pack "@oven/bun-$target@$BUN_VERSION" --silent >/dev/null && tar -xzf ./*.tgz package/bin/bun)
