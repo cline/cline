@@ -2545,7 +2545,8 @@ describe("cloud handoff gates", () => {
 					}),
 			);
 		const restore = vi.fn();
-		(ctx.sessionManager as { restore?: typeof restore }).restore = restore;
+		(ctx.sessionManager as unknown as { restore?: typeof restore }).restore =
+			restore;
 
 		const restoring = handleChatSessionCommand(ctx, {
 			action: "restore_checkpoint",
