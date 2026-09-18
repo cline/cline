@@ -268,6 +268,61 @@ describe("hub client runtime capabilities", () => {
 		);
 	});
 
+	it("does not proxy per-chunk stream events to remote onEvent hooks", async () => {
+		const request = vi.fn(async () => ({}));
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{ kind: "hook", name: "onEvent", capabilityName: "hook.onEvent" },
+			],
+			requestCapability: request,
+		});
+		const snapshot = {
+			agentId: "agent-1",
+			runId: "conv-1",
+			status: "running" as const,
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		};
+		const onEvent = runtime.localRuntime.hooks?.onEvent;
+
+		for (let index = 0; index < 100; index += 1) {
+			await onEvent?.({
+				type: "assistant-reasoning-delta",
+				snapshot,
+				iteration: 1,
+				text: "think",
+				accumulatedText: "think".repeat(index + 1),
+			});
+		}
+		await onEvent?.({
+			type: "message-added",
+			snapshot,
+			message: {
+				id: "msg-1",
+				role: "user",
+				content: [{ type: "text", text: "hello" }],
+				createdAt: 0,
+			},
+		});
+
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"hook.onEvent",
+			{ context: expect.objectContaining({ type: "message-added" }) },
+			"client-1",
+		);
+	});
+
 	it("rebuilds user instruction services from a client snapshot", async () => {
 		const request = vi.fn(async () => ({
 			snapshot: {

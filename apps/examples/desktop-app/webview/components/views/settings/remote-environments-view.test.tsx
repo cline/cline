@@ -94,7 +94,7 @@ describe("RemoteEnvironmentsContent", () => {
 			"Create a new host to change the SSH host, user, or port.",
 		);
 
-		await click(buttonWithText("New host"));
+		await click(buttonWithText("New Host"));
 
 		expect(inputById("remote-host").disabled).toBe(false);
 		expect(inputById("remote-user").disabled).toBe(false);
@@ -127,10 +127,10 @@ describe("RemoteEnvironmentsContent", () => {
 		expect(container.textContent).not.toContain("Connect & Open");
 		expect(container.textContent).not.toContain("Disconnect");
 		expect(container.textContent).toContain(
-			"Connect from the environment selector beside the workspace picker.",
+			"Manage your remote SSH hosts and their configurations.",
 		);
 		expect(container.textContent).toContain(
-			"v0 requires key-based or agent authentication; it cannot show an interactive password prompt.",
+			"Password sign-in is not supported.",
 		);
 
 		await click(buttonWithText("Save"));
@@ -163,9 +163,9 @@ describe("RemoteEnvironmentsContent", () => {
 			root.render(<RemoteEnvironmentsContent />);
 		});
 		await vi.waitFor(() => {
-			expect(buttonWithText("Test connection").disabled).toBe(false);
+			expect(buttonWithText("Test Connection").disabled).toBe(false);
 		});
-		await click(buttonWithText("Test connection"));
+		await click(buttonWithText("Test Connection"));
 
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("Permission denied (publickey)");

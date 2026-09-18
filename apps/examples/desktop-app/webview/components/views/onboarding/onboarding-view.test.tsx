@@ -15,10 +15,13 @@ import {
 	sortProvidersForApiKeySetup,
 } from "./onboarding-view";
 
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@/lib/desktop-client", () => ({
-	desktopClient: { invoke },
+const { invoke, openExternalUrl } = vi.hoisted(() => ({
+	invoke: vi.fn(),
 	openExternalUrl: vi.fn(),
+}));
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke, subscribe: vi.fn(() => () => {}) },
+	openExternalUrl,
 }));
 
 const GITHUB_STEP_ENABLED_FLAGS = {
@@ -220,6 +223,15 @@ describe("OnboardingView", () => {
 		const clineOption = container.querySelector(
 			'[data-onboarding-option="cline"]',
 		);
+		expect(
+			Array.from(clineOption?.querySelectorAll("li") ?? []).map((item) =>
+				item.textContent?.trim(),
+			),
+		).toEqual([
+			"Regular free model promotions",
+			"Subscribe to ClinePass for generous usage across the best open weights models like DeepSeek, Kimi, and GLM",
+			"No API key needed",
+		]);
 		const apiKeyOption = container.querySelector(
 			'[data-onboarding-option="api-key"]',
 		);
@@ -389,6 +401,16 @@ describe("OnboardingView", () => {
 			if (command === "get_feature_flags") {
 				return GITHUB_STEP_ENABLED_FLAGS;
 			}
+			if (command === "list_cline_recommended_models") {
+				return {
+					recommended: [],
+					free: [
+						{ id: "deepseek/deepseek-v4-flash", name: "deepseek-v4-flash" },
+						{ id: "cline-free/solar-pro4", name: "Solar Pro 4" },
+					],
+					clinePass: [],
+				};
+			}
 			return {};
 		});
 		await render();
@@ -408,6 +430,19 @@ describe("OnboardingView", () => {
 		// The redesigned completion step places transparent content over a static,
 		// wide version of the hero grid.
 		expect(container.textContent).toContain("You're all set");
+		// A Cline sign-in ends on the current free models plus the ClinePass upsell.
+		const clineModels = container.querySelector(
+			"[data-onboarding-cline-models]",
+		);
+		expect(clineModels?.textContent).toContain("Free models");
+		expect(clineModels?.textContent).toContain("deepseek-v4-flash");
+		expect(clineModels?.textContent).toContain("Solar Pro 4");
+		await act(async () => {
+			buttonByText("Get ClinePass").click();
+		});
+		expect(openExternalUrl).toHaveBeenCalledWith(
+			"https://app.cline.bot/onboarding/individual-plan",
+		);
 		const doneGrid = container.querySelector<HTMLElement>(
 			'[data-welcome-hero-variant="grid-only"]',
 		);

@@ -16,12 +16,16 @@ import type {
 	ProviderClient,
 	ProviderConfig,
 	ProviderProtocol,
+	RemoteEnvironmentConnection,
+	RemoteEnvironmentInput,
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
 	addLocalProvider,
 	ClientSettingsManager,
 	ClineAccountService,
+	type ClineAccountUser,
+	clearAccountTelemetryIdentity,
 	createConfiguredModeSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -29,16 +33,21 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getProviderAuthHandler,
+	identifyAccount,
 	listHookConfigFiles,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
 	parseProviderModeSettings,
+	persistClineAccountTelemetryIdentity,
 	probeMcpServerConnection,
+	RemoteEnvironmentService,
 	readGlobalSettings,
+	resolveClineAccountTelemetryIdentity,
 	resolveDisabledToolNames,
-	resolveEnabledOptInToolNames,
+	resolveEnabledConfigurableModelToolNames,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
@@ -52,7 +61,7 @@ import {
 	saveModeSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setOptInToolEnabledGlobally,
+	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	synthesizeConfiguredVoiceOutput,
 	transcribeConfiguredVoiceInput,
@@ -66,7 +75,6 @@ import {
 	formatSessionSearchPreview,
 	formatSessionSearchTitle,
 	getClineEnvironmentConfig,
-	InternalFeature,
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
@@ -80,6 +88,7 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import { resolveDesktopTelemetryUser } from "./client-context";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	getCloudSessionManager,
@@ -109,6 +118,8 @@ import {
 	disconnectRemoteSessionRuntime,
 	ensureSharedHubClient,
 	findSessionRuntimeBinding,
+	getEnvironmentContext,
+	getEnvironmentContexts,
 	getRuntimeBinding,
 	resolveSidecarAskQuestion,
 	sendEventToClient,
@@ -120,9 +131,9 @@ import {
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsEnabled,
-	isDesktopInternalFeatureEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
+import { clearLegacyProviderCredentials } from "./legacy-provider-credentials";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -152,11 +163,9 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import type {
-	RemoteEnvironmentConnection,
-	RemoteEnvironmentInput,
-} from "./remote-environments";
-import { RemoteEnvironmentService } from "./remote-environments";
+import { getPullRequestStatus } from "./pull-request";
+import { capturePullRequestEvent } from "./pull-request-telemetry";
+import { resolveDesktopRemoteHelper } from "./remote-helper";
 import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
@@ -199,127 +208,6 @@ function createDesktopProviderSettingsManager(): ProviderSettingsManager {
 	const manager = new ProviderSettingsManager();
 	desktopClientSettingsManager.initializeModesIfMissing(manager.read().modes);
 	return manager;
-}
-
-const remoteEnvironmentTransitionTails = new WeakMap<
-	SidecarContext,
-	Promise<void>
->();
-
-function withRemoteEnvironmentTransition<T>(
-	ctx: SidecarContext,
-	operation: () => Promise<T>,
-): Promise<T> {
-	const previous =
-		remoteEnvironmentTransitionTails.get(ctx) ?? Promise.resolve();
-	const result = previous.then(operation, operation);
-	const tail = result.then(
-		() => undefined,
-		() => undefined,
-	);
-	remoteEnvironmentTransitionTails.set(ctx, tail);
-	void tail.finally(() => {
-		if (remoteEnvironmentTransitionTails.get(ctx) === tail) {
-			remoteEnvironmentTransitionTails.delete(ctx);
-		}
-	});
-	return result;
-}
-
-function activeRemoteEnvironmentState(ctx: SidecarContext): {
-	activeEnvironmentId: string;
-	activeProfileId: string | null;
-} {
-	const binding = ctx.runtimeBindings.get(ctx.activeEnvironmentId);
-	if (binding?.kind === "ssh") {
-		return {
-			activeEnvironmentId: binding.environmentId,
-			activeProfileId: binding.environmentId,
-		};
-	}
-	return {
-		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
-		activeProfileId: null,
-	};
-}
-
-function broadcastLocalEnvironment(
-	ctx: SidecarContext,
-	details: { reason?: string; message?: string } = {},
-): void {
-	broadcastEvent(ctx, "remote_environment_changed", {
-		status: "disconnected",
-		activeProfileId: null,
-		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
-		environmentId: LOCAL_ENVIRONMENT_ID,
-		workspaceRoot: ctx.localWorkspaceRoot,
-		...details,
-	});
-}
-
-function getRemoteEnvironmentService(
-	ctx: SidecarContext,
-): RemoteEnvironmentService {
-	if (!ctx.remoteEnvironments) {
-		ctx.remoteEnvironments = new RemoteEnvironmentService({
-			onStatusChange: (status) => {
-				broadcastEvent(ctx, "remote_environment_status", status);
-			},
-			onConnectionLost: (status) => {
-				const binding = ctx.runtimeBindings.get(status.profileId);
-				if (binding?.kind !== "ssh") return;
-				const wasActive = ctx.activeEnvironmentId === status.profileId;
-				void disconnectRemoteSessionRuntime(ctx, status.profileId)
-					.catch((error) => {
-						ctx.logger?.log("Failed to dispose dead SSH runtime", {
-							error,
-							environmentId: status.profileId,
-							severity: "warn",
-						});
-					})
-					.finally(() => {
-						if (
-							!wasActive ||
-							ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID
-						) {
-							return;
-						}
-						broadcastLocalEnvironment(ctx, {
-							reason: "tunnel_error",
-							message: status.message,
-						});
-					});
-			},
-		});
-	}
-	return ctx.remoteEnvironments;
-}
-
-function requestedEnvironmentId(
-	args: Record<string, unknown> | undefined,
-): string | undefined {
-	if (typeof args?.environmentId !== "string") return undefined;
-	const environmentId = args.environmentId.trim();
-	return environmentId || undefined;
-}
-
-function getCommandRuntimeBinding(
-	ctx: SidecarContext,
-	args: Record<string, unknown> | undefined,
-) {
-	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
-	return getRuntimeBinding(ctx, environmentId);
-}
-
-async function getCommandSessionBinding(
-	ctx: SidecarContext,
-	sessionId: string,
-	args: Record<string, unknown> | undefined,
-) {
-	const environmentId = requestedEnvironmentId(args);
-	return environmentId
-		? getRuntimeBinding(ctx, environmentId)
-		: await findSessionRuntimeBinding(ctx, sessionId);
 }
 
 type DesktopDebugLogLevel = "debug" | "info" | "error";
@@ -381,6 +269,130 @@ function emitDesktopDebugLog(
 		timestamp: new Date().toISOString(),
 		metadata,
 	});
+}
+const remoteEnvironmentTransitionTails = new WeakMap<
+	SidecarContext,
+	Promise<void>
+>();
+
+function withRemoteEnvironmentTransition<T>(
+	ctx: SidecarContext,
+	operation: () => Promise<T>,
+): Promise<T> {
+	const previous =
+		remoteEnvironmentTransitionTails.get(ctx) ?? Promise.resolve();
+	const result = previous.then(operation, operation);
+	const tail = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	remoteEnvironmentTransitionTails.set(ctx, tail);
+	void tail.finally(() => {
+		if (remoteEnvironmentTransitionTails.get(ctx) === tail) {
+			remoteEnvironmentTransitionTails.delete(ctx);
+		}
+	});
+	return result;
+}
+
+function activeRemoteEnvironmentState(ctx: SidecarContext): {
+	activeEnvironmentId: string;
+	activeProfileId: string | null;
+} {
+	const binding = ctx.runtimeBindings.get(ctx.activeEnvironmentId);
+	if (binding?.kind === "ssh") {
+		return {
+			activeEnvironmentId: binding.environmentId,
+			activeProfileId: binding.environmentId,
+		};
+	}
+	return {
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		activeProfileId: null,
+	};
+}
+
+function broadcastLocalEnvironment(
+	ctx: SidecarContext,
+	details: { reason?: string; message?: string } = {},
+): void {
+	broadcastEvent(ctx, "remote_environment_changed", {
+		status: "disconnected",
+		activeProfileId: null,
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		environmentId: LOCAL_ENVIRONMENT_ID,
+		workspaceRoot: ctx.localWorkspaceRoot,
+		...details,
+	});
+}
+
+function getRemoteEnvironmentService(
+	ctx: SidecarContext,
+): RemoteEnvironmentService {
+	if (!ctx.remoteEnvironments) {
+		ctx.remoteEnvironments = new RemoteEnvironmentService({
+			dependencies: {
+				resolveHelperBinary: async (target) =>
+					resolveDesktopRemoteHelper(target),
+			},
+			onStatusChange: (status) => {
+				broadcastEvent(ctx, "remote_environment_status", status);
+			},
+			onConnectionLost: (status) => {
+				const binding = ctx.runtimeBindings.get(status.profileId);
+				if (binding?.kind !== "ssh") return;
+				const wasActive = ctx.activeEnvironmentId === status.profileId;
+				void disconnectRemoteSessionRuntime(ctx, status.profileId)
+					.catch((error) => {
+						ctx.logger?.log("Failed to dispose dead SSH runtime", {
+							error,
+							environmentId: status.profileId,
+							severity: "warn",
+						});
+					})
+					.finally(() => {
+						if (
+							!wasActive ||
+							ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID
+						) {
+							return;
+						}
+						broadcastLocalEnvironment(ctx, {
+							reason: "tunnel_error",
+							message: status.message,
+						});
+					});
+			},
+		});
+	}
+	return ctx.remoteEnvironments;
+}
+
+function requestedEnvironmentId(
+	args: Record<string, unknown> | undefined,
+): string | undefined {
+	if (typeof args?.environmentId !== "string") return undefined;
+	const environmentId = args.environmentId.trim();
+	return environmentId || undefined;
+}
+
+function getCommandRuntimeBinding(
+	ctx: SidecarContext,
+	args: Record<string, unknown> | undefined,
+) {
+	const environmentId = requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
+	return getRuntimeBinding(ctx, environmentId);
+}
+
+async function getCommandSessionBinding(
+	ctx: SidecarContext,
+	sessionId: string,
+	args: Record<string, unknown> | undefined,
+) {
+	const environmentId = requestedEnvironmentId(args);
+	return environmentId
+		? getRuntimeBinding(ctx, environmentId)
+		: await findSessionRuntimeBinding(ctx, sessionId);
 }
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
@@ -496,14 +508,23 @@ function removePathIfExists(
 	return true;
 }
 
-function syncFeatureFlagsAccountFromResult(
+function syncAccountContextFromResult(
 	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
 	operation: string,
 	result: unknown,
 ): void {
 	if (operation === "fetchMe") {
-		const user = result as { id?: string; email?: string } | undefined;
+		const user = result as ClineAccountUser | undefined;
 		if (user?.id) {
+			const identity = resolveClineAccountTelemetryIdentity(user);
+			ctx.telemetryUser = resolveDesktopTelemetryUser({
+				accountId: identity.id,
+				email: identity.email,
+				organizationId: identity.organizationId,
+			});
+			identifyAccount(ctx.telemetry, identity);
+			persistClineAccountTelemetryIdentity(manager, identity);
 			void identifyDesktopFeatureFlagsAccount(
 				{ id: user.id, email: user.email },
 				{ logger: ctx.logger, telemetry: ctx.telemetry },
@@ -513,15 +534,43 @@ function syncFeatureFlagsAccountFromResult(
 	}
 }
 
-function syncFeatureFlagsAccountFromSettings(
+function syncAccountContextFromSettings(
 	ctx: SidecarContext,
 	manager: ProviderSettingsManager,
 ): void {
+	const auth = manager.getProviderSettings("cline")?.auth;
+	const accountId = auth?.accountId?.trim();
+	if (!auth || !accountId) {
+		syncSignedOutAccountContext(ctx);
+		return;
+	}
+	ctx.telemetryUser = resolveDesktopTelemetryUser({
+		accountId,
+		organizationId: auth.organizationId,
+	});
+	identifyAccount(ctx.telemetry, {
+		id: accountId,
+		provider: "cline",
+		organizationId: auth.organizationId,
+		organizationName: auth.organizationName,
+		memberId: auth.memberId,
+	});
 	void identifyDesktopFeatureFlagsAccount(
-		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ id: accountId },
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
 }
+
+function syncSignedOutAccountContext(ctx: SidecarContext): void {
+	const telemetryUser = resolveDesktopTelemetryUser();
+	ctx.telemetryUser = telemetryUser;
+	clearAccountTelemetryIdentity(ctx.telemetry, telemetryUser.distinctId);
+	void identifyDesktopFeatureFlagsAccount(
+		{},
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
+
 function mergePersistedSessionRecord(
 	sessionId: string,
 	record: JsonRecord,
@@ -630,7 +679,10 @@ async function listSessionsFromSidecarManager(
 				const record = item as unknown as JsonRecord;
 				const sessionId = String(record.sessionId ?? "").trim();
 				if (!sessionId) continue;
-				ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+				getEnvironmentContext(
+					ctx,
+					binding.environmentId,
+				).sessionEnvironmentIds.set(sessionId, binding.environmentId);
 				const merged = mergePersistedSessionRecord(
 					sessionId,
 					record,
@@ -638,7 +690,7 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
-				byId.set(sessionId, {
+				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
 					remoteEnvironment:
@@ -658,47 +710,46 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
-			byId.set(session.sessionId, {
+			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
 			});
 		}
 	}
 
-	for (const [sessionId, session] of ctx.liveSessions.entries()) {
-		const existing = byId.get(sessionId);
-		byId.set(sessionId, {
-			...(existing ?? {}),
-			sessionId,
-			environmentId:
-				session.environmentId ??
-				ctx.sessionEnvironmentIds.get(sessionId) ??
-				LOCAL_ENVIRONMENT_ID,
-			status: session.status,
-			provider: session.config.provider ?? existing?.provider ?? "",
-			model: session.config.model ?? existing?.model ?? "",
-			cwd: session.config.cwd ?? existing?.cwd ?? "",
-			workspaceRoot:
-				session.config.workspaceRoot ??
-				existing?.workspaceRoot ??
-				existing?.cwd ??
-				"",
-			prompt: session.prompt ?? existing?.prompt,
-			startedAt:
-				existing?.startedAt ?? new Date(session.startedAt).toISOString(),
-			endedAt:
-				session.endedAt !== undefined
-					? new Date(session.endedAt).toISOString()
-					: existing?.endedAt,
-			metadata: {
-				...((existing?.metadata && typeof existing.metadata === "object"
-					? existing.metadata
-					: {}) as JsonRecord),
-				...(session.title ? { title: session.title } : {}),
-			},
-		});
+	for (const scoped of getEnvironmentContexts(ctx)) {
+		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
+			const existing = byId.get(key);
+			byId.set(key, {
+				...(existing ?? {}),
+				sessionId,
+				environmentId: scoped.activeEnvironmentId,
+				status: session.status,
+				provider: session.config.provider ?? existing?.provider ?? "",
+				model: session.config.model ?? existing?.model ?? "",
+				cwd: session.config.cwd ?? existing?.cwd ?? "",
+				workspaceRoot:
+					session.config.workspaceRoot ??
+					existing?.workspaceRoot ??
+					existing?.cwd ??
+					"",
+				prompt: session.prompt ?? existing?.prompt,
+				startedAt:
+					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
+				endedAt:
+					session.endedAt !== undefined
+						? new Date(session.endedAt).toISOString()
+						: existing?.endedAt,
+				metadata: {
+					...((existing?.metadata && typeof existing.metadata === "object"
+						? existing.metadata
+						: {}) as JsonRecord),
+					...(session.title ? { title: session.title } : {}),
+				},
+			});
+		}
 	}
-
 	return Array.from(byId.values())
 		.sort((left, right) => {
 			const leftTime = Date.parse(
@@ -834,6 +885,13 @@ async function listGitBranches(
 	return { current: current || undefined, branches };
 }
 
+const REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES = 256 * 1024;
+const REMOTE_FILE_SEARCH_SCRIPT =
+	"if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then " +
+	"git -c core.quotePath=false ls-files --cached --others --exclude-standard; " +
+	"else find . -type d '(' -name .git -o -name node_modules ')' -prune -o -type f -print; fi | " +
+	`head -c ${REMOTE_FILE_SEARCH_OUTPUT_LIMIT_BYTES}`;
+
 async function searchRemoteWorkspaceFiles(
 	ctx: SidecarContext,
 	binding: ReturnType<typeof getRuntimeBinding>,
@@ -855,34 +913,13 @@ async function searchRemoteWorkspaceFiles(
 		typeof args?.limit === "number" && Number.isFinite(args.limit)
 			? Math.max(1, Math.min(50, Math.trunc(args.limit)))
 			: 10;
-	let output = "";
-	try {
-		output = (
-			await ctx.remoteEnvironments.run(binding.environmentId, {
-				command: "git",
-				args: ["ls-files", "--cached", "--others", "--exclude-standard"],
-				cwd: root,
-			})
-		).stdout;
-	} catch {
-		output = (
-			await ctx.remoteEnvironments.run(binding.environmentId, {
-				command: "find",
-				args: [
-					".",
-					"-type",
-					"f",
-					"-not",
-					"-path",
-					"./.git/*",
-					"-not",
-					"-path",
-					"./node_modules/*",
-				],
-				cwd: root,
-			})
-		).stdout;
-	}
+	const result = await ctx.remoteEnvironments.run(binding.environmentId, {
+		command: "sh",
+		args: ["-c", REMOTE_FILE_SEARCH_SCRIPT],
+		cwd: root,
+	});
+	// A byte cap can split a path. Discard the incomplete final record.
+	const output = result.stdout.slice(0, result.stdout.lastIndexOf("\n") + 1);
 	const rank = (path: string): number => {
 		if (!query) return 3;
 		const lower = path.toLowerCase();
@@ -1033,9 +1070,13 @@ function toPositiveInt(value: unknown): number | undefined {
 	return rounded > 0 ? rounded : undefined;
 }
 
-function routineScheduleTiming(
-	args?: Record<string, unknown>,
-): { cronPattern: string; metadata?: Record<string, number> } | undefined {
+function routineScheduleTiming(args?: Record<string, unknown>):
+	| {
+			cronPattern: string;
+			timezone?: string;
+			metadata?: Record<string, number>;
+	  }
+	| undefined {
 	if (args?.schedule_type === "once") {
 		const runAt =
 			typeof args.run_at === "number" ? args.run_at : Number(args?.run_at);
@@ -1047,7 +1088,9 @@ function routineScheduleTiming(
 			: undefined;
 	}
 	const cronPattern = asTrimmedString(args?.cron_pattern);
-	return cronPattern ? { cronPattern } : undefined;
+	return cronPattern
+		? { cronPattern, timezone: asTrimmedString(args?.timezone) }
+		: undefined;
 }
 
 function asTrimmedString(value: unknown): string | undefined {
@@ -1305,7 +1348,7 @@ async function listHubSettings(
 async function toggleHubSetting(
 	ctx: SidecarContext,
 	input: {
-		type: "plugins" | "tools";
+		type: "plugins" | "tools" | "skills";
 		path?: string;
 		name?: string;
 		enabled?: boolean;
@@ -1344,13 +1387,18 @@ async function listUserInstructionConfigs(
 		const items: unknown[] = [];
 		for (const record of userInstructionService.listRecords(type)) {
 			const item = record.item as unknown as JsonRecord;
-			if (item.disabled === true) continue;
+			const disabled = item.disabled === true;
+			// Rules and workflows have no toggle UI, so keep hiding disabled
+			// ones; skills need to stay visible (disabled) so they can be
+			// re-enabled from the Skills tab.
+			if (disabled && type !== "skill") continue;
 			items.push({
 				id: record.id,
 				name: item.name ?? record.id,
 				description: item.description,
 				instructions: item.instructions,
 				path: record.filePath,
+				...(type === "skill" ? { enabled: !disabled } : {}),
 			});
 		}
 		return items;
@@ -1457,7 +1505,7 @@ async function listUserInstructionConfigs(
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
-		enabledOptInToolIds: resolveEnabledOptInToolNames(),
+		enabledOptInToolIds: resolveEnabledConfigurableModelToolNames(),
 		disabledToolIds: disabledTools,
 	});
 
@@ -1723,6 +1771,14 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	const explicitEnvironment = requestedEnvironmentId(args);
+	if (explicitEnvironment) {
+		ctx = getEnvironmentContext(ctx, explicitEnvironment);
+	} else if (typeof args?.sessionId === "string" && args.sessionId.trim()) {
+		const binding = await findSessionRuntimeBinding(ctx, args.sessionId.trim());
+		if (binding) ctx = getEnvironmentContext(ctx, binding.environmentId);
+	}
+
 	// ── SSH remote environments ──────────────────────────────────────
 	if (command === "list_remote_environments") {
 		const service = getRemoteEnvironmentService(ctx);
@@ -1737,11 +1793,11 @@ export async function handleCommand(
 		if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
 			throw new Error("profile is required");
 		}
-		return {
-			profile: await getRemoteEnvironmentService(ctx).upsert(
-				profile as RemoteEnvironmentInput,
-			),
-		};
+		const saved = await getRemoteEnvironmentService(ctx).upsert(
+			profile as RemoteEnvironmentInput,
+		);
+		broadcastEvent(ctx, "remote_environment_profiles_changed", {});
+		return { profile: saved };
 	}
 	if (command === "test_remote_environment") {
 		const id = String(args?.id ?? "").trim();
@@ -1891,6 +1947,8 @@ export async function handleCommand(
 			if (deleted && wasActive) {
 				broadcastLocalEnvironment(ctx, { reason: "profile_deleted" });
 			}
+			if (deleted)
+				broadcastEvent(ctx, "remote_environment_profiles_changed", {});
 			return { deleted, ...active };
 		});
 	}
@@ -2214,11 +2272,12 @@ export async function handleCommand(
 			typeof args?.workspaceRoot === "string"
 				? args.workspaceRoot.trim() || undefined
 				: undefined;
-		const localBinding = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID);
-		if (localBinding) {
+		const searchClient =
+			ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+		if (searchClient) {
 			try {
 				const reply = await withSearchDeadline(
-					localBinding.hubClient.command("session.search", {
+					searchClient.command("session.search", {
 						query,
 						limit,
 						workspaceRoot,
@@ -2402,15 +2461,17 @@ export async function handleCommand(
 			"./chat-session"
 		);
 		const binding = await getCommandSessionBinding(ctx, sessionId, args);
-		await assertSessionDeleteAllowedDuringHandoff(
-			ctx,
-			sessionId,
-			binding?.sessionManager,
-		);
+		if (binding?.kind !== "ssh")
+			await assertSessionDeleteAllowedDuringHandoff(
+				ctx,
+				sessionId,
+				binding?.sessionManager,
+			);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
+
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
@@ -2556,10 +2617,7 @@ export async function handleCommand(
 			// an expired or server-revoked token. Explicit sign-out is handled
 			// at its source in `save_provider_settings`; this catches the rest
 			// so a stale account never keeps serving its rollout cohort.
-			void identifyDesktopFeatureFlagsAccount(
-				{},
-				{ logger: ctx.logger, telemetry: ctx.telemetry },
-			);
+			syncSignedOutAccountContext(ctx);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -2572,7 +2630,7 @@ export async function handleCommand(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
-		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		syncAccountContextFromResult(ctx, manager, operation, result);
 		if (operation === "switchAccount") {
 			await resetCloudSessionManager(ctx);
 			// The sidebar must re-scope immediately (personal ⇄ org), not on
@@ -2617,43 +2675,23 @@ export async function handleCommand(
 	if (command === "composio_integrations") {
 		const operation = String(args?.operation ?? "").trim();
 		if (!operation) throw new Error("operation is required");
-		// Connectors are an internal-only feature (@cline.bot accounts, or the
-		// internal-composio-connectors flag). Without access, the read surface
-		// reports the same "unconfigured" shapes the UI already hides on, and
-		// starting a connection is refused. cancelConnect and disconnect stay
-		// available so cleanup of pre-existing state is never blocked by a
-		// gate change; tools already materialized in composio.json also keep
-		// working in sessions until they are disconnected.
-		if (
-			!isDesktopInternalFeatureEnabled(InternalFeature.COMPOSIO_CONNECTORS, {
-				logger: ctx.logger,
-				telemetry: ctx.telemetry,
-			})
-		) {
-			switch (operation) {
-				case "status":
-					return { configured: false, integrations: [] };
-				case "listToolkits":
-					return { configured: false, toolkits: [] };
-				case "connect":
-					throw new Error(
-						"Composio connectors are not available on this account.",
-					);
-				default:
-					break;
-			}
-		}
+
 		switch (operation) {
 			case "status":
 				return await getComposioStatus({
 					refresh: args?.refresh === true,
 					logger: ctx.logger,
+					telemetry: ctx.telemetry,
 				});
 			case "listToolkits":
 				return await listComposioToolkits(ctx.logger);
 			case "connect": {
 				const toolkit = parseComposioToolkitSlug(args?.toolkit);
-				const result = await connectComposioToolkit(toolkit, ctx.logger);
+				// Tie the attempt to the initiating webview so it is abandoned
+				// if that connection goes away before the browser flow finishes.
+				const result = await connectComposioToolkit(toolkit, ctx.logger, {
+					owner: options?.connection,
+				});
 				if (result.redirectUrl) {
 					await openUrlInDefaultBrowser(result.redirectUrl);
 				}
@@ -2686,11 +2724,13 @@ export async function handleCommand(
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
-		const providerId = String(args?.provider ?? "").trim();
+		const provider = String(args?.provider ?? "").trim();
+		// Known models are merged in unfiltered after the provider's own model
+		// rules run, so including them here would leak e.g. the full OpenAI
+		// catalog into the ChatGPT Subscription (codex) picker.
 		return await getLocalProviderModels(
-			providerId,
-			manager.getProviderConfig(providerId),
-			{ loadLatest: providerId === "cline" },
+			provider,
+			manager.getProviderConfig(provider, { includeKnownModels: false }),
 		);
 	}
 	if (command === "list_cline_recommended_models") {
@@ -2907,7 +2947,11 @@ export async function handleCommand(
 	}
 	if (command === "save_media_generation_settings") {
 		const mediaType = String(args?.media_type ?? "").trim();
-		if (mediaType !== "image" && mediaType !== "audio" && mediaType !== "video") {
+		if (
+			mediaType !== "image" &&
+			mediaType !== "audio" &&
+			mediaType !== "video"
+		) {
 			throw new Error('media_type must be "image", "audio", or "video"');
 		}
 		const providerId = String(args?.provider ?? "").trim();
@@ -2942,21 +2986,35 @@ export async function handleCommand(
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
-		if (saved.enabled === false) {
+		if (!saved.enabled) {
+			// Cline Pass keeps its credentials under "cline", so removing only
+			// its own entry would leave the account signed in.
+			const storageProviderId =
+				getProviderAuthHandler(saved.providerId)?.storageProviderId ??
+				saved.providerId;
+			if (storageProviderId !== saved.providerId) {
+				saveLocalProviderSettings(manager, {
+					providerId: storageProviderId,
+					enabled: false,
+				});
+			}
+			// Removing a providers.json entry lets the legacy import restore it
+			// from the extension's secrets.json on the next command unless those
+			// credentials go too. A failed write throws so the webview reports
+			// the sign-out as failed and resyncs.
+			clearLegacyProviderCredentials(storageProviderId);
 			clearDesktopModesForProvider(saved.providerId);
-		}
-		if (providerId === "cline") {
-			await resetCloudSessionManager(ctx);
-			// Sign-out must clear cloud rows from the sidebar immediately,
-			// not on the next 12s poll.
-			broadcastEvent(ctx, "cloud_sessions_changed", {});
+			if (storageProviderId === "cline") {
+				await resetCloudSessionManager(ctx);
+				broadcastEvent(ctx, "cloud_sessions_changed", {});
+			}
 		}
 		// Sign-out is a `save_provider_settings` that blanks the cline auth block
 		// (see signOut in webview settings/account-view.tsx), so this is the
 		// authoritative signal — it fires the moment credentials are cleared
 		// rather than waiting for the next account fetch.
 		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
-			syncFeatureFlagsAccountFromSettings(ctx, manager);
+			syncAccountContextFromSettings(ctx, manager);
 		}
 		return saved;
 	}
@@ -3024,7 +3082,16 @@ export async function handleCommand(
 					);
 				});
 			},
-			{ owner: options?.connection },
+			{
+				owner: options?.connection,
+				// Push the device sign-in confirmation code so the webview can
+				// show it while the user confirms it in the browser.
+				onUserCode: (userCode) =>
+					broadcastEvent(ctx, "provider_oauth_user_code", {
+						provider: providerId,
+						userCode,
+					}),
+			},
 		);
 		if (providerId === "cline") {
 			// New credentials re-scope cloud sessions just like switchAccount:
@@ -3065,7 +3132,7 @@ export async function handleCommand(
 		if (typeof args?.web_search_enabled !== "boolean") {
 			throw new Error("web_search_enabled must be a boolean");
 		}
-		setOptInToolEnabledGlobally("web_search", args.web_search_enabled);
+		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
 	}
 	if (command === "get_desktop_settings") {
@@ -3309,6 +3376,17 @@ export async function handleCommand(
 	}
 
 	// ── Git operations ─────────────────────────────────────────────────
+	if (command === "capture_pull_request_event") {
+		capturePullRequestEvent(ctx.telemetry, args);
+		return null;
+	}
+	if (command === "get_pull_request_status") {
+		return await getPullRequestStatus(
+			typeof args?.cwd === "string" && args.cwd.trim()
+				? args.cwd.trim()
+				: ctx.localWorkspaceRoot,
+		);
+	}
 	if (command === "get_git_branch") {
 		const binding = getCommandRuntimeBinding(ctx, args);
 		const cwd =
@@ -3442,6 +3520,18 @@ export async function handleCommand(
 		const snapshot = await toggleHubSetting(ctx, {
 			type: "plugins",
 			path: pluginPath,
+			enabled: args?.disabled !== true,
+		});
+		return await listUserInstructionConfigs(ctx, snapshot);
+	}
+	if (command === "set_skill_disabled") {
+		const skillPath = String(args?.path ?? "").trim();
+		if (!skillPath) {
+			throw new Error("skill path is required");
+		}
+		const snapshot = await toggleHubSetting(ctx, {
+			type: "skills",
+			path: skillPath,
 			enabled: args?.disabled !== true,
 		});
 		return await listUserInstructionConfigs(ctx, snapshot);

@@ -27,6 +27,8 @@ import {
 	DEFAULT_MAX_INPUT_TOKENS,
 	DEFAULT_PRESERVE_RECENT_TOKENS,
 	DEFAULT_TARGET_RATIO,
+	findLatestSummaryIndex,
+	MAX_INPUT_UNDERESTIMATE_FACTOR,
 	resolveEffectiveMaxInputTokens,
 } from "./compaction-shared";
 
@@ -49,6 +51,12 @@ export interface ContextPipelinePrepareTurnInput {
 	 * successful LLM request.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Actual provider-reported input tokens for the previous request this run,
+	 * used as a floor on the char-based estimate so dense content still triggers
+	 * compaction. See AgentPrepareTurnContext.previousRequestInputTokens.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -310,16 +318,44 @@ export function createContextCompactionPrepareTurn(
 			0,
 			requestInputTokens - apiMessageTokens,
 		);
-		const maxInputTokens =
+		const rawMaxInputTokens =
 			resolveEffectiveMaxInputTokens({
 				maxInputTokens: context.model.info?.maxInputTokens,
 				contextWindow: context.model.info?.contextWindow,
 			}) ?? DEFAULT_MAX_INPUT_TOKENS;
+		// The char-based estimate under-counts dense content (disassembly, image
+		// dumps, minified sources). When the provider's actual count for the
+		// PREVIOUS request already exceeds our estimate for the (larger) current
+		// transcript, the estimator is demonstrably under-counting, so scale the
+		// whole budget down by that ratio. Scaling the budget rather than just the
+		// trigger keeps every downstream number — trigger, target and the
+		// projection's message costs — in the same estimate units while still
+		// corresponding to the provider's real limit; raising only the trigger
+		// would start a compaction that then retains too much and still overflows.
+		//
+		// Deliberately conservative: it never loosens the budget, engages only on
+		// direct evidence of under-counting, and is capped so a tiny estimate
+		// cannot collapse the budget.
+		const actualPreviousInputTokens =
+			typeof context.previousRequestInputTokens === "number" &&
+			context.previousRequestInputTokens > 0
+				? context.previousRequestInputTokens
+				: 0;
+		const underestimateFactor =
+			actualPreviousInputTokens > 0 && requestInputTokens > 0
+				? Math.min(
+						MAX_INPUT_UNDERESTIMATE_FACTOR,
+						Math.max(1, actualPreviousInputTokens / requestInputTokens),
+					)
+				: 1;
+		const maxInputTokens = rawMaxInputTokens / underestimateFactor;
 		const requestTriggerTokens = maxInputTokens * COMPACTION_TRIGGER_RATIO;
 		const messageTriggerTokens = translateRequestBudgetToMessages(
 			requestTriggerTokens,
 			requestOverheadTokens,
 		);
+		// Equivalent to comparing the provider's actual count against the unscaled
+		// trigger, because the budget above already carries the ratio.
 		const shouldCompact = requestInputTokens >= requestTriggerTokens;
 		config.logger?.debug("Context compaction diagnostics", {
 			mode: effectiveMode,
@@ -332,6 +368,9 @@ export function createContextCompactionPrepareTurn(
 			messageInputTokens,
 			requestOverheadTokens,
 			maxInputTokens,
+			rawMaxInputTokens,
+			actualPreviousInputTokens,
+			underestimateFactor,
 			requestTriggerTokens,
 			messageTriggerTokens,
 			thresholdRatio: COMPACTION_TRIGGER_RATIO,
@@ -637,6 +676,69 @@ export function createContextCompactionPrepareTurn(
 		}
 
 		return result;
+	};
+}
+
+/**
+ * Compaction policy for resuming a session imported from another coding agent.
+ * The imported transcript keeps that agent's tool names and input schemas
+ * verbatim, which a model continuing it may try to call, so the first turn
+ * folds the whole foreign history into a summary before the model request
+ * (manual mode, agentic strategy, nothing preserved but the new prompt).
+ * Runs regardless of the session's auto-compaction setting, tags its status
+ * notices with `importedFrom` so clients can label the wait, and on failure
+ * falls back to the raw transcript. It makes one attempt per session start
+ * (an aborted attempt does not count) and stands down once the working
+ * context already opens with a compaction summary, which is how a resumed
+ * sidecar presents; every other turn defers to `next`, the session's normal
+ * compaction (if any).
+ */
+export function createImportedHistoryCompactionPrepareTurn(input: {
+	config: Parameters<typeof createContextCompactionPrepareTurn>[0];
+	/** Source tool id from the session's `importedFrom` metadata. */
+	importedFrom: string;
+	next?: ContextPipelinePrepareTurn;
+}): ContextPipelinePrepareTurn {
+	const summarize = createContextCompactionPrepareTurn(
+		{
+			...input.config,
+			compaction: {
+				...input.config.compaction,
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 0,
+			},
+		},
+		{ mode: "manual" },
+	);
+	let pending = summarize !== undefined;
+	return async (context) => {
+		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {
+			try {
+				const result = await summarize({
+					...context,
+					emitStatusNotice: (message, metadata) =>
+						context.emitStatusNotice?.(message, {
+							...metadata,
+							importedFrom: input.importedFrom,
+						}),
+				});
+				pending = false;
+				if (result?.messages) return result;
+			} catch (error) {
+				if (context.abortSignal.aborted) throw error;
+				pending = false;
+				input.config.logger?.log(
+					"Failed to summarize imported session on resume; continuing with the raw transcript",
+					{
+						severity: "warn",
+						sessionId: input.config.sessionId,
+						...describeCompactionError(error),
+					},
+				);
+			}
+		}
+		return input.next?.(context);
 	};
 }
 

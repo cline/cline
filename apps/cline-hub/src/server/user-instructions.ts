@@ -8,7 +8,7 @@ import {
 	ProviderSettingsManager,
 	resolveConfiguredMediaGenerationTarget,
 	resolveDisabledToolNames,
-	resolveEnabledOptInToolNames,
+	resolveEnabledConfigurableModelToolNames,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 } from "@cline/core";
 import { MEDIA_GENERATION_TYPES } from "@cline/shared";
@@ -124,7 +124,7 @@ export async function listUserInstructionConfigs(
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
-		enabledOptInToolIds: resolveEnabledOptInToolNames(),
+		enabledOptInToolIds: resolveEnabledConfigurableModelToolNames(),
 	}).filter(
 		(tool) => tool.id !== "generate_media" || mediaGenerationConfigured,
 	);

@@ -40,7 +40,10 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 		return "bun-darwin-arm64";
 	if (targetTriple.startsWith("x86_64-apple-darwin")) return "bun-darwin-x64";
 	if (targetTriple.startsWith("x86_64-pc-windows")) return "bun-windows-x64";
-	if (targetTriple.startsWith("x86_64-unknown-linux")) return "bun-linux-x64";
+	// SSH hosts may predate AVX2 (e.g. Ivy Bridge Xeons). The default Bun
+	// x64 runtime can SIGILL before our entrypoint runs on those CPUs.
+	if (targetTriple.startsWith("x86_64-unknown-linux"))
+		return "bun-linux-x64-baseline";
 	if (targetTriple.startsWith("aarch64-unknown-linux"))
 		return "bun-linux-arm64";
 	return undefined;
@@ -86,6 +89,15 @@ const buildSidecar = async (
 // SSH environments run the same Hub build as the desktop in a dedicated
 // bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
 // command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
+// macOS helpers are deliberately not bundled: they are Mach-O files under
+// Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
+// in the bundle fails notarization. Shipping them needs a signing step first.
+//
+// On a Windows host, Bun fails to extract the downloaded Linux runtime these
+// cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").
+// Bun skips the download when `$BUN_INSTALL_CACHE_DIR/bun-<target>-v<version>`
+// already exists, so seed those two files from the @oven/bun-<target> npm
+// packages first; desktop-publish.yml does exactly that in its Windows job.
 const buildRemoteHelpers = async (): Promise<void> => {
 	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",
@@ -93,8 +105,8 @@ const buildRemoteHelpers = async (): Promise<void> => {
 	]) {
 		await buildSidecar(
 			targetTriple,
-			`./src-tauri/bin/remote-helpers/code-sidecar-${targetTriple}`,
-			"./sidecar/remote-helper.ts",
+			`./src-tauri/bin/remote-helpers/cline-remote-helper-${targetTriple}`,
+			"../../../sdk/packages/core/dist/remote/remote-helper-entry.js",
 			true,
 		);
 	}
@@ -113,6 +125,10 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 };
 
 const main = async () => {
+	// All compiled helpers and the sidecar depend on fresh SDK package exports.
+	await $`bun run build:sdk`.cwd(
+		fileURLToPath(new URL("../../../../", import.meta.url)),
+	);
 	const targetTriple = await resolveTargetTriple();
 	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-helpers`;
 	if (targetTriple === "universal-apple-darwin") {

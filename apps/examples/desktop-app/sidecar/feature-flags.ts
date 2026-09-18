@@ -40,9 +40,8 @@ function resolveDesktopFeatureFlagsCachePath(): string {
 
 /**
  * Where the last-known account identity ({@link setDesktopFeatureFlagsAccountContext})
- * is remembered between launches. The account email only reaches the sidecar
- * when the webview fetches the account; without this file, internal-feature
- * gates would open only after that fetch on every launch.
+ * is remembered between launches so flag evaluation can use the account
+ * identity before the webview fetches the account again.
  */
 function resolveDesktopAccountContextPath(): string {
 	return join(
@@ -203,9 +202,8 @@ export function setDesktopFeatureFlagsAccountContext(
 	const previousUserId = desktopFeatureFlagsContext.userId ?? undefined;
 	const previousEmail = desktopFeatureFlagsContext.email ?? undefined;
 	// Callers that only know the account ID (e.g. provider-settings syncs)
-	// must not erase an email a full account fetch already provided — the
-	// email is what internal-feature gating keys on. A different account (or
-	// sign-out) always drops it.
+	// must not erase an email a full account fetch already provided. A
+	// different account (or sign-out) always drops it.
 	const email =
 		account.email?.trim() ||
 		(accountId && accountId === previousUserId ? previousEmail : undefined);
@@ -289,25 +287,36 @@ export async function identifyDesktopFeatureFlagsAccount(
 	}
 }
 
-/**
- * Env override first; otherwise the user's explicit opt-in from Settings.
- *
- * Cloud sessions are in preview, so the gate is a toggle the user flips in
- * Settings → General (default off) rather than a remote rollout flag.
- */
-export function isCloudAgentsEnabled(): boolean {
-	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
-	if (override === "1" || override === "true") {
-		return true;
-	}
-	if (override === "0" || override === "false") {
-		return false;
-	}
-	return readDesktopSettings().cloudSessionsEnabled;
-}
-
 export function resetDesktopFeatureFlagsForTesting(): void {
 	desktopFeatureFlagsService = undefined;
 	desktopFeatureFlagsContext = { clientName: "cline-code" };
 	desktopAccountContextHydrated = false;
+}
+
+export function readCloudAgentsEnvOverride(): boolean | undefined {
+	const override = process.env.CLINE_CODE_CLOUD_AGENTS?.trim().toLowerCase();
+	if (override === "1" || override === "true") return true;
+	if (override === "0" || override === "false") return false;
+	return undefined;
+}
+
+/** Whether the rollout makes cloud sessions available to this install. */
+export function isCloudAgentsAvailable(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	return true;
+}
+
+/** Whether cloud sessions are both available and enabled by the user. */
+export function isCloudAgentsEnabled(options?: {
+	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
+}): boolean {
+	const override = readCloudAgentsEnvOverride();
+	if (override !== undefined) return override;
+	if (!isCloudAgentsAvailable(options)) return false;
+	return readDesktopSettings().cloudSessionsEnabled;
 }

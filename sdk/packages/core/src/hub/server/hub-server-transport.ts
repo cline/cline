@@ -104,6 +104,7 @@ import {
 	handleSessionSearch,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
+	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
@@ -359,6 +360,7 @@ export class HubServerTransport implements NativeHubTransport {
 		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
+			telemetry: options.telemetry,
 			runtimeHandlers: options.runtimeHandlers,
 			eventPublisher: (eventType, payload) => {
 				const mapped =
@@ -445,6 +447,7 @@ export class HubServerTransport implements NativeHubTransport {
 			this.cronService = new CronService({
 				runtimeHandlers: options.runtimeHandlers,
 				...options.cronOptions,
+				telemetry: options.telemetry,
 			});
 		}
 		this.sessionHost.subscribe((event: CoreSessionEvent) => {
@@ -845,6 +848,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionCompactionUpdate(this.ctx, envelope);
 			case "session.pending_prompts":
 				return await handleSessionPendingPrompts(this.ctx, envelope);
+			case "session.steer_first_pending_prompt":
+				return await handleSessionSteerFirstPendingPrompt(this.ctx, envelope);
 			case "session.update_pending_prompt":
 				return await handleSessionUpdatePendingPrompt(this.ctx, envelope);
 			case "session.remove_pending_prompt":

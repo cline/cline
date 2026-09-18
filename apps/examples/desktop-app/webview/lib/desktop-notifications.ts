@@ -9,6 +9,7 @@ import {
 	AVATAR_TASK_STATUS_EVENT,
 } from "@/lib/avatar";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import { eventEnvironmentId, sessionKey } from "./session-identity";
 
 const DESKTOP_NOTIFICATION_SETTINGS_STORAGE_KEY =
 	"cline:desktop-notification-settings:v1";
@@ -336,27 +337,29 @@ export function watchDesktopNotifications(): () => void {
 	};
 
 	const handleTerminal = (
+		environmentId: string,
 		sessionId: string,
 		kind: TerminalKind,
 		detail = "",
 	) => {
-		if (!sessionId || terminalBySession.get(sessionId) === kind) {
+		const key = sessionKey({ sessionId, environmentId });
+		if (!sessionId || terminalBySession.get(key) === kind) {
 			return;
 		}
-		terminalBySession.set(sessionId, kind);
+		terminalBySession.set(key, kind);
 		if (kind === "cancelled") {
-			const wasRunning = runningSessions.delete(sessionId);
+			const wasRunning = runningSessions.delete(key);
 			if (wasRunning && runningSessions.size === 0) {
 				void emitAvatarTaskStatus("idle");
 			}
 			return;
 		}
-		runningSessions.delete(sessionId);
+		runningSessions.delete(key);
 		if (runningSessions.size === 0) {
 			void emitAvatarTaskStatus(kind === "error" ? "failed" : "completed");
 		}
 		if (kind === "completed") {
-			if ((queuedPromptsBySession.get(sessionId) ?? 0) > 0) {
+			if ((queuedPromptsBySession.get(key) ?? 0) > 0) {
 				return;
 			}
 			void notify({
@@ -380,9 +383,13 @@ export function watchDesktopNotifications(): () => void {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as { sessionId?: unknown; items?: unknown };
 			const sessionId = asNonEmptyString(record.sessionId);
+			const key = sessionKey({
+				sessionId,
+				environmentId: eventEnvironmentId(payload),
+			});
 			if (!sessionId) return;
 			queuedPromptsBySession.set(
-				sessionId,
+				key,
 				Array.isArray(record.items) ? record.items.length : 0,
 			);
 		}),
@@ -392,59 +399,87 @@ export function watchDesktopNotifications(): () => void {
 			const sessionId = asNonEmptyString(event.sessionId);
 			const stream = asNonEmptyString(event.stream);
 			if (!sessionId || !stream) return;
+			const key = sessionKey({
+				sessionId,
+				environmentId: eventEnvironmentId(payload),
+			});
 			if (
 				stream === "chat_queued_prompt_start" ||
 				stream === "chat_tool_call_start" ||
 				stream === "chat_text"
 			) {
-				if (!runningSessions.has(sessionId)) {
-					runningSessions.add(sessionId);
+				if (!runningSessions.has(key)) {
+					runningSessions.add(key);
 					void emitAvatarTaskStatus("running");
 				}
-				terminalBySession.delete(sessionId);
+				terminalBySession.delete(key);
 				return;
 			}
 			if (stream !== "chat_done") return;
 			const done = parseDoneChunk(event.chunk);
 			const kind = terminalKind(done.reason || "completed");
-			if (kind) handleTerminal(sessionId, kind, done.text);
+			if (kind)
+				handleTerminal(eventEnvironmentId(payload), sessionId, kind, done.text);
 		}),
 		desktopClient.subscribe("chat_session_status", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as { sessionId?: unknown; status?: unknown };
 			const sessionId = asNonEmptyString(record.sessionId);
+			const key = sessionKey({
+				sessionId,
+				environmentId: eventEnvironmentId(payload),
+			});
 			const status = asNonEmptyString(record.status).toLowerCase();
 			if (!sessionId || !status) return;
 			if (status === "running" || status === "starting") {
 				// A session status snapshot can lag behind the stream and arrive after
 				// chat_done has already settled the current turn. Do not resurrect the
 				// avatar until a new stream event clears this terminal state.
-				if (terminalBySession.has(sessionId)) return;
+				if (terminalBySession.has(key)) return;
 				const wasRunning = runningSessions.size > 0;
-				runningSessions.add(sessionId);
-				terminalBySession.delete(sessionId);
+				runningSessions.add(key);
+				terminalBySession.delete(key);
 				if (!wasRunning) void emitAvatarTaskStatus("running");
 				return;
 			}
 			const kind = terminalKind(status);
-			if (kind && status !== "idle") handleTerminal(sessionId, kind);
+			if (kind && status !== "idle")
+				handleTerminal(eventEnvironmentId(payload), sessionId, kind);
 		}),
 		desktopClient.subscribe("chat_session_ended", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as { sessionId?: unknown; reason?: unknown };
 			const sessionId = asNonEmptyString(record.sessionId);
+			const key = sessionKey({
+				sessionId,
+				environmentId: eventEnvironmentId(payload),
+			});
 			const reason = asNonEmptyString(record.reason);
 			const kind = terminalKind(reason);
-			if (sessionId && kind) handleTerminal(sessionId, kind);
+			if (sessionId && kind)
+				handleTerminal(eventEnvironmentId(payload), sessionId, kind);
 		}),
 		desktopClient.subscribe("tool_approval_state", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as { sessionId?: unknown; items?: unknown };
 			const sessionId = asNonEmptyString(record.sessionId);
+			const key = sessionKey({
+				sessionId,
+				environmentId: eventEnvironmentId(payload),
+			});
 			if (!sessionId || !Array.isArray(record.items)) return;
 			for (const item of record.items as ToolApprovalItem[]) {
 				const requestId = asNonEmptyString(item.requestId);
-				if (!requestId || !addSeenRequest(seenApprovalRequests, requestId)) {
+				if (
+					!requestId ||
+					!addSeenRequest(
+						seenApprovalRequests,
+						sessionKey({
+							sessionId: requestId,
+							environmentId: eventEnvironmentId(payload),
+						}),
+					)
+				) {
 					continue;
 				}
 				const toolName = asNonEmptyString(item.toolName) || "A tool";
@@ -464,7 +499,13 @@ export function watchDesktopNotifications(): () => void {
 			if (
 				!requestId ||
 				!sessionId ||
-				!addSeenRequest(seenQuestionRequests, requestId)
+				!addSeenRequest(
+					seenQuestionRequests,
+					sessionKey({
+						sessionId: requestId,
+						environmentId: eventEnvironmentId(payload),
+					}),
+				)
 			) {
 				return;
 			}

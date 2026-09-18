@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isClineAccountNotAuthenticatedResult } from "../webview/lib/cline-account-state";
 import type { SidecarContext } from "./types";
 
@@ -6,7 +9,14 @@ const clineAccountServiceCtorMock = vi.hoisted(() => vi.fn());
 const executeClineAccountActionMock = vi.hoisted(() => vi.fn());
 const getProviderSettingsMock = vi.hoisted(() => vi.fn());
 const saveProviderSettingsMock = vi.hoisted(() => vi.fn());
+const persistProviderSettingsMock = vi.hoisted(() => vi.fn());
 const resolveProviderApiKeyMock = vi.hoisted(() => vi.fn());
+const clearLegacyProviderCredentialsMock = vi.hoisted(() => vi.fn());
+let testDataDir: string;
+
+vi.mock("./legacy-provider-credentials", () => ({
+	clearLegacyProviderCredentials: clearLegacyProviderCredentialsMock,
+}));
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -35,6 +45,7 @@ vi.mock("@cline/core", async () => {
 			read() {
 				return { modes: {} };
 			}
+			saveProviderSettings = persistProviderSettingsMock;
 		},
 		saveLocalProviderSettings: saveProviderSettingsMock,
 		RuntimeOAuthTokenManager: class {
@@ -45,12 +56,14 @@ vi.mock("@cline/core", async () => {
 
 function createContext() {
 	const capture = vi.fn();
+	const setDistinctId = vi.fn();
+	const updateCommonProperties = vi.fn();
 	const ctx = {
-		telemetry: { capture },
+		telemetry: { capture, setDistinctId, updateCommonProperties },
 		logger: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
 		wsClients: new Set(),
 	} as unknown as SidecarContext;
-	return { ctx, capture };
+	return { ctx, capture, setDistinctId, updateCommonProperties };
 }
 
 const FETCH_ME_ARGS = {
@@ -64,16 +77,29 @@ async function runClineAccountCommand(ctx: SidecarContext) {
 }
 
 beforeEach(() => {
+	// Account context is persisted across launches; never hydrate the developer's
+	// signed-in identity when a test expects an anonymous device identity.
+	testDataDir = mkdtempSync(join(tmpdir(), "commands-account-test-"));
+	vi.stubEnv("CLINE_DATA_DIR", testDataDir);
+	vi.stubEnv("CLINE_DIR", testDataDir);
 	clineAccountServiceCtorMock.mockReset();
 	executeClineAccountActionMock.mockReset();
 	getProviderSettingsMock.mockReset();
 	saveProviderSettingsMock.mockReset();
+	persistProviderSettingsMock.mockReset();
 	resolveProviderApiKeyMock.mockReset();
+	clearLegacyProviderCredentialsMock.mockReset();
+});
+
+afterEach(() => {
+	vi.unstubAllEnvs();
+	rmSync(testDataDir, { recursive: true, force: true });
 });
 
 describe("cline_account command auth states", () => {
-	it("returns a typed not-authenticated result when signed out, without telemetry or a thrown error", async () => {
-		const { ctx, capture } = createContext();
+	it("returns a typed not-authenticated result and restores anonymous telemetry when signed out", async () => {
+		const { ctx, capture, setDistinctId, updateCommonProperties } =
+			createContext();
 		resolveProviderApiKeyMock.mockResolvedValue(null);
 		getProviderSettingsMock.mockReturnValue(undefined);
 
@@ -87,6 +113,14 @@ describe("cline_account command auth states", () => {
 		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
 		expect(clineAccountServiceCtorMock).not.toHaveBeenCalled();
 		expect(capture).not.toHaveBeenCalled();
+		expect(setDistinctId).toHaveBeenCalledWith(expect.any(String));
+		expect(updateCommonProperties).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: undefined,
+				account_id: undefined,
+				organization_id: undefined,
+			}),
+		);
 	});
 
 	it("runs the account action unchanged when a fresh token resolves", async () => {
@@ -134,6 +168,25 @@ describe("cline_account command auth states", () => {
 			"workos:persisted-token",
 		);
 		expect(capture).not.toHaveBeenCalled();
+	});
+
+	it("reports signed out when the refresh token is rejected even though a stale access token is persisted", async () => {
+		// The stale token would only fail the account request with a 401,
+		// which rendered an error card whose Retry failed the same way.
+		const { ctx } = createContext();
+		const { OAuthReauthRequiredError } =
+			await vi.importActual<typeof import("@cline/core")>("@cline/core");
+		resolveProviderApiKeyMock.mockRejectedValue(
+			new OAuthReauthRequiredError("cline"),
+		);
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accessToken: "persisted-token" },
+		});
+
+		const result = await runClineAccountCommand(ctx);
+
+		expect(isClineAccountNotAuthenticatedResult(result)).toBe(true);
+		expect(executeClineAccountActionMock).not.toHaveBeenCalled();
 	});
 
 	it("reports one auth refresh soft-failure event when the refresh fails and no fallback token exists", async () => {
@@ -188,7 +241,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 	});
 
 	it("adopts the account identity on login", async () => {
-		const { ctx } = createContext();
+		const { ctx, setDistinctId, updateCommonProperties } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
 		executeClineAccountActionMock.mockResolvedValue({
@@ -199,6 +252,62 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		await runOperation(ctx, "fetchMe");
 
 		expect(await currentFlagsUserId()).toBe("acct-1");
+		expect(setDistinctId).toHaveBeenCalledWith("acct-1");
+		expect(updateCommonProperties).toHaveBeenCalledWith(
+			expect.objectContaining({ user_id: "acct-1", account_id: "acct-1" }),
+		);
+		expect(ctx.telemetryUser).toEqual({
+			distinctId: "acct-1",
+			accountId: "acct-1",
+			email: "dev@example.com",
+			organizationId: undefined,
+		});
+	});
+
+	it("applies and persists the active organization for task telemetry", async () => {
+		const { ctx, updateCommonProperties } = createContext();
+		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
+		getProviderSettingsMock.mockReturnValue({
+			provider: "cline",
+			auth: { accountId: "acct-1", accessToken: "token" },
+		});
+		executeClineAccountActionMock.mockResolvedValue({
+			id: "acct-1",
+			email: "dev@example.com",
+			organizations: [
+				{
+					active: true,
+					memberId: "member-1",
+					name: "Acme",
+					organizationId: "org-1",
+					roles: ["member"],
+				},
+			],
+		});
+
+		await runOperation(ctx, "fetchMe");
+
+		expect(updateCommonProperties).toHaveBeenCalledWith(
+			expect.objectContaining({
+				user_id: "acct-1",
+				organization_id: "org-1",
+			}),
+		);
+		expect(persistProviderSettingsMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auth: expect.objectContaining({
+					organizationId: "org-1",
+					memberId: "member-1",
+				}),
+			}),
+			{ setLastUsed: false },
+		);
+		expect(ctx.telemetryUser).toEqual({
+			distinctId: "acct-1",
+			accountId: "acct-1",
+			email: "dev@example.com",
+			organizationId: "org-1",
+		});
 	});
 
 	it("leaves the signed-in identity intact across an organization switch", async () => {
@@ -236,7 +345,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 	});
 
 	it("clears the account identity on logout", async () => {
-		const { ctx } = createContext();
+		const { ctx, setDistinctId, updateCommonProperties } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
 		executeClineAccountActionMock.mockResolvedValue({ id: "acct-1" });
@@ -250,10 +359,28 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		await runOperation(ctx, "fetchMe");
 
 		expect(await currentFlagsUserId()).toBeUndefined();
+		expect(ctx.telemetryUser).toEqual(
+			expect.objectContaining({
+				accountId: null,
+				distinctId: expect.any(String),
+			}),
+		);
+		expect(setDistinctId).toHaveBeenLastCalledWith(
+			ctx.telemetryUser?.distinctId,
+		);
+		expect(ctx.telemetryUser?.distinctId).not.toBe("acct-1");
+		expect(updateCommonProperties).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				user_id: undefined,
+				account_id: undefined,
+				account_email: undefined,
+				organization_id: undefined,
+			}),
+		);
 	});
 
 	it("clears the identity when sign-out blanks the cline auth settings", async () => {
-		const { ctx } = createContext();
+		const { ctx, setDistinctId, updateCommonProperties } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
 		executeClineAccountActionMock.mockResolvedValue({ id: "acct-1" });
@@ -276,6 +403,47 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		});
 
 		expect(await currentFlagsUserId()).toBeUndefined();
+		expect(ctx.telemetryUser).toEqual(
+			expect.objectContaining({
+				accountId: null,
+				distinctId: expect.any(String),
+			}),
+		);
+		expect(setDistinctId).toHaveBeenLastCalledWith(
+			ctx.telemetryUser?.distinctId,
+		);
+		expect(updateCommonProperties).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				user_id: undefined,
+				account_id: undefined,
+				organization_id: undefined,
+			}),
+		);
+	});
+
+	it("signs out of the shared cline entry and legacy secrets when cline-pass is disabled", async () => {
+		const { ctx } = createContext();
+		getProviderSettingsMock.mockReturnValue(undefined);
+		saveProviderSettingsMock.mockImplementation(
+			(_manager: unknown, request: { providerId: string }) => ({
+				providerId: request.providerId,
+				enabled: false,
+				settingsPath: "/tmp/settings.json",
+			}),
+		);
+		const { handleCommand } = await import("./commands");
+		await handleCommand(ctx, "save_provider_settings", {
+			provider: "cline-pass",
+			enabled: false,
+		});
+
+		// Cline Pass stores its credentials under "cline", so both entries go,
+		// and the legacy secrets are cleared for the storage provider.
+		expect(saveProviderSettingsMock.mock.calls.map(([, r]) => r)).toEqual([
+			expect.objectContaining({ providerId: "cline-pass", enabled: false }),
+			{ providerId: "cline", enabled: false },
+		]);
+		expect(clearLegacyProviderCredentialsMock).toHaveBeenCalledWith("cline");
 	});
 
 	it("ignores settings writes for other providers", async () => {

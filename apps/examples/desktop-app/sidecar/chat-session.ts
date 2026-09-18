@@ -44,6 +44,8 @@ import type { MessageWithMetadata } from "@cline/llms";
 import {
 	type AgentMode,
 	buildClineSystemPrompt,
+	type ConsecutiveMistakeLimitContext,
+	type ConsecutiveMistakeLimitDecision,
 	formatUserCommandBlock,
 	getClineEnvironmentConfig,
 } from "@cline/shared";
@@ -53,6 +55,7 @@ import {
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
+import { createDesktopExtensionContext } from "./client-context";
 import {
 	CloudHandoffSeedUnsupportedError,
 	CloudSessionError,
@@ -60,10 +63,13 @@ import {
 	getCloudSessionManager,
 } from "./cloud-sessions";
 import {
+	cancelSidecarMistakeQuestions,
 	emitChunk,
 	findSessionRuntimeBinding,
+	getEnvironmentContext,
 	getSessionRuntimeBinding,
 	nowMs,
+	requestSidecarAskQuestion,
 	sendEvent,
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
@@ -538,7 +544,180 @@ function readPositiveInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
-function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
+type MistakeLimitDecider = (
+	context: ConsecutiveMistakeLimitContext,
+) => Promise<ConsecutiveMistakeLimitDecision>;
+
+const MISTAKE_LIMIT_CONTINUE_OPTION = "Try a different approach";
+const MISTAKE_LIMIT_STOP_OPTION = "Stop this run";
+const MISTAKE_LIMIT_DETAIL_MAX_CHARS = 600;
+
+/**
+ * Desktop counterpart of the CLI's mistake-limit prompt
+ * (apps/cli/src/runtime/interactive/mistakes.ts).
+ *
+ * When the core's loop detector or mistake tracker trips, it asks the client
+ * how to proceed. Without a decision callback the default is "stop", which
+ * reaches the webview as a plain aborted turn: indistinguishable from the
+ * user pressing Stop, with no explanation. A model stuck re-issuing the same
+ * failing tool call therefore looked like Cline randomly gave up mid-task.
+ * Route the decision through the existing ask-question channel instead so
+ * the user sees what went wrong and can choose.
+ *
+ * `getSessionId` is read at prompt time: for fresh starts the session id is
+ * only known after `manager.start()` resolves, and the webview matches the
+ * prompt to its active session by id.
+ */
+export function createDesktopMistakeLimitPrompt(
+	ctx: SidecarContext,
+	getSessionId: () => string,
+): MistakeLimitDecider {
+	return async (context) => {
+		const sessionId = getSessionId().trim();
+		const recovery = ctx.liveSessions.get(sessionId)?.mistakeRecovery;
+		if (
+			recovery?.continuedThroughIteration !== undefined &&
+			context.iteration <= recovery.continuedThroughIteration
+		) {
+			// The tracker serializes decisions, so old failures can arrive after
+			// Continue. The user has already answered for these in-flight steps.
+			return { action: "continue" };
+		}
+		const detail = context.details?.trim() ?? "";
+		const truncatedDetail =
+			detail.length > MISTAKE_LIMIT_DETAIL_MAX_CHARS
+				? `${detail.slice(0, MISTAKE_LIMIT_DETAIL_MAX_CHARS)}…`
+				: detail;
+		const question = [
+			"Cline detected repeated mistakes or tool calls and needs your guidance.",
+			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
+			"How should Cline continue?",
+		]
+			.filter((line) => line.length > 0)
+			.join("\n");
+
+		let answer: string;
+		try {
+			answer = await requestSidecarAskQuestion(
+				ctx,
+				question,
+				[MISTAKE_LIMIT_CONTINUE_OPTION, MISTAKE_LIMIT_STOP_OPTION],
+				{
+					sessionId,
+					agentId: "desktop-mistake-limit",
+					iteration: context.iteration,
+				},
+			);
+		} catch (error) {
+			// Prompt timed out or the session was torn down: fall back to the
+			// core's default decision, but keep the reason so the stop is
+			// attributable.
+			ctx.logger?.log("Mistake-limit prompt unanswered; stopping run", {
+				sessionId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return {
+				action: "stop",
+				reason: `mistake_limit_reached: ${detail || context.reason}`,
+			};
+		}
+
+		const normalized = answer.trim().toLowerCase();
+		if (["2", "stop this run", "stop", "n", "no"].includes(normalized)) {
+			return {
+				action: "stop",
+				reason: "stopped after mistake_limit_reached prompt",
+			};
+		}
+		const customGuidance =
+			normalized.length > 0 &&
+			normalized !== "1" &&
+			normalized !== MISTAKE_LIMIT_CONTINUE_OPTION.toLowerCase()
+				? answer.trim()
+				: "";
+		const guidance = [
+			"The run reached the limit for repeated mistakes or tool calls.",
+			truncatedDetail ? `Latest: ${truncatedDetail}` : "",
+			"Do not repeat the same call. Re-check the tool's parameter requirements, fix the call, and try a different approach.",
+			customGuidance ? `User guidance: ${customGuidance}` : "",
+		]
+			.filter((line) => line.length > 0)
+			.join(" ");
+		// Use the existing steering queue so the running model receives the
+		// guidance, including any instructions entered in the desktop prompt.
+		const manager = ctx.runtimeBindings.get(
+			ctx.sessionEnvironmentIds.get(sessionId) ?? "local",
+		)?.sessionManager;
+		try {
+			const manager = getSessionRuntimeBinding(ctx, sessionId).sessionManager;
+			if (!manager) throw new Error("Desktop session manager is unavailable");
+			const continuedThroughIteration = Math.max(
+				context.iteration,
+				recovery?.latestIteration ?? context.iteration,
+			);
+			await manager.send({ sessionId, prompt: guidance, delivery: "steer" });
+			if (recovery) {
+				recovery.continuedThroughIteration = continuedThroughIteration;
+			}
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			ctx.logger?.log("Failed to steer mistake-limit guidance", {
+				sessionId,
+				error: detail,
+			});
+			// Releasing the hooks without the guidance would resume the same
+			// failing loop. Only Continue after the steering request succeeds.
+			return {
+				action: "stop",
+				reason: `Could not send recovery guidance: ${detail}`,
+			};
+		}
+		// Steering already delivers the guidance; do not also append it via
+		// the mistake tracker's recovery-notice path.
+		return { action: "continue" };
+	};
+}
+
+export function createDesktopMistakeRecovery(
+	ctx: SidecarContext,
+	getSessionId: () => string,
+) {
+	const prompt = createDesktopMistakeLimitPrompt(ctx, getSessionId);
+	let pendingDecision: Promise<ConsecutiveMistakeLimitDecision> | undefined;
+	const waitForDecision = async () => {
+		const decision = await pendingDecision;
+		return decision?.action === "stop"
+			? { stop: true, reason: decision.reason }
+			: undefined;
+	};
+	return {
+		onConsecutiveMistakeLimitReached: (
+			context: ConsecutiveMistakeLimitContext,
+		) => {
+			if (!pendingDecision) {
+				pendingDecision = prompt(context).finally(() => {
+					pendingDecision = undefined;
+				});
+			}
+			return pendingDecision;
+		},
+		hooks: {
+			// The decision callback alone does not pause the SDK. These existing
+			// awaited hooks hold desktop runs at tool/model boundaries until the
+			// user answers. afterTool holds before the next iteration consumes
+			// the recovery guidance queued by the prompt's Continue action.
+			beforeModel: waitForDecision,
+			beforeTool: waitForDecision,
+			afterTool: waitForDecision,
+		},
+	};
+}
+
+function buildCoreSessionConfig(
+	config: JsonRecord,
+	telemetryUser?: SidecarContext["telemetryUser"],
+	mistakeRecovery?: ReturnType<typeof createDesktopMistakeRecovery>,
+): JsonRecord {
 	const rawWorkspaceRoot = config.workspaceRoot ?? config.workspace_root;
 	const workspaceRoot =
 		typeof rawWorkspaceRoot === "string" ? rawWorkspaceRoot.trim() : "";
@@ -581,6 +760,8 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		checkpoint: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
+		extensionContext: createDesktopExtensionContext(telemetryUser),
+		...mistakeRecovery,
 	};
 }
 
@@ -667,11 +848,24 @@ export function mergeSessionConfig(
 	const providerId =
 		readAliasedString(updates, "provider", "providerId") ??
 		readAliasedString(currentConfig, "provider", "providerId");
+	const previous = { ...currentConfig };
+	if (hasProviderChanged(currentConfig, updates)) {
+		for (const key of [
+			"apiKey",
+			"api_key",
+			"baseUrl",
+			"headers",
+			"providerConfig",
+			"accessToken",
+			"refreshToken",
+		])
+			delete previous[key];
+	}
 	const modelId =
 		readAliasedString(updates, "model", "modelId") ??
 		readAliasedString(currentConfig, "model", "modelId");
 	return {
-		...currentConfig,
+		...previous,
 		...updates,
 		...(providerId ? { provider: providerId, providerId } : {}),
 		...(modelId ? { model: modelId, modelId } : {}),
@@ -814,31 +1008,49 @@ async function withRemoteProviderCredentials(
 	const modelId = String(
 		config.model ?? config.modelId ?? settings.model ?? "",
 	).trim();
-	const storedConfig = {
-		...toProviderConfig(
-			{
-				...settings,
-				...(modelId ? { model: modelId } : {}),
-			},
-			{ includeKnownModels: false },
-		),
-	};
-	delete storedConfig.refreshToken;
 	const explicitProviderConfig =
 		config.providerConfig && typeof config.providerConfig === "object"
 			? (config.providerConfig as JsonRecord)
 			: undefined;
-	const explicitApiKey = String(config.apiKey ?? config.api_key ?? "").trim();
+	const explicitApiKey =
+		[
+			config.apiKey,
+			config.api_key,
+			explicitProviderConfig?.apiKey,
+			explicitProviderConfig?.accessToken,
+		]
+			.find(
+				(value): value is string =>
+					typeof value === "string" && value.trim().length > 0,
+			)
+			?.trim() ?? "";
+
 	const oauth = explicitApiKey
 		? null
 		: await new RuntimeOAuthTokenManager({
 				providerSettingsManager: manager,
 			}).resolveProviderApiKey({ providerId });
+	// Refresh can replace access tokens, account IDs, and provider metadata.
+	const refreshedSettings = manager.getProviderSettings(providerId) ?? settings;
+	const storedConfig = {
+		...toProviderConfig(
+			{ ...refreshedSettings, ...(modelId ? { model: modelId } : {}) },
+			{ includeKnownModels: false },
+		),
+	};
 	const apiKey =
 		explicitApiKey ||
 		oauth?.apiKey ||
 		resolveProviderApiKeyFromSettings(manager, providerId) ||
 		String(storedConfig.apiKey ?? "").trim();
+	const providerConfig = {
+		...storedConfig,
+		...explicitProviderConfig,
+		providerId,
+		...(modelId ? { modelId } : {}),
+		...(apiKey ? { apiKey, accessToken: apiKey } : {}),
+	};
+	delete providerConfig.refreshToken;
 
 	return {
 		...config,
@@ -849,12 +1061,7 @@ async function withRemoteProviderCredentials(
 		...(!config.headers && storedConfig.headers
 			? { headers: storedConfig.headers }
 			: {}),
-		providerConfig: {
-			...storedConfig,
-			...(explicitProviderConfig ?? {}),
-			providerId,
-			...(modelId ? { modelId } : {}),
-		},
+		providerConfig,
 	};
 }
 
@@ -900,10 +1107,18 @@ async function handleStart(
 		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
 			? config.initialMessages
 			: requestedSessionId
-				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
+				? binding.kind === "ssh"
+					? await manager.readMessages(requestedSessionId)
+					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
+	// Resolved once start() returns; the mistake-limit prompt reads it lazily.
+	let startedSessionId = requestedSessionId;
 	const coreConfig: JsonRecord = {
-		...buildCoreSessionConfig(config),
+		...buildCoreSessionConfig(
+			config,
+			ctx.telemetryUser,
+			createDesktopMistakeRecovery(ctx, () => startedSessionId),
+		),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
 	};
@@ -925,15 +1140,24 @@ async function handleStart(
 				: SessionSource.DESKTOP,
 		interactive: true,
 		...(initialMessages ? { initialMessages } : {}),
-		toolPolicies: resolveToolPolicies(request.config),
+		toolPolicies: resolveToolPolicies(config),
+		sessionMetadata:
+			binding.kind === "ssh"
+				? {
+						remoteEnvironmentId: binding.environmentId,
+						remoteEnvironmentName: binding.remote?.profile.name,
+						remoteHost: binding.remote?.profile.host,
+					}
+				: undefined,
 	});
 	const sessionId = startResult.sessionId;
+	startedSessionId = sessionId;
 	const workspaceRoot = startResult.manifest.workspace_root;
 	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
 	const session = createLiveSession(
 		{
-			...config,
+			...request.config,
 			cwd,
 			workspaceRoot,
 			environmentId: binding.environmentId,
@@ -944,9 +1168,10 @@ async function handleStart(
 			prompt: initialMessages
 				? derivePromptFromMessages(initialMessages)
 				: undefined,
-			title: requestedSessionId
-				? readSessionMetadataTitle(requestedSessionId)
-				: undefined,
+			title:
+				requestedSessionId && binding.kind === "local"
+					? readSessionMetadataTitle(requestedSessionId)
+					: undefined,
 			status: "idle",
 		},
 	);
@@ -1019,7 +1244,7 @@ async function handleAttach(
 			: baseAttachedConfig;
 	ctx.liveSessions.set(
 		sessionId,
-		createLiveSession(attachedConfig, {
+		createLiveSession(baseAttachedConfig, {
 			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
@@ -1057,6 +1282,7 @@ async function handleAttach(
 
 async function startRebuiltSession(
 	manager: ClineCore,
+	ctx: SidecarContext,
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
@@ -1068,11 +1294,15 @@ async function startRebuiltSession(
 		: undefined;
 	const restarted = await manager.start({
 		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
-				...config,
-				sessionId,
-				systemPrompt,
-			}) as unknown as ClineCoreStartConfig,
+			buildCoreSessionConfig(
+				{
+					...config,
+					sessionId,
+					systemPrompt,
+				},
+				ctx.telemetryUser,
+				createDesktopMistakeRecovery(ctx, () => sessionId),
+			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -1130,11 +1360,13 @@ async function rebuildSessionForProviderChange(
 				: resolveSystemPrompt(effectiveNextConfig),
 		]);
 
+	cancelSidecarMistakeQuestions(ctx, sessionId, "Session provider changed");
 	await manager.stop(sessionId);
 	let replacementStarted = false;
 	try {
 		await startRebuiltSession(
 			manager,
+			ctx,
 			sessionId,
 			effectiveNextConfig,
 			nextSystemPrompt,
@@ -1156,6 +1388,7 @@ async function rebuildSessionForProviderChange(
 			}
 			await startRebuiltSession(
 				manager,
+				ctx,
 				sessionId,
 				effectivePreviousConfig,
 				previousSystemPrompt,
@@ -1232,20 +1465,23 @@ async function handleSend(
 	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
-	const runtimePrompt = await resolveDesktopRuntimePrompt(
-		ctx,
-		readWorkspacePath(session?.config ?? request.config) ??
-			ctx.localWorkspaceRoot,
-		prompt,
-		request.config?.mode ?? session?.config?.mode,
-	);
+	const runtimePrompt =
+		binding.kind === "ssh"
+			? prompt
+			: await resolveDesktopRuntimePrompt(
+					ctx,
+					readWorkspacePath(session?.config ?? request.config) ??
+						ctx.localWorkspaceRoot,
+					prompt,
+					request.config?.mode ?? session?.config?.mode,
+				);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
 	}
 	const nextConfig = request.config
 		? mergeSessionConfig(session?.config ?? {}, request.config)
-		: undefined;
+		: session?.config;
 	const providerChanged = Boolean(
 		session &&
 			request.config &&
@@ -1268,7 +1504,7 @@ async function handleSend(
 		}
 	}
 	try {
-		if (request.config && nextConfig) {
+		if ((request.config || binding.kind === "ssh") && nextConfig) {
 			if (providerChanged && session) {
 				await rebuildSessionForProviderChange(
 					ctx,
@@ -1278,13 +1514,18 @@ async function handleSend(
 					nextConfig,
 				);
 			} else if (
+				binding.kind === "ssh" ||
 				!session ||
 				session.attachedViaHub ||
 				shouldUpdateSessionConnection(session.config, nextConfig)
 			) {
 				await manager.updateSessionConnection(
 					sessionId,
-					buildSessionConnectionUpdate(nextConfig),
+					buildSessionConnectionUpdate(
+						binding.kind === "ssh"
+							? await withRemoteProviderCredentials(nextConfig)
+							: nextConfig,
+					),
 				);
 			}
 			if (session) {
@@ -1308,9 +1549,9 @@ async function handleSend(
 			request.attachments?.userFiles,
 		);
 		if (session?.attachedViaHub) {
-			// Once ClineCore sends a turn, its HubRuntimeHost owns the session
-			// subscription. Stop projecting the observer stream as well or every
-			// assistant/tool update (including command chunks) is emitted twice.
+			// Once ClineCore sends a turn it owns the session: the attach-time
+			// connection refresh above has happened and the observer projection is
+			// muted by its subscription, so the session is no longer attach-only.
 			session.attachedViaHub = false;
 		}
 		if (delivery === "queue") {
@@ -1453,6 +1694,7 @@ async function handleStop(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	cancelSidecarMistakeQuestions(ctx, sessionId, "Session stopped");
 	await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
@@ -1468,6 +1710,7 @@ async function handleAbort(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	cancelSidecarMistakeQuestions(ctx, sessionId, "Run aborted");
 	await getSessionManager(ctx, sessionId, request.config).abort(
 		sessionId,
 		"user_abort",
@@ -1562,12 +1805,12 @@ async function handleForkUnlocked(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
-	let sourceMessages =
-		readPersistedChatMessages(sourceSessionId) ??
-		ctx.liveSessions.get(sourceSessionId)?.messages;
-	if (!sourceMessages?.length && binding.kind === "ssh") {
-		sourceMessages = await manager.readMessages(sourceSessionId);
-	}
+	const sourceMessages =
+		binding.kind === "ssh"
+			? await manager.readMessages(sourceSessionId)
+			: (readPersistedChatMessages(sourceSessionId) ??
+				ctx.liveSessions.get(sourceSessionId)?.messages);
+
 	if (!sourceMessages?.length) {
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
@@ -1575,7 +1818,10 @@ async function handleForkUnlocked(
 	const sourceMetadata =
 		(sourceSession?.metadata && typeof sourceSession.metadata === "object"
 			? (sourceSession.metadata as JsonRecord)
-			: undefined) ?? readSessionMetadata(sourceSessionId);
+			: undefined) ??
+		(binding.kind === "local"
+			? readSessionMetadata(sourceSessionId)
+			: undefined);
 	const liveConfig = ctx.liveSessions.get(sourceSessionId)?.config;
 	const baseForkConfig: JsonRecord = {
 		...(liveConfig ?? {}),
@@ -1639,12 +1885,17 @@ async function handleForkUnlocked(
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(forkConfig)
 			: await resolveSystemPrompt(forkConfig);
+	let newSessionId = "";
 	const startInput = {
 		...splitCoreSessionConfig(
-			buildCoreSessionConfig({
-				...forkConfig,
-				systemPrompt,
-			}) as unknown as ClineCoreStartConfig,
+			buildCoreSessionConfig(
+				{
+					...forkConfig,
+					systemPrompt,
+				},
+				ctx.telemetryUser,
+				createDesktopMistakeRecovery(ctx, () => newSessionId),
+			) as unknown as ClineCoreStartConfig,
 		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
@@ -1661,7 +1912,6 @@ async function handleForkUnlocked(
 			readSessionCheckpointHistory({ metadata: sourceMetadata }),
 			forkBeforeRunCount,
 		) !== undefined;
-	let newSessionId: string;
 	if (forkBeforeRunCount !== undefined && canRestoreWorkspace) {
 		const cwd =
 			restoreWorkspacePath ||
@@ -1709,14 +1959,24 @@ async function handleForkUnlocked(
 		sourceSessionId,
 		ctx.liveSessions.get(sourceSessionId),
 	);
+	cancelSidecarMistakeQuestions(
+		ctx,
+		sourceSessionId,
+		"Session replaced by fork",
+	);
 	ctx.liveSessions.delete(sourceSessionId);
 	ctx.liveSessions.set(
 		newSessionId,
-		createLiveSession(forkConfig, {
+		createLiveSession(baseForkConfig, {
 			environmentId: binding.environmentId,
 			messages: forkMessages,
 			prompt: derivePromptFromMessages(forkMessages),
-			title: readSessionMetadataTitle(sourceSessionId),
+			title:
+				binding.kind === "local"
+					? readSessionMetadataTitle(sourceSessionId)
+					: typeof sourceMetadata?.title === "string"
+						? sourceMetadata.title
+						: undefined,
 			status: "idle",
 		}),
 	);
@@ -1748,6 +2008,7 @@ async function handleReset(
 				`Cloud handoff is still pending. Retry /handoff or continue here: ${pendingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, pendingHandoff.toCloudSessionId)}`,
 			);
 		}
+		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
 		if (
 			session?.busy ||
@@ -1755,7 +2016,7 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await manager.stop(sessionId);
+			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
@@ -1817,6 +2078,8 @@ async function handleRestoreCheckpoint(
 			? await withRemoteProviderCredentials(requestedConfig)
 			: requestedConfig;
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
+		// Updated once restore() returns; read lazily by the mistake-limit prompt.
+		let restoredSessionId = sourceSessionId;
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
 			checkpointRunCount: runCount,
@@ -1824,13 +2087,17 @@ async function handleRestoreCheckpoint(
 			restore: { messages: true, workspace: true },
 			start: {
 				...splitCoreSessionConfig(
-					buildCoreSessionConfig({
-						...config,
-						systemPrompt:
-							binding.kind === "ssh"
-								? readExplicitSystemPrompt(config)
-								: await resolveSystemPrompt(config),
-					}) as unknown as ClineCoreStartConfig,
+					buildCoreSessionConfig(
+						{
+							...config,
+							systemPrompt:
+								binding.kind === "ssh"
+									? readExplicitSystemPrompt(config)
+									: await resolveSystemPrompt(config),
+						},
+						ctx.telemetryUser,
+						createDesktopMistakeRecovery(ctx, () => restoredSessionId),
+					) as unknown as ClineCoreStartConfig,
 				),
 				source: SessionSource.DESKTOP,
 				interactive: true,
@@ -1847,14 +2114,20 @@ async function handleRestoreCheckpoint(
 			sourceSessionId,
 			sessionId,
 		);
+		restoredSessionId = sessionId;
 		discardAllTrackedAttachments(
 			sourceSessionId,
 			ctx.liveSessions.get(sourceSessionId),
 		);
+		cancelSidecarMistakeQuestions(
+			ctx,
+			sourceSessionId,
+			"Session checkpoint restored",
+		);
 		ctx.liveSessions.delete(sourceSessionId);
 		ctx.liveSessions.set(
 			sessionId,
-			createLiveSession(config, {
+			createLiveSession(requestedConfig, {
 				environmentId: binding.environmentId,
 				messages: restoredMessages,
 				prompt: derivePromptFromMessages(restoredMessages),
@@ -1867,7 +2140,10 @@ async function handleRestoreCheckpoint(
 		// transcript describing the discarded turns, and read_session_messages
 		// prefers that file over the live session. Write the trimmed history so
 		// the transcript matches the workspace the restore just rolled back to.
-		persistSessionMessages(sessionId, restoredMessages);
+		if (binding.kind === "local") {
+			persistSessionMessages(sessionId, restoredMessages);
+		}
+		ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 		return {
@@ -1900,14 +2176,17 @@ async function handleSteerPrompt(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	const promptId = request.promptId?.trim();
-	if (!sessionId || !promptId)
-		throw new Error("sessionId and promptId are required");
+	if (!sessionId) throw new Error("sessionId is required");
+	if (request.promptId !== undefined && !promptId)
+		throw new Error("promptId cannot be empty");
 	const manager = getSessionManager(ctx, sessionId, request.config);
-	const result = await manager.pendingPrompts.update({
-		sessionId,
-		promptId,
-		delivery: "steer",
-	});
+	const result = promptId
+		? await manager.pendingPrompts.update({
+				sessionId,
+				promptId,
+				delivery: "steer",
+			})
+		: await manager.pendingPrompts.steerFirst({ sessionId });
 	return {
 		sessionId,
 		updated: result.updated === true,
@@ -1928,16 +2207,24 @@ async function handleUpdatePendingPrompt(
 	if (!prompt) {
 		throw new Error("prompt is required");
 	}
-	const manager = getSessionManager(ctx);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
 	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
 	// Queued prompts are delivered by the runtime without another pass
 	// through handleSend, so resolve slash commands here too.
-	const runtimePrompt = await resolveDesktopRuntimePrompt(
-		ctx,
-		readWorkspacePath(sessionConfig) ?? ctx.localWorkspaceRoot,
-		prompt,
-		sessionConfig?.mode,
-	);
+	const runtimePrompt =
+		binding.kind === "ssh"
+			? prompt
+			: await resolveDesktopRuntimePrompt(
+					ctx,
+					readWorkspacePath(sessionConfig) ?? ctx.localWorkspaceRoot,
+					prompt,
+					sessionConfig?.mode,
+				);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
@@ -2533,7 +2820,7 @@ async function handleHandoffOnce(
 	}
 	if (!outerSessionId) {
 		emitProgress("creating", "Creating the cloud workspace…");
-		const created = await cloud.create({
+		const created = await cloud.createAndAttach({
 			repoUrl: prepared.repoUrl,
 			branch: prepared.branch,
 			modelId: prepared.modelId,
@@ -2747,6 +3034,12 @@ export async function assertSessionDeleteAllowedDuringHandoff(
 	sessionId: string,
 	sessionManager?: ClineCore,
 ): Promise<void> {
+	ctx = getEnvironmentContext(
+		ctx,
+		ctx.sessionEnvironmentIds.get(sessionId) ??
+			ctx.activeEnvironmentId ??
+			"local",
+	);
 	if (handoffRequests.get(ctx)?.has(sessionId)) {
 		throw new Error("Wait for the cloud handoff to finish before deleting.");
 	}
@@ -2874,7 +3167,7 @@ export async function handleChatSessionCommand(
 				const reasoningEffort = readReasoningEffort(
 					request.config?.reasoningEffort,
 				);
-				return await cloud.create({
+				return await cloud.createAndAttach({
 					repoUrl,
 					modelId,
 					...(initialPrompt ? { initialPrompt } : {}),
@@ -2920,11 +3213,14 @@ export async function handleChatSessionCommand(
 				return await cloud.pendingPrompts(sessionId);
 			case "steer_prompt": {
 				const promptId = request.promptId?.trim();
-				if (!sessionId || !promptId)
-					throw new Error("sessionId and promptId are required");
-				return await cloud.updatePendingPrompt(sessionId, promptId, {
-					delivery: "steer",
-				});
+				if (!sessionId) throw new Error("sessionId is required");
+				if (request.promptId !== undefined && !promptId)
+					throw new Error("promptId cannot be empty");
+				return promptId
+					? await cloud.updatePendingPrompt(sessionId, promptId, {
+							delivery: "steer",
+						})
+					: await cloud.steerFirstPendingPrompt(sessionId);
 			}
 			case "update_pending_prompt": {
 				const promptId = request.promptId?.trim();
@@ -2950,5 +3246,25 @@ export async function handleChatSessionCommand(
 	}
 	const handler = ACTION_HANDLERS[request.action];
 	if (!handler) throw new Error("unsupported action");
-	return handler(ctx, request);
+	const explicitEnvironment =
+		readEnvironmentId(request.config) ??
+		(request.action === "handoff" || request.action === "prepare_handoff"
+			? (ctx.sessionEnvironmentIds.get(request.sessionId ?? "") ??
+				ctx.activeEnvironmentId ??
+				"local")
+			: undefined);
+	const binding =
+		!explicitEnvironment && request.sessionId
+			? await findSessionRuntimeBinding(ctx, request.sessionId)
+			: undefined;
+	return handler(
+		getEnvironmentContext(
+			ctx,
+			explicitEnvironment ??
+				binding?.environmentId ??
+				ctx.activeEnvironmentId ??
+				"local",
+		),
+		request,
+	);
 }

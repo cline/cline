@@ -106,7 +106,18 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			localRuntime: {
 				extensionContext: {
-					client: { name: "cline-cli", version: "3.0.38" },
+					client: {
+						name: "cline-cli",
+						version: "3.0.38",
+						platform: "cli",
+						platformVersion: "3.0.38",
+						isMultiRoot: false,
+					},
+					user: {
+						distinctId: "account-1",
+						accountId: "account-1",
+						organizationId: "org-1",
+					},
 				},
 			},
 			prompt: "Hey",
@@ -155,7 +166,20 @@ describe("HubRuntimeHost", () => {
 					version: "3.0.38",
 				},
 			}),
-			runtimeOptions: {},
+			runtimeOptions: {
+				clientContext: {
+					name: "cline-cli",
+					version: "3.0.38",
+					platform: "cli",
+					platformVersion: "3.0.38",
+					isMultiRoot: false,
+				},
+				userContext: {
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				},
+			},
 			toolPolicies: undefined,
 			initialMessages: undefined,
 		});
@@ -901,10 +925,12 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});
+		expect(host.hasSessionSubscription("sess-1")).toBe(true);
 
 		commandMock.mockResolvedValue({ ok: true, payload: {} });
 		await host.stopSession("sess-1");
 
+		expect(host.hasSessionSubscription("sess-1")).toBe(false);
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"session.detach",
@@ -1787,4 +1813,27 @@ describe("HubRuntimeHost", () => {
 		);
 		expect(disposeMock).toHaveBeenCalledTimes(1);
 	});
+});
+
+it("sends atomic first-prompt steering through the Hub without listing the queue", async () => {
+	const { HubRuntimeHost } = await import("./hub-runtime-host");
+	const result = {
+		sessionId: "session",
+		prompts: [{ id: "current-head", prompt: "current", delivery: "steer" }],
+		updated: true,
+	};
+	commandMock.mockResolvedValue({ payload: result });
+	const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+	try {
+		expect(
+			await host.pendingPrompts.steerFirst({ sessionId: "session" }),
+		).toMatchObject(result);
+		expect(commandMock).toHaveBeenCalledExactlyOnceWith(
+			"session.steer_first_pending_prompt",
+			{ sessionId: "session" },
+			"session",
+		);
+	} finally {
+		await host.dispose();
+	}
 });

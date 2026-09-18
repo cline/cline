@@ -22,6 +22,8 @@ import {
 	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
 	copySessionGeneratedArtifacts,
+	createDesktopMistakeLimitPrompt,
+	createDesktopMistakeRecovery,
 	formatPendingHandoffVerificationError,
 	handleChatSessionCommand,
 	hasProviderChanged,
@@ -39,49 +41,16 @@ import {
 	CloudHandoffSeedUnsupportedError,
 	CloudSessionError,
 } from "./cloud-sessions";
-import { handleCoreSessionEvent } from "./context";
+import {
+	handleCoreSessionEvent,
+	requestSidecarAskQuestion,
+	resolveSidecarAskQuestion,
+} from "./context";
 import type { SidecarContext } from "./types";
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 });
-
-function localRuntimeContext(
-	sessionManager: Record<string, unknown>,
-	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
-) {
-	const workspaceRoot = options.workspaceRoot ?? "/workspace";
-	return {
-		runtimeBindings: new Map([
-			[
-				"local",
-				{
-					environmentId: "local",
-					kind: "local" as const,
-					workspaceRoot,
-					sessionManager,
-					hubClient: {
-						command: vi.fn(async () => undefined),
-					},
-					unsubscribeSessionEvents: () => {},
-				},
-			],
-		]),
-		sessionEnvironmentIds: new Map(
-			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
-		),
-		activeEnvironmentId: "local",
-		remoteEnvironments: null,
-		localWorkspaceRoot: workspaceRoot,
-	};
-}
-
-function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
-	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
-		string,
-		unknown
-	>;
-}
 
 describe("cloud handoff model catalog", () => {
 	it("retains a catalog model duplicated in Cline Pass for organization use", () => {
@@ -160,6 +129,45 @@ describe("rewriteDesktopTeamPrompt", () => {
 		}
 	});
 });
+function localRuntimeContext(
+	sessionManager: Record<string, unknown>,
+	options: { sessionIds?: string[]; workspaceRoot?: string } = {},
+) {
+	const workspaceRoot = options.workspaceRoot ?? "/workspace";
+	return {
+		runtimeBindings: new Map([
+			[
+				"local",
+				{
+					environmentId: "local",
+					kind: "local" as const,
+					workspaceRoot,
+					sessionManager: {
+						get: vi.fn(async () => undefined),
+						...sessionManager,
+					},
+					hubClient: {
+						command: vi.fn(async () => undefined),
+					},
+					unsubscribeSessionEvents: () => {},
+				},
+			],
+		]),
+		sessionEnvironmentIds: new Map(
+			(options.sessionIds ?? []).map((sessionId) => [sessionId, "local"]),
+		),
+		activeEnvironmentId: "local",
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
+	};
+}
+
+function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
+	return ctx.runtimeBindings.get("local")?.sessionManager as unknown as Record<
+		string,
+		unknown
+	>;
+}
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -277,25 +285,49 @@ describe("hasProviderChanged", () => {
 
 describe("pathless session starts", () => {
 	it("omits workspace paths and returns the SDK-resolved chat workspace", async () => {
-		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
-			expect(input.config).not.toHaveProperty("cwd");
-			expect(input.config).not.toHaveProperty("workspaceRoot");
-			expect(input.config).not.toHaveProperty("enableSpawnAgent");
-			expect(input.config).not.toHaveProperty("enableAgentTeams");
-			return {
-				sessionId: "session-pathless",
-				manifest: {
-					cwd: "/home/host/.cline/data/workspaces/chat",
-					workspace_root: "/home/host/.cline/data/workspaces/chat",
-				},
-				manifestPath: "/tmp/session-pathless.json",
-				messagesPath: "/tmp/session-pathless.messages.json",
-			};
-		});
+		const start = vi.fn(
+			async (input: {
+				config: Record<string, unknown>;
+				localRuntime?: {
+					extensionContext?: {
+						client?: Record<string, unknown>;
+						user?: Record<string, unknown>;
+					};
+				};
+			}) => {
+				expect(input.config).not.toHaveProperty("cwd");
+				expect(input.config).not.toHaveProperty("workspaceRoot");
+				expect(input.config).not.toHaveProperty("enableSpawnAgent");
+				expect(input.config).not.toHaveProperty("enableAgentTeams");
+				expect(input.localRuntime?.extensionContext?.client).toMatchObject({
+					name: "cline-desktop",
+					platform: "Cline Desktop",
+				});
+				expect(input.localRuntime?.extensionContext?.user).toEqual({
+					distinctId: "account-1",
+					accountId: "account-1",
+					organizationId: "org-1",
+				});
+				return {
+					sessionId: "session-pathless",
+					manifest: {
+						cwd: "/home/host/.cline/data/workspaces/chat",
+						workspace_root: "/home/host/.cline/data/workspaces/chat",
+					},
+					manifestPath: "/tmp/session-pathless.json",
+					messagesPath: "/tmp/session-pathless.messages.json",
+				};
+			},
+		);
 		const ctx = {
 			liveSessions: new Map(),
 			restoringWorkspacePaths: new Set(),
 			...localRuntimeContext({ start }),
+			telemetryUser: {
+				distinctId: "account-1",
+				accountId: "account-1",
+				organizationId: "org-1",
+			},
 		} as unknown as SidecarContext;
 
 		const result = (await handleChatSessionCommand(ctx, {
@@ -1274,9 +1306,22 @@ describe("session forks", () => {
 				],
 			]),
 			restoringWorkspacePaths: new Set(),
-			...localRuntimeContext(sessionManager, {
-				sessionIds: [sourceSessionId],
-				workspaceRoot: "/workspace/project",
+			...localRuntimeContext({
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						importedFrom: { tool: "codex", sourceId: "cdx-1" },
+					},
+				})),
+				readMessages,
+				restore,
+				start,
 			}),
 			streamIndices: new Map(),
 			wsClients: new Set(),
@@ -1312,7 +1357,7 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
-	it("keeps a full-history fork on the current workspace without restoring", async () => {
+	it("keeps a full-history fork on the current workspace and cancels source questions", async () => {
 		const sourceSessionId = `source-full-fork-${Date.now()}`;
 		const sourceMessages = [
 			{ role: "user" as const, content: "first prompt" },
@@ -1365,8 +1410,19 @@ describe("session forks", () => {
 			),
 			streamIndices: new Map(),
 			wsClients: new Set(),
+			pendingQuestions: new Map(),
 		} as unknown as SidecarContext;
 
+		const pendingDecision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => sourceSessionId,
+		)({
+			iteration: 5,
+			consecutiveMistakes: 6,
+			maxConsecutiveMistakes: 6,
+			reason: "tool_execution_failed",
+		});
+		expect(ctx.pendingQuestions.size).toBe(1);
 		await handleChatSessionCommand(ctx, {
 			action: "fork",
 			sessionId: sourceSessionId,
@@ -1376,6 +1432,8 @@ describe("session forks", () => {
 			},
 		});
 
+		await expect(pendingDecision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -1544,10 +1602,7 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				...localRuntimeContext(
-					{ restore, get: vi.fn(async () => undefined) },
-					{ sessionIds: [sessionId], workspaceRoot: "/workspace/project" },
-				),
+				...localRuntimeContext({ restore }),
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
@@ -1673,7 +1728,6 @@ describe("first-send connection updates", () => {
 			wsClients: new Set(),
 			...localRuntimeContext(
 				{
-					get,
 					readMessages,
 					readSessionCompactionState,
 					send,
@@ -3033,5 +3087,536 @@ Follow the desktop send workflow instructions.`,
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
 		);
+	});
+});
+
+describe("mistake-limit prompt", () => {
+	function createPromptContext() {
+		const send = vi.fn();
+		const steer = vi.fn(async () => undefined);
+		const ctx = {
+			wsClients: new Set([{ send }]),
+			streamIndices: new Map(),
+			pendingQuestions: new Map(),
+			liveSessions: new Map(),
+			...localRuntimeContext({
+				send: steer,
+				stop: vi.fn(async () => {}),
+				abort: vi.fn(async () => {}),
+			}),
+		} as unknown as SidecarContext;
+		const readQuestionRequest = () => {
+			const raw = send.mock.calls
+				.map(
+					([encoded]) =>
+						JSON.parse(String(encoded)) as {
+							event: { name: string; payload: Record<string, unknown> };
+						},
+				)
+				.find((message) => message.event.name === "ask_question_requested");
+			return raw?.event.payload as
+				| {
+						requestId: string;
+						sessionId: string;
+						question: string;
+						options: string[];
+				  }
+				| undefined;
+		};
+		return { ctx, steer, readQuestionRequest };
+	}
+	const limitContext = {
+		iteration: 15,
+		consecutiveMistakes: 6,
+		maxConsecutiveMistakes: 6,
+		reason: "tool_execution_failed" as const,
+		details:
+			"Detected 5 consecutive identical calls to `editor`; stopping to avoid a loop.",
+	};
+
+	it("holds tool and model hooks until Continue has queued recovery guidance", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		let finishSteering!: () => void;
+		steer.mockImplementationOnce(
+			() =>
+				new Promise<undefined>((resolve) => {
+					finishSteering = () => resolve(undefined);
+				}),
+		);
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		expect(recovery.onConsecutiveMistakeLimitReached(limitContext)).toBe(
+			decision,
+		);
+		let released = false;
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]).then((results) => {
+			released = true;
+			return results;
+		});
+		await Promise.resolve();
+		expect(released).toBe(false);
+		expect(ctx.pendingQuestions.size).toBe(1);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await Promise.resolve();
+		expect(steer).toHaveBeenCalledTimes(1);
+		expect(released).toBe(false);
+		finishSteering();
+		await expect(decision).resolves.toMatchObject({ action: "continue" });
+		await expect(waiting).resolves.toEqual([undefined, undefined, undefined]);
+		expect(released).toBe(true);
+		await expect(recovery.hooks.beforeModel()).resolves.toBeUndefined();
+	});
+
+	it("leaves ordinary questions alone when cancelling a mistake prompt", async () => {
+		const { ctx, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		const mistakeRequestId = readQuestionRequest()?.requestId;
+		const normalQuestion = requestSidecarAskQuestion(
+			ctx,
+			"Which file?",
+			["a", "b"],
+			{ sessionId: "session-1", agentId: "desktop", iteration: 1 },
+		);
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-1",
+		});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(1);
+		const remaining = [...ctx.pendingQuestions.values()][0];
+		expect(remaining.item.requestId).not.toBe(mistakeRequestId);
+		resolveSidecarAskQuestion(ctx, remaining.item.requestId, "a");
+		await expect(normalQuestion).resolves.toBe("a");
+	});
+
+	it.each([
+		"answer",
+		"abort",
+	] as const)("releases waiting hooks with Stop on %s", async (action) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]);
+		if (action === "answer") {
+			resolveSidecarAskQuestion(
+				ctx,
+				readQuestionRequest()?.requestId ?? "",
+				"Stop this run",
+			);
+		} else {
+			await handleChatSessionCommand(ctx, {
+				action: "abort",
+				sessionId: "session-1",
+			});
+		}
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		for (const control of await waiting)
+			expect(control).toMatchObject({ stop: true });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("asks the active session's user instead of stopping silently", async () => {
+		const { ctx, readQuestionRequest } = createPromptContext();
+		// Session ids are only known after start() resolves; the prompt must
+		// read the id at prompt time, not at construction time.
+		let sessionId = "";
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => sessionId);
+		sessionId = "session-late";
+
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		expect(request).toMatchObject({
+			sessionId: "session-late",
+			options: ["Try a different approach", "Stop this run"],
+		});
+		expect(request?.question).toContain("repeated mistakes or tool calls");
+		expect(request?.question).toContain("identical calls to `editor`");
+
+		expect(
+			resolveSidecarAskQuestion(ctx, request?.requestId ?? "", "Stop this run"),
+		).toBe(true);
+		await expect(decision).resolves.toEqual({
+			action: "stop",
+			reason: "stopped after mistake_limit_reached prompt",
+		});
+	});
+
+	it("delivers recovery guidance only through steering", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		resolveSidecarAskQuestion(
+			ctx,
+			request?.requestId ?? "",
+			"Try a different approach",
+		);
+
+		const result = await decision;
+		expect(result).toEqual({ action: "continue" });
+		expect(steer).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining("Do not repeat the same call"),
+			delivery: "steer",
+		});
+		expect(steer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: expect.stringContaining("identical calls to `editor`"),
+			}),
+		);
+	});
+
+	it.each([
+		"stop",
+		" STOP THIS RUN ",
+		"2",
+		"no",
+	])("treats the free-text answer %s as Stop, like the CLI", async (answer) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			answer,
+		);
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"rejected",
+		"unavailable",
+	])("stops waiting hooks when steering is %s", async (failure) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		if (failure === "rejected")
+			steer.mockRejectedValueOnce(new Error("Disconnected"));
+		else ctx.runtimeBindings.clear();
+		const recovery = createDesktopMistakeRecovery(ctx, () => "session-1");
+		const decision = recovery.onConsecutiveMistakeLimitReached(limitContext);
+		const waiting = Promise.all([
+			recovery.hooks.beforeModel(),
+			recovery.hooks.beforeTool(),
+			recovery.hooks.afterTool(),
+		]);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"Try a different approach",
+		);
+		await expect(decision).resolves.toMatchObject({
+			action: "stop",
+			reason: expect.stringContaining("Could not send recovery guidance"),
+		});
+		for (const result of await waiting)
+			expect(result).toMatchObject({ stop: true });
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it("passes free-text answers through as user guidance", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const decision = decide(limitContext);
+		resolveSidecarAskQuestion(
+			ctx,
+			readQuestionRequest()?.requestId ?? "",
+			"read the file first, then edit",
+		);
+		await expect(decision).resolves.toEqual({ action: "continue" });
+		expect(steer).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "session-1",
+			prompt: expect.stringContaining(
+				"User guidance: read the file first, then edit",
+			),
+			delivery: "steer",
+		});
+	});
+
+	it("reuses Continue for already-started iterations and asks again for new mistakes", async () => {
+		const { ctx, steer } = createPromptContext();
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: 0,
+			status: "running",
+		});
+		const startIteration = (iteration: number) =>
+			handleCoreSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: { type: "iteration_start", iteration },
+				},
+			});
+		const answer = (value: string) => {
+			const pending = [...ctx.pendingQuestions.values()][0];
+			expect(pending).toBeDefined();
+			resolveSidecarAskQuestion(ctx, pending.item.requestId, value);
+		};
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		startIteration(15);
+		const first = decide(limitContext);
+		// The model can advance while the client decision is pending.
+		startIteration(20);
+		// Do not extend the covered iterations while waiting for the hub's
+		// steering acknowledgement: a newer step may already have the guidance.
+		steer.mockImplementationOnce(async () => {
+			startIteration(21);
+			return undefined;
+		});
+		answer("Try a different approach");
+		await expect(first).resolves.toMatchObject({ action: "continue" });
+
+		// A batch can have many failures in one iteration, followed by more
+		// failures queued before the user answered. None needs another prompt.
+		for (const iteration of [
+			...Array<number>(20).fill(15),
+			16,
+			17,
+			18,
+			19,
+			20,
+		]) {
+			await expect(decide({ ...limitContext, iteration })).resolves.toEqual({
+				action: "continue",
+			});
+		}
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).toHaveBeenCalledTimes(1);
+
+		startIteration(21);
+		const next = decide({ ...limitContext, iteration: 21 });
+		answer("Try a different approach");
+		await expect(next).resolves.toMatchObject({ action: "continue" });
+		expect(steer).toHaveBeenCalledTimes(2);
+
+		// A new user run must not inherit the previous run's decision, even
+		// though its iteration numbers start over.
+		startIteration(1);
+		startIteration(5);
+		const newRun = decide({ ...limitContext, iteration: 5 });
+		answer("Stop this run");
+		await expect(newRun).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(steer).toHaveBeenCalledTimes(2);
+	});
+
+	it("falls back to stopping when no session owns the question", async () => {
+		const { ctx, steer } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "");
+		await expect(decide(limitContext)).resolves.toEqual({
+			action: "stop",
+			reason: `mistake_limit_reached: ${limitContext.details}`,
+		});
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("removes an aborted run's question and rejects late answers", async () => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const decision = decide(limitContext);
+		const request = readQuestionRequest();
+		expect(ctx.pendingQuestions.size).toBe(1);
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-1",
+		});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			resolveSidecarAskQuestion(
+				ctx,
+				request?.requestId ?? "",
+				"Try a different approach",
+			),
+		).toBe(false);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"stop",
+		"abort",
+		"reset",
+	] as const)("cancels only the owning session's questions on %s", async (action) => {
+		const { ctx } = createPromptContext();
+		const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+		const other = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-2",
+		)(limitContext);
+		const decision = decide(limitContext);
+		await handleChatSessionCommand(ctx, { action, sessionId: "session-1" });
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(
+			[...ctx.pendingQuestions.values()].map((p) => p.item.sessionId),
+		).toEqual(["session-2"]);
+		await handleChatSessionCommand(ctx, {
+			action: "abort",
+			sessionId: "session-2",
+		});
+		await other;
+		expect(ctx.pendingQuestions.size).toBe(0);
+	});
+
+	it("times out an unanswered question and removes it from polling", async () => {
+		vi.useFakeTimers();
+		try {
+			const { ctx, steer } = createPromptContext();
+			const decide = createDesktopMistakeLimitPrompt(ctx, () => "session-1");
+			const decision = decide(limitContext);
+			await vi.advanceTimersByTimeAsync(5 * 60_000);
+			await expect(decision).resolves.toMatchObject({ action: "stop" });
+			expect(ctx.pendingQuestions.size).toBe(0);
+			expect(steer).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		"run",
+		"session",
+	])("cancels the question when the %s ends externally", async (kind) => {
+		const { ctx, steer, readQuestionRequest } = createPromptContext();
+		const decision = createDesktopMistakeLimitPrompt(
+			ctx,
+			() => "session-1",
+		)(limitContext);
+		const requestId = readQuestionRequest()?.requestId ?? "";
+		if (kind === "session")
+			handleCoreSessionEvent(ctx, {
+				type: "ended",
+				payload: { sessionId: "session-1", reason: "stopped", ts: Date.now() },
+			});
+		else
+			handleCoreSessionEvent(ctx, {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "aborted",
+						text: "",
+						iterations: 5,
+						usage: { inputTokens: 0, outputTokens: 0 },
+					},
+				},
+			});
+		await expect(decision).resolves.toMatchObject({ action: "stop" });
+		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			resolveSidecarAskQuestion(ctx, requestId, "Try a different approach"),
+		).toBe(false);
+		expect(steer).not.toHaveBeenCalled();
+	});
+
+	it("is wired into freshly started sessions as a local runtime option", async () => {
+		const start = vi.fn(
+			async (input: {
+				config: Record<string, unknown>;
+				localRuntime?: Record<string, unknown>;
+			}) => {
+				expect(input.config).not.toHaveProperty(
+					"onConsecutiveMistakeLimitReached",
+				);
+				expect(
+					typeof input.localRuntime?.onConsecutiveMistakeLimitReached,
+				).toBe("function");
+				expect(input.config).not.toHaveProperty("hooks");
+				expect(input.localRuntime?.hooks).toMatchObject({
+					beforeModel: expect.any(Function),
+					beforeTool: expect.any(Function),
+					afterTool: expect.any(Function),
+				});
+				return {
+					sessionId: "session-limit",
+					manifest: { cwd: "/tmp/ws", workspace_root: "/tmp/ws" },
+					manifestPath: "/tmp/session-limit.json",
+					messagesPath: "/tmp/session-limit.messages.json",
+				};
+			},
+		);
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			...localRuntimeContext({ start }),
+		} as unknown as SidecarContext;
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/tmp/ws",
+			},
+		});
+		expect(start).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("queue steering routing", () => {
+	it.each([
+		["local", undefined],
+		["local", "selected-prompt"],
+		["ssh:test", undefined],
+		["ssh:test", "selected-prompt"],
+	] as const)("routes %s steering with prompt ID %s", async (environmentId, promptId) => {
+		const result = { sessionId: "session", prompts: [], updated: false };
+		const steerFirst = vi.fn(async () => result);
+		const update = vi.fn(async () => result);
+		const ctx = {
+			liveSessions: new Map(),
+			wsClients: new Set(),
+			...localRuntimeContext({ pendingPrompts: { steerFirst, update } }),
+		} as unknown as SidecarContext;
+		if (environmentId !== "local") {
+			const localBinding = ctx.runtimeBindings.get("local")!;
+			ctx.runtimeBindings.set(environmentId, {
+				...localBinding,
+				environmentId,
+				kind: "ssh",
+			});
+			ctx.sessionEnvironmentIds.set("session", environmentId);
+			ctx.runtimeBindings.set("local", {
+				...localBinding,
+				sessionManager: {} as never,
+			});
+		}
+		await handleChatSessionCommand(ctx, {
+			action: "steer_prompt",
+			sessionId: "session",
+			promptId,
+		});
+		if (promptId === undefined) {
+			expect(steerFirst).toHaveBeenCalledWith({ sessionId: "session" });
+			expect(update).not.toHaveBeenCalled();
+		} else {
+			expect(update).toHaveBeenCalledWith({
+				sessionId: "session",
+				promptId,
+				delivery: "steer",
+			});
+			expect(steerFirst).not.toHaveBeenCalled();
+		}
 	});
 });

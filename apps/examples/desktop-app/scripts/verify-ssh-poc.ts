@@ -4,12 +4,12 @@ import { join } from "node:path";
 import {
 	ClineCore,
 	ProviderSettingsManager,
+	RemoteEnvironmentService,
 	RuntimeOAuthTokenManager,
 	resolveProviderApiKeyFromSettings,
 	SessionSource,
 	toProviderConfig,
 } from "@cline/core";
-import { RemoteEnvironmentService } from "../sidecar/remote-environments";
 
 const required = (name: string): string => {
 	const value = process.env[name]?.trim();
@@ -22,7 +22,7 @@ async function main(): Promise<void> {
 	const service = new RemoteEnvironmentService({
 		profilesPath: join(temporaryDirectory, "remote-environments.json"),
 		helperBinaryPath: required("CLINE_SSH_TEST_HELPER"),
-		knownHostsPath: join(temporaryDirectory, "known_hosts"),
+		knownHostsPath: process.env.CLINE_SSH_TEST_KNOWN_HOSTS?.trim() || undefined,
 		commandTimeoutMs: 60_000,
 		uploadTimeoutMs: 5 * 60_000,
 	});
@@ -53,13 +53,6 @@ async function main(): Promise<void> {
 		if (!settings)
 			throw new Error(`No settings found for provider ${providerId}`);
 		const modelId = settings.model || "meta/muse-spark-1.2";
-		const providerConfig = {
-			...toProviderConfig(
-				{ ...settings, model: modelId },
-				{ includeKnownModels: false },
-			),
-		};
-		delete providerConfig.refreshToken;
 		const oauth = await new RuntimeOAuthTokenManager({
 			providerSettingsManager: providerSettings,
 		}).resolveProviderApiKey({ providerId });
@@ -68,6 +61,19 @@ async function main(): Promise<void> {
 			resolveProviderApiKeyFromSettings(providerSettings, providerId);
 		if (!apiKey)
 			throw new Error(`No credential found for provider ${providerId}`);
+
+		const providerConfig = {
+			...toProviderConfig(
+				{
+					...(providerSettings.getProviderSettings(providerId) ?? settings),
+					model: modelId,
+				},
+				{ includeKnownModels: false },
+			),
+		};
+		delete providerConfig.refreshToken;
+		providerConfig.apiKey = apiKey;
+		providerConfig.accessToken = apiKey;
 
 		core = await ClineCore.create({
 			clientName: "cline-code",

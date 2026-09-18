@@ -6,6 +6,7 @@
 
 export * as Llms from "@cline/llms";
 export {
+	buildClineClientHeaders,
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
@@ -53,7 +54,6 @@ export type {
 	ClineAccountActionRequest,
 	ConnectorHookEvent,
 	ContentBlock,
-	FeatureFlag,
 	FeatureFlagPayload,
 	FeatureFlagsAndPayloads,
 	FeatureFlagsContext,
@@ -113,6 +113,7 @@ export {
 	createTool,
 	emptyWorkspaceManifest,
 	FEATURE_FLAGS,
+	FeatureFlag,
 	FeatureFlagDefaultValue,
 	formatDisplayUserInput,
 	INTERNAL_USER_EMAIL_DOMAINS,
@@ -138,6 +139,7 @@ export {
 	type ClineAccountPaymentTransaction,
 	ClineAccountService,
 	type ClineAccountServiceOptions,
+	type ClineAccountTelemetryIdentity,
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
 	type ClineOrganization,
@@ -146,7 +148,9 @@ export {
 	type FeaturebaseTokenResponse,
 	isClineAccountActionRequest,
 	type ProviderActionExecutor,
+	persistClineAccountTelemetryIdentity,
 	RpcClineAccountService,
+	resolveClineAccountTelemetryIdentity,
 	type UserCurrentPlan,
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
@@ -583,7 +587,7 @@ export {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
 	isAutoUpdateEnabledGlobally,
-	isOptInToolEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
@@ -596,15 +600,15 @@ export {
 	resolveDisabledAgentPluginNames,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
-	resolveEnabledOptInToolNames,
-	resolveOptInToolSettings,
+	resolveEnabledConfigurableModelToolNames,
+	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
-	setOptInToolEnabledGlobally,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -738,6 +742,7 @@ export {
 } from "./services/providers/local-provider-service";
 export {
 	getProviderConfigFields,
+	isLocalAuthProvider,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
@@ -809,6 +814,7 @@ export {
 	captureWorkspaceInitError,
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
+	clearAccountTelemetryIdentity,
 	identifyAccount,
 } from "./services/telemetry/core-events";
 export type { ITelemetryAdapter } from "./services/telemetry/ITelemetryAdapter";
@@ -821,6 +827,12 @@ export {
 	OpenTelemetryProvider,
 	type OpenTelemetryProviderOptions,
 } from "./services/telemetry/OpenTelemetryProvider";
+export {
+	type ClientTelemetryContext,
+	createClientScopedTelemetryService,
+	createScopedTelemetryService,
+	resolveClientTelemetryProperties,
+} from "./services/telemetry/scoped-telemetry";
 export {
 	TelemetryLoggerSink,
 	type TelemetryLoggerSinkOptions,
@@ -952,6 +964,7 @@ export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
 export { Agent, createAgentRuntime } from "@cline/agents";
+export { resolveComposioToolsStatePath } from "./extensions/composio/composio-tools-extension";
 export {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
@@ -1014,6 +1027,9 @@ export {
 	ToolPresets,
 	truncateCommandOutput,
 } from "./extensions/tools";
+export * from "./remote/remote-environments";
+export { ensureLoginShellPath } from "./remote/shell-path";
+export { isClineAccountFeatureEnabled } from "./services/feature-flags/cline-account-feature-flags";
 export {
 	applyClineFeaturedModels,
 	type ClineRecommendedModel,

@@ -3,10 +3,10 @@ import { dirname } from "node:path";
 import {
 	type AgentConfig,
 	type AgentTool,
+	CONFIGURABLE_MODEL_TOOL_NAMES,
+	type ConfigurableModelToolName,
 	type ITelemetryService,
-	OPT_IN_TOOL_NAMES,
-	type OptInToolName,
-	type OptInToolSettings,
+	type ModelToolSettings,
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
@@ -40,9 +40,9 @@ const GlobalCompactionStrategySchema = z
 	.enum(["basic", "agentic"])
 	.catch("agentic");
 
-const OptInToolSettingsSchema = z
+const ModelToolSettingsSchema = z
 	.partialRecord(
-		z.enum(OPT_IN_TOOL_NAMES),
+		z.enum(CONFIGURABLE_MODEL_TOOL_NAMES),
 		z.object({ enabled: z.boolean() }).strip(),
 	)
 	.optional();
@@ -68,14 +68,15 @@ export const GlobalSettingsSchema = z
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
-		tools: OptInToolSettingsSchema,
+		tools: ModelToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 		disabledAgentPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
 	.transform((settings) => {
 		const disabledTools = settings.disabledTools?.filter(
-			(name) => !(OPT_IN_TOOL_NAMES as readonly string[]).includes(name),
+			(name) =>
+				!(CONFIGURABLE_MODEL_TOOL_NAMES as readonly string[]).includes(name),
 		);
 		const normalized: {
 			telemetryOptOut: boolean;
@@ -86,7 +87,7 @@ export const GlobalSettingsSchema = z
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
 			disabledTools?: string[];
-			tools?: OptInToolSettings;
+			tools?: ModelToolSettings;
 			disabledPlugins?: string[];
 			disabledAgentPlugins?: string[];
 		} = {
@@ -138,6 +139,7 @@ interface CachedSettings {
 	mtimeMs: number;
 	size: number;
 	value: GlobalSettings;
+	loadFailed: boolean;
 }
 
 let settingsCache: CachedSettings | undefined;
@@ -165,18 +167,23 @@ function freezeSettings(value: GlobalSettings): GlobalSettings {
 	return Object.freeze(value);
 }
 
-function loadSettingsFromDisk(filePath: string): GlobalSettings {
+function loadSettingsFromDisk(filePath: string): {
+	value: GlobalSettings;
+	loadFailed: boolean;
+} {
 	let raw: string;
 	try {
 		raw = readFileSync(filePath, "utf8");
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 	try {
 		const result = GlobalSettingsSchema.safeParse(JSON.parse(raw));
-		return result.success ? result.data : defaultGlobalSettings();
+		return result.success
+			? { value: result.data, loadFailed: false }
+			: { value: defaultGlobalSettings(), loadFailed: true };
 	} catch {
-		return defaultGlobalSettings();
+		return { value: defaultGlobalSettings(), loadFailed: true };
 	}
 }
 
@@ -196,10 +203,17 @@ function getCachedSettings(): CachedSettings {
 		return cached;
 	}
 
-	const value = freezeSettings(
-		stats ? loadSettingsFromDisk(filePath) : defaultGlobalSettings(),
-	);
-	settingsCache = { path: filePath, mtimeMs, size, value };
+	const loaded = stats
+		? loadSettingsFromDisk(filePath)
+		: { value: defaultGlobalSettings(), loadFailed: false };
+	const value = freezeSettings(loaded.value);
+	settingsCache = {
+		path: filePath,
+		mtimeMs,
+		size,
+		value,
+		loadFailed: loaded.loadFailed,
+	};
 	return settingsCache;
 }
 
@@ -328,9 +342,10 @@ export function resolveDisabledToolNames(
 ): Set<string> {
 	const settings = readGlobalSettings();
 	const disabled = new Set(disabledToolNames ?? settings.disabledTools ?? []);
-	for (const name of OPT_IN_TOOL_NAMES) {
+	const tools = resolveModelToolSettings();
+	for (const name of CONFIGURABLE_MODEL_TOOL_NAMES) {
 		disabled.delete(name);
-		if (settings.tools?.[name]?.enabled !== true) {
+		if (tools[name]?.enabled !== true) {
 			disabled.add(name);
 		}
 	}
@@ -354,33 +369,43 @@ export function resolveDisabledAgentPluginNames(
 }
 
 export function isToolDisabledGlobally(toolName: string): boolean {
-	if (isOptInToolName(toolName)) {
-		return !isOptInToolEnabledGlobally(toolName);
+	if (isConfigurableModelToolName(toolName)) {
+		return !isModelToolEnabledGlobally(toolName);
 	}
 	return resolveDisabledToolNames().has(toolName);
 }
 
-function isOptInToolName(value: string): value is OptInToolName {
-	return (OPT_IN_TOOL_NAMES as readonly string[]).includes(value);
+function isConfigurableModelToolName(
+	value: string,
+): value is ConfigurableModelToolName {
+	return (CONFIGURABLE_MODEL_TOOL_NAMES as readonly string[]).includes(value);
 }
 
-export function resolveOptInToolSettings(): OptInToolSettings {
-	return readGlobalSettings().tools ?? {};
+export function resolveModelToolSettings(): ModelToolSettings {
+	const cached = getCachedSettings();
+	return {
+		web_search: { enabled: !cached.loadFailed },
+		...cached.value.tools,
+	};
 }
 
-export function resolveEnabledOptInToolNames(): Set<OptInToolName> {
-	const settings = resolveOptInToolSettings();
+export function resolveEnabledConfigurableModelToolNames(): Set<ConfigurableModelToolName> {
+	const settings = resolveModelToolSettings();
 	return new Set(
-		OPT_IN_TOOL_NAMES.filter((name) => settings[name]?.enabled === true),
+		CONFIGURABLE_MODEL_TOOL_NAMES.filter(
+			(name) => settings[name]?.enabled === true,
+		),
 	);
 }
 
-export function isOptInToolEnabledGlobally(name: OptInToolName): boolean {
-	return resolveOptInToolSettings()[name]?.enabled === true;
+export function isModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
+): boolean {
+	return resolveModelToolSettings()[name]?.enabled === true;
 }
 
-export function setOptInToolEnabledGlobally(
-	name: OptInToolName,
+export function setModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
 	enabled: boolean,
 ): void {
 	const settings = readGlobalSettings();
@@ -391,9 +416,9 @@ export function setOptInToolEnabledGlobally(
 }
 
 export function toggleDisabledTool(toolName: string): boolean {
-	if (isOptInToolName(toolName)) {
-		const wasEnabled = isOptInToolEnabledGlobally(toolName);
-		setOptInToolEnabledGlobally(toolName, !wasEnabled);
+	if (isConfigurableModelToolName(toolName)) {
+		const wasEnabled = isModelToolEnabledGlobally(toolName);
+		setModelToolEnabledGlobally(toolName, !wasEnabled);
 		return wasEnabled;
 	}
 	const settings = readGlobalSettings();
@@ -421,9 +446,9 @@ export function setDisabledTools(
 
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
-	const tools: OptInToolSettings = { ...settings.tools };
+	const tools: ModelToolSettings = { ...settings.tools };
 	for (const name of names) {
-		if (isOptInToolName(name)) {
+		if (isConfigurableModelToolName(name)) {
 			tools[name] = { enabled: !disabledValue };
 			disabled.delete(name);
 			continue;

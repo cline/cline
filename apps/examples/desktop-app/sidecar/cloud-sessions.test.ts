@@ -91,9 +91,10 @@ function createContext(): {
 		]),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot: "/local/workspace",
+		runtimeBindings: new Map(),
+		sessionEnvironmentIds: new Map(),
+		activeEnvironmentId: "local",
+		localWorkspaceRoot: "/local/workspace",
 		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
 	} as unknown as SidecarContext;
@@ -174,8 +175,24 @@ class FakeHubClient {
 		return "code-cloud-ses-outer";
 	}
 
-	subscribe(listener: (event: HubEventEnvelope) => void): () => void {
+	subscribe(
+		listener: (event: HubEventEnvelope) => void,
+		options?: { sessionId?: string },
+	): () => void {
 		this.events = listener;
+		queueMicrotask(() => {
+			if (this.events !== listener || options?.sessionId !== "inner-1") return;
+			for (const approval of this.pendingApprovals) {
+				listener({
+					version: "v1",
+					event: "approval.requested",
+					eventId: `evt-${approval.approvalId}`,
+					timestamp: 1,
+					sessionId: "inner-1",
+					payload: approval,
+				});
+			}
+		});
 		return () => {
 			this.events = undefined;
 		};
@@ -231,6 +248,18 @@ class FakeHubClient {
 		}
 		if (command === "session.pending_prompts" && this.malformedQueueReply) {
 			return { ok: true, payload: {} };
+		}
+		if (command === "session.steer_first_pending_prompt") {
+			return {
+				ok: true,
+				payload: {
+					updated: this.prompts.length > 0,
+					prompts: this.prompts.map((item, index) => ({
+						...item,
+						delivery: index === 0 ? "steer" : item.delivery,
+					})),
+				},
+			};
 		}
 		if (
 			command === "session.pending_prompts" ||
@@ -317,9 +346,8 @@ describe("CloudSessionApi", () => {
 
 		expect(error).toMatchObject({
 			code: "request_failed",
-			connectUrl: "https://app.example/agents",
 		});
-		expect(String(error)).toContain("cannot prove it created it");
+		expect(String(error)).toContain("gateway timeout");
 		expect(onOuterSessionCreated).not.toHaveBeenCalled();
 	});
 
@@ -361,6 +389,7 @@ describe("CloudSessionApi", () => {
 		expect(postedBody).toEqual({
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
+			title: expect.stringMatching(/^__cline_create_request__:/),
 		});
 	});
 
@@ -438,146 +467,9 @@ describe("CloudSessionApi", () => {
 			"Cloud session ses-needs-recovery: https://app.example/agents?sessionId=ses-needs-recovery",
 		);
 	});
+});
 
-	it("resolves a fresh bearer token for every REST request", async () => {
-		const tokens = ["workos:first", "workos:second"];
-		const authorizations: string[] = [];
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example/",
-			appBaseUrl: "https://app.example/",
-			getAuthToken: async () => tokens.shift(),
-			fetch: async (_input, init) => {
-				authorizations.push(
-					new Headers(init?.headers).get("Authorization") ?? "",
-				);
-				return jsonResponse({ success: true, data: [] });
-			},
-		});
-
-		await api.list();
-		await api.list();
-
-		expect(authorizations).toEqual([
-			"Bearer workos:first",
-			"Bearer workos:second",
-		]);
-	});
-
-	it("includes branch in the create body only when one was requested", async () => {
-		const bodies: Array<Record<string, unknown>> = [];
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				bodies.push(JSON.parse(String(init?.body)));
-				return jsonResponse(
-					{ success: true, data: { sessionId: "ses-1", sandboxUrl: "pod" } },
-					201,
-				);
-			},
-		});
-
-		await api.create({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-			branch: "feature/login-fix",
-		});
-		await api.create({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		});
-
-		expect(bodies[0]).toMatchObject({ branch: "feature/login-fix" });
-		expect(bodies[1]).not.toHaveProperty("branch");
-	});
-
-	it("treats a missing history snapshot (404) as null, not an empty archive", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async () => new Response("not found", { status: 404 }),
-		});
-
-		expect(await api.history("ses-1")).toBeNull();
-	});
-
-	it("creates with the dashboard-parity contract and no branch field", async () => {
-		let body: Record<string, unknown> | undefined;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				body = JSON.parse(String(init?.body));
-				return jsonResponse(
-					{ success: true, data: { sessionId: "ses-1", sandboxUrl: "pod" } },
-					201,
-				);
-			},
-		});
-
-		await api.create({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		});
-
-		expect(body).toEqual({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		});
-		expect(body).not.toHaveProperty("branch");
-	});
-
-	it("waits for the current asynchronous provisioning contract", async () => {
-		vi.useFakeTimers();
-		let statusCalls = 0;
-		try {
-			const api = new CloudSessionApi({
-				apiBaseUrl: "https://api.example",
-				appBaseUrl: "https://app.example",
-				getAuthToken: async () => "sk_test",
-				fetch: async (input, init) => {
-					const url = new URL(String(input));
-					if (init?.method === "POST") {
-						return jsonResponse(
-							{
-								success: true,
-								data: { sessionId: "ses-1", status: "provisioning" },
-							},
-							201,
-						);
-					}
-					expect(url.pathname).toBe("/api/v1/session/ses-1/status");
-					statusCalls += 1;
-					return jsonResponse({
-						success: true,
-						data: {
-							sessionId: "ses-1",
-							status: statusCalls === 1 ? "provisioning" : "ready",
-						},
-					});
-				},
-			});
-
-			const creating = api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			});
-			await vi.waitFor(() => expect(statusCalls).toBe(1));
-			await vi.advanceTimersByTimeAsync(3_000);
-
-			await expect(creating).resolves.toMatchObject({
-				sessionId: "ses-1",
-				sandboxUrl: "",
-			});
-			expect(statusCalls).toBe(2);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
+describe("cloud creation provisioning identity", () => {
 	it("keeps provisioning polls bound to the account that created the session", async () => {
 		const tokens = ["workos:create", "workos:new-account"];
 		const authorizations: string[] = [];
@@ -615,7 +507,14 @@ describe("CloudSessionApi", () => {
 				},
 			});
 
-			const creating = api.create({
+			const { ctx } = createContext();
+			const manager = new CloudSessionManager(ctx, {
+				api,
+				apiBaseUrl: "https://api.example",
+				getAuthToken: async () => "workos:create",
+				createHubClient: () => new FakeHubClient() as never,
+			});
+			const creating = manager.createAndAttach({
 				modelId: "anthropic/claude-sonnet-5",
 				repoUrl: "https://github.com/cline/test",
 			});
@@ -668,8 +567,14 @@ describe("CloudSessionApi", () => {
 			},
 		});
 
+		const { ctx } = createContext();
+		const manager = new CloudSessionManager(ctx, {
+			api,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:create",
+		});
 		await expect(
-			api.create({
+			manager.createAndAttach({
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 				handoff: {
@@ -687,788 +592,6 @@ describe("CloudSessionApi", () => {
 			"Bearer workos:create",
 		]);
 	});
-
-	it("waits for a recovered provisioning session before returning it", async () => {
-		vi.useFakeTimers();
-		let statusCalls = 0;
-		try {
-			const now = new Date().toISOString();
-			const api = new CloudSessionApi({
-				apiBaseUrl: "https://api.example",
-				appBaseUrl: "https://app.example",
-				getAuthToken: async () => "workos:fresh",
-				fetch: async (input, init) => {
-					const path = new URL(String(input)).pathname;
-					if (init?.method === "POST") {
-						return jsonResponse({ success: false, error: "gateway" }, 500);
-					}
-					if (path.endsWith("/status")) {
-						statusCalls += 1;
-						return jsonResponse({
-							success: true,
-							data: {
-								sessionId: "ses-recovered",
-								status: statusCalls === 1 ? "provisioning" : "ready",
-							},
-						});
-					}
-					return jsonResponse({
-						success: true,
-						data: [
-							{
-								id: "ses-recovered",
-								status: "provisioning",
-								sandboxUrl: "",
-								repoContext: { repoUrl: "https://github.com/cline/test" },
-								metadata: { modelId: "anthropic/claude-sonnet-5" },
-								createdAt: now,
-								updatedAt: now,
-							},
-						],
-					});
-				},
-			});
-
-			const creating = api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			});
-			await vi.waitFor(() => expect(statusCalls).toBe(1));
-			await vi.advanceTimersByTimeAsync(3_000);
-
-			await expect(creating).resolves.toMatchObject({
-				sessionId: "ses-recovered",
-			});
-			expect(statusCalls).toBe(2);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("uses a fresh timeout while recovering after the create request times out", async () => {
-		vi.useFakeTimers();
-		let statusCalls = 0;
-		try {
-			const now = new Date().toISOString();
-			const api = new CloudSessionApi({
-				apiBaseUrl: "https://api.example",
-				appBaseUrl: "https://app.example",
-				createTimeoutMs: 100,
-				getAuthToken: async () => "workos:fresh",
-				fetch: async (input, init) => {
-					const path = new URL(String(input)).pathname;
-					if (init?.method === "POST") {
-						return await new Promise<Response>((_resolve, reject) => {
-							init.signal?.addEventListener(
-								"abort",
-								() => reject(init.signal?.reason),
-								{ once: true },
-							);
-						});
-					}
-					if (path.endsWith("/status")) {
-						statusCalls += 1;
-						return jsonResponse({
-							success: true,
-							data: { sessionId: "ses-recovered", status: "ready" },
-						});
-					}
-					return jsonResponse({
-						success: true,
-						data: [
-							{
-								id: "ses-recovered",
-								status: "provisioning",
-								sandboxUrl: "",
-								repoContext: { repoUrl: "https://github.com/cline/test" },
-								metadata: { modelId: "anthropic/claude-sonnet-5" },
-								createdAt: now,
-								updatedAt: now,
-							},
-						],
-					});
-				},
-			});
-
-			const creating = api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			});
-			await vi.advanceTimersByTimeAsync(100);
-
-			await expect(creating).resolves.toMatchObject({
-				sessionId: "ses-recovered",
-			});
-			expect(statusCalls).toBe(1);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
-	it("returns a stable, environment-aware GitHub connection error", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://staging-app.example/",
-			getAuthToken: async () => "workos:test",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "GitHub is not connected" }, 412),
-		});
-
-		const error = await api
-			.create({ modelId: "model", repoUrl: "https://github.com/cline/test" })
-			.catch((caught) => caught);
-
-		expect(error).toBeInstanceOf(CloudSessionError);
-		expect(error.code).toBe("github_not_connected");
-		expect(error.message).toBe(
-			'CLOUD_SESSION_ERROR:{"code":"github_not_connected","message":"GitHub is not connected","connectUrl":"https://staging-app.example/dashboard/integrations"}',
-		);
-	});
-
-	it("routes organization GitHub setup to organization integrations", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://staging-app.example/",
-			getAuthToken: async () => "workos:test",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "GitHub is not connected" }, 412),
-		});
-
-		const error = await api
-			.create({
-				modelId: "model",
-				repoUrl: "https://github.com/cline/test",
-				organizationId: "org-cline-bot",
-			})
-			.catch((caught) => caught);
-
-		expect(error).toBeInstanceOf(CloudSessionError);
-		expect(error.connectUrl).toBe(
-			"https://staging-app.example/dashboard/organization/integrations",
-		);
-	});
-
-	it("surfaces a stable authentication error for REST requests", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "expired",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "authentication required" }, 401),
-		});
-
-		const error = await api.list().catch((caught) => caught);
-
-		expect(error).toBeInstanceOf(CloudSessionError);
-		expect(error.code).toBe("authentication_required");
-	});
-
-	it("turns a generic forbidden response into actionable account guidance", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "workos:test",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "forbidden" }, 403),
-		});
-
-		const error = await api
-			.create({ modelId: "model", repoUrl: "https://github.com/cline/test" })
-			.catch((caught) => caught);
-
-		expect(error).toBeInstanceOf(CloudSessionError);
-		expect(error.code).toBe("request_failed");
-		expect(error.status).toBe(403);
-		expect(error.message).toContain(
-			"Switch to Personal or another organization in Settings → Account",
-		);
-	});
-
-	it("lists connected GitHub repositories and their branches", async () => {
-		const requestedPaths: string[] = [];
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "workos:test",
-			fetch: async (input) => {
-				const path = new URL(String(input)).pathname;
-				requestedPaths.push(path);
-				if (path.endsWith("/branches")) {
-					return jsonResponse({
-						success: true,
-						data: [{ name: "main" }, { name: "feature/cloud" }],
-					});
-				}
-				return jsonResponse({
-					success: true,
-					data: [
-						{
-							id: 42,
-							name: "cline",
-							full_name: "cline/cline",
-							html_url: "https://github.com/cline/cline",
-							clone_url: "https://github.com/cline/cline.git",
-							default_branch: "main",
-						},
-					],
-				});
-			},
-		});
-
-		expect(await api.listRepositories()).toEqual({
-			connected: true,
-			connectUrl: "https://app.example/dashboard/integrations",
-			repositories: [
-				{
-					id: 42,
-					name: "cline",
-					fullName: "cline/cline",
-					url: "https://github.com/cline/cline",
-					defaultBranch: "main",
-				},
-			],
-		});
-		expect(await api.listBranches(42)).toEqual({
-			available: true,
-			branches: ["main", "feature/cloud"],
-			nextToken: "",
-		});
-		expect(requestedPaths).toEqual([
-			"/api/v1/integrations/github/repositories",
-			"/api/v1/integrations/github/repositories/42/branches",
-		]);
-	});
-
-	it("reads paginated branch responses and forwards search cursors", async () => {
-		let requestedUrl = "";
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "workos:test",
-			fetch: async (input) => {
-				requestedUrl = String(input);
-				return jsonResponse({
-					success: true,
-					data: {
-						items: [{ name: "feature/cloud" }],
-						nextToken: "next/page",
-					},
-				});
-			},
-		});
-
-		expect(
-			await api.listBranches(42, undefined, {
-				cursor: "search cursor",
-				query: "feature/cloud",
-			}),
-		).toEqual({
-			available: true,
-			branches: ["feature/cloud"],
-			nextToken: "next/page",
-		});
-		const url = new URL(requestedUrl);
-		expect(url.pathname).toBe(
-			"/api/v1/integrations/github/repositories/42/branches",
-		);
-		expect(url.searchParams.get("query")).toBe("feature/cloud");
-		expect(url.searchParams.get("cursor")).toBe("search cursor");
-	});
-
-	it("filters legacy branch responses while backends roll out", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "workos:test",
-			fetch: async () =>
-				jsonResponse({
-					success: true,
-					data: [{ name: "main" }, { name: "feature/cloud" }],
-				}),
-		});
-
-		expect(await api.listBranches(42, undefined, { query: "FEATURE" })).toEqual(
-			{
-				available: true,
-				branches: ["feature/cloud"],
-				nextToken: "",
-			},
-		);
-	});
-
-	it("falls back to the repository default when the branch API is unavailable", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "workos:test",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "route not found" }, 404),
-		});
-
-		expect(await api.listBranches(42)).toEqual({
-			available: false,
-			branches: [],
-		});
-	});
-
-	it("uses organization-scoped repository and branch endpoints", async () => {
-		const requestedPaths: string[] = [];
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "workos:test",
-			fetch: async (input) => {
-				const path = new URL(String(input)).pathname;
-				requestedPaths.push(path);
-				return jsonResponse({ success: true, data: [] });
-			},
-		});
-
-		expect(await api.listRepositories("org-cline-bot")).toMatchObject({
-			connected: true,
-			connectUrl: "https://app.example/dashboard/organization/integrations",
-		});
-		await api.listBranches(42, "org-cline-bot");
-		expect(requestedPaths).toEqual([
-			"/api/v1/organizations/org-cline-bot/integrations/github/repositories",
-			"/api/v1/organizations/org-cline-bot/integrations/github/repositories/42/branches",
-		]);
-	});
-
-	it("refuses ambiguous recovery for overlapping identical create requests", async () => {
-		const now = new Date().toISOString();
-		const record = (id: string, createdAt: string) => ({
-			id,
-			status: "running",
-			sandboxUrl: `pod-${id}`,
-			repoContext: { repoUrl: "https://github.com/cline/test" },
-			metadata: { modelId: "anthropic/claude-sonnet-5" },
-			createdAt,
-			updatedAt: createdAt,
-		});
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) =>
-				init?.method === "POST"
-					? jsonResponse({ success: false, error: "gateway timeout" }, 500)
-					: jsonResponse({
-							success: true,
-							data: [
-								record("ses-newer", now),
-								record("ses-older", new Date(Date.now() - 1_000).toISOString()),
-							],
-						}),
-		});
-		const input = {
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		};
-
-		// The API exposes no request id that can map either failed POST to one of
-		// these rows. Newest-wins can steal another conversation's sandbox.
-		const results = await Promise.allSettled([
-			api.create(input),
-			api.create(input),
-		]);
-
-		expect(results.map((result) => result.status)).toEqual([
-			"rejected",
-			"rejected",
-		]);
-		for (const result of results) {
-			if (result.status === "rejected") {
-				expect(result.reason).toMatchObject({ code: "request_failed" });
-				expect(String(result.reason)).toContain("ambiguous result");
-			}
-		}
-	});
-
-	it("recovery never steals a session whose successful POST is still completing", async () => {
-		const now = new Date().toISOString();
-		let releaseSlowCreate!: () => void;
-		const slowCreateBlocked = new Promise<void>((resolve) => {
-			releaseSlowCreate = resolve;
-		});
-		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					posts += 1;
-					if (posts === 1) {
-						// The server has already provisioned ses-inflight (it shows
-						// up in the list below) but the response is still in flight.
-						await slowCreateBlocked;
-						return jsonResponse(
-							{
-								success: true,
-								data: { sessionId: "ses-inflight", sandboxUrl: "pod" },
-							},
-							201,
-						);
-					}
-					return jsonResponse(
-						{ success: false, error: "gateway timeout" },
-						500,
-					);
-				}
-				return jsonResponse({
-					success: true,
-					data: [
-						{
-							id: "ses-inflight",
-							status: "provisioning",
-							sandboxUrl: "pod",
-							repoContext: { repoUrl: "https://github.com/cline/test" },
-							metadata: { modelId: "anthropic/claude-sonnet-5" },
-							createdAt: now,
-							updatedAt: now,
-						},
-					],
-				});
-			},
-		});
-		const input = {
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		};
-
-		const slow = api.create(input);
-		// Yield so the slow POST registers before the failing one starts.
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		const failing = api.create(input);
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		releaseSlowCreate();
-
-		// The recovery waits for the earlier request's claim, so it cannot
-		// adopt ses-inflight; with no unclaimed candidate it surfaces its own
-		// failure instead of handing both composers the same sandbox.
-		await expect(slow).resolves.toMatchObject({ sessionId: "ses-inflight" });
-		await expect(failing).rejects.toThrow();
-	});
-
-	it("never adopts a session that a successful concurrent create already owns", async () => {
-		const now = new Date().toISOString();
-		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					posts += 1;
-					return posts === 1
-						? jsonResponse(
-								{
-									success: true,
-									data: { sessionId: "ses-owned", sandboxUrl: "pod" },
-								},
-								201,
-							)
-						: jsonResponse({ success: false, error: "gateway timeout" }, 500);
-				}
-				return jsonResponse({
-					success: true,
-					data: [
-						{
-							id: "ses-owned",
-							status: "running",
-							sandboxUrl: "pod",
-							repoContext: { repoUrl: "https://github.com/cline/test" },
-							metadata: { modelId: "anthropic/claude-sonnet-5" },
-							createdAt: now,
-							updatedAt: now,
-						},
-					],
-				});
-			},
-		});
-		const input = {
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		};
-
-		await expect(api.create(input)).resolves.toMatchObject({
-			sessionId: "ses-owned",
-		});
-		// The only listed candidate is already owned; surface the failure
-		// instead of silently attaching to the first request's session.
-		await expect(api.create(input)).rejects.toThrow();
-	});
-
-	it("does not run list recovery after a fast client-side rejection", async () => {
-		let listRequests = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					return jsonResponse({ success: false, error: "invalid branch" }, 422);
-				}
-				listRequests += 1;
-				return jsonResponse({ success: true, data: [] });
-			},
-		});
-
-		await expect(
-			api.create({
-				modelId: "anthropic/claude-sonnet-5",
-				repoUrl: "https://github.com/cline/test",
-			}),
-		).rejects.toThrow(/invalid branch/);
-		// A 4xx never provisioned anything; recovering on it could adopt an
-		// identical-config session created by another device on the account.
-		expect(listRequests).toBe(0);
-	});
-
-	it("an earlier failing create waits out a later in-flight POST instead of adopting its session", async () => {
-		const now = new Date().toISOString();
-		let posts = 0;
-		let releaseSlowCreate!: () => void;
-		const slowCreateBlocked = new Promise<void>((resolve) => {
-			releaseSlowCreate = resolve;
-		});
-		let announceSecondPost!: () => void;
-		const secondPostStarted = new Promise<void>((resolve) => {
-			announceSecondPost = resolve;
-		});
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					posts += 1;
-					if (posts === 1) {
-						// The earlier request fails only once the later POST is
-						// in flight — the inverted direction of the claim race.
-						await secondPostStarted;
-						return jsonResponse(
-							{ success: false, error: "gateway timeout" },
-							500,
-						);
-					}
-					announceSecondPost();
-					await slowCreateBlocked;
-					return jsonResponse(
-						{
-							success: true,
-							data: { sessionId: "ses-inflight", sandboxUrl: "pod" },
-						},
-						201,
-					);
-				}
-				return jsonResponse({
-					success: true,
-					data: [
-						{
-							id: "ses-inflight",
-							status: "provisioning",
-							sandboxUrl: "pod",
-							repoContext: { repoUrl: "https://github.com/cline/test" },
-							metadata: { modelId: "anthropic/claude-sonnet-5" },
-							createdAt: now,
-							updatedAt: now,
-						},
-					],
-				});
-			},
-		});
-		const input = {
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		};
-
-		const failing = api.create(input);
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		const slow = api.create(input);
-		await secondPostStarted;
-		// Give the failing request time to reach its recovery wait; it must
-		// block on the later peer instead of adopting ses-inflight.
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		releaseSlowCreate();
-
-		await expect(slow).resolves.toMatchObject({ sessionId: "ses-inflight" });
-		await expect(failing).rejects.toThrow();
-	});
-
-	it("rechecks peers that start while the recovery list is loading", async () => {
-		const now = new Date().toISOString();
-		let releaseSuccessfulPost!: () => void;
-		const successfulPostBlocked = new Promise<void>((resolve) => {
-			releaseSuccessfulPost = resolve;
-		});
-		let releaseRecoveryList!: () => void;
-		const recoveryListBlocked = new Promise<void>((resolve) => {
-			releaseRecoveryList = resolve;
-		});
-		let announceRecoveryList!: () => void;
-		const recoveryListStarted = new Promise<void>((resolve) => {
-			announceRecoveryList = resolve;
-		});
-		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					posts += 1;
-					if (posts === 1) {
-						return jsonResponse(
-							{ success: false, error: "gateway timeout" },
-							500,
-						);
-					}
-					await successfulPostBlocked;
-					return jsonResponse(
-						{
-							success: true,
-							data: { sessionId: "ses-late", sandboxUrl: "pod" },
-						},
-						201,
-					);
-				}
-				announceRecoveryList();
-				await recoveryListBlocked;
-				return jsonResponse({
-					success: true,
-					data: [
-						{
-							id: "ses-late",
-							status: "running",
-							sandboxUrl: "pod",
-							repoContext: { repoUrl: "https://github.com/cline/test" },
-							metadata: { modelId: "anthropic/claude-sonnet-5" },
-							createdAt: now,
-							updatedAt: now,
-						},
-					],
-				});
-			},
-		});
-		const input = {
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		};
-
-		const failing = api.create(input);
-		await recoveryListStarted;
-		const successful = api.create(input);
-		releaseRecoveryList();
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		releaseSuccessfulPost();
-
-		await expect(successful).resolves.toMatchObject({ sessionId: "ses-late" });
-		await expect(failing).rejects.toThrow();
-	});
-
-	it("a branchless recovery cannot adopt a branch-specific peer's in-flight session", async () => {
-		const now = new Date().toISOString();
-		let posts = 0;
-		let releaseSlowCreate!: () => void;
-		const slowCreateBlocked = new Promise<void>((resolve) => {
-			releaseSlowCreate = resolve;
-		});
-		let announceSecondPost!: () => void;
-		const secondPostStarted = new Promise<void>((resolve) => {
-			announceSecondPost = resolve;
-		});
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "sk_test",
-			fetch: async (_input, init) => {
-				if (init?.method === "POST") {
-					posts += 1;
-					if (posts === 1) {
-						await secondPostStarted;
-						return jsonResponse(
-							{ success: false, error: "gateway timeout" },
-							500,
-						);
-					}
-					announceSecondPost();
-					await slowCreateBlocked;
-					return jsonResponse(
-						{
-							success: true,
-							data: { sessionId: "ses-branch", sandboxUrl: "pod" },
-						},
-						201,
-					);
-				}
-				return jsonResponse({
-					success: true,
-					data: [
-						{
-							id: "ses-branch",
-							status: "provisioning",
-							sandboxUrl: "pod",
-							repoContext: {
-								repoUrl: "https://github.com/cline/test",
-								branch: "dev",
-							},
-							metadata: { modelId: "anthropic/claude-sonnet-5" },
-							createdAt: now,
-							updatedAt: now,
-						},
-					],
-				});
-			},
-		});
-
-		// The branchless create's recovery filter accepts any branch, so it
-		// must wait on the branch-specific peer despite the different config.
-		const branchless = api.create({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-		});
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		const branchSpecific = api.create({
-			modelId: "anthropic/claude-sonnet-5",
-			repoUrl: "https://github.com/cline/test",
-			branch: "dev",
-		});
-		await secondPostStarted;
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		releaseSlowCreate();
-
-		await expect(branchSpecific).resolves.toMatchObject({
-			sessionId: "ses-branch",
-		});
-		await expect(branchless).rejects.toThrow();
-	});
-
-	it("returns the GitHub connection action when no integration exists", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example/",
-			getAuthToken: async () => "workos:test",
-			fetch: async () =>
-				jsonResponse({ success: false, error: "not connected" }, 404),
-		});
-
-		expect(await api.listRepositories()).toEqual({
-			connected: false,
-			connectUrl: "https://app.example/dashboard/integrations",
-			repositories: [],
-		});
-	});
-});
-
-// Cloud-session creation is feature-flagged (default off); force it on for
-// this suite via the env override and prove the gate separately below.
-beforeAll(() => {
-	process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-});
-afterAll(() => {
-	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 });
 
 describe("cloud agents feature flag", () => {
@@ -1751,7 +874,11 @@ describe("CloudSessionManager", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				environmentId: "local",
+				sessionId: "ses-outer",
+				status: "running",
+			},
 		});
 	});
 
@@ -1782,7 +909,11 @@ describe("CloudSessionManager", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				environmentId: "local",
+				sessionId: "ses-outer",
+				status: "running",
+			},
 		});
 	});
 
@@ -2133,7 +1264,9 @@ describe("CloudSessionManager", () => {
 			toolName: "write_to_file",
 			input: { path: "README.md" },
 		});
-		expect(events.at(-1)).toMatchObject({
+		expect(
+			events.filter((event) => event.name === "tool_approval_state").at(-1),
+		).toMatchObject({
 			name: "tool_approval_state",
 			payload: {
 				sessionId: "ses-outer",
@@ -2169,7 +1302,7 @@ describe("CloudSessionManager", () => {
 			createHubClient: () => hub as never,
 		});
 
-		const created = await manager.create({
+		const created = await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix it",
@@ -2243,7 +1376,7 @@ describe("CloudSessionManager", () => {
 		});
 
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 			}),
@@ -2271,7 +1404,7 @@ describe("CloudSessionManager", () => {
 		});
 
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "model",
 				repoUrl: "https://github.com/cline/test",
 			}),
@@ -2314,7 +1447,7 @@ describe("CloudSessionManager", () => {
 			createHubClient: () => hub as never,
 		});
 
-		const created = await manager.create({
+		const created = await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			branch: "main",
@@ -2379,7 +1512,7 @@ describe("CloudSessionManager", () => {
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
 		});
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 			handoff: {
@@ -2411,7 +1544,7 @@ describe("CloudSessionManager", () => {
 			getAuthToken: async () => "workos:fresh",
 			createHubClient: () => hub as never,
 		});
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 			handoff: {
@@ -2806,7 +1939,7 @@ describe("CloudSessionManager", () => {
 		hub.onFailedSend = () => {};
 
 		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
-			/please send it again/,
+			/could not confirm whether this message was accepted/,
 		);
 	});
 
@@ -2836,12 +1969,11 @@ describe("CloudSessionManager", () => {
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
-		expect(hub.commands.map((entry) => entry.command).slice(-5)).toEqual([
+		expect(hub.commands.map((entry) => entry.command).slice(-4)).toEqual([
 			"session.attach",
 			"session.get",
 			"session.messages",
 			"session.pending_prompts",
-			"approval.list_pending",
 		]);
 	});
 
@@ -2859,14 +1991,14 @@ describe("CloudSessionManager", () => {
 		hub.failNextSend = true;
 
 		await expect(manager.send("ses-outer", "Lost prompt")).rejects.toThrow(
-			/not found in the cloud session.*send it again/i,
+			/could not confirm whether this message was accepted/i,
 		);
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
 	});
 
-	it("confirms a queued prompt from the recovered queue snapshot", async () => {
+	it("does not infer acceptance of a queued prompt from a matching recovered snapshot", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -2889,14 +2021,10 @@ describe("CloudSessionManager", () => {
 
 		await expect(
 			manager.send("ses-outer", "Queued during disconnect", "queue"),
-		).resolves.toMatchObject({
-			ok: true,
-			queued: true,
-			recoveredAfterDisconnect: true,
-		});
+		).rejects.toThrow(/could not confirm whether this message was accepted/i);
 	});
 
-	it("confirms a queued prompt after an ambiguous command timeout", async () => {
+	it("keeps queue delivery ambiguous after a command timeout", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -2925,11 +2053,7 @@ describe("CloudSessionManager", () => {
 
 		await expect(
 			manager.send("ses-outer", "Queued before the timeout", "queue"),
-		).resolves.toMatchObject({
-			ok: true,
-			queued: true,
-			recoveredAfterDisconnect: true,
-		});
+		).rejects.toThrow(/could not confirm whether this message was accepted/i);
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
@@ -3251,6 +2375,29 @@ describe("CloudSessionManager", () => {
 			}),
 		);
 
+		const steeredFirst = await handleChatSessionCommand(ctx, {
+			action: "steer_prompt",
+			sessionId: "ses-outer",
+		});
+		expect(steeredFirst).toMatchObject({
+			sessionId: "ses-outer",
+			updated: true,
+			promptsInQueue: [expect.objectContaining({ id: "q-1", steer: true })],
+		});
+		expect(hub.commands).toContainEqual(
+			expect.objectContaining({
+				command: "session.steer_first_pending_prompt",
+				payload: { sessionId: "inner-1" },
+			}),
+		);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "steer_prompt",
+				sessionId: "ses-outer",
+				promptId: " ",
+			}),
+		).rejects.toThrow("promptId cannot be empty");
+
 		const removed = await handleChatSessionCommand(ctx, {
 			action: "remove_pending_prompt",
 			sessionId: "ses-outer",
@@ -3422,7 +2569,7 @@ describe("CloudSessionManager", () => {
 		});
 		ctx.cloudSessionManager = manager;
 
-		const creating = manager.create({
+		const creating = manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix the provisioning flow",
@@ -3499,7 +2646,7 @@ describe("CloudSessionManager", () => {
 		});
 		ctx.cloudSessionManager = manager;
 
-		const creating = manager.create({
+		const creating = manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -3580,8 +2727,8 @@ describe("CloudSessionManager", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		const first = manager.create(input);
-		const second = manager.create(input);
+		const first = manager.createAndAttach(input);
+		const second = manager.createAndAttach(input);
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(createCalls).toBe(1);
 		expect(
@@ -3635,7 +2782,7 @@ describe("CloudSessionManager", () => {
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => authToken,
 		});
-		const creating = manager.create({
+		const creating = manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -3805,7 +2952,7 @@ describe("CloudSessionManager", () => {
 		expect(repositoryScopes).toEqual(["org-cline-bot"]);
 		expect(branchScopes).toEqual(["org-cline-bot"]);
 
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -3828,7 +2975,7 @@ describe("CloudSessionManager", () => {
 			getActiveOrganizationId: scopeLookup,
 		});
 
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			organizationId: null,
@@ -3865,7 +3012,7 @@ describe("CloudSessionManager", () => {
 
 		await manager.list();
 		serverScope = "org-b";
-		await manager.create({
+		await manager.createAndAttach({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 		});
@@ -3929,7 +3076,7 @@ describe("CloudSessionManager", () => {
 		ctx.cloudSessionManager = manager;
 
 		await expect(
-			manager.create({
+			manager.createAndAttach({
 				modelId: "anthropic/claude-sonnet-5",
 				repoUrl: "https://github.com/cline/test",
 			}),

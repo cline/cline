@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
 	isAgentPluginDisabledGlobally,
-	isOptInToolEnabledGlobally,
+	isModelToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
@@ -20,7 +20,7 @@ import {
 	setDisabledAgentPlugin,
 	setDisabledPlugin,
 	setDisabledTools,
-	setOptInToolEnabledGlobally,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -203,33 +203,37 @@ describe("global-settings", () => {
 				"global-settings.json",
 			);
 
-			expect(isOptInToolEnabledGlobally("web_search")).toBe(false);
-			expect(isOptInToolEnabledGlobally("generate_media")).toBe(false);
-			expect(resolveDisabledToolNames()).toEqual(
-				new Set(["web_search", "generate_media"]),
-			);
-
-			setOptInToolEnabledGlobally("web_search", true);
-			setDisabledTools(["generate_media"], false);
-			expect(isOptInToolEnabledGlobally("web_search")).toBe(true);
-			expect(isOptInToolEnabledGlobally("generate_media")).toBe(true);
-			expect(resolveDisabledToolNames()).toEqual(new Set());
-			expect(resolveDisabledToolNames(["generate_media"])).toEqual(new Set());
-			expect(readGlobalSettings().tools).toEqual({
-				generate_media: { enabled: true },
-				web_search: { enabled: true },
-			});
-			expect(readGlobalSettings().disabledTools).toBeUndefined();
-
-			setDisabledTools(["web_search", "generate_media"], true);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
+			expect(resolveDisabledToolNames().has("web_search")).toBe(false);
+			expect(resolveDisabledToolNames().has("generate_media")).toBe(true);
+			setModelToolEnabledGlobally("web_search", false);
+			setModelToolEnabledGlobally("generate_media", false);
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 			expect(readGlobalSettings().tools).toEqual({
 				generate_media: { enabled: false },
 				web_search: { enabled: false },
 			});
-			expect(resolveDisabledToolNames()).toEqual(
-				new Set(["web_search", "generate_media"]),
-			);
-			expect(readGlobalSettings().disabledTools).toBeUndefined();
+
+			setDisabledTools(["web_search", "generate_media"], false);
+			expect(readGlobalSettings().tools).toEqual({
+				web_search: { enabled: true },
+				generate_media: { enabled: true },
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("fails closed for web search when persisted settings cannot be loaded", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const malformedSettingsPath = join(root, "malformed.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = malformedSettingsPath;
+			await writeFile(malformedSettingsPath, "{not json");
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
+
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = root;
+			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

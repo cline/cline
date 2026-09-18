@@ -117,6 +117,10 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import {
+	imageAttachmentMediaType,
+	isUnsupportedImageAttachment,
+} from "@/lib/image-attachments";
 import { createLatestSuccessfulRequestGate } from "@/lib/latest-successful-request";
 import {
 	hasCompletedOnboarding,
@@ -148,6 +152,8 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
+import { readImportedFromTool } from "@/lib/session-import";
 import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
@@ -333,6 +339,7 @@ export default function Home() {
 	// provider setup step.
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
+	const environmentSelectionRevision = useRef(0);
 	const [activeRemoteEnvironment, setActiveRemoteEnvironment] =
 		useState<RemoteWorkspaceEnvironment | null>(null);
 	const [remoteEnvironmentProfiles, setRemoteEnvironmentProfiles] = useState<
@@ -452,8 +459,8 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => {
-		// The dock reverts to the bundled icon every launch; re-apply the
-		// user's choice once the shell is up.
+		// The native app icon reverts to the bundled icon every launch; re-apply
+		// the user's choice once the shell is up.
 		void syncAppIcon();
 	}, []);
 
@@ -463,10 +470,11 @@ export default function Home() {
 
 	useEffect(() => {
 		let cancelled = false;
+		const revision = environmentSelectionRevision.current;
 		desktopClient
 			.invoke<ProcessContext>("get_process_context")
 			.then((context) => {
-				if (!cancelled) {
+				if (!cancelled && revision === environmentSelectionRevision.current) {
 					const remoteEnvironment =
 						remoteWorkspaceEnvironmentFromContext(context);
 					setActiveRemoteEnvironment(remoteEnvironment);
@@ -489,21 +497,32 @@ export default function Home() {
 
 	useEffect(() => {
 		if (view !== "chat") return;
-		let cancelled = false;
-		setRemoteEnvironmentProfilesLoading(true);
-		desktopClient
-			.invoke<RemoteEnvironmentListResult>("list_remote_environments")
-			.then((result) => {
-				if (!cancelled) setRemoteEnvironmentProfiles(result.profiles);
-			})
-			.catch(() => {
-				// The Settings > Remote surface owns profile-management errors.
-			})
-			.finally(() => {
-				if (!cancelled) setRemoteEnvironmentProfilesLoading(false);
-			});
+		let revision = 0;
+		const refresh = () => {
+			const requestRevision = ++revision;
+			setRemoteEnvironmentProfilesLoading(true);
+			void desktopClient
+				.invoke<RemoteEnvironmentListResult>("list_remote_environments")
+				.then((result) => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfiles(result.profiles);
+				})
+				.catch(() => {
+					// The Settings > Remote surface owns profile-management errors.
+				})
+				.finally(() => {
+					if (requestRevision === revision)
+						setRemoteEnvironmentProfilesLoading(false);
+				});
+		};
+		const unsubscribe = desktopClient.subscribe(
+			"remote_environment_profiles_changed",
+			refresh,
+		);
+		refresh();
 		return () => {
-			cancelled = true;
+			++revision;
+			unsubscribe();
 		};
 	}, [view]);
 
@@ -538,6 +557,13 @@ export default function Home() {
 	}, []);
 	const handleSelectEnvironment = useCallback(
 		async (environmentId: string) => {
+			environmentSelectionRevision.current += 1;
+			if (environmentId === activeRemoteEnvironment?.id) {
+				// Already connected (e.g. after navigating Back to a local draft);
+				// reconnecting would tear down and rebuild the remote runtime.
+				selectEnvironmentDraft(environmentId);
+				return;
+			}
 			try {
 				if (environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID) {
 					if (activeRemoteEnvironment) {
@@ -634,6 +660,7 @@ export default function Home() {
 					typeof event.environmentId === "string" &&
 					typeof event.homeDir === "string"
 				) {
+					environmentSelectionRevision.current += 1;
 					selectLocalDraftWhenChatVisibleRef.current = false;
 					setActiveRemoteEnvironment({
 						id: event.environmentId,
@@ -641,6 +668,7 @@ export default function Home() {
 					});
 				}
 				if (event.status === "disconnected") {
+					environmentSelectionRevision.current += 1;
 					completeRemoteDirectoryPicker(null);
 					setActiveRemoteEnvironment(null);
 					if (view === "chat") {
@@ -677,12 +705,10 @@ export default function Home() {
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
-			const environmentId =
-				session.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
 			dispatchApp({
 				type: "open-session",
-				session: { ...session, environmentId },
-				environmentId,
+				session,
+				environmentId: session.environmentId,
 				initialPromptDraft,
 			});
 		},
@@ -690,9 +716,14 @@ export default function Home() {
 	);
 
 	const handleDeleteSession = useCallback(
-		(deletedSessionId: string, deletedThreadId?: string) => {
+		(
+			deletedSessionId: string,
+			deletedThreadId?: string,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
 			dispatchApp({
 				type: "delete-session",
+				environmentId,
 				deletedSessionId,
 				deletedThreadId,
 				fallbackThreadId: makeThreadId(),
@@ -703,8 +734,17 @@ export default function Home() {
 	);
 
 	const handleUpdateSessionMetadata = useCallback(
-		(sessionId: string, metadata: SessionMetadata) => {
-			dispatchApp({ type: "update-session-metadata", sessionId, metadata });
+		(
+			sessionId: string,
+			metadata: SessionMetadata,
+			environmentId = LOCAL_WORKSPACE_ENVIRONMENT_ID,
+		) => {
+			dispatchApp({
+				type: "update-session-metadata",
+				sessionId,
+				metadata,
+				environmentId,
+			});
 		},
 		[],
 	);
@@ -721,13 +761,16 @@ export default function Home() {
 			if (!sessionId) {
 				return;
 			}
-			handleDeleteSession(sessionId);
+			handleDeleteSession(sessionId, undefined, eventEnvironmentId(payload));
 		});
 	}, [handleDeleteSession]);
 
-	const activeHistorySessionId =
-		threads.find((thread) => thread.id === activeThreadId)?.historySession
-			?.sessionId ?? null;
+	const activeHistorySession = threads.find(
+		(thread) => thread.id === activeThreadId,
+	)?.historySession;
+	const activeHistorySessionId = activeHistorySession
+		? sessionKey(activeHistorySession)
+		: null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
 	const activeLocationRef = useRef({ activeThreadId, view });
@@ -761,7 +804,7 @@ export default function Home() {
 	);
 	const handleOpenModeSettings = useCallback(() => {
 		setModeSettingsRequest((request) => request + 1);
-		handleSettingsSectionChange("Models");
+		handleSettingsSectionChange("API Providers");
 	}, [handleSettingsSectionChange]);
 	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
 	// new session, and Cmd/Ctrl+, for settings.
@@ -795,7 +838,8 @@ export default function Home() {
 	}, []);
 	const sessionHistory = useSessionHistory({
 		activeSessionId: activeHistorySessionId,
-		onDeleteSession: handleDeleteSession,
+		onDeleteSession: (sessionId, environmentId) =>
+			handleDeleteSession(sessionId, undefined, environmentId),
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
@@ -812,8 +856,8 @@ export default function Home() {
 			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
-					(environmentId === undefined ||
-						session.environmentId === environmentId),
+					session.environmentId ===
+						(environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID),
 			);
 			if (cachedSession) {
 				handleOpenSession(cachedSession);
@@ -922,10 +966,20 @@ export default function Home() {
 			return undefined;
 		}
 		const title = sessionHistory.threads.find(
-			(thread) => thread.id === parentSessionId,
+			(thread) =>
+				thread.id ===
+				sessionKey({
+					sessionId: parentSessionId,
+					environmentId: activeThread.environmentId,
+				}),
 		)?.title;
 		return { sessionId: parentSessionId, title };
-	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
+	}, [
+		activeThread?.historySession?.parentSessionId,
+		activeThread?.environmentId,
+		sessionHistory.threads,
+	]);
+
 	return (
 		<AccountProvider>
 			<SidebarProvider>
@@ -1001,6 +1055,17 @@ export default function Home() {
 											environmentProfilesLoading={
 												remoteEnvironmentProfilesLoading
 											}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
+											onPickRemoteWorkspaceDirectory={
+												pickRemoteWorkspaceDirectory
+											}
+											onSelectEnvironment={handleSelectEnvironment}
+											remoteEnvironment={
+												activeRemoteEnvironment?.id ===
+												activeThread.environmentId
+													? activeRemoteEnvironment
+													: null
+											}
 											historySession={activeThread.historySession}
 											handoffUiState={handoffUiState}
 											onHandoffUiAction={dispatchHandoffUi}
@@ -1016,38 +1081,42 @@ export default function Home() {
 											onInitialPromptDraftConsumed={
 												handleInitialPromptDraftConsumed
 											}
-											onUpdateSessionMetadata={handleUpdateSessionMetadata}
+											onUpdateSessionMetadata={(sessionId, metadata) =>
+												handleUpdateSessionMetadata(
+													sessionId,
+													metadata,
+													activeThread.environmentId,
+												)
+											}
 											threadId={activeThread.id}
-											onAddSshHost={handleAddSshHost}
 											isThreadActive={() =>
 												activeLocationRef.current.activeThreadId ===
 													activeThread.id &&
 												activeLocationRef.current.view === "chat"
 											}
-											onDeleteSession={handleDeleteSession}
+											onDeleteSession={(sessionId, threadId) =>
+												handleDeleteSession(
+													sessionId,
+													threadId,
+													activeThread.environmentId,
+												)
+											}
 											onNewThread={handleNewThread}
 											onOpenSession={handleOpenSession}
 											onOpenSessionById={handleOpenSessionById}
-											onPickRemoteWorkspaceDirectory={
-												pickRemoteWorkspaceDirectory
-											}
-											onSelectEnvironment={handleSelectEnvironment}
 											onOpenSetup={handleOpenSetup}
 											onOpenModelSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
+											}
+											onOpenAccountSettings={() =>
+												handleSettingsSectionChange("Account")
 											}
 											parentSession={activeParentSession}
-											remoteEnvironment={
-												activeRemoteEnvironment?.id ===
-												activeThread.environmentId
-													? activeRemoteEnvironment
-													: null
-											}
 											onOpenVoiceInputSettings={() =>
 												handleSettingsSectionChange("Voice")
 											}
 											onOpenVoiceOutputSettings={() =>
-												handleSettingsSectionChange("Models")
+												handleSettingsSectionChange("API Providers")
 											}
 											onRealtimeBridgeChange={handleRealtimeBridgeChange}
 											onThreadStarted={handleThreadStarted}
@@ -1060,7 +1129,9 @@ export default function Home() {
 											activeEnvironmentId={activeEnvironmentId}
 											modeSettingsRequest={modeSettingsRequest}
 											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
+											onOpenSession={async (id) => {
+												await handleOpenSessionById(id);
+											}}
 											section={settingsSection}
 										/>
 									</div>
@@ -1097,7 +1168,9 @@ export default function Home() {
 			) : null}
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
-				onOpenSession={handleOpenSessionById}
+				onOpenSession={async (id) => {
+					await handleOpenSessionById(id);
+				}}
 				open={commandBarOpen && !showOnboarding}
 			/>
 		</AccountProvider>
@@ -1132,6 +1205,7 @@ function ChatThreadPane({
 	onSelectEnvironment,
 	onOpenSetup,
 	onOpenModelSettings,
+	onOpenAccountSettings,
 	parentSession,
 	remoteEnvironment,
 	onOpenVoiceInputSettings,
@@ -1175,6 +1249,7 @@ function ChatThreadPane({
 	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
+	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
 	onOpenVoiceInputSettings?: () => void;
@@ -1192,6 +1267,7 @@ function ChatThreadPane({
 		chatTransportError,
 		isHydratingSession,
 		activeAssistantMessageId,
+		activityLabel,
 		config,
 		messages,
 		error,
@@ -1441,8 +1517,10 @@ function ChatThreadPane({
 	}, [environmentId, knownWorkspacePaths]);
 
 	useEffect(() => {
-		// Do not persist a sandbox's synthetic path as the local workspace.
-		if (config.executionTarget === "cloud") {
+		if (
+			config.executionTarget === "cloud" ||
+			(config.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !== environmentId
+		) {
 			return;
 		}
 		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
@@ -1454,6 +1532,7 @@ function ChatThreadPane({
 		config.cwd,
 		config.workspaceRoot,
 		config.executionTarget,
+		config.environmentId,
 		environmentId,
 		workspaces,
 	]);
@@ -1698,6 +1777,7 @@ function ChatThreadPane({
 					valid?: boolean;
 					path?: string;
 				}>("validate_workspace_directory", {
+					environmentId,
 					path: nextWorkspace,
 				})
 				.catch(() => ({ valid: false, path: undefined }));
@@ -1726,7 +1806,7 @@ function ChatThreadPane({
 
 			return true;
 		},
-		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
+		[environmentId, invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
@@ -1744,6 +1824,9 @@ function ChatThreadPane({
 			// Resolves to null when the user cancels; rethrows picker failures
 			// (e.g. no zenity/kdialog on Linux) so callers can surface an error
 			// and offer manual path entry instead of a silent no-op.
+			if (remoteEnvironment) {
+				return await onPickRemoteWorkspaceDirectory(remoteEnvironment);
+			}
 			try {
 				const selected = await desktopClient.invoke<string | null>(
 					"pick_workspace_directory",
@@ -2154,6 +2237,32 @@ function ChatThreadPane({
 			onHandoffUiAction,
 		],
 	);
+	const handleAttachFiles = useCallback((files: File[]) => {
+		const supportedFiles = files.filter(
+			(file) => !isUnsupportedImageAttachment(file),
+		);
+		if (supportedFiles.length !== files.length) {
+			toast({
+				title: "Unsupported image format",
+				description:
+					"Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
+			});
+		}
+		setPendingAttachments((prev) => {
+			const existing = new Set(
+				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+			);
+			const next = [...prev];
+			for (const file of supportedFiles) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
+				}
+			}
+			return next;
+		});
+	}, []);
 
 	const handleSend = useCallback(
 		async (prompt: string) => {
@@ -2176,7 +2285,14 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend);
+			// The prompt never reached the runtime (e.g. the provider connection
+			// failed): hand it back so the user can fix the provider and resend
+			// without retyping. Leave anything they typed meanwhile alone.
+			if (!promptTaken && promptInputRef.current.trim() === "") {
+				setPromptInput(trimmed);
+				handleAttachFiles(toSend);
+			}
 		},
 		[
 			config.repoUrl,
@@ -2186,6 +2302,7 @@ function ChatThreadPane({
 			prepareHandoff,
 			sendPrompt,
 			sessionId,
+			handleAttachFiles,
 			setPromptInput,
 			threadId,
 		],
@@ -2193,7 +2310,9 @@ function ChatThreadPane({
 	const handleRealtimeSend = useCallback(
 		async (prompt: string) => {
 			onThreadStarted?.(threadId);
-			return sendPrompt(prompt, [], { source: "realtime" });
+			return (
+				(await sendPrompt(prompt, [], { source: "realtime" })) || undefined
+			);
 		},
 		[onThreadStarted, sendPrompt, threadId],
 	);
@@ -2310,6 +2429,16 @@ function ChatThreadPane({
 		const result = await forkSession();
 		openForkedSession(result);
 	}, [forkSession, openForkedSession]);
+	const handleFixCredentials = useCallback(
+		(target: "account" | "models") => {
+			if (target === "account") {
+				onOpenAccountSettings?.();
+			} else {
+				onOpenModelSettings?.();
+			}
+		},
+		[onOpenAccountSettings, onOpenModelSettings],
+	);
 
 	const handleEditMessage = useCallback(
 		async (_messageId: string, content: string, runCount: number) => {
@@ -2352,8 +2481,9 @@ function ChatThreadPane({
 			const deleted = await desktopClient.invoke<boolean>(
 				"delete_chat_session",
 				{
-					environmentId,
+					...(isCloudSession ? {} : { environmentId }),
 					sessionId: activeSessionToDelete,
+					environmentId,
 				},
 			);
 			if (!deleted) {
@@ -2372,6 +2502,7 @@ function ChatThreadPane({
 				new CustomEvent("cline:session-deleted", {
 					detail: {
 						sessionId: activeSessionToDelete,
+						environmentId,
 					},
 				}),
 			);
@@ -2398,28 +2529,12 @@ function ChatThreadPane({
 		activeSessionToDelete,
 		deletingSession,
 		environmentId,
+		isCloudSession,
 		onDeleteSession,
 		reset,
 		threadId,
 		setPromptInput,
 	]);
-
-	const handleAttachFiles = useCallback((files: File[]) => {
-		setPendingAttachments((prev) => {
-			const existing = new Set(
-				prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-			);
-			const next = [...prev];
-			for (const file of files) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
-				}
-			}
-			return next;
-		});
-	}, []);
 
 	const handleExecutionTargetChange = useCallback(
 		(target: "local" | "cloud") => {
@@ -2504,7 +2619,7 @@ function ChatThreadPane({
 			pendingAttachments.map((file, index) => ({
 				id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
 				name: file.name,
-				isImage: file.type.startsWith("image/"),
+				isImage: imageAttachmentMediaType(file) !== undefined,
 			})),
 		[pendingAttachments],
 	);
@@ -2650,6 +2765,9 @@ function ChatThreadPane({
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
 		: null;
+	const importedFromTool = readImportedFromTool(
+		visibleHistorySession?.metadata,
+	);
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
 	const displayedIsSwitching = hideDeletedSessionUi
@@ -2683,6 +2801,7 @@ function ChatThreadPane({
 		loading: agentsLoading,
 		error: agentsError,
 	} = useSessionAgents({
+		environmentId,
 		sessionId: isCloudSession ? null : displayedSessionId,
 		panelOpen: agentPanelOpen,
 		sessionActive: isSessionActive,
@@ -2697,8 +2816,9 @@ function ChatThreadPane({
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
-		(agentSessionId: string) =>
-			onOpenSessionById?.(agentSessionId, environmentId),
+		async (agentSessionId: string) => {
+			await onOpenSessionById?.(agentSessionId, environmentId);
+		},
 		[environmentId, onOpenSessionById],
 	);
 
@@ -2710,8 +2830,9 @@ function ChatThreadPane({
 			setRenamingSession(true);
 			try {
 				await desktopClient.invoke("update_chat_session_title", {
-					environmentId,
+					...(isCloudSession ? {} : { environmentId }),
 					sessionId: activeSessionForTitle,
+					environmentId,
 					title: nextTitle,
 				});
 				const normalizedTitle = nextTitle.trim();
@@ -2724,6 +2845,7 @@ function ChatThreadPane({
 					new CustomEvent("cline:session-title-updated", {
 						detail: {
 							sessionId: activeSessionForTitle,
+							environmentId,
 							title: normalizedTitle,
 						},
 					}),
@@ -2743,6 +2865,7 @@ function ChatThreadPane({
 		[
 			activeSessionForTitle,
 			environmentId,
+			isCloudSession,
 			historySession?.metadata,
 			onUpdateSessionMetadata,
 			renamingSession,
@@ -2802,6 +2925,7 @@ function ChatThreadPane({
 
 	const chatComposer = (
 		<ChatInputBar
+			environmentId={environmentId}
 			attachments={attachmentList}
 			cloudHandoffAvailable={cloudAgentsEnabled}
 			hasRunningAgents={agentActivity.running > 0}
@@ -2813,7 +2937,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
-			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
+			onOpenModelSettings={onOpenModelSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -2971,6 +3095,8 @@ function ChatThreadPane({
 											}
 										: undefined
 								}
+								activityLabel={activityLabel}
+								importedFromTool={importedFromTool}
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
 								onRestoreCheckpoint={
@@ -2988,6 +3114,7 @@ function ChatThreadPane({
 											: undefined
 								}
 								onProceedWhileRunning={proceedWhileRunning}
+								onFixCredentials={handleFixCredentials}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
@@ -3002,7 +3129,7 @@ function ChatThreadPane({
 					composer={composer}
 					environmentSelector={
 						<EnvironmentSelector
-							activeEnvironmentId={activeEnvironmentId}
+							activeEnvironmentId={environmentId}
 							cloudEnabled={cloudAgentsEnabled}
 							executionTarget={isCloudSession ? "cloud" : "local"}
 							loading={environmentProfilesLoading}
@@ -3025,7 +3152,9 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onOpenSession={onOpenSessionById}
+					onOpenSession={async (id) => {
+						await onOpenSessionById?.(id, environmentId);
+					}}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}

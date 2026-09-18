@@ -266,6 +266,16 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+Session history listing filters child rows at the persistence layer. Subagent
+and team-task sessions are stored in the same table as the roots that spawned
+them and always sort newer, so `listSessionHistory` asks the runtime host for
+`rootOnly` rows. `LocalRuntimeHost` passes the option to the session backend,
+which applies it in the query before the limit; `HubRuntimeHost` sends it as
+`session.list { limit, rootOnly }` and the hub handler forwards it to its
+session host. Omitting the flag returns every row, which is what callers that
+render subagent trees rely on. History keeps a client-side root filter with a
+widening scan only as a fallback for older hubs that ignore the flag.
+
 ### Generated Audio & Video Flow
 
 Generated audio and video ride the canonical `GeneratedMedia` pipeline while
@@ -332,7 +342,8 @@ headers use `NodeHubClient.resolveConnectionHeaders`. The resolver runs for ever
 new socket, including reconnects, so hosts can refresh short-lived credentials.
 Header authentication is mutually exclusive with the local hub-token subprotocol;
 the proxy is responsible for authenticating the client and adding any private
-upstream hub credentials.
+upstream hub credentials. Resolver failures and rejected protocol headers fail the
+connection and remain available through the client's connection-error state.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -507,6 +518,25 @@ Design implication:
 - logging is injectable and transport-agnostic, allowing host environments (CLI, VS Code, browser) to wire their own backends
 - do not hardcode logging calls; accept a `logger?: BasicLogger` parameter instead
 
+### 6.1 Langfuse telemetry ownership
+
+`@cline/llms` owns Langfuse instrumentation, trace attribute propagation, and
+the `LangfuseAttributesSpanProcessor`. `@cline/core` owns the host OpenTelemetry
+provider and installs that processor when constructing an OTLP trace pipeline.
+The processor copies context attributes onto `cline-provider-langfuse` spans;
+it does not create an exporter or require Langfuse credentials. User and session
+IDs must be span attributes, not only observation metadata, for Langfuse tracking.
+
+In the collector relay path, spans use the existing host OTLP exporter. The
+collector owns Langfuse credentials and downstream filtering and sampling.
+`llms` checks provider eligibility, client sampling, opt-out, and content policy
+per request. The host owns flushing and shutting down its provider.
+
+When no host relay is available, explicitly configured direct Langfuse export
+uses an isolated provider owned and disposed by `llms`. It does not replace or
+shut down an ambient host provider. When both routes are configured, the relay
+takes precedence so a request is not exported through both routes.
+
 ### 7. Storage Adapters
 
 Stateful persistence should be isolated behind adapter/service layers.
@@ -546,6 +576,7 @@ Design implications:
 - canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
 - resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
 - sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
+- a session imported from another coding agent (`metadata.importedFrom`) that is resumed without compaction state summarizes its whole foreign transcript on the first turn, regardless of the auto-compaction setting; the summary persists as normal compaction state, so the model never replays the source agent's tool calls while the canonical transcript stays intact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 
@@ -765,7 +796,9 @@ orchestrator used by core and hub layers.
    queued `cron_runs`. One-off: at most one run record per `(spec_id,
    revision)`, including failed runs so specs do not retry accidentally.
    Schedule: "one overdue catch-up on startup then advance" using
-   timezone-aware `getNextCronTime`.
+   timezone-aware `getNextCronTime`. New hub schedules persist the local IANA
+   timezone when none is provided. The desktop form sends its own local timezone;
+   explicit timezone choices and existing schedule timezones are preserved.
 6. **Event ingress** (`cron/events/cron-event-ingress.ts`): accepts already-normalized
    `AutomationEventEnvelope` values, persists them into `cron_event_log`,
    matches enabled event specs by `event_type` plus declarative filters,
@@ -774,11 +807,25 @@ orchestrator used by core and hub layers.
    declare `automationEvents` and submit normalized events through
    `ctx.automation.ingestEvent(...)`; sandboxed plugins forward those events
    through the core plugin event bridge.
+   Acceptance is one synchronous SQLite write transaction: the event log,
+   matching runs, debounce changes, materialization pointers, and final
+   processing status commit together. A failure rolls all of them back and
+   propagates to the caller, which must redeliver the event to retry. Other
+   connections cannot observe or claim partial fan-out. Committed events remain
+   deduplicated by event ID, including a retry after a lost response. Failures
+   are logged outside the transaction, not persisted as deduplication tombstones.
+
 7. **Runner** (`cron/runner/cron-runner.ts`): polls `cron.db`, atomically claims
    queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
    (`startSession` → `sendSession` → `stopSession` / `abortSession`),
+   dispatches new work independently of unfinished agent turns, and renews
+   locally active claims before polling expired work after system sleep. Startup
+   installs polling without waiting for the initial batch to finish. It also
    renews the run claim while execution is active, writes a markdown report
-   per run, and transactionally updates status. File specs can constrain
+   per run, and transactionally updates status. Optional scheduler telemetry records
+   run start/finish, trigger kind, attempt count, start delay, duration, and outcome
+   through the normal telemetry service. It excludes prompts, paths, and raw errors;
+   capture failures do not interrupt execution. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
    `plugins`), trigger source, and a notes directory that is injected into
    the system prompt. The automation runtime adapters explicitly persist
@@ -803,6 +850,21 @@ Programmatic hub schedules are stored as `cron_specs` with source
 claim/requeue/report flow as file-backed one-off, recurring, and
 event-driven specs. The hub schedule command surface remains a thin adapter;
 there is no separate schedules table, schedule store, or schedule runner.
+
+Runner claims enforce global and per-spec capacity inside the SQLite claim
+transaction, skipping saturated specs before choosing the next due run. This
+keeps multiple database connections from exceeding a schedule's parallelism
+and prevents a backlog of blocked siblings from starving other schedules.
+Each execution has a cancellation controller and a deadline covering request
+preparation, session startup, and the turn. Shutdown cancels and drains tracked
+executions with bounded session cleanup; interrupted runs are recorded as
+cancelled, not automatically replayed after possibly performing external work.
+Late startup responses are cleaned up without sending a turn or touching the
+closed store. Losing a lease cancels the old execution, and attaching its
+session requires the current claim token. Terminal status is persisted before
+writing the optional report, so a report filesystem failure cannot replay a
+completed turn. Report and cleanup failures are logged separately.
+
 
 ## Navigating the Codebase
 
@@ -880,3 +942,83 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+### Composio beta access
+
+Composio management in the desktop sidecar and tool registration/execution in
+local runtimes (including the detached hub) require the account-scoped PostHog
+flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
+evaluator reads the current Cline account ID from provider settings, caches the
+evaluation in memory for one minute, and discards grants on account changes.
+Missing identity, provider configuration, or flag values deny access; internal
+email domains do not bypass this gate. Saved connector schemas alone cannot
+enable tools. Existing sessions recheck access before each tool execution.
+Disconnect/cancel cleanup remains available after access is removed. The Cline
+API proxy must enforce the same flag server-side for authenticated requests.
+
+The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
+envelope. The toolkit catalog contains `items` and `nextToken`; connections and
+tool pages additionally carry `total`. The sidecar fetches every catalog and
+connection page, including empty pages with continuation tokens, and rejects
+failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
+per toolkit and persists `input_parameters` and the pinned version for the core
+extension. Tool execution sends arguments and the optional version to
+`/tools/{slug}/execute` and retains the provider response body.
+
+Customize > Connectors displays the usage-ranked catalog, with search across
+all loaded apps and installation/connection management in its detail dialog.
+The backend includes managed-auth toolkits before anyone has connected them,
+and provisions their auth configuration on first installation. This requires
+the full-catalog backend in core-platform PR #3383. Catalog responses must
+use the paginated contract; malformed responses are rejected.
+
+Connector metadata and cancellation tombstones live in
+`settings/composio/<sha256-account-id>.json`. Each account has separate
+availability/catalog caches and pending operations. Async management requests
+retain their initiating account and refuse to send with another account's token.
+The core extension loads only the signed-in account's schemas and checks that
+identity again before registration and execution in an existing session.
+
+`RuntimeOAuthTokenManager` serializes credential reads, refreshes, and saves
+using a SQLite exclusive transaction keyed by provider settings path and storage
+provider ID. This coordinates the sidecar, hub, and other local processes; OS
+locks release on process exit. Waiters reread persisted credentials under the
+lock and reuse a token another process refreshed, including for forced refresh
+requests. A refresh result is discarded if sign-out or sign-in replaced the
+credentials while the request was in flight.
+
+### Queue steering
+
+Queue steering through `pendingPrompts.steerFirst` selects and promotes the
+current queue head in one synchronous core operation. Desktop Enter sends this
+intent through the sidecar and Hub without fetching a prompt ID first; explicit
+per-prompt steering continues to update by ID. Concurrent clients therefore
+cannot make Enter promote an entry from a stale queue snapshot. Experimental
+SSH sessions use their environment-bound session manager; cloud sessions map
+the outer session ID to the inner Hub session and send the same atomic command.
+
+### SSH environments
+
+`core/src/remote` owns the reusable SSH environment service and standalone remote
+helper entrypoint. Clients use `RemoteEnvironmentService.connect` to obtain an
+authenticated loopback endpoint, then instantiate the ordinary `ClineCore` remote
+backend. The helper uploads are content-addressed and the remote Hub binds only
+to loopback. SSH forwards that endpoint to a local ephemeral port. The helper's
+explicit discovery record is separate from the remote account's default Hub.
+
+Desktop retains presentation, packaged-resource lookup, and its environment-to-
+runtime bindings. Settings and the chat environment selector call the shared
+service; each runtime binding supplies the same session/approval/event APIs.
+Workspace and session reads route by environment identity. System-prompt
+bootstrap happens on the remote host when the caller omits a prompt, so local
+filesystem metadata is not embedded in remote sessions. Login-shell PATH
+resolution also lives in core and is reused by the helper and desktop startup.
+
+### Configured subagent approvals
+
+Configured subagents execute their available tools without inheriting the parent
+session’s tool approval policies or approval callback, matching generic subagents
+and teammates. The parent’s `subagent_<name>` delegation call still follows the
+parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
+effect when constructing child tools. Inherited runtime hooks are unchanged.

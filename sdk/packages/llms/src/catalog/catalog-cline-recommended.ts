@@ -1,13 +1,16 @@
 import { getClineEnvironmentConfig } from "@cline/shared";
+import { buildClineClientHeaders } from "../providers/cline-client-headers";
 import type { ModelInfo } from "./types";
 
 export interface ClineRecommendedModelEntry {
 	id: string;
 	name?: string;
 	description?: string;
+	tags?: string[];
 }
 
 export interface ClineRecommendedModelsPayload {
+	recommended?: ClineRecommendedModelEntry[];
 	clinePass?: ClineRecommendedModelEntry[];
 	free?: ClineRecommendedModelEntry[];
 	clineCloud?: ClineRecommendedModelEntry[];
@@ -71,6 +74,7 @@ function buildModelsNameMap(
 export function normalizeClineRecommendedProviderModels(
 	payload: ClineRecommendedModelsPayload,
 	openRouterModels: Record<string, ModelInfo>,
+	options: { includeClineCloudModels?: boolean } = {},
 ): Record<string, Record<string, ModelInfo>> {
 	const clinePass = payload.clinePass ?? [];
 	const models: Record<string, ModelInfo> = {};
@@ -84,6 +88,7 @@ export function normalizeClineRecommendedProviderModels(
 			// We should use the OR name, unless there is not one (like when using defaults)
 			name: entry.name,
 			...capabilities,
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 			id: entry.id,
 			description: entry.description,
 		};
@@ -103,9 +108,12 @@ export function normalizeClineRecommendedProviderModels(
 		// pickers end up rendering raw model ids for the Free section.
 		const entryName =
 			capabilities.name?.trim() || entry.name?.trim() || entry.id;
-		const name = entry.id.startsWith("cline-free/")
-			? `${entryName} (free)`
-			: entryName;
+		// The feed bucket determines free access, regardless of the ID namespace.
+		// Keep this visible even when a client has no featured-tier metadata.
+		const name =
+			!includeInClinePass || /\(free\)$/i.test(entryName)
+				? entryName
+				: `${entryName} (free)`;
 
 		const modelInfo = {
 			...capabilities,
@@ -132,9 +140,11 @@ export function normalizeClineRecommendedProviderModels(
 	(payload.free ?? []).forEach((entry) => {
 		addClineModel(entry, true);
 	});
-	(payload.clineCloud ?? []).forEach((entry) => {
-		addClineModel(entry, false);
-	});
+	if (options.includeClineCloudModels) {
+		(payload.clineCloud ?? []).forEach((entry) => {
+			addClineModel(entry, false);
+		});
+	}
 
 	const result: Record<string, Record<string, ModelInfo>> = {};
 	if (Object.keys(clineModels).length > 0) {
@@ -150,7 +160,7 @@ export async function fetchClineRecommendedModelsPayload(
 	fetcher: typeof fetch = fetch,
 ): Promise<ClineRecommendedModelsPayload> {
 	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/recommended-models`;
-	const response = await fetcher(url);
+	const response = await fetcher(url, { headers: buildClineClientHeaders() });
 	if (!response.ok) {
 		throw new Error(
 			`Failed to load Cline recommended models from ${url}: HTTP ${response.status}`,

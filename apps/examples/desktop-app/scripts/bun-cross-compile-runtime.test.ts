@@ -5,14 +5,14 @@ import {
 } from "./bun-cross-compile-runtime";
 
 describe("resolveWindowsCrossCompileRuntime", () => {
-	test("maps Bun's x64 target to its pinned release asset and cache name", () => {
+	test("maps Bun's baseline x64 target to its pinned release asset and cache name", () => {
 		expect(
-			resolveWindowsCrossCompileRuntime("bun-linux-x64", "1.3.13"),
+			resolveWindowsCrossCompileRuntime("bun-linux-x64-baseline", "1.3.13"),
 		).toMatchObject({
-			archiveName: "bun-linux-x64",
-			cacheFilename: "bun-linux-x64-v1.3.13",
+			archiveName: "bun-linux-x64-baseline",
+			cacheFilename: "bun-linux-x64-baseline-v1.3.13",
 			downloadUrl:
-				"https://github.com/oven-sh/bun/releases/download/bun-v1.3.13/bun-linux-x64.zip",
+				"https://github.com/oven-sh/bun/releases/download/bun-v1.3.13/bun-linux-x64-baseline.zip",
 			expectedMachine: 62,
 		});
 	});
@@ -38,7 +38,7 @@ describe("resolveWindowsCrossCompileRuntime", () => {
 
 	test("fails closed when Bun changes without updated checksums", () => {
 		expect(() =>
-			resolveWindowsCrossCompileRuntime("bun-linux-x64", "1.3.14"),
+			resolveWindowsCrossCompileRuntime("bun-linux-x64-baseline", "1.3.14"),
 		).toThrow("requires Bun 1.3.13");
 	});
 });

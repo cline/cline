@@ -2,13 +2,21 @@ import { homedir } from "node:os";
 import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
+	ensureLoginShellPath,
 	readGlobalSettings,
 	setHomeDirIfUnset,
-	setOptInToolEnabledGlobally,
+	setModelToolEnabledGlobally,
 	watchManagedHubBuildMismatch,
 } from "@cline/core";
-import { captureSdkError } from "@cline/shared";
+import { runRemoteHelperEntrypoint } from "@cline/core/remote/helper";
+import {
+	captureSdkError,
+	claimHubDaemonProcess,
+	disableCurrentDirectoryExecutableSearch,
+	setClineClientIdentity,
+} from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
+import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
 	broadcastEvent,
@@ -18,9 +26,7 @@ import {
 } from "./context";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
-import { runRemoteHelperEntrypoint } from "./remote-helper";
 import { startServer } from "./server";
-import { ensureLoginShellPath } from "./shell-path";
 import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
@@ -75,7 +81,7 @@ async function main() {
 	// unwritable settings file must not block startup over a default.
 	try {
 		if (readGlobalSettings().tools?.web_search === undefined) {
-			setOptInToolEnabledGlobally("web_search", true);
+			setModelToolEnabledGlobally("web_search", true);
 		}
 	} catch (error) {
 		observability.logger.error?.("Failed to seed web search default", {
@@ -231,6 +237,17 @@ async function runEntrypoint(): Promise<void> {
 	// config and must not consume the sentinel or start anything.
 	if (process.argv.includes("--telemetry-selfcheck")) {
 		runTelemetrySelfcheck();
+		return;
+	}
+	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
+
+	disableCurrentDirectoryExecutableSearch();
+	// Claim the Hub daemon sentinel here, not in the shared remote helper: its
+	// daemon import resolves to the dist build of @cline/core while this bundle
+	// resolves the source build, and a daemon from the other copy publishes a
+	// different build id, so the sidecar would retire its own Hub on launch.
+	if (claimHubDaemonProcess()) {
+		await import("@cline/core/hub/daemon-entry");
 		return;
 	}
 	if (await runRemoteHelperEntrypoint()) {

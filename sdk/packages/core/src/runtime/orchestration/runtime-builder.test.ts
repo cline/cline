@@ -137,16 +137,12 @@ describe("DefaultRuntimeBuilder", () => {
 		);
 	});
 
-	it("derives enabled provider tools without registering a local executor", async () => {
+	it("enables provider web search by default without a local executor", async () => {
 		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
 		tempDirs.push(settingsRoot);
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
 			settingsRoot,
 			"global-settings.json",
-		);
-		writeFileSync(
-			process.env.CLINE_GLOBAL_SETTINGS_PATH,
-			JSON.stringify({ tools: { web_search: { enabled: true } } }),
 		);
 
 		const runtime = await new DefaultRuntimeBuilder().build({
@@ -157,6 +153,40 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(runtime.tools.some((tool) => tool.name === "web_search")).toBe(
 			false,
 		);
+	});
+
+	it("excludes provider web search in yolo mode", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ mode: "yolo" }),
+		});
+
+		expect(runtime.modelTools).not.toContainEqual({ name: "web_search" });
+	});
+
+	it("honors an explicit web search opt-out", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools: { web_search: { enabled: false } } }),
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		expect(runtime.modelTools).not.toContainEqual({ name: "web_search" });
 	});
 
 	it("requests provider image generation for supported language models", async () => {

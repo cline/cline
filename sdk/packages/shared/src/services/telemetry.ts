@@ -90,6 +90,19 @@ export interface CaptureTaskLifecycleEventInput {
 	messageLimit?: number;
 }
 
+/**
+ * Why an out-of-process host spawned this core. The JetBrains plugin sets it via
+ * `CLINE_CORE_SPAWN_REASON`; keep in sync with its `SpawnReason`.
+ */
+export const CORE_SPAWN_REASONS = [
+	"initial",
+	"crash_restart",
+	"rollout_fallback",
+	"rollout_demotion",
+	"user_restart",
+] as const;
+export type CoreSpawnReason = (typeof CORE_SPAWN_REASONS)[number];
+
 export interface TelemetryMetadata {
 	extension_version: string;
 	/**
@@ -105,6 +118,13 @@ export interface TelemetryMetadata {
 	os_version: string;
 	is_dev?: string;
 	is_remote_workspace?: boolean;
+	/**
+	 * Spawn-time facts reported by an out-of-process host (the JetBrains plugin): how many
+	 * cores this host window has spawned so far and why this one was started. Absent when the
+	 * host runs core in-process (VS Code).
+	 */
+	core_spawn_ordinal?: number;
+	core_spawn_reason?: CoreSpawnReason;
 }
 
 export interface ITelemetryService {
@@ -438,6 +458,29 @@ function numberValue(value: unknown): number | undefined {
 		: undefined;
 }
 
+/**
+ * Marker property stamped onto a tracer provider whose span processors
+ * include a real OTLP exporter — the collector relay. Trace decisions must
+ * identify the relay explicitly instead of inferring it from "some recording
+ * tracer exists": a console-only tracer would otherwise be misclassified as
+ * a relay. A property on the provider instance (reached through the OTel API
+ * global) survives bundled module duplication, which a module-level registry
+ * would not.
+ */
+export const OTLP_TRACE_RELAY_MARKER = "_clineOtlpTraceRelay";
+
+export function markOtlpTraceRelayProvider(provider: object): void {
+	(provider as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER] = true;
+}
+
+export function isOtlpTraceRelayProvider(provider: unknown): boolean {
+	return (
+		!!provider &&
+		typeof provider === "object" &&
+		(provider as Record<string, unknown>)[OTLP_TRACE_RELAY_MARKER] === true
+	);
+}
+
 export interface OpenTelemetryClientConfig {
 	/**
 	 * Whether telemetry is enabled via OTEL_TELEMETRY_ENABLED
@@ -461,6 +504,17 @@ export interface OpenTelemetryClientConfig {
 	 * Examples: "console", "otlp". When unset, no `TracerProvider` is registered.
 	 */
 	tracesExporter?: string;
+
+	/**
+	 * OTel resource `service.name` (default "cline"). Distinguishes processes
+	 * that ship in the same binary — e.g. the CLI vs the detached hub daemon.
+	 */
+	serviceName?: string;
+
+	/**
+	 * OTel resource `service.version`.
+	 */
+	serviceVersion?: string;
 
 	/**
 	 * Protocol for OTLP exporters. SDK support is currently limited to "http/json".
