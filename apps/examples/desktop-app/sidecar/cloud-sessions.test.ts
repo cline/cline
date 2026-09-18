@@ -303,16 +303,27 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
-	it("forwards cloud images and continues rejecting file attachments", async () => {
+	it("forwards image-only cloud messages and rejects file attachments", async () => {
 		const { ctx, hub, manager } = createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 		const image = "data:image/png;base64,aGVsbG8=";
+		const commandsBeforeInvalidPrompt = hub.commands.length;
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: "ses-outer",
+				prompt: "",
+				attachments: { userImages: ["", "   "] },
+				config: { executionTarget: "cloud" },
+			}),
+		).rejects.toThrow("prompt or image is required");
+		expect(hub.commands).toHaveLength(commandsBeforeInvalidPrompt);
 
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId: "ses-outer",
-			prompt: "Inspect this image",
+			prompt: "",
 			attachments: { userImages: [image] },
 			config: {
 				executionTarget: "cloud",
@@ -323,7 +334,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		expect(hub.commands.at(-1)).toMatchObject({
 			command: "session.send_input",
 			payload: {
-				prompt: "Inspect this image",
+				prompt: "",
 				delivery: undefined,
 				attachments: { userImages: [image] },
 			},
