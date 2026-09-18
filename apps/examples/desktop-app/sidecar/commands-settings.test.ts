@@ -15,19 +15,10 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx: SidecarContext = {
-		...createSidecarContext("/local/workspace"),
-		wsClients: new Set([
-			{
-				send(message: string) {
-					const parsed = JSON.parse(message) as {
-						event: { name: string; payload: Record<string, unknown> };
-					};
-					events.push(parsed.event);
-				},
-			},
-		]),
-	};
+	const ctx = createSidecarContext("/local/workspace");
+	ctx.wsClients.add({
+		send: (message) => events.push(JSON.parse(message).event),
+	});
 	return { ctx, events };
 }
 
