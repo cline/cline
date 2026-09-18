@@ -903,7 +903,7 @@ describe("CloudSessionManager Hub runtime", () => {
 				throw new HubTransportError("hub_connect_failed", "pod starting");
 			}
 		})();
-		const archive = hasArchive
+		const archive: unknown[] | null = hasArchive
 			? [{ role: "assistant", content: [{ type: "text", text: "Saved reply" }] }]
 			: null;
 		const { manager } = createFixture({
