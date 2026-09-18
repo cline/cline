@@ -1479,11 +1479,14 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
-		// Fence first: mark resumable before aborting so any straggler events from the aborted
-		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
-		// in S6; this sets the authoritative phase now.)
+		// Fence first: mark resumable and invalidate provisioning before any abort await,
+		// so straggler work cannot restore the cancelled turn's streaming state.
 		this.turnStateTracker.set("resumable")
+		const cancelledPendingCloudStart = this.cloud.cancelPendingStart()
 		await this.taskControl.cancelTask()
+		if (cancelledPendingCloudStart) {
+			await this.postStateToWebview()
+		}
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
