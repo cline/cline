@@ -580,8 +580,14 @@ export class McpHub {
 						Logger.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
-							connection.server.status = "disconnected"
-							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+							if (error instanceof UnauthorizedError) {
+								// auth() returned 'REDIRECT' mid-session: tokens were cleared and
+								// re-authorization is required. Mirror the connectToServer catch path.
+								this.markConnectionUnauthenticated(connection)
+							} else {
+								connection.server.status = "disconnected"
+								this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+							}
 						}
 						// onerror's promise is discarded, so a rejection here
 						// would surface as an unhandled rejection
@@ -678,24 +684,7 @@ export class McpHub {
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
-					Logger.log(`Server "${name}" requires OAuth authentication`)
-					const unauthConnection: McpConnection = {
-						server: {
-							name,
-							config: JSON.stringify(config),
-							status: "disconnected",
-							disabled: false,
-							oauthRequired: true,
-							oauthAuthStatus: "unauthenticated",
-							error: "This MCP server requires authentication to get started.",
-						},
-						client,
-						transport,
-						authProvider, // CRITICAL: Keep authProvider so it's available when user authenticates!
-					}
-					// Replace the connection with unauthenticated version
-					this.connections = this.connections.filter((conn) => conn.server.name !== name)
-					this.connections.push(unauthConnection)
+					this.markConnectionUnauthenticated(connection)
 					await this.notifyWebviewOfServerChanges()
 					return // Don't throw, just mark as needs auth
 				}
@@ -816,6 +805,26 @@ export class McpHub {
 	private appendErrorMessage(connection: McpConnection, error: string) {
 		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
 		connection.server.error = newError //.slice(0, 800)
+	}
+
+	private markConnectionUnauthenticated(connection: McpConnection): void {
+		Logger.log(`Server "${connection.server.name}" requires OAuth authentication`)
+		const unauthConnection: McpConnection = {
+			server: {
+				name: connection.server.name,
+				config: connection.server.config,
+				status: "disconnected",
+				disabled: false,
+				oauthRequired: true,
+				oauthAuthStatus: "unauthenticated",
+				error: "This MCP server requires authentication to get started.",
+			},
+			client: connection.client,
+			transport: connection.transport,
+			authProvider: connection.authProvider,
+		}
+		this.connections = this.connections.filter((conn) => conn.server.name !== connection.server.name)
+		this.connections.push(unauthConnection)
 	}
 
 	/**
