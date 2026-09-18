@@ -28,6 +28,8 @@ import {
 	updatedAt,
 } from "./cloud-session-snapshots";
 import {
+	getEnvironmentContext,
+	getSidecarContextOwner,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -971,6 +973,7 @@ export class CloudSessionManager {
 		private readonly ctx: SidecarContext,
 		private readonly options: CloudSessionManagerOptions,
 	) {
+		this.ctx = getEnvironmentContext(ctx, "local");
 		this.createHubClient =
 			options.createHubClient ??
 			((clientOptions) => new NodeHubClient(clientOptions));
@@ -1144,9 +1147,16 @@ export class CloudSessionManager {
 				refresh.then(
 					(value) => ({ value }),
 					(error) => {
-						this.ctx.logger?.error?.("Cloud session discovery failed", {
-							error,
-						});
+						if (
+							!(
+								error instanceof CloudSessionError &&
+								error.code === "authentication_required"
+							)
+						) {
+							this.ctx.logger?.error?.("Cloud session discovery failed", {
+								error,
+							});
+						}
 						return { value: this.lastListedSessions };
 					},
 				),
@@ -2555,6 +2565,7 @@ export class CloudSessionManager {
 export function getCloudSessionManager(
 	ctx: SidecarContext,
 ): CloudSessionManager {
+	ctx = getSidecarContextOwner(ctx);
 	const existing = ctx.cloudSessionManager;
 	if (existing instanceof CloudSessionManager) {
 		return existing;
@@ -2584,6 +2595,9 @@ export function getCloudSessionManager(
 		) {
 			return activeOrgCache.id;
 		}
+		if (!(await getAuthToken())?.trim()) {
+			return undefined;
+		}
 		const organizations = await accountService.fetchUserOrganizations();
 		const id = organizations?.find(
 			(organization) => organization.active,
@@ -2604,6 +2618,7 @@ export function getCloudSessionManager(
 export async function resetCloudSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
+	ctx = getSidecarContextOwner(ctx);
 	const manager = ctx.cloudSessionManager;
 	ctx.cloudSessionManager = null;
 	await manager?.dispose();
