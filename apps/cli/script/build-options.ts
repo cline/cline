@@ -3,6 +3,7 @@ export interface BuildOptions {
 	skipInstall: boolean;
 	skipSdkBuild: boolean;
 	installNativeVariants: boolean;
+	requireDarwinCodesign: boolean;
 }
 
 export function parseBuildOptions(args: readonly string[]): BuildOptions {
@@ -11,6 +12,7 @@ export function parseBuildOptions(args: readonly string[]): BuildOptions {
 		skipInstall: args.includes("--skip-install"),
 		skipSdkBuild: args.includes("--skip-sdk-build"),
 		installNativeVariants: args.includes("--install-native-variants"),
+		requireDarwinCodesign: args.includes("--require-darwin-codesign"),
 	};
 }
 
@@ -29,9 +31,21 @@ export function validateBuildOptions(input: {
 	options: BuildOptions;
 	opentuiVersion: string | undefined;
 	targetCount: number;
+	buildsDarwin: boolean;
+	platform: string;
 }): string | undefined {
 	if (input.targetCount === 0) {
 		return "No matching targets for this platform.";
+	}
+	if (
+		input.options.requireDarwinCodesign &&
+		input.buildsDarwin &&
+		input.platform !== "darwin"
+	) {
+		return [
+			`Cannot codesign Darwin binaries on ${input.platform}.`,
+			"Build Darwin release binaries on macOS, or omit --require-darwin-codesign for local cross-compilation.",
+		].join(" ");
 	}
 	if (
 		input.opentuiVersion &&
