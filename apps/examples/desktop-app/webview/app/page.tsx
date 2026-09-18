@@ -77,6 +77,7 @@ import {
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
 import {
+	cloudImageAttachmentError,
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
 	isUnsupportedImageAttachment,
@@ -1705,22 +1706,27 @@ function ChatThreadPane({
 						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
 				});
 			}
-			setPendingAttachments((prev) => {
-				const existing = new Set(
-					prev.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
-				);
-				const next = [...prev];
-				for (const file of supportedFiles) {
-					const key = `${file.name}:${file.size}:${file.lastModified}`;
-					if (!existing.has(key)) {
-						existing.add(key);
-						next.push(file);
-					}
+			const existing = new Set(
+				pendingAttachments.map(
+					(file) => `${file.name}:${file.size}:${file.lastModified}`,
+				),
+			);
+			const next = [...pendingAttachments];
+			for (const file of supportedFiles) {
+				const key = `${file.name}:${file.size}:${file.lastModified}`;
+				if (!existing.has(key)) {
+					existing.add(key);
+					next.push(file);
 				}
-				return next;
-			});
+			}
+			const error = isCloudSession && cloudImageAttachmentError(next);
+			if (error) {
+				toast({ title: "Cloud attachment limit", description: error });
+				return;
+			}
+			setPendingAttachments(next);
 		},
-		[isCloudSession],
+		[isCloudSession, pendingAttachments],
 	);
 
 	const handleSend = useCallback(

@@ -966,6 +966,7 @@ export class CloudSessionManager {
 		Promise<CloudConnection>
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
+	private readonly pendingInitialTasks = new Set<string>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
@@ -1261,6 +1262,7 @@ export class CloudSessionManager {
 			updatedAt: new Date().toISOString(),
 		};
 		this.knownSessions.set(record.id, record);
+		this.pendingInitialTasks.add(record.id);
 		const live = recordToLiveSession(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
 		// REST does not round-trip the client-side approval preference.
@@ -1422,8 +1424,15 @@ export class CloudSessionManager {
 		};
 		if (live && ownsBusyState) {
 			live.busy = true;
+			const statusChanged = live.status !== "running";
 			live.status = "running";
 			live.prompt ||= prompt;
+			if (statusChanged) {
+				sendEvent(this.ctx, "chat_session_status", {
+					sessionId: outerSessionId,
+					status: "running",
+				});
+			}
 		}
 		const record = this.knownSessions.get(outerSessionId);
 		if (
@@ -1646,11 +1655,17 @@ export class CloudSessionManager {
 			).trim();
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
 
-			const messagesReply = await connection.client.command(
-				"session.messages",
-				{ sessionId: innerSessionId },
-				innerSessionId,
-			);
+			const readMessages = () =>
+				connection.client.command(
+					"session.messages",
+					{ sessionId: innerSessionId },
+					innerSessionId,
+				);
+			const messagesReply = await readMessages().catch((error) => {
+				if (!isHubCommandTimeoutError(error, "session.messages")) throw error;
+				this.assertSessionActive(outerSessionId, connection);
+				return readMessages();
+			});
 			this.assertSessionActive(outerSessionId, connection);
 			if (!Array.isArray(messagesReply.payload?.messages)) {
 				throw new Error("Cloud Hub returned an invalid transcript snapshot");
@@ -2014,6 +2029,7 @@ export class CloudSessionManager {
 				}
 			}
 			this.knownSessions.delete(outerSessionId);
+			this.pendingInitialTasks.delete(outerSessionId);
 			this.ctx.liveSessions.delete(outerSessionId);
 			this.sendAbortTokens.delete(outerSessionId);
 			for (const [requestId, pending] of this.ctx.pendingApprovals) {
@@ -2047,6 +2063,7 @@ export class CloudSessionManager {
 			this.sendApprovalSnapshot(sessionId);
 		}
 		this.knownSessions.clear();
+		this.pendingInitialTasks.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
 				this.disposeConnection(sessionId),
@@ -2365,7 +2382,15 @@ export class CloudSessionManager {
 				.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
 		}
 		const innerSessionId = String(session?.sessionId ?? "").trim();
-		if (!innerSessionId) return;
+		if (!innerSessionId) {
+			if (!this.pendingInitialTasks.has(outerSessionId)) {
+				throw new Error(
+					"This cloud session's task is unavailable. Start a new cloud session to continue.",
+				);
+			}
+			return;
+		}
+		this.pendingInitialTasks.delete(outerSessionId);
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(outerSessionId, connection);
 		const modelId = sessionRowModelId(session);
@@ -2452,6 +2477,7 @@ export class CloudSessionManager {
 		}
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(connection.remote.id, connection);
+		this.pendingInitialTasks.delete(connection.remote.id);
 		this.applySessionModel(connection, session);
 		// A newly-created inner session has an authoritative empty transcript.
 		connection.transcriptKnown = true;
