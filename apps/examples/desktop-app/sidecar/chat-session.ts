@@ -2005,13 +2005,14 @@ async function assertHandoffIdle(
 		throw new Error("Wait for the current send to finish before handing off.");
 	}
 	const live = ctx.liveSessions.get(sessionId);
-	const workspaceKey = workspacePathKey(live?.config);
+	const persisted = await manager.get(sessionId);
+	const workspaceKey =
+		workspacePathKey(live?.config) ?? workspacePathKey(persisted);
 	if (workspaceKey && ctx.restoringWorkspacePaths.has(workspaceKey)) {
 		throw new Error(
 			"Wait for the workspace restore to finish before handing off to cloud.",
 		);
 	}
-	const persisted = await manager.get(sessionId);
 	if (!live && !persisted) {
 		throw new Error(`Session ${sessionId} was not found.`);
 	}
