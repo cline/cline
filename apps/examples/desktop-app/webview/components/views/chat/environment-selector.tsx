@@ -151,7 +151,7 @@ export function EnvironmentSelector({
 				</DropdownMenuItem>
 
 				<DropdownMenuSeparator />
-				<DropdownMenuLabel className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+				<DropdownMenuLabel className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 					<Cloud className="size-4" />
 					<span>Cloud</span>
 					<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
@@ -161,7 +161,7 @@ export function EnvironmentSelector({
 
 				<DropdownMenuSeparator />
 				<div className="flex items-center justify-between">
-					<DropdownMenuLabel className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+					<DropdownMenuLabel className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 						<Server className="size-4" />
 						Remote
 					</DropdownMenuLabel>
