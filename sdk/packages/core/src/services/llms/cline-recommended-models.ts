@@ -1,15 +1,14 @@
 import {
-	buildClineClientHeaders,
+	type ClineCatalogContext,
+	clineCatalogCacheKey,
 	GENERATED_CLINE_RECOMMENDED_MODELS,
+	getClineRecommendedModelsPayload,
 	getGeneratedProviderModels,
+	resetClineRecommendedPayloadCache,
 	VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 } from "@cline/llms";
-import {
-	getClineEnvironmentConfig,
-	type ProviderModel,
-	type ProviderModelFeaturedTier,
-} from "@cline/shared";
-import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import type { ProviderModel, ProviderModelFeaturedTier } from "@cline/shared";
+
 import { getLiveModelsCatalog } from "./provider-defaults";
 import type { ModelInfo } from "./provider-settings";
 
@@ -29,13 +28,8 @@ export interface ClineRecommendedModelsData {
 
 type ModelsCatalog = Record<string, Record<string, ModelInfo>>;
 
-export interface FetchClineRecommendedModelsOptions {
-	baseUrl?: string;
-	fetchImpl?: typeof fetch;
-	providerSettingsManager?: Pick<
-		ProviderSettingsManager,
-		"getProviderSettings"
-	>;
+export interface FetchClineRecommendedModelsOptions
+	extends ClineCatalogContext {
 	timeoutMs?: number;
 	/**
 	 * Loader for the live models catalog used to resolve display names.
@@ -111,38 +105,6 @@ function normalizeResponse(raw: unknown): ClineRecommendedModelsData | null {
 	}
 
 	return { recommended, free, clinePass };
-}
-
-function getConfiguredApiBaseUrl(
-	options: FetchClineRecommendedModelsOptions,
-): string {
-	const explicitBaseUrl = options.baseUrl?.trim();
-	if (explicitBaseUrl) return explicitBaseUrl;
-
-	const fallbackBaseUrl = getClineEnvironmentConfig().apiBaseUrl;
-	try {
-		const manager =
-			options.providerSettingsManager ?? new ProviderSettingsManager();
-		const settings = manager.getProviderSettings("cline");
-		return settings?.baseUrl?.trim() || fallbackBaseUrl;
-	} catch {
-		return fallbackBaseUrl;
-	}
-}
-
-async function fetchWithTimeout(
-	fetchImpl: typeof fetch,
-	input: string,
-	timeoutMs: number,
-	headers: Record<string, string>,
-): Promise<Response> {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		return await fetchImpl(input, { headers, signal: controller.signal });
-	} finally {
-		clearTimeout(timer);
-	}
 }
 
 // The featured pickers render these names next to their own FREE chips and
@@ -261,21 +223,12 @@ export async function fetchClineRecommendedModels(
 	// promise resolves on a microtask, ahead of the zero-delay timer.
 	const deadline = Date.now() + timeoutMs;
 	try {
-		const base = getConfiguredApiBaseUrl(options);
-		const fetchImpl = options.fetchImpl ?? fetch;
-		const resp = await fetchWithTimeout(
-			fetchImpl,
-			`${base}/api/v1/ai/cline/recommended-models`,
-			timeoutMs,
-			buildClineClientHeaders(),
-		);
-		if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-		const json: unknown = await resp.json();
+		const json = await getClineRecommendedModelsPayload(options, timeoutMs);
 		const data = normalizeResponse(json);
 		if (data) {
 			return await resolveDisplayNames(
 				data,
-				options.catalogLoader ?? getLiveModelsCatalog,
+				options.catalogLoader ?? (() => getLiveModelsCatalog({}, options)),
 				Math.max(0, deadline - Date.now()),
 			);
 		}
@@ -292,69 +245,60 @@ export async function fetchClineRecommendedModels(
 
 const FEED_CACHE_TTL_MS = 5 * 60_000;
 
-let feedCache: {
-	data: ClineRecommendedModelsData;
-	expiresAt: number;
-} | null = null;
-let feedInFlight: Promise<ClineRecommendedModelsData> | null = null;
+const feedCaches = new Map<
+	string,
+	{ data: ClineRecommendedModelsData; expiresAt: number }
+>();
+const feedRequests = new Map<string, Promise<ClineRecommendedModelsData>>();
 let feedGeneration = 0;
 
-/**
- * `fetchClineRecommendedModels` with a shared in-memory cache, for callers on
- * the model-list path (every picker open) where a per-call network round-trip
- * — or its 5s offline timeout — is unacceptable. The bundled offline fallback
- * is cached too: paying the timeout once per TTL beats paying it on every
- * model list while offline, and a recovered network is picked up within the
- * TTL.
- */
 export async function getCachedClineRecommendedModels(
 	options: FetchClineRecommendedModelsOptions = {},
 ): Promise<ClineRecommendedModelsData> {
-	if (feedCache && feedCache.expiresAt > Date.now()) {
-		return cloneRecommendedModels(feedCache.data);
+	const key = clineCatalogCacheKey(options);
+	const cached = feedCaches.get(key);
+	if (cached && cached.expiresAt > Date.now())
+		return cloneRecommendedModels(cached.data);
+	const pendingKey = JSON.stringify([
+		key,
+		options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+	]);
+	let request = feedRequests.get(pendingKey);
+	if (!request) {
+		const generation = feedGeneration;
+		request = fetchClineRecommendedModels(options)
+			.then((data) => {
+				if (generation === feedGeneration)
+					feedCaches.set(key, {
+						data,
+						expiresAt: Date.now() + FEED_CACHE_TTL_MS,
+					});
+				return data;
+			})
+			.finally(() => {
+				if (generation === feedGeneration) feedRequests.delete(pendingKey);
+			});
+		feedRequests.set(pendingKey, request);
 	}
-	if (feedInFlight) {
-		return feedInFlight;
-	}
-	// A cache reset must orphan requests already in flight: without the
-	// generation check their completion would repopulate the cache the reset
-	// just cleared (test pollution; stale data after an intentional reset).
-	const generation = feedGeneration;
-	const request = fetchClineRecommendedModels(options)
-		.then((data) => {
-			if (generation === feedGeneration) {
-				feedCache = { data, expiresAt: Date.now() + FEED_CACHE_TTL_MS };
-			}
-			return data;
-		})
-		.finally(() => {
-			if (generation === feedGeneration) {
-				feedInFlight = null;
-			}
-		});
-	feedInFlight = request;
-	return request;
+	return cloneRecommendedModels(await request);
 }
 
-/**
- * Synchronous, never-blocking view of the feed: the cached live data when
- * fresh, otherwise the bundled fallback. For callers that build model lists
- * eagerly and must not wait on the network (the provider catalog at startup),
- * so even a cold boot renders tiered sections instead of a flat list. The
- * async `getCachedClineRecommendedModels` path refreshes the cache, after
- * which peeks serve live data for the TTL.
- */
-export function peekClineRecommendedModels(): ClineRecommendedModelsData {
-	if (feedCache && feedCache.expiresAt > Date.now()) {
-		return cloneRecommendedModels(feedCache.data);
-	}
-	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
+export function peekClineRecommendedModels(
+	options: ClineCatalogContext = {},
+): ClineRecommendedModelsData {
+	const cached = feedCaches.get(clineCatalogCacheKey(options));
+	return cloneRecommendedModels(
+		cached && cached.expiresAt > Date.now()
+			? cached.data
+			: FALLBACK_CLINE_RECOMMENDED_MODELS,
+	);
 }
 
 export function resetClineRecommendedModelsCacheForTests(): void {
-	feedGeneration += 1;
-	feedCache = null;
-	feedInFlight = null;
+	resetClineRecommendedPayloadCache();
+	feedGeneration++;
+	feedCaches.clear();
+	feedRequests.clear();
 }
 
 const FEATURED_TIER_BUCKETS: Record<

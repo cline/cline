@@ -1,7 +1,7 @@
 import {
 	getCurrentContextSize,
 	type ProviderSettings,
-	ProviderSettingsManager,
+	type ProviderSettingsManager,
 	setCompactionModeGlobally,
 	setPlanActModeGlobally,
 	setToolAutoApproveGlobally,
@@ -42,6 +42,7 @@ import {
 	writeln,
 } from "../utils/output";
 import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
+import { getCliProviderSettingsManager } from "../utils/provider-settings";
 import { readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import {
@@ -271,7 +272,7 @@ export async function runInteractive(
 		autoApproveAllRef,
 		askQuestionRef: tuiAskQuestion,
 	});
-	const providerSettingsManager = new ProviderSettingsManager();
+	const providerSettingsManager = getCliProviderSettingsManager();
 	let zeroCurrentTurnCost = false;
 
 	const sessionRuntime = createInteractiveSessionRuntime({

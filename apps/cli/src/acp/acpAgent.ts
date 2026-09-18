@@ -27,7 +27,6 @@ import {
 	type AgentEvent,
 	type ClineCore,
 	Llms,
-	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
 import { isLikelyAuthError, type MessageWithMetadata } from "@cline/shared";
@@ -38,6 +37,7 @@ import { createCliCore } from "../session/session";
 import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
+import { getCliProviderSettingsManager } from "../utils/provider-settings";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,
@@ -110,7 +110,8 @@ interface SessionState {
 export class AcpAgent implements Agent {
 	private sessions = new Map<string, SessionState>();
 	private readonly conn: AgentSideConnection;
-	private readonly providerSettingsManager = new ProviderSettingsManager();
+	private readonly providerSettingsManager =
+		getCliProviderSettingsManager("cline-acp");
 	private readonly defaultAutoApproveTools: boolean;
 
 	/** Set after a successful `authenticate` call. */

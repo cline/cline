@@ -638,7 +638,15 @@ export function mapPersistedMessagesToWebviewMessages(
 class CoreChatWebviewController implements vscode.Disposable {
 	private readonly logger: BasicLogger;
 	private readonly disposables: vscode.Disposable[] = [];
-	private readonly providerSettingsManager = new ProviderSettingsManager();
+	private readonly providerSettingsManager = new ProviderSettingsManager({
+		client: {
+			name: "cline-vscode",
+			version,
+			platform: "VS Code",
+			platformVersion: vscode.version,
+			isMultiRoot: (vscode.workspace.workspaceFolders?.length ?? 0) > 1,
+		},
+	});
 	private readonly telemetry: ITelemetryService;
 	private host: ClineCore | undefined;
 	private hubClient: NodeHubClient | undefined;

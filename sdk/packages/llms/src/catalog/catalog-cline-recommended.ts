@@ -1,5 +1,9 @@
-import { getClineEnvironmentConfig } from "@cline/shared";
 import { buildClineClientHeaders } from "../providers/cline-client-headers";
+import {
+	type ClineCatalogContext,
+	clineCatalogBaseUrl,
+	clineCatalogCacheKey,
+} from "./cline-catalog-context";
 import type { ModelInfo } from "./types";
 
 export interface ClineRecommendedModelEntry {
@@ -158,9 +162,12 @@ export function normalizeClineRecommendedProviderModels(
 
 export async function fetchClineRecommendedModelsPayload(
 	fetcher: typeof fetch = fetch,
+	context: ClineCatalogContext = {},
 ): Promise<ClineRecommendedModelsPayload> {
-	const url = `${getClineEnvironmentConfig().apiBaseUrl}/api/v1/ai/cline/recommended-models`;
-	const response = await fetcher(url, { headers: buildClineClientHeaders() });
+	const url = `${clineCatalogBaseUrl(context)}/api/v1/ai/cline/recommended-models`;
+	const response = await fetcher(url, {
+		headers: buildClineClientHeaders(context.client),
+	});
 	if (!response.ok) {
 		throw new Error(
 			`Failed to load Cline recommended models from ${url}: HTTP ${response.status}`,
@@ -176,4 +183,54 @@ export async function fetchClineRecommendedProviderModels(
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const payload = await fetchClineRecommendedModelsPayload(fetcher);
 	return normalizeClineRecommendedProviderModels(payload, openRouterModels);
+}
+
+// The picker feed and catalog overlay share this request and successful payload.
+const payloadCache = new Map<
+	string,
+	{ data: ClineRecommendedModelsPayload; expiresAt: number }
+>();
+const pendingPayloads = new Map<
+	string,
+	Promise<ClineRecommendedModelsPayload>
+>();
+let payloadGeneration = 0;
+export async function getClineRecommendedModelsPayload(
+	context: ClineCatalogContext = {},
+	timeoutMs = 5_000,
+): Promise<ClineRecommendedModelsPayload> {
+	const key = clineCatalogCacheKey(context);
+	const cached = payloadCache.get(key);
+	if (cached && cached.expiresAt > Date.now())
+		return structuredClone(cached.data);
+	// Requests with different deadlines must not share an abort signal.
+	const pendingKey = JSON.stringify([key, timeoutMs]);
+	let pending = pendingPayloads.get(pendingKey);
+	if (!pending) {
+		const generation = payloadGeneration;
+		const fetcher = context.fetchImpl ?? globalThis.fetch;
+		const signal = AbortSignal.timeout(timeoutMs);
+		const boundedFetch = Object.assign(
+			(input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+				fetcher(input, { ...init, signal }),
+			fetcher,
+		);
+		pending = fetchClineRecommendedModelsPayload(boundedFetch, context)
+			.then((data) => {
+				if (generation === payloadGeneration)
+					payloadCache.set(key, { data, expiresAt: Date.now() + 5 * 60_000 });
+				return data;
+			})
+			.finally(() => {
+				if (generation === payloadGeneration)
+					pendingPayloads.delete(pendingKey);
+			});
+		pendingPayloads.set(pendingKey, pending);
+	}
+	return structuredClone(await pending);
+}
+export function resetClineRecommendedPayloadCache(): void {
+	payloadGeneration++;
+	payloadCache.clear();
+	pendingPayloads.clear();
 }

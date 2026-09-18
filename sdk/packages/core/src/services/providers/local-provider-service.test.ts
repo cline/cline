@@ -580,9 +580,8 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline");
 
-		// models.dev and the recommended feed populate the live catalog; the
-		// recommended feed is fetched once more for the featured-tier overlay.
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// models.dev and one shared recommendation request populate both catalog and tiers.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models.find((model) => model.id === liveModelId)).toMatchObject({
 			id: liveModelId,
 			name: "Live Cline Model",
@@ -642,9 +641,8 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		const { models } = await getLocalProviderModels("cline-pass");
 
 		// models.dev, the recommended-models feed via the live catalog, and
-		// the recommended-models feed again for the featured-tier overlay
-		// (separately cached; both caches are cold here).
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// the same recommendation payload supplies the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -697,7 +695,7 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			loadLatest: true,
 		});
 
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models).toContainEqual(
 			expect.objectContaining({
 				id: "cline-cloud/claude-sonnet-4.6",
@@ -743,9 +741,8 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		const { models } = await getLocalProviderModels("cline-pass");
 
 		// models.dev, the recommended-models feed via the live catalog, and
-		// the recommended-models feed again for the featured-tier overlay
-		// (separately cached; both caches are cold here).
-		expect(fetchMock).toHaveBeenCalledTimes(3);
+		// the same recommendation payload supplies the featured-tier overlay.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);
@@ -1939,7 +1936,7 @@ describe("listLocalProviders", () => {
 			await LlmsModels.getModelsForProvider("cline"),
 		);
 		const [recommendedId, freeId] = clineModelIds;
-		await getCachedClineRecommendedModels({
+		const context = {
 			baseUrl: "https://api.example.test",
 			fetchImpl: async () =>
 				new Response(
@@ -1958,7 +1955,12 @@ describe("listLocalProviders", () => {
 					{ status: 200, headers: { "Content-Type": "application/json" } },
 				),
 			catalogLoader: async () => ({}),
+		};
+		manager = new ProviderSettingsManager({
+			filePath: manager.getFilePath(),
+			...context,
 		});
+		await getCachedClineRecommendedModels(context);
 
 		const { providers } = await listLocalProviders(manager);
 		const modelList =

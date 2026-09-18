@@ -13,10 +13,8 @@ import {
 	captureSdkError,
 	claimHubDaemonProcess,
 	disableCurrentDirectoryExecutableSearch,
-	setClineClientIdentity,
 } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
-import { DESKTOP_CLIENT_CONTEXT } from "./client-context";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
 	broadcastEvent,
@@ -239,7 +237,6 @@ async function runEntrypoint(): Promise<void> {
 		runTelemetrySelfcheck();
 		return;
 	}
-	setClineClientIdentity(DESKTOP_CLIENT_CONTEXT);
 
 	disableCurrentDirectoryExecutableSearch();
 	// Claim the Hub daemon sentinel here, not in the shared remote helper: its

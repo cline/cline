@@ -1,4 +1,13 @@
 export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+export {
+	getClineRecommendedModelsPayload,
+	resetClineRecommendedPayloadCache,
+} from "./catalog/catalog-cline-recommended";
+export {
+	type ClineCatalogContext,
+	clineCatalogBaseUrl,
+	clineCatalogCacheKey,
+} from "./catalog/cline-catalog-context";
 export type {
 	GetModelsForProviderOptions,
 	ModelCollection,

@@ -2,8 +2,7 @@ import {
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getGeneratedProviderModels,
 } from "@cline/llms";
-import { setClineClientIdentity } from "@cline/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
@@ -95,10 +94,6 @@ function namesOf(data: ClineRecommendedModelsData) {
 }
 
 describe("fetchClineRecommendedModels", () => {
-	afterEach(() => {
-		setClineClientIdentity(undefined);
-	});
-
 	it("resolves display names from the models catalog", async () => {
 		const data = await fetchClineRecommendedModels({
 			baseUrl: BASE_URL,
@@ -124,10 +119,10 @@ describe("fetchClineRecommendedModels", () => {
 	});
 
 	it("identifies the client on the feed request", async () => {
-		setClineClientIdentity({ name: "VSCode Extension", version: "3.40.0" });
 		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
 
 		await fetchClineRecommendedModels({
+			client: { name: "VSCode Extension", version: "3.40.0" },
 			baseUrl: BASE_URL,
 			fetchImpl: fetchImpl as unknown as typeof fetch,
 			catalogLoader: async () => CATALOG,
@@ -480,7 +475,7 @@ describe("peekClineRecommendedModels", () => {
 	it("returns the cached live feed once warmed, without another fetch", async () => {
 		resetClineRecommendedModelsCacheForTests();
 		let calls = 0;
-		await getCachedClineRecommendedModels({
+		const options = {
 			baseUrl: BASE_URL,
 			fetchImpl: async () => {
 				calls += 1;
@@ -490,9 +485,9 @@ describe("peekClineRecommendedModels", () => {
 				});
 			},
 			catalogLoader: async () => CATALOG,
-		});
-
-		const peeked = peekClineRecommendedModels();
+		};
+		await getCachedClineRecommendedModels(options);
+		const peeked = peekClineRecommendedModels(options);
 
 		expect(calls).toBe(1);
 		expect(peeked.recommended.map((m) => m.id)).toEqual(
@@ -531,7 +526,8 @@ describe("generated offline featured models", () => {
 			(entry) => catalog.openrouter?.[entry.id]?.name,
 		);
 		expect(recommended).toBeDefined();
-		expect(recommended?.name).toBe(catalog.openrouter[recommended!.id].name);
+		if (!recommended) throw new Error("Expected a recommended catalog model");
+		expect(recommended.name).toBe(catalog.openrouter[recommended.id].name);
 		for (const providerId of ["cline", "cline-pass"]) {
 			const featured = applyClineFeaturedModels(
 				providerId,
@@ -555,7 +551,7 @@ describe("generated offline featured models", () => {
 			for (const { tier, entries } of tiers) {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
-					.sort((a, b) => a.featured!.rank - b.featured!.rank);
+					.sort((a, b) => (a.featured?.rank ?? 0) - (b.featured?.rank ?? 0));
 				expect(
 					stamped.map((entry) => ({
 						id: entry.id,
@@ -570,6 +566,61 @@ describe("generated offline featured models", () => {
 					})),
 				);
 			}
+		}
+	});
+});
+
+describe("cached recommendation deadlines", () => {
+	it.each([
+		true,
+		false,
+	])("preserves each timeout through the display-name cache (short first: %s)", async (shortFirst) => {
+		resetClineRecommendedModelsCacheForTests();
+		const short = new AbortController();
+		const long = new AbortController();
+		const timeout = vi
+			.spyOn(AbortSignal, "timeout")
+			.mockImplementation((ms) => (ms === 100 ? short.signal : long.signal));
+		const releases = new Map<AbortSignal, (response: Response) => void>();
+		const fetchImpl = vi.fn(
+			(_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+				new Promise<Response>((resolve, reject) => {
+					const signal = init?.signal;
+					if (!signal) throw new Error("Expected a bounded request");
+					releases.set(signal, resolve);
+					signal.addEventListener("abort", () => reject(signal.reason), {
+						once: true,
+					});
+				}),
+		);
+		try {
+			const options = {
+				baseUrl: BASE_URL,
+				fetchImpl,
+				catalogLoader: async () => CATALOG,
+			};
+			const first = getCachedClineRecommendedModels({
+				...options,
+				timeoutMs: shortFirst ? 100 : 5_000,
+			});
+			const second = getCachedClineRecommendedModels({
+				...options,
+				timeoutMs: shortFirst ? 5_000 : 100,
+			});
+			expect(fetchImpl).toHaveBeenCalledTimes(2);
+			short.abort(new Error("Short deadline"));
+			expect(await (shortFirst ? first : second)).toEqual(
+				FALLBACK_CLINE_RECOMMENDED_MODELS,
+			);
+			releases.get(long.signal)?.(Response.json(ENDPOINT_PAYLOAD));
+			const data = await (shortFirst ? second : first);
+			expect(data.recommended.map((model) => model.id)).toEqual(
+				ENDPOINT_PAYLOAD.recommended.map((model) => model.id),
+			);
+			expect(long.signal.aborted).toBe(false);
+		} finally {
+			timeout.mockRestore();
+			resetClineRecommendedModelsCacheForTests();
 		}
 	});
 });

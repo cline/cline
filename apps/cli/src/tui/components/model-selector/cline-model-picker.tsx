@@ -1,9 +1,7 @@
+import { getCliProviderSettingsManager } from "../../../utils/provider-settings";
 // @jsxImportSource @opentui/react
 
-import {
-	type ClineRecommendedModelsData,
-	fetchClineRecommendedModels,
-} from "@cline/core";
+import type { ClineRecommendedModelsData } from "@cline/core";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import "opentui-spinner/react";
@@ -37,7 +35,8 @@ export function useClineRecommendedModels() {
 
 	useEffect(() => {
 		let cancelled = false;
-		fetchClineRecommendedModels()
+		getCliProviderSettingsManager()
+			.getRecommendedModels()
 			.then((result) => {
 				if (!cancelled) setData(result);
 			})
@@ -103,7 +102,7 @@ export function ClineModelPicker(props: {
 			}
 
 			const tags = entry.model.tags;
-			// Names arrive display-ready from fetchClineRecommendedModels
+			// Names arrive display-ready from ProviderSettingsManager.getRecommendedModels
 			const name = entry.model.name || entry.model.id;
 			const isCurrent = currentModelId === entry.model.id;
 			rows.push(

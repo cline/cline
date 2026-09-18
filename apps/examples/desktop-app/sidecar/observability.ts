@@ -4,7 +4,6 @@ import {
 	createConfiguredTelemetryHandle,
 	type ITelemetryService,
 	identifyAccount,
-	ProviderSettingsManager,
 	setSdkLogger,
 } from "@cline/core";
 import type { UserContext } from "@cline/shared";
@@ -17,6 +16,7 @@ import {
 	createDesktopLoggerAdapter,
 	type DesktopLoggerAdapter,
 } from "./logging";
+import { getDesktopProviderSettingsManager } from "./provider-settings";
 
 export interface DesktopObservability {
 	readonly logger: DesktopLoggerAdapter["core"];
@@ -37,7 +37,8 @@ export function createDesktopObservability(): DesktopObservability {
 		logger,
 	});
 	const telemetry = telemetryHandle.telemetry;
-	const auth = new ProviderSettingsManager().getProviderSettings("cline")?.auth;
+	const auth =
+		getDesktopProviderSettingsManager().getProviderSettings("cline")?.auth;
 	const telemetryUser = resolveDesktopTelemetryUser({
 		accountId: auth?.accountId,
 		organizationId: auth?.organizationId,

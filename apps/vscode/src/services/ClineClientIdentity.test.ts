@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const identityMocks = vi.hoisted(() => ({
-	setClineClientIdentity: vi.fn(),
-}))
-
 const hostState = vi.hoisted(() => ({
 	hostVersion: {} as {
 		platform?: string
@@ -12,14 +8,12 @@ const hostState = vi.hoisted(() => ({
 		clineVersion?: string
 	},
 	hostVersionError: undefined as Error | undefined,
-}))
-
-vi.mock("@cline/shared", () => ({
-	setClineClientIdentity: identityMocks.setClineClientIdentity,
+	workspacePaths: [] as string[],
 }))
 
 vi.mock("@/hosts/host-provider", () => ({
 	HostProvider: {
+		workspace: { getWorkspacePaths: async () => ({ paths: hostState.workspacePaths }) },
 		env: {
 			getHostVersion: vi.fn(async () => {
 				if (hostState.hostVersionError) {
@@ -39,12 +33,12 @@ vi.mock("@/registry", () => ({
 	ExtensionRegistryInfo: { version: "9.9.9" },
 }))
 
-import { registerClineClientIdentity } from "./ClineClientIdentity"
+import { resolveClineClientIdentity } from "./ClineClientIdentity"
 
-describe("registerClineClientIdentity", () => {
+describe("resolveClineClientIdentity", () => {
 	beforeEach(() => {
-		identityMocks.setClineClientIdentity.mockClear()
 		hostState.hostVersionError = undefined
+		hostState.workspacePaths = []
 		hostState.hostVersion = {
 			platform: "Visual Studio Code",
 			version: "1.103.0",
@@ -54,9 +48,10 @@ describe("registerClineClientIdentity", () => {
 	})
 
 	it("publishes the host-reported client identity", async () => {
-		await registerClineClientIdentity()
+		const identity = await resolveClineClientIdentity()
 
-		expect(identityMocks.setClineClientIdentity).toHaveBeenCalledWith({
+		expect(identity).toEqual({
+			isMultiRoot: false,
 			name: "VSCode Extension",
 			version: "3.40.0",
 			platform: "Visual Studio Code",
@@ -64,12 +59,18 @@ describe("registerClineClientIdentity", () => {
 		})
 	})
 
+	it("includes the workspace multiroot state", async () => {
+		hostState.workspacePaths = ["/one", "/two"]
+		expect((await resolveClineClientIdentity()).isMultiRoot).toBe(true)
+	})
+
 	it("falls back to the extension's own identity when the host bridge fails", async () => {
 		hostState.hostVersionError = new Error("host bridge unavailable")
 
-		await registerClineClientIdentity()
+		const identity = await resolveClineClientIdentity()
 
-		expect(identityMocks.setClineClientIdentity).toHaveBeenCalledWith({
+		expect(identity).toEqual({
+			isMultiRoot: false,
 			name: "VSCode Extension",
 			version: "9.9.9",
 		})

@@ -1,12 +1,10 @@
 import {
 	captureProviderConfigured,
-	getLocalProviderModels,
 	getProviderConfigFields,
 	type ProviderConfigFieldKey,
 	type ProviderConfigFields,
-	ProviderSettingsManager,
+	type ProviderSettingsManager,
 	refreshProviderModelsFromSource,
-	resolveProviderConfig,
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
@@ -25,6 +23,7 @@ import {
 import open from "../../../utils/open";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
+import { getCliProviderSettingsManager } from "../../../utils/provider-settings";
 import { getCliTelemetryService } from "../../../utils/telemetry";
 import {
 	loadCurrentUserPlanFromProviderSettings,
@@ -88,7 +87,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const { onComplete } = props;
 	const theme = useTheme();
 	const providerSettingsManager = useMemo(
-		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
+		() => props.providerSettingsManager ?? getCliProviderSettingsManager(),
 		[props.providerSettingsManager],
 	);
 	const menuOptions = useMemo(
@@ -233,10 +232,10 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	useEffect(() => {
 		// The featured picker serves both cline and cline-pass, so pool
 		// reasoning support from both catalogs. Display names need no catalog
-		// here: fetchClineRecommendedModels resolves them.
+		// here: ProviderSettingsManager.getRecommendedModels resolves them.
 		void Promise.allSettled(
 			["cline", "cline-pass"].map((providerId) =>
-				getLocalProviderModels(providerId),
+				providerSettingsManager.getModels(providerId),
 			),
 		).then((results) => {
 			const ids = new Set<string>();
@@ -248,7 +247,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 			}
 			setClineModelReasoningIds(ids);
 		});
-	}, []);
+	}, [providerSettingsManager.getModels]);
 
 	// Thinking level
 	const [thinkingSelected, setThinkingSelected] = useState(
@@ -272,7 +271,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						providerId,
 						{ includeKnownModels: false },
 					);
-					const resolved = await resolveProviderConfig(
+					const resolved = await providerSettingsManager.resolveModelsConfig(
 						providerId,
 						{
 							loadLatestOnInit: true,
@@ -288,10 +287,8 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						setModelsDefaultId(resolved?.modelId ?? "");
 						return resolvedModels;
 					}
-					const { models } = await getLocalProviderModels(
-						providerId,
-						providerConfig,
-					);
+					const { models } =
+						await providerSettingsManager.getModels(providerId);
 					return models.filter(isChatProviderModel).map(toModelEntry);
 				})
 				.then((models) => {
