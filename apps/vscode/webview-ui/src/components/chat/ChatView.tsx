@@ -403,6 +403,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				) : (
 					<WelcomeSection
 						hideAnnouncement={hideAnnouncement}
+						isVisible={!isHidden}
 						shouldShowQuickWins={shouldShowQuickWins}
 						showAnnouncement={showAnnouncement}
 						showHistoryView={showHistoryView}
