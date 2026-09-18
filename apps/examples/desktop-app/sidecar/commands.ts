@@ -86,6 +86,14 @@ import {
 	resolveGitHubInstallUrl,
 } from "./commands-integrations";
 import {
+	cancelComposioConnect,
+	connectComposioToolkit,
+	disconnectComposioToolkit,
+	getComposioStatus,
+	listComposioToolkits,
+	parseComposioToolkitSlug,
+} from "./composio";
+import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
@@ -2515,6 +2523,48 @@ export async function handleCommand(
 			default:
 				throw new Error(
 					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
+	}
+
+	// ── Composio connectors (Gmail / Google Calendar / GitHub / catalog) ─
+	if (command === "composio_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+
+		switch (operation) {
+			case "status":
+				return await getComposioStatus({
+					refresh: args?.refresh === true,
+					logger: ctx.logger,
+					telemetry: ctx.telemetry,
+				});
+			case "listToolkits":
+				return await listComposioToolkits(ctx.logger);
+			case "connect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				// Tie the attempt to the initiating webview so it is abandoned
+				// if that connection goes away before the browser flow finishes.
+				const result = await connectComposioToolkit(toolkit, ctx.logger, {
+					owner: options?.connection,
+				});
+				if (result.redirectUrl) {
+					await openUrlInDefaultBrowser(result.redirectUrl);
+				}
+				return result;
+			}
+			case "cancelConnect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				await cancelComposioConnect(toolkit, ctx.logger);
+				return await getComposioStatus({ logger: ctx.logger });
+			}
+			case "disconnect": {
+				const toolkit = parseComposioToolkitSlug(args?.toolkit);
+				return await disconnectComposioToolkit(toolkit, ctx.logger);
+			}
+			default:
+				throw new Error(
+					`Unsupported Composio integrations operation: ${operation}`,
 				);
 		}
 	}
