@@ -24,7 +24,12 @@ export type CloudHandoffUiEntry =
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  }
-	| { status: "recovery_dismissed"; dashboardUrl: string }
+	| {
+			status: "recovery_dismissed";
+			dashboardUrl: string;
+			retryDraft?: string;
+			retryAttachments?: File[];
+	  }
 	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
 	| {
 			status: "retry_restored";
@@ -46,6 +51,16 @@ export type CloudHandoffUiEntry =
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
+
+export function hasLivePendingHandoff(
+	entry: CloudHandoffUiEntry | undefined,
+): boolean {
+	return (
+		entry?.status === "recovery" ||
+		entry?.status === "recovery_dismissed" ||
+		(entry?.status === "retry_restored" && Boolean(entry.dashboardUrl))
+	);
+}
 
 export function resolveHandoffReceipt(
 	live: CloudHandoffUiEntry | undefined,
@@ -330,6 +345,12 @@ export function cloudHandoffUiReducer(
 				[action.sourceSessionId]: {
 					status: "recovery_dismissed",
 					dashboardUrl: action.dashboardUrl,
+					...(current && "retryDraft" in current
+						? { retryDraft: current.retryDraft }
+						: {}),
+					...(current && "retryAttachments" in current
+						? { retryAttachments: current.retryAttachments }
+						: {}),
 				},
 			};
 		case "retry_restored":
@@ -356,7 +377,20 @@ export function cloudHandoffUiReducer(
 			}
 			return state;
 		case "retry_delivered": {
-			if (current?.status !== "complete") return state;
+			if (!current) return state;
+			if (current.status !== "complete") {
+				if (
+					current.status !== "recovery" &&
+					current.status !== "recovery_dismissed" &&
+					current.status !== "failed" &&
+					current.status !== "retry_restored"
+				) {
+					return state;
+				}
+				const next = { ...state };
+				delete next[action.sourceSessionId];
+				return next;
+			}
 			return {
 				...state,
 				[action.sourceSessionId]: {

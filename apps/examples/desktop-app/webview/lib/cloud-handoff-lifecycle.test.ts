@@ -127,6 +127,48 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 		});
 	});
 
+	it("keeps the source-thread guard through an asynchronous RPC target open", async () => {
+		const h = makeHarness();
+		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			handoffAttemptId,
+			result: makeResult(),
+			nextCommand: "",
+			sourceAttachments: [],
+			isThreadActive: () => true,
+		});
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			expectedActiveThreadId: "thread-a",
+		});
+	});
+
+	it("does not open the browser when target discovery is cancelled by navigation", async () => {
+		const h = makeHarness({ openSessionResult: false });
+		const isThreadActive = vi
+			.fn<() => boolean>()
+			.mockReturnValueOnce(true)
+			.mockReturnValue(false);
+		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			handoffAttemptId,
+			result: makeResult(),
+			nextCommand: "",
+			sourceAttachments: [],
+			isThreadActive,
+		});
+
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			expectedActiveThreadId: "thread-a",
+		});
+		expect(h.openExternal).not.toHaveBeenCalled();
+		expect(h.dispatched).not.toContainEqual({
+			type: "external",
+			sourceSessionId: SOURCE,
+		});
+	});
+
 	it("throws when the result carries no cloud session, so the caller's catch routes it to onRpcRejected", async () => {
 		const h = makeHarness();
 		await expect(
@@ -303,6 +345,30 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 });
 
 describe("cloud handoff lifecycle: event/RPC ordering races", () => {
+	it("keeps the source-thread guard when rejection recovers a completed handoff", async () => {
+		const h = makeHarness();
+		const attachment = makeAttachment();
+		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");
+		await h.lifecycle.onEvent(
+			completeEvent({ handoffAttemptId, warningKind: "unqueued" }),
+		);
+
+		await h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId,
+			error: new Error("fetch failed"),
+			nextCommand: "run the suite",
+			sourceAttachments: [attachment],
+			isThreadActive: () => true,
+		});
+
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			initialPromptDraft: "run the suite",
+			initialAttachments: [attachment],
+			expectedActiveThreadId: "thread-a",
+		});
+	});
+
 	it("event before a successful RPC leaves the full in-app open to the attachment-bearing RPC result", async () => {
 		const h = makeHarness();
 		const attachment = makeAttachment();
