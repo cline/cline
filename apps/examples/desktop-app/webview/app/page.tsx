@@ -1023,10 +1023,16 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
-	// A worktree choice only holds while the workspace is a git repo; a plain
-	// folder (or pending discovery) silently falls back to running locally.
+	// Worktrees are cut by the local sidecar's git, so they are only offered
+	// for the local environment. The choice also only holds while the
+	// workspace is a git repo; a plain folder (or pending discovery) silently
+	// falls back to running locally.
+	const canWorkInWorktree = environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
 	const workIn: WorkIn =
-		workInSelection === "worktree" && gitBranch && gitBranch !== "no-git"
+		canWorkInWorktree &&
+		workInSelection === "worktree" &&
+		gitBranch &&
+		gitBranch !== "no-git"
 			? "worktree"
 			: "local";
 	const [providerCredentials, setProviderCredentials] = useState<
@@ -2110,7 +2116,7 @@ function ChatThreadPane({
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
-					onWorkInChange={setWorkIn}
+					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
 					workIn={workIn}
 				/>
 			</AttachmentDropZone>
