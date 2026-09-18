@@ -100,7 +100,9 @@ jobs:
 
             - name: Run Desktop Sidecar Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
-              run: bun -F @cline/code test:sidecar
+              run: |
+                  bun -F @cline/code test:sidecar
+                  bun -F @cline/code test:sidecar-startup
 
             - name: Run Desktop Settings UI Tests
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
