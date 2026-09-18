@@ -313,9 +313,7 @@ export function CloudView(props: {
 						: "This explicitly submits the locally saved draft to the recovered cloud task.",
 				)
 			)
-				void runtime
-					.resumeDraft(row.requestId, unknown)
-					.catch((error) => setMessage(String(error)));
+				await runtime.resumeDraft(row.requestId, unknown);
 			return;
 		}
 		if (command === "help") {

@@ -398,6 +398,14 @@ export async function runInteractive(
 
 	let cleanupPromise: Promise<InteractiveExitSummary | undefined> | undefined;
 
+	disableOpenTuiGraphicsProbe();
+	const { renderOpenTui } = await import("../tui/index");
+	let tuiApp: Awaited<ReturnType<typeof renderOpenTui>> | undefined;
+	let destroyTuiWhenReady = false;
+	const destroyTui = () => {
+		if (tuiApp) tuiApp.destroy();
+		else destroyTuiWhenReady = true;
+	};
 	const handleSigint = () => {
 		const state = cloud.getSnapshot();
 		if (state.target || state.creating) {
@@ -406,7 +414,7 @@ export async function runInteractive(
 				return;
 			}
 			cloud.detach();
-			tuiApp?.destroy();
+			destroyTui();
 			return;
 		}
 		if (isRunning) {
@@ -415,15 +423,15 @@ export async function runInteractive(
 			}
 			void cleanupRuntime().finally(() => {
 				process.exitCode = 0;
-				tuiApp?.destroy();
+				destroyTui();
 			});
 			return;
 		}
-		tuiApp?.destroy();
+		destroyTui();
 	};
 	const handleSigterm = () => {
 		cloud.detach();
-		tuiApp?.destroy();
+		destroyTui();
 	};
 	const cleanupRuntime = async (): Promise<
 		InteractiveExitSummary | undefined
@@ -541,15 +549,10 @@ export async function runInteractive(
 		signal === "SIGINT" ? handleSigint() : handleSigterm(),
 	);
 
-	disableOpenTuiGraphicsProbe();
-	const { renderOpenTui } = await import("../tui/index");
-
-	// eslint-disable-next-line prefer-const
-	let tuiApp: Awaited<ReturnType<typeof renderOpenTui>> | undefined;
 	setActiveRuntimeCleanup(() => {
 		cloud.detach();
 		void cloud.dispose();
-		tuiApp?.destroy();
+		destroyTui();
 	});
 	let startupErrorReported = false;
 	let updateCliAfterExit = false;
@@ -936,6 +939,7 @@ export async function runInteractive(
 			tuiModeChanged.current = fn;
 		},
 	});
+	if (destroyTuiWhenReady) tuiApp.destroy();
 
 	if (!loadDeferredInitialMessages && options?.startupTarget !== "history") {
 		setTimeout(() => {

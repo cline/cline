@@ -1,9 +1,10 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-	CloudSessionEvent,
-	CloudSessionSnapshot,
+import {
+	CloudSessionError,
+	type CloudSessionEvent,
+	type CloudSessionSnapshot,
 } from "@cline/core/cloud";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CloudEligibility } from "./eligibility";
@@ -493,6 +494,37 @@ describe("CLI cloud isolation and creation lifecycle", () => {
 		expect(f.controller.send).not.toHaveBeenCalled();
 		expect(f.controller.delete).not.toHaveBeenCalled();
 		expect(f.runtime.getSnapshot().pendingCreations[0].intent).toBe("detached");
+	});
+	it("drops definitely rejected creates but retains ambiguous outcomes", async () => {
+		const rejected = await fixture();
+		rejected.api.create.mockRejectedValueOnce(
+			new CloudSessionError(
+				"authentication_required",
+				"Sign in again.",
+				undefined,
+				401,
+			),
+		);
+		await expect(rejected.runtime.create(input)).rejects.toThrow(
+			"Sign in again",
+		);
+		expect(rejected.runtime.getSnapshot().pendingCreations).toEqual([]);
+
+		const ambiguous = await fixture();
+		ambiguous.api.create.mockRejectedValueOnce(
+			new CloudSessionError(
+				"request_failed",
+				"Gateway unavailable.",
+				undefined,
+				500,
+			),
+		);
+		await expect(ambiguous.runtime.create(input)).rejects.toThrow(
+			"Gateway unavailable",
+		);
+		expect(ambiguous.runtime.getSnapshot().pendingCreations).toMatchObject([
+			{ intent: "detached", prompt: input.prompt },
+		]);
 	});
 	it("lost send acknowledgement never automatically retries on recover", async () => {
 		const f = await fixture();

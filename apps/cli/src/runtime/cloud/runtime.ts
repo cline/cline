@@ -1,21 +1,20 @@
 import { randomUUID } from "node:crypto";
 import type { CoreSessionEvent } from "@cline/core";
-import type {
-	CloudBranchListOptions,
-	CloudBranchListResult,
-	CloudRepositoryListResult,
-	CloudSessionRecord,
-	CloudSessionSnapshot,
-	CreateCloudSessionInput,
-	HubEventProjector,
-} from "@cline/core/cloud";
 import {
+	type CloudBranchListOptions,
+	type CloudBranchListResult,
 	CloudHandoffCoordinator,
 	type CloudHandoffProgress,
 	type CloudHandoffSource,
+	type CloudRepositoryListResult,
 	CloudSessionApi,
 	CloudSessionController,
+	CloudSessionError,
+	type CloudSessionRecord,
+	type CloudSessionSnapshot,
+	type CreateCloudSessionInput,
 	createHubEventProjector,
+	type HubEventProjector,
 	loadCloudHandoffModels,
 	type PreparedCloudHandoff,
 } from "@cline/core/cloud";
@@ -67,6 +66,23 @@ export type CloudTranscriptEvent =
 			event: CoreSessionEvent;
 	  };
 type Clients = { api: CloudSessionApi; controller: CloudSessionController };
+
+function isDefinitelyRejectedCreate(error: unknown): boolean {
+	if (!(error instanceof CloudSessionError)) return false;
+	return (
+		(error.status !== undefined &&
+			error.status >= 400 &&
+			error.status < 500 &&
+			error.status !== 408 &&
+			error.status !== 409) ||
+		[
+			"authentication_required",
+			"github_not_connected",
+			"session_not_found",
+			"session_expired",
+		].includes(error.code)
+	);
+}
 export type CliCloudRuntimeOptions = {
 	handoffSource?: () => CloudHandoffSource | undefined;
 	eligibility?: CloudEligibility;
@@ -588,8 +604,19 @@ export class CliCloudRuntime {
 			const current = this.store
 				.list(row.scope)
 				.find((item) => item.requestId === row.requestId);
-			if (current?.intent === "start_pending")
-				this.save({ ...current, intent: "detached" });
+			if (current?.intent === "start_pending") {
+				if (isDefinitelyRejectedCreate(error)) {
+					this.store.remove(current);
+					if (
+						this.identity &&
+						cloudScopeKey(current.scope) === cloudScopeKey(this.identity.scope)
+					) {
+						this.publish({ pendingCreations: this.store.list(current.scope) });
+					}
+				} else {
+					this.save({ ...current, intent: "detached" });
+				}
+			}
 			if (epoch === this.epoch && navigation === this.navigation)
 				this.fail(error);
 		} finally {
