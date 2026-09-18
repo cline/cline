@@ -906,12 +906,16 @@ describe("CloudSessionManager Hub runtime", () => {
 		const archive: unknown[] | null = hasArchive
 			? [{ role: "assistant", content: [{ type: "text", text: "Saved reply" }] }]
 			: null;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		vi.spyOn(api, "list").mockResolvedValue([REMOTE_SESSION]);
+		vi.spyOn(api, "history").mockResolvedValue(archive);
 		const { manager } = createFixture({
 			hub,
-			api: {
-				list: async () => [REMOTE_SESSION],
-				history: async () => archive,
-			} as CloudSessionApi,
+			api,
 		});
 
 		await manager.list();
