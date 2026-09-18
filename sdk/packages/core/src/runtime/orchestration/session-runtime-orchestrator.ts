@@ -1090,6 +1090,7 @@ export class SessionRuntime {
 					info: modelInfo,
 				},
 				overflowRecovery: context.overflowRecovery,
+				previousRequestInputTokens: context.previousRequestInputTokens,
 				emitStatusNotice: context.emitStatusNotice,
 			});
 			if (!result) {

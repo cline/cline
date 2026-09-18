@@ -7,7 +7,7 @@ import {
 	CloudSessionManager,
 	type CloudSessionRecord,
 } from "./cloud-sessions";
-import { disposeSidecarContext } from "./context";
+import { createSidecarContext, disposeSidecarContext } from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
@@ -26,33 +26,11 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx = {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		coreStreamActivity: new Map(),
-		bootId: "cloud-test-boot",
-		wsClients: new Set([
-			{
-				// Approval ownership requires a trusted desktop connection.
-				data: { canApproveTools: true },
-				send(message: string) {
-					const parsed = JSON.parse(message) as {
-						event: { name: string; payload: Record<string, unknown> };
-					};
-					events.push(parsed.event);
-				},
-			},
-		]),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		hubBuildMismatch: null,
-		workspaceRoot: "/local/workspace",
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-	} as SidecarContext;
+	const ctx = createSidecarContext("/local/workspace");
+	ctx.wsClients.add({
+		data: { canApproveTools: true },
+		send: (message) => events.push(JSON.parse(message).event),
+	});
 	return { ctx, events };
 }
 
@@ -70,7 +48,6 @@ class FakeHubClient {
 		command: string;
 		payload?: Record<string, unknown>;
 		sessionId?: string;
-		options?: { timeoutMs?: number | null };
 	}> = [];
 
 	constructor(private readonly hasExistingInner = true) {}
@@ -81,10 +58,7 @@ class FakeHubClient {
 		return "code-cloud-ses-outer";
 	}
 
-	subscribe(
-		listener: (event: HubEventEnvelope) => void,
-		_options?: { sessionId?: string },
-	): () => void {
+	subscribe(listener: (event: HubEventEnvelope) => void): () => void {
 		this.events = listener;
 		return () => {
 			this.events = undefined;
@@ -95,12 +69,11 @@ class FakeHubClient {
 		command: string,
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
 	): Promise<{
 		ok: true;
 		payload?: Record<string, unknown>;
 	}> {
-		this.commands.push({ command, payload, sessionId, options });
+		this.commands.push({ command, payload, sessionId });
 		if (command === "session.list") {
 			return {
 				ok: true,
@@ -148,7 +121,11 @@ class FakeHubClient {
 
 function createFixture({
 	hub = new FakeHubClient(),
-	api = { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+	api = {
+		list: async () => [
+			{ ...REMOTE_SESSION, metadata: { ...REMOTE_SESSION.metadata } },
+		],
+	} as CloudSessionApi,
 }: {
 	hub?: FakeHubClient;
 	api?: CloudSessionApi;
@@ -160,6 +137,7 @@ function createFixture({
 		getAuthToken: async () => "workos:fresh",
 		createHubClient: () => hub as never,
 	});
+	ctx.cloudSessionManager = manager;
 	return { ctx, events, hub, manager };
 }
 
@@ -174,22 +152,11 @@ describe("Cloud sessions sidecar wiring", () => {
 	it("blocks cloud session creation when the flag is off", async () => {
 		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
 		try {
-			const { ctx } = createContext();
-			const manager = new CloudSessionManager(ctx, {
-				api: {
-					list: async () => [],
-					create: async () => {
-						throw new Error("must not create");
-					},
-				} as unknown as CloudSessionApi,
-				apiBaseUrl: "https://api.example",
-				getAuthToken: async () => "workos:fresh",
-				createHubClient: () => {
-					throw new Error("must not connect");
-				},
+			const create = vi.fn();
+			const { ctx, hub } = createFixture({
+				api: { create } as unknown as CloudSessionApi,
 			});
-			ctx.cloudSessionManager = manager;
-
+			const connect = vi.spyOn(hub, "connect");
 			await expect(
 				handleChatSessionCommand(ctx, {
 					action: "start",
@@ -200,6 +167,9 @@ describe("Cloud sessions sidecar wiring", () => {
 					},
 				}),
 			).rejects.toThrow(/not enabled/);
+			expect(create).not.toHaveBeenCalled();
+			expect(connect).not.toHaveBeenCalled();
+			expect(hub.commands).toEqual([]);
 		} finally {
 			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 		}
@@ -242,19 +212,16 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				sessionId: "ses-outer",
+				status: "running",
+				environmentId: "local",
+			},
 		});
 	});
 
 	it("updates the cloud model before sending", async () => {
-		const remote = {
-			...REMOTE_SESSION,
-			metadata: { ...REMOTE_SESSION.metadata },
-		};
-		const { ctx, hub, manager } = createFixture({
-			api: { list: async () => [remote] } as CloudSessionApi,
-		});
-		ctx.cloudSessionManager = manager;
+		const { ctx, hub, manager } = createFixture();
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -268,27 +235,20 @@ describe("Cloud sessions sidecar wiring", () => {
 			},
 		});
 
-		const updateCommands = hub.commands.filter(
-			(command) => command.command === "session.update_connection",
+		const actions = hub.commands.filter(({ command }) =>
+			["session.update_connection", "session.send_input"].includes(command),
 		);
-		expect(updateCommands).toEqual([
+		expect(actions).toEqual([
 			expect.objectContaining({
+				command: "session.update_connection",
 				payload: {
 					sessionId: "inner-1",
 					updates: { modelId: "anthropic/claude-opus-4-1" },
 				},
 				sessionId: "inner-1",
 			}),
+			expect.objectContaining({ command: "session.send_input" }),
 		]);
-		expect(
-			hub.commands.findIndex(
-				(command) => command.command === "session.update_connection",
-			),
-		).toBeLessThan(
-			hub.commands.findIndex(
-				(command) => command.command === "session.send_input",
-			),
-		);
 		expect(ctx.liveSessions.get("ses-outer")?.config.model).toBe(
 			"anthropic/claude-opus-4-1",
 		);
@@ -296,7 +256,6 @@ describe("Cloud sessions sidecar wiring", () => {
 
 	it("forwards cloud images and continues rejecting file attachments", async () => {
 		const { ctx, hub, manager } = createFixture();
-		ctx.cloudSessionManager = manager;
 		await manager.list();
 		await manager.attach("ses-outer");
 		const image = "data:image/png;base64,aGVsbG8=";
@@ -383,7 +342,6 @@ describe("Cloud sessions sidecar wiring", () => {
 
 	it("bridges pending-prompt events and queue commands to the hub", async () => {
 		const { ctx, events, hub, manager } = createFixture();
-		ctx.cloudSessionManager = manager;
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -457,43 +415,48 @@ describe("Cloud sessions sidecar wiring", () => {
 		).toBe(true);
 	});
 
-	it("passes branch and the user's approval policy through to the cloud session", async () => {
-		let createBody: Record<string, unknown> | undefined;
+	it("creates a canonical session with the requested branch and approval policy", async () => {
+		const create = vi.fn(async () => ({
+			sessionId: "ses-created",
+			status: "ready",
+			sandboxUrl: "pod",
+		}));
 		const { ctx, hub, manager } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
 				list: async () => [],
-				create: async (input: Record<string, unknown>) => {
-					createBody = input;
-					return {
-						sessionId: "ses-created",
-						status: "ready",
-						sandboxUrl: "pod",
-					};
-				},
+				create,
 			} as unknown as CloudSessionApi,
 		});
-		ctx.cloudSessionManager = manager;
 
-		await handleChatSessionCommand(ctx, {
+		const created = await handleChatSessionCommand(ctx, {
 			action: "start",
 			prompt: "Fix the provisioning flow",
 			config: {
 				executionTarget: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				model: "anthropic/claude-sonnet-5",
+				sessionId: "client-planned-id",
 				branch: "feature/login-fix",
 				autoApproveTools: false,
 			},
 		});
 
-		expect(createBody).toMatchObject({
-			repoUrl: "https://github.com/cline/test",
-			modelId: "anthropic/claude-sonnet-5",
-			initialPrompt: "Fix the provisioning flow",
-			branch: "feature/login-fix",
-			autoApproveTools: false,
+		expect(created).toMatchObject({
+			sessionId: "ses-created",
+			origin: "cloud",
 		});
+		expect(ctx.liveSessions.has("client-planned-id")).toBe(false);
+		expect(ctx.liveSessions.has("ses-created")).toBe(true);
+		expect(create).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				repoUrl: "https://github.com/cline/test",
+				modelId: "anthropic/claude-sonnet-5",
+				initialPrompt: "Fix the provisioning flow",
+				branch: "feature/login-fix",
+				autoApproveTools: false,
+			}),
+		);
 		await manager.send("ses-created", "Fix the provisioning flow");
 		const innerCreate = hub.commands.find(
 			(entry) => entry.command === "session.create",
@@ -504,13 +467,8 @@ describe("Cloud sessions sidecar wiring", () => {
 	});
 
 	it("returns the real id immediately and sends only after readiness", async () => {
-		let finishProvisioning: (() => void) | undefined;
-		const waitUntilReady = vi.fn(
-			() =>
-				new Promise<void>((resolve) => {
-					finishProvisioning = resolve;
-				}),
-		);
+		const ready = Promise.withResolvers<void>();
+		const waitUntilReady = vi.fn(() => ready.promise);
 		const session = {
 			...REMOTE_SESSION,
 			id: "ses-created",
@@ -555,7 +513,7 @@ describe("Cloud sessions sidecar wiring", () => {
 		const sending = manager.send("ses-created", "Fix this");
 		await vi.waitFor(() => expect(waitUntilReady).toHaveBeenCalledOnce());
 		expect(hub.commands).toEqual([]);
-		finishProvisioning?.();
+		ready.resolve();
 		await sending;
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
@@ -612,7 +570,6 @@ describe("Cloud sessions sidecar wiring", () => {
 
 	it("surfaces run.failed errors as a visible error message", async () => {
 		const { ctx, events, hub, manager } = createFixture();
-		ctx.cloudSessionManager = manager;
 		await manager.list();
 		await manager.attach("ses-outer");
 
@@ -642,18 +599,14 @@ describe("Cloud sessions sidecar wiring", () => {
 		"start",
 		"attach",
 	] as const)("%s attaches an existing outer id with a cold registry", async (action) => {
-		let creates = 0;
+		const create = vi.fn();
 		const outerId = "ses-01H9XKYHEC1YFBXMJ8ZBES772P";
-		const { ctx, hub, manager } = createFixture({
+		const { ctx, hub } = createFixture({
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, id: outerId }],
-				create: async () => {
-					creates += 1;
-					return { sessionId: "ses-unwanted", sandboxUrl: "pod" };
-				},
+				create,
 			} as unknown as CloudSessionApi,
 		});
-		ctx.cloudSessionManager = manager;
 
 		const attached = await handleChatSessionCommand(
 			ctx,
@@ -671,42 +624,9 @@ describe("Cloud sessions sidecar wiring", () => {
 		);
 
 		expect(attached).toMatchObject({ sessionId: outerId, origin: "cloud" });
-		expect(creates).toBe(0);
+		expect(create).not.toHaveBeenCalled();
 		expect(
 			hub.commands.some((entry) => entry.command === "session.attach"),
 		).toBe(true);
-	});
-
-	it("ignores a new client-planned id and provisions a canonical outer id", async () => {
-		let creates = 0;
-		const { ctx, manager } = createFixture({
-			hub: new FakeHubClient(false),
-			api: {
-				list: async () => [],
-				create: async () => {
-					creates += 1;
-					return { sessionId: "ses-server", sandboxUrl: "pod" };
-				},
-			} as unknown as CloudSessionApi,
-		});
-		ctx.cloudSessionManager = manager;
-
-		const created = await handleChatSessionCommand(ctx, {
-			action: "start",
-			config: {
-				executionTarget: "cloud",
-				sessionId: "client-planned-id",
-				repoUrl: "https://github.com/cline/test",
-				model: "anthropic/claude-sonnet-5",
-			},
-		});
-
-		expect(created).toMatchObject({
-			sessionId: "ses-server",
-			origin: "cloud",
-		});
-		expect(creates).toBe(1);
-		expect(ctx.liveSessions.has("client-planned-id")).toBe(false);
-		expect(ctx.liveSessions.has("ses-server")).toBe(true);
 	});
 });

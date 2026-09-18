@@ -14,7 +14,7 @@ vi.mock("@cline/core", async () => {
 
 function createContext(): SidecarContext {
 	return {
-		workspaceRoot: "/workspace",
+		localWorkspaceRoot: "/workspace",
 		wsClients: new Set(),
 		hubBuildMismatch: {
 			url: "ws://127.0.0.1:25463/hub",
