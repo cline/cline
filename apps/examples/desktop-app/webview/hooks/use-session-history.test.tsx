@@ -4,7 +4,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { sessionKey } from "../lib/session-identity";
-import { useSessionHistory } from "./use-session-history";
+import {
+	sessionActivityTimestamp,
+	useSessionHistory,
+} from "./use-session-history";
 
 const { invokeMock, subscribeMock, subscribers } = vi.hoisted(() => {
 	const subscribers = new Map<string, (payload: unknown) => void>();
@@ -39,7 +42,8 @@ type PendingList = {
 function sessionRow(sessionId: string) {
 	return {
 		sessionId,
-		status: "completed",
+		environmentId: "local",
+		status: "completed" as const,
 		provider: "cline",
 		model: "glm-5.2",
 		cwd: "/workspace",
@@ -48,6 +52,15 @@ function sessionRow(sessionId: string) {
 		endedAt: "2026-07-20T11:00:00.000Z",
 	};
 }
+
+it("uses server activity when it is newer than local timestamps", () => {
+	expect(
+		sessionActivityTimestamp({
+			...sessionRow("ses-cloud"),
+			lastActivityAt: "2026-07-20T12:00:00.000Z",
+		}),
+	).toBe(Date.parse("2026-07-20T12:00:00.000Z"));
+});
 
 let container: HTMLDivElement;
 let root: Root;

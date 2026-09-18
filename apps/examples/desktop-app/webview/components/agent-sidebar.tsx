@@ -7,6 +7,7 @@ import {
 	ChevronDown,
 	CircleUserRound,
 	Clock3,
+	Cloud,
 	Filter,
 	FolderTree,
 	GitFork,
@@ -1282,9 +1283,9 @@ export function AgentSidebar({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "
-							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
-							from local history.
+							{deleteConfirmThread?.origin === "cloud"
+								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
+								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1508,11 +1509,13 @@ function ThreadItem({
 	const pending = pendingAction !== null;
 	const statusDotClass = pending
 		? "bg-yellow-400"
-		: thread.status === "running"
-			? "bg-green-500"
-			: unread
-				? "bg-blue-500"
-				: "";
+		: thread.status === "provisioning"
+			? "animate-pulse bg-yellow-400"
+			: thread.status === "running"
+				? "bg-green-500"
+				: unread
+					? "bg-blue-500"
+					: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
@@ -1567,6 +1570,12 @@ function ThreadItem({
 								type="button"
 							>
 								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+									{thread.origin === "cloud" ? (
+										<Cloud
+											aria-label="Cloud session"
+											className="size-3 shrink-0 text-muted-foreground"
+										/>
+									) : null}
 									{thread.isScheduled && !nested ? (
 										<Clock3
 											aria-label="Scheduled"
@@ -1642,6 +1651,8 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				allowPin={thread.origin !== "cloud"}
+				allowFork={thread.origin !== "cloud"}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
@@ -1667,8 +1678,10 @@ export function getSessionOverviewItems(
 		["Schedule", thread.scheduleName],
 		["Run", thread.scheduleRunNumber ? String(thread.scheduleRunNumber) : null],
 		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
+			thread.origin === "cloud" ? "Repository" : "Workspace",
+			thread.origin === "cloud"
+				? thread.repoUrl
+				: workspaceDisplayName(workspacePath),
 			workspacePath || undefined,
 		],
 		["Branch", thread.gitBranch],
@@ -1736,6 +1749,8 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	allowPin,
+	allowFork,
 	pinned,
 	onRename,
 	onTogglePin,
@@ -1743,6 +1758,8 @@ function SessionContextMenuContent({
 	onDelete,
 	pendingAction,
 }: {
+	allowPin: boolean;
+	allowFork: boolean;
 	pinned: boolean;
 	onRename: () => void;
 	onTogglePin: () => void;
@@ -1753,10 +1770,12 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
-				<Pin className={cn("size-4", pinned && "fill-current")} />
-				{pinned ? "Unpin" : "Pin"}
-			</ContextMenuItem>
+			{allowPin ? (
+				<ContextMenuItem disabled={pending} onSelect={onTogglePin}>
+					<Pin className={cn("size-4", pinned && "fill-current")} />
+					{pinned ? "Unpin" : "Pin"}
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-4 animate-spin" />
@@ -1765,14 +1784,16 @@ function SessionContextMenuContent({
 				)}
 				{pendingAction === "rename" ? "Renaming..." : "Rename"}
 			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onFork}>
-				{pendingAction === "fork" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<GitFork className="size-4" />
-				)}
-				{pendingAction === "fork" ? "Forking..." : "Fork"}
-			</ContextMenuItem>
+			{allowFork ? (
+				<ContextMenuItem disabled={pending} onSelect={onFork}>
+					{pendingAction === "fork" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<GitFork className="size-4" />
+					)}
+					{pendingAction === "fork" ? "Forking..." : "Fork"}
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem
 				disabled={pending}
 				onSelect={onDelete}

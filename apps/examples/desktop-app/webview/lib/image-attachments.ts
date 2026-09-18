@@ -42,3 +42,12 @@ export function isUnsupportedImageAttachment(
 		!(SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType)
 	);
 }
+
+export function isSupportedImageAttachment(
+	file: Pick<File, "name" | "type">,
+): boolean {
+	return (
+		imageAttachmentMediaType(file) !== undefined &&
+		!isUnsupportedImageAttachment(file)
+	);
+}

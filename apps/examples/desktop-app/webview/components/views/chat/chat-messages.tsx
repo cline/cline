@@ -20,6 +20,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
@@ -80,6 +81,8 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	startingLabel?: string;
+	errorAction?: { label: string; onClick: () => void | Promise<void> };
 	onProceedWhileRunning?: (
 		sessionId: string,
 		toolCallId?: string,
@@ -119,6 +122,8 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	startingLabel,
+	errorAction,
 	onProceedWhileRunning,
 	onFixCredentials,
 }: ChatMessagesProps) {
@@ -147,7 +152,8 @@ function ChatMessagesImpl({
 		};
 	}, [messages]);
 	const shouldShowErrorBanner =
-		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
+		Boolean(error) &&
+		(Boolean(errorAction) || lastErrorMessage?.content !== error);
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&
@@ -704,7 +710,7 @@ function ChatMessagesImpl({
 									>
 										<Loader2 className="size-4 animate-spin" />
 										<span className={STREAMING_TITLE_CLASS}>
-											{activityLabel ?? "Thinking..."}
+											{startingLabel ?? activityLabel ?? "Thinking..."}
 										</span>
 									</div>
 								) : null}
@@ -773,7 +779,17 @@ function ChatMessagesImpl({
 						) : null}
 						{shouldShowErrorBanner ? (
 							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								{error}
+								{lastErrorMessage?.content !== error ? <p>{error}</p> : null}
+								{errorAction ? (
+									<Button
+										className="mt-2"
+										onClick={() => void errorAction.onClick()}
+										size="sm"
+										variant="outline"
+									>
+										{errorAction.label}
+									</Button>
+								) : null}
 							</div>
 						) : null}
 					</SessionContent>
