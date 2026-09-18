@@ -317,6 +317,29 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
+	it("ignores a stale recovery dismissal after completion", () => {
+		const completed = cloudHandoffUiReducer(
+			{},
+			{
+				type: "complete",
+				sourceSessionId: "local-1",
+				receipt: {
+					targetSessionId: "cloud-1",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				},
+				externalPresentation: false,
+			},
+		);
+
+		expect(
+			cloudHandoffUiReducer(completed, {
+				type: "dismiss_recovery",
+				sourceSessionId: "local-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			}),
+		).toBe(completed);
+	});
+
 	it("keeps the temporary handoff prompt ahead of a live response", () => {
 		const prompt = {
 			content: "hey cloud what do you see",
