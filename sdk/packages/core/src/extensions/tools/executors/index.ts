@@ -33,6 +33,7 @@ export {
 export { PATCH_MARKERS, PatchActionType } from "./apply-patch-parser";
 export {
 	CommandExitError,
+	CommandSpawnError,
 	createShellExecutor,
 	type ShellExecutorOptions,
 } from "./bash";
