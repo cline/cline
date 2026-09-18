@@ -51,7 +51,7 @@ export interface WebFetchExecutorOptions {
  * Extract text content from HTML
  * Simple implementation - strips tags and normalizes whitespace
  */
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
 	return (
 		html
 			// Remove script and style elements
@@ -63,16 +63,22 @@ function htmlToText(html: string): string {
 			.replace(/<(p|div|br|hr|h[1-6]|li|tr)[^>]*>/gi, "\n")
 			// Remove all remaining tags
 			.replace(/<[^>]+>/g, " ")
-			// Decode HTML entities
+			// Decode HTML entities. fromCodePoint, not fromCharCode, so a
+			// reference above U+FFFF is not truncated.
 			.replace(/&nbsp;/g, " ")
 			.replace(/&amp;/g, "&")
 			.replace(/&lt;/g, "<")
 			.replace(/&gt;/g, ">")
 			.replace(/&quot;/g, '"')
-			.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
-			// Normalize whitespace
-			.replace(/\s+/g, " ")
-			.replace(/\n\s+/g, "\n")
+			.replace(/&#[xX]([0-9a-fA-F]+);/g, (_, n) =>
+				String.fromCodePoint(parseInt(n, 16)),
+			)
+			.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)))
+			// Normalize whitespace. `\s` matches a newline, so collapsing with it
+			// would undo the block-element newlines inserted above; only runs of
+			// horizontal whitespace are collapsed here.
+			.replace(/[^\S\n]+/g, " ")
+			.replace(/[ \t]*\n[ \t]*/g, "\n")
 			.replace(/\n{3,}/g, "\n\n")
 			.trim()
 	);
