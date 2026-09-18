@@ -21,6 +21,7 @@ export const GlobalFileNames = {
 	clineRecommendedModels: "cline_recommended_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	clineRulesDir: ".cline/rules",
 	workflows: ".clinerules/workflows",
 	hooksDir: ".clinerules/hooks",
 	clineruleSkillsDir: ".clinerules/skills",
