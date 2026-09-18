@@ -297,4 +297,79 @@ describe("createApplyPatchExecutor", () => {
 
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
 	});
+
+	it.each([
+		["status=pending\n", ["-1 | status=pending", "+1 | status=verified"]],
+		[
+			"heading\nstatus=pending\n",
+			[" heading", "- 2 | status=pending", "+ 2 | status=verified"],
+		],
+		[
+			"heading\n\nstatus=pending\n",
+			[
+				" 10 | heading",
+				" 11 | ",
+				"-12 | status=pending",
+				"+12 | status=verified",
+			],
+		],
+		[
+			"heading\n\nstatus=pending\n",
+			[" 1 | heading", " 2 |", "-3 | status=pending", "+3 | status=verified"],
+		],
+	])("rejects copied read_files line numbers without changing the file (case %#)", async (original, hunk) => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, original, "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await expect(
+			execute(
+				{
+					input: ["*** Update File: note.txt", "@@", ...hunk].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/line-number prefixes.*Remove the prefixes/);
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
+	});
+
+	it.each([
+		[
+			"status=pending\n",
+			"status=pending",
+			"status=verified",
+			"status=verified\n",
+		],
+		[
+			"1 | status=pending\n",
+			"1 | status=pending",
+			"1 | status=verified",
+			"1 | status=verified\n",
+		],
+		[
+			"status=pending\n",
+			"status=pending",
+			"1 | status=verified",
+			"1 | status=verified\n",
+		],
+	])("preserves exact patch contents and the final newline (case %#)", async (original, before, after, expected) => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, original, "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Update File: note.txt",
+					"@@",
+					`-${before}`,
+					`+${after}`,
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(expected);
+	});
 });
