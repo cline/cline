@@ -134,6 +134,8 @@ export class SdkCloudSessionCoordinator {
 	private pollTimer: NodeJS.Timeout | undefined
 	private disposed = false
 	private scopeGeneration = 0
+	private startGeneration = 0
+	private pendingStartGeneration: number | undefined
 	private scopeTransition: Promise<void> | undefined
 	private readonly scopeOperations = new Set<Promise<unknown>>()
 
@@ -544,18 +546,44 @@ export class SdkCloudSessionCoordinator {
 
 	async startCloudTask(input: CloudTaskInput): Promise<string | undefined> {
 		const generationBeforeTransition = this.scopeGeneration
-		await this.scopeTransition
-		if (this.disposed || generationBeforeTransition !== this.scopeGeneration) return undefined
-		return this.trackScopeOperation(() => this.startCloudTaskInScope(input, generationBeforeTransition))
+		const startGeneration = ++this.startGeneration
+		this.pendingStartGeneration = startGeneration
+		try {
+			await this.scopeTransition
+			if (this.disposed || generationBeforeTransition !== this.scopeGeneration || startGeneration !== this.startGeneration)
+				return undefined
+			return await this.trackScopeOperation(() =>
+				this.startCloudTaskInScope(input, generationBeforeTransition, startGeneration),
+			)
+		} finally {
+			if (this.pendingStartGeneration === startGeneration) {
+				this.pendingStartGeneration = undefined
+			}
+		}
 	}
 
-	private async startCloudTaskInScope(input: CloudTaskInput, generation: number): Promise<string | undefined> {
-		if (this.disposed || generation !== this.scopeGeneration) return undefined
+	/** Invalidates cloud provisioning before an active SDK session exists. */
+	cancelPendingStart(): boolean {
+		if (this.pendingStartGeneration === undefined) {
+			return false
+		}
+		this.pendingStartGeneration = undefined
+		this.startGeneration++
+		return true
+	}
+
+	private async startCloudTaskInScope(
+		input: CloudTaskInput,
+		generation: number,
+		startGeneration: number,
+	): Promise<string | undefined> {
+		if (this.disposed || generation !== this.scopeGeneration || startGeneration !== this.startGeneration) return undefined
 		// clearTask bumps the task-view generation itself, so claim ours after it.
 		await this.options.clearTask()
-		if (this.disposed || generation !== this.scopeGeneration) return undefined
+		if (this.disposed || generation !== this.scopeGeneration || startGeneration !== this.startGeneration) return undefined
 		const isSuperseded = this.options.claimTaskViewGeneration()
-		const isStale = () => this.disposed || isSuperseded() || generation !== this.scopeGeneration
+		const isStale = () =>
+			this.disposed || isSuperseded() || generation !== this.scopeGeneration || startGeneration !== this.startGeneration
 		const startedAt = Date.now()
 		const provisionalId = `${CLOUD_PROVISIONING_ID_PREFIX}${startedAt}`
 		const task = this.installTask(provisionalId)
