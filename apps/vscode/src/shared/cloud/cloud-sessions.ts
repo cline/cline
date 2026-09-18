@@ -43,13 +43,18 @@ export const ACTIVE_CLOUD_STATUSES: ReadonlySet<CloudSessionStatus> = new Set(["
 
 export const CLOUD_PROVISIONING_ID_PREFIX = "cloud-provisioning-"
 
+/** Whether an id names a control-plane record that other Cline surfaces can open. */
+export function isPersistedCloudSessionId(id: string | undefined): boolean {
+	return typeof id === "string" && id.trim().startsWith("ses-")
+}
+
 /** Outer Cline Cloud session ids (`ses-…`), plus the placeholder id used while a sandbox is provisioning. */
 export function isCloudSessionId(id: string | undefined): boolean {
 	if (typeof id !== "string") {
 		return false
 	}
 	const trimmed = id.trim()
-	return trimmed.startsWith("ses-") || trimmed.startsWith(CLOUD_PROVISIONING_ID_PREFIX)
+	return isPersistedCloudSessionId(trimmed) || trimmed.startsWith(CLOUD_PROVISIONING_ID_PREFIX)
 }
 
 export function isGitHubRepositoryUrl(url: string | undefined): boolean {
