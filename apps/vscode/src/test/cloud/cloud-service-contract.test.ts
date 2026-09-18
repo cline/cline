@@ -10,6 +10,20 @@ describe("local cloud service boundary", () => {
 		environment = undefined
 	})
 
+	it("does not expose server exception details in HTTP errors", async () => {
+		environment = await startLocalCloudEnvironment()
+		const response = await fetch(`${environment.apiBaseUrl}/api/v1/session`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${environment.accessToken}`, "Content-Type": "application/json" },
+			body: "{",
+		})
+		const body = (await response.json()) as { error?: string }
+
+		expect(response.status).toBe(500)
+		expect(body.error).toBe("Local cloud fixture request failed")
+		expect(body.error).not.toMatch(/json|position|stack/i)
+	})
+
 	it("exercises the production service contract without credentials or non-loopback traffic", async () => {
 		environment = await startLocalCloudEnvironment()
 		const service = new CloudSessionsService({
