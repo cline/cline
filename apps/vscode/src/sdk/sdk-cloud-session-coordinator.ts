@@ -42,6 +42,7 @@ import { Logger } from "@/shared/services/Logger"
 import { CloudSessionHost } from "./cloud-session-host"
 import type { MessageIdMinter } from "./message-id-minter"
 import type { SdkMessageCoordinator } from "./sdk-message-coordinator"
+import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { sdkMessagesToDisplayClineMessages, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { SdkSessionHost } from "./session-host"
@@ -74,6 +75,7 @@ export interface SdkCloudSessionCoordinatorOptions {
 	cloudSessions: CloudSessionsService
 	stateManager: StateManager
 	sessions: SdkSessionLifecycle
+	sessionConfigBuilder: SdkSessionConfigBuilder
 	messages: SdkMessageCoordinator
 	getMinter: () => MessageIdMinter
 	getTask: () => TaskProxy | undefined
@@ -528,6 +530,16 @@ export class SdkCloudSessionCoordinator {
 		try {
 			const modelId = await this.resolveCloudModelId()
 			if (isStale()) return undefined
+			const config = await this.options.sessionConfigBuilder.build({
+				cwd: CLOUD_WORKSPACE_ROOT,
+				workspaceRoot: CLOUD_WORKSPACE_ROOT,
+				mode: "act",
+				runtime: {
+					modelSelection: { providerId: "cline", modelId },
+					platform: "linux",
+				},
+			})
+			if (isStale()) return undefined
 			const record = await this.options.cloudSessions.createSession(
 				{ modelId, repoUrl: input.repoUrl, branch: input.branch },
 				(id) => {
@@ -548,15 +560,13 @@ export class SdkCloudSessionCoordinator {
 			if (isStale()) return sessionId
 			const startInput: StartSessionInput = {
 				config: {
-					providerId: "cline",
-					modelId,
+					...config,
 					cwd: CLOUD_WORKSPACE_ROOT,
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
 					mode: this.getCurrentMode(),
 					sessionId: record.id,
-					// CloudSessionHost prepends the sandbox's GitHub-auth instructions.
-					systemPrompt: "",
 					enableTools: true,
+					checkpoint: { enabled: false },
 					enableSpawnAgent: false,
 					enableAgentTeams: false,
 				},

@@ -85,11 +85,10 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		}) as typeof fetch,
 	})
 	const host = {
-		status: "idle",
-		start: async () => {
+		start: vi.fn(async () => {
 			await wait("lifecycle")
 			return { sessionId: record.id }
-		},
+		}),
 		stop: async () => {},
 		dispose: vi.fn(async () => {}),
 		subscribe: () => () => {},
@@ -114,6 +113,19 @@ function fixture(waitPoint: WaitPoint, organizationId?: string) {
 		stateManager: {
 			getApiConfiguration: () => ({ actModeApiProvider: "cline", actModeClineModelId: "fixture-model" }),
 			getGlobalSettingsKey: () => "act",
+		},
+		sessionConfigBuilder: {
+			build: vi.fn(async () => ({
+				providerId: "cline",
+				modelId: "fixture-model",
+				apiKey: "fixture-key",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				systemPrompt: "normal Cline guidance",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			})),
 		},
 		sessions: lifecycle,
 		messages: { appendAndEmit: vi.fn(), finalizeMessagesForSave: (messages: unknown) => messages },
@@ -272,6 +284,24 @@ describe("originating-account cloud cleanup", () => {
 		await f.entered.promise
 		f.barrier.resolve()
 		expect(await starting).toBe(f.record.id)
+		expect(f.options.sessionConfigBuilder.build).toHaveBeenCalledWith({
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			mode: "act",
+			runtime: {
+				modelSelection: { providerId: "cline", modelId: "fixture-model" },
+				platform: "linux",
+			},
+		})
+		expect(f.host.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					systemPrompt: "normal Cline guidance",
+					mode: "act",
+					checkpoint: { enabled: false },
+				}),
+			}),
+		)
 		expect(f.host.send).toHaveBeenCalledOnce()
 		expect(f.requests.some((request) => request.method === "DELETE")).toBe(false)
 		await f.coordinator.reset(f.changeScope)

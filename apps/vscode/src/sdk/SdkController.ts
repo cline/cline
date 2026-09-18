@@ -670,6 +670,7 @@ export class Controller {
 			cloudSessions: this.cloudSessions,
 			stateManager: this.stateManager,
 			sessions: this.sessions,
+			sessionConfigBuilder: this.sessionConfigBuilder,
 			messages: this.messages,
 			getMinter: () => this.messageTranslatorState.getMinter(),
 			getTask: () => this.task,
