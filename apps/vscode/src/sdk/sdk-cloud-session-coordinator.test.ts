@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { HostProvider } from "@/hosts/host-provider"
-import { CloudSessionError, type CloudSessionRecord } from "@/services/cloud/CloudSessionsService"
+import { CloudSessionError, type CloudSessionRecord, type CreateCloudSessionInput } from "@/services/cloud/CloudSessionsService"
 import { CloudSessionHost } from "./cloud-session-host"
 import { MessageIdMinter } from "./message-id-minter"
 import { SdkCloudSessionCoordinator, type SdkCloudSessionCoordinatorOptions } from "./sdk-cloud-session-coordinator"
@@ -38,7 +38,7 @@ function makeCoordinator(overrides: Partial<SdkCloudSessionCoordinatorOptions> =
 	let task: { taskId: string } | undefined
 	const cloudSessions = {
 		listSessions: vi.fn<() => Promise<CloudSessionRecord[]>>(async () => []),
-		createSession: vi.fn(async () => record),
+		createSession: vi.fn(async (_input: CreateCloudSessionInput, _onProvisioning?: (sessionId: string) => void) => record),
 		deleteSession: vi.fn(async () => undefined),
 		renameSession: vi.fn(async () => undefined),
 		dashboardUrl: vi.fn((id: string) => `https://example.test/${id}`),
@@ -353,6 +353,32 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(result).toBeUndefined()
 		expect(cloudSessions.createSession).not.toHaveBeenCalled()
 		expect(cloudSessions.deleteSession).not.toHaveBeenCalled()
+	})
+
+	it("deletes a sandbox when the user cancels during provisioning", async () => {
+		const created = deferred<CloudSessionRecord>()
+		const provisioned = deferred<void>()
+		const startNewSession = vi.fn()
+		const { coordinator, cloudSessions, options } = makeCoordinator({ sessions: { startNewSession } as never })
+		cloudSessions.createSession.mockImplementation(async (_input, onProvisioning) => {
+			onProvisioning?.(record.id)
+			provisioned.resolve()
+			return created.promise
+		})
+
+		const starting = coordinator.startCloudTask({
+			prompt: "test",
+			repoUrl: "https://github.com/cline/fixture",
+		})
+		await provisioned.promise
+		expect(coordinator.cancelPendingStart()).toBe(true)
+		expect(coordinator.cancelPendingStart()).toBe(false)
+		created.resolve(record)
+
+		expect(await starting).toBe(record.id)
+		expect(cloudSessions.deleteSession).toHaveBeenCalledWith(record.id)
+		expect(startNewSession).not.toHaveBeenCalled()
+		expect(options.resolveContextMentions).not.toHaveBeenCalled()
 	})
 
 	it("projects an authoritative usage snapshot from its live cloud host", async () => {
