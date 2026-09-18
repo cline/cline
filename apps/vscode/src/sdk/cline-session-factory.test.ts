@@ -20,6 +20,7 @@ import {
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { createProviderConfigStore } from "./model-catalog/store"
+import { buildSdkProviderConfig } from "./sdk-api-handler"
 
 const mocks = vi.hoisted(() => {
 	const providerSettingsManager = {
@@ -529,6 +530,55 @@ describe("buildSessionConfig", () => {
 		// (open.bigmodel.cn) from apiLine; a pre-filled base URL would win
 		// over that resolution.
 		expect(config.baseUrl).toBeUndefined()
+	})
+
+	it("forwards the configured Claude Code executable so the provider stops ignoring it", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "claude-code",
+			actModeApiModelId: "sonnet",
+			claudeCodePath: "  /opt/homebrew/bin/claude  ",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "claude-code",
+			claudeCode: {
+				defaultSettings: { pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude" },
+			},
+		})
+	})
+
+	it("leaves Claude Code resolution alone when no executable is configured", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "claude-code",
+			actModeApiModelId: "sonnet",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig?.providerId).toBe("claude-code")
+		// No key at all, so the provider still resolves the bundled binary/PATH.
+		expect(config.providerConfig && "claudeCode" in config.providerConfig).toBe(false)
+	})
+
+	it("gives sessions and standalone handlers the same Claude Code snapshot", async () => {
+		// Both inference entry points must consume one mapping of the legacy
+		// setting; a second source of truth is how #11908 went unnoticed.
+		const apiConfiguration = {
+			actModeApiProvider: "claude-code",
+			actModeApiModelId: "sonnet",
+			claudeCodePath: "/opt/homebrew/bin/claude",
+		} as const
+		mocks.stateManager.getApiConfiguration.mockReturnValue(apiConfiguration as any)
+
+		const sessionConfig = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const standaloneConfig = buildSdkProviderConfig(apiConfiguration as any, "act")
+
+		expect(sessionConfig.providerConfig?.claudeCode).toEqual(standaloneConfig.claudeCode)
+		expect(standaloneConfig.claudeCode).toEqual({
+			defaultSettings: { pathToClaudeCodeExecutable: "/opt/homebrew/bin/claude" },
+		})
 	})
 
 	it("falls back to the providers.json apiLine when legacy state has none", async () => {

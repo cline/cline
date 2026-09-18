@@ -1,5 +1,32 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { createSapAiCoreProviderModule } from "./community";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	createClaudeCodeProviderModule,
+	createSapAiCoreProviderModule,
+} from "./community";
+
+const claudeCodeMock = vi.hoisted(() => ({
+	createClaudeCode: vi.fn(() => vi.fn()),
+	resolveBundledPackage: vi.fn<(specifier: string) => string>(),
+}));
+
+vi.mock("node:module", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:module")>();
+	return {
+		...actual,
+		createRequire: () => ({ resolve: claudeCodeMock.resolveBundledPackage }),
+	};
+});
+
+// The real provider runs createClaudeCode() at module scope and validates
+// settings against the filesystem. Mocking it keeps these tests about the
+// executable resolution this module owns, and lets them assert the exact
+// settings handed to the provider.
+vi.mock("ai-sdk-provider-claude-code", () => ({
+	createClaudeCode: claudeCodeMock.createClaudeCode,
+}));
 
 const originalServiceKey = process.env.AICORE_SERVICE_KEY;
 
@@ -267,5 +294,213 @@ describe("createSapAiCoreProviderModule", () => {
 				},
 			}),
 		).rejects.toThrow(/baseUrl/);
+	});
+});
+
+describe("createClaudeCodeProviderModule", () => {
+	const originalPath = process.env.PATH;
+	const temporaryDirectories = new Set<string>();
+
+	beforeEach(() => {
+		claudeCodeMock.createClaudeCode.mockClear();
+		claudeCodeMock.resolveBundledPackage.mockReset();
+		claudeCodeMock.resolveBundledPackage.mockImplementation(() => {
+			throw new Error("optional package not installed");
+		});
+	});
+
+	afterEach(() => {
+		process.env.PATH = originalPath;
+		for (const directory of temporaryDirectories) {
+			rmSync(directory, { recursive: true, force: true });
+		}
+		temporaryDirectories.clear();
+	});
+
+	function settingsFromLastCall(): Record<string, unknown> {
+		const [options] = claudeCodeMock.createClaudeCode.mock.calls.at(-1) as [
+			{ defaultSettings: Record<string, unknown> },
+		];
+		return options.defaultSettings;
+	}
+
+	function createExecutable(prefix: string, name: string): string {
+		const directory = mkdtempSync(join(tmpdir(), prefix));
+		temporaryDirectories.add(directory);
+		const executable = join(directory, name);
+		writeFileSync(executable, "#!/bin/sh\n");
+		chmodSync(executable, 0o755);
+		return executable;
+	}
+
+	function createBundledExecutable(): string {
+		const name = process.platform === "win32" ? "claude.exe" : "claude";
+		const executable = createExecutable("cline-claude-code-bundled-", name);
+		const manifest = join(dirname(executable), "package.json");
+		writeFileSync(manifest, "{}");
+		claudeCodeMock.resolveBundledPackage.mockReturnValue(manifest);
+		return executable;
+	}
+
+	function createPathExecutable(): string {
+		const name = process.platform === "win32" ? "claude.exe" : "claude";
+		const executable = createExecutable("cline-claude-code-path-", name);
+		process.env.PATH = dirname(executable);
+		return executable;
+	}
+
+	it("prefers a configured executable over the bundled binary and PATH", async () => {
+		createBundledExecutable();
+		createPathExecutable();
+
+		await createClaudeCodeProviderModule({
+			providerId: "claude-code",
+			options: {
+				cwd: tmpdir(),
+				defaultSettings: { pathToClaudeCodeExecutable: process.execPath },
+			},
+		});
+
+		expect(settingsFromLastCall()).toMatchObject({
+			pathToClaudeCodeExecutable: process.execPath,
+			cwd: tmpdir(),
+		});
+		expect(claudeCodeMock.resolveBundledPackage).not.toHaveBeenCalled();
+	});
+
+	it("prefers the bundled executable over PATH when none is configured", async () => {
+		const bundledExecutable = createBundledExecutable();
+		createPathExecutable();
+
+		await createClaudeCodeProviderModule({
+			providerId: "claude-code",
+			options: { cwd: tmpdir() },
+		});
+
+		expect(settingsFromLastCall()).toMatchObject({
+			pathToClaudeCodeExecutable: bundledExecutable,
+		});
+	});
+
+	it("falls back to PATH when no configured or bundled executable exists", async () => {
+		const pathExecutable = createPathExecutable();
+
+		await createClaudeCodeProviderModule({
+			providerId: "claude-code",
+			options: { cwd: tmpdir() },
+		});
+
+		expect(settingsFromLastCall()).toMatchObject({
+			pathToClaudeCodeExecutable: pathExecutable,
+		});
+	});
+
+	it("resolves a bare command name through PATH and pins the result", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-claude-code-path-"));
+		const name = "cline-test-claude";
+		const resolved = join(dir, name);
+		writeFileSync(resolved, "#!/bin/sh\n");
+		chmodSync(resolved, 0o755);
+		const originalPath = process.env.PATH;
+		process.env.PATH = dir;
+		try {
+			await createClaudeCodeProviderModule({
+				providerId: "claude-code",
+				options: { defaultSettings: { pathToClaudeCodeExecutable: name } },
+			});
+		} finally {
+			process.env.PATH = originalPath;
+			rmSync(dir, { recursive: true, force: true });
+		}
+
+		expect(settingsFromLastCall()).toMatchObject({
+			pathToClaudeCodeExecutable: resolved,
+		});
+	});
+
+	it("fails fast when a bare command name is not on PATH", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cline-claude-code-path-"));
+		const originalPath = process.env.PATH;
+		process.env.PATH = dir;
+		try {
+			await expect(
+				createClaudeCodeProviderModule({
+					providerId: "claude-code",
+					options: {
+						defaultSettings: {
+							pathToClaudeCodeExecutable: "cline-test-claude-absent",
+						},
+					},
+				}),
+			).rejects.toThrow(
+				"Claude Code CLI Path was not found on PATH: cline-test-claude-absent",
+			);
+		} finally {
+			process.env.PATH = originalPath;
+			rmSync(dir, { recursive: true, force: true });
+		}
+		expect(claudeCodeMock.createClaudeCode).not.toHaveBeenCalled();
+	});
+
+	// accessSync X_OK degrades to a plain existence check on Windows, so the
+	// executable bit is only enforceable on POSIX.
+	it.skipIf(process.platform === "win32")(
+		"fails fast when the configured executable is not executable",
+		async () => {
+			const dir = mkdtempSync(join(tmpdir(), "cline-claude-code-path-"));
+			const plain = join(dir, "not-executable");
+			writeFileSync(plain, "#!/bin/sh\n");
+			chmodSync(plain, 0o644);
+			try {
+				await expect(
+					createClaudeCodeProviderModule({
+						providerId: "claude-code",
+						options: {
+							defaultSettings: { pathToClaudeCodeExecutable: plain },
+						},
+					}),
+				).rejects.toThrow(`Claude Code CLI Path is not executable: ${plain}`);
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+			expect(claudeCodeMock.createClaudeCode).not.toHaveBeenCalled();
+		},
+	);
+
+	it("fails fast when the configured executable does not exist", async () => {
+		const missing = join(tmpdir(), "cline-claude-code-does-not-exist");
+
+		await expect(
+			createClaudeCodeProviderModule({
+				providerId: "claude-code",
+				options: {
+					defaultSettings: { pathToClaudeCodeExecutable: missing },
+				},
+			}),
+		).rejects.toThrow(`Claude Code CLI Path does not exist: ${missing}`);
+		expect(claudeCodeMock.createClaudeCode).not.toHaveBeenCalled();
+	});
+
+	it("fails fast when the configured executable is not a file", async () => {
+		await expect(
+			createClaudeCodeProviderModule({
+				providerId: "claude-code",
+				options: {
+					defaultSettings: { pathToClaudeCodeExecutable: tmpdir() },
+				},
+			}),
+		).rejects.toThrow(/Claude Code CLI Path is not a file/);
+		expect(claudeCodeMock.createClaudeCode).not.toHaveBeenCalled();
+	});
+
+	it("fails fast when a blank executable path reaches the provider", async () => {
+		// Hosts are expected to omit the key entirely for a cleared setting; a
+		// blank string would otherwise suppress fallback resolution silently.
+		await expect(
+			createClaudeCodeProviderModule({
+				providerId: "claude-code",
+				options: { defaultSettings: { pathToClaudeCodeExecutable: "  " } },
+			}),
+		).rejects.toThrow(/Claude Code CLI Path is not a valid path/);
 	});
 });
