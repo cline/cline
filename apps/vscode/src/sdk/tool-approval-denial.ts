@@ -6,6 +6,12 @@ export const USER_MESSAGE_TOOL_APPROVAL_DENIAL_REASON = "Tool execution was canc
 export const EDIT_TOOL_APPROVAL_DENIAL_REASON =
 	"The user denied this edit. The file was NOT modified and still contains its original content."
 
+export const TASK_CLEARED_DENIAL_REASON = "Task cleared"
+export const TASK_CANCELLED_DENIAL_REASON = "Task cancelled"
+export const TASK_SWITCHED_DENIAL_REASON = "Task switched"
+export const MODE_CHANGED_DENIAL_REASON = "Mode changed"
+export const MESSAGE_EDIT_SUPERSEDED_DENIAL_REASON = "Superseded by an edited message"
+
 /**
  * Builds the model-facing reason for a denied tool approval.
  *
@@ -52,6 +58,21 @@ export function isKnownToolApprovalDenial(value: unknown): boolean {
 		message.includes(USER_REJECTED_TOOL_REASON) ||
 		message.includes(EDIT_TOOL_APPROVAL_DENIAL_REASON)
 	)
+}
+
+const TASK_LIFECYCLE_DENIAL_PAYLOADS = new Set(
+	[
+		TASK_CLEARED_DENIAL_REASON,
+		TASK_CANCELLED_DENIAL_REASON,
+		TASK_SWITCHED_DENIAL_REASON,
+		MODE_CHANGED_DENIAL_REASON,
+		MESSAGE_EDIT_SUPERSEDED_DENIAL_REASON,
+	].map((reason) => JSON.stringify({ error: reason })),
+)
+
+export function isTaskLifecycleToolApprovalDenial(value: unknown): boolean {
+	const message = getMessage(value)
+	return message !== undefined && TASK_LIFECYCLE_DENIAL_PAYLOADS.has(message)
 }
 
 export function isDeniedToolApprovalMistake(
