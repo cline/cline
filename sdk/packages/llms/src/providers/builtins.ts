@@ -866,6 +866,15 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.inference.crusoecloud.com/v1" },
 	},
 	{
+		id: "inferenceapis",
+		name: "Inference APIs",
+		description: "Open models hosted in the US with zero data retention; Codex-compatible Responses API",
+		family: "openai-compatible",
+		defaultModelId: "zai-org/GLM-5.3",
+		apiKeyEnv: ["INFERENCEAPIS_API_KEY"],
+		defaults: { baseUrl: "https://api.inferenceapis.com/v1" },
+	},
+	{
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
