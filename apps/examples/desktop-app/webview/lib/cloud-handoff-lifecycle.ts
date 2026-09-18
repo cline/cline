@@ -386,7 +386,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					if (opened && (undeliveredCommand || undeliveredAttachments)) {
 						effects.dispatch({ type: "retry_delivered", sourceSessionId });
 					}
-					if (!opened) {
+					if (!opened && (ctx.isThreadActive?.() ?? true)) {
 						effects.dispatch({ type: "external", sourceSessionId });
 						try {
 							await effects.openExternal(dashboardUrl);

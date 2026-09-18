@@ -143,6 +143,32 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 		});
 	});
 
+	it("does not open the browser when target discovery is cancelled by navigation", async () => {
+		const h = makeHarness({ openSessionResult: false });
+		const isThreadActive = vi
+			.fn<() => boolean>()
+			.mockReturnValueOnce(true)
+			.mockReturnValue(false);
+		const handoffAttemptId = h.lifecycle.onRpcStarted(SOURCE, "thread-a");
+		await h.lifecycle.onRpcResolved(SOURCE, {
+			handoffAttemptId,
+			result: makeResult(),
+			nextCommand: "",
+			sourceAttachments: [],
+			isThreadActive,
+		});
+
+		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
+			silent: true,
+			expectedActiveThreadId: "thread-a",
+		});
+		expect(h.openExternal).not.toHaveBeenCalled();
+		expect(h.dispatched).not.toContainEqual({
+			type: "external",
+			sourceSessionId: SOURCE,
+		});
+	});
+
 	it("throws when the result carries no cloud session, so the caller's catch routes it to onRpcRejected", async () => {
 		const h = makeHarness();
 		await expect(
