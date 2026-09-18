@@ -598,9 +598,10 @@ describe("useChatSession", () => {
 		expect(current.isCloudSessionExpired).toBe(replacementState.expired);
 	});
 	it.each([
-		false,
-		true,
-	])("shows expired cloud history as read-only (archive: %s)", async (hasHistory) => {
+		[false, undefined],
+		[true, undefined],
+		[true, "read_session_messages"],
+	] as const)("shows expired cloud history as read-only (archive: %s, failure: %s)", async (hasHistory, failedCommand) => {
 		const history = hasHistory
 			? [
 					{
@@ -613,6 +614,7 @@ describe("useChatSession", () => {
 				]
 			: [];
 		invokeMock.mockImplementation(async (command: string) => {
+			if (command === failedCommand) throw new Error("offline");
 			if (command === "read_session_messages") return history;
 			if (command === "chat_session_command")
 				return { sessionId: "expired-cloud", status: "expired" };
@@ -621,16 +623,32 @@ describe("useChatSession", () => {
 		await act(async () =>
 			current.hydrateSession({
 				sessionId: "expired-cloud",
+				environmentId: "local",
 				origin: "cloud",
-				status: "completed",
+				status: failedCommand ? "expired" : "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
 				repoUrl: "https://github.com/cline/test",
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
 		);
 		expect(current.isCloudSessionExpired).toBe(true);
-		expect(current.error).toContain("This cloud session has expired");
-		expect(current.error?.includes("no archived history")).toBe(!hasHistory);
-		expect(current.messages).toEqual(history);
+		if (failedCommand) {
+			expect(current.error).toContain("offline");
+				expect(
+					invokeMock.mock.calls.some(
+						([command, args]) =>
+							command === "chat_session_command" &&
+							args?.request?.action === "attach",
+				),
+			).toBe(false);
+		} else {
+			expect(current.error).toContain("This cloud session has expired");
+			expect(current.error?.includes("no archived history")).toBe(!hasHistory);
+			expect(current.messages).toEqual(history);
+		}
 		invokeMock.mockClear();
 		await act(async () => {
 			expect(await current.sendPrompt("Test")).toBe(false);

@@ -3758,7 +3758,9 @@ export function useChatSession(environmentId: string) {
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
-			setIsCloudSessionExpired(false);
+			setIsCloudSessionExpired(
+				session.origin === "cloud" && session.status === "expired",
+			);
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
