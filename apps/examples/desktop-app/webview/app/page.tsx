@@ -105,11 +105,19 @@ import { eventEnvironmentId, sessionKey } from "@/lib/session-identity";
 import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
+	readWorkInFromWindow,
+	startsNewThread,
+	TASK_WORKTREE_DELETE_WARNING,
+	type WorkIn,
+	writeWorkInToWindow,
+} from "@/lib/work-in-selection";
+import {
 	type RemoteWorkspaceEnvironment,
 	remoteWorkspaceEnvironmentFromContext,
 } from "@/lib/workspace-environment";
 import {
 	filterWorkspacePaths,
+	isTaskWorktreePath,
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	mergeWorkspacePaths,
 	normalizeWorkspacePath,
@@ -998,6 +1006,12 @@ function ChatThreadPane({
 		promptInputRef.current = value;
 	}, []);
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+	const [workInSelection, setWorkInSelection] =
+		useState<WorkIn>(readWorkInFromWindow);
+	const setWorkIn = useCallback((next: WorkIn) => {
+		setWorkInSelection(next);
+		writeWorkInToWindow(next);
+	}, []);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1009,6 +1023,18 @@ function ChatThreadPane({
 	// Branch name, "no-git" once the folder is confirmed to not be a git
 	// repository, or null while branch discovery is pending.
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
+	// Worktrees are cut by the local sidecar's git, so they are only offered
+	// for the local environment. The choice also only holds while the
+	// workspace is a git repo; a plain folder (or pending discovery) silently
+	// falls back to running locally.
+	const canWorkInWorktree = environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID;
+	const workIn: WorkIn =
+		canWorkInWorktree &&
+		workInSelection === "worktree" &&
+		gitBranch &&
+		gitBranch !== "no-git"
+			? "worktree"
+			: "local";
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
 	>(() => readProviderCatalogSnapshot()?.credentials ?? {});
@@ -1070,7 +1096,12 @@ function ChatThreadPane({
 		) {
 			return;
 		}
-		const lastWorkspace = (config.workspaceRoot || config.cwd || "").trim();
+		const active = (config.workspaceRoot || config.cwd || "").trim();
+		// A task worktree is transient: keep remembering the repo it was cut
+		// from, so the next thread (and next launch) start back on that repo.
+		const lastWorkspace = isTaskWorktreePath(active)
+			? readWorkspaceSelectionFromWindow(environmentId).lastWorkspace
+			: active;
 		writeWorkspaceSelectionToWindow(environmentId, {
 			lastWorkspace,
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
@@ -1361,7 +1392,6 @@ function ChatThreadPane({
 		setWorkspacePath("");
 		return true;
 	}, [invalidateGitBranch, setWorkspacePath]);
-
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
 			// Resolves to null when the user cancels; rethrows picker failures
@@ -1475,6 +1505,8 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	const isNewThread = startsNewThread(sessionId, messages);
+
 	const handleAttachFiles = useCallback((files: File[]) => {
 		const supportedFiles = files.filter(
 			(file) => !isUnsupportedImageAttachment(file),
@@ -1515,7 +1547,9 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
-			const promptTaken = await sendPrompt(trimmed, toSend);
+			const promptTaken = await sendPrompt(trimmed, toSend, {
+				inNewWorktree: workIn === "worktree" && isNewThread,
+			});
 			// The prompt never reached the runtime (e.g. the provider connection
 			// failed): hand it back so the user can fix the provider and resend
 			// without retyping. Leave anything they typed meanwhile alone.
@@ -1526,11 +1560,13 @@ function ChatThreadPane({
 		},
 		[
 			handleAttachFiles,
+			isNewThread,
 			onThreadStarted,
 			pendingAttachments,
 			sendPrompt,
 			setPromptInput,
 			threadId,
+			workIn,
 		],
 	);
 
@@ -2080,6 +2116,8 @@ function ChatThreadPane({
 					onListGitBranches={listGitBranches}
 					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
+					onWorkInChange={canWorkInWorktree ? setWorkIn : undefined}
+					workIn={workIn}
 				/>
 			</AttachmentDropZone>
 			<AlertDialog
@@ -2096,6 +2134,9 @@ function ChatThreadPane({
 						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
 						<AlertDialogDescription>
 							This session will be removed from local history.
+							{isTaskWorktreePath(config.workspaceRoot || config.cwd || "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

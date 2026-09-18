@@ -60,10 +60,12 @@ import type {
 import { eventEnvironmentId } from "@/lib/session-identity";
 import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
+	isTaskWorktreePath,
 	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
+	registerTaskWorktreeRoot,
 } from "@/lib/workspace-paths";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
@@ -1158,6 +1160,9 @@ export function useChatSession(environmentId: string) {
 			if (ctx.homeDir) {
 				registerHostHomeDirectory(ctx.homeDir);
 			}
+			if (ctx.taskWorktreeRoot) {
+				registerTaskWorktreeRoot(ctx.taskWorktreeRoot);
+			}
 			const rememberedWorkspace =
 				readWorkspaceSelectionFromWindow(environmentId).lastWorkspace;
 			const validation = rememberedWorkspace
@@ -2237,7 +2242,14 @@ export function useChatSession(environmentId: string) {
 	// before dispatch, or a provider switch / OAuth refresh that threw before
 	// the turn began) so the caller can hand the text back to the composer.
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
+		async (
+			prompt: string,
+			attachedFiles: File[] = [],
+			options?: {
+				/** Start the session in a fresh git worktree of the current workspace. */
+				inNewWorktree?: boolean;
+			},
+		): Promise<boolean> => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
 
@@ -2253,7 +2265,7 @@ export function useChatSession(environmentId: string) {
 				setErrorState(validation.error, activeSessionId);
 				return false;
 			}
-			const parsed = validation.parsed;
+			let parsed = validation.parsed;
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
 			activePromptSubmissionsRef.current += 1;
 			let promptSubmissionFinished = false;
@@ -2423,13 +2435,46 @@ export function useChatSession(environmentId: string) {
 				}
 
 				if (!activeSessionId) {
-					const startPromise = startSession(
-						{
-							...parsed,
-							sessionId: plannedSessionId,
-						},
-						{ preserveStatus: true },
-					);
+					// Worktree allocation is part of the pending start, so a prompt
+					// submitted while it runs queues behind it instead of cutting a
+					// second worktree and session.
+					const startPromise = options?.inNewWorktree
+						? desktopClient
+								.invoke<{ path: string }>("create_git_worktree", {
+									cwd: parsed.cwd || parsed.workspaceRoot,
+								})
+								.catch((err) => {
+									throw new Error(
+										`Couldn't create a worktree: ${errorMessage(err)}`,
+									);
+								})
+								.then(async (worktree) => {
+									parsed = {
+										...parsed,
+										cwd: worktree.path,
+										workspaceRoot: worktree.path,
+									};
+									try {
+										return await startSession(
+											{ ...parsed, sessionId: plannedSessionId },
+											{ preserveStatus: true },
+										);
+									} catch (err) {
+										// No session owns the worktree yet: drop it rather
+										// than leave an orphan directory and branch behind.
+										void desktopClient
+											.invoke("remove_git_worktree", { path: worktree.path })
+											.catch(() => undefined);
+										throw err;
+									}
+								})
+						: startSession(
+								{
+									...parsed,
+									sessionId: plannedSessionId,
+								},
+								{ preserveStatus: true },
+							);
 					sessionStartPromiseRef.current = startPromise;
 					try {
 						activeSessionId = await startPromise;
@@ -3142,7 +3187,12 @@ export function useChatSession(environmentId: string) {
 			// source a freshly mounted thread uses) so a reset after viewing
 			// a historical session does not retain that session's
 			// provider/model for the next chat.
-			const initial = getInitialChatConfig();
+			const initial = getInitialChatConfig(environmentId);
+			// A task worktree belongs to the thread that created it; the next
+			// thread goes back to the remembered repo (and its branch).
+			const leavingTaskWorktree = isTaskWorktreePath(
+				prev.workspaceRoot || prev.cwd || "",
+			);
 			return {
 				...prev,
 				sessionId: undefined,
@@ -3150,6 +3200,9 @@ export function useChatSession(environmentId: string) {
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
+				...(leavingTaskWorktree
+					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
+					: {}),
 			};
 		});
 		activeSessionIdRef.current = null;
@@ -3175,6 +3228,7 @@ export function useChatSession(environmentId: string) {
 		}
 	}, [
 		sessionId,
+		environmentId,
 		clearAbortFallbackTimeout,
 		discardPendingStream,
 		postSession,

@@ -108,6 +108,8 @@ import {
 	workspaceDisplayName,
 } from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
@@ -1285,6 +1287,9 @@ export function AgentSidebar({
 							This removes "
 							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
 							from local history.
+							{isTaskWorktreePath(deleteConfirmThread?.workspacePath ?? "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
