@@ -54,6 +54,7 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -63,6 +64,7 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
