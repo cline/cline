@@ -78,11 +78,11 @@
         "protobufjs": "7.6.5",
         "mermaid": "11.16.1",
         "diff": "8.0.4",
-        "@sap-cloud-sdk/connectivity": "4.6.0",
-        "@sap-cloud-sdk/http-client": "4.6.0",
-        "@sap-cloud-sdk/openapi": "4.6.0",
-        "@sap-cloud-sdk/resilience": "4.6.0",
-        "@sap-cloud-sdk/util": "4.6.0"
+        "@sap-cloud-sdk/connectivity": "4.9.1",
+        "@sap-cloud-sdk/http-client": "4.9.1",
+        "@sap-cloud-sdk/openapi": "4.9.1",
+        "@sap-cloud-sdk/resilience": "4.9.1",
+        "@sap-cloud-sdk/util": "4.9.1"
     },
     "trustedDependencies": [
         "better-sqlite3",
