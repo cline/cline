@@ -9,7 +9,6 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
-import * as sessionMessages from "./session-data/messages";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -276,7 +275,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		"session.get",
 		"session.messages",
 		"session.pending_prompts",
-		"message conversion",
 	])("stops hydration disposed during %s without later commands or events", async (stage) => {
 		const { manager, hub, events } = createFixture();
 		await manager.attach("ses-outer");
@@ -295,15 +293,6 @@ describe("CloudSessionManager Hub runtime", () => {
 				},
 			});
 		}
-		const conversion =
-			stage === "message conversion"
-				? vi
-						.spyOn(sessionMessages, "readSessionMessages")
-						.mockImplementationOnce(async () => {
-							await block();
-							return [];
-						})
-				: undefined;
 		hub.commandHook = (command) => (command === stage ? block() : undefined);
 		const reading = manager
 			.readMessages("ses-outer")
@@ -319,8 +308,17 @@ describe("CloudSessionManager Hub runtime", () => {
 			expect(events).toEqual([]);
 		} finally {
 			blocked.resolve();
-			conversion?.mockRestore();
 		}
+	});
+
+	it("stops hydration when disposed by a snapshot subscriber", async () => {
+		const { manager } = createFixture();
+		await manager.attach("ses-outer");
+		const unsubscribe = manager.subscribe((event) => {
+			if (event.type === "snapshot" && event.replace) void manager.dispose();
+		});
+		await expect(manager.readMessages("ses-outer")).rejects.toThrow(/disposed/);
+		unsubscribe();
 	});
 
 	it.each([
@@ -1902,15 +1900,24 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(messages).toEqual([{ role: "assistant", content: "snapshot" }]);
 	});
 
-	it("keeps server provisioning rows visible and reconciles their status", async () => {
+	it("keeps provisioning rows visible and attaches automatically when ready", async () => {
 		let status = "provisioning";
-		const { manager } = createFixture({
+		const waiting = Promise.withResolvers<void>();
+		const ready = Promise.withResolvers<void>();
+		const hub = new FakeHubClient();
+		const { manager, ctx } = createFixture({
 			api: {
 				list: async () => [{ ...REMOTE_SESSION, status: "provisioning" }],
 				status: async () => ({ sessionId: REMOTE_SESSION.id, status }),
+				waitUntilReady: async () => {
+					waiting.resolve();
+					await ready.promise;
+					status = "ready";
+				},
 			} as unknown as CloudSessionApi,
 			createHubClient: () => {
-				throw new Error("must not connect while provisioning");
+				expect(status).toBe("ready");
+				return hub as never;
 			},
 		});
 
@@ -1920,19 +1927,25 @@ describe("CloudSessionManager Hub runtime", () => {
 				status: "provisioning",
 			}),
 		]);
-		await expect(manager.attach(REMOTE_SESSION.id)).resolves.toMatchObject({
-			sessionId: REMOTE_SESSION.id,
+		const attaching = manager.attach(REMOTE_SESSION.id);
+		await waiting.promise;
+		expect(ctx.liveSessions.get(REMOTE_SESSION.id)).toMatchObject({
 			status: "provisioning",
 		});
-		await expect(manager.readMessages(REMOTE_SESSION.id)).resolves.toEqual([]);
+		expect(hub.commands).toEqual([]);
 
-		status = "ready";
+		ready.resolve();
+		await attaching;
+		await expect(manager.readMessages(REMOTE_SESSION.id)).resolves.toEqual(
+			hub.messages,
+		);
 		await expect(manager.listForDiscovery()).resolves.toEqual([
 			expect.objectContaining({
 				sessionId: REMOTE_SESSION.id,
-				status: "ready",
+				status: "idle",
 			}),
 		]);
+		await manager.dispose();
 	});
 
 	it("deletes a late sandbox with the account that created it", async () => {

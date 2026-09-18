@@ -37,6 +37,7 @@ Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
 - `core` owns stateful orchestration, including the shared-hub daemon, server, and client adapters under `src/hub/`
+- Experimental cloud REST/session lifecycle and reconciled viewing state live in `@cline/core/cloud`; host rollout gates, user interfaces and local creation recovery ledgers stay in apps.
 
 ## Change Routing
 

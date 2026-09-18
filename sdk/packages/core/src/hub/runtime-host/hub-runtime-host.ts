@@ -1,10 +1,7 @@
 import { resolveProviderRequestHeaders } from "@cline/llms";
 import type {
-	AgentEvent,
-	AgentFinishReason,
 	AgentResult,
 	AgentToolContext,
-	AgentUsage,
 	HubClientContribution,
 	HubEventEnvelope,
 	SessionRecord as HubSessionRecord,
@@ -22,7 +19,6 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
-	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
@@ -65,11 +61,7 @@ import type {
 	CoreSettingsSnapshot,
 	CoreSettingsToggleInput,
 } from "../../settings";
-import {
-	isNonTerminalSessionStatus,
-	SessionSource,
-	type SessionStatus,
-} from "../../types/common";
+import { SessionSource, type SessionStatus } from "../../types/common";
 import type {
 	CoreSessionEvent,
 	SessionPendingPrompt,
@@ -81,6 +73,11 @@ import {
 	NodeHubClient,
 	restartLocalHubIfIdleAfterStartupTimeout,
 } from "../client";
+import {
+	createHubEventProjector,
+	type HubEventProjector,
+	parseCoreSessionSnapshot,
+} from "./hub-event-projector";
 
 function toJsonRecord(
 	value: Record<string, unknown> | undefined,
@@ -425,41 +422,6 @@ function parseApprovalInput(value: unknown): unknown {
 	}
 }
 
-function isAgentFinishReason(value: unknown): value is AgentFinishReason {
-	return (
-		value === "completed" ||
-		value === "max_iterations" ||
-		value === "aborted" ||
-		value === "mistake_limit" ||
-		value === "error"
-	);
-}
-
-function parseDoneUsage(value: unknown): AgentUsage | undefined {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return undefined;
-	}
-	const payload = value as Record<string, unknown>;
-	const inputTokens =
-		typeof payload.inputTokens === "number" ? payload.inputTokens : undefined;
-	const outputTokens =
-		typeof payload.outputTokens === "number" ? payload.outputTokens : undefined;
-	if (inputTokens === undefined || outputTokens === undefined) {
-		return undefined;
-	}
-	return {
-		inputTokens,
-		outputTokens,
-		cacheReadTokens:
-			typeof payload.cacheReadTokens === "number" ? payload.cacheReadTokens : 0,
-		cacheWriteTokens:
-			typeof payload.cacheWriteTokens === "number"
-				? payload.cacheWriteTokens
-				: 0,
-		totalCost: typeof payload.totalCost === "number" ? payload.totalCost : 0,
-	};
-}
-
 function accumulatedUsageFromMetrics(
 	value: HubSessionRecord["usage"],
 ): SessionAccumulatedUsage | undefined {
@@ -475,104 +437,6 @@ function accumulatedUsageFromMetrics(
 		cacheWriteTokens:
 			typeof value.cacheWriteTokens === "number" ? value.cacheWriteTokens : 0,
 		totalCost: typeof value.totalCost === "number" ? value.totalCost : 0,
-	};
-}
-
-function finiteNumber(value: unknown): number | undefined {
-	return typeof value === "number" && Number.isFinite(value)
-		? value
-		: undefined;
-}
-
-function usageMetric(
-	record: Record<string, unknown> | undefined,
-	key: string,
-): number {
-	return finiteNumber(record?.[key]) ?? 0;
-}
-
-function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
-	event: Extract<AgentEvent, { type: "usage" }>;
-	teamAgentId?: string;
-	teamRole?: "lead" | "teammate";
-} {
-	const delta =
-		payload?.delta && typeof payload.delta === "object"
-			? (payload.delta as Record<string, unknown>)
-			: undefined;
-	const totals =
-		payload?.totals && typeof payload.totals === "object"
-			? (payload.totals as Record<string, unknown>)
-			: undefined;
-	const agent =
-		payload?.agent && typeof payload.agent === "object"
-			? (payload.agent as Record<string, unknown>)
-			: undefined;
-	const teamRole =
-		agent?.teamRole === "teammate" || agent?.teamRole === "lead"
-			? agent.teamRole
-			: undefined;
-	return {
-		event: {
-			type: "usage",
-			agentId: typeof agent?.agentId === "string" ? agent.agentId : undefined,
-			conversationId:
-				typeof agent?.conversationId === "string"
-					? agent.conversationId
-					: undefined,
-			parentAgentId:
-				typeof agent?.parentAgentId === "string"
-					? agent.parentAgentId
-					: undefined,
-			inputTokens: usageMetric(delta, "inputTokens"),
-			outputTokens: usageMetric(delta, "outputTokens"),
-			cacheReadTokens: usageMetric(delta, "cacheReadTokens"),
-			cacheWriteTokens: usageMetric(delta, "cacheWriteTokens"),
-			cost: finiteNumber(delta?.totalCost),
-			totalInputTokens: usageMetric(totals, "inputTokens"),
-			totalOutputTokens: usageMetric(totals, "outputTokens"),
-			totalCacheReadTokens: usageMetric(totals, "cacheReadTokens"),
-			totalCacheWriteTokens: usageMetric(totals, "cacheWriteTokens"),
-			totalCost: finiteNumber(totals?.totalCost),
-		},
-		teamAgentId:
-			typeof agent?.teamAgentId === "string" ? agent.teamAgentId : undefined,
-		teamRole,
-	};
-}
-
-function doneEventFromPayload(
-	payload: Record<string, unknown> | undefined,
-): AgentEvent {
-	const result =
-		payload?.result &&
-		typeof payload.result === "object" &&
-		!Array.isArray(payload.result)
-			? (payload.result as Record<string, unknown>)
-			: undefined;
-	const reasonCandidate = payload?.reason ?? result?.finishReason;
-	const reason = isAgentFinishReason(reasonCandidate)
-		? reasonCandidate
-		: reasonCandidate === "failed"
-			? "error"
-			: "completed";
-	const usage = parseDoneUsage(payload?.usage ?? result?.usage);
-	return {
-		type: "done",
-		reason,
-		text:
-			typeof payload?.text === "string"
-				? payload.text
-				: typeof result?.text === "string"
-					? result.text
-					: "",
-		iterations:
-			typeof payload?.iterations === "number"
-				? payload.iterations
-				: typeof result?.iterations === "number"
-					? result.iterations
-					: 0,
-		usage,
 	};
 }
 
@@ -675,18 +539,6 @@ function toSessionRecord(session: HubSessionRecord): SessionRecord {
 	};
 }
 
-function parseCoreSessionSnapshot(
-	value: unknown,
-): CoreSessionSnapshot | undefined {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return undefined;
-	}
-	const snapshot = value as Partial<CoreSessionSnapshot>;
-	return snapshot.version === 1 && typeof snapshot.sessionId === "string"
-		? (JSON.parse(JSON.stringify(snapshot)) as CoreSessionSnapshot)
-		: undefined;
-}
-
 function sessionRecordFromPayload(
 	payload: Record<string, unknown> | undefined,
 ): SessionRecord | undefined {
@@ -771,8 +623,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		Map<string, ClientContributionHandler>
 	>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
-	private readonly pendingApprovalToolCallIds = new Set<string>();
-	private readonly agentDoneEmittedForCurrentRunBySession = new Set<string>();
+	/**
+	 * Maps Hub envelopes to CoreSessionEvents and owns per-session terminal
+	 * event dedup state. Capability and approval envelopes stay host-owned.
+	 */
+	private readonly projector: HubEventProjector = createHubEventProjector(
+		(event) => {
+			this.events.emit(event);
+		},
+	);
 	private readonly activeCapabilityAbortControllers = new Map<
 		string,
 		AbortController
@@ -1298,7 +1157,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		this.sessionSubscriptions.clear();
 		this.sessionCapabilities.clear();
-		this.agentDoneEmittedForCurrentRunBySession.clear();
+		this.projector.dispose();
 		for (const controller of this.activeCapabilityAbortControllers.values()) {
 			controller.abort("Hub runtime host disposed.");
 		}
@@ -1548,7 +1407,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		this.sessionSubscriptions.get(target)?.();
 		this.sessionSubscriptions.delete(target);
-		this.agentDoneEmittedForCurrentRunBySession.delete(target);
+		this.projector.reset(target);
 	}
 
 	private resolveCapabilities(input: StartSessionInput): RuntimeCapabilities {
@@ -1560,49 +1419,11 @@ export class HubRuntimeHost implements RuntimeHost {
 		);
 	}
 
-	private emitToolCallContentStart(input: {
-		sessionId: string;
-		toolCallId?: string;
-		toolName?: string;
-		toolInput?: unknown;
-	}): void {
-		this.events.emit({
-			type: "agent_event",
-			payload: {
-				sessionId: input.sessionId,
-				event: {
-					type: "content_start",
-					contentType: "tool",
-					toolCallId: input.toolCallId,
-					toolName: input.toolName,
-					input: input.toolInput,
-				},
-			},
-		});
-	}
-
-	private emitAgentDoneIfNeeded(input: {
-		sessionId: string;
-		payload: Record<string, unknown> | undefined;
-	}): void {
-		const alreadyEmitted = this.agentDoneEmittedForCurrentRunBySession.has(
-			input.sessionId,
-		);
-		if (alreadyEmitted) {
+	private handleHubEvent(event: HubEventEnvelope): void {
+		if (this.projector.handle(event)) {
 			return;
 		}
-		this.agentDoneEmittedForCurrentRunBySession.add(input.sessionId);
-		this.events.emit({
-			type: "agent_event",
-			payload: {
-				sessionId: input.sessionId,
-				event: doneEventFromPayload(input.payload),
-			},
-		});
-	}
-
-	private handleHubEvent(event: HubEventEnvelope): void {
-		const sessionId = event.sessionId?.trim();
+		// Host-owned envelopes: capability execution and local approval.
 		if (event.event === "capability.requested") {
 			void this.handleCapabilityRequest(event).catch((error) => {
 				this.captureDetachedHubEventError(
@@ -1625,411 +1446,6 @@ export class HubRuntimeHost implements RuntimeHost {
 					event,
 				);
 			});
-			return;
-		}
-		if (!sessionId) {
-			return;
-		}
-
-		switch (event.event) {
-			case "run.started": {
-				this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
-				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
-				const session = event.payload?.session as HubSessionRecord | undefined;
-				if (snapshot) {
-					this.events.emit({
-						type: "session_snapshot",
-						payload: { sessionId, snapshot },
-					});
-				}
-				this.events.emit({
-					type: "status",
-					payload: {
-						sessionId,
-						status: session?.status ?? "running",
-					},
-				});
-				return;
-			}
-			case "iteration.started": {
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "iteration_start",
-							iteration:
-								typeof event.payload?.iteration === "number"
-									? event.payload.iteration
-									: 0,
-						},
-					},
-				});
-				return;
-			}
-			case "iteration.finished": {
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "iteration_end",
-							iteration:
-								typeof event.payload?.iteration === "number"
-									? event.payload.iteration
-									: 0,
-							hadToolCalls: event.payload?.hadToolCalls === true,
-							toolCallCount:
-								typeof event.payload?.toolCallCount === "number"
-									? event.payload.toolCallCount
-									: 0,
-						},
-					},
-				});
-				return;
-			}
-			case "session.notice": {
-				const noticeType = event.payload?.noticeType;
-				const displayRole = event.payload?.displayRole;
-				const reason = event.payload?.reason;
-				const agent =
-					event.payload?.agent && typeof event.payload.agent === "object"
-						? (event.payload.agent as Record<string, unknown>)
-						: undefined;
-				const teamRole =
-					agent?.teamRole === "lead" || agent?.teamRole === "teammate"
-						? agent.teamRole
-						: undefined;
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						...(teamRole ? { teamRole } : {}),
-						...(typeof agent?.teamAgentId === "string"
-							? { teamAgentId: agent.teamAgentId }
-							: {}),
-						event: {
-							type: "notice",
-							...(typeof agent?.agentId === "string"
-								? { agentId: agent.agentId }
-								: {}),
-							...(typeof agent?.conversationId === "string"
-								? { conversationId: agent.conversationId }
-								: {}),
-							...(typeof agent?.parentAgentId === "string"
-								? { parentAgentId: agent.parentAgentId }
-								: {}),
-							noticeType:
-								noticeType === "recovery" || noticeType === "stop"
-									? noticeType
-									: "status",
-							message:
-								typeof event.payload?.message === "string"
-									? event.payload.message
-									: "",
-							...(displayRole === "system" || displayRole === "status"
-								? { displayRole }
-								: {}),
-							...(typeof reason === "string"
-								? { reason: reason as never }
-								: {}),
-							...(event.payload?.metadata &&
-							typeof event.payload.metadata === "object"
-								? {
-										metadata: event.payload.metadata as Record<string, unknown>,
-									}
-								: {}),
-						},
-					},
-				});
-				return;
-			}
-			case "assistant.delta": {
-				const text =
-					typeof event.payload?.text === "string" ? event.payload.text : "";
-				if (!text) {
-					return;
-				}
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_start",
-							contentType: "text",
-							text,
-						},
-					},
-				});
-				return;
-			}
-			case "assistant.media": {
-				const media =
-					event.payload?.media &&
-					typeof event.payload.media === "object" &&
-					!Array.isArray(event.payload.media)
-						? (event.payload.media as Record<string, unknown>)
-						: undefined;
-				if (!isGeneratedMedia(media)) {
-					return;
-				}
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_end",
-							contentType: "media",
-							media,
-						},
-					},
-				});
-				return;
-			}
-			case "assistant.finished": {
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_end",
-							contentType: "text",
-							text:
-								typeof event.payload?.text === "string"
-									? event.payload.text
-									: undefined,
-						},
-					},
-				});
-				return;
-			}
-			case "reasoning.delta": {
-				const text =
-					typeof event.payload?.text === "string" ? event.payload.text : "";
-				const redacted = event.payload?.redacted === true;
-				if (!text && !redacted) {
-					return;
-				}
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_start",
-							contentType: "reasoning",
-							reasoning: text,
-							redacted,
-						},
-					},
-				});
-				return;
-			}
-			case "reasoning.finished": {
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_end",
-							contentType: "reasoning",
-							reasoning:
-								typeof event.payload?.reasoning === "string"
-									? event.payload.reasoning
-									: undefined,
-						},
-					},
-				});
-				return;
-			}
-			case "agent.done": {
-				this.emitAgentDoneIfNeeded({
-					sessionId,
-					payload: event.payload,
-				});
-				return;
-			}
-			case "usage.updated": {
-				const usage = usageEventFromPayload(event.payload);
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: usage.event,
-						teamAgentId: usage.teamAgentId,
-						teamRole: usage.teamRole,
-					},
-				});
-				return;
-			}
-			case "tool.started": {
-				const toolCallId =
-					typeof event.payload?.toolCallId === "string"
-						? event.payload.toolCallId
-						: undefined;
-				if (toolCallId && this.pendingApprovalToolCallIds.delete(toolCallId)) {
-					return;
-				}
-				this.emitToolCallContentStart({
-					sessionId,
-					toolCallId,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: undefined,
-					toolInput: event.payload?.input,
-				});
-				return;
-			}
-			case "tool.updated": {
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_update",
-							contentType: "tool",
-							toolCallId:
-								typeof event.payload?.toolCallId === "string"
-									? event.payload.toolCallId
-									: undefined,
-							toolName:
-								typeof event.payload?.toolName === "string"
-									? event.payload.toolName
-									: undefined,
-							update: event.payload?.update,
-						},
-					},
-				});
-				return;
-			}
-			case "tool.finished": {
-				const toolCallId =
-					typeof event.payload?.toolCallId === "string"
-						? event.payload.toolCallId
-						: undefined;
-				if (toolCallId) {
-					this.pendingApprovalToolCallIds.delete(toolCallId);
-				}
-				this.events.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event: {
-							type: "content_end",
-							contentType: "tool",
-							toolCallId,
-							toolName:
-								typeof event.payload?.toolName === "string"
-									? event.payload.toolName
-									: undefined,
-							output: event.payload?.output,
-							error:
-								typeof event.payload?.error === "string"
-									? event.payload.error
-									: undefined,
-						},
-					},
-				});
-				return;
-			}
-			case "session.created":
-			case "session.updated":
-			case "session.attached":
-			case "session.detached": {
-				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
-				const session = event.payload?.session as HubSessionRecord | undefined;
-				if (snapshot) {
-					this.events.emit({
-						type: "session_snapshot",
-						payload: { sessionId, snapshot },
-					});
-				}
-				// Snapshot-only session.updated events (persistence updates)
-				// carry no session record and can trail a turn's final idle
-				// update. Defaulting them to "running" flipped clients back to
-				// busy after the turn had finished — for queue-drained turns
-				// nothing else owns the busy flag, so it stuck forever (e.g.
-				// the desktop's workspace-restore gate). Report the snapshot's
-				// real status, or nothing when neither source has one.
-				const status = session?.status ?? snapshot?.status;
-				if (status) {
-					this.events.emit({
-						type: "status",
-						payload: { sessionId, status },
-					});
-				}
-				return;
-			}
-			case "session.pending_prompts": {
-				this.events.emit({
-					type: "pending_prompts",
-					payload: {
-						sessionId,
-						prompts: Array.isArray(event.payload?.prompts)
-							? (event.payload.prompts as SessionPendingPrompt[])
-							: [],
-					},
-				});
-				return;
-			}
-			case "session.pending_prompt_submitted": {
-				const prompt = event.payload?.prompt as
-					| SessionPendingPrompt
-					| undefined;
-				if (!prompt) {
-					return;
-				}
-				this.events.emit({
-					type: "pending_prompt_submitted",
-					payload: {
-						sessionId,
-						id: prompt.id,
-						prompt: prompt.prompt,
-						delivery: prompt.delivery,
-						attachmentCount: prompt.attachmentCount,
-						userImages: prompt.userImages,
-						userFiles: prompt.userFiles,
-					},
-				});
-				return;
-			}
-			case "run.completed":
-			case "run.failed":
-			case "run.aborted": {
-				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
-				const reason =
-					typeof event.payload?.reason === "string"
-						? event.payload.reason
-						: event.event === "run.aborted"
-							? "aborted"
-							: event.event === "run.failed"
-								? "error"
-								: "completed";
-				this.emitAgentDoneIfNeeded({
-					sessionId,
-					payload: {
-						...event.payload,
-						reason,
-					},
-				});
-				if (
-					snapshot?.interactive === true &&
-					isNonTerminalSessionStatus(snapshot.status)
-				) {
-					return;
-				}
-				this.events.emit({
-					type: "ended",
-					payload: {
-						sessionId,
-						reason,
-						ts: event.timestamp ?? Date.now(),
-					},
-				});
-				return;
-			}
-			default:
-				return;
 		}
 	}
 
@@ -2211,8 +1627,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				? (event.payload.policy as ToolApprovalRequest["policy"])
 				: { autoApprove: false };
 		const input = parseApprovalInput(event.payload?.inputJson);
-		this.pendingApprovalToolCallIds.add(toolCallId);
-		this.emitToolCallContentStart({
+		this.projector.announceToolCall({
 			sessionId,
 			toolCallId,
 			toolName,
