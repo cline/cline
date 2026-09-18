@@ -126,6 +126,32 @@ Design rules:
 6. `@cline/agents` runs the loop using `@cline/llms` handlers.
 7. `@cline/core` persists state, artifacts, and metadata.
 
+Long-running monitor commands are owned by the session runtime rather than by
+an individual agent turn. The runtime builder creates one `MonitorRegistry` for
+the lead session, and the local host routes its batched output into that
+session's pending-prompt queue so output can steer the next agent iteration.
+Plan mode does not expose monitors because their background shell commands
+cannot use the synchronous read-only command guard. While a monitor runs, the
+registry records descendant PID generations — PID plus start time, process
+group, and command. The start time comes from the strongest per-platform
+source: the kernel's tick-resolution `starttime` counter read from `/proc` on
+Linux, the process creation FileTime read through CIM on Windows, and `ps
+lstart` elsewhere — so a reused PID cannot present a recorded generation. This
+keeps detached children owned even if their direct shell exits. Any identity
+mismatch disowns the process (a bounded leak) rather than misattributing it (a
+stray kill of unrelated work); on Windows, where parent links are historical
+records, a claimed child is additionally believed only if it was created after
+its claimed parent. During session shutdown the registry revalidates those
+identities, signals only validated PIDs — plus POSIX process groups, but only
+those whose leader is itself validated or is the direct child pinned by its
+open handle, since a bare group id can be recycled by foreign work — waits for
+the owned tree to exit, and escalates to `SIGKILL` before releasing its
+process handles. On Windows, validated descendants are terminated through
+per-process handles: the kill script re-checks the creation time through the
+handle it terminates, so PID reuse after validation cannot redirect the
+signal. The direct child is always signaled through its own Node handle on
+every platform.
+
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the
