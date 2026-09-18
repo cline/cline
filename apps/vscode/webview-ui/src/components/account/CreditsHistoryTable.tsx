@@ -15,7 +15,7 @@ const CreditsHistoryTable = memo(({ isLoading, usageData, paymentsData, showPaym
 	const [activeTab, setActiveTab] = useState<"usage" | "payments">("usage")
 
 	return (
-		<div className="flex flex-col grow h-full">
+		<div className="flex flex-col">
 			{/* Tabs container */}
 			<div className="flex border-b border-(--vscode-panel-border)">
 				<TabButton isActive={activeTab === "usage"} onClick={() => setActiveTab("usage")}>
