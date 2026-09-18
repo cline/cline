@@ -1495,12 +1495,5 @@ async function buildUserTurnContent(
 }
 
 function tryGetModelInfo(config: AgentConfig): ModelInfo | undefined {
-	if (config.knownModels?.[config.modelId]) {
-		return config.knownModels[config.modelId];
-	}
-	const resolvedKnownModels = resolveKnownModelsFromConfig(config);
-	if (resolvedKnownModels?.[config.modelId]) {
-		return resolvedKnownModels[config.modelId];
-	}
-	return undefined;
+	return resolveKnownModelsFromConfig(config)?.[config.modelId];
 }
