@@ -99,6 +99,7 @@ jobs:
 
             # Cache Bun's global install cache - keyed on the authoritative root bun.lock.
             - name: Cache Bun install cache
+              if: runner.os != 'Windows'
               uses: actions/cache@v4
               id: bun-cache
               with:
