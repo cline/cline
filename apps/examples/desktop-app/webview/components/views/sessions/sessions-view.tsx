@@ -54,6 +54,8 @@ import {
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type SessionsViewProps = {
 	activeSessionId?: string | null;
@@ -786,6 +788,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 						<AlertDialogDescription>
 							This removes "{deleteCandidate?.title ?? "this session"}" from
 							local history.
+							{isTaskWorktreePath(deleteCandidate?.workspacePath ?? "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

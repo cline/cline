@@ -106,6 +106,7 @@ import { readImportedFromTool } from "@/lib/session-import";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	readWorkInFromWindow,
+	TASK_WORKTREE_DELETE_WARNING,
 	type WorkIn,
 	writeWorkInToWindow,
 } from "@/lib/work-in-selection";
@@ -2128,6 +2129,9 @@ function ChatThreadPane({
 						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
 						<AlertDialogDescription>
 							This session will be removed from local history.
+							{isTaskWorktreePath(config.workspaceRoot || config.cwd || "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
