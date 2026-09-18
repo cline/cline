@@ -1653,7 +1653,6 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowPin={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				allowRename
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
@@ -1752,8 +1751,6 @@ function EditableSessionTitle({
 function SessionContextMenuContent({
 	allowPin,
 	allowFork,
-	allowRename,
-	allowDelete = true,
 	pinned,
 	onRename,
 	onTogglePin,
@@ -1763,8 +1760,6 @@ function SessionContextMenuContent({
 }: {
 	allowPin: boolean;
 	allowFork: boolean;
-	allowRename: boolean;
-	allowDelete?: boolean;
 	pinned: boolean;
 	onRename: () => void;
 	onTogglePin: () => void;
@@ -1781,16 +1776,14 @@ function SessionContextMenuContent({
 					{pinned ? "Unpin" : "Pin"}
 				</ContextMenuItem>
 			) : null}
-			{allowRename ? (
-				<ContextMenuItem disabled={pending} onSelect={onRename}>
-					{pendingAction === "rename" ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<Pencil className="size-4" />
-					)}
-					{pendingAction === "rename" ? "Renaming..." : "Rename"}
-				</ContextMenuItem>
-			) : null}
+			<ContextMenuItem disabled={pending} onSelect={onRename}>
+				{pendingAction === "rename" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Pencil className="size-4" />
+				)}
+				{pendingAction === "rename" ? "Renaming..." : "Rename"}
+			</ContextMenuItem>
 			{allowFork ? (
 				<ContextMenuItem disabled={pending} onSelect={onFork}>
 					{pendingAction === "fork" ? (
@@ -1802,7 +1795,7 @@ function SessionContextMenuContent({
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuItem
-				disabled={pending || !allowDelete}
+				disabled={pending}
 				onSelect={onDelete}
 				variant="destructive"
 			>

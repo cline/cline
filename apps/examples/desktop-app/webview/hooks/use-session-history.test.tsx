@@ -42,7 +42,8 @@ type PendingList = {
 function sessionRow(sessionId: string) {
 	return {
 		sessionId,
-		status: "completed",
+		environmentId: "local",
+		status: "completed" as const,
 		provider: "cline",
 		model: "glm-5.2",
 		cwd: "/workspace",

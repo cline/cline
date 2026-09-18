@@ -1240,7 +1240,7 @@ function ChatThreadPane({
 			liveProvisioningPhase !== undefined);
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
-		isProvisioningCloudSession || (isCloudSession && status === "starting"),
+		isCloudSession && status === "starting",
 		liveProvisioningPhase ??
 			readCloudProvisioningPhase(historySession?.metadata?.provisioningPhase),
 		historySession?.startedAt,

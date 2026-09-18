@@ -709,7 +709,6 @@ function GeneralSettingsContent({
 	>(null);
 	// Keep the preview hidden until the rollout service explicitly enables it.
 	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(false);
-	const cloudSessionsSettingVisible = cloudSessionsAvailable;
 
 	const refreshCloudSessionsEffective = useCallback(async () => {
 		try {
@@ -1184,7 +1183,7 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
-				{cloudSessionsSettingVisible ? (
+				{cloudSessionsAvailable ? (
 					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 						<div className="flex flex-col gap-1">
 							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
