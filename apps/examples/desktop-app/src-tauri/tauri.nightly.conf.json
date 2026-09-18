@@ -4,9 +4,7 @@
 	"identifier": "bot.cline.app.nightly",
 	"plugins": {
 		"updater": {
-			"endpoints": [
-				"https://github.com/cline/cline/releases/download/desktop-nightly/latest.json"
-			]
+			"endpoints": []
 		}
 	}
 }

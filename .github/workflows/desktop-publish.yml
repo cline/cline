@@ -2,6 +2,7 @@ name: desktop-publish
 
 # Like ext-vscode-publish-nightly, nightlies are manually dispatched because
 # PublishDesktop requires approval. Dispatch from main with channel=nightly.
+# Nightlies upload Actions artifacts only; they do not publish releases or feeds.
 on:
   workflow_dispatch:
     inputs:
@@ -114,16 +115,14 @@ jobs:
           # suffixes for the same reason.
           if [ "$CHANNEL" = "nightly" ]; then
             if [ -n "$TAG" ]; then
-              echo "nightly generates its own tag; leave git_tag empty"
+              echo "nightly builds do not use a release tag; leave git_tag empty"
               exit 1
             fi
             BASE=$(node -p "require('./apps/examples/desktop-app/package.json').version.split('-')[0]")
             VERSION="${BASE}-nightly.$(date -u +%Y%m%d%H%M%S).${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
             echo "ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
             echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-            echo "tag=desktop-v${VERSION}" >> "$GITHUB_OUTPUT"
             echo "channel=nightly" >> "$GITHUB_OUTPUT"
-            echo "feed=desktop-nightly" >> "$GITHUB_OUTPUT"
             echo "product=Cline Nightly" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -417,8 +416,8 @@ jobs:
               FORBID="releases/download/desktop-(latest|nightly)/latest.json"
               ;;
             nightly)
-              WANT="releases/download/desktop-nightly/latest.json"
-              FORBID="releases/download/desktop-(latest|beta)/latest.json"
+              WANT=""
+              FORBID="releases/download/desktop-(latest|beta|nightly)/latest.json"
               ;;
             *)
               echo "unknown channel: ${CHANNEL}"
@@ -435,18 +434,18 @@ jobs:
               echo "$bin embeds the other channel's feed URL (${FORBID})"
               exit 1
             fi
-            if strings -a "$bin" | grep "$WANT" >/dev/null; then
+            if [ -n "$WANT" ] && strings -a "$bin" | grep "$WANT" >/dev/null; then
               found=1
             fi
           done
 
-          if [ "$found" -ne 1 ]; then
+          if [ -n "$WANT" ] && [ "$found" -ne 1 ]; then
             echo "No binary in ${APP}/Contents/MacOS embeds ${WANT}."
             echo "The updater endpoint overlay did not apply; check the"
             echo "--config flags on the build step and tauri.beta.conf.json."
             exit 1
           fi
-          echo "Updater endpoint verified: ${WANT}"
+          echo "Updater endpoint verified: ${WANT:-disabled}"
 
       # Guardrail: assert the telemetry config actually made it into the
       # compiled sidecar. Missing env on the build step (or a regression in
@@ -510,6 +509,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-universal
+          retention-days: 30
           path: apps/examples/desktop-app/dist/publish/*
           if-no-files-found: error
 
@@ -730,8 +730,8 @@ jobs:
               FORBID="releases/download/desktop-(latest|nightly)/latest.json"
               ;;
             nightly)
-              WANT="releases/download/desktop-nightly/latest.json"
-              FORBID="releases/download/desktop-(latest|beta)/latest.json"
+              WANT=""
+              FORBID="releases/download/desktop-(latest|beta|nightly)/latest.json"
               ;;
             *)
               echo "unknown channel: ${CHANNEL}"
@@ -745,18 +745,18 @@ jobs:
               echo "$bin embeds the other channel's feed URL (${FORBID})"
               exit 1
             fi
-            if grep -a "$WANT" "$bin" >/dev/null; then
+            if [ -n "$WANT" ] && grep -a "$WANT" "$bin" >/dev/null; then
               found=1
             fi
           done
 
-          if [ "$found" -ne 1 ]; then
+          if [ -n "$WANT" ] && [ "$found" -ne 1 ]; then
             echo "No exe in src-tauri/target/release embeds ${WANT}."
             echo "The updater endpoint overlay did not apply; check the"
             echo "--config flags on the build step and tauri.beta.conf.json."
             exit 1
           fi
-          echo "Updater endpoint verified: ${WANT}"
+          echo "Updater endpoint verified: ${WANT:-disabled}"
 
       # Same guardrail as the macOS job, run natively on the Windows sidecar.
       - name: Verify sidecar telemetry config was inlined
@@ -833,12 +833,14 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-windows-x64
+          retention-days: 30
           path: apps/examples/desktop-app/dist/publish/*
           if-no-files-found: error
 
   release:
     name: Create GitHub release
     needs: [validate, build, build-windows]
+    if: needs.validate.outputs.channel != 'nightly'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -865,17 +867,12 @@ jobs:
         id: changelog
         env:
           VERSION: ${{ needs.validate.outputs.version }}
-          CHANNEL: ${{ needs.validate.outputs.channel }}
         run: |
           # Grab content between this release's "## <version>" header and the
           # next one. Exact match, not "first section": once main and
           # desktop-experimental cross-merge, stable and beta sections
           # interleave and the top section may belong to the other channel.
-          if [ "$CHANNEL" = "nightly" ]; then
-            CONTENT="Nightly build from main at $(git rev-parse HEAD)."
-          else
-            CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
-          fi
+          CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
           if [ -z "$CONTENT" ]; then
             echo "No '## ${VERSION}' section found in apps/examples/desktop-app/CHANGELOG.md"
             exit 1
@@ -950,7 +947,7 @@ jobs:
           # The repo-wide "latest" release stays owned by CLI releases; the
           # desktop auto-update feed is the rolling desktop-latest release.
           make_latest: "false"
-          prerelease: ${{ needs.validate.outputs.channel != 'stable' }}
+          prerelease: ${{ needs.validate.outputs.channel == 'beta' }}
           files: dist/desktop/*
           body: |
             ${{ steps.changelog.outputs.content }}
@@ -974,7 +971,6 @@ jobs:
           case "$CHANNEL" in
             stable) EXPECTED_FEED=desktop-latest ;;
             beta) EXPECTED_FEED=desktop-beta ;;
-            nightly) EXPECTED_FEED=desktop-nightly ;;
             *)
               echo "unknown channel: ${CHANNEL}"
               exit 1
@@ -1014,7 +1010,6 @@ jobs:
           echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
 
       - name: Post release to Slack
-        if: needs.validate.outputs.channel != 'nightly'
         uses: slackapi/slack-github-action@v3.0.1
         with:
           method: chat.postMessage
