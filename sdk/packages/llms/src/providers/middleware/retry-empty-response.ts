@@ -499,9 +499,15 @@ export function createRetryEmptyResponseMiddleware(
 						});
 
 						if (retryDelayMs > 0) {
-							await sleep(retryDelayMs, cancelController.signal);
+							await sleep(retryDelayMs, backoffSignal);
 						}
 						if (cancelled()) {
+							return;
+						}
+						if (abortSignal?.aborted) {
+							// The user cancelled during backoff: surface the abort
+							// instead of re-dialing with an already-aborted signal.
+							controller.error(abortSignal.reason);
 							return;
 						}
 						try {
