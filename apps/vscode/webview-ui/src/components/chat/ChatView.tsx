@@ -424,7 +424,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
-				<AutoApproveBar />
+				{!currentCloudTask && <AutoApproveBar />}
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}
