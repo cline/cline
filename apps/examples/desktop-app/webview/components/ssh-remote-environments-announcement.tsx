@@ -1,0 +1,166 @@
+"use client";
+
+import {
+	Check,
+	Folder,
+	FolderOpen,
+	GitBranch,
+	Laptop,
+	Server,
+	Settings,
+} from "lucide-react";
+import type { ComponentType } from "react";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+
+export type SshRemoteEnvironmentsAnnouncementProps = {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	/** Primary action: takes the user to Settings → Remote. */
+	onSetUpHost: () => void;
+};
+
+const STEPS: Array<{
+	icon: ComponentType<{ className?: string }>;
+	title: string;
+	body: string;
+}> = [
+	{
+		icon: Settings,
+		title: "Add a host in Settings → Remote",
+		body: "A hostname or SSH config alias, plus an optional user, port, and identity file. Test the connection before you rely on it.",
+	},
+	{
+		icon: Laptop,
+		title: "Pick it from the environment selector",
+		body: "The laptop button beside the workspace picker on the new-chat screen. Choosing a host connects at its home directory; Local disconnects.",
+	},
+	{
+		icon: FolderOpen,
+		title: "Open a project on that machine",
+		body: "Add project… in the workspace picker browses the host's folders. Recent workspaces are remembered per host.",
+	},
+];
+
+/**
+ * Static replica of the new-chat toolbar with the environment selector open,
+ * so the spotlight shows where the (otherwise unlabeled) entry point lives.
+ */
+function EnvironmentSelectorPreview() {
+	return (
+		<div
+			aria-hidden
+			className="flex flex-col overflow-hidden rounded-lg border border-border bg-muted/40 p-4"
+			data-testid="ssh-announcement-preview"
+		>
+			<div className="flex items-center gap-2">
+				<span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-foreground ring-2 ring-purple-500/70 ring-offset-2 ring-offset-muted">
+					<Laptop className="size-4" />
+				</span>
+				<span className="flex h-9 min-w-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs text-muted-foreground">
+					<Folder className="size-3 shrink-0" />
+					<span className="truncate text-foreground">~/dev/api</span>
+					<span className="text-muted-foreground/60">/</span>
+					<GitBranch className="size-3 shrink-0" />
+					<span>main</span>
+				</span>
+			</div>
+			<div className="mt-2 w-full rounded-md border border-border bg-popover p-1 text-xs text-popover-foreground shadow-lg">
+				<div className="flex h-7 items-center gap-2 rounded-sm px-2">
+					<Laptop className="size-3.5" />
+					<span className="uppercase">Local</span>
+				</div>
+				<div className="my-1 h-px bg-border" />
+				<div className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+					<span className="flex items-center gap-2">
+						<Server className="size-3.5" />
+						Remote
+					</span>
+					<Settings className="size-3" />
+				</div>
+				<div className="flex h-7 items-center gap-2 rounded-sm bg-purple-500/20 px-2">
+					<span className="min-w-0 flex-1 truncate">Build server</span>
+					<Check className="size-3.5" />
+				</div>
+				<div className="flex h-7 items-center gap-2 rounded-sm px-2">
+					<span className="min-w-0 flex-1 truncate">Raspberry Pi</span>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+export function SshRemoteEnvironmentsAnnouncement({
+	open,
+	onOpenChange,
+	onSetUpHost,
+}: SshRemoteEnvironmentsAnnouncementProps) {
+	return (
+		<Dialog onOpenChange={onOpenChange} open={open}>
+			<DialogContent
+				className="outline-none sm:max-w-2xl"
+				onOpenAutoFocus={(event) => {
+					// Keep focus on the dialog itself rather than lighting up "Maybe
+					// later" with a focus ring the moment the spotlight appears.
+					event.preventDefault();
+					(event.currentTarget as HTMLElement | null)?.focus();
+				}}
+			>
+				<DialogHeader>
+					<span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+						<span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+							New
+						</span>
+						Remote environments
+					</span>
+					<DialogTitle>Run Cline on any machine over SSH</DialogTitle>
+					<DialogDescription>
+						Point Cline at a server, a dev box, or a Raspberry Pi. Tools, Git,
+						and workspace discovery run on that host; approvals and live output
+						stay right here.
+					</DialogDescription>
+				</DialogHeader>
+				<div className="grid items-start gap-4 sm:grid-cols-[minmax(0,16rem)_1fr]">
+					<EnvironmentSelectorPreview />
+					<ol className="flex flex-col gap-3">
+						{STEPS.map((step, index) => (
+							<li className="flex gap-3" key={step.title}>
+								<span className="relative mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 text-foreground">
+									<step.icon className="size-3.5" />
+									<span className="absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full bg-purple-500 text-[10px] font-semibold leading-none text-white">
+										{index + 1}
+									</span>
+								</span>
+								<span className="flex min-w-0 flex-col gap-0.5">
+									<span className="text-sm font-medium leading-tight">
+										{step.title}
+									</span>
+									<span className="text-xs leading-snug text-muted-foreground">
+										{step.body}
+									</span>
+								</span>
+							</li>
+						))}
+					</ol>
+				</div>
+				<p className="text-xs text-muted-foreground">
+					Key-based authentication and SSH config aliases are supported. Linux
+					hosts (x64 and arm64) are supported today.
+				</p>
+				<DialogFooter>
+					<Button onClick={() => onOpenChange(false)} variant="outline">
+						Maybe later
+					</Button>
+					<Button onClick={onSetUpHost}>Set up an SSH host</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}

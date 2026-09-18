@@ -15,6 +15,7 @@ import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
+import { SshRemoteEnvironmentsAnnouncement } from "@/components/ssh-remote-environments-announcement";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -69,6 +70,7 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { claimFeatureAnnouncement } from "@/lib/feature-announcements";
 import {
 	imageAttachmentMediaType,
 	isUnsupportedImageAttachment,
@@ -196,6 +198,12 @@ export default function Home() {
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
 	const [showOnboarding, setShowOnboarding] = useState(false);
+	// One-time SSH spotlight for installs that predate remote environments.
+	// Claimed once per mount (a ref, so StrictMode's second effect run cannot
+	// see it as already shown); "pending" then arms the fade-in delay.
+	const sshAnnouncementClaimedRef = useRef(false);
+	const [sshAnnouncementPending, setSshAnnouncementPending] = useState(false);
+	const [showSshAnnouncement, setShowSshAnnouncement] = useState(false);
 	const [commandBarOpen, setCommandBarOpen] = useState(false);
 	// Shared by the sidebar search icon and the Cmd/Ctrl+P shortcut.
 	const handleOpenCommandBar = useCallback(() => setCommandBarOpen(true), []);
@@ -244,12 +252,30 @@ export default function Home() {
 	useAppUpdate();
 
 	useEffect(() => {
-		setShowOnboarding(!hasCompletedOnboarding());
+		const onboardingCompleted = hasCompletedOnboarding();
+		setShowOnboarding(!onboardingCompleted);
+		if (!sshAnnouncementClaimedRef.current) {
+			sshAnnouncementClaimedRef.current = true;
+			if (
+				claimFeatureAnnouncement("ssh-remote-environments", {
+					onboardingCompleted,
+				})
+			) {
+				setSshAnnouncementPending(true);
+			}
+		}
 		const handleReset = () => setShowOnboarding(true);
 		window.addEventListener(ONBOARDING_RESET_EVENT, handleReset);
 		return () =>
 			window.removeEventListener(ONBOARDING_RESET_EVENT, handleReset);
 	}, []);
+
+	useEffect(() => {
+		if (!sshAnnouncementPending) return;
+		// Let the shell paint before the spotlight fades in over it.
+		const timer = window.setTimeout(() => setShowSshAnnouncement(true), 800);
+		return () => window.clearTimeout(timer);
+	}, [sshAnnouncementPending]);
 
 	useEffect(() => {
 		syncHubTheme();
@@ -597,6 +623,13 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
+	const dismissSshAnnouncement = useCallback(() => {
+		setShowSshAnnouncement(false);
+	}, []);
+	const setUpSshHostFromAnnouncement = useCallback(() => {
+		setShowSshAnnouncement(false);
+		handleSettingsSectionChange("Remote");
+	}, [handleSettingsSectionChange]);
 	// Standard app shortcuts: Cmd/Ctrl+P for session search, Cmd/Ctrl+N for a
 	// new session, and Cmd/Ctrl+, for settings.
 	useEffect(() => {
@@ -870,6 +903,13 @@ export default function Home() {
 				</WindowTitleBarProvider>
 			</SidebarProvider>
 			<HubUpdateRequiredDialog />
+			<SshRemoteEnvironmentsAnnouncement
+				onOpenChange={(open) => {
+					if (!open) dismissSshAnnouncement();
+				}}
+				onSetUpHost={setUpSshHostFromAnnouncement}
+				open={showSshAnnouncement && !showOnboarding}
+			/>
 			<SessionCommandBar
 				onOpenChange={setCommandBarOpen}
 				onOpenSession={handleOpenSessionById}
