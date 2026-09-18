@@ -2556,6 +2556,11 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			]
 			expect(extractToolOutputText(output)).toBe("hi")
 		})
+
+		it("returns empty string for a silent command instead of the JSON envelope", () => {
+			const output = [{ query: "git add -A", result: "", success: true }]
+			expect(extractToolOutputText(output)).toBe("")
+		})
 	})
 
 	// ---------------------------------------------------------------------------
