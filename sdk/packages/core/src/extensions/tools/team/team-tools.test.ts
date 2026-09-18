@@ -820,7 +820,11 @@ describe("createAgentTeamsTools runtime behavior", () => {
 
 		// Both callers should receive the same result from the shared in-flight run.
 		resolveRoute({ text: "Probability explained", iterations: 3 });
-		const result1 = (await call1) as { text?: string; iterations?: number };
+		const result1 = (await call1) as {
+			text?: string;
+			iterations?: number;
+			status?: string;
+		};
 		const result2 = (await call2) as {
 			text?: string;
 			iterations?: number;
@@ -830,6 +834,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		};
 		expect(result1.text).toBe("Probability explained");
 		expect(result1.iterations).toBe(3);
+		expect(result1.status).toBe("completed");
 		expect(result2.text).toBe("Probability explained");
 		expect(result2.iterations).toBe(3);
 		expect(result2.status).toBe("joined");
