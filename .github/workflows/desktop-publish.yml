@@ -3,6 +3,8 @@ name: desktop-publish
 # Like ext-vscode-publish-nightly, nightlies are manually dispatched because
 # PublishDesktop requires approval. Dispatch from main with channel=nightly.
 # Nightlies upload Actions artifacts only; they do not publish releases or feeds.
+# Each successful nightly is tagged desktop-nightly-<stamp> and announced to
+# Slack with the commits since the previous nightly or release.
 on:
   workflow_dispatch:
     inputs:
@@ -1069,3 +1071,88 @@ jobs:
                 elements:
                   - type: "mrkdwn"
                     text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
+
+  announce-nightly:
+    name: Tag and announce nightly
+    needs: [validate, build, build-windows]
+    if: needs.validate.outputs.channel == 'nightly'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Collect changes since the previous nightly or release
+        id: changes
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          # Nightlies have no changelog, so the announcement lists the commits
+          # since the nearest desktop tag - the previous nightly or the last
+          # release, whichever is closer - scoped to what ships in the app
+          # (the sidecar bundles sdk/packages). Runs before this build is
+          # tagged below so it never compares against itself.
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --match 'desktop-nightly-*' HEAD 2>/dev/null || true)
+          STAMP=${VERSION#*-nightly.}
+          echo "tag=desktop-nightly-${STAMP%%.*}" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$PREV_TAG" ]; then
+            BODY="No previous nightly or desktop release tag found to compare against."
+          else
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --no-merges --format='%s' -- apps/examples/desktop-app sdk/packages .github/workflows/desktop-publish.yml)
+            TOTAL=$(printf "%s" "$COMMITS" | grep -c . || true)
+            COMPARE="https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...$(git rev-parse --short HEAD)"
+            if [ "$TOTAL" -eq 0 ]; then
+              BODY="No desktop or SDK changes since \`${PREV_TAG}\` (<${COMPARE}|compare>)."
+            else
+              # Escape mrkdwn, link squash-merge PR numbers, cap the list so the
+              # block stays under Slack's 3000-character limit.
+              LIST=$(printf "%s\n" "$COMMITS" | head -15 \
+                | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
+                      -e "s~(#\([0-9]*\))\$~(<https://github.com/${GITHUB_REPOSITORY}/pull/\1|#\1>)~" \
+                      -e 's/^/• /')
+              BODY="*Changes since \`${PREV_TAG}\`* (<${COMPARE}|${TOTAL} commits>):"$'\n'"${LIST}"
+              if [ "$TOTAL" -gt 15 ]; then
+                BODY="${BODY}"$'\n'"… and $((TOTAL - 15)) more"
+              fi
+            fi
+          fi
+          printf "%s\n" "$BODY"
+          echo "body<<SLACK_EOF" >> "$GITHUB_OUTPUT"
+          echo "$BODY" >> "$GITHUB_OUTPUT"
+          echo "SLACK_EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Tag the nightly
+        env:
+          TAG: ${{ steps.changes.outputs.tag }}
+        run: |
+          git tag "$TAG"
+          git push origin "refs/tags/${TAG}"
+
+      - name: Post nightly to Slack
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: "C0APVKGGZFC"
+            text: "Cline desktop nightly ${{ needs.validate.outputs.version }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "*Cline desktop nightly* `${{ needs.validate.outputs.version }}`"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ${{ toJSON(steps.changes.outputs.body) }}
+              - type: "context"
+                elements:
+                  - type: "mrkdwn"
+                    text: "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Download installers> (Actions artifacts, 30-day retention) — installs side by side as Cline Nightly and never auto-updates | tagged `${{ steps.changes.outputs.tag }}`"

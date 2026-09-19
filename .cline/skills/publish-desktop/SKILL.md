@@ -1,6 +1,6 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (untagged, artifact-only test build of main's HEAD). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
+description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release — stable (desktop-vX.Y.Z from main), beta (desktop-vX.Y.Z-beta.N from desktop-experimental, shipped as the side-by-side "Cline Beta" app), or nightly (artifact-only test build of main's HEAD, tagged desktop-nightly-<stamp> after it builds). Guides changelog drafting, version bumps in package.json + tauri.conf.json, tagging, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the per-channel auto-update feed.
 ---
 
 # Desktop App Release
@@ -16,7 +16,7 @@ Desktop releases ship two platforms, built entirely in GitHub Actions — there 
 - Three channels, one workflow (`channel` input on `desktop-publish.yml`):
   - **stable** — tag `desktop-vX.Y.Z` (no suffix; the workflow rejects prerelease suffixes on this channel), cut from `main`, feeds the rolling `desktop-latest` release, ships as "Cline".
   - **beta** — tag `desktop-vX.Y.Z-beta.N`, cut from `desktop-experimental`, feeds the rolling `desktop-beta` release, ships as "Cline Beta" (separate bundle identifier `bot.cline.app.beta`; installs side by side with stable). Built with the extra `src-tauri/tauri.beta.conf.json` overlay. Process background: `apps/examples/desktop-app/EXPERIMENTAL.md`.
-  - **nightly** — no tag, no release, no feed. Builds `main`'s HEAD, ships as "Cline Nightly" (identifier `bot.cline.app.nightly`, empty updater endpoints, `src-tauri/tauri.nightly.conf.json` overlay) and uploads the signed installers as Actions artifacts only. See "Nightly builds" below.
+  - **nightly** — no release tag input, no release, no feed. Builds `main`'s HEAD, ships as "Cline Nightly" (identifier `bot.cline.app.nightly`, empty updater endpoints, `src-tauri/tauri.nightly.conf.json` overlay), uploads the signed installers as Actions artifacts only, then tags the commit `desktop-nightly-<utc stamp>` and announces the changes since the previous nightly or release to Slack. See "Nightly builds" below.
 - Version sources (must match each other and the tag): `apps/examples/desktop-app/package.json` and `apps/examples/desktop-app/src-tauri/tauri.conf.json`. (`src-tauri/Cargo.toml` has its own version but `tauri.conf.json` overrides it; no need to touch it.)
 - Beta versions are prereleases of the **next** stable: stable `0.0.13` → betas `0.0.14-beta.1`, `-beta.2`, … Once a stable ≥ the beta base ships, the next beta bumps its base (`0.0.15-beta.1`).
 - Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update — committed on `main` for stable, on `desktop-experimental` for beta.
@@ -147,10 +147,12 @@ Report: channel, version, tag, changelog updated, commit hash, what was pushed, 
 ## Nightly builds
 
 A nightly is a **throwaway test build**, not a release: no version bump, no
-changelog, no commit, no tag, no GitHub release, and neither auto-update feed is
+changelog, no commit, no GitHub release, and neither auto-update feed is
 touched (the `release` job is gated `if: channel != 'nightly'`, and the nightly
 Tauri overlay ships empty updater endpoints). It exists to hand someone a signed,
-notarized installer of whatever is on `main` right now.
+notarized installer of whatever is on `main` right now. The only trace it
+leaves in the repo is a lightweight `desktop-nightly-<stamp>` tag on the built
+commit, which is what the next nightly's announcement compares against.
 
 What the workflow does differently:
 
@@ -167,6 +169,15 @@ What the workflow does differently:
   PublishDesktop approval** — same wait, same reviewer.
 - Ends at artifacts: `desktop-universal` (macOS) and `desktop-windows-x64`,
   30-day retention, on the run page.
+- Then the `announce-nightly` job tags the commit `desktop-nightly-<utcYYYYMMDDHHMMSS>`
+  (the stamp from the version) and posts to the Slack release channel: the
+  commits since the nearest `desktop-v*` or `desktop-nightly-*` tag (previous
+  nightly or last release, whichever is closer), scoped to
+  `apps/examples/desktop-app`, `sdk/packages`, and the publish workflow, with
+  PR links and a compare link. The list caps at 15 lines to stay under Slack's
+  3000-character block limit. Never rename `desktop-nightly-*` tags; the
+  stable release compare (`--exclude 'desktop-v*-*'`, `--match 'desktop-v*'`)
+  ignores them by prefix.
 
 Steps: confirm `main` is current (`git fetch origin main && git status -sb`), then
 
