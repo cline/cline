@@ -98,6 +98,29 @@ jobs:
           EOF
           sudo chmod 755 /usr/bin/ldd
 
+      # linuxdeploy's bundled/system patchelf rewrites Bun --compile ELFs
+      # (extra PT_LOAD for RUNPATH). ld-linux then segfaults before main(),
+      # so the desktop backend never publishes its websocket endpoint.
+      - name: Do not patchelf Bun sidecar binaries
+        run: |
+          if [ -x /usr/bin/patchelf ] && [ ! -x /usr/bin/patchelf.real ]; then
+            sudo mv /usr/bin/patchelf /usr/bin/patchelf.real
+          fi
+          sudo tee /usr/bin/patchelf >/dev/null <<'EOF'
+          #!/bin/bash
+          for arg in "$@"; do
+            [ -f "$arg" ] || continue
+            case "$(basename -- "$arg")" in
+              code-sidecar|code-sidecar-*|cline-remote-helper-*)
+                echo "patchelf: skipping bun binary $arg" >&2
+                exit 0
+                ;;
+            esac
+          done
+          exec /usr/bin/patchelf.real "$@"
+          EOF
+          sudo chmod 755 /usr/bin/patchelf
+
       - name: Build AppImage
         working-directory: apps/examples/desktop-app
         run: bunx tauri build --bundles appimage --verbose
@@ -119,6 +142,45 @@ jobs:
             find "$BUNDLE_DIR" -maxdepth 2 | head -50
             exit 1
           fi
+
+          # linuxdeploy still ships its own patchelf; replace any rewritten
+          # Bun ELFs with the untouched compile output before packing.
+          ORIG=$(find src-tauri/bin -maxdepth 1 -type f -name 'code-sidecar-*' | head -1)
+          if [ -z "$ORIG" ]; then
+            echo "original sidecar missing under src-tauri/bin"
+            ls -la src-tauri/bin || true
+            exit 1
+          fi
+          shopt -s nullglob
+          RESTORED=0
+          for dest in "$APPDIR/usr/bin/code-sidecar" "$APPDIR"/usr/bin/code-sidecar-*; do
+            [ -f "$dest" ] || continue
+            cp -f "$ORIG" "$dest"
+            chmod +x "$dest"
+            RESTORED=$((RESTORED + 1))
+          done
+          if [ "$RESTORED" -eq 0 ]; then
+            echo "no code-sidecar in AppDir to restore"
+            find "$APPDIR" -name 'code-sidecar*' | head
+            exit 1
+          fi
+          HELPER_SRC="src-tauri/bin/remote-helpers"
+          if [ -d "$HELPER_SRC" ]; then
+            while IFS= read -r dest; do
+              name=$(basename -- "$dest")
+              if [ -f "$HELPER_SRC/$name" ]; then
+                cp -f "$HELPER_SRC/$name" "$dest"
+                chmod +x "$dest"
+              fi
+            done < <(find "$APPDIR" -type f -name 'cline-remote-helper-*')
+          fi
+          if readelf -d "$APPDIR/usr/bin/code-sidecar" | grep -q 'RPATH\|RUNPATH'; then
+            echo "restored sidecar still has RPATH/RUNPATH; refusing to pack a broken binary"
+            readelf -d "$APPDIR/usr/bin/code-sidecar"
+            exit 1
+          fi
+          env -u LD_LIBRARY_PATH -u APPDIR -u APPIMAGE \
+            "$APPDIR/usr/bin/code-sidecar" --telemetry-selfcheck
 
           TOOLS="$RUNNER_TEMP/appimage-type2"
           mkdir -p "$TOOLS"
