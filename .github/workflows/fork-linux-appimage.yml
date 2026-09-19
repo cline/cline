@@ -23,6 +23,11 @@ jobs:
     if: github.repository == '3ddruck12/cline'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
+    env:
+      # linuxdeploy's bundled strip dies on modern ELF .relr.dyn sections
+      # and GitHub runners have no usable FUSE device.
+      NO_STRIP: "true"
+      APPIMAGE_EXTRACT_AND_RUN: "1"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,9 +78,7 @@ jobs:
         # Tauri/linuxdeploy still emit a Type 2 image, but with the old
         # AppImageKit runtime that needs libfuse2. We only need the AppDir
         # here; the next step repacks it with the static type2-runtime.
-        run: bunx tauri build --bundles appimage
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: bunx tauri build --bundles appimage --verbose
 
       - name: Repack as AppImage Type 2
         working-directory: apps/examples/desktop-app
