@@ -122,6 +122,65 @@ describe("buildUpdateManifest", () => {
 		]);
 	});
 
+	test("maps a Linux AppImage artifact to linux-x86_64", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline_0.1.0_amd64.AppImage"), "appimage");
+		writeFileSync(
+			path.join(dir, "Cline_0.1.0_amd64.AppImage.sig"),
+			"sig-linux-x64\n",
+		);
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		expect(manifest.platforms["linux-x86_64"]).toEqual({
+			signature: "sig-linux-x64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline_0.1.0_amd64.AppImage",
+		});
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+			"linux-x86_64",
+		]);
+	});
+
+	test("ignores AppImage files without a known arch suffix", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline_0.1.0.AppImage"), "appimage");
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+		]);
+	});
+
+	test("throws when a Linux AppImage artifact is missing its signature", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline_0.1.0_amd64.AppImage"), "appimage");
+		expect(() =>
+			buildUpdateManifest({
+				version: "0.1.0",
+				tag: "desktop-v0.1.0",
+				dir,
+				repo: "cline/cline",
+				notes: "notes",
+				pubDate: "2026-07-21T00:00:00.000Z",
+			}),
+		).toThrow();
+	});
+
 	test("throws when a Windows setup artifact is missing its signature", () => {
 		const dir = makeUniversalArtifactDir();
 		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64-setup.exe"), "nsis");

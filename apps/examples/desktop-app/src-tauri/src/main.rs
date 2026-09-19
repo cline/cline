@@ -500,15 +500,59 @@ fn resolve_desktop_backend_binary_path(context: &AppContext) -> Option<PathBuf> 
         }) {
             candidates.push(path);
         }
+        // AppImage/deb/rpm: resources live under usr/lib/<productName>/.
+        if let Some(lib_dir) = current_exe.as_ref().and_then(|path| {
+            path.parent()
+                .and_then(|parent| parent.parent())
+                .map(|parent| parent.join("lib"))
+        }) {
+            if let Ok(entries) = std::fs::read_dir(lib_dir) {
+                for entry in entries.flatten() {
+                    if entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+                        candidates.push(entry.path().join(&binary_name));
+                    }
+                }
+            }
+        }
     }
 
     candidates.into_iter().find(|path| path.exists())
+}
+
+/// AppImage AppRun prepends bundled GTK/WebKit libraries to LD_LIBRARY_PATH
+/// so the window process can start. The Bun sidecar is a self-contained
+/// binary: if it inherits that path it loads the wrong libc/libstdc++ and
+/// exits before publishing its websocket endpoint.
+fn sanitize_sidecar_command_env(command: &mut Command) {
+    if std::env::var_os("APPDIR").is_none() && std::env::var_os("APPIMAGE").is_none() {
+        return;
+    }
+    if let Ok(original) = std::env::var("APPIMAGE_ORIGINAL_LD_LIBRARY_PATH") {
+        if original.is_empty() {
+            command.env_remove("LD_LIBRARY_PATH");
+        } else {
+            command.env("LD_LIBRARY_PATH", original);
+        }
+    } else {
+        command.env_remove("LD_LIBRARY_PATH");
+    }
+    for key in [
+        "LD_PRELOAD",
+        "GTK_PATH",
+        "GTK_IM_MODULE_FILE",
+        "GDK_PIXBUF_MODULE_FILE",
+        "GIO_MODULE_DIR",
+        "GI_TYPELIB_PATH",
+    ] {
+        command.env_remove(key);
+    }
 }
 
 fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> {
     let mut command = if let Some(binary_path) = resolve_desktop_backend_binary_path(context) {
         let mut command = Command::new(binary_path);
         command.current_dir(&context.workspace_root);
+        sanitize_sidecar_command_env(&mut command);
         command
     } else if let Some(script_path) = resolve_desktop_backend_script_path(context) {
         let mut command = Command::new("bun");
@@ -516,6 +560,7 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
             .arg("run")
             .arg(script_path.to_string_lossy().to_string())
             .current_dir(&context.workspace_root);
+        sanitize_sidecar_command_env(&mut command);
         command
     } else {
         return Err(format!(

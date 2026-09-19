@@ -9,7 +9,7 @@ Use this skill when the user asks to release the desktop app, publish the Cline 
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases ship two platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
+Desktop releases ship three platforms, built entirely in GitHub Actions — there is no local publish path. macOS: a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel. Windows: an Authenticode-signed NSIS installer (`<Product>_<version>_x64-setup.exe`), signed via Azure Trusted Signing in the `build-windows` job (jsign through Tauri's `signCommand`, see `apps/examples/desktop-app/scripts/tauri-sign-windows.ps1`; requires the repo-level `AZURE_*` secrets including `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_DESKTOP`, plus a `PublishDesktop`-environment federated credential on the `cline-cli-signing` Entra app). Linux: an x64 AppImage (`<Product>_<version>_amd64.AppImage`) from the `build-linux` job on Ubuntu 22.04 (older glibc so the image still starts on 22.04 desktops). Linux is not Authenticode/Developer-ID signed; the AppImage and its updater `.sig` use the same Tauri updater key as the other platforms. Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user **on that channel**.
 
 ## Release contract
 
@@ -22,7 +22,7 @@ Desktop releases ship two platforms, built entirely in GitHub Actions — there 
 - Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update — committed on `main` for stable, on `desktop-experimental` for beta.
 - Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch; for stable and beta it requires the tag to exist, point at the checked-out commit, and be reachable from the channel's branch — `origin/main` for stable, `origin/desktop-experimental` for beta. Nightly takes no tag and validation rejects one).
 - **Every channel dispatches from `main`.** This is a security invariant, not a convenience: the run executes `main`'s workflow copy and only the checkout points at the tag, so the signing-secret gates (the `github.ref == main` check and the PublishDesktop environment's main-only deployment-branch policy) hold for beta too. Never add `desktop-experimental` to the PublishDesktop deployment-branch policy.
-- The workflow creates the tag's GitHub release (universal DMG + macOS updater artifact + Windows NSIS installer with its updater signature + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
+- The workflow creates the tag's GitHub release (universal DMG + macOS updater artifact + Windows NSIS installer with its updater signature + Linux AppImage with its updater signature + `latest.json`; marked prerelease for beta) and refreshes the channel's rolling feed release, which is the static auto-update feed every installed app on that channel polls. Never delete the `desktop-latest` or `desktop-beta` release or tag.
 - The changelog's `## <version>` section (exact-match, not "topmost") is extracted verbatim into the GitHub release body, the Slack announcement, and the updater manifest notes.
 - Always ask before pushing commits or tags.
 
@@ -125,7 +125,7 @@ gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments \
 
 Nothing after `validate` runs — and no signing key is readable — until then.
 
-The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the Bun sidecar is lipo'd by `build-sidecar-bin.ts`; beta adds the `tauri.beta.conf.json` overlay), verifies every Mach-O in the bundle carries both slices and that the compiled binary embeds exactly its own channel's feed URL, signs with the Developer ID certificate, notarizes with the App Store Connect API key, and signs the updater artifact with the Tauri updater key. In parallel, `build-windows` builds the x64 NSIS installer on a Windows runner, Authenticode-signs every binary via Azure Trusted Signing (Tauri `signCommand` -> `scripts/tauri-sign-windows.ps1`), runs the same feed-endpoint and telemetry guardrails, and verifies the shipped installer with `Get-AuthenticodeSignature`. The release job then creates the GitHub release (prerelease for beta), refreshes the channel's feed (`desktop-latest/latest.json` or `desktop-beta/latest.json`), and posts to Slack. Notarization typically adds 2–10 minutes.
+The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the Bun sidecar is lipo'd by `build-sidecar-bin.ts`; beta adds the `tauri.beta.conf.json` overlay), verifies every Mach-O in the bundle carries both slices and that the compiled binary embeds exactly its own channel's feed URL, signs with the Developer ID certificate, notarizes with the App Store Connect API key, and signs the updater artifact with the Tauri updater key. In parallel, `build-windows` builds the x64 NSIS installer on a Windows runner, Authenticode-signs every binary via Azure Trusted Signing (Tauri `signCommand` -> `scripts/tauri-sign-windows.ps1`), runs the same feed-endpoint and telemetry guardrails, and verifies the shipped installer with `Get-AuthenticodeSignature`. Also in parallel, `build-linux` builds the x64 AppImage on Ubuntu 22.04 (`tauri build --bundles appimage`), runs the same feed-endpoint and telemetry guardrails, and signs the AppImage with the Tauri updater key. The release job then creates the GitHub release (prerelease for beta), refreshes the channel's feed (`desktop-latest/latest.json` or `desktop-beta/latest.json`), and posts to Slack. Notarization typically adds 2–10 minutes.
 
 If the workflow fails on missing credentials, see "Publish secrets (one-time setup)" below.
 
@@ -136,7 +136,7 @@ curl -sL https://github.com/cline/cline/releases/download/desktop-latest/latest.
 curl -sL https://github.com/cline/cline/releases/download/desktop-beta/latest.json | head -30    # beta
 ```
 
-The `version` field must be the new release; both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new universal `.app.tar.gz` asset under the release tag (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact), and the `windows-x86_64` entry must point at the new `*_x64-setup.exe` asset. Installed apps on that channel — including older per-arch installs — pick the update up on next launch or within 2 hours.
+The `version` field must be the new release; both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new universal `.app.tar.gz` asset under the release tag (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact), the `windows-x86_64` entry must point at the new `*_x64-setup.exe` asset, and the `linux-x86_64` entry must point at the new `*_amd64.AppImage` asset. Installed apps on that channel — including older per-arch installs — pick the update up on next launch or within 2 hours.
 
 After a **beta** publish, also confirm the stable feed was not touched: `desktop-latest/latest.json` must still serve the previous stable version. (The workflow guards this fail-closed, but it is cheap to verify and catastrophic to miss — the updater comparator is a plain semver "newer than", so a beta manifest on `desktop-latest` would auto-update every stable install onto the beta.)
 
@@ -165,8 +165,8 @@ What the workflow does differently:
   (`src-tauri/tauri.nightly.conf.json`), so it installs alongside stable and beta.
 - Still signs/notarizes with the real credentials, so it **still requires the
   PublishDesktop approval** — same wait, same reviewer.
-- Ends at artifacts: `desktop-universal` (macOS) and `desktop-windows-x64`,
-  30-day retention, on the run page.
+- Ends at artifacts: `desktop-universal` (macOS), `desktop-windows-x64`, and
+  `desktop-linux-x64`, 30-day retention, on the run page.
 
 Steps: confirm `main` is current (`git fetch origin main && git status -sb`), then
 
@@ -190,7 +190,7 @@ No feed verification step applies — but if you want the reassurance, confirm
 ## Publish secrets (one-time setup)
 
 These live on the **`PublishDesktop` environment**, not at repository level, so
-only the `build` job can read them and only after an approval. Set them under
+only the platform build jobs can read them and only after an approval. Set them under
 Settings → Environments → PublishDesktop → Environment secrets. The environment
 also restricts deployments to `main` and requires a reviewer.
 
