@@ -30,6 +30,13 @@ describe("buildConnectionUpdate", () => {
 		});
 	});
 
+	it("preserves an explicit base URL reset marker", () => {
+		expect(buildConnectionUpdate({ ...base, baseUrl: null })).toEqual({
+			...base,
+			baseUrl: null,
+		});
+	});
+
 	it("clears reasoning when thinking is explicitly false", () => {
 		expect(
 			buildConnectionUpdate({

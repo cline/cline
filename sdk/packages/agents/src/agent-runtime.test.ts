@@ -193,6 +193,92 @@ describe("AgentRuntime", () => {
 		).toBe(false);
 	});
 
+	it("refreshes the connection after steering without losing provider usage or model identity", async () => {
+		const started = Promise.withResolvers<void>();
+		const oldModel = new ScriptedModel([
+			async function* (request) {
+				yield { type: "text-delta", text: "Old response" };
+				yield {
+					type: "usage",
+					usage: { inputTokens: 120_000, outputTokens: 4 },
+				};
+				await new Promise<void>((resolve) => {
+					request.signal?.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+					started.resolve();
+				});
+				throw new DOMException("Steered", "AbortError");
+			},
+		]);
+		const refreshedModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Steered with refreshed connection" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const modelInfo = { provider: "lmstudio", id: "active-model" };
+		let refreshPending = false;
+		let pending: string | undefined;
+		const prepareTurn = vi.fn();
+		const { telemetry, capture } = createTelemetryMock();
+		const runtime = new AgentRuntime({
+			model: oldModel,
+			messageModelInfo: modelInfo,
+			systemPrompt: "Keep the active turn prompt",
+			telemetry,
+			prepareTurn,
+			beforeModelRequest: () => {
+				if (!refreshPending) return;
+				refreshPending = false;
+				runtime.replaceModelBetweenRequests(refreshedModel, {
+					modelOptions: { reasoningEffort: "high" },
+					messageModelInfo: modelInfo,
+				});
+			},
+			consumePendingUserMessage: () => {
+				const message = pending;
+				pending = undefined;
+				return message;
+			},
+		});
+
+		const run = runtime.run("Start");
+		await started.promise;
+		refreshPending = true;
+		pending = "Change direction";
+		runtime.notifyPendingUserMessage();
+		const result = await run;
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Steered with refreshed connection");
+		expect(oldModel.requests).toHaveLength(1);
+		expect(oldModel.requests[0]?.signal?.aborted).toBe(true);
+		expect(refreshedModel.requests).toHaveLength(1);
+		expect(refreshedModel.requests[0]?.signal?.aborted).toBe(false);
+		expect(refreshedModel.requests[0]).toMatchObject({
+			systemPrompt: "Keep the active turn prompt",
+			options: { reasoningEffort: "high" },
+		});
+		expect(refreshedModel.requests[0]?.messages.at(-1)).toMatchObject({
+			role: "user",
+			content: [{ type: "text", text: "Change direction" }],
+		});
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(prepareTurn.mock.calls[1]?.[0]).toMatchObject({
+			previousRequestInputTokens: 120_000,
+			model: { provider: "lmstudio", id: "active-model" },
+		});
+		expect(result.messages.at(-1)?.modelInfo).toEqual(modelInfo);
+		expect(
+			capture.mock.calls.some(
+				([event]) =>
+					event === TASK_PROVIDER_STREAM_FAILED_EVENT ||
+					event === TASK_CANCELLED_EVENT,
+			),
+		).toBe(false);
+	});
+
 	it("persists generated images in assistant message content", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -641,6 +727,82 @@ describe("AgentRuntime", () => {
 			expect(result.status).toBe("completed");
 			expect(result.outputText).toBe("recovered");
 			expect(model.requests).toHaveLength(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it.each([
+		false,
+		true,
+	])("handles a pending connection refresh during provider backoff (cancelled: %s)", async (cancelled) => {
+		vi.useFakeTimers();
+		try {
+			const oldModel = new ScriptedModel([
+				() => [
+					{
+						type: "finish",
+						reason: "error",
+						error: "Provider returned error",
+					},
+				],
+			]);
+			const refreshedModel = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "recovered with refreshed connection" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			let notifyRetry!: () => void;
+			const retryStarted = new Promise<void>((resolve) => {
+				notifyRetry = resolve;
+			});
+			let refreshPending = false;
+			const runtime = new AgentRuntime({
+				model: oldModel,
+				systemPrompt: "keep the active turn prompt",
+				messageModelInfo: { provider: "lmstudio", id: "active-model" },
+				beforeModelRequest: () => {
+					if (!refreshPending) return;
+					refreshPending = false;
+					runtime.replaceModelBetweenRequests(refreshedModel, {
+						messageModelInfo: { provider: "lmstudio", id: "active-model" },
+					});
+				},
+			});
+			runtime.subscribe((event) => {
+				if (
+					event.type === "status-notice" &&
+					event.metadata?.kind === "provider_error_retry"
+				) {
+					notifyRetry();
+				}
+			});
+
+			const run = runtime.run("Hi");
+			await retryStarted;
+			await vi.advanceTimersByTimeAsync(0);
+			expect(oldModel.requests).toHaveLength(1);
+			expect(refreshedModel.requests).toHaveLength(0);
+			refreshPending = true;
+			if (cancelled) runtime.abort("cancelled during provider backoff");
+			await vi.runAllTimersAsync();
+			const result = await run;
+
+			expect(oldModel.requests).toHaveLength(1);
+			expect(refreshedModel.requests).toHaveLength(cancelled ? 0 : 1);
+			expect(result.status).toBe(cancelled ? "aborted" : "completed");
+			if (!cancelled) {
+				expect(result.outputText).toBe("recovered with refreshed connection");
+				expect(refreshedModel.requests[0]?.systemPrompt).toBe(
+					"keep the active turn prompt",
+				);
+				expect(refreshedModel.requests[0]?.messages).toHaveLength(1);
+				expect(result.messages.at(-1)?.modelInfo).toEqual({
+					provider: "lmstudio",
+					id: "active-model",
+				});
+			}
 		} finally {
 			vi.useRealTimers();
 		}
@@ -1653,6 +1815,207 @@ describe("AgentRuntime", () => {
 			input: { text: "hi" },
 			policy: { autoApprove: false },
 		});
+	});
+
+	it("uses a replacement model for the request after a suspended approval resolves", async () => {
+		let resolveApproval: (result: { approved: boolean }) => void = () => {};
+		const requestToolApproval = vi.fn(
+			() =>
+				new Promise<{ approved: boolean }>((resolve) => {
+					resolveApproval = resolve;
+				}),
+		);
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_approval",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "continued with new credentials" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model: oldModel,
+			tools: [createEchoTool()],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval,
+		});
+
+		const runPromise = runtime.run("Start");
+		await vi.waitFor(() => expect(requestToolApproval).toHaveBeenCalledOnce());
+
+		runtime.replaceModelBetweenRequests(newModel, {
+			messageModelInfo: { provider: "lmstudio", id: "new-model" },
+		});
+		resolveApproval({ approved: true });
+
+		const result = await runPromise;
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(result.outputText).toBe("continued with new credentials");
+		expect(result.messages.at(-1)?.modelInfo).toEqual({
+			provider: "lmstudio",
+			id: "new-model",
+		});
+	});
+
+	it("refreshes the model before preparation and later hooks after an automatic tool", async () => {
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_auto",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "continued with refreshed credentials" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		let runtime: AgentRuntime;
+		let requestNumber = 0;
+		const callOrder: string[] = [];
+		const beforeModelRequest = vi.fn(() => {
+			requestNumber += 1;
+			callOrder.push(`refresh-${requestNumber}`);
+			if (requestNumber === 3) {
+				runtime.replaceModelBetweenRequests(newModel, {
+					modelOptions: { thinking: true, reasoningEffort: "high" },
+					messageModelInfo: { provider: "lmstudio", id: "new-model" },
+				});
+			}
+		});
+		const prepareTurn = vi.fn(({ iteration, model }) => {
+			callOrder.push(`prepare-${iteration}`);
+			if (iteration === 2) {
+				expect(model).toEqual({
+					id: "new-model",
+					provider: "lmstudio",
+				});
+			}
+		});
+		const beforeModel = vi.fn(({ snapshot, request }) => {
+			callOrder.push(`hook-${snapshot.iteration}`);
+			if (snapshot.iteration === 2) {
+				expect(request.options).toMatchObject({
+					thinking: true,
+					reasoningEffort: "high",
+				});
+				return { options: { metadata: { hookValue: "kept" } } };
+			}
+		});
+		runtime = new AgentRuntime({
+			model: oldModel,
+			modelOptions: { thinking: false, reasoningEffort: "low" },
+			tools: [createEchoTool()],
+			beforeModelRequest,
+			prepareTurn,
+			hooks: { beforeModel },
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(beforeModelRequest).toHaveBeenCalledTimes(4);
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(beforeModel).toHaveBeenCalledTimes(2);
+		expect(callOrder).toEqual([
+			"refresh-1",
+			"prepare-1",
+			"hook-1",
+			"refresh-2",
+			"refresh-3",
+			"prepare-2",
+			"hook-2",
+			"refresh-4",
+		]);
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(newModel.requests[0]?.options).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+			metadata: { hookValue: "kept", iteration: 2 },
+		});
+		expect(result.outputText).toBe("continued with refreshed credentials");
+	});
+
+	it("rebases the request when the connection changes during preparation", async () => {
+		const oldModel = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_auto",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const newModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "used the edit from preparation" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		let runtime: AgentRuntime;
+		let refreshPending = false;
+		const beforeModelRequest = vi.fn(() => {
+			if (!refreshPending) return;
+			refreshPending = false;
+			runtime.replaceModelBetweenRequests(newModel, {
+				modelOptions: { thinking: true, reasoningEffort: "high" },
+				messageModelInfo: { provider: "lmstudio", id: "new-model" },
+			});
+		});
+		const prepareTurn = vi.fn(({ iteration }) => {
+			if (iteration === 2) refreshPending = true;
+		});
+		const beforeModel = vi.fn(({ snapshot }) =>
+			snapshot.iteration === 2
+				? { options: { metadata: { hookValue: "kept" } } }
+				: undefined,
+		);
+		runtime = new AgentRuntime({
+			model: oldModel,
+			modelOptions: { thinking: false, reasoningEffort: "low" },
+			tools: [createEchoTool()],
+			beforeModelRequest,
+			prepareTurn,
+			hooks: { beforeModel },
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(beforeModelRequest).toHaveBeenCalledTimes(4);
+		expect(oldModel.requests).toHaveLength(1);
+		expect(newModel.requests).toHaveLength(1);
+		expect(newModel.requests[0]?.options).toMatchObject({
+			thinking: true,
+			reasoningEffort: "high",
+			metadata: { hookValue: "kept", iteration: 2 },
+		});
+		expect(result.outputText).toBe("used the edit from preparation");
+	});
+
+	it("rejects model replacement outside the verified between-request boundary", () => {
+		const model = new ScriptedModel([]);
+		const runtime = new AgentRuntime({ model });
+
+		expect(() => runtime.replaceModelBetweenRequests(model)).toThrow(
+			"only allowed at a verified boundary between model requests",
+		);
 	});
 
 	it("applies beforeTool approval policy overrides before executing tools", async () => {
