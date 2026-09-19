@@ -15,6 +15,7 @@ From `apps/examples/desktop-app/`:
 - `bun run build:sidecar` - build the Bun sidecar bundle
 - `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
+- `bun run build:binary:linux` - build desktop binary on Linux (wraps `tauri build` with the linuxdeploy guard, see [Linux packaging](#linux-packaging))
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
@@ -197,13 +198,13 @@ desktop integration notes.
 
 ## Releases & Auto-Updates
 
-Releases are built, signed, notarized, and published by the `desktop-publish`
-GitHub workflow as a single universal macOS DMG — one download that runs
-natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture) — plus a Windows x64 NSIS
-installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
-(version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
-skill (`.cline/skills/publish-desktop/SKILL.md`).
+Releases are built, signed where the platform requires it, and published by the
+`desktop-publish` GitHub workflow: a single universal macOS DMG — one download
+that runs natively on both Apple Silicon and Intel (macOS picks the matching
+slice at launch, so users never choose an architecture) — an Authenticode-signed
+Windows x64 NSIS installer, and Linux x64 AppImage, `.deb`, and `.rpm` bundles.
+The step-by-step flow (version bumps, changelog, tag, repo secrets) lives in the
+`publish-desktop` skill (`.cline/skills/publish-desktop/SKILL.md`).
 
 Individual releases are not announced in-app; Settings → About lists the
 bundled release notes. Every so often a one-time "What's new" dialog catches
@@ -233,14 +234,24 @@ sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu
 sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL
 ```
 
-The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
-sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
-`/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
-GNOME with the AppIndicator extension); without one the app still runs but the
-tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
-Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
-AppImage target is excluded from `tauri build` on Linux. A Linux desktop
-cannot use a Mac as an SSH remote host (see the changelog).
+There is also a portable AppImage for x86_64 — no installation needed, and the
+one Linux bundle the Tauri updater can replace in place:
+
+```bash
+chmod +x ./Cline_<version>_amd64.AppImage
+./Cline_<version>_amd64.AppImage
+```
+
+A package install puts the app at `/usr/bin/cline-app` with a `Cline` launcher
+entry; the sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote
+helpers live in `/usr/lib/Cline/`. The tray icon needs a StatusNotifier host
+(KDE, XFCE, and GNOME with the AppIndicator extension); without one the app
+still runs but the tray menu is unavailable. A Linux desktop cannot use a Mac
+as an SSH remote host (see the changelog).
+
+Every Linux bundle auto-updates from the same feed: the AppImage replaces its
+own file on restart, while a `.deb`/`.rpm` install stages the download and runs
+`pkexec dpkg -i` / `rpm -U` (package manager refresh also works).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -264,6 +275,44 @@ Set either `APPLE_CERTIFICATE` or `APPLE_SIGNING_IDENTITY`, plus one notarizatio
 - `APPLE_API_KEY` or `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
 
 For local-only macOS testing, use `bun run package:desktop:mac --allow-unsigned-mac`. That ad-hoc signs the `.app` and strips quarantine attributes, but it is not suitable for a downloaded build shared with teammates.
+
+### Linux packaging
+
+`bun run package:desktop:linux` produces an AppImage, a `.deb`, and a `.rpm` in
+`dist/desktop/`. On Debian/Ubuntu the build needs:
+
+```sh
+sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+  libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+  build-essential file patchelf rpm upx-ucl
+```
+
+`upx` is required because `build:sidecar:bin` UPX-packs the SSH remote helpers;
+`rpm` is the `.rpm` bundler; `patchelf` is used by the AppImage bundler.
+
+Linux builds go through `scripts/tauri-build-linux.ts` instead of calling
+`tauri build` directly, and the CI job does the same. Tauri's AppImage bundler
+hands the staged AppDir to linuxdeploy, which sets `rpath` to `$ORIGIN/../lib`
+on every executable it stages. That corrupts the sidecar: it is a `bun build
+--compile` binary whose program lives in a non-allocated `.bun` ELF section,
+which patchelf relocates out from under the loader stub. The wrapper points
+linuxdeploy's `$PATCHELF` at `scripts/elf-rewrite-guard.ts`, which no-ops
+rewrites of any binary carrying a Bun or UPX payload and forwards everything
+else to the real patchelf. A PATH shim would not work — linuxdeploy ships its
+own patchelf inside its AppImage and prefers it. Skipping the rpath fixup
+costs nothing here: the sidecar links only against libc/libm/libdl/libpthread,
+none of which are bundled into the AppImage.
+
+Without the wrapper the bundle fails late and unhelpfully — linuxdeploy dies
+with `Failed to run ldd: exited with code 1` after patchelf has already
+corrupted the sidecar — and `.deb`/`.rpm` still succeed, so the failure looks
+like an AppImage-only quirk rather than a broken binary. The wrapper also
+deletes any leftover `*.AppDir` first: Tauri stages over an existing one, so a
+corrupted sidecar from a failed run would otherwise survive every rebuild.
+
+The bundle links against the build machine's glibc, so package on the oldest
+distribution you intend to support; the CI job pins `ubuntu-22.04` for that
+reason.
 
 ### macOS signing & notarization, step by step
 
