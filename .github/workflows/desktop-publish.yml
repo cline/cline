@@ -315,9 +315,27 @@ jobs:
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
 
       # build-sidecar-bin.ts UPX-packs the Linux SSH remote helpers it bundles
-      # into the app; without upx on PATH the CI build fails.
+      # into the app, and that upx runs inside the Tauri build step below with
+      # the Apple and updater signing secrets in scope. Pin the version and
+      # verify the download instead of trusting whatever `brew install upx`
+      # resolves to on the day, mirroring the jsign pin in
+      # scripts/tauri-sign-windows.ps1. UPX publishes no macOS binaries, so
+      # build the verified source tarball (about 15 s; cmake is preinstalled).
       - name: Install UPX
-        run: brew install upx
+        env:
+          UPX_VERSION: "5.2.1"
+          UPX_SRC_SHA256: a7d457be4ef942e46844ee8f301206b111394cbcbde3599747a6904c54ff116b
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o upx-src.tar.xz "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-src.tar.xz"
+          echo "${UPX_SRC_SHA256}  upx-src.tar.xz" | shasum -a 256 -c -
+          tar -xJf upx-src.tar.xz
+          cmake -S "upx-${UPX_VERSION}-src" -B upx-build -DCMAKE_BUILD_TYPE=Release
+          cmake --build upx-build --config Release --parallel
+          mkdir -p upx-bin && cp upx-build/upx upx-bin/upx
+          echo "$RUNNER_TEMP/upx-bin" >> "$GITHUB_PATH"
+          upx-bin/upx --version | head -1
 
       - name: Write App Store Connect API key
         env:
@@ -652,10 +670,25 @@ jobs:
           echo "BUN_INSTALL_CACHE_DIR=${CACHE_DIR}" >> "$GITHUB_ENV"
 
       # build-sidecar-bin.ts UPX-packs the Linux SSH remote helpers it bundles
-      # into the installer; without upx on PATH the CI build fails. UPX packs
-      # Linux ELF files from a Windows host.
+      # into the installer (UPX packs Linux ELF files from a Windows host), and
+      # that upx runs inside the Tauri build step below after Azure login with
+      # the updater key in scope. Pin the version and verify the download
+      # instead of trusting whatever `choco install upx` resolves to on the
+      # day, mirroring the jsign pin in scripts/tauri-sign-windows.ps1.
       - name: Install UPX
-        run: choco install upx --no-progress -y
+        shell: bash
+        env:
+          UPX_VERSION: "5.2.1"
+          UPX_WIN64_SHA256: eabc6792a347d45e945be7748423e7868fd01b0d2bcaa2f4b1031fd71ff69bda
+        run: |
+          set -euo pipefail
+          TMP="${RUNNER_TEMP//\\//}"
+          cd "$TMP"
+          curl -fsSL -o upx.zip "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-win64.zip"
+          echo "${UPX_WIN64_SHA256} *upx.zip" | sha256sum -c -
+          unzip -q -o upx.zip
+          echo "$TMP/upx-${UPX_VERSION}-win64" >> "$GITHUB_PATH"
+          "upx-${UPX_VERSION}-win64/upx.exe" --version | head -1
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable branch
