@@ -479,11 +479,25 @@ export class HubSessionClient {
 			return [];
 		}
 		await this.ensureMetadataApplied();
-		const reply = await this.client.command(
-			"session.messages",
-			{ sessionId: target },
-			target,
-		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command(
+				"session.messages",
+				{ sessionId: target },
+				target,
+			);
+		} catch (error) {
+			// A session this hub has never seen has no history yet. Callers read
+			// history before the hub knows about a session - the desktop start path
+			// for a fresh remote environment reads it with the client-side id it is
+			// about to create - so absence is an empty transcript here, the same way
+			// getSession() reports absence as a missing record. Every other failure
+			// still propagates.
+			if (isSessionNotFoundError(error)) {
+				return [];
+			}
+			throw error;
+		}
 		if (!reply.ok) {
 			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
 		}
