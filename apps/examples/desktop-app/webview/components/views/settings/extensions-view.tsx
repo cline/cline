@@ -866,18 +866,20 @@ export function CustomizationSectionView({
 	}, [skills, workflows, workspaceRoot]);
 
 	const { projectRules, globalRules } = useMemo(() => {
-		const normalizedRoot = normalizePath(workspaceRoot);
+		const normalizedRoot = normalizePath(workspaceRoot).replace(/\/+$/, "");
+		const workspaceRuleRoots = workspaceRoot
+			? [`${normalizedRoot}/.clinerules`, `${normalizedRoot}/.cline/rules`]
+			: [];
 		const project: RuleItem[] = [];
 		const global: RuleItem[] = [];
 		for (const rule of rules) {
 			const normalized = normalizePath(rule.path);
-			// Both supported workspace rule layouts: the legacy `.clinerules`
-			// directory and `.cline/rules` (cline/cline#14186).
+			// Only the workspace's rule roots are local, not similarly named
+			// directories elsewhere beneath it. Equality also covers single-file rules.
 			if (
-				normalizedRoot &&
-				normalized.startsWith(`${normalizedRoot}/`) &&
-				(normalized.includes("/.clinerules/") ||
-					normalized.includes("/.cline/rules/"))
+				workspaceRuleRoots.some(
+					(root) => normalized === root || normalized.startsWith(`${root}/`),
+				)
 			) {
 				project.push(rule);
 			} else {

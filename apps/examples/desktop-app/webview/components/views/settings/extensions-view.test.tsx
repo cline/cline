@@ -184,30 +184,35 @@ describe("CustomizationSectionView Agent Plugin inventory", () => {
 });
 
 describe("rule scope grouping", () => {
-	it("classifies rules from both .clinerules and .cline/rules as Project", async () => {
+	it.each([
+		"/workspace",
+		"/workspace/",
+		"/home/user",
+		"/",
+		"C:\\Users\\test\\",
+	])("classifies only exact workspace rule roots as Project for %s", async (workspaceRoot) => {
+		const prefix = workspaceRoot.replaceAll("\\", "/").replace(/\/+$/, "");
+		const ruleCases = [
+			["legacy-rule", `${prefix}/.clinerules/legacy-rule.md`, "Project"],
+			["new-rule", `${prefix}/.cline/rules/new-rule.md`, "Project"],
+			["nested-rule", `${prefix}/.cline/rules/team/nested.md`, "Project"],
+			["single-file", `${prefix}/.clinerules`, "Project"],
+			["nested-global", `${prefix}/other/.cline/rules/global.md`, "Global"],
+			["nested-legacy", `${prefix}/other/.clinerules/global.md`, "Global"],
+			["prefix-sibling", `${prefix}/.cline/rules-other/rule.md`, "Global"],
+			["outside-rule", "/elsewhere/.cline/rules/global.md", "Global"],
+		];
 		invoke.mockImplementation(async (command: string) => {
 			if (command === "list_marketplace_installed_entries")
 				return { installedKeys: [] };
 			if (command === "list_user_instruction_configs") {
 				return {
-					workspaceRoot: "/workspace",
-					rules: [
-						{
-							name: "legacy-rule",
-							instructions: "Legacy layout",
-							path: "/workspace/.clinerules/legacy-rule.md",
-						},
-						{
-							name: "new-rule",
-							instructions: "New layout",
-							path: "/workspace/.cline/rules/new-rule.md",
-						},
-						{
-							name: "home-rule",
-							instructions: "Global rule",
-							path: "/home/user/.cline/rules/home-rule.md",
-						},
-					],
+					workspaceRoot,
+					rules: ruleCases.map(([name, path]) => ({
+						name,
+						path,
+						instructions: name,
+					})),
 					workflows: [],
 					skills: [],
 					agents: [],
@@ -226,9 +231,8 @@ describe("rule scope grouping", () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(container.textContent).toContain("legacy-rule");
-			expect(container.textContent).toContain("new-rule");
-			expect(container.textContent).toContain("home-rule");
+			for (const [name] of ruleCases)
+				expect(container.textContent).toContain(name);
 		});
 
 		const scopeByRule = new Map<string, string>();
@@ -242,9 +246,8 @@ describe("rule scope grouping", () => {
 				?.textContent?.trim();
 			if (name) scopeByRule.set(name, badge ?? "");
 		}
-		expect(scopeByRule.get("legacy-rule")).toBe("Project");
-		expect(scopeByRule.get("new-rule")).toBe("Project");
-		expect(scopeByRule.get("home-rule")).toBe("Global");
+		for (const [name, , scope] of ruleCases)
+			expect(scopeByRule.get(name)).toBe(scope);
 	});
 });
 
