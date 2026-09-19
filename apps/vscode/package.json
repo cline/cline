@@ -393,8 +393,6 @@
 		"dev:webview": "node scripts/clean-webview-vite-cache.mjs && cd webview-ui && bun run dev",
 		"build:webview": "bun run protos && cd webview-ui && bun run build",
 		"test:webview": "cd webview-ui && bun run test",
-		"publish:marketplace": "node scripts/publish-marketplace.mjs",
-		"publish:marketplace:prerelease": "node scripts/publish-marketplace.mjs --pre-release",
 		"publish:marketplace:nightly": "node ./scripts/publish-nightly.mjs",
 		"docs": "cd docs && bun run dev",
 		"docs:check-links": "cd docs && bun run check",
