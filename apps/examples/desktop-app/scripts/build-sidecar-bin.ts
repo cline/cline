@@ -83,7 +83,8 @@ const buildSidecar = async (
 // workflow installs it on every runner.
 const compressRemoteHelper = async (outfile: string): Promise<void> => {
 	if (!Bun.which("upx")) {
-		if (process.env.CI) {
+		// CI=false is the documented way to opt out of CI detection locally.
+		if (["1", "true"].includes(process.env.CI?.trim().toLowerCase() ?? "")) {
 			throw new Error(
 				`upx is required to compress ${outfile} but was not found on PATH`,
 			);
