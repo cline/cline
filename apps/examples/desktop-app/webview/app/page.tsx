@@ -1700,7 +1700,14 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		setManualTitle("");
 		void reset();
-	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
+	}, [
+		historySession,
+		manualTitle,
+		reset,
+		threadId,
+		setPromptInput,
+		setPendingAttachments,
+	]);
 
 	useEffect(() => {
 		if (!historySession) {
@@ -1722,6 +1729,7 @@ function ChatThreadPane({
 		hydrateSession,
 		initialPromptDraft,
 		onInitialPromptDraftConsumed,
+		setPendingAttachments,
 		setPromptInput,
 		threadId,
 	]);
@@ -1806,6 +1814,7 @@ function ChatThreadPane({
 			pendingAttachments,
 			sendPrompt,
 			sessionId,
+			setPendingAttachments,
 			setPromptInput,
 			threadId,
 			workIn,
@@ -1995,6 +2004,7 @@ function ChatThreadPane({
 		onDeleteSession,
 		reset,
 		threadId,
+		setPendingAttachments,
 		setPromptInput,
 	]);
 
@@ -2037,7 +2047,12 @@ function ChatThreadPane({
 				setShowDiffView(false);
 			}
 		},
-		[providerCredentials.cline?.apiKey, setConfig, cloudAgentsEnabled],
+		[
+			providerCredentials.cline?.apiKey,
+			setConfig,
+			cloudAgentsEnabled,
+			setPendingAttachments,
+		],
 	);
 
 	// Reset only new composers when the flag turns off; existing sessions attach.
@@ -2085,14 +2100,17 @@ function ChatThreadPane({
 			})),
 		[pendingAttachments],
 	);
-	const handleRemoveAttachment = useCallback((id: string) => {
-		setPendingAttachments((prev) =>
-			prev.filter((file, index) => {
-				const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
-				return fileId !== id;
-			}),
-		);
-	}, []);
+	const handleRemoveAttachment = useCallback(
+		(id: string) => {
+			setPendingAttachments((prev) =>
+				prev.filter((file, index) => {
+					const fileId = `${file.name}:${file.size}:${file.lastModified}:${index}`;
+					return fileId !== id;
+				}),
+			);
+		},
+		[setPendingAttachments],
+	);
 	const handleAbort = useCallback(() => {
 		void abort();
 	}, [abort]);
