@@ -47,9 +47,11 @@ if ($actualHash -ne $jsignSha256) {
   throw "jsign jar checksum mismatch: expected $jsignSha256, got $actualHash"
 }
 
-# Short-lived bearer token from the azure/login OIDC session. Fetched per
-# invocation (signCommand runs once per file) so a long Rust build beforehand
-# can never leave us with an expired token. Passed to jsign via env, not argv.
+# Bearer token from the azure/login OIDC session, served from az's cache: the
+# workflow primes it right after login because the OIDC assertion behind the
+# session expires ~10 minutes in, before the Rust build finishes. Fetched per
+# invocation (signCommand runs once per file) rather than passed in, so no
+# token sits in the job environment. Passed to jsign via env, not argv.
 $env:JSIGN_STOREPASS = (az account get-access-token --resource https://codesigning.azure.net --query accessToken --output tsv)
 if (-not $env:JSIGN_STOREPASS) {
   throw "failed to acquire an Azure access token; is azure/login configured on this job?"

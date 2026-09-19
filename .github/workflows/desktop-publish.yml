@@ -694,6 +694,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Fetch the Trusted Signing token now, while the GitHub OIDC assertion
+      # that azure/login exchanged is still valid; az caches it, so the
+      # per-file `az account get-access-token` calls tauri-sign-windows.ps1
+      # makes later are served from that cache. Without this, the first
+      # request for this resource happens after the Rust build, and Entra
+      # rejects the by-then expired assertion once login-to-first-sign
+      # exceeds ~10 minutes (5-minute token lifetime plus 5 minutes of clock
+      # skew). Every Windows job signed within 8.5 minutes until UPX-packing
+      # the remote helpers (#14303) pushed the build past 10 and broke signing
+      # deterministically. Tauri swallows the script's error, so failing here,
+      # with az's real message, is also the diagnostic.
+      - name: Prime Azure Trusted Signing token
+        run: az account get-access-token --resource https://codesigning.azure.net --query expiresOn --output tsv
+
       # Tauri invokes signCommand once per staged binary (main exe, sidecar,
       # NSIS uninstaller, and the installer itself). The overlay is generated
       # here rather than committed because signCommand needs an absolute path
