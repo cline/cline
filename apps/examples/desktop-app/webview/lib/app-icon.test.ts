@@ -46,7 +46,7 @@ describe("app icon", () => {
 	});
 
 	it.each([
-		["Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Taskbar"],
+		["Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Taskbar and system tray"],
 		["Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "Dock"],
 		["Mozilla/5.0 (X11; Linux x86_64)", "desktop"],
 	])("names the app icon surface for %s", (userAgent, surface) => {
@@ -79,6 +79,37 @@ describe("app icon", () => {
 		invoke.mockResolvedValue(true);
 		await setStoredAppIcon("midnight");
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
+	});
+
+	it("applies rapid native selections in request order", async () => {
+		isTauriAvailable.mockReturnValue(true);
+		let finishClassic: () => void = () => undefined;
+		let finishChip: () => void = () => undefined;
+		invoke.mockImplementation(
+			(_command: string, { icon }: { icon: AppIconId }) =>
+				new Promise<void>((resolve) => {
+					if (icon === "classic") finishClassic = resolve;
+					if (icon === "chip") finishChip = resolve;
+				}),
+		);
+
+		const classic = setStoredAppIcon("classic");
+		const chip = setStoredAppIcon("chip");
+		await Promise.resolve();
+		expect(invoke).toHaveBeenCalledTimes(1);
+		expect(invoke).toHaveBeenLastCalledWith("set_app_icon", {
+			icon: "classic",
+		});
+
+		finishClassic();
+		await classic;
+		await Promise.resolve();
+		expect(invoke).toHaveBeenCalledTimes(2);
+		expect(invoke).toHaveBeenLastCalledWith("set_app_icon", { icon: "chip" });
+
+		finishChip();
+		await chip;
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("chip");
 	});
 
 	it("does not persist a native selection that fails to apply", async () => {

@@ -64,7 +64,7 @@ function StatefulProjectedControl() {
 	);
 }
 
-function renderShell(contentEnabled: boolean) {
+function renderShell(contentEnabled: boolean, projectContent = true) {
 	return (
 		<WindowTitleBarProvider contentEnabled={contentEnabled}>
 			<nav>Sidebar</nav>
@@ -74,9 +74,11 @@ function renderShell(contentEnabled: boolean) {
 				</button>
 				<WindowTitleBar />
 				<section data-testid="page">Page content</section>
-				<WindowTitleBarContent>
-					<StatefulProjectedControl />
-				</WindowTitleBarContent>
+				{projectContent ? (
+					<WindowTitleBarContent>
+						<StatefulProjectedControl />
+					</WindowTitleBarContent>
+				) : null}
 			</main>
 		</WindowTitleBarProvider>
 	);
@@ -202,6 +204,42 @@ describe("WindowTitleBar", () => {
 		expect(titleBar?.className).toContain("h-(--window-title-bar-height)");
 		expect(titleBar?.className).toContain("shrink-0");
 		expect(titleBar?.nextElementSibling).toBe(page);
+	});
+
+	it("continues the title-bar edge beneath Windows caption controls", async () => {
+		Object.defineProperty(window, "__TAURI_INTERNALS__", {
+			configurable: true,
+			value: {},
+		});
+		vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
+
+		await act(async () => root.render(renderShell(true)));
+		await act(async () => Promise.resolve());
+
+		const controls = container.querySelector<HTMLElement>(
+			'[data-slot="window-controls"]',
+		);
+		expect(controls?.className).toContain("bg-background");
+		expect(controls?.className).toContain("border-b");
+
+		await act(async () => root.render(renderShell(false)));
+		expect(controls.className).not.toContain("border-b");
+	});
+
+	it("does not render a caption separator without conversation content", async () => {
+		Object.defineProperty(window, "__TAURI_INTERNALS__", {
+			configurable: true,
+			value: {},
+		});
+		vi.stubGlobal("navigator", { userAgent: "Windows NT 10.0" });
+
+		await act(async () => root.render(renderShell(true, false)));
+		await act(async () => Promise.resolve());
+
+		expect(
+			container.querySelector<HTMLElement>('[data-slot="window-controls"]')
+				?.className,
+		).not.toContain("border-b");
 	});
 
 	it("projects controls into the title bar within the main landmark", async () => {

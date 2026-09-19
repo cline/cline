@@ -7,6 +7,7 @@ import {
 	type ReactNode,
 	useContext,
 	useEffect,
+	useLayoutEffect,
 	useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 type WindowTitleBarContextValue = {
 	contentEnabled: boolean;
 	portalTarget: HTMLDivElement | null;
+	setProjectedContentMounted: (mounted: boolean) => void;
 	setPortalTarget: (target: HTMLDivElement | null) => void;
 };
 
@@ -34,13 +36,21 @@ export function WindowTitleBarProvider({
 	contentEnabled?: boolean;
 }) {
 	const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
+	const [projectedContentMounted, setProjectedContentMounted] = useState(false);
 
 	return (
 		<WindowTitleBarContext.Provider
-			value={{ contentEnabled, portalTarget, setPortalTarget }}
+			value={{
+				contentEnabled,
+				portalTarget,
+				setProjectedContentMounted,
+				setPortalTarget,
+			}}
 		>
 			{children}
-			<WindowControls />
+			<WindowControls
+				showSeparator={contentEnabled && projectedContentMounted}
+			/>
 		</WindowTitleBarContext.Provider>
 	);
 }
@@ -54,7 +64,7 @@ function isWindowsDesktop(): boolean {
 }
 
 /** Native window actions for the borderless Windows frame. */
-export function WindowControls() {
+export function WindowControls({ showSeparator }: { showSeparator: boolean }) {
 	const [isWindows, setIsWindows] = useState(false);
 	const [isMaximized, setIsMaximized] = useState(false);
 
@@ -82,7 +92,10 @@ export function WindowControls() {
 	const appWindow = getCurrentWindow();
 	return (
 		<div
-			className="pointer-events-auto fixed top-0 right-0 z-[110] flex h-(--window-title-bar-height) bg-background"
+			className={cn(
+				"pointer-events-auto fixed top-0 right-0 z-[110] flex h-(--window-title-bar-height) bg-background",
+				showSeparator && "border-b border-border/70",
+			)}
 			data-slot="window-controls"
 			onPointerDownCapture={(event) => {
 				// Caption actions stay above app overlays, even when a modal disables
@@ -171,6 +184,14 @@ export function WindowTitleBar({
 /** Projects page-owned controls into the persistent shell title bar. */
 export function WindowTitleBarContent({ children }: { children: ReactNode }) {
 	const context = useContext(WindowTitleBarContext);
+	const setProjectedContentMounted = context?.setProjectedContentMounted;
+	useLayoutEffect(() => {
+		if (!setProjectedContentMounted) {
+			return;
+		}
+		setProjectedContentMounted(true);
+		return () => setProjectedContentMounted(false);
+	}, [setProjectedContentMounted]);
 	if (!context) {
 		throw new Error(
 			"WindowTitleBarContent must be used within WindowTitleBarProvider.",
