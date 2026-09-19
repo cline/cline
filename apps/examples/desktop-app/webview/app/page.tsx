@@ -51,6 +51,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -1110,7 +1111,7 @@ function ChatThreadPane({
 	const handlePromptInputChange = useCallback((value: string) => {
 		promptInputRef.current = value;
 	}, []);
-	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+	const [pendingAttachments, setPendingAttachments] = usePendingAttachments();
 	const [workInSelection, setWorkInSelection] =
 		useState<WorkIn>(readWorkInFromWindow);
 	const setWorkIn = useCallback((next: WorkIn) => {
@@ -1744,27 +1745,29 @@ function ChatThreadPane({
 						: "Convert the image to PNG, JPEG, GIF, or WebP before attaching it.",
 				});
 			}
-			const existing = new Set(
-				pendingAttachments.map(
-					(file) => `${file.name}:${file.size}:${file.lastModified}`,
-				),
-			);
-			const next = [...pendingAttachments];
-			for (const file of supportedFiles) {
-				const key = `${file.name}:${file.size}:${file.lastModified}`;
-				if (!existing.has(key)) {
-					existing.add(key);
-					next.push(file);
+			setPendingAttachments((current) => {
+				const existing = new Set(
+					current.map(
+						(file) => `${file.name}:${file.size}:${file.lastModified}`,
+					),
+				);
+				const next = [...current];
+				for (const file of supportedFiles) {
+					const key = `${file.name}:${file.size}:${file.lastModified}`;
+					if (!existing.has(key)) {
+						existing.add(key);
+						next.push(file);
+					}
 				}
-			}
-			const error = isCloudSession && cloudImageAttachmentError(next);
-			if (error) {
-				toast({ title: "Cloud attachment limit", description: error });
-				return;
-			}
-			setPendingAttachments(next);
+				const error = isCloudSession && cloudImageAttachmentError(next);
+				if (error) {
+					toast({ title: "Cloud attachment limit", description: error });
+					return current;
+				}
+				return next;
+			});
 		},
-		[isCloudSession, pendingAttachments],
+		[isCloudSession, setPendingAttachments],
 	);
 
 	const handleSend = useCallback(

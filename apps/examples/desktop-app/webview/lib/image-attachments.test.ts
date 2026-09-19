@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { act, createElement, StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { describe, expect, it, vi } from "vitest";
 import { serializeAttachments } from "../hooks/chat-session/attachments";
+import { usePendingAttachments } from "../hooks/use-pending-attachments";
 import {
 	cloudImageAttachmentError,
 	imageAttachmentMediaType,
@@ -9,6 +12,37 @@ import {
 } from "./image-attachments";
 
 describe("image attachments", () => {
+	it("preserves new attachments when an older send restores its draft", async () => {
+		let draft!: ReturnType<typeof usePendingAttachments>;
+		function Harness() {
+			draft = usePendingAttachments();
+			return null;
+		}
+		const root = createRoot(document.createElement("div"));
+		const original = new File(["a"], "a.png");
+		const added = new File(["b"], "b.png");
+		try {
+			await act(async () =>
+				root.render(createElement(StrictMode, null, createElement(Harness))),
+			);
+			await act(async () => draft[1]([original]));
+			const [sent, update] = draft;
+			await act(async () => update([]));
+			await act(async () => draft[1]([added]));
+			const restore = vi.fn((current: File[]) => [...current, ...sent]);
+			await act(async () => update(restore));
+			expect(draft[0]).toEqual([added, original]);
+			expect(restore).toHaveBeenCalledOnce();
+			await act(async () => {
+				update([]);
+				update((current) => [...current, original]);
+				update((current) => [...current, added]);
+			});
+			expect(draft[0]).toEqual([original, added]);
+		} finally {
+			await act(async () => root.unmount());
+		}
+	});
 	it.each([
 		[[3_932_160], undefined],
 		[[3_932_161], "Each image"],
