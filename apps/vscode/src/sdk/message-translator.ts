@@ -337,6 +337,14 @@ export class MessageTranslatorState {
 		return output.text
 	}
 
+	isMismatchedStreamingCommand(toolName: string, toolCallId: string | undefined): boolean {
+		const output = this.streamingCommandOutput
+		return (
+			output !== undefined &&
+			(this.streamingToolName !== toolName || (toolCallId !== undefined && toolCallId !== output.toolCallId))
+		)
+	}
+
 	/** Clear streaming tool */
 	clearStreamingTool(): number {
 		const ts = this.streamingToolTs ?? this.nextTs()
@@ -1568,7 +1576,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					break
 				}
 				case "tool": {
-					const toolName = event.toolName ?? "unknown"
+					const toolName = event.toolName ?? state.getStreamingToolName() ?? "unknown"
+					if (state.isMismatchedStreamingCommand(toolName, event.toolCallId)) {
+						break
+					}
 
 					// A completed tool call after a text block means that text wasn't the
 					// turn-final response — drop the retag candidate.

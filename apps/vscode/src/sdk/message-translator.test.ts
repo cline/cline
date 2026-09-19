@@ -2214,6 +2214,27 @@ describe("translateSessionEvent — agent_event content_update", () => {
 		expect(update(state, { chunk: "late output" }, toolName)).toEqual([])
 	})
 
+	it("uses the active command name when completion omits it", () => {
+		const state = new MessageTranslatorState()
+		const initial = start(state, "run_commands", "call-1")
+
+		expect(
+			translate(state, {
+				type: "content_end",
+				contentType: "tool",
+				toolCallId: "call-1",
+				output: [{ result: "final output", success: true }],
+			}),
+		).toEqual([
+			{
+				...initial,
+				text: `build\n${COMMAND_OUTPUT_STRING}\nfinal output`,
+				partial: false,
+				commandCompleted: true,
+			},
+		])
+	})
+
 	it.each(["completion", "reset"])("clears accumulated command output after %s", (boundary) => {
 		const state = new MessageTranslatorState()
 		start(state)
@@ -2237,6 +2258,49 @@ describe("translateSessionEvent — agent_event content_update", () => {
 		// Older producers may omit the id; preserve the existing active-tool fallback.
 		expect(update(state, { chunk: " without id" }, "run_commands")).toEqual([
 			{ ...initial, text: `build\n${COMMAND_OUTPUT_STRING}\nactive output without id` },
+		])
+	})
+
+	it.each([
+		["run_commands", "run_commands", undefined],
+		["run_commands", "run_commands", "The user denied this operation."],
+		["execute_command", "execute_command", undefined],
+		["execute_command", "execute_command", "The user denied this operation."],
+		["run_commands", "execute_command", undefined],
+		["read_files", "run_commands", undefined],
+	] as const)("ignores a stale %s completion while the active command is %s (error: %s)", (staleToolName, activeToolName, error) => {
+		const state = new MessageTranslatorState()
+		start(state, staleToolName, "older-call")
+		const active = start(state, activeToolName, "active-call")
+
+		expect(
+			translate(state, {
+				type: "content_end",
+				contentType: "tool",
+				toolName: staleToolName,
+				toolCallId: "older-call",
+				output: [{ result: "older output", success: true }],
+				error,
+			}),
+		).toEqual([])
+		expect(update(state, { chunk: "active output" }, activeToolName, "active-call")).toEqual([
+			{ ...active, text: `build\n${COMMAND_OUTPUT_STRING}\nactive output` },
+		])
+		expect(
+			translate(state, {
+				type: "content_end",
+				contentType: "tool",
+				toolName: activeToolName,
+				toolCallId: "active-call",
+				output: [{ result: "active final", success: true }],
+			}),
+		).toEqual([
+			{
+				...active,
+				text: `build\n${COMMAND_OUTPUT_STRING}\nactive final`,
+				partial: false,
+				commandCompleted: true,
+			},
 		])
 	})
 
