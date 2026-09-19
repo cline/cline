@@ -1,6 +1,6 @@
 import { type ParsedKey, parseKeypress } from "@opentui/core";
 import { describe, expect, it } from "vitest";
-import { getPrintableKeyText } from "./ask-question-input";
+import { getPrintableKeyText, removeLastGrapheme } from "./ask-question-input";
 
 function parse(input: string): ParsedKey {
 	const key = parseKeypress(input);
@@ -43,5 +43,19 @@ describe("getPrintableKeyText", () => {
 				sequence: "a",
 			}),
 		).toBeNull();
+	});
+});
+
+describe("removeLastGrapheme", () => {
+	it.each([
+		["", ""],
+		["abc", "ab"],
+		["a𠮷", "a"],
+		["a😀", "a"],
+		["aé", "a"],
+		["a🇯🇵", "a"],
+		["a👨‍👩‍👧‍👦", "a"],
+	])("removes the last complete grapheme from %j", (input, expected) => {
+		expect(removeLastGrapheme(input)).toBe(expected);
 	});
 });

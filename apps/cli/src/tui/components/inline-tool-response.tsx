@@ -3,7 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../hooks/use-theme";
 import type { RuntimeToolInteraction } from "../types";
-import { getPrintableKeyText } from "./ask-question-input";
+import { getPrintableKeyText, removeLastGrapheme } from "./ask-question-input";
 import { formatApprovalParams } from "./dialogs/tool-approval";
 
 export interface InlineToolResponseProps {
@@ -347,7 +347,7 @@ function AskQuestionResponse(
 			return;
 		}
 		if (typing && key.name === "backspace") {
-			setCustomText(customValueRef.current.slice(0, -1));
+			setCustomText(removeLastGrapheme(customValueRef.current));
 			return;
 		}
 		if (typing && key.name === "delete") {
