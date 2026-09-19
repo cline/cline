@@ -151,7 +151,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			onRepoUrlChange,
 			onCloudBranchChange,
 		});
-		expect(container.querySelector("[aria-pressed]")).toBeNull();
+		expect(container.querySelector('[role="switch"]')).toBeNull();
 		await act(async () => {
 			button("Select repository").click();
 			await Promise.resolve();
@@ -806,7 +806,10 @@ describe("WelcomeWorkspaceControls branch chip", () => {
 });
 
 describe("WelcomeWorkspaceControls worktree toggle", () => {
-	it("sits right of the branch chip and toggles on to Worktree", async () => {
+	const worktreeSwitch = () =>
+		container.querySelector<HTMLInputElement>('[role="switch"]');
+
+	it("sits right of the branch chip as a switch and turns on Worktree", async () => {
 		const onWorkInChange = vi.fn();
 		await renderBranchChipControls({
 			currentBranch: "main",
@@ -814,32 +817,30 @@ describe("WelcomeWorkspaceControls worktree toggle", () => {
 			onWorkInChange,
 		});
 
-		const labels = [...container.querySelectorAll("button")].map(
-			(button) => button.textContent,
-		);
 		// No second "Local" chip: the environment selector already says Local.
-		expect(labels).toEqual(["recipes", "main", "Worktree"]);
+		expect(container.textContent).not.toContain("Local");
+		const label = worktreeSwitch()?.closest("label");
+		expect(label?.textContent).toBe("Worktree");
+		expect(worktreeSwitch()?.checked).toBe(false);
 		expect(
-			container.querySelector("[aria-pressed]")?.getAttribute("aria-pressed"),
-		).toBe("false");
+			container.querySelector('[aria-label="About worktrees"]'),
+		).not.toBeNull();
 
-		await clickButton("Worktree");
+		await click(label as HTMLElement);
 
 		expect(onWorkInChange).toHaveBeenCalledWith("worktree");
 	});
 
-	it("toggles back off to local when already in worktree mode", async () => {
+	it("turns back off to local when already in worktree mode", async () => {
 		const onWorkInChange = vi.fn();
 		await renderBranchChipControls({
 			currentBranch: "main",
 			workIn: "worktree",
 			onWorkInChange,
 		});
-		expect(
-			container.querySelector("[aria-pressed]")?.getAttribute("aria-pressed"),
-		).toBe("true");
+		expect(worktreeSwitch()?.checked).toBe(true);
 
-		await clickButton("Worktree");
+		await click(worktreeSwitch() as HTMLElement);
 
 		expect(onWorkInChange).toHaveBeenCalledWith("local");
 	});
@@ -850,7 +851,7 @@ describe("WelcomeWorkspaceControls worktree toggle", () => {
 			workIn: "local",
 			onWorkInChange: vi.fn(),
 		});
-		expect(container.querySelector("[aria-pressed]")).toBeNull();
+		expect(worktreeSwitch()).toBeNull();
 		expect(container.textContent).not.toContain("Worktree");
 	});
 });

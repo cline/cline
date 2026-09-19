@@ -1,15 +1,16 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import {
 	Check,
 	FilePlus2,
 	Folder,
 	GitBranch,
 	Github,
+	Info,
 	LoaderCircle,
 	LogIn,
-	GitFork,
 	Plus,
 	RefreshCcw,
 	Search,
@@ -18,12 +19,18 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
@@ -928,31 +935,38 @@ function WorktreeToggle({
 	value: WorkIn;
 	onChange: (next: WorkIn) => void;
 }) {
-	const enabled = value === "worktree";
+	const switchId = useId();
 	return (
-		<button
-			aria-pressed={enabled}
-			className={cn(
-				TRIGGER_CLASS,
-				"shrink-0",
-				enabled && "border-(--accent-4) bg-(--accent-4) hover:bg-(--accent-4)",
-			)}
-			onClick={() => onChange(enabled ? "local" : "worktree")}
-			title={
-				enabled
-					? "Working in a worktree: a separate copy of this folder on its own branch, so your files stay untouched until you merge."
-					: "Work in a worktree: a separate copy of this folder on its own branch, so your files stay untouched until you merge."
-			}
-			type="button"
-		>
-			<GitFork
-				className={cn(
-					"size-3.5 shrink-0",
-					enabled ? "text-foreground" : "text-muted-foreground",
-				)}
-			/>
-			<span className="text-sm">Worktree</span>
-		</button>
+		<span className="inline-flex shrink-0 items-center gap-1.5 pl-1">
+			<label
+				className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"
+				htmlFor={switchId}
+			>
+				<Switch
+					checked={value === "worktree"}
+					id={switchId}
+					onCheckedChange={(checked) =>
+						onChange(checked ? "worktree" : "local")
+					}
+				/>
+				Worktree
+			</label>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label="About worktrees"
+						className="inline-flex rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						type="button"
+					>
+						<Info aria-hidden="true" className="size-3.5" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-64" side="top" sideOffset={6}>
+					Runs the task on a separate copy of this folder on its own branch, so
+					your files stay untouched until you merge.
+				</TooltipContent>
+			</Tooltip>
+		</span>
 	);
 }
 
