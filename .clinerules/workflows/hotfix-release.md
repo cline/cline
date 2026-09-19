@@ -1,187 +1,70 @@
 # Hotfix Release
 
-Create a hotfix release by cherry-picking specific commits from main onto the latest release tag.
+Prepare an expedited VS Code extension release from `main`.
 
-## Overview
+The stable publisher builds only the exact `main` commit that its test job checks. It does not publish an arbitrary tag or a release branch. A hotfix therefore includes every change that has landed on `main`; do not create a detached tag with selected cherry-picks.
 
-This workflow helps you:
-1. Select specific commits from main to include in a hotfix
-2. Create a release notes commit on main (changelog + version bump)
-3. Cherry-pick everything onto the latest release tag
-4. Tag and push the new release
+## Step 1: Confirm the fix on main
 
-## Step 1: Setup and Gather Information
-
-First, ensure we're on main and up to date:
-
-```bash
-git checkout main && git pull origin main
-```
-
-Get the latest release tag:
-
-```bash
-git tag --sort=-v:refname | head -1
-```
-
-## Step 2: Present Commits Since Last Release
-
-Show all commits on main since the last release tag:
-
-```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
-git log ${LAST_TAG}..HEAD --oneline --format="%h %s (%an)"
-```
-
-Also get the commit messages already on the tag (to identify previously cherry-picked commits). Note: Run these as separate commands to avoid shell parsing issues with parentheses in author names:
-
-```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
-PREV_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
-```
-
-```bash
-git log $PREV_TAG..$LAST_TAG --oneline --format="%s"
-```
-
-**Present the list** to the user in a numbered format with commit hash, subject, and author. For any commits whose subject line already appears in the tag's history (previously cherry-picked in an earlier hotfix) or are "Release Notes" commits, add `(already in previous hotfix)` or `(release notes - skip)` after them so the user knows to skip those.
-
-Ask which commits to include in the hotfix.
-
-Use the ask_followup_question tool to let the user specify which commits they want (by number or hash).
-
-## Step 3: Analyze Selected Commits
-
-For each selected commit:
-1. Get the full commit message: `git show --no-patch --format="%B" <hash>`
-2. Get the diff to understand the change: `git show <hash> --stat`
-3. Find the associated PR if any: `gh pr list --search "<hash>" --state merged --json number,title --jq '.[0]'`
-
-Build a mental model of what these changes do for the changelog.
-
-## Step 4: Determine New Version Number
-
-Parse the current version from package.json and the last tag:
-
-```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
-echo "Last release: $LAST_TAG"
-cat package.json | grep '"version"'
-```
-
-Hotfixes always increment the patch version (e.g., 3.40.0 -> 3.40.1, or 3.40.1 -> 3.40.2).
-
-**Ask the user to confirm the new version number.**
-
-## Step 5: Create Release Notes Commit on Main
-
-On the main branch, create a commit that updates:
-
-1. **CHANGELOG.md** - Add a new section for the hotfix version at the top:
-   ```markdown
-   ## [3.40.1]
-
-   - Description of fix 1
-   - Description of fix 2
-   ```
-
-   Write clear, user-friendly descriptions based on your analysis of the commits.
-
-2. **package.json** - Update the version field to the new version
-
-3. No changelog-entry file cleanup is needed. Contributors do not create changelog-entry files in this repo.
-
-**No dependency install is needed.** A CHANGELOG + `version` bump does not change any dependency, and `bun.lock` does not pin workspace-package versions, so the lockfile stays consistent. The publish workflow runs `bun install --frozen-lockfile`, which would *fail* on an out-of-sync lock — so only run `bun install` here if you actually change dependencies (then commit the updated `bun.lock`).
-
-Commit with message format: `v{VERSION} Release Notes (hotfix)`
-
-In the commit body, mention:
-- This is for a hotfix release
-- List the cherry-picked commits that will be included
-
-```bash
-git add CHANGELOG.md package.json
-git commit -m "v3.40.1 Release Notes (hotfix)
-
-Hotfix release including:
-- <commit1-hash>: <description>
-- <commit2-hash>: <description>
-"
-```
-
-Push to main:
-
-```bash
-git push origin main
-```
-
-## Step 6: Build the Hotfix on the Tag
-
-Checkout the last release tag (detached HEAD):
-
-```bash
-LAST_TAG=$(git tag --sort=-v:refname | head -1)
-git checkout $LAST_TAG
-```
-
-Cherry-pick the selected commits in order:
-
-```bash
-git cherry-pick <commit1-hash>
-git cherry-pick <commit2-hash>
-# ... etc
-```
-
-Finally, cherry-pick the release notes commit you just pushed to main:
-
-```bash
-# Get the hash of the release notes commit (should be HEAD of main)
-RELEASE_NOTES_COMMIT=$(git rev-parse main)
-git cherry-pick $RELEASE_NOTES_COMMIT
-```
-
-## Step 7: Tag and Push
-
-After all cherry-picks are applied successfully:
-
-```bash
-# Tag the new release
-git tag v{VERSION}
-
-# Push the tag to remote
-git push origin v{VERSION}
-```
-
-## Step 8: Return to Main and Summary
-
-Return to main branch:
+Sync `main` and identify the fix commits:
 
 ```bash
 git checkout main
+git pull origin main
+git log --oneline -20
+node -p 'require("./apps/vscode/package.json").version'
 ```
 
-**Copy a Slack announcement message to clipboard** with the version and PR links for each included fix:
+Confirm that each required fix has landed and passed its PR checks. If a fix has not landed, prepare and merge its focused PR before continuing.
 
+## Step 2: Choose the version
+
+Query the live Marketplace version and choose a higher patch version:
+
+```bash
+curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+  -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+  -d '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
+  | python3 -c "import json,sys; v=json.load(sys.stdin)['results'][0]['extensions'][0]['versions'][0]; print(v['version'], v['lastUpdated'])"
 ```
-VS Code Hotfix v{VERSION} Published
 
-- Description of fix 1 https://github.com/cline/cline/pull/{PR_NUMBER}
-- Description of fix 2 https://github.com/cline/cline/pull/{PR_NUMBER}
+Ask the maintainer to confirm the new version.
+
+## Step 3: Prepare the release PR
+
+Create a branch from current `main`, then:
+
+1. Add a `## [<version>]` section at the top of `CHANGELOG.md` with concise descriptions of the fixes.
+2. Set `apps/vscode/package.json` to the same version.
+3. Run the checks relevant to the included fixes.
+
+No dependency install is needed for a changelog and version-only change. `bun.lock` does not pin workspace package versions.
+
+```bash
+VERSION=$(node -p 'require("./apps/vscode/package.json").version')
+git switch -c "dpc/release-v${VERSION}"
+git add CHANGELOG.md apps/vscode/package.json
+git commit -m "chore(vscode): release v${VERSION}"
+git push -u origin HEAD
 ```
 
-Present a final summary:
-- New version: v{VERSION}
-- Tag pushed: yes
-- Commits included: (list them)
-- Slack message copied to clipboard: yes
+Open the release-preparation PR and merge it after its checks pass. Do not push directly to protected `main` and do not create the release tag by hand.
 
-Remind the user to:
-1. Manually trigger the publish release GitHub Action at: https://github.com/cline/cline/actions/workflows/ext-vscode-publish-stable.yml (paste `v{VERSION}` as the tag)
-2. Post the Slack message to announce the hotfix
+## Step 4: Publish
 
-## Important Notes
+After the release-preparation PR lands, follow `.clinerules/workflows/release.md` from its publish step. Dispatch `ext-vscode-publish.yml` from `main` with `<version>` and `publish=true`.
 
-- This workflow does NOT create a release branch - only tags
-- The release notes commit goes to main first, then gets cherry-picked to the tag
-- This keeps main's history accurate while allowing hotfix releases from tags
-- If cherry-pick conflicts occur, resolve them before continuing
+The workflow validates and tests the dispatch commit, publishes its prebuilt VSIX, then creates `v<version>` and the GitHub release.
+
+## Step 5: Verify and announce
+
+Verify the workflow conclusion, Marketplace version, Open VSX version, tag, and GitHub release as described in `.cline/skills/publish-extension/SKILL.md`.
+
+Prepare the announcement from the fixes included in the release:
+
+```text
+VS Code Hotfix v<VERSION> Published
+
+- Description of fix 1 https://github.com/cline/cline/pull/<PR_NUMBER>
+- Description of fix 2 https://github.com/cline/cline/pull/<PR_NUMBER>
+```

@@ -2,7 +2,6 @@ import { describe, it } from "bun:test"
 import * as assert from "assert"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
-import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -124,54 +123,9 @@ describe("TelemetryService provider removal", () => {
 })
 
 describe("TelemetryService metrics", () => {
-	it("includes rollout metadata on traditional events and metrics", () => {
+	it("captures bounded, content-free remote-config signals", () => {
 		const provider = new FakeProvider()
-		const service = createTelemetryService(provider, {
-			extension_variant: "next",
-		})
-
-		service.captureProviderApiError({
-			ulid: "task-rollout",
-			model: "model-a",
-			errorMessage: "boom",
-			provider: "anthropic",
-		})
-
-		const errorEvent = provider.logs.find((entry) => entry.event === "task.provider_api_error")
-		assert.strictEqual(errorEvent?.properties?.extension_variant, "next")
-		assert.ok(provider.counters.length > 0)
-		assert.ok(provider.histograms.length > 0)
-		for (const entry of [...provider.counters, ...provider.histograms]) {
-			assert.strictEqual(entry.attributes.extension_variant, "next")
-		}
-	})
-
-	it("captures one bounded rollout fallback event for rollout builds", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider, {
-			extension_variant: "legacy",
-		})
-
-		service.captureRolloutBundleActivated({
-			attemptedBundle: "next",
-			actualBundle: "legacy",
-			fallback: true,
-			error: new TypeError("x".repeat(ROLLOUT_ERROR_MESSAGE_LIMIT + 20)),
-		})
-
-		const events = provider.logs.filter((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT)
-		assert.strictEqual(events.length, 1)
-		assert.strictEqual(events[0].properties?.attempted_bundle, "next")
-		assert.strictEqual(events[0].properties?.actual_bundle, "legacy")
-		assert.strictEqual(events[0].properties?.fallback, true)
-		assert.strictEqual(events[0].properties?.error_type, "TypeError")
-		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
-		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
-	})
-
-	it("captures bounded, content-free remote-config rollout signals", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider, { extension_variant: "next" })
+		const service = createTelemetryService(provider)
 
 		service.captureRemoteConfigRefresh({
 			outcome: "applied",
@@ -185,12 +139,10 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(refresh?.properties?.outcome, "applied")
 		assert.strictEqual(refresh?.properties?.duration_ms, 13)
 		assert.strictEqual((refresh?.properties?.config_version as string).length, 100)
-		assert.strictEqual(refresh?.properties?.extension_variant, "next")
 		assert.strictEqual(refresh?.properties?.organization_id, undefined)
 		const gate = provider.logs.find((entry) => entry.event === "remote_config.session_gate")
 		assert.strictEqual(gate?.properties?.outcome, "last_known_good")
 		assert.strictEqual(gate?.properties?.duration_ms, 4)
-		assert.strictEqual(gate?.properties?.extension_variant, "next")
 	})
 
 	it("drops unmanaged happy-path remote-config events but keeps failures", () => {
@@ -210,22 +162,6 @@ describe("TelemetryService metrics", () => {
 		service.captureRemoteConfigRefresh({ outcome: "cleared", durationMs: 1, managed: true })
 		service.captureRemoteConfigSessionGate({ outcome: "blocked", durationMs: 1, managed: true })
 		assert.strictEqual(remoteConfigEvents().length, 3)
-	})
-
-	it("does not capture rollout activation events for ordinary builds", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
-		service.captureRolloutBundleActivated({
-			attemptedBundle: "legacy",
-			actualBundle: "legacy",
-			fallback: false,
-		})
-
-		assert.strictEqual(
-			provider.logs.some((entry) => entry.event === ROLLOUT_BUNDLE_ACTIVATED_EVENT),
-			false,
-		)
 	})
 
 	it("metrics include is_remote_workspace in standard attributes", () => {
