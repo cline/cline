@@ -1097,9 +1097,12 @@ jobs:
           # release, whichever is closer - scoped to what ships in the app
           # (the sidecar bundles sdk/packages). Runs before this build is
           # tagged below so it never compares against itself.
-          PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --match 'desktop-nightly-*' HEAD 2>/dev/null || true)
           STAMP=${VERSION#*-nightly.}
-          echo "tag=desktop-nightly-${STAMP%%.*}" >> "$GITHUB_OUTPUT"
+          TAG="desktop-nightly-${STAMP%%.*}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          # --exclude: on a rerun after a failed Slack step this build's own
+          # tag already exists, and must not become the baseline.
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --match 'desktop-nightly-*' --exclude "$TAG" HEAD 2>/dev/null || true)
 
           if [ -z "$PREV_TAG" ]; then
             BODY="No previous nightly or desktop release tag found to compare against."
@@ -1110,16 +1113,15 @@ jobs:
             if [ "$TOTAL" -eq 0 ]; then
               BODY="No desktop or SDK changes since \`${PREV_TAG}\` (<${COMPARE}|compare>)."
             else
-              # Escape mrkdwn, link squash-merge PR numbers, cap the list so the
-              # block stays under Slack's 3000-character limit.
-              LIST=$(printf "%s\n" "$COMMITS" | head -15 \
+              # Escape mrkdwn, link squash-merge PR numbers, then cap the list
+              # by both count and total length so the block stays under Slack's
+              # 3000-character limit with room for the heading.
+              LIST=$(printf "%s\n" "$COMMITS" \
                 | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' \
                       -e "s~(#\([0-9]*\))\$~(<https://github.com/${GITHUB_REPOSITORY}/pull/\1|#\1>)~" \
-                      -e 's/^/• /')
+                      -e 's/^/• /' \
+                | awk -v max=2600 '{ if (n >= 15 || len + length($0) > max) { skipped++; next } print; len += length($0) + 1; n++ } END { if (skipped) print "… and " skipped " more" }')
               BODY="*Changes since \`${PREV_TAG}\`* (<${COMPARE}|${TOTAL} commits>):"$'\n'"${LIST}"
-              if [ "$TOTAL" -gt 15 ]; then
-                BODY="${BODY}"$'\n'"… and $((TOTAL - 15)) more"
-              fi
             fi
           fi
           printf "%s\n" "$BODY"
@@ -1131,8 +1133,17 @@ jobs:
         env:
           TAG: ${{ steps.changes.outputs.tag }}
         run: |
-          git tag "$TAG"
-          git push origin "refs/tags/${TAG}"
+          # Idempotent so a rerun after a failed Slack step gets past this.
+          if git rev-parse -q --verify "refs/tags/${TAG}^{commit}" >/dev/null; then
+            if [ "$(git rev-parse "refs/tags/${TAG}^{commit}")" != "$(git rev-parse HEAD)" ]; then
+              echo "${TAG} already exists and points at a different commit"
+              exit 1
+            fi
+            echo "${TAG} already exists at HEAD; skipping"
+          else
+            git tag "$TAG"
+            git push origin "refs/tags/${TAG}"
+          fi
 
       - name: Post nightly to Slack
         uses: slackapi/slack-github-action@v3.0.1
