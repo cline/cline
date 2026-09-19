@@ -133,6 +133,8 @@ export type ChatSessionCommandResponse = {
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
 	promptsInQueue?: PromptInQueue[];
 	prompt?: PromptInQueue;
 	updated?: boolean;
