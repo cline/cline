@@ -801,6 +801,46 @@ describe("AgentSidebar session organization", () => {
 		);
 	});
 
+	it("renders one project for imported and native Windows path spellings", async () => {
+		const threads = [
+			{
+				...makeThread("inflight", 1),
+				workspacePath: "C:/Users/ftsachev/dev/inflight",
+			},
+			{
+				...makeThread("inflight", 2),
+				workspacePath: "C:\\Users\\ftsachev\\dev\\inflight",
+			},
+		];
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory(threads, vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		await switchToProjectSort();
+
+		// Both spellings stay visible under a single project heading instead of
+		// splitting into two identical-looking groups.
+		expect(sessionIsVisible("inflight session 1")).toBe(true);
+		expect(sessionIsVisible("inflight session 2")).toBe(true);
+		const projectRow = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.trim() === "inflight");
+		expect(projectRow).toBeDefined();
+	});
+
 	it("defaults to a time-sorted list and groups by project after switching sort", async () => {
 		const threads = [
 			...Array.from({ length: 35 }, (_, index) =>
