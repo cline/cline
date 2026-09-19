@@ -45,9 +45,15 @@ const WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
 
 // On Linux the updater artifacts are the packages themselves, signed by
 // createUpdaterArtifacts. The updater asks for `linux-<arch>-<installer>`
-// first and falls back to the bare `linux-<arch>` key, so each package format
-// gets only its own suffixed key: a deb must never be served to an rpm
-// install (or to an AppImage, which we do not ship).
+// first and falls back to the bare `linux-<arch>` key, so the AppImage — the
+// only Linux bundle the updater can install in place, by overwriting the
+// running file — claims the bare key, and a .deb or .rpm install is served its
+// own package format. A deb must never be offered to an rpm install.
+const LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
+	amd64: ["linux-x86_64"],
+	aarch64: ["linux-aarch64"],
+};
+
 const LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX: Record<string, string[]> = {
 	"_amd64.deb": ["linux-x86_64-deb"],
 	"_arm64.deb": ["linux-aarch64-deb"],
@@ -68,6 +74,12 @@ const getArgValue = (args: string[], name: string): string | undefined => {
 const platformKeysOfUpdaterArtifact = (
 	fileName: string,
 ): string[] | undefined => {
+	if (fileName.endsWith(".AppImage")) {
+		const arch = Object.keys(LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
+			(candidate) => fileName.endsWith(`_${candidate}.AppImage`),
+		);
+		return arch ? LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
+	}
 	if (fileName.endsWith(".app.tar.gz")) {
 		const arch = Object.keys(MACOS_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
 			(candidate) => fileName.includes(`_${candidate}`),
@@ -124,7 +136,7 @@ export const buildUpdateManifest = (options: {
 
 	if (Object.keys(platforms).length === 0) {
 		throw new Error(
-			`no updater artifacts (*.app.tar.gz, *-setup.exe, *.deb or *.rpm with a known arch suffix) found in ${options.dir}`,
+			`no updater artifacts (*.app.tar.gz, *-setup.exe, *.AppImage, *.deb or *.rpm with a known arch suffix) found in ${options.dir}`,
 		);
 	}
 
