@@ -892,9 +892,280 @@ jobs:
           path: apps/examples/desktop-app/dist/publish/*
           if-no-files-found: error
 
+  build-linux:
+    name: Build Linux (x64)
+    needs: validate
+    # Same gate rationale as the macOS build job above. Linux has no platform
+    # code-signing step — there is no Gatekeeper or SmartScreen to satisfy,
+    # and .deb/.rpm repository signing belongs to whoever redistributes the
+    # package — but this job still reads the Tauri updater key, so it stays
+    # behind the same environment approval as the other two.
+    if: github.ref == 'refs/heads/main'
+    environment: PublishDesktop
+    # Pinned to the oldest supported LTS on purpose: a Tauri bundle links
+    # against the build machine's glibc, so building on ubuntu-latest would
+    # silently raise the minimum glibc and break every distro older than the
+    # runner. When this image is retired, move to the next oldest LTS rather
+    # than to -latest.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      # Tauri skips updater-artifact signing silently when the key is absent,
+      # which would publish an AppImage no installed app can verify. The
+      # ".sig missing" check in "Collect artifacts" catches it too, but only
+      # after a full build.
+      - name: Verify updater signing secrets are present
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for name in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing from the PublishDesktop environment:"
+            printf '  - %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+          echo "Updater signing secrets are present."
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.ref }}
+
+      - name: Stamp nightly version
+        if: needs.validate.outputs.channel == 'nightly'
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          for (const file of ['apps/examples/desktop-app/package.json', 'apps/examples/desktop-app/src-tauri/tauri.conf.json']) {
+            const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+            config.version = process.env.VERSION;
+            fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          }
+          JS
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      # webkit2gtk is the webview, appindicator backs the tray icon, rpm is the
+      # .rpm bundler, and upx packs the SSH remote helpers (build-sidecar-bin.ts
+      # fails without it in CI). patchelf is what linuxdeploy calls to fix up
+      # rpaths; the build wrapper shims it, but the real tool must exist.
+      # No libfuse: the bundler runs linuxdeploy with APPIMAGE_EXTRACT_AND_RUN.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            build-essential \
+            file \
+            patchelf \
+            rpm \
+            upx-ucl
+          command -v upx
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # No Rust build cache, mirroring the other two build jobs: this job
+      # reads the updater signing key and a restored cache archive is
+      # attacker-controlled once the Actions cache is poisoned.
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      # Not `tauri build` directly: the AppImage target hands the AppDir to
+      # linuxdeploy, which sets an rpath on every executable it stages and so
+      # corrupts the Bun-compiled sidecar. The wrapper points linuxdeploy's
+      # $PATCHELF at a guard that leaves that one binary alone; see
+      # scripts/elf-rewrite-guard.ts.
+      # Explicit bundles rather than the config's "all": that also builds a
+      # pacman package nobody publishes, and a failure in it would fail the
+      # release. $CONFIG_ARGS is deliberately unquoted: it must word-split
+      # into flags.
+      - name: Build desktop bundles
+        working-directory: apps/examples/desktop-app
+        run: bun run scripts/tauri-build-linux.ts --bundles deb,rpm,appimage $CONFIG_ARGS
+        env:
+          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'nightly' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.nightly.conf.json' || needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
+          # Telemetry inlined into the sidecar at compile time, same as macOS.
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          # Updater artifact signing (minisign keypair, same key as macOS)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Same guardrail as the other build jobs: assert the compiled binary
+      # embeds this channel's updater feed URL and not the other channel's.
+      - name: Verify updater feed endpoint
+        working-directory: apps/examples/desktop-app
+        env:
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+        run: |
+          case "$CHANNEL" in
+            stable)
+              WANT="releases/download/desktop-latest/latest.json"
+              FORBID="releases/download/desktop-(beta|nightly)/latest.json"
+              ;;
+            beta)
+              WANT="releases/download/desktop-beta/latest.json"
+              FORBID="releases/download/desktop-(latest|nightly)/latest.json"
+              ;;
+            nightly)
+              WANT=""
+              FORBID="releases/download/desktop-(latest|beta|nightly)/latest.json"
+              ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+
+          BIN=src-tauri/target/release/cline-app
+          if grep -aE "$FORBID" "$BIN" >/dev/null; then
+            echo "$BIN embeds the other channel's feed URL (${FORBID})"
+            exit 1
+          fi
+          if [ -n "$WANT" ] && ! grep -a "$WANT" "$BIN" >/dev/null; then
+            echo "${BIN} does not embed ${WANT}."
+            echo "The updater endpoint overlay did not apply; check the"
+            echo "--config flags on the build step and tauri.beta.conf.json."
+            exit 1
+          fi
+          echo "Updater endpoint verified: ${WANT:-disabled}"
+
+      # Same guardrail as the other build jobs, run on the Linux sidecar.
+      - name: Verify sidecar telemetry config was inlined
+        working-directory: apps/examples/desktop-app
+        run: |
+          SELFCHECK=$(./src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu --telemetry-selfcheck)
+          echo "$SELFCHECK"
+          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+            echo "Packaged sidecar reports telemetry disabled."
+            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+            echo "'Build desktop bundles' step and the --define inlining in"
+            echo "scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
+          if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
+            echo "Packaged sidecar reports telemetry enabled but its OTLP"
+            echo "endpoint is missing, unparseable, or not an http(s) URL."
+            echo "Check the OTEL_EXPORTER_OTLP_ENDPOINT secret."
+            exit 1
+          fi
+
+      # The one failure mode unique to this platform. linuxdeploy sets an
+      # rpath on every executable it stages, which corrupts a `bun build
+      # --compile` binary; the build wrapper's $PATCHELF guard stops it, and
+      # this proves it did. Byte equality against the sidecar that passed the
+      # telemetry check above is the whole assertion — any rewrite differs,
+      # and the copy inside the AppImage is what users actually run.
+      - name: Verify the AppImage ships an intact sidecar
+        working-directory: apps/examples/desktop-app
+        run: |
+          APPIMAGE=$(find "$PWD/src-tauri/target/release/bundle/appimage" -maxdepth 1 -name '*.AppImage' -print -quit)
+          if [ -z "$APPIMAGE" ]; then
+            echo "no AppImage produced; the Tauri updater cannot ship Linux without one"
+            exit 1
+          fi
+
+          EXTRACT_DIR="$RUNNER_TEMP/appimage"
+          mkdir -p "$EXTRACT_DIR"
+          (cd "$EXTRACT_DIR" && "$APPIMAGE" --appimage-extract >/dev/null)
+
+          BUNDLED="$EXTRACT_DIR/squashfs-root/usr/bin/code-sidecar"
+          cmp "$BUNDLED" src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu
+          "$BUNDLED" --telemetry-selfcheck >/dev/null
+          echo "AppImage sidecar is byte-identical to the built sidecar and still runs."
+
+      # Same release-time gate as the other build jobs; see the comment there.
+      - name: Smoke-test the packaged sidecar against an isolated Hub
+        working-directory: apps/examples/desktop-app
+        env:
+          CLINE_TEST_SIDECAR_BIN: src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu
+        run: bun test scripts/desktop-startup.test.ts
+
+      - name: Collect artifacts
+        working-directory: apps/examples/desktop-app
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          PRODUCT: ${{ needs.validate.outputs.product }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/release/bundle"
+          OUT="dist/publish"
+          mkdir -p "$OUT"
+
+          # "Cline" -> Cline, "Cline Beta" -> Cline-Beta
+          PREFIX="${PRODUCT// /-}"
+
+          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -maxdepth 1 -name '*.AppImage' -print -quit)
+          # The AppImage is both the first-install download and the updater
+          # artifact (createUpdaterArtifacts signs it in place). The arch token
+          # in its name is what generate-update-manifest.ts maps to the
+          # linux-x86_64 feed key, so keep the `_amd64` suffix when renaming.
+          if [ ! -f "${APPIMAGE}.sig" ]; then
+            echo "updater signature missing next to $APPIMAGE"
+            exit 1
+          fi
+          cp "$APPIMAGE" "$OUT/${PREFIX}_${VERSION}_amd64.AppImage"
+          cp "${APPIMAGE}.sig" "$OUT/${PREFIX}_${VERSION}_amd64.AppImage.sig"
+
+          DEB=$(find "$BUNDLE_DIR/deb" -name '*.deb' -print -quit)
+          RPM=$(find "$BUNDLE_DIR/rpm" -name '*.rpm' -print -quit)
+          if [ -z "$DEB" ] || [ -z "$RPM" ]; then
+            echo "expected both a .deb and a .rpm under $BUNDLE_DIR"
+            exit 1
+          fi
+          cp "$DEB" "$OUT/${PREFIX}_${VERSION}_amd64.deb"
+          cp "$RPM" "$OUT/${PREFIX}-${VERSION}-1.x86_64.rpm"
+
+          ls -lh "$OUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-x64
+          retention-days: 30
+          path: apps/examples/desktop-app/dist/publish/*
+          if-no-files-found: error
+
   release:
     name: Create GitHub release
-    needs: [validate, build, build-windows]
+    needs: [validate, build, build-windows, build-linux]
     if: needs.validate.outputs.channel != 'nightly'
     runs-on: ubuntu-latest
     permissions:
@@ -1084,11 +1355,11 @@ jobs:
               - type: "context"
                 elements:
                   - type: "mrkdwn"
-                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
+                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Downloads (macOS, Windows, Linux)> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
 
   announce-nightly:
     name: Tag and announce nightly
-    needs: [validate, build, build-windows]
+    needs: [validate, build, build-windows, build-linux]
     if: needs.validate.outputs.channel == 'nightly'
     runs-on: ubuntu-latest
     permissions:
