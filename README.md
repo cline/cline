@@ -59,11 +59,11 @@ npm i -g cline
 
 ### Desktop App
 
-Cline as a native app for macOS and Windows.
+Cline as a native app for macOS, Windows, and Linux.
 Run agent sessions in any folder, schedule
 routines, and manage models, plugins, and MCP servers.
 
-<a href="https://cline.bot/desktop">Download for macOS and Windows</a>
+<a href="https://cline.bot/desktop">Download for macOS, Windows, and Linux</a>
 <br><br>
 
 </td>

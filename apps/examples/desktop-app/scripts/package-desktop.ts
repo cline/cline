@@ -289,7 +289,14 @@ const main = async () => {
 	}
 
 	if (!skipBuild) {
-		await $`bun run build:binary`;
+		// Official Linux releases ship AppImage only. `tauri build` with
+		// bundle.targets "all" also tries deb/rpm and fails on hosts that
+		// lack those packagers (no rpmbuild, no fpm).
+		if (platform === "linux") {
+			await $`bunx tauri build --bundles appimage`;
+		} else {
+			await $`bun run build:binary`;
+		}
 	}
 
 	const artifacts = await collectArtifacts(platform, allowUnsignedMac);
