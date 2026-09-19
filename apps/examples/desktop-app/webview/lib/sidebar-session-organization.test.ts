@@ -27,6 +27,21 @@ function thread(
 }
 
 describe("sidebar session organization", () => {
+	it("groups slash and backslash spellings of one Windows project together", () => {
+		const groups = groupThreadsByProject([
+			thread("native", "C:\\Users\\me\\dev\\inflight"),
+			thread("imported", "C:/Users/me/dev/inflight/"),
+			thread("other", "C:/other/inflight"),
+		]);
+
+		expect(groups).toHaveLength(2);
+		expect(groups[0]?.threads.map((item) => item.id)).toEqual([
+			"native",
+			"imported",
+		]);
+		expect(groups[0]?.workspacePath).toBe("C:\\Users\\me\\dev\\inflight");
+	});
+
 	it("groups every loaded thread before applying per-project visibility", () => {
 		const threads = [
 			...Array.from({ length: 12 }, (_, index) =>
