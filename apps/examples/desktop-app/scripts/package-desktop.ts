@@ -248,9 +248,11 @@ const collectWindowsArtifacts = (): string[] =>
 		.filter((file) => file.endsWith(".msi") || file.endsWith(".exe"))
 		.map((file) => copyArtifact(file, path.basename(file)));
 
+const LINUX_ARTIFACT_SUFFIXES = [".deb", ".rpm", ".AppImage"];
+
 const collectLinuxArtifacts = (): string[] =>
 	walkFiles(BUNDLE_ROOT)
-		.filter((file) => file.endsWith(".deb") || file.endsWith(".rpm"))
+		.filter((file) => LINUX_ARTIFACT_SUFFIXES.some((s) => file.endsWith(s)))
 		.map((file) => copyArtifact(file, path.basename(file)));
 
 const collectArtifacts = async (
@@ -284,11 +286,12 @@ const main = async () => {
 	}
 
 	if (!skipBuild) {
-		// Linux ships deb and rpm only. The AppImage target is skipped because
-		// linuxdeploy cannot process the Bun-compiled sidecar (ldd fails on it
-		// and patchelf corrupts it), which aborts the whole bundle step.
+		// Linux goes through the wrapper so linuxdeploy cannot rewrite the
+		// Bun-compiled sidecar while building the AppImage. The bundles are
+		// explicit because the config's "all" also pulls in targets this
+		// script does not collect (an NSIS installer needs makensis).
 		if (platform === "linux") {
-			await $`bun run build:binary --bundles deb,rpm`;
+			await $`bun run build:binary:linux --bundles deb,rpm,appimage`;
 		} else {
 			await $`bun run build:binary`;
 		}
