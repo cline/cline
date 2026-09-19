@@ -11,13 +11,6 @@ import { version as extensionVersion } from "../../../package.json"
 import { getDeviceId, setDistinctId } from "../logging/distinctId"
 import { type CoreSpawnTelemetryMetadata, getCoreSpawnTelemetryMetadata } from "./core-spawn-metadata"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
-import {
-	getRolloutErrorProperties,
-	getRolloutTelemetryMetadata,
-	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
-	type RolloutBundleActivation,
-	type RolloutTelemetryMetadata,
-} from "./rollout-metadata"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
@@ -134,8 +127,6 @@ export type TelemetryMetadata = {
 	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
-	/** Present only in bundles built by the combined legacy/next rollout workflow. */
-	extension_variant?: RolloutTelemetryMetadata["extension_variant"]
 }
 
 /**
@@ -375,7 +366,6 @@ export class TelemetryService {
 			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
 			...getCoreSpawnTelemetryMetadata(),
-			...getRolloutTelemetryMetadata(),
 		}
 		return new TelemetryService(providers, metadata)
 	}
@@ -446,19 +436,18 @@ export class TelemetryService {
 
 	/**
 	 * NOTE — SDK-line telemetry parity gap. This method and several others in
-	 * this file have no caller on this line but are called on
-	 * `legacy-extension`. They are kept, not deleted: the signals they emit
-	 * originate in this bundle (webview UI, VS Code storage, host terminal,
+	 * this file do not yet have SDK call sites. They are kept because the signals
+	 * originate in the VS Code host (webview UI, VS Code storage, host terminal,
 	 * checkpoints, focus chain, legacy-task migration), so @cline/core cannot
-	 * emit them and the missing piece is a call site here. Tracked in
+	 * emit them and the missing piece is a host call site. Tracked in
 	 * https://linear.app/cline-bot/issue/ENG-2401
 	 *
 	 * Anything whose event @cline/core already emits was deleted instead: a
 	 * second capture path for a core-owned event is how the
 	 * task.provider_api_error double-emission happened (cline/cline#12820).
 	 *
-	 * So: do not "clean up" an uncalled capture method here as dead code
-	 * without checking `legacy-extension` for callers first.
+	 * Do not remove an uncalled capture method here without checking whether the
+	 * corresponding SDK host call site is still tracked by that parity work.
 	 */
 
 	/**
@@ -599,22 +588,6 @@ export class TelemetryService {
 	public captureExtensionActivated() {
 		this.capture({
 			event: TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED,
-		})
-	}
-
-	public captureRolloutBundleActivated(input: RolloutBundleActivation): void {
-		if (!this.telemetryMetadata.extension_variant) {
-			return
-		}
-
-		this.capture({
-			event: ROLLOUT_BUNDLE_ACTIVATED_EVENT,
-			properties: {
-				attempted_bundle: input.attemptedBundle,
-				actual_bundle: input.actualBundle,
-				fallback: input.fallback,
-				...(input.fallback ? getRolloutErrorProperties(input.error) : {}),
-			},
 		})
 	}
 

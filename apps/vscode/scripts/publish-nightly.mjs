@@ -17,8 +17,8 @@
  *
  * Channels:
  *   By default, the extension is published to the RELEASE channel of
- *   `cline-nightly` (this is what the scheduled daily nightly workflow
- *   uses). Pass --pre-release to instead publish to the pre-release
+ *   `cline-nightly` (this is what the manual nightly workflow uses).
+ *   Pass --pre-release to instead publish to the pre-release
  *   channel of `cline-nightly` (used for manual publishes from feature
  *   branches that need tester opt-in via "Switch to Pre-Release Version").
  *
@@ -27,12 +27,12 @@
  *   build only stays selected while its version number is greater than
  *   the latest release nightly. Since both channels use
  *   `major.minor.<unix-timestamp>`, the most recently published build
- *   wins. When this script is used for a manual pre-release publish, the
- *   scheduled release nightly workflow will eventually publish a newer
+ *   wins. When this script is used for a manual pre-release publish, a
+ *   later release-channel nightly will publish a newer
  *   timestamp and pull pre-release users forward onto release — which is
  *   the desired behavior once an experimental branch is abandoned, but
- *   means ongoing previews require re-publishing from the branch at
- *   least as often as the scheduled release nightly runs.
+ *   means ongoing previews require re-publishing from the branch after
+ *   each newer release-channel nightly.
  *
  * Usage:
  *   bun run publish:marketplace:nightly                    # release channel
@@ -44,8 +44,8 @@
  *   OVSX_PAT  - Personal Access Token for OpenVSX Registry
  *
  * Dependencies:
- *   - vsce (VS Code Extension Manager)
- *   - ovsx (OpenVSX CLI)
+ *   - vsce (workspace dependency)
+ *   - bunx (downloads and runs the OpenVSX CLI)
  */
 
 import { execFileSync, execSync } from "node:child_process"
@@ -142,7 +142,7 @@ class NightlyPublisher {
 	checkDependencies() {
 		const dependencies = [
 			{ name: "vsce", check: "vsce --version" },
-			{ name: "npx", check: "npx --version" },
+			{ name: "bunx", check: "bunx --version" },
 		]
 
 		const missing = []
@@ -162,18 +162,6 @@ class NightlyPublisher {
 		}
 
 		log.info("All dependencies are installed")
-	}
-
-	/**
-	 * Check if a command exists
-	 */
-	commandExists(command) {
-		try {
-			execSync(`which ${command}`, { stdio: "ignore" })
-			return true
-		} catch {
-			return false
-		}
 	}
 
 	/**
@@ -205,8 +193,8 @@ class NightlyPublisher {
 	/**
 	 * Keep workspace self-link consistent with package name during nightly packaging.
 	 *
-	 * The repo root is a workspace package ("."). When npm installs dependencies,
-	 * it creates a self-link at node_modules/<package-name>. Nightly packaging
+	 * The repo root is a workspace package ("."). Workspace installation creates
+	 * a self-link at node_modules/<package-name>. Nightly packaging
 	 * changes package.json name from "claude-dev" to "cline-nightly". If we don't
 	 * align this link, vsce's dependency detection (`npm list --production`) fails
 	 * with ELSPROBLEMS (missing cline-nightly + extraneous claude-dev).
@@ -244,7 +232,7 @@ class NightlyPublisher {
 			return
 		}
 
-		// In some environments npm may not have created the workspace self-link yet.
+		// In some environments installation may not have created the workspace self-link yet.
 		// Create it explicitly so `npm list --production` can resolve the renamed
 		// package name during vsce dependency detection.
 		log.warn("Original workspace self-link not found, creating nightly workspace self-link")
@@ -468,7 +456,7 @@ class NightlyPublisher {
 		]
 
 		try {
-			execFileSync("npx", args, {
+			execFileSync("bunx", args, {
 				stdio: "inherit",
 				cwd: config.projectRoot,
 			})
@@ -496,7 +484,7 @@ class NightlyPublisher {
 			// Step 3: Update package.json
 			const newVersion = this.updatePackageJson()
 
-			// Step 3.5: Keep npm workspace self-link aligned with nightly package name
+			// Step 3.5: Keep the workspace self-link aligned with the nightly package name
 			this.reconcileWorkspaceSelfLinkForNightly()
 
 			// Step 3.6: Swap in marketplace README before packaging
@@ -524,9 +512,6 @@ class NightlyPublisher {
 				log.warn("Extension was packaged but not published to any marketplace")
 				log.warn("Set VSCE_PAT and/or OVSX_PAT environment variables to enable publishing")
 			}
-		} catch (error) {
-			log.error(`Publish failed: ${error.message}`)
-			process.exit(1)
 		} finally {
 			// Always restore workspace link first
 			this.restoreWorkspaceSelfLink()
@@ -586,8 +571,7 @@ Usage:
 
 Options:
   --pre-release    Publish to the pre-release channel of cline-nightly.
-                   Default is the release channel (used by the scheduled
-                   nightly workflow).
+                   Default is the release channel used by the nightly workflow.
   --dry-run, -n    Run without actually publishing (package only)
   --help, -h       Show this help message
 

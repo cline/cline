@@ -1,33 +1,26 @@
 ---
 name: publish-extension
-description: Use when releasing the Cline VS Code extension — stable (standalone SDK build of main via ext-vscode-publish-stable), nightly (ext-vscode-publish-nightly, manual dispatch), or an emergency legacy-branch hotfix (ext-vscode-publish-legacy). Guides version selection, changelog, workflow dispatch, environment approvals, tagging, post-publish verification, and the remaining retirement of the finished A/B rollout machinery.
+description: Use when releasing the Cline VS Code extension through the stable or nightly workflow. Guides version selection, changelog preparation, workflow dispatch, environment approvals, tagging, and post-publish verification.
 ---
 
 # VS Code Extension Release
 
-Use this skill when the user asks to release, publish, or ship the VS Code extension — stable, nightly, or an emergency legacy hotfix — or to retire the leftover A/B rollout machinery.
+Use this skill when the user asks to release, publish, or ship the VS Code extension.
 
-> Working directory: repo root. All workflows are dispatched from `main` (GitHub requires the workflow file on the default branch; each workflow checks out the refs it actually builds).
+> Working directory: repository root. Dispatch both workflows from `main`.
 
-## The current era: standalone SDK extension from `main`
+## Release channels
 
-**The legacy → SDK migration is complete.** The PostHog flag `ext-sdk-bundle-rollout` reached 100% (verified empirically 2026-09-15: 200/200 `/decide` probes returned `true`), so every user on the combined VSIX runs the `next` (SDK, bun) bundle and the `legacy/` half is dead weight. Stable releases now ship a **plain build of `main`** through `ext-vscode-publish-stable.yml`. The combined A/B path (`ext-vscode-ab-package.yml`) is no longer used for releases and is pending deletion — see "Retiring the A/B machinery" at the bottom for what is still left to clean up and the one caveat (leave the flag at 100%).
+| Channel | Marketplace ID | Workflow | Version |
+|---|---|---|---|
+| Stable | `saoudrizwan.claude-dev` | `ext-vscode-publish-stable.yml` | `apps/vscode/package.json`; tag `v<version>` must match |
+| Nightly | `saoudrizwan.cline-nightly` | `ext-vscode-publish-nightly.yml` | `<major>.<minor>.<unix-ts>` derived from `apps/vscode/package.json` |
 
-History, for context only: the A/B era ran `4.1.0` → `4.1.17` (Jul–Sep 2026). Design docs remain at `apps/vscode-rollout/README.md` and PR #12253 until that directory is removed.
+Both channels package the SDK-based extension from `main`. Stable and nightly run the reusable Bun test workflow before entering their publishing environment.
 
-### The listings and the workflows
+## Golden rules
 
-| Channel | Marketplace ID | Workflow | Trigger | Version |
-|---|---|---|---|---|
-| **Stable** | `saoudrizwan.claude-dev` | `ext-vscode-publish-stable.yml` | dispatch, from `main` | `apps/vscode/package.json` on `main`; tag `v<version>` must match |
-| Nightly | `saoudrizwan.cline-nightly` | `ext-vscode-publish-nightly.yml` | **manual dispatch only** (cron deliberately removed) | auto `<major>.<minor>.<unix-ts>` from main's `apps/vscode/package.json` |
-| Legacy hotfix (emergency only) | `saoudrizwan.claude-dev` | `ext-vscode-publish-legacy.yml` | dispatch | `apps/vscode/package.json` on `legacy-extension` |
-
-Stable runs the reusable bun suite (`ext-vscode-test.yml`, tests `main`) before an environment-gated publish job (`publish` environment — required reviewers approve in the Actions UI). Nightly uses `PublishNightly` (branch policy only). Nightly **still builds the combined loader VSIX** (loader + `next/` + `legacy/`) until it is converted back to a plain build — that conversion is on the retirement list below.
-
-## Golden rules (read before any release)
-
-1. **One listing, one version line.** `claude-dev` has been published from multiple workflows and branches. Every stable publish must use a version **strictly above the highest version ever published to the listing from any branch** — marketplace versions are monotonic and cannot be unpublished (supersede, never delete). Check what's live first:
+1. **Marketplace versions only move forward.** Before a stable release, query the live listing and choose a strictly higher version:
 
    ```bash
    curl -s -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
@@ -36,146 +29,80 @@ Stable runs the reusable bun suite (`ext-vscode-test.yml`, tests `main`) before 
      | python3 -c "import json,sys; v=json.load(sys.stdin)['results'][0]['extensions'][0]['versions'][0]; print(v['version'], v['lastUpdated'])"
    ```
 
-   **`ext-vscode-publish-stable` has no marketplace-monotonicity preflight** (that check only ever lived in the retired ab-package workflow), so this query is the only guard. The `legacy-extension` branch sits at `4.0.12`, so it cannot collide with the `4.1.x` line, but a legacy hotfix would have to be numbered above the live stable version (see the emergency section).
+2. **The tag, package version, and changelog heading agree.** Stable expects `v<package version>` and a leading `## [<version>]` changelog section.
+3. **Test the exact commit you publish.** Dispatch stable and nightly from protected `main`; do not substitute an arbitrary build ref.
+4. **Verify both registries.** A successful workflow log is not proof that Marketplace or Open VSX serves the version.
+5. **Do not delete the `ext-sdk-bundle-rollout` PostHog flag yet.** Cline ≤4.1.17 embedded the retired loader and treats a missing flag as the old bundle. Keep the flag at 100% until activation traffic from those versions has ended. New builds do not read it.
 
-2. **Tag == package version, enforced.** The workflow reads `apps/vscode/package.json`, requires the `tag` input to equal `v<that version>`, and hard-fails otherwise. Bump the version on `main` first.
+## Stable release
 
-3. **Changelog lives at the repo ROOT** (`CHANGELOG.md`) — not `apps/vscode/CHANGELOG.md` (doesn't exist). The workflow hard-fails unless the first `## [` heading is exactly `## [<version>]`. The section body becomes the GitHub release notes and the Slack post (Slack copy is trimmed to 3000 chars with a link out; the release body stays whole).
+### Prepare
 
-4. **Ask before pushing** commits or tags. **Never approve the `publish` environment gate yourself via `gh api`** — hand the maintainer the run URL to click "Review deployments".
-
-5. **Concurrency**: the workflow groups on the tag with `cancel-in-progress: false`. A publish run left `waiting` on approval blocks every later dispatch of the same tag until cancelled (`gh run cancel <id>`).
-
-## Stable release — the current path
-
-### Pre-flight
-
-```bash
-# 1. What's live (rule 1) → pick <VERSION> strictly above it (normally patch bump).
-# 2. Confirm main's package.json is at the *previous* published version, i.e. the repo
-#    reflects the live line and nothing unreleased is already bumped:
-node -p "require('./apps/vscode/package.json').version"
-# 3. What's in the release:
-git fetch origin main --tags
-git log v<PREV>..origin/main --oneline --no-merges -- apps/vscode sdk/packages
-```
-
-The CLI/SDK notes are the best starting point for the extension notes — the extension bundles `@cline/*` from source, so an SDK release in the same window ships here too. Read `sdk/CHANGELOG.md` for the matching SDK version and translate what's extension-visible; skip CLI-only and desktop-only items.
-
-### Release prep on `main` (PR, not direct push)
-
-- Bump `apps/vscode/package.json` → `<VERSION>`.
-- Prepend `## [<VERSION>]` to root `CHANGELOG.md` with the approved notes.
-- Side effect of the bump: nightly versions become `<major>.<minor>.<unix-ts>` of the new base — harmless (separate listing, still monotonic).
-
-Optional local rehearsal of the exact packaging step (the workflow has no dry-run input, and the build runs inside the gated publish job, so this is the only pre-approval check):
-
-```bash
-bun install --frozen-lockfile && bun run build:sdk
-cd apps/vscode && npx @vscode/vsce package --no-dependencies --allow-package-secrets sendgrid --out /tmp/rehearsal.vsix
-# vsce runs vscode:prepublish → `bun run package` (check-types + build:webview + lint + esbuild --production),
-# i.e. the same build the workflow performs. Telemetry env is NOT set locally, so expect
-# telemetry to be dark in this artifact — that is fine for a build rehearsal, not for shipping.
-```
+1. Fetch `origin/main` and tags; verify the worktree is clean and based on current `origin/main`.
+2. Query the Marketplace and Open VSX for the current version.
+3. Update `apps/vscode/package.json` to the chosen version.
+4. Add the release entry at the top of `CHANGELOG.md` using the existing format.
+5. Run the extension checks relevant to the change, then commit and publish the preparation PR.
 
 ### Dispatch
 
+After the preparation commit lands on `main`:
+
 ```bash
-gh workflow run ext-vscode-publish-stable.yml --ref main \
+gh workflow run ext-vscode-publish-stable.yml \
+  --ref main \
   -f release-type=release \
   -f auto_create_tag_from_main=true \
   -f tag=v<VERSION>
-gh run list --workflow=ext-vscode-publish-stable.yml --limit 1 --json databaseId,url,status
 ```
 
-What the run does, in order: test gate on `main` → publish job checks out `main`, **creates and pushes `v<VERSION>` at the tested SHA** (auto-create mode; refuses if the tag already exists elsewhere) → `bun install --frozen-lockfile` → `bun run build:sdk` → asserts the `better-sqlite3` native binary → verifies tag/version/changelog/PATs → `vsce package` → `bun run publish:marketplace` (vsce publish **and** `npx ovsx publish`, both `--no-dependencies`) → GitHub release with the `.vsix` attached → Slack post. The publish job waits for `publish` environment approval before any of that. Check what a run is waiting on:
+Use `release-type=pre-release` only when a real pre-release publication is intended. It is not a dry run.
+
+The workflow tests `main`, waits for approval on the `publish` environment, pins the tested commit with the requested tag, installs with Bun, builds SDK dependencies, packages and publishes the extension, creates a GitHub release, and posts to Slack.
+
+### Verify
 
 ```bash
-gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments
+gh run view <run-id> --json status,conclusion
+git fetch --tags
+git tag --list 'v<VERSION>'
+gh release view v<VERSION>
+curl -s "https://open-vsx.org/api/saoudrizwan/claude-dev" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['version'], d['timestamp'])"
 ```
 
-`release-type=pre-release` publishes to the pre-release channel of the same listing; it is a real publish, not a rehearsal.
+Download the release artifact and verify:
 
-### Post-publish
-
-1. Verify both registries serve the new version (expect minutes-to-an-hour of Marketplace validation lag after "Published" appears in the logs):
-
-   ```bash
-   # Marketplace: query from rule 1
-   curl -s "https://open-vsx.org/api/saoudrizwan/claude-dev" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['version'], d['timestamp'])"
-   ```
-
-2. Verify the bookkeeping landed: `git fetch --tags && git tag --list 'v<VERSION>'`, `gh release view v<VERSION>`, Slack post in the release channel. Tag creation happens **before** the build in this workflow, so a tag-push failure fails the run early (no publish) rather than leaving a published-but-untagged release. Known cause: the built commit touches `.github/workflows/**` (default token cannot create such refs). Workaround: create and push the tag yourself at `origin/main` HEAD (ask first), then re-dispatch with `auto_create_tag_from_main=false` from `main` — the workflow requires the existing tag to point at the exact SHA it tested.
-
-3. Artifact check (`gh run download <run-id>` or the release asset): `package.json` inside is `saoudrizwan.claude-dev@<VERSION>`; `grep -c 'process.env.TELEMETRY_SERVICE_API_KEY' extension/dist/extension.js` must be **0** (a leftover literal means the build ran without its env and telemetry is silently dead). `CLINE_ROLLOUT_VARIANT` is defined to `""` for ordinary builds by `apps/vscode/esbuild.mjs`, so no literal is expected and telemetry carries no `extension_variant` — correct for a standalone build.
-
-4. Monitor errors on `extension_version = '<VERSION>'` in `otel.otel_logs` (stable cohort is cleanly separable — nightly versions are timestamps). Metabase dashboards 17 (task error rate) and 19 (error deep dive).
+- `extension/package.json` is `saoudrizwan.claude-dev@<VERSION>`.
+- `extension/dist/extension.js` exists.
+- `extension/legacy`, `extension/next`, and a root loader entrypoint do not exist.
+- `process.env.TELEMETRY_SERVICE_API_KEY` does not remain as a literal in the bundle.
 
 ## Nightly release
 
-**Manual dispatch only.** The cron was removed on purpose: the `PublishNightly` environment made scheduled runs sit `waiting`, hold the concurrency group, and silently cancel every later scheduled run behind them. A stale nightly listing is therefore expected, not a bug.
+Nightly is manual-only. The `PublishNightly` environment requires approval, so scheduled runs would wait and block later releases.
 
 ```bash
-gh workflow run ext-vscode-publish-nightly.yml --ref main                 # real publish
-gh workflow run ext-vscode-publish-nightly.yml --ref main -f dry-run=true # artifact only
+gh workflow run ext-vscode-publish-nightly.yml --ref main
+gh workflow run ext-vscode-publish-nightly.yml --ref main -f dry-run=true
 ```
 
-No changelog/version prep — the version is computed. Verify with the Marketplace query against `saoudrizwan.cline-nightly`. Until converted, nightly still ships the combined loader VSIX with a `legacy/` bundle built from `legacy-extension`.
+No changelog or version preparation is needed. The workflow packages the same extension as stable under the `cline-nightly` identity. A dry run builds and uploads the VSIX without publishing or tagging.
 
-**Red run ≠ failed publish** on this path: its tag-push step runs *after* publishing and fails whenever main's HEAD touches `.github/workflows/**`. If "Published" appears in the logs, the release went out; push the `nightly-main-<UTC ts>-<sha12>` tag manually with user credentials.
+The tag step runs after publication and is best-effort because GitHub's default token cannot always create a tag whose commit changes workflow files. If publication succeeded but tagging failed, create the reported `nightly-main-<UTC timestamp>-<sha12>` tag with user credentials.
 
-## Emergency rollback
+Verify the artifact has the same single-bundle layout as stable and query `saoudrizwan.cline-nightly` in both registries.
 
-Preferred: **ship a fixed build of `main` at a higher version** through the stable workflow above. It is the same path, fully gated, and the only rollback that keeps users on the SDK extension.
+## Recovery
 
-Last resort — the legacy hotfix path — still exists but is degraded: `legacy-extension` is the pre-SDK npm codebase, last touched 2026-08-18 at `4.0.12`, and a publish from it would move every user back onto code that is weeks behind. If it is ever needed:
+If a release is bad, fix `main` and publish a higher stable version through the normal workflow. Marketplace versions cannot be deleted or moved backward.
 
-```bash
-# On legacy-extension: commit the fix, bump apps/vscode/package.json ABOVE the
-# live stable version (rule 1 — e.g. 4.1.18 live -> hotfix is 4.1.19, not 4.0.13),
-# add the matching `## [x.y.z]` entry to root CHANGELOG.md, push.
-gh workflow run ext-vscode-publish-legacy.yml --ref main -f release-type=release
-# (the branch is hardcoded to legacy-extension in the workflow)
-```
+## Gotchas
 
-The npm suite runs ungated, the publish job waits on the `publish` environment, the workflow tags and creates the GitHub release itself, and it publishes to Marketplace **and** Open VSX. On that branch use `npm`, never `bun`, and expect the old monolith layout (`apps/vscode/src/core/...`).
-
-## Retiring the A/B machinery (still to do)
-
-The rollout is done but the scaffolding is still in the repo. Retire it in this order, each as its own PR:
-
-1. **Nightly → plain build of `main`**: drop the loader/`legacy-src` stitching from `ext-vscode-publish-nightly.yml` so nightly matches stable. Preserve the `|| 'default'` fallbacks for `inputs.*` while editing.
-2. Delete `ext-vscode-ab-package.yml` and, once the emergency path above is judged unnecessary, `ext-vscode-publish-legacy.yml`; keep the `legacy-extension` branch for history.
-3. Remove `apps/vscode-rollout/` and the rollout-only code paths in `apps/vscode/src/services/telemetry/rollout-metadata.ts` (the `extension_variant` metadata and `extension.rollout.bundle_activated` event).
-4. Optionally port the marketplace-monotonicity preflight from the old ab-package workflow into `ext-vscode-publish-stable.yml` — the only automated guard for rule 1 was retired with it.
-5. **Archive the PostHog flag last, and not yet.** Machines still on a combined VSIX (`≤ 4.1.17`) consult `ext-sdk-bundle-rollout` on every window load and treat a *deleted* flag as `legacy`. Leave it at 100% until `extension.rollout.bundle_activated` for combined versions flatlines, then archive. Re-verify the percentage empirically before touching it (no PostHog admin needed — the key is inlined in any shipped combined loader; download the 4.1.17 VSIX from the Marketplace `vspackage` URL, `gunzip`, `unzip`, `grep -o 'phc_[A-Za-z0-9]*' extension/extension.js`):
-
-   ```bash
-   node -e '
-   const KEY = process.argv[1];
-   (async () => {
-     let t = 0, n = 200;
-     for (let i = 0; i < n; i += 20) {
-       const rs = await Promise.all(Array.from({length: 20}, (_, j) =>
-         fetch("https://data.cline.bot/decide?v=3", { method: "POST",
-           headers: {"Content-Type": "application/json"},
-           body: JSON.stringify({api_key: KEY, distinct_id: `probe-${i+j}-${Math.random()}`})
-         }).then(r => r.json())));
-       for (const r of rs) if ((r.featureFlags||{})["ext-sdk-bundle-rollout"] === true) t++;
-     }
-     console.log(`~${(100*t/n).toFixed(1)}% (${t}/${n})`);
-   })()' "$KEY"
-   ```
-
-6. Update this skill: delete this section and the combined-loader notes under Nightly.
-
-## Gotchas index
-
-- `bun run package` in `apps/vscode` does not build `@cline/*` workspace deps — fresh checkouts need `bun run build:sdk` first (the workflows handle this).
-- Every ext workflow pins `bun-version: 1.3.14` while the root `packageManager` is `bun@1.3.13`. This is consistent across all of them and has shipped fine — don't "fix" it in one workflow alone.
-- The publish job pins **Node 22** on purpose: Node 24 / npm 11 can make vsce's `npm list` detection fail with `ELSPROBLEMS` during packaging. `setup-bun` provides no Node runtime, and the publish scripts and `npx ovsx` need one.
-- `gh run watch --exit-status` has returned exit 0 on a failed run. Always confirm with `gh run view <id> --json status,conclusion` before acting on a result.
-- Job-level `if:` ref checks in workflow YAML are advisory (a dispatched branch runs its own copy of the file); the enforced boundary is each environment's deployment-branch policy in repo settings.
-- Marketplace PATs (`VSCE_PAT`/`OVSX_PAT`) are only mounted into publish steps; no publish workflow has an untrusted trigger surface.
-- Environment-approval runs left waiting don't time out quickly — they sit for days and block their tag's concurrency group.
-- Open VSX has held a first-time publish in moderation before (logs say "Published", API 404s for hours). Verify with the API query rather than the log line.
+- `bun run package` in `apps/vscode` does not build `@cline/*` workspace dependencies. Fresh checkouts need `bun run build:sdk` first; workflows already do this.
+- Extension workflows pin Bun 1.3.14. Keep the workflows consistent rather than changing one release path in isolation.
+- Publishing runs on Node 22. Newer Node/npm combinations can make vsce dependency detection fail even though Bun owns package installation and task execution.
+- `gh run watch --exit-status` has returned exit 0 for failed runs. Confirm `status` and `conclusion` explicitly.
+- Workflow ref checks are defense in depth. Repository environment deployment-branch policies enforce the publishing boundary.
+- Marketplace credentials appear only in environment-gated publish steps.
+- Open VSX can delay a first-time version after the publish command succeeds; verify with its API.
