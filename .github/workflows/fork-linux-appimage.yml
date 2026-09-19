@@ -1,0 +1,163 @@
+name: fork-linux-appimage
+
+# Unofficial Linux AppImage for this fork only. The official desktop-publish
+# workflow refuses to run outside cline/cline and needs signing secrets we
+# do not have. This job builds an unsigned AppImage and publishes it as a
+# GitHub release on the fork.
+on:
+  push:
+    branches:
+      - fork-linux-appimage-release
+  workflow_dispatch:
+
+concurrency:
+  group: fork-linux-appimage
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Linux AppImage and release
+    if: github.repository == '3ddruck12/cline'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/examples/desktop-app/src-tauri -> target
+
+      - name: Install Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential \
+            file \
+            libayatana-appindicator3-dev \
+            libfuse2 \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            upx-ucl \
+            wget
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        run: bun run build:sdk
+
+      - name: Build AppImage
+        working-directory: apps/examples/desktop-app
+        # No tauri.release.conf.json: that overlay turns on updater artifact
+        # signing, which needs Cline's private key. This is a first-install
+        # AppImage for the fork, not an official auto-update channel.
+        # Tauri/linuxdeploy still emit a Type 2 image, but with the old
+        # AppImageKit runtime that needs libfuse2. We only need the AppDir
+        # here; the next step repacks it with the static type2-runtime.
+        run: bunx tauri build --bundles appimage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+
+      - name: Repack as AppImage Type 2
+        working-directory: apps/examples/desktop-app
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          BUNDLE_DIR="src-tauri/target/release/bundle/appimage"
+          APPDIR=$(find "$BUNDLE_DIR" -maxdepth 1 -type d -name '*.AppDir' -print -quit)
+          if [ -z "$APPDIR" ]; then
+            echo "no AppDir produced under $BUNDLE_DIR"
+            find "$BUNDLE_DIR" -maxdepth 2 | head -50
+            exit 1
+          fi
+
+          TOOLS="$RUNNER_TEMP/appimage-type2"
+          mkdir -p "$TOOLS"
+          curl -fsSL -o "$TOOLS/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          curl -fsSL -o "$TOOLS/runtime-x86_64" \
+            https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+          chmod +x "$TOOLS/appimagetool"
+
+          OUT="dist/publish"
+          mkdir -p "$OUT"
+          NAME="Cline_${VERSION}_amd64.AppImage"
+          DEST="$OUT/$NAME"
+
+          ARCH=x86_64 "$TOOLS/appimagetool" \
+            --no-appstream \
+            --runtime-file "$TOOLS/runtime-x86_64" \
+            "$APPDIR" \
+            "$DEST"
+          chmod +x "$DEST"
+
+          # Type 2 magic is "AI" + 0x02 at offset 8.
+          MAGIC=$(od -An -tx1 -N 3 -j 8 "$DEST" | tr -d ' \n')
+          echo "AppImage magic at offset 8: $MAGIC"
+          if [ "$MAGIC" != "414902" ]; then
+            echo "expected Type 2 magic 41 49 02, got $MAGIC"
+            exit 1
+          fi
+
+          ls -lh "$DEST"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "file=${DEST}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+        id: artifact
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-x64
+          retention-days: 30
+          path: apps/examples/desktop-app/dist/publish/*
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.artifact.outputs.version }}
+          FILE: apps/examples/desktop-app/${{ steps.artifact.outputs.file }}
+          NAME: ${{ steps.artifact.outputs.name }}
+        run: |
+          TAG="linux-appimage-v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" "$FILE" \
+            --title "Cline Desktop Linux AppImage v${VERSION}" \
+            --notes "$(cat <<EOF
+          Unofficial Linux x64 AppImage built from this fork.
+
+          Type 2 AppImage with the static type2-runtime (no libfuse2 needed).
+          This is **not** an official Cline release.
+
+          \`\`\`bash
+          chmod +x ${NAME}
+          ./${NAME}
+          \`\`\`
+
+          Source: ${GITHUB_SHA}
+          EOF
+          )"
