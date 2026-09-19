@@ -111,13 +111,36 @@ test("compiled desktop backend publishes its endpoint with its own Hub", async (
 		} catch {
 			/* The isolated Hub may already have exited. */
 		}
+		// Windows refuses to remove a directory that is any live process's cwd,
+		// and both the Hub and the backend run with `root` as theirs. The kill
+		// above only requests termination, so wait for the pid to actually go
+		// away; on POSIX the remove would have succeeded regardless, which is
+		// why this only ever failed on the Windows runner.
+		if (hubPid) {
+			const gone = Date.now() + 10_000;
+			while (Date.now() < gone) {
+				try {
+					process.kill(hubPid, 0);
+				} catch {
+					break;
+				}
+				await Bun.sleep(50);
+			}
+		}
 		closeSync(stdout);
 		closeSync(stderr);
-		rmSync(root, {
-			recursive: true,
-			force: true,
-			maxRetries: 20,
-			retryDelay: 100,
-		});
+		// Losing a temp directory must never fail a signed release build: this
+		// runs after every assertion, so a lingering grandchild holding a
+		// handle would otherwise fail the publish over passing tests.
+		try {
+			rmSync(root, {
+				recursive: true,
+				force: true,
+				maxRetries: 20,
+				retryDelay: 100,
+			});
+		} catch {
+			/* The runner discards its temp directory anyway. */
+		}
 	}
 }, 100_000);

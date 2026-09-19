@@ -218,6 +218,13 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
+attachment; requests with neither are rejected before starting a turn.
+NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
+It runs after connection setup, before allocating or sending the command, on
+each attempt. Throwing prevents that attempt's dispatch; already-dispatched runs still require
+`run.abort`.
+
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
 starts (one-shot or interactive) begin `running`, interactive starts without a
@@ -376,6 +383,8 @@ Header authentication is mutually exclusive with the local hub-token subprotocol
 the proxy is responsible for authenticating the client and adding any private
 upstream hub credentials. Resolver failures and rejected protocol headers fail the
 connection and remain available through the client's connection-error state.
+Clients with active subscriptions keep retrying after header-resolution failures,
+even when no socket was created.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -967,6 +976,53 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+### Composio beta access
+
+Composio management in the desktop sidecar and tool registration/execution in
+local runtimes (including the detached hub) require the account-scoped PostHog
+flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
+evaluator reads the current Cline account ID from provider settings, caches the
+evaluation in memory for one minute, and discards grants on account changes.
+Missing identity, provider configuration, or flag values deny access; internal
+email domains do not bypass this gate. Saved connector schemas alone cannot
+enable tools. Existing sessions recheck access before each tool execution.
+Disconnect/cancel cleanup remains available after access is removed. The Cline
+API proxy must enforce the same flag server-side for authenticated requests.
+
+The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
+envelope. The toolkit catalog contains `items` and `nextToken`; connections and
+tool pages additionally carry `total`. The sidecar fetches every catalog and
+connection page, including empty pages with continuation tokens, and rejects
+failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
+per toolkit and persists `input_parameters` and the pinned version for the core
+extension. Tool execution sends arguments and the optional version to
+`/tools/{slug}/execute` and retains the provider response body.
+
+Customize > Connectors displays the usage-ranked catalog, with search across
+all loaded apps and installation/connection management in its detail dialog.
+The backend includes managed-auth toolkits before anyone has connected them,
+and provisions their auth configuration on first installation. This requires
+the full-catalog backend in core-platform PR #3383. Catalog responses must
+use the paginated contract; malformed responses are rejected.
+
+Connector metadata and cancellation tombstones live in
+`settings/composio/<sha256-account-id>.json`. Each account has separate
+availability/catalog caches and pending operations. Async management requests
+retain their initiating account and refuse to send with another account's token.
+The core extension loads only the signed-in account's schemas and checks that
+identity again before registration and execution in an existing session.
+
+`RuntimeOAuthTokenManager` serializes credential reads, refreshes, and saves
+using a SQLite exclusive transaction keyed by provider settings path and storage
+provider ID. This coordinates the sidecar, hub, and other local processes; OS
+locks release on process exit. Waiters reread persisted credentials under the
+lock and reuse a token another process refreshed, including for forced refresh
+requests. A refresh result is discarded if sign-out or sign-in replaced the
+credentials while the request was in flight.
+
+### Queue steering
 
 Queue steering through `pendingPrompts.steerFirst` selects and promotes the
 current queue head in one synchronous core operation. Desktop Enter sends this

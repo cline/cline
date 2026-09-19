@@ -30,6 +30,9 @@ export type EnvironmentSelectorModel = {
 
 export type EnvironmentSelectorProps = {
 	activeEnvironmentId: string;
+	cloudEnabled?: boolean;
+	executionTarget?: "local" | "cloud";
+	onSelectExecutionTarget?: (target: "local" | "cloud") => void;
 	profiles: RemoteEnvironmentProfile[];
 	loading?: boolean;
 	switchingEnvironmentId?: string | null;
@@ -75,6 +78,9 @@ export function buildEnvironmentSelectorModel(
 
 export function EnvironmentSelector({
 	activeEnvironmentId,
+	cloudEnabled = false,
+	executionTarget = "local",
+	onSelectExecutionTarget,
 	profiles,
 	loading = false,
 	switchingEnvironmentId,
@@ -91,13 +97,23 @@ export function EnvironmentSelector({
 	const [open, setOpen] = useState(false);
 	const pendingEnvironmentId = switchingEnvironmentId ?? internalSwitchingId;
 	const busy = loading || pendingEnvironmentId !== null;
-	const ActiveIcon = model.activeKind === "remote" ? Server : Laptop;
+	const cloudSelected = executionTarget === "cloud";
+	const activeLabel = cloudSelected ? "Cloud" : model.activeLabel;
+	const ActiveIcon = cloudSelected
+		? Cloud
+		: model.activeKind === "remote"
+			? Server
+			: Laptop;
 
 	const selectEnvironment = async (environmentId: string) => {
-		if (busy || environmentId === activeEnvironmentId) return;
+		if (busy || (!cloudSelected && environmentId === activeEnvironmentId))
+			return;
 		setInternalSwitchingId(environmentId);
 		try {
-			await onSelectEnvironment(environmentId);
+			if (cloudSelected) onSelectExecutionTarget?.("local");
+			if (environmentId !== activeEnvironmentId) {
+				await onSelectEnvironment(environmentId);
+			}
 		} catch {
 			// The parent owns connection errors and their user-facing presentation;
 			// reopen so the failed choice does not strand the user at a closed menu.
@@ -123,11 +139,11 @@ export function EnvironmentSelector({
 		<DropdownMenu onOpenChange={setOpen} open={open}>
 			<DropdownMenuTrigger asChild>
 				<Button
-					aria-label={`Environment: ${model.activeLabel}`}
+					aria-label={`Environment: ${activeLabel}`}
 					className="size-9 shrink-0 rounded-md border border-border/70 bg-background/80 p-0 text-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
 					disabled={busy}
 					id="environment-selector-btn"
-					title={`Environment: ${model.activeLabel}`}
+					title={`Environment: ${activeLabel}`}
 					variant="ghost"
 				>
 					{busy ? (
@@ -139,7 +155,9 @@ export function EnvironmentSelector({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" className="w-72" side="bottom">
 				<DropdownMenuItem
-					aria-current={model.local.selected ? "true" : undefined}
+					aria-current={
+						!cloudSelected && model.local.selected ? "true" : undefined
+					}
 					className="aria-current:bg-purple-500/20 aria-current:focus:bg-purple-500/25"
 					disabled={busy}
 					onSelect={() => void selectEnvironment(model.local.id)}
@@ -147,21 +165,34 @@ export function EnvironmentSelector({
 					<Laptop />
 					<span className="uppercase">{model.local.label}</span>
 					{optionStatus(model.local)}
-					{model.local.selected ? <Check className="ml-auto" /> : null}
+					{!cloudSelected && model.local.selected ? (
+						<Check className="ml-auto" />
+					) : null}
 				</DropdownMenuItem>
 
 				<DropdownMenuSeparator />
-				<DropdownMenuLabel className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+				<DropdownMenuItem
+					aria-current={cloudSelected ? "true" : undefined}
+					className="aria-current:bg-purple-500/20 aria-current:focus:bg-purple-500/25"
+					disabled={!cloudEnabled || busy}
+					onSelect={() => {
+						if (!cloudSelected) onSelectExecutionTarget?.("cloud");
+					}}
+				>
 					<Cloud className="size-4" />
 					<span>Cloud</span>
-					<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
-						Coming soon
-					</span>
-				</DropdownMenuLabel>
+					{!cloudEnabled ? (
+						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+							Coming soon
+						</span>
+					) : cloudSelected ? (
+						<Check className="ml-auto" />
+					) : null}
+				</DropdownMenuItem>
 
 				<DropdownMenuSeparator />
 				<div className="flex items-center justify-between">
-					<DropdownMenuLabel className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+					<DropdownMenuLabel className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 						<Server className="size-4" />
 						Remote
 					</DropdownMenuLabel>
@@ -178,7 +209,9 @@ export function EnvironmentSelector({
 				{model.remotes.length > 0 ? (
 					model.remotes.map((option) => (
 						<DropdownMenuItem
-							aria-current={option.selected ? "true" : undefined}
+							aria-current={
+								!cloudSelected && option.selected ? "true" : undefined
+							}
 							className="aria-current:bg-purple-500/20 aria-current:focus:bg-purple-500/25"
 							disabled={busy}
 							key={option.id}
@@ -186,7 +219,9 @@ export function EnvironmentSelector({
 						>
 							<span className="min-w-0 flex-1 truncate">{option.label}</span>
 							{optionStatus(option)}
-							{option.selected ? <Check className="ml-auto" /> : null}
+							{!cloudSelected && option.selected ? (
+								<Check className="ml-auto" />
+							) : null}
 						</DropdownMenuItem>
 					))
 				) : (
