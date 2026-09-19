@@ -151,7 +151,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			onRepoUrlChange,
 			onCloudBranchChange,
 		});
-		expect(container.querySelector('[aria-label="Work in"]')).toBeNull();
+		expect(container.querySelector('[role="switch"]')).toBeNull();
 		await act(async () => {
 			button("Select repository").click();
 			await Promise.resolve();
@@ -805,8 +805,11 @@ describe("WelcomeWorkspaceControls branch chip", () => {
 	});
 });
 
-describe("WelcomeWorkspaceControls work-in chip", () => {
-	it("sits right of the branch chip and switches to Worktree", async () => {
+describe("WelcomeWorkspaceControls worktree toggle", () => {
+	const worktreeSwitch = () =>
+		container.querySelector<HTMLInputElement>('[role="switch"]');
+
+	it("sits right of the branch chip as a switch and turns on Worktree", async () => {
 		const onWorkInChange = vi.fn();
 		await renderBranchChipControls({
 			currentBranch: "main",
@@ -814,27 +817,32 @@ describe("WelcomeWorkspaceControls work-in chip", () => {
 			onWorkInChange,
 		});
 
-		const labels = [...container.querySelectorAll("button")].map(
-			(button) => button.textContent,
-		);
-		expect(labels).toEqual(["recipes", "main", "Local"]);
+		// No second "Local" chip: the environment selector already says Local.
+		expect(container.textContent).not.toContain("Local");
+		const label = worktreeSwitch()?.closest("label");
+		expect(label?.textContent).toBe("Worktree");
+		expect(worktreeSwitch()?.checked).toBe(false);
+		expect(
+			container.querySelector('[aria-label="About worktrees"]'),
+		).not.toBeNull();
 
-		await clickButton("Local");
-		await clickButton("Worktree");
+		await click(label as HTMLElement);
 
 		expect(onWorkInChange).toHaveBeenCalledWith("worktree");
-		expect(container.textContent).not.toContain("Work in");
 	});
 
-	it("reflects the selected value in the chip", async () => {
+	it("turns back off to local when already in worktree mode", async () => {
+		const onWorkInChange = vi.fn();
 		await renderBranchChipControls({
 			currentBranch: "main",
 			workIn: "worktree",
-			onWorkInChange: vi.fn(),
+			onWorkInChange,
 		});
-		expect(container.querySelector('[aria-label="Work in"]')?.textContent).toBe(
-			"Worktree",
-		);
+		expect(worktreeSwitch()?.checked).toBe(true);
+
+		await click(worktreeSwitch() as HTMLElement);
+
+		expect(onWorkInChange).toHaveBeenCalledWith("local");
 	});
 
 	it("is hidden for a plain (non-git) folder where a worktree is impossible", async () => {
@@ -843,6 +851,7 @@ describe("WelcomeWorkspaceControls work-in chip", () => {
 			workIn: "local",
 			onWorkInChange: vi.fn(),
 		});
-		expect(container.querySelector('[aria-label="Work in"]')).toBeNull();
+		expect(worktreeSwitch()).toBeNull();
+		expect(container.textContent).not.toContain("Worktree");
 	});
 });
