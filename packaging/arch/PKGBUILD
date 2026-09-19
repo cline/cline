@@ -1,0 +1,37 @@
+# PKGBUILD for cline-desktop (Cline Desktop v0.0.32 Linux from source)
+# Note: binary pre-built via `tauri build` in workspace.
+pkgname=cline-desktop
+pkgver=0.0.32
+pkgrel=1
+pkgdesc="Autonomous coding agent desktop app built from source for Linux (CachyOS)"
+arch=('x86_64')
+url="https://github.com/cline/cline"
+license=('MIT')
+depends=('glibc' 'gcc-libs' 'glib2' 'libayatana-appindicator')
+optdepends=('libdbusmenu-gtk3: tray menu')
+# Source = already-built binary + workspace; rebuild via tauri if needed.
+source=()
+sha256sums=()
+
+build() {
+  msg2 "Binary already built at src-tauri/target/release/cline-app"
+}
+
+package() {
+  local srcroot="/home/dev/cline-desktop/cline-desktop-v0.0.32/apps/examples/desktop-app"
+  install -Dm755 "${srcroot}/src-tauri/target/release/cline-app" "${pkgdir}/usr/bin/cline"
+  install -Dm755 "${srcroot}/src-tauri/bin/code-sidecar-x86_64-unknown-linux-gnu" "${pkgdir}/usr/bin/code-sidecar"
+  install -d "${pkgdir}/usr/share/cline/webview"
+  cp -r "${srcroot}/webview/out/"* "${pkgdir}/usr/share/cline/webview/"
+  install -Dm644 "${srcroot}/src-tauri/icons/icon.ico" "${pkgdir}/usr/share/cline/icon.ico"
+  install -d "${pkgdir}/usr/share/applications"
+  echo '[Desktop Entry]
+Name=Cline
+Exec=/usr/bin/cline
+Type=Application
+Icon=/usr/share/cline/icon.ico
+Comment=Cline Desktop v0.0.32 (Linux build from source)
+Terminal=false
+Categories=Development;IDE;
+Path=/home/dev/cline-workspace' > "${pkgdir}/usr/share/applications/cline.desktop"
+}
