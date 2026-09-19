@@ -1,5 +1,6 @@
 import {
 	createSessionCompactionState,
+	createUserInstructionConfigService,
 	type ProviderSettingsManager,
 	type SessionManifest,
 	SessionNotFoundError,
@@ -22,6 +23,7 @@ const subscribeToPendingPromptEventsMock = vi.hoisted(() => vi.fn());
 const markAbortInProgressMock = vi.hoisted(() => vi.fn());
 const submitAndExitInTerminalMock = vi.hoisted(() => vi.fn());
 const createInteractiveExitSummaryMock = vi.hoisted(() => vi.fn());
+const resolveSystemPromptMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../session/session", () => ({
 	createCliCore: createCliCoreMock,
@@ -45,6 +47,10 @@ vi.mock("../../utils/resume", () => ({
 
 vi.mock("../active-runtime", () => ({
 	markAbortInProgress: markAbortInProgressMock,
+}));
+
+vi.mock("../prompt", () => ({
+	resolveSystemPrompt: resolveSystemPromptMock,
 }));
 
 vi.mock("../session-events", () => ({
@@ -146,10 +152,10 @@ function makeManager() {
 		start,
 		stop: vi.fn(async () => {}),
 		send: vi.fn(),
-		getAccumulatedUsage: vi.fn(),
+		getAccumulatedUsage: vi.fn(async () => undefined),
 		abort: vi.fn(),
-		dispose: vi.fn(),
-		get: vi.fn(),
+		dispose: vi.fn(async () => {}),
+		get: vi.fn(async () => undefined),
 		readMessages: vi.fn(async (): Promise<Message[]> => []),
 		readSessionCompactionState: vi.fn().mockResolvedValue(undefined),
 		updateSessionCompactionState: vi.fn(),
@@ -233,10 +239,12 @@ describe("createInteractiveSessionRuntime", () => {
 		markAbortInProgressMock.mockReset();
 		submitAndExitInTerminalMock.mockReset();
 		createInteractiveExitSummaryMock.mockReset();
+		resolveSystemPromptMock.mockReset();
 		createRuntimeHooksMock.mockReturnValue({
 			hooks: undefined,
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		});
+		resolveSystemPromptMock.mockResolvedValue("rebuilt system prompt");
 		loadInteractiveResumeMessagesMock.mockResolvedValue([]);
 		subscribeToAgentEventsMock.mockReturnValue(() => {});
 		subscribeToPendingPromptEventsMock.mockReturnValue(() => {});
@@ -394,6 +402,41 @@ describe("createInteractiveSessionRuntime", () => {
 		);
 		expect(compactInteractiveMessagesMock).not.toHaveBeenCalled();
 		expect(manager.updateSessionCompactionState).not.toHaveBeenCalled();
+	});
+
+	it("aborts manual compaction before cleanup drains session transitions", async () => {
+		const manager = makeManager();
+		manager.readMessages.mockResolvedValue([
+			{ role: "user", content: "large conversation" },
+		]);
+		compactInteractiveMessagesMock.mockImplementation(
+			({ abortSignal }: { abortSignal: AbortSignal }) =>
+				new Promise((_resolve, reject) => {
+					abortSignal.addEventListener(
+						"abort",
+						() => reject(abortSignal.reason),
+						{
+							once: true,
+						},
+					);
+				}),
+		);
+		const runtime = await makeRuntime(manager);
+
+		await runtime.ensureReady();
+		const compaction = runtime.compactCurrentSession().catch((error) => error);
+		await vi.waitFor(() => {
+			expect(compactInteractiveMessagesMock).toHaveBeenCalledOnce();
+		});
+		const cleanup = runtime.cleanup();
+
+		await expect(compaction).resolves.toEqual(
+			expect.objectContaining({
+				message: "Interactive runtime shutdown requested",
+			}),
+		);
+		await cleanup;
+		expect(manager.dispose).toHaveBeenCalledWith("cli_interactive_shutdown");
 	});
 
 	it("carries compacted working context across mode-switch restarts", async () => {
@@ -585,6 +628,192 @@ describe("createInteractiveSessionRuntime", () => {
 
 		expect(manager.start).toHaveBeenCalledTimes(2);
 		expect(runtime.getActiveSessionId()).toBe("session-restarted");
+	});
+
+	it("restarts the active session with one working-directory snapshot", async () => {
+		const manager = makeManager();
+		const config = createConfig();
+		const state = createChatCommandState(config);
+		const initialInstructionService = createUserInstructionConfigService();
+		const nextInstructionService = createUserInstructionConfigService();
+		createCliCoreMock.mockResolvedValue(manager);
+		const { createInteractiveSessionRuntime } = await importRuntime();
+		const runtime = createInteractiveSessionRuntime({
+			config,
+			providerSettingsManager: createProviderSettingsManager(),
+			userInstructionService: initialInstructionService,
+			explicitSystemPrompt: "custom prompt",
+			chatCommandState: state,
+			requestToolApproval: vi.fn(),
+			resolveToolPolicy: () => ({ autoApprove: true }),
+			askQuestionRef: { current: null },
+			resolveMistakeLimitDecision: undefined,
+			switchToActModeTool: {} as never,
+			onAgentEvent: vi.fn(),
+			onTeamEvent: vi.fn(),
+			onPendingPrompts: vi.fn(),
+			onPendingPromptSubmitted: vi.fn(),
+		});
+
+		await runtime.ensureReady();
+		await runtime.changeWorkingDirectory(
+			{
+				...state,
+				cwd: "/tmp/next-project",
+				workspaceRoot: "/tmp/next-project",
+			},
+			nextInstructionService,
+		);
+
+		expect(resolveSystemPromptMock).toHaveBeenCalledWith({
+			cwd: "/tmp/next-project",
+			explicitSystemPrompt: "custom prompt",
+			providerId: "anthropic",
+			mode: "act",
+		});
+		expect(config).toMatchObject({
+			cwd: "/tmp/next-project",
+			workspaceRoot: "/tmp/next-project",
+			systemPrompt: "rebuilt system prompt",
+		});
+		expect(state).toMatchObject({
+			cwd: "/tmp/next-project",
+			workspaceRoot: "/tmp/next-project",
+		});
+		expect(manager.stop).toHaveBeenCalledWith("session-1");
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		expect(manager.start.mock.calls[1]?.[0]).toEqual(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					cwd: "/tmp/next-project",
+					workspaceRoot: "/tmp/next-project",
+					systemPrompt: "rebuilt system prompt",
+				}),
+				localRuntime: expect.objectContaining({
+					userInstructionService: nextInstructionService,
+				}),
+			}),
+		);
+		expect(createRuntimeHooksMock).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				cwd: "/tmp/next-project",
+				workspaceRoot: "/tmp/next-project",
+			}),
+		);
+	});
+
+	it("serializes a mode restart behind a working-directory change", async () => {
+		const manager = makeManager();
+		const config = createConfig();
+		const state = createChatCommandState(config);
+		const runtime = await makeRuntime(manager, { config });
+		const workspaceStart = deferred<void>();
+
+		await runtime.ensureReady();
+		manager.start.mockImplementationOnce(async () => {
+			await workspaceStart.promise;
+			return {
+				sessionId: "session-workspace",
+				manifest: createManifest("session-workspace"),
+				manifestPath: "/tmp/session-workspace.json",
+				messagesPath: "/tmp/session-workspace.messages.json",
+			};
+		});
+
+		const workspaceChange = runtime.changeWorkingDirectory({
+			...state,
+			cwd: "/tmp/next-project",
+			workspaceRoot: "/tmp/next-project",
+		});
+		await vi.waitFor(() => expect(manager.start).toHaveBeenCalledTimes(2));
+		const modeChange = runtime.applyMode("plan");
+		await Promise.resolve();
+
+		expect(manager.start).toHaveBeenCalledTimes(2);
+		workspaceStart.resolve();
+		await Promise.all([workspaceChange, modeChange]);
+
+		expect(manager.start).toHaveBeenCalledTimes(3);
+		expect(manager.start.mock.calls[2]?.[0]).toEqual(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					cwd: "/tmp/next-project",
+					mode: "plan",
+				}),
+			}),
+		);
+	});
+
+	it("waits for a queued working-directory change before cleanup", async () => {
+		const manager = makeManager();
+		const config = createConfig();
+		const state = createChatCommandState(config);
+		const runtime = await makeRuntime(manager, { config });
+		const workspaceStart = deferred<void>();
+
+		await runtime.ensureReady();
+		manager.start.mockImplementationOnce(async () => {
+			await workspaceStart.promise;
+			return {
+				sessionId: "session-workspace",
+				manifest: createManifest("session-workspace"),
+				manifestPath: "/tmp/session-workspace.json",
+				messagesPath: "/tmp/session-workspace.messages.json",
+			};
+		});
+
+		const workspaceChange = runtime.changeWorkingDirectory({
+			...state,
+			cwd: "/tmp/next-project",
+			workspaceRoot: "/tmp/next-project",
+		});
+		await vi.waitFor(() => expect(manager.start).toHaveBeenCalledTimes(2));
+		const cleanup = runtime.cleanup();
+		await Promise.resolve();
+
+		expect(manager.dispose).not.toHaveBeenCalled();
+		workspaceStart.resolve();
+		await Promise.all([workspaceChange, cleanup]);
+
+		expect(manager.dispose).toHaveBeenCalledWith("cli_interactive_shutdown");
+	});
+
+	it("restores the previous working-directory snapshot when restart fails", async () => {
+		const manager = makeManager();
+		const config = createConfig();
+		const state = createChatCommandState(config);
+		const runtime = await makeRuntime(manager, { config });
+
+		await runtime.ensureReady();
+		manager.start.mockRejectedValueOnce(new Error("replacement failed"));
+
+		await expect(
+			runtime.changeWorkingDirectory({
+				...state,
+				cwd: "/tmp/failed-project",
+				workspaceRoot: "/tmp/failed-project",
+			}),
+		).rejects.toThrow("replacement failed");
+		expect(config).toMatchObject({
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			systemPrompt: "system",
+		});
+		expect(state).toMatchObject({
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+		});
+		expect(manager.start).toHaveBeenCalledTimes(3);
+		expect(manager.start.mock.calls[2]?.[0]).toEqual(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					sessionId: "session-1",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+				}),
+			}),
+		);
+		expect(runtime.getActiveSessionId()).toBe("session-2");
 	});
 
 	it("adds a live interactive approval policy hook to started sessions", async () => {
@@ -915,23 +1144,26 @@ describe("createInteractiveSessionRuntime", () => {
 
 	it("does not restart with stale messages when another operation changes the active session during a read", async () => {
 		const manager = makeManager();
-		let runtime!: Awaited<ReturnType<typeof makeRuntime>>;
-		manager.readMessages.mockImplementationOnce(async () => {
-			await runtime.restartEmpty();
-			return [
-				{
-					role: "user" as const,
-					content: [{ type: "text" as const, text: "stale" }],
-				},
-			];
-		});
-		runtime = await makeRuntime(manager);
+		const read = deferred<Message[]>();
+		manager.readMessages.mockImplementationOnce(() => read.promise);
+		const runtime = await makeRuntime(manager);
 
 		await runtime.ensureReady();
-		await runtime.restartWithCurrentMessages();
+		const restartWithCurrentMessages = runtime.restartWithCurrentMessages();
+		await vi.waitFor(() => {
+			expect(manager.readMessages).toHaveBeenCalledWith("session-1");
+		});
+		const restartEmpty = runtime.restartEmpty();
+		read.resolve([
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "stale" }],
+			},
+		]);
+		await Promise.all([restartWithCurrentMessages, restartEmpty]);
 
-		expect(manager.start).toHaveBeenCalledTimes(2);
-		expect(runtime.getActiveSessionId()).toBe("session-2");
+		expect(manager.start).toHaveBeenCalledTimes(3);
+		expect(runtime.getActiveSessionId()).toBe("session-3");
 	});
 
 	it("waits for missing-session recovery before cleanup disposes the manager", async () => {
