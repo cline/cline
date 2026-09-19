@@ -43,6 +43,14 @@ const WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
 	arm64: ["windows-aarch64"],
 };
 
+// On Linux the updater reuses the AppImage itself (v2 createUpdaterArtifacts),
+// named `<Product>_<version>_<arch>.AppImage`. Tauri uses Debian arch tokens
+// here (amd64), not the Rust target triple.
+const LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
+	amd64: ["linux-x86_64"],
+	aarch64: ["linux-aarch64"],
+};
+
 const getArgValue = (args: string[], name: string): string | undefined => {
 	const index = args.indexOf(name);
 	if (index >= 0 && args[index + 1] && !args[index + 1].startsWith("--")) {
@@ -67,6 +75,12 @@ const platformKeysOfUpdaterArtifact = (
 			(candidate) => fileName.endsWith(`_${candidate}-setup.exe`),
 		);
 		return arch ? WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
+	}
+	if (fileName.endsWith(".AppImage")) {
+		const arch = Object.keys(LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
+			(candidate) => fileName.endsWith(`_${candidate}.AppImage`),
+		);
+		return arch ? LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
 	}
 	return undefined;
 };
@@ -106,7 +120,7 @@ export const buildUpdateManifest = (options: {
 
 	if (Object.keys(platforms).length === 0) {
 		throw new Error(
-			`no updater artifacts (*.app.tar.gz or *-setup.exe with a known arch suffix) found in ${options.dir}`,
+			`no updater artifacts (*.app.tar.gz, *-setup.exe, or *.AppImage with a known arch suffix) found in ${options.dir}`,
 		);
 	}
 

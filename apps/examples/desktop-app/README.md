@@ -196,12 +196,16 @@ desktop integration notes.
 
 ## Releases & Auto-Updates
 
-Releases are built, signed, notarized, and published by the `desktop-publish`
-GitHub workflow as a single universal macOS DMG — one download that runs
-natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture). The step-by-step flow (version
-bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
-(`.cline/skills/publish-desktop/SKILL.md`).
+Releases are built, signed, and published by the `desktop-publish` GitHub
+workflow as three first-install artifacts:
+
+- macOS: a single signed + notarized universal DMG that runs natively on both
+  Apple Silicon and Intel (macOS picks the matching slice at launch)
+- Windows: an Authenticode-signed x64 NSIS installer
+- Linux: an x64 AppImage (`<Product>_<version>_amd64.AppImage`)
+
+The step-by-step flow (version bumps, changelog, tag, repo secrets) lives in
+the `publish-desktop` skill (`.cline/skills/publish-desktop/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling
 `desktop-latest` release's `latest.json` on launch and every 2 hours, install
@@ -222,7 +226,7 @@ Tauri desktop bundles are OS-specific, so build each package on the target OS:
 
 - macOS: `bun run package:desktop:mac`
 - Windows: `bun run package:desktop:windows`
-- Linux: `bun run package:desktop:linux`
+- Linux: `bun run package:desktop:linux` (AppImage, plus `.deb`/`.rpm` if the host has those bundlers)
 
 The macOS package script refuses to create a shareable package unless Developer ID signing and notarization credentials are configured. This prevents the common Gatekeeper failure where a downloaded unsigned build appears damaged on a teammate's Mac.
 
