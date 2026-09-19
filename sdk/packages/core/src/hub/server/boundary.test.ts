@@ -886,7 +886,7 @@ describe("HubServerTransport boundaries", () => {
 			} as never,
 		});
 		const events: HubEventEnvelope[] = [];
-		transport.subscribe("owner-client", (event) => events.push(event));
+		transport.subscribe("last-client", (event) => events.push(event));
 		await registerClients(
 			transport,
 			"owner-client",
@@ -960,6 +960,7 @@ describe("HubServerTransport boundaries", () => {
 
 		await expect(answerPromise).resolves.toBe("Use hub");
 
+		await unregisterClient(transport, "owner-client");
 		const claimReply = await claimContributions(
 			transport,
 			"viewer-client",
@@ -979,6 +980,7 @@ describe("HubServerTransport boundaries", () => {
 				?.clientContributionOwners?.get("hook.beforeRun"),
 		).toBe("owner-client");
 
+		await unregisterClient(transport, "viewer-client");
 		const lastClaimReply = await claimContributions(
 			transport,
 			"last-client",
@@ -1081,7 +1083,7 @@ describe("HubServerTransport boundaries", () => {
 		});
 	});
 
-	it("rejects a superseded owner after a capability is rebound", async () => {
+	it("declines live takeover and fences the old owner after disconnected reclaim", async () => {
 		const transport = createTransport();
 		const ctx = getContext(transport);
 		seedOwnerState(ctx, "session-1", "owner-client");
@@ -1100,6 +1102,22 @@ describe("HubServerTransport boundaries", () => {
 				?.requestId ?? "",
 		);
 
+		expect(
+			await claimContributions(transport, "reconnected-client", "session-1"),
+		).toMatchObject({
+			ok: true,
+			payload: { capabilityNames: [], pendingRequests: [] },
+		});
+		expect(ctx.pendingCapabilityRequests.get(requestId)?.targetClientId).toBe(
+			"owner-client",
+		);
+		expect(
+			ctx.sessionState.get("session-1")?.participants.has("reconnected-client"),
+		).toBe(false);
+		expect(
+			events.filter((event) => event.event === "capability.requested"),
+		).toHaveLength(1);
+		await unregisterClient(transport, "owner-client");
 		await claimContributions(transport, "reconnected-client", "session-1");
 		const staleReply = await transport.handleCommand({
 			version: "v1",

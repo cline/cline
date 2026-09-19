@@ -837,19 +837,26 @@ export async function handleSessionClaimClientContributions(
 			"Client disconnected before its contribution claim completed.",
 		);
 	}
-	const state = ensureSessionParticipant(
-		ctx,
-		sessionId,
-		clientId,
-		"participant",
-	);
-	const claimedCapabilityNames = capabilityNames.filter(
-		(capabilityName) =>
+	const state = ctx.sessionState.get(sessionId);
+	const claimedCapabilityNames = capabilityNames.filter((capabilityName) => {
+		const owner = state?.clientContributionOwners?.get(capabilityName);
+		return (
 			isReconnectableCapability(capabilityName) &&
-			state.clientContributionOwners?.has(capabilityName),
-	);
+			owner &&
+			(owner === clientId || !ctx.clients.has(owner))
+		);
+	});
+	if (claimedCapabilityNames.length > 0) {
+		ensureSessionParticipant(ctx, sessionId, clientId, "participant");
+	} else {
+		scheduleContributionOwnerEviction(
+			ctx,
+			sessionId,
+			CAPABILITY_RECONNECT_GRACE_MS,
+		);
+	}
 	for (const capabilityName of claimedCapabilityNames) {
-		state.clientContributionOwners?.set(capabilityName, clientId);
+		state?.clientContributionOwners?.set(capabilityName, clientId);
 	}
 	const pendingRequests = claimPendingCapabilityRequests(
 		ctx,
