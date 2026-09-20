@@ -301,6 +301,34 @@ Desktop transport envelope:
 - `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
 - Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../../sdk/packages/core/docs/messages-contract-v1.md).
 
+## Keeping the machine awake during a run
+
+A suspended machine freezes the app and drops its in-flight connections, so a
+long task can fail or stall purely because the user stopped typing. While at
+least one session is running, the Tauri shell holds an OS power assertion and
+releases it as soon as the task finishes, fails, or is cancelled:
+
+- macOS: an IOKit `PreventUserIdleSystemSleep` assertion — what `caffeinate -i`
+  creates. The display may still turn off.
+- Windows: `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`, owned
+  by a dedicated thread because that flag is per-thread state.
+- Linux: not implemented; idle sleep there belongs to the desktop environment or
+  systemd.
+
+The running-session count already drives the tray badge, so the shell reuses it
+rather than inventing a second signal: the webview polls `get_process_context`
+(which reports `runningSessionCount` and the user's `keepAwakeEnabled`
+preference) and forwards both through the Tauri `set_tray_status` command. The
+preference defaults on and can be turned off under **Settings → General → Keep
+computer awake while running**; toggling it emits `keep-awake-changed` so an
+assertion that is already held is dropped immediately, and the platform releases
+any assertion still held if the process dies.
+
+Relevant files: [`src-tauri/src/power.rs`](./src-tauri/src/power.rs) (platform
+assertions), [`webview/lib/desktop-tray.ts`](./webview/lib/desktop-tray.ts)
+(forwarding the signal), and
+[`sidecar/desktop-settings.ts`](./sidecar/desktop-settings.ts) (the preference).
+
 ## Sidecar observability
 
 The desktop sidecar sends SDK telemetry through the same configured OpenTelemetry

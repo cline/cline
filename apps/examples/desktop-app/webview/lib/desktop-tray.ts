@@ -4,6 +4,7 @@ import { type AppZoomAction, isAppZoomAction } from "@/lib/app-font-size";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 
 export const DESKTOP_ACTION_PENDING_EVENT = "desktop-action-pending";
+export const KEEP_AWAKE_CHANGED_EVENT = "keep-awake-changed";
 const TRAY_STATUS_REFRESH_INTERVAL_MS = 5_000;
 
 export type DesktopAction =
@@ -15,6 +16,7 @@ export type DesktopAction =
 
 type ProcessContext = {
 	runningSessionCount?: unknown;
+	keepAwakeEnabled?: unknown;
 	hub?: {
 		status?: unknown;
 	};
@@ -112,12 +114,15 @@ export function subscribeToDesktopActions(
 	};
 }
 
+function readKeepAwakeEnabled(value: unknown): boolean {
+	return value !== false;
+}
+
 async function refreshDesktopTrayStatus(): Promise<void> {
 	let context: ProcessContext;
 	try {
 		context = await desktopClient.invoke<ProcessContext>("get_process_context");
 	} catch {
-		// Preserve the last known status during transient sidecar reconnects.
 		return;
 	}
 
@@ -133,6 +138,7 @@ async function refreshDesktopTrayStatus(): Promise<void> {
 		await desktopClient.invoke("set_tray_status", {
 			hubHealthy: context.hub?.status === "connected",
 			runningSessions,
+			keepAwakeEnabled: readKeepAwakeEnabled(context.keepAwakeEnabled),
 		});
 	} catch {
 		// Tray status is best-effort and unavailable in the browser-only shell.
@@ -191,4 +197,16 @@ export function watchDesktopTrayStatus(): () => void {
 		unsubscribeChatEvents();
 		window.clearInterval(interval);
 	};
+}
+
+export async function emitKeepAwakeChanged(enabled: boolean): Promise<void> {
+	if (!isTauriAvailable()) {
+		return;
+	}
+	try {
+		const { emit } = await import("@tauri-apps/api/event");
+		await emit(KEEP_AWAKE_CHANGED_EVENT, enabled);
+	} catch {
+		// Best-effort: the next process-context poll applies the preference.
+	}
 }
