@@ -78,27 +78,6 @@ it("uses the compiled sidecar for Mac remotes under tauri dev on macOS", () => {
 	}
 });
 
-it("finds bundled darwin helpers on non-macOS desktops", () => {
-	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
-	try {
-		const target = { platform: "darwin", arch: "arm64" } as const;
-		const directory = join(root, "bin", "remote-helpers");
-		mkdirSync(directory, { recursive: true });
-		const helper = join(directory, remoteHelperBinaryFilename(target));
-		writeFileSync(helper, "helper");
-		expect(
-			resolveDesktopRemoteHelper(target, {
-				execPath: join(root, "code-sidecar.exe"),
-				cwd: tmpdir(),
-				env: {},
-				platform: "win32",
-			}),
-		).toBe(helper);
-	} finally {
-		rmSync(root, { recursive: true, force: true });
-	}
-});
-
 it("finds SSH helpers in the installed Linux resource layout", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {

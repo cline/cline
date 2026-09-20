@@ -98,43 +98,29 @@ const compressRemoteHelper = async (outfile: string): Promise<void> => {
 
 // SSH environments run the same Hub build as the desktop in a dedicated
 // bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
-// command router, and UI backend. Linux x64 and arm64 cover common SSH hosts;
-// macOS x64 and arm64 cover Macs reached over SSH.
+// command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
+// macOS helpers are deliberately not bundled: they are Mach-O files under
+// Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
+// in the bundle fails notarization. Mac remotes are served from a macOS
+// desktop by its own signed sidecar instead (sidecar/remote-helper.ts).
 //
-// macOS desktop bundles ship no darwin helper. Tauri codesigns only externalBin
-// and the main binary, so a Mach-O under Contents/Resources would be unsigned
-// and fail notarization. The signed universal sidecar runs the same helper
-// entrypoint and serves Mac remotes instead (sidecar/remote-helper.ts).
-// Windows and Linux desktops have no such binary, so they bundle dedicated
-// darwin helpers; Bun cross-compiles them and writes the ad-hoc code signature
-// Apple Silicon requires to exec them. UPX has no Mach-O support, so only the
-// Linux helpers are compressed.
-//
-// On a Windows host, Bun fails to extract the downloaded runtimes these
+// On a Windows host, Bun fails to extract the downloaded Linux runtime these
 // cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").
 // Bun skips the download when `$BUN_INSTALL_CACHE_DIR/bun-<target>-v<version>`
-// already exists, so seed those files from the @oven/bun-<target> npm packages
-// first; desktop-publish.yml does exactly that in its Windows job.
-const buildRemoteHelpers = async (
-	desktopTargetTriple: string,
-): Promise<void> => {
-	const targetTriples = [
+// already exists, so seed those two files from the @oven/bun-<target> npm
+// packages first; desktop-publish.yml does exactly that in its Windows job.
+const buildRemoteHelpers = async (): Promise<void> => {
+	for (const targetTriple of [
 		"x86_64-unknown-linux-gnu",
 		"aarch64-unknown-linux-gnu",
-	];
-	if (!desktopTargetTriple.includes("apple-darwin")) {
-		targetTriples.push("aarch64-apple-darwin", "x86_64-apple-darwin");
-	}
-	for (const targetTriple of targetTriples) {
+	]) {
 		const outfile = await buildSidecar(
 			targetTriple,
 			`./src-tauri/bin/remote-helpers/cline-remote-helper-${targetTriple}`,
 			"../../../sdk/packages/core/dist/remote/remote-helper-entry.js",
 			true,
 		);
-		if (targetTriple.includes("linux")) {
-			await compressRemoteHelper(outfile);
-		}
+		await compressRemoteHelper(outfile);
 	}
 };
 
@@ -162,7 +148,7 @@ const main = async () => {
 	} else {
 		await buildSidecar(targetTriple);
 	}
-	await buildRemoteHelpers(targetTriple);
+	await buildRemoteHelpers();
 };
 
 main().catch((error: unknown) => {

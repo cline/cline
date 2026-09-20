@@ -620,9 +620,9 @@ jobs:
         with:
           bun-version: "1.3.13"
 
-      # build-sidecar-bin.ts cross-compiles the Linux and macOS SSH remote
-      # helpers for the Windows installer (they are Tauri resources,
-      # bundle.resources in tauri.conf.json). Bun cross-compiles by
+      # build-sidecar-bin.ts cross-compiles the Linux SSH remote helpers on
+      # every platform, and the Windows installer ships them (they are Tauri
+      # resources, bundle.resources in tauri.conf.json). Bun cross-compiles by
       # downloading the target's release zip and extracting the executable
       # from it, and on a Windows host that extraction fails deterministically
       # ("Failed to extract executable for 'bun-linux-x64-v1.3.13'. The
@@ -631,9 +631,8 @@ jobs:
       # downloads when the cache lacks `<target>-v<version>`, so seed the cache
       # with the same runtimes from npm (@oven/bun-<target>, byte-identical to
       # the zip payload) and the build never enters the broken path. The macOS
-      # job does not need this; the extractor works there and it bundles no
-      # darwin helper (its signed sidecar serves Mac remotes).
-      - name: Seed Bun cache with remote-helper runtimes
+      # job does not need this; the extractor works there.
+      - name: Seed Bun cache with Linux remote-helper runtimes
         shell: bash
         run: |
           BUN_VERSION="$(bun --version)"
@@ -641,15 +640,13 @@ jobs:
           mkdir -p "$CACHE_DIR"
           # Keep these runtimes aligned with build-sidecar-bin.ts, including
           # the baseline x64 runtime needed by SSH hosts without AVX2.
-          for target in linux-x64-baseline linux-aarch64 darwin-aarch64 darwin-x64; do
+          for target in linux-x64-baseline linux-aarch64; do
             dest="$CACHE_DIR/bun-$target-v$BUN_VERSION"
             work="$(mktemp -d)"
             (cd "$work" && npm pack "@oven/bun-$target@$BUN_VERSION" --silent >/dev/null && tar -xzf ./*.tgz package/bin/bun)
             mv "$work/package/bin/bun" "$dest"
-            # ELF for the Linux runtimes, 64-bit Mach-O for the darwin ones.
-            magic="$(head -c 4 "$dest" | od -An -tx1 | tr -d ' \n')"
-            if [ "$magic" != "7f454c46" ] && [ "$magic" != "cffaedfe" ]; then
-              echo "$dest is not an ELF or Mach-O executable (magic $magic); refusing to seed a bad runtime"
+            if [ "$(head -c 4 "$dest" | od -An -c | tr -d ' ')" != "177ELF" ]; then
+              echo "$dest is not an ELF executable; refusing to seed a bad runtime"
               exit 1
             fi
             echo "seeded $dest ($(stat -c %s "$dest") bytes)"
