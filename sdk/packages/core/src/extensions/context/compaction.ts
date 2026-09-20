@@ -283,7 +283,11 @@ export function createContextCompactionPrepareTurn(
 		return undefined;
 	}
 
-	const providerConfig =
+	// Resolved per compaction rather than captured here: OAuth providers swap in
+	// a new `providerConfig` when the access token is refreshed mid-session, and
+	// a config captured at setup keeps summarizing with credentials that expire
+	// (~60 minutes for Cline accounts) while ordinary requests keep working.
+	const resolveProviderConfig = (): ProviderConfig =>
 		config.providerConfig ??
 		({
 			providerId: config.providerId,
@@ -462,7 +466,7 @@ export function createContextCompactionPrepareTurn(
 		const builtinOptions = {
 			context: compactionContext,
 			providerConfig: {
-				...providerConfig,
+				...resolveProviderConfig(),
 				abortSignal: context.abortSignal,
 			},
 			compaction: userCompaction,
