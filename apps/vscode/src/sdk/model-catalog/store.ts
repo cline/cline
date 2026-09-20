@@ -1,5 +1,6 @@
 import {
 	isPrivateModelCatalogProvider,
+	type ProviderTokenSource,
 	readModelsFileSync,
 	resolveModelsRegistryPath,
 	type StoredModelEntry,
@@ -580,9 +581,22 @@ function getProviderSettings(providerId: ProviderId): ProviderSettingsRecord {
 	return isRecord(settings) ? settings : {}
 }
 
-function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord): void {
+function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsRecord, tokenSource?: ProviderTokenSource): void {
 	const provider = providerSettingsProviderId(providerId)
-	getProviderSettingsManager().saveProviderSettings({ ...next, provider }, { setLastUsed: false })
+	getProviderSettingsManager().saveProviderSettings({ ...next, provider }, { setLastUsed: false, tokenSource })
+}
+
+// Credential-bearing fields. A GUI patch that touches any of these means the
+// user (re-)entered the provider's auth by hand, so the entry is no longer
+// purely "migration"/"oauth" sourced. `headers` counts because custom request
+// headers are a credential channel of their own: OpenAI-compatible providers
+// can carry the key in `Authorization` or `api-key` rather than in `apiKey`.
+// `gcp` (project id + region) and `extras` (token limits, prompt-cache flags,
+// Bedrock profile names) hold no secrets, so they stay out of the list.
+const CREDENTIAL_PATCH_KEYS = ["apiKey", "aws", "auth", "headers"] as const
+
+function patchTouchesCredentials(patch: ProviderConfigPatch): boolean {
+	return CREDENTIAL_PATCH_KEYS.some((key) => key in patch)
 }
 
 function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConfigPatch): void {
@@ -674,7 +688,10 @@ function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConf
 		}
 	}
 
-	saveProviderSettings(providerId, next)
+	// The manager inherits the previous entry's tokenSource when none is given,
+	// so without an explicit source a migrated entry stays labelled "migration"
+	// after every GUI save even though the user has since authored its auth.
+	saveProviderSettings(providerId, next, patchTouchesCredentials(patch) ? "manual" : undefined)
 }
 
 function getModelIdKey(providerId: ProviderId, mode: Mode): keyof ApiConfiguration & SettingsKey {
