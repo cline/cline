@@ -1,4 +1,10 @@
-import { existsSync, readdirSync } from "node:fs";
+import {
+	closeSync,
+	existsSync,
+	openSync,
+	readdirSync,
+	readSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
 	type RemoteHelperTarget,
@@ -22,6 +28,36 @@ function linuxResourceCandidates(
 	}
 }
 
+const MACHO_FAT_MAGIC = 0xcafebabe;
+const MACHO_64_MAGIC = 0xfeedfacf;
+const MACHO_CPU_TYPE: Record<RemoteHelperTarget["arch"], number> = {
+	arm64: 0x0100000c,
+	x64: 0x01000007,
+};
+
+// Published desktop builds are universal, but `package:desktop:mac` and local
+// `tauri build` produce a thin host-arch sidecar that cannot run on a Mac of
+// the other architecture. A fat binary starts with a big-endian magic; a thin
+// 64-bit Mach-O starts with its little-endian magic followed by the cputype.
+function machoRunsOn(path: string, arch: RemoteHelperTarget["arch"]): boolean {
+	const header = Buffer.alloc(8);
+	try {
+		const fd = openSync(path, "r");
+		try {
+			readSync(fd, header, 0, 8, 0);
+		} finally {
+			closeSync(fd);
+		}
+	} catch {
+		return false;
+	}
+	if (header.readUInt32BE(0) === MACHO_FAT_MAGIC) return true;
+	return (
+		header.readUInt32LE(0) === MACHO_64_MAGIC &&
+		header.readUInt32LE(4) === MACHO_CPU_TYPE[arch]
+	);
+}
+
 // macOS bundles carry no dedicated darwin helper: Tauri signs only externalBin
 // and the main binary, so a Mach-O under Contents/Resources would ship
 // unsigned and fail notarization. The sidecar already runs the shared helper
@@ -36,7 +72,10 @@ function macSidecarCandidates(
 ): string[] {
 	const compiledSidecar = `code-sidecar-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
 	return [
-		...(basename(execPath).startsWith("code-sidecar") ? [execPath] : []),
+		...(basename(execPath).startsWith("code-sidecar") &&
+		machoRunsOn(execPath, target.arch)
+			? [execPath]
+			: []),
 		join(cwd, "src-tauri", "bin", compiledSidecar),
 		join(
 			cwd,

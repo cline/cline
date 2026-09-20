@@ -25,13 +25,17 @@ it("finds SSH helpers in the installed Windows resource layout", () => {
 	}
 });
 
-it("uses the packaged macOS sidecar as the helper for Mac remotes", () => {
+// First 8 bytes of a universal (fat) Mach-O and of a thin arm64 Mach-O.
+const FAT_MACHO_HEADER = Buffer.from("cafebabe00000002", "hex");
+const THIN_ARM64_MACHO_HEADER = Buffer.from("cffaedfe0c000001", "hex");
+
+it("uses the packaged universal macOS sidecar as the helper for Mac remotes", () => {
 	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
 	try {
 		const macOS = join(root, "Cline.app", "Contents", "MacOS");
 		mkdirSync(macOS, { recursive: true });
 		const sidecar = join(macOS, "code-sidecar");
-		writeFileSync(sidecar, "sidecar");
+		writeFileSync(sidecar, FAT_MACHO_HEADER);
 		for (const arch of ["arm64", "x64"] as const) {
 			expect(
 				resolveDesktopRemoteHelper(
@@ -45,6 +49,33 @@ it("uses the packaged macOS sidecar as the helper for Mac remotes", () => {
 				{ platform: "linux", arch: "arm64" },
 				{ execPath: sidecar, cwd: tmpdir(), env: {}, platform: "darwin" },
 			),
+		).toBeUndefined();
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+it("only offers a thin packaged macOS sidecar to Mac remotes of its own architecture", () => {
+	const root = mkdtempSync(join(tmpdir(), "cline-packaged-helpers-"));
+	try {
+		const macOS = join(root, "Cline.app", "Contents", "MacOS");
+		mkdirSync(macOS, { recursive: true });
+		const sidecar = join(macOS, "code-sidecar");
+		writeFileSync(sidecar, THIN_ARM64_MACHO_HEADER);
+		const options = {
+			execPath: sidecar,
+			cwd: tmpdir(),
+			env: {},
+			platform: "darwin" as const,
+		};
+		expect(
+			resolveDesktopRemoteHelper(
+				{ platform: "darwin", arch: "arm64" },
+				options,
+			),
+		).toBe(sidecar);
+		expect(
+			resolveDesktopRemoteHelper({ platform: "darwin", arch: "x64" }, options),
 		).toBeUndefined();
 	} finally {
 		rmSync(root, { recursive: true, force: true });
