@@ -42,6 +42,12 @@ export interface StoredProviderSettingsEntry {
 export interface StoredProviderSettings {
 	version: 1;
 	lastUsedProvider?: string;
+	/**
+	 * Set once the legacy globalState.json + secrets.json import has run against
+	 * this file. Those legacy files are never rewritten, so without the marker
+	 * every construction would re-add entries the user has since removed.
+	 */
+	legacyImportCompleted?: boolean;
 	modes: StoredProviderModes;
 	providers: Record<string, StoredProviderSettingsEntry>;
 }
@@ -62,6 +68,7 @@ export const StoredProviderSettingsSchema: z.ZodType<StoredProviderSettings> =
 	z.object({
 		version: z.literal(1),
 		lastUsedProvider: z.string().min(1).optional(),
+		legacyImportCompleted: z.boolean().optional(),
 		modes: StoredProviderModesSchema.default({}),
 		providers: z.record(z.string(), StoredProviderSettingsEntrySchema),
 	});
