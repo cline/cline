@@ -430,11 +430,9 @@ async function fetchHicapPrivateModels(
 	config: ProviderConfig,
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
-	// The fallback intentionally keeps the historical `/v2/openai` surface so
-	// that users who never configured a base URL keep hitting the same
-	// endpoint; an explicitly configured base URL now wins.
-	const baseUrl =
-		normalizeBaseUrl(config.baseUrl) || "https://api.hicap.ai/v2/openai";
+	// Fall back to the documented base URL, matching the `hicap` builtin spec's
+	// `defaults.baseUrl`; an explicitly configured base URL wins.
+	const baseUrl = normalizeBaseUrl(config.baseUrl) || "https://api.hicap.ai/v1";
 	const endpoint = `${baseUrl.replace(/\/+$/, "")}/models`;
 	const response = await fetchWithTimeout(endpoint, {
 		method: "GET",

@@ -700,7 +700,7 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
-	it("keeps the default Hicap models endpoint when no base URL is set", async () => {
+	it("defaults the Hicap models endpoint to the documented base URL when no base URL is set", async () => {
 		const fetchMock = vi.fn(async () => {
 			return new Response(JSON.stringify({ data: [{ id: "hicap-pro" }] }), {
 				status: 200,
@@ -720,7 +720,7 @@ describe("resolveProviderConfig", () => {
 		);
 
 		expect(fetchMock).toHaveBeenCalledWith(
-			"https://api.hicap.ai/v2/openai/models",
+			"https://api.hicap.ai/v1/models",
 			expect.objectContaining({
 				method: "GET",
 				headers: expect.objectContaining({ "api-key": "hicap-key" }),
