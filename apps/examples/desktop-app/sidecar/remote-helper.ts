@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
 	type RemoteHelperTarget,
 	remoteHelperBinaryFilename,
@@ -22,19 +22,57 @@ function linuxResourceCandidates(
 	}
 }
 
+// macOS bundles carry no dedicated darwin helper: Tauri signs only externalBin
+// and the main binary, so a Mach-O under Contents/Resources would ship
+// unsigned and fail notarization. The sidecar already runs the shared helper
+// entrypoint (see index.ts) and is the signed, notarized, universal Mach-O in
+// the bundle, so it serves both x64 and arm64 Mac remotes from a Mac. Under
+// `tauri dev` the sidecar runs as a script, so use the compiled sidecar that
+// beforeDevCommand builds for the matching architecture instead.
+function macSidecarCandidates(
+	target: RemoteHelperTarget,
+	execPath: string,
+	cwd: string,
+): string[] {
+	const compiledSidecar = `code-sidecar-${target.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`;
+	return [
+		...(basename(execPath).startsWith("code-sidecar") ? [execPath] : []),
+		join(cwd, "src-tauri", "bin", compiledSidecar),
+		join(
+			cwd,
+			"apps",
+			"examples",
+			"desktop-app",
+			"src-tauri",
+			"bin",
+			compiledSidecar,
+		),
+	];
+}
+
 export function resolveDesktopRemoteHelper(
 	target: RemoteHelperTarget,
-	options: { execPath?: string; cwd?: string; env?: NodeJS.ProcessEnv } = {},
+	options: {
+		execPath?: string;
+		cwd?: string;
+		env?: NodeJS.ProcessEnv;
+		platform?: NodeJS.Platform;
+	} = {},
 ): string | undefined {
 	const env = options.env ?? process.env;
 	if (env.CLINE_REMOTE_HELPER_BINARY) return env.CLINE_REMOTE_HELPER_BINARY;
 	const filename = remoteHelperBinaryFilename(target);
-	const executableDirectory = dirname(options.execPath ?? process.execPath);
+	const execPath = options.execPath ?? process.execPath;
+	const executableDirectory = dirname(execPath);
 	const cwd = options.cwd ?? process.cwd();
+	const platform = options.platform ?? process.platform;
 	const bundledPath = join("bin", "remote-helpers", filename);
 	return [
 		...(env.CLINE_REMOTE_HELPER_DIRECTORY
 			? [join(env.CLINE_REMOTE_HELPER_DIRECTORY, filename)]
+			: []),
+		...(target.platform === "darwin" && platform === "darwin"
+			? macSidecarCandidates(target, execPath, cwd)
 			: []),
 		join(executableDirectory, "remote-helpers", filename),
 		join(executableDirectory, bundledPath),
