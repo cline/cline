@@ -1023,8 +1023,10 @@ describe("sdk-gateway", () => {
 			"anthropic",
 			"cline",
 			"cline-pass",
+			"litellm",
 			"minimax",
 			"oca",
+			"openai-compatible",
 			"openrouter",
 			"qwen",
 			"qwen-code",
@@ -5149,6 +5151,87 @@ describe("sdk-gateway", () => {
 				reasoning: "high",
 			}),
 		);
+	});
+
+	it.each([
+		{ providerId: "litellm", providerOptionsKey: "litellm" },
+		{ providerId: "openai-compatible", providerOptionsKey: "openaiCompatible" },
+	])("forwards Anthropic prompt cache controls for $providerId", async ({
+		providerId,
+		providerOptionsKey,
+	}) => {
+		mockSuccessfulStream();
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: `${providerId}-key`,
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "bedrock/converse/eu.anthropic.claude-sonnet-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "user",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "text",
+								providerOptions: expect.objectContaining({
+									[providerOptionsKey]: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+						]),
+					}),
+				]),
+				providerOptions: expect.objectContaining({
+					anthropic: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it.each([
+		{ providerId: "litellm" },
+		{ providerId: "openai-compatible" },
+	])("keeps prompt cache controls off non-Anthropic $providerId models", async ({
+		providerId,
+	}) => {
+		mockSuccessfulStream();
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId,
+					apiKey: `${providerId}-key`,
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId,
+				modelId: "gpt-4o",
+				messages: baseMessages,
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(JSON.stringify(call)).not.toContain("cache_control");
 	});
 
 	it("keeps OpenRouter Qwen prompt cache on a content part", async () => {
