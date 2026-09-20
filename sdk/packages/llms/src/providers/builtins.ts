@@ -920,8 +920,10 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "HiCap",
 		description: "HiCap AI platform",
 		family: "openai-compatible",
+		capabilities: ["vision", "prompt-cache"],
 		defaultModelId: "hicap-pro",
 		apiKeyEnv: ["HICAP_API_KEY"],
+		docsUrl: "https://docs.hicap.ai",
 		defaults: { baseUrl: "https://api.hicap.ai/v1" },
 	},
 	{
