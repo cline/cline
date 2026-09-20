@@ -5,10 +5,14 @@ import type {
 	ITelemetryService,
 	ManagedHubBuildMismatchEvent,
 	NodeHubClient,
+	RemoteEnvironmentConnection,
+	RemoteEnvironmentService,
 	ToolApprovalResult,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import type { UserContext } from "@cline/shared";
+
+export const LOCAL_ENVIRONMENT_ID = "local";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -50,6 +54,7 @@ export type PromptInQueue = {
 };
 
 export type LiveSession = {
+	environmentId?: string;
 	config: JsonRecord;
 	messages: MessageWithMetadata[];
 	promptsInQueue: PromptInQueue[];
@@ -61,6 +66,8 @@ export type LiveSession = {
 	prompt?: string;
 	title?: string;
 	attachedViaHub?: boolean;
+	/** Last Hub lifecycle sequence applied to this session. */
+	lastHubStatusSequence?: number;
 	/** Iterations already in flight when the user supplied recovery guidance. */
 	mistakeRecovery?: {
 		latestIteration: number;
@@ -72,6 +79,16 @@ export type LiveSession = {
 	lastQueuedPromptStartId?: string;
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
+};
+
+export type SessionRuntimeBinding = {
+	environmentId: string;
+	kind: "local" | "ssh";
+	workspaceRoot: string;
+	sessionManager: ClineCore;
+	hubClient: NodeHubClient;
+	unsubscribeSessionEvents: () => void;
+	remote?: RemoteEnvironmentConnection;
 };
 
 export type ToolApprovalRequestItem = {
@@ -88,8 +105,9 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
-	owner: SidecarWebSocketClient;
-	resolve: (result: ToolApprovalResult) => void;
+	/** Cloud approvals have no local WebSocket owner and may resolve remotely. */
+	owner?: SidecarWebSocketClient;
+	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
 export type AskQuestionRequestItem = {
@@ -130,14 +148,19 @@ export type SidecarContext = {
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
 	pendingQuestions: Map<string, PendingAskQuestion>;
-	sessionManager: ClineCore | null;
-	hubClient: NodeHubClient | null;
-	workspaceRoot: string;
+	runtimeBindings: Map<string, SessionRuntimeBinding>;
+	sessionEnvironmentIds: Map<string, string>;
+	activeEnvironmentId: string;
+	remoteEnvironments: RemoteEnvironmentService | null;
+	localWorkspaceRoot: string;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	/** Analytics identity and explicit account state forwarded with each session. */
 	telemetryUser?: UserContext;
-	unsubscribeSessionEvents: (() => void) | null;
+	cloudSessionManager: {
+		dispose(): Promise<void>;
+		isCloudSession(sessionId: string): boolean;
+	} | null;
 	/**
 	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and
 	 * replayed to webviews that connect after the event fired.

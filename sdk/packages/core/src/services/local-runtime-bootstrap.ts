@@ -13,12 +13,16 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	buildClineSystemPrompt,
+	hasRuntimeConfigExtension,
+} from "@cline/shared";
 import { version as corePackageVersion } from "../../package.json";
 import {
 	type AgentPluginPackageDiagnostic,
 	loadAgentPluginPackages,
 } from "../extensions/agent-plugin";
+import { createComposioToolsExtension } from "../extensions/composio/composio-tools-extension";
 import {
 	resolveAndLoadAgentPlugins,
 	resolvePluginSkillDirectoriesFromPaths,
@@ -155,6 +159,27 @@ function hasConfigExtension(
 	kind: RuntimeConfigExtensionKind,
 ): boolean {
 	return hasRuntimeConfigExtension(extensions, kind);
+}
+
+function resolveBootstrapSystemPrompt(
+	config: CoreSessionConfig,
+	workspaceInfo: WorkspaceInfo,
+	workspaceMetadata: string,
+): string {
+	if (config.systemPrompt?.trim()) {
+		return config.systemPrompt;
+	}
+
+	return buildClineSystemPrompt({
+		ide: "Terminal Shell",
+		workspaceRoot: workspaceInfo.rootPath,
+		workspaceName: workspaceInfo.hint,
+		metadata: workspaceMetadata,
+		rules: config.rules,
+		mode: config.mode,
+		providerId: config.providerId,
+		platform: process.platform || "unknown",
+	});
 }
 
 function buildProviderConfig(
@@ -469,7 +494,19 @@ export async function prepareLocalRuntimeBootstrap(
 		}
 	}
 
-	const builtInExtensions = fileHookExtension ? [fileHookExtension] : undefined;
+	// Composio connector tools register in-process from persisted connection
+	// state rather than through a drop-in plugin: compiled hosts (the packaged
+	// desktop app) cannot spawn the plugin sandbox, and every host with the
+	// state file should serve the same tools.
+	const composioToolsExtension = await createComposioToolsExtension({
+		logger: localConfig?.logger,
+	});
+	const builtInExtensionList = [
+		...(fileHookExtension ? [fileHookExtension] : []),
+		...(composioToolsExtension ? [composioToolsExtension] : []),
+	];
+	const builtInExtensions =
+		builtInExtensionList.length > 0 ? builtInExtensionList : undefined;
 	const extensions = mergeAgentExtensions(
 		builtInExtensions,
 		mergeAgentExtensions(
@@ -516,6 +553,11 @@ export async function prepareLocalRuntimeBootstrap(
 		...baseConfig,
 		providerConfig,
 		workspaceMetadata,
+		systemPrompt: resolveBootstrapSystemPrompt(
+			baseConfig,
+			workspaceInfo,
+			workspaceMetadata,
+		),
 		hooks,
 	};
 	const toolPolicies =

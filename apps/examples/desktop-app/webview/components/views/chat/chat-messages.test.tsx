@@ -52,6 +52,37 @@ async function renderMessages(
 	});
 }
 
+describe("ChatMessages error action", () => {
+	it("keeps the recovery action when the error is already in the transcript", async () => {
+		const onClick = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "github-error",
+					sessionId: "session-1",
+					role: "error",
+					content: "GitHub access expired",
+					createdAt: Date.now(),
+				},
+			],
+			{
+				error: "GitHub access expired",
+				errorAction: { label: "Connect GitHub", onClick },
+			},
+		);
+
+		const button = [...container.querySelectorAll("button")].find((candidate) =>
+			candidate.textContent?.includes("Connect GitHub"),
+		);
+		expect(button).toBeDefined();
+		expect(container.textContent?.match(/GitHub access expired/g)).toHaveLength(
+			1,
+		);
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+});
+
 describe("ChatMessages tool disclosures", () => {
 	it.each([
 		["run_commands", "lucide-terminal"],
@@ -1460,12 +1491,6 @@ describe("ChatMessages follow-up questions", () => {
 			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
-		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
-
-		const submit = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Submit",
-		);
-		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});

@@ -1,0 +1,213 @@
+---
+title: "Cline Desktop"
+description: "An open source app for open weight models, with parallel sessions, scheduled tasks, flexible model choice, and imports from other coding agents."
+---
+
+**Cline Desktop is an open-source app for open-weight models.** It gives you a dedicated workspace to run and manage agent sessions outside your IDE.
+
+Cline Desktop brings the same Cline agent harness for open weight models into a dedicated workspace. You can run multiple sessions in parallel, schedule recurring tasks, choose your provider and model, discover skills, MCP, plugins through the Marketplace, and import existing sessions from supported coding agents to continue in Cline.
+
+<Card title="Download Cline Desktop" icon="download" href="https://cline.bot/desktop">
+  Download Cline Desktop for macOS or Windows. Windows support is currently in beta.
+</Card>
+
+## Getting started
+
+To start using Cline Desktop:
+
+1. Open the workspace you want Cline to work with, and select the branch you want the session to use.
+2. Select the provider and model of your choice.
+4. Start a new session and describe the task you want Cline to complete.
+
+Cline Desktop keeps model choice open. You can:
+
+- Access 300+ models through the Cline provider
+- Use open-weight models through ClinePass
+- Connect supported providers with your own API keys
+- Run supported local models, or
+- Continue tasks from Claude Code and Codex with an open-weight model.
+
+<Note>
+You can also get started with the free models available in Cline without connecting a paid provider. The available free models can change over time, so check the app for the current options.
+</Note>
+
+## Use Cline Desktop for coding and non-coding tasks
+
+Cline Desktop gives you a workspace for running different kinds of agent work side by side. Keep coding, research, documentation, and recurring tasks in separate sessions so each retains its own context.
+
+For example, you can have one agent implement a feature while another researches an API, reviews documents, prepares a report, or tracks changes over time.
+
+## What you can do in Cline Desktop
+
+### 1. Import workflows from other agents
+
+If you already have context in another coding agent, you can import that workflow into Cline instead of starting from scratch. Cline Desktop supports importing conversations from supported agents such as Claude Code and Codex.
+
+To import a workflow:
+
+1. Open the **Import** section in Cline Desktop settings.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-import-workflows.png"
+    alt="Cline Desktop import workflows screen showing supported conversations available for import"
+  />
+</Frame>
+
+2. Click on *Import Sessions* and choose the conversation you want to bring into Cline.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-import-select-sessions.png"
+    alt="Cline Desktop import workflows screen showing supported conversations available for import"
+  />
+</Frame>
+
+3. Import the selected conversation.
+4. Open the imported session and continue with your next instruction.
+
+The imported conversation gives Cline the earlier context, while the continued task uses the provider and model you have configured in Cline.
+
+For example, if you started debugging an issue in Claude Code, you can import that conversation and continue from the existing context with an open-weight model in Cline.
+
+### 2. Automate recurring work with Schedule
+
+Schedule lets Cline run agent tasks automatically at a specific time or on a recurring schedule.
+
+You can use it for work you would otherwise need to start manually, such as morning PR review, a nightly repo check, or a weekly documentation update.
+
+#### Create a schedule from the UI
+
+To create a schedule:
+
+1. Open **Schedule** in Cline Desktop.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-new-schedule.png"
+    alt="Cline Desktop Schedule page with the New Schedule button"
+  />
+</Frame>
+
+2. Configure the schedule:
+   - Give it a name.
+   - Choose the frequency, date, and time.
+   - Enter the prompt Cline should run.
+   - Select the provider, model, and workspace.
+   - Optionally add a system prompt, timeout, or tags.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-schedule-config.png"
+    alt="Cline Desktop schedule configuration showing timing, prompt, provider, model, workspace, and optional settings"
+  />
+</Frame>
+
+6. Save the schedule.
+
+You can create one-time or recurring scheduled tasks depending on the workflow.
+
+#### Create a schedule from a conversation
+
+You can also create a schedule by describing the automation directly to Cline.
+
+For example:
+
+> Set up a daily automation that reviews new issues and pull requests in this repository and gives me a summary of anything that needs my attention.
+
+This is useful when you already know what you want to automate and would rather describe it naturally than configure the schedule manually.
+
+### 3. Use web search
+
+Cline Desktop can use web search to bring current information into a task, such as checking documentation, researching a topic, or comparing options.
+
+Web search is enabled by default for new sessions. You can manage it from **Settings** using the **Web Search** toggle.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-web-search-settings.png"
+    alt="Cline Desktop settings showing the Web Search toggle enabled"
+  />
+</Frame>
+
+<Note>
+Only providers with built-in web search honor this setting. Other providers ignore it. Changes to this setting apply to new sessions.
+</Note>
+
+Web search currently works without additional setup with:
+
+- Cline (usage billing)
+- ClinePass
+- OpenAI subscription
+- Anthropic
+- Google Gemini
+
+Availability depends on whether the selected model supports built-in web search.
+
+### 4. Use voice input
+
+Voice input lets you speak your prompt instead of typing it. This is useful for longer instructions, talking through a problem, or quickly getting an idea into Cline.
+
+Voice input requires a compatible speech-to-text provider.
+
+To set it up:
+
+1. Open the **Voice Input** in Cline Desktop settings and select **Open Model Providers**.
+
+<Frame>
+    <img
+       src="/assets/desktop/desktop-voice-open-providers.png"
+       alt="Cline Desktop Voice settings showing the Open Model Providers button"
+    />
+</Frame>
+
+2. Choose a provider with a supported transcription model, such as ElevenLabs, and add your API key.
+
+<Frame>
+    <img
+       src="/assets/desktop/desktop-voice-provider.png"
+       alt="Cline Desktop API Providers settings showing a transcription provider being configured"
+    />
+</Frame>
+
+3. Return to **Voice Input**, enable it, and select your provider and transcription model.
+<Frame>
+    <img
+        src="/assets/desktop/desktop-voice-enable.png"
+        alt="Cline Desktop Voice settings showing voice input enabled with a provider and transcription model selected"
+    />
+</Frame>
+
+4. Once configured, the microphone appears in the chat composer. Select it to start speaking your prompt.
+
+### 5. Extend and customize Cline
+
+Use **Customize → Installed** to view and manage the capabilities available to Cline Desktop.
+
+The Installed view acts as an inventory for **tools, plugins, skills, rules, MCP servers, and hooks**. From here, you can inspect what is available, search within each category, and enable or disable supported capabilities.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-customize-installed.png"
+    alt="Cline Desktop Customize view showing tools, plugins, skills, rules, MCP servers, and hooks"
+  />
+</Frame>
+
+#### Discover more in Marketplace
+
+Use **Marketplace** to find and add new capabilities to Cline.
+
+You can browse or search across **skills, MCP servers, and plugins**, and filter by categories such as software development, data and analytics, productivity, research and docs, and more.
+
+<Frame>
+  <img
+    src="/assets/desktop/desktop-marketplace.png"
+    alt="Cline Desktop Marketplace showing skills, MCP servers, plugins, search, and category filters"
+  />
+</Frame>
+
+## Related
+
+1. [ClinePass](/getting-started/clinepass)
+2. [Cline Free Models](/getting-started/free-models)
+3. [Local models](/running-models-locally/overview)

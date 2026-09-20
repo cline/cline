@@ -4,6 +4,7 @@
 // I/O, so KEEP IT FIRST: do not add an import above this line that performs network
 // work at module-eval time, or proxy support silently breaks on JetBrains/CLI.
 import "@/shared/net"
+import { disableCurrentDirectoryExecutableSearch } from "@cline/shared"
 import { ExternalCommentReviewController } from "@hosts/external/ExternalCommentReviewController"
 import { ExternalEditPreview } from "@hosts/external/ExternalEditPreview"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
@@ -30,6 +31,9 @@ let globalCoreConnection: CoreConnection | undefined
 let shutdownPromise: Promise<void> | undefined
 
 async function main() {
+	// Before anything spawns with the workspace as cwd (rg, git, hooks, MCP).
+	disableCurrentDirectoryExecutableSearch()
+
 	// Capture the per-spawn secret and scrub it from the environment before
 	// initialization can launch provider or MCP child processes, and before the
 	// environment is logged below. Descendants must never inherit the credential;

@@ -153,6 +153,13 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
+attachment; requests with neither are rejected before starting a turn.
+NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
+It runs after connection setup, before allocating or sending the command, on
+each attempt. Throwing prevents that attempt's dispatch; already-dispatched runs still require
+`run.abort`.
+
 Session status is reported, never fabricated. A session's initial status
 reflects whether a turn actually runs inside `start(...)`: prompt-bearing
 starts (one-shot or interactive) begin `running`, interactive starts without a
@@ -311,6 +318,8 @@ Header authentication is mutually exclusive with the local hub-token subprotocol
 the proxy is responsible for authenticating the client and adding any private
 upstream hub credentials. Resolver failures and rejected protocol headers fail the
 connection and remain available through the client's connection-error state.
+Clients with active subscriptions keep retrying after header-resolution failures,
+even when no socket was created.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
 through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
@@ -477,6 +486,25 @@ Design implication:
 
 - logging is injectable and transport-agnostic, allowing host environments (CLI, VS Code, browser) to wire their own backends
 - do not hardcode logging calls; accept a `logger?: BasicLogger` parameter instead
+
+### 6.1 Langfuse telemetry ownership
+
+`@cline/llms` owns Langfuse instrumentation, trace attribute propagation, and
+the `LangfuseAttributesSpanProcessor`. `@cline/core` owns the host OpenTelemetry
+provider and installs that processor when constructing an OTLP trace pipeline.
+The processor copies context attributes onto `cline-provider-langfuse` spans;
+it does not create an exporter or require Langfuse credentials. User and session
+IDs must be span attributes, not only observation metadata, for Langfuse tracking.
+
+In the collector relay path, spans use the existing host OTLP exporter. The
+collector owns Langfuse credentials and downstream filtering and sampling.
+`llms` checks provider eligibility, client sampling, opt-out, and content policy
+per request. The host owns flushing and shutting down its provider.
+
+When no host relay is available, explicitly configured direct Langfuse export
+uses an isolated provider owned and disposed by `llms`. It does not replace or
+shut down an ambient host provider. When both routes are configured, the relay
+takes precedence so a request is not exported through both routes.
 
 ### 7. Storage Adapters
 
@@ -883,3 +911,81 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/cli` — CLI implementation
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
+
+### Composio beta access
+
+Composio management in the desktop sidecar and tool registration/execution in
+local runtimes (including the detached hub) require the account-scoped PostHog
+flag `CLINE_COMPOSIO_BETA` to be exactly `true`. The shared core account flag
+evaluator reads the current Cline account ID from provider settings, caches the
+evaluation in memory for one minute, and discards grants on account changes.
+Missing identity, provider configuration, or flag values deny access; internal
+email domains do not bypass this gate. Saved connector schemas alone cannot
+enable tools. Existing sessions recheck access before each tool execution.
+Disconnect/cancel cleanup remains available after access is removed. The Cline
+API proxy must enforce the same flag server-side for authenticated requests.
+
+The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
+envelope. The toolkit catalog contains `items` and `nextToken`; connections and
+tool pages additionally carry `total`. The sidecar fetches every catalog and
+connection page, including empty pages with continuation tokens, and rejects
+failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
+per toolkit and persists `input_parameters` and the pinned version for the core
+extension. Tool execution sends arguments and the optional version to
+`/tools/{slug}/execute` and retains the provider response body.
+
+Customize > Connectors displays the usage-ranked catalog, with search across
+all loaded apps and installation/connection management in its detail dialog.
+The backend includes managed-auth toolkits before anyone has connected them,
+and provisions their auth configuration on first installation. This requires
+the full-catalog backend in core-platform PR #3383. Catalog responses must
+use the paginated contract; malformed responses are rejected.
+
+Connector metadata and cancellation tombstones live in
+`settings/composio/<sha256-account-id>.json`. Each account has separate
+availability/catalog caches and pending operations. Async management requests
+retain their initiating account and refuse to send with another account's token.
+The core extension loads only the signed-in account's schemas and checks that
+identity again before registration and execution in an existing session.
+
+`RuntimeOAuthTokenManager` serializes credential reads, refreshes, and saves
+using a SQLite exclusive transaction keyed by provider settings path and storage
+provider ID. This coordinates the sidecar, hub, and other local processes; OS
+locks release on process exit. Waiters reread persisted credentials under the
+lock and reuse a token another process refreshed, including for forced refresh
+requests. A refresh result is discarded if sign-out or sign-in replaced the
+credentials while the request was in flight.
+
+### Queue steering
+
+Queue steering through `pendingPrompts.steerFirst` selects and promotes the
+current queue head in one synchronous core operation. Desktop Enter sends this
+intent through the sidecar and Hub without fetching a prompt ID first; explicit
+per-prompt steering continues to update by ID. Concurrent clients therefore
+cannot make Enter promote an entry from a stale queue snapshot.
+
+### SSH environments
+
+`core/src/remote` owns the reusable SSH environment service and standalone remote
+helper entrypoint. Clients use `RemoteEnvironmentService.connect` to obtain an
+authenticated loopback endpoint, then instantiate the ordinary `ClineCore` remote
+backend. The helper uploads are content-addressed and the remote Hub binds only
+to loopback. SSH forwards that endpoint to a local ephemeral port. The helper's
+explicit discovery record is separate from the remote account's default Hub.
+
+Desktop retains presentation, packaged-resource lookup, and its environment-to-
+runtime bindings. Settings and the chat environment selector call the shared
+service; each runtime binding supplies the same session/approval/event APIs.
+Workspace and session reads route by environment identity. System-prompt
+bootstrap happens on the remote host when the caller omits a prompt, so local
+filesystem metadata is not embedded in remote sessions. Login-shell PATH
+resolution also lives in core and is reused by the helper and desktop startup.
+
+### Configured subagent approvals
+
+Configured subagents execute their available tools without inheriting the parent
+session’s tool approval policies or approval callback, matching generic subagents
+and teammates. The parent’s `subagent_<name>` delegation call still follows the
+parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
+effect when constructing child tools. Inherited runtime hooks are unchanged.
