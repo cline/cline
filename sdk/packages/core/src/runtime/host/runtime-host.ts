@@ -24,6 +24,15 @@ import type { ConnectionUpdate } from "../config/connection-update";
 
 export const SESSION_NOT_FOUND_ERROR_CODE = "session_not_found";
 
+export class SessionAlreadyExistsError extends Error {
+	readonly code = "session_already_exists";
+
+	constructor(readonly sessionId: string) {
+		super(`session already exists: ${sessionId}`);
+		this.name = "SessionAlreadyExistsError";
+	}
+}
+
 export class SessionNotFoundError extends Error {
 	readonly code = SESSION_NOT_FOUND_ERROR_CODE;
 

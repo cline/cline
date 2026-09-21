@@ -182,6 +182,10 @@ field.
 
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
+Explicit session IDs are reserved during runtime creation. A competing create waits
+for initialization and returns `session_already_exists` without replacing the runtime
+or its creator. Clients can then attach; persisted-only or explicitly stopped sessions
+can still be recreated with the same ID.
 NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
 It runs after connection setup, before allocating or sending the command, on
 each attempt. Throwing prevents that attempt's dispatch; already-dispatched runs still require

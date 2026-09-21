@@ -21,6 +21,7 @@ import type {
 	RuntimeSessionConfig,
 	SessionConnectionUpdate,
 } from "../../../runtime/host/runtime-host";
+import { SessionAlreadyExistsError } from "../../../runtime/host/runtime-host";
 import { parseSessionCompactionState } from "../../../session/models/session-compaction";
 import {
 	SessionVersioningError,
@@ -378,7 +379,7 @@ export async function handleSessionCreate(
 		(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
 			? runtimeOptions.mode
 			: "act");
-	const started = await ctx.sessionHost.startSession({
+	const start = ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
 		sessionMetadata:
@@ -488,6 +489,13 @@ export async function handleSessionCreate(
 					? { "*": { autoApprove: true } }
 					: undefined,
 	});
+	const started = await start.catch((error: unknown) => {
+		if (error instanceof SessionAlreadyExistsError) return error;
+		throw error;
+	});
+	if (started instanceof SessionAlreadyExistsError) {
+		return errorReply(envelope, started.code, started.message);
+	}
 	logHubMessage("info", "session.create.start_session.end", {
 		...baseLogContext,
 		sessionId: started.sessionId,

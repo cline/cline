@@ -141,7 +141,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import { SessionNotFoundError } from "./runtime-host";
+import {
+	SessionAlreadyExistsError,
+	SessionNotFoundError,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -275,6 +278,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly startingSessions = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -408,6 +415,30 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		const pending = this.startingSessions.get(sessionId);
+		if (pending) {
+			await pending;
+			throw new SessionAlreadyExistsError(sessionId);
+		}
+		if (this.sessions.has(sessionId))
+			throw new SessionAlreadyExistsError(sessionId);
+		// Reserve before initialization can yield, across every transport sharing this host.
+		const start = Promise.resolve().then(() =>
+			this.startNewSession(input, sessionId, requestedSessionId),
+		);
+		this.startingSessions.set(sessionId, start);
+		try {
+			return await start;
+		} finally {
+			this.startingSessions.delete(sessionId);
+		}
+	}
+
+	private async startNewSession(
+		input: StartSessionInput,
+		sessionId: string,
+		requestedSessionId: string,
+	): Promise<StartSessionResult> {
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&

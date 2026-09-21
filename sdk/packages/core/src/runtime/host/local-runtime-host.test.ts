@@ -235,6 +235,91 @@ describe("LocalRuntimeHost", () => {
 	});
 
 	it.each([
+		false,
+		true,
+	])("reserves session IDs and permits retry after initialization failure (%s)", async (failFirst) => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: () => "agent-test",
+			getConversationId: () => "conversation-test",
+			abort: vi.fn(),
+			subscribeEvents: () => () => {},
+			canStartRun: () => true,
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const input: StartSessionInput = {
+			config: {
+				sessionId: "same-id",
+				cwd: isolatedHomeDir,
+				providerId: "mock-provider",
+				modelId: "mock-model",
+				systemPrompt: "Test",
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+			interactive: true,
+		};
+		try {
+			if (failFirst) {
+				runtimeBuilder.build.mockImplementationOnce(() => {
+					throw new Error("initialization failed");
+				});
+				const attempts = await Promise.allSettled([
+					manager.startSession(input),
+					manager.startSession(input),
+				]);
+				expect(attempts).toEqual([
+					expect.objectContaining({
+						status: "rejected",
+						reason: new Error("initialization failed"),
+					}),
+					expect.objectContaining({
+						status: "rejected",
+						reason: new Error("initialization failed"),
+					}),
+				]);
+				runtimeBuilder.build.mockClear();
+			}
+			const attempts = await Promise.allSettled([
+				manager.startSession(input),
+				manager.startSession(input),
+			]);
+			expect(attempts[0].status).toBe("fulfilled");
+			expect(attempts[1]).toMatchObject({
+				status: "rejected",
+				reason: { code: "session_already_exists" },
+			});
+			await expect(manager.startSession(input)).rejects.toMatchObject({
+				code: "session_already_exists",
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(1);
+			expect(agent.shutdown).not.toHaveBeenCalled();
+			await manager.stopSession("same-id");
+			await expect(manager.startSession(input)).resolves.toMatchObject({
+				sessionId: "same-id",
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(2);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it.each([
 		{ source: "generated", requestedSessionId: undefined },
 		{ source: "requested", requestedSessionId: "session-explicit" },
 	] as const)("resolves an omitted workspace with the $source session ID", async ({
