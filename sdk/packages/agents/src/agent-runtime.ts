@@ -52,6 +52,8 @@ import { nanoid } from "nanoid";
 
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
+const REASONING_ONLY_RESPONSE =
+	"Your previous turn ended without a response or tool call. Continue the task by calling the next tool you need or replying with an answer.";
 
 /**
  * How many times to retry a model turn that failed with a transient,
@@ -438,6 +440,19 @@ function usageDelta(
 
 function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
 	return request.options?.thinking === false;
+}
+
+/** Non-whitespace text, a tool call, media, or provider-executed tool activity. */
+function hasVisibleContent(message: AgentMessage): boolean {
+	const activities = message.metadata?.modelToolActivities;
+	return (
+		message.content.some(
+			(part) =>
+				part.type !== "reasoning" &&
+				(part.type !== "text" || part.text.trim().length > 0),
+		) ||
+		(Array.isArray(activities) && activities.length > 0)
+	);
 }
 
 function textFromMessage(message: AgentMessage | undefined): string {
@@ -847,12 +862,21 @@ export class AgentRuntime {
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
 
 				if (toolCalls.length === 0) {
+					const emptyTurn = !hasVisibleContent(message);
 					await this.emit({
 						type: "turn-finished",
 						snapshot: this.snapshot(),
 						iteration: this.state.iteration,
 						toolCallCount: 0,
+						emptyTurn,
 					});
+					if (emptyTurn) {
+						// Reasoning-only (or whitespace-only) turn: the user sees
+						// nothing, so this is not a completion. Nudge and loop; the
+						// host counts it as a mistake via `emptyTurn` above.
+						await this.addUserReminderMessage(REASONING_ONLY_RESPONSE);
+						continue;
+					}
 					const completionReminderMessages =
 						this.getCompletionReminderMessages();
 					if (completionReminderMessages.length > 0) {
