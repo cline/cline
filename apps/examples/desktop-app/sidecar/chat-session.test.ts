@@ -12,8 +12,8 @@ import {
 	CloudHandoffTranscriptMismatchError,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
-	selectCloudHandoffModel,
 	SessionNotFoundError,
+	selectCloudHandoffModel,
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
