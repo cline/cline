@@ -1153,8 +1153,8 @@ export async function saveLocalProviderSettings(
 	}
 
 	// Credential forms use this path rather than updateLocalProvider. Refresh
-	// source-backed catalogs before persisting credentials, so a failed fetch
-	// leaves the previous credentials and catalog together.
+	// source-backed catalogs best-effort: an offline endpoint or invalid key
+	// must not prevent users from saving settings.
 	if (
 		request.apiKey !== undefined ||
 		request.headers !== undefined ||
@@ -1165,17 +1165,23 @@ export async function saveLocalProviderSettings(
 		);
 		const entry = modelsState.providers[providerId];
 		if (entry?.provider?.modelsSourceUrl) {
-			await updateLocalProvider(manager, {
-				providerId,
-				baseUrl:
-					typeof next.baseUrl === "string"
-						? next.baseUrl
-						: entry.provider.baseUrl,
-				apiKey: typeof next.apiKey === "string" ? next.apiKey : null,
-				headers: (next.headers as Record<string, string> | undefined) ?? null,
-				defaultModelId: typeof next.model === "string" ? next.model : undefined,
-			});
-			next.model = manager.getProviderSettings(providerId)?.model;
+			try {
+				await updateLocalProvider(manager, {
+					providerId,
+					baseUrl:
+						typeof next.baseUrl === "string"
+							? next.baseUrl
+							: entry.provider.baseUrl,
+					apiKey: typeof next.apiKey === "string" ? next.apiKey : null,
+					headers: (next.headers as Record<string, string> | undefined) ?? null,
+					defaultModelId:
+						typeof next.model === "string" ? next.model : undefined,
+				});
+				next.model = manager.getProviderSettings(providerId)?.model;
+			} catch {
+				// Keep the last known catalog; discovery or the next turn reports
+				// connection/authentication failures using the newly saved settings.
+			}
 		}
 	}
 

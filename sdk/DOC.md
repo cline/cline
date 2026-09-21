@@ -109,10 +109,12 @@ hooks remain inherited and can block tool execution.
 ## Saving provider credentials
 
 `saveLocalProviderSettings` is asynchronous; callers must await it before
-reloading provider catalogs or continuing onboarding. When a saved custom
+reloading provider catalogs or continuing onboarding. When a saved
 provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
 its model list before saving the new settings. `updateLocalProvider` follows the
 same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
 changes relocate same-origin model sources; separate catalog origins remain
-unchanged. A failed model fetch rejects the save and retains the prior settings
-and catalog.
+unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
+fails, the new settings are still saved and the last known catalog is retained.
+Explicit `updateLocalProvider` calls still reject failed model fetches and retain
+the prior settings and catalog.

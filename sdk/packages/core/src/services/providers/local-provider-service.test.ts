@@ -560,9 +560,56 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		await expectCatalog("second.example:null:new-tenant");
 		const previousSettings = manager.getProviderSettings(providerId);
 		fetchMock.mockRejectedValueOnce(new Error("unauthorized"));
-		await expect(save({ apiKey: "invalid" })).rejects.toThrow("unauthorized");
-		expect(manager.getProviderSettings(providerId)).toEqual(previousSettings);
+		if (path === "update") {
+			await expect(save({ apiKey: "invalid" })).rejects.toThrow("unauthorized");
+			expect(manager.getProviderSettings(providerId)).toEqual(previousSettings);
+		} else {
+			await save({ apiKey: "invalid" });
+			expect(manager.getProviderSettings(providerId)).toEqual({
+				...previousSettings,
+				apiKey: "invalid",
+			});
+		}
 		await expectCatalog("second.example:null:new-tenant");
+	});
+
+	it("saves credentials and endpoints while model discovery is offline", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ data: [{ id: "existing-model" }] })),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "offline-provider";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Offline Provider",
+			baseUrl: "https://old.example/v1",
+			modelsSourceUrl: "https://old.example/v1/models",
+			apiKey: "old-key",
+			models: [],
+		});
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+		await saveLocalProviderSettings(manager, {
+			providerId,
+			apiKey: "new-key",
+			headers: { "X-Tenant": "new-tenant" },
+			baseUrl: "https://new.example/v1",
+		});
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new-key",
+			headers: { "X-Tenant": "new-tenant" },
+			baseUrl: "https://new.example/v1",
+			model: "existing-model",
+		});
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			catalog,
+		);
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "" });
+		expect(manager.getProviderSettings(providerId)).not.toHaveProperty(
+			"apiKey",
+		);
 	});
 
 	it("parses a flat array payload from modelsSourceUrl", async () => {
@@ -2506,5 +2553,18 @@ describe("refreshProviderModelsFromSource", () => {
 		);
 		const { models } = await getLocalProviderModels("ollama");
 		expect(models.map((model) => model.id)).toContain("remote-llama");
+
+		// Selecting Ollama seeds models.json; later settings saves must work offline.
+		fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+		await saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://new-host:11434/v1",
+		});
+		expect(manager.getProviderSettings("ollama")?.baseUrl).toBe(
+			"http://new-host:11434/v1",
+		);
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			modelsState,
+		);
 	});
 });
