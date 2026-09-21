@@ -556,15 +556,17 @@ describe("generated offline featured models", () => {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
 					.sort((a, b) => a.featured!.rank - b.featured!.rank);
+				// Feed and catalog vendor prefixes can differ (spacexai/ vs x-ai/).
+				// Stamping preserves catalog IDs while matching unambiguous slugs.
 				expect(
 					stamped.map((entry) => ({
-						id: entry.id,
+						slug: entry.id.split("/").at(-1),
 						description: entry.description ?? "",
 						featured: entry.featured,
 					})),
 				).toEqual(
 					entries.map((entry, rank) => ({
-						id: entry.id,
+						slug: entry.id.split("/").at(-1),
 						description: entry.description.trim(),
 						featured: { tier, rank, tags: entry.tags },
 					})),

@@ -1919,18 +1919,22 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const modelList =
 			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
-		const stampedIds = modelList
+		const catalogSlugs = new Set(
+			modelList.map((model) => model.id.split("/").at(-1)),
+		);
+		// The bundled feed can use a different vendor prefix than the catalog.
+		const stampedSlugs = modelList
 			.filter((model) => model.featured?.tier === "recommended")
-			.map((model) => model.id);
-		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
-			.map((model) => model.id)
-			.filter((id) => modelList.some((model) => model.id === id));
+			.map((model) => model.id.split("/").at(-1));
+		const expectedSlugs = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => model.id.split("/").at(-1))
+			.filter((slug) => catalogSlugs.has(slug));
 
 		// A cold boot must still paint tiered sections: the catalog stamps
 		// synchronously from the bundled fallback instead of waiting on (or
 		// triggering) a feed fetch.
-		expect(stampedIds.length).toBeGreaterThan(0);
-		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(stampedSlugs.length).toBeGreaterThan(0);
+		expect(new Set(stampedSlugs)).toEqual(new Set(expectedSlugs));
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
