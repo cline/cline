@@ -35,7 +35,8 @@
         "fix": "bun biome check --write --unsafe --diagnostic-level=error sdk/ apps/cli/ apps/cline-hub/ apps/examples/",
         "check": "bun biome check --diagnostic-level=error sdk/ apps/cli/ apps/cline-hub/ apps/examples/ && bun run build:sdk && bun run -F @cline/cli build && bun -F @cline/cline-hub build:webview && bun --parallel -F './sdk/packages/**' -F @cline/cli -F @cline/cline-hub typecheck && bun sdk/scripts/check-publish.ts",
         "version": "bun run types && bun sdk/scripts/version.ts",
-        "release": "bun sdk/scripts/release.ts"
+        "release": "bun sdk/scripts/release.ts",
+        "release:dry-run": "bun .github/scripts/release/dry-run.ts"
     },
     "lint-staged": {
         "sdk/**": [

@@ -6,6 +6,21 @@ name: desktop-publish
 # Each successful nightly is tagged desktop-nightly-<stamp> and announced to
 # Slack with the commits since the previous nightly or release.
 on:
+  workflow_call:
+    inputs:
+      channel:
+        type: string
+        required: true
+      git_tag:
+        type: string
+        required: true
+      confirm_publish:
+        type: string
+        required: true
+      release_sha:
+        description: Exact merged commit supplied by publish-new-version
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       git_tag:
@@ -43,8 +58,16 @@ jobs:
     if: |
       github.repository == 'cline/cline' &&
       github.ref == 'refs/heads/main' &&
-      github.event.inputs.confirm_publish == 'publish' &&
-      !endsWith(github.actor, '[bot]')
+      inputs.confirm_publish == 'publish' &&
+      (
+        (github.event_name == 'workflow_dispatch' && !endsWith(github.actor, '[bot]')) ||
+        (
+          github.event_name == 'push' &&
+          inputs.channel == 'stable' &&
+          inputs.release_sha != '' &&
+          inputs.release_sha == github.sha
+        )
+      )
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.version.outputs.ref }}
@@ -103,9 +126,10 @@ jobs:
       - name: Validate release tag
         id: version
         env:
-          TAG: ${{ github.event.inputs.git_tag }}
-          # inputs.* (not github.event.inputs.*) so the declared default
-          # applies when an API dispatch omits the channel input entirely.
+          TAG: ${{ inputs.git_tag }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          # inputs.* preserves the declared default and supports reusable calls.
+          # The default applies when an API dispatch omits the channel input.
           CHANNEL: ${{ inputs.channel }}
         run: |
           # Fail-closed channel mapping: every channel defines its tag shape,
@@ -165,6 +189,11 @@ jobs:
 
           if [ "$TAURI_VERSION" != "$VERSION" ]; then
             echo "apps/examples/desktop-app/src-tauri/tauri.conf.json version ${TAURI_VERSION} does not match ${TAG}"
+            exit 1
+          fi
+
+          if [ -n "$RELEASE_SHA" ] && [ "$(git rev-parse HEAD)" != "$RELEASE_SHA" ]; then
+            echo "Release tag does not match the coordinated release commit"
             exit 1
           fi
 
@@ -994,7 +1023,7 @@ jobs:
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
           target_commitish: ${{ needs.validate.outputs.ref }}

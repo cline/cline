@@ -15,6 +15,12 @@ on:
             - "apps/examples/desktop-app/**"
             - ".github/workflows/sdk-test.yml"
     workflow_call:
+        inputs:
+            ref:
+                description: Exact source commit to test
+                type: string
+                required: false
+                default: ""
 
 permissions:
     contents: read
@@ -30,6 +36,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref || github.sha }}
 
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
@@ -65,6 +73,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref || github.sha }}
 
             - name: Setup Bun
               uses: oven-sh/setup-bun@v2
