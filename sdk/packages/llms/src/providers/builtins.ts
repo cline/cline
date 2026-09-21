@@ -476,6 +476,7 @@ export function getGeneratedModelsForRuntimeProvider(
 // Remove an id once the OpenRouter catalog lists it.
 const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 	"meta/muse-spark-1.2-contributor",
+	"spacexai/grok-4.7",
 ];
 
 function buildElevenLabsModels(): Record<string, ModelInfo> {

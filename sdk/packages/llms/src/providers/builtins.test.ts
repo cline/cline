@@ -92,6 +92,21 @@ describe("cline builtin models", () => {
 		});
 	});
 
+	it("resolves the Grok recommendation ID without dropping the OpenRouter ID", async () => {
+		const models = await getModelsForProvider("cline");
+
+		expect(models["spacexai/grok-4.7"]).toMatchObject({
+			id: "spacexai/grok-4.7",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			capabilities: expect.arrayContaining(["images", "tools", "reasoning"]),
+		});
+		expect(models["x-ai/grok-4.7"]).toMatchObject({
+			id: "x-ai/grok-4.7",
+			contextWindow: 500_000,
+		});
+	});
+
 	it("excludes image-output models without changing upstream catalogs", async () => {
 		const modelId = "google/gemini-3-pro-image";
 		const [clineModels, openRouterModels, vercelModels] = await Promise.all([

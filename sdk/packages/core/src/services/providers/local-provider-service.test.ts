@@ -1919,21 +1919,18 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const modelList =
 			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
-		const catalogSlugs = new Set(
-			modelList.map((model) => model.id.split("/").at(-1)),
-		);
-		const stampedSlugs = modelList
+		const stampedIds = modelList
 			.filter((model) => model.featured?.tier === "recommended")
-			.map((model) => model.id.split("/").at(-1));
-		const expectedSlugs = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
-			.map((model) => model.id.split("/").at(-1))
-			.filter((slug) => catalogSlugs.has(slug));
+			.map((model) => model.id);
+		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => model.id)
+			.filter((id) => modelList.some((model) => model.id === id));
 
 		// A cold boot must still paint tiered sections: the catalog stamps
 		// synchronously from the bundled fallback instead of waiting on (or
 		// triggering) a feed fetch.
-		expect(stampedSlugs.length).toBeGreaterThan(0);
-		expect(stampedSlugs.sort()).toEqual(expectedSlugs.sort());
+		expect(stampedIds.length).toBeGreaterThan(0);
+		expect(stampedIds.sort()).toEqual(expectedIds.sort());
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
