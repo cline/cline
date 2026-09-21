@@ -5,8 +5,8 @@ import type { ComponentProps } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import type { StreamingSpeechSession } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-import type { StreamingSpeechSession } from "@/lib/vercel-streaming-transcription";
 
 interface SpeechRecognition extends EventTarget {
 	continuous: boolean;

@@ -288,6 +288,11 @@ describe("built-in provider metadata", () => {
 			client: "fetch",
 		});
 		await expect(getModelsForProvider("elevenlabs")).resolves.toEqual({
+			scribe_v2_realtime: expect.objectContaining({
+				id: "scribe_v2_realtime",
+				operation: "transcription",
+				operationModes: ["streaming"],
+			}),
 			scribe_v2: expect.objectContaining({
 				id: "scribe_v2",
 				operation: "transcription",
@@ -302,7 +307,7 @@ describe("built-in provider metadata", () => {
 			modelOperationCapabilities: [
 				{
 					operation: "transcription",
-					modes: ["batch"],
+					modes: ["batch", "streaming"],
 				},
 			],
 			metadata: { transcriptionTransport: "elevenlabs" },

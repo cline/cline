@@ -480,6 +480,16 @@ const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 
 function buildElevenLabsModels(): Record<string, ModelInfo> {
 	return {
+		scribe_v2_realtime: {
+			id: "scribe_v2_realtime",
+			name: "Scribe v2 Realtime",
+			description:
+				"Live multilingual speech recognition with partial transcripts",
+			family: "elevenlabs",
+			operation: "transcription",
+			operationModes: ["streaming"],
+			modalities: { input: ["audio"], output: ["text"] },
+		},
 		scribe_v2: {
 			id: "scribe_v2",
 			name: "Scribe v2",

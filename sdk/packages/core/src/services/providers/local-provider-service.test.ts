@@ -26,6 +26,7 @@ import {
 	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
@@ -1262,15 +1263,20 @@ describe("audio transcription", () => {
 	let cleanup: () => void;
 
 	beforeEach(async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({})),
+		);
 		({ manager, cleanup } = makeTempManager());
-		await addLocalProvider(manager, {
-			providerId: "audio-provider",
-			name: "Audio Provider",
-			baseUrl: "https://audio.example.invalid/v1",
-			apiKey: "audio-key",
-			models: ["whisper-large-v3"],
-		});
-		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
+		manager.saveProviderSettings(
+			{
+				provider: "groq",
+				model: "whisper-large-v3",
+				apiKey: "audio-key",
+			},
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("groq", "whisper-large-v3", {
 			id: "whisper-large-v3",
 			name: "Whisper Large v3",
 			operation: "transcription",
@@ -1281,12 +1287,25 @@ describe("audio transcription", () => {
 
 	afterEach(() => cleanup());
 
-	it("recognizes only the explicit transcription operation", () => {
+	it("requires exact audio-to-text modalities instead of trusting operation labels", () => {
+		expect(
+			isDedicatedTranscriptionModel({
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(true);
 		expect(
 			isDedicatedTranscriptionModel({
 				operation: "transcription",
 			}),
-		).toBe(true);
+		).toBe(false);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "transcription",
+				inputModalities: ["audio", "text", "image"],
+				outputModalities: ["text"],
+			}),
+		).toBe(false);
 		expect(
 			isDedicatedTranscriptionModel({
 				operation: "speech-generation",
@@ -1306,7 +1325,7 @@ describe("audio transcription", () => {
 
 		await expect(
 			transcribeLocalAudio(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
 				mediaType: "audio/webm",
@@ -1318,7 +1337,7 @@ describe("audio transcription", () => {
 				audio: new Uint8Array([1, 2, 3]),
 				mediaType: "audio/webm",
 				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
+					providerId: "groq",
 					apiKey: "audio-key",
 				}),
 			}),
@@ -1328,12 +1347,12 @@ describe("audio transcription", () => {
 	it("persists and uses the configured voice input model", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 			}),
 		).resolves.toMatchObject({
 			voiceInput: {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 			},
 		});
@@ -1351,48 +1370,31 @@ describe("audio transcription", () => {
 			expect.objectContaining({
 				modelId: "whisper-large-v3",
 				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
+					providerId: "groq",
 				}),
 			}),
 		);
 	});
 
-	it("creates a streaming session only for a streaming transcription model", async () => {
-		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
+	it("rejects streaming models on a batch-only transcription transport", async () => {
+		LlmsModels.registerModel("groq", "realtime-whisper", {
 			id: "realtime-whisper",
-			name: "Realtime Whisper",
 			operation: "transcription",
 			operationModes: ["streaming"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
-		await saveVoiceInputSettings(manager, {
-			providerId: "audio-provider",
-			modelId: "realtime-whisper",
-		});
-		const createSessionSpy = vi
-			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
-			.mockResolvedValue({
-				token: "short-lived-token",
-				url: "wss://audio.example.invalid/transcription",
-			});
-
 		await expect(
-			createConfiguredStreamingTranscriptionSession(manager),
-		).resolves.toMatchObject({ token: "short-lived-token" });
-		expect(createSessionSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
+			saveVoiceInputSettings(manager, {
+				providerId: "groq",
 				modelId: "realtime-whisper",
-				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
-				}),
 			}),
-		);
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
 	});
 
 	it("rejects a voice input selection that is not an audio-to-text model", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "missing-model",
 			}),
 		).rejects.toThrow(
@@ -1438,6 +1440,153 @@ describe("audio transcription", () => {
 // ===========================================================================
 // models.json – built-in provider model overlays
 // ===========================================================================
+
+describe("authoritative voice model validation", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+	let catalog: Array<Record<string, unknown>>;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+		manager.saveProviderSettings(
+			{ provider: "vercel-ai-gateway", apiKey: "gateway-key" },
+			{ setLastUsed: false },
+		);
+		catalog = [
+			{
+				id: "multimodal-live",
+				type: "transcription",
+				tags: ["websocket-transcription"],
+				supported_specifications: ["v4"],
+				modalities: { input: ["audio", "text", "image"], output: ["text"] },
+			},
+			{
+				modalities: { input: ["audio"], output: ["text"] },
+				id: "new/voice-model",
+				type: "transcription",
+				supported_specifications: ["v4"],
+			},
+			{
+				modalities: { input: ["audio"], output: ["text"] },
+				id: "google/gemini-3.5-transcribe-live",
+				type: "transcription",
+				supported_specifications: ["v4"],
+				tags: ["websocket-transcription"],
+			},
+			{
+				id: "transcribe-chat",
+				type: "language",
+				supported_specifications: ["v4"],
+			},
+		];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ data: catalog })),
+		);
+	});
+	afterEach(() => cleanup());
+
+	it("uses current transcription models without merging removed bundled entries", async () => {
+		const { models } = await getLocalTranscriptionModels("vercel-ai-gateway");
+		expect(models.map((model) => model.id)).toEqual([
+			"google/gemini-3.5-transcribe-live",
+			"new/voice-model",
+		]);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId: "new/voice-model",
+			}),
+		).resolves.toMatchObject({ voiceInput: { modelId: "new/voice-model" } });
+	});
+
+	it.each([
+		"transcribe-chat",
+		"multimodal-live",
+		"fish-audio/transcribe-1-free",
+	])("rejects invalid or removed model %s on save and execution", async (modelId) => {
+		const transcribe = vi.spyOn(LlmsModels, "transcribeAudio");
+		const stream = vi.spyOn(
+			LlmsModels,
+			"createStreamingAudioTranscriptionSession",
+		);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId,
+			}),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		manager.setVoiceInputSettings({ providerId: "vercel-ai-gateway", modelId });
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).rejects.toThrow("does not support streaming transcription");
+		expect(transcribe).not.toHaveBeenCalled();
+		expect(stream).not.toHaveBeenCalled();
+	});
+
+	it("revalidates a saved model when the upstream catalog changes", async () => {
+		await saveVoiceInputSettings(manager, {
+			providerId: "vercel-ai-gateway",
+			modelId: "new/voice-model",
+		});
+		catalog = [];
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+	});
+
+	it("routes live models using gateway tags and rejects them on the batch path", async () => {
+		const stream = vi
+			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
+			.mockResolvedValue({
+				transport: "vercel-ai-gateway",
+				sampleRate: 24_000,
+				token: "short-lived",
+				url: "wss://gateway.test",
+			});
+		await saveVoiceInputSettings(manager, {
+			providerId: "vercel-ai-gateway",
+			modelId: "google/gemini-3.5-transcribe-live",
+		});
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).resolves.toMatchObject({ token: "short-lived" });
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "google/gemini-3.5-transcribe-live" }),
+		);
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("requires streaming transcription");
+	});
+
+	it("does not use stale models when the gateway cannot be verified", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("unavailable", { status: 503 })),
+		);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+			}),
+		).rejects.toThrow("Unable to verify");
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("does not advertise voice models for providers without a transcription transport", async () => {
+		LlmsModels.registerModel("anthropic", "transcribe", {
+			id: "transcribe",
+			operation: "transcription",
+		});
+		await expect(getLocalTranscriptionModels("anthropic")).resolves.toEqual({
+			providerId: "anthropic",
+			models: [],
+		});
+	});
+});
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
@@ -1987,29 +2136,19 @@ describe("listLocalProviders", () => {
 		expect(p?.enabled).toBe(true);
 	});
 
-	it("returns the configured voice input selection", async () => {
-		await addLocalProvider(manager, {
-			providerId: "voice-list-provider",
-			name: "Voice List Provider",
-			baseUrl: "https://example.invalid/v1",
-			models: ["whisper"],
+	it("returns the saved voice selection even when it is absent from the bundled catalog", async () => {
+		manager.saveProviderSettings(
+			{ provider: "vercel-ai-gateway", apiKey: "key" },
+			{ setLastUsed: false },
+		);
+		manager.setVoiceInputSettings({
+			providerId: "vercel-ai-gateway",
+			modelId: "new-transcription-model",
 		});
-		LlmsModels.registerModel("voice-list-provider", "whisper", {
-			id: "whisper",
-			name: "Whisper",
-			operation: "transcription",
-			operationModes: ["batch"],
-			modalities: { input: ["audio"], output: ["text"] },
-		});
-		await saveVoiceInputSettings(manager, {
-			providerId: "voice-list-provider",
-			modelId: "whisper",
-		});
-
 		const catalog = await listLocalProviders(manager);
 		expect(catalog.voiceInput).toEqual({
-			providerId: "voice-list-provider",
-			modelId: "whisper",
+			providerId: "vercel-ai-gateway",
+			modelId: "new-transcription-model",
 		});
 	});
 

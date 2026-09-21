@@ -39,6 +39,34 @@ afterEach(() => {
 });
 
 describe("desktop settings commands", () => {
+	it("lists only current gateway transcription models for voice input", async () => {
+		const { ctx } = createContext();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					data: [
+						{
+							id: "stt",
+							modalities: { input: ["audio"], output: ["text"] },
+							supported_specifications: ["v4"],
+						},
+						{
+							id: "transcribe-chat",
+							type: "language",
+							modalities: { input: ["text", "audio"], output: ["text"] },
+							supported_specifications: ["v4"],
+						},
+					],
+				}),
+			),
+		);
+		const result = (await handleCommand(ctx, "list_transcription_models", {
+			provider: "vercel-ai-gateway",
+		})) as { models: Array<{ id: string }> };
+		expect(result.models.map((model) => model.id)).toEqual(["stt"]);
+	});
+
 	it("loads cloud-only models only for an enabled cloud picker", async () => {
 		const { ctx } = createContext();
 		const fetchMock = vi.fn(async (input: string | URL | Request) => {
