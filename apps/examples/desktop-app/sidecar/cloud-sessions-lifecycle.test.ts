@@ -288,6 +288,7 @@ describe("CloudSessionManager lifecycle", () => {
 	it.each([
 		"failure",
 		"timeout",
+		"in-flight",
 	])("keeps a newly created session discoverable after a listing %s", async (mode) => {
 		const { ctx } = createContext();
 		const refresh = Promise.withResolvers<CloudSessionRecord[]>();
@@ -304,18 +305,24 @@ describe("CloudSessionManager lifecycle", () => {
 					sandboxUrl: "",
 				}),
 				list,
+				delete: async () => {},
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 		});
+		const inFlight =
+			mode === "in-flight" ? manager.listForDiscovery() : undefined;
 		await manager.create({
 			modelId: "model",
 			repoUrl: "https://github.com/cline/test",
 			initialPrompt: "Fix this",
 		});
+		if (inFlight) refresh.resolve([]);
 
 		try {
-			expect(await manager.listForDiscovery({ timeoutMs: 1 })).toEqual([
+			expect(
+				await (inFlight ?? manager.listForDiscovery({ timeoutMs: 1 })),
+			).toEqual([
 				expect.objectContaining({
 					sessionId: "ses-created",
 					origin: "cloud",
@@ -323,12 +330,18 @@ describe("CloudSessionManager lifecycle", () => {
 					prompt: "Fix this",
 				}),
 			]);
+			if (inFlight) {
+				list.mockResolvedValue([{ ...REMOTE_SESSION, id: "ses-created" }]);
+				expect(await manager.listForDiscovery()).toHaveLength(1);
+				// Once observed remotely, later listings determine visibility.
+				list.mockResolvedValue([]);
+				expect(await manager.listForDiscovery()).toEqual([]);
+			}
+			await manager.delete("ses-created");
+			expect(await manager.listForDiscovery({ timeoutMs: 1 })).toEqual([]);
 		} finally {
 			refresh.resolve([]);
 		}
-		// A successful listing remains authoritative; this is only a cache fallback.
-		list.mockResolvedValue([]);
-		expect(await manager.listForDiscovery()).toEqual([]);
 	});
 
 	it("returns cached cloud discovery promptly while a refresh is slow", async () => {

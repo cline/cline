@@ -966,6 +966,8 @@ export class CloudSessionManager {
 		Promise<CloudConnection>
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
+	// Retain new sessions until discovery has observed them at least once.
+	private readonly unlistedSessions = new Map<string, CloudSessionRecord>();
 	private readonly pendingInitialTasks = new Set<string>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
@@ -1022,6 +1024,7 @@ export class CloudSessionManager {
 				(error.code === "session_not_found" || error.code === "session_expired")
 			) {
 				this.knownSessions.delete(sessionId);
+				this.unlistedSessions.delete(sessionId);
 				return undefined;
 			}
 			// A scope/auth/network failure cannot prove the cached session is gone.
@@ -1038,6 +1041,7 @@ export class CloudSessionManager {
 		this.lastListedSessions = listed;
 		for (const session of listed) {
 			this.knownSessions.set(session.id, session);
+			this.unlistedSessions.delete(session.id);
 		}
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
@@ -1183,7 +1187,13 @@ export class CloudSessionManager {
 			records = result.value;
 		}
 
-		const listed = records.map((record) => {
+		const recordsById = new Map(
+			[...this.unlistedSessions.values(), ...records].map((record) => [
+				record.id,
+				record,
+			]),
+		);
+		const listed = [...recordsById.values()].map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.ctx.liveSessions.get(record.id);
 			if (!live) {
@@ -1262,10 +1272,7 @@ export class CloudSessionManager {
 			updatedAt: new Date().toISOString(),
 		};
 		this.knownSessions.set(record.id, record);
-		// Keep new sessions discoverable if the next list request fails or times out.
-		if (!this.lastListedSessions.some((session) => session.id === record.id)) {
-			this.lastListedSessions.push(record);
-		}
+		this.unlistedSessions.set(record.id, record);
 		this.pendingInitialTasks.add(record.id);
 		const live = recordToLiveSession(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1304,6 +1311,7 @@ export class CloudSessionManager {
 		authToken?: string,
 	): Promise<void> {
 		this.knownSessions.delete(outerSessionId);
+		this.unlistedSessions.delete(outerSessionId);
 		this.ctx.liveSessions.delete(outerSessionId);
 		await this.options.api.delete(outerSessionId, authToken).catch((error) => {
 			this.ctx.logger?.log(
@@ -2033,6 +2041,7 @@ export class CloudSessionManager {
 				}
 			}
 			this.knownSessions.delete(outerSessionId);
+			this.unlistedSessions.delete(outerSessionId);
 			this.pendingInitialTasks.delete(outerSessionId);
 			this.ctx.liveSessions.delete(outerSessionId);
 			this.sendAbortTokens.delete(outerSessionId);
@@ -2067,6 +2076,7 @@ export class CloudSessionManager {
 			this.sendApprovalSnapshot(sessionId);
 		}
 		this.knownSessions.clear();
+		this.unlistedSessions.clear();
 		this.pendingInitialTasks.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
