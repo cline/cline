@@ -13,6 +13,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
+	buildWorkspaceFileSearchKey,
 	ChatInputBar,
 	withCloudHandoffSlashCommand,
 } from "./chat-input-bar";
@@ -33,7 +34,9 @@ const {
 		current: null as MockSpeechInputProps | null,
 	},
 	startVercelStreamingTranscriptionMock: vi.fn(),
-	subscribeToProviderCatalogInvalidationMock: vi.fn(() => vi.fn()),
+	subscribeToProviderCatalogInvalidationMock: vi.fn<
+		(listener: () => void) => () => void
+	>(() => vi.fn()),
 	subscribeToProviderModelsMock: vi.fn<
 		(
 			listener: (providerId: string, models: ProviderModel[]) => void,
@@ -454,6 +457,24 @@ describe("ChatInputBar", () => {
 		);
 	});
 
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
@@ -529,6 +550,7 @@ describe("ChatInputBar", () => {
 					<ChatInputBar
 						attachments={[]}
 						cloudBranch="feature/cloud"
+						environmentId="local"
 						executionTarget="cloud"
 						gitBranch="no-git"
 						hasActiveSession
@@ -661,6 +683,7 @@ describe("ChatInputBar", () => {
 						}}
 					>
 						<ChatInputBar
+							environmentId="local"
 							attachments={attachments}
 							executionTarget="cloud"
 							gitBranch="no-git"
@@ -1291,6 +1314,7 @@ describe("ChatInputBar", () => {
 					>
 						<ChatInputBar
 							attachments={[]}
+							environmentId="local"
 							gitBranch="main"
 							mode="act"
 							model="test-model"
@@ -1473,6 +1497,7 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -1537,7 +1562,7 @@ describe("ChatInputBar", () => {
 		});
 	});
 
-	it("shows queued prompts in an accessible list with clear priority actions", async () => {
+	it.each(["local", "cloud"] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
 		const onSteerPromptInQueue = vi
 			.fn()
 			.mockRejectedValue(new Error("steer failed"));
@@ -1560,12 +1585,14 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={onEditPromptInQueue}
+						executionTarget={executionTarget}
 						onListGitBranches={vi.fn(async () => ({
 							current: "main",
 							branches: ["main"],
@@ -1602,6 +1629,39 @@ describe("ChatInputBar", () => {
 				</WorkspaceProvider>,
 			);
 		});
+
+		onSteerPromptInQueue.mockResolvedValueOnce(undefined);
+		const input = container.querySelector("textarea");
+		for (const modifiers of [
+			{ shiftKey: true },
+			{ isComposing: true },
+			{ repeat: true },
+		]) {
+			await act(async () => {
+				input?.dispatchEvent(
+					new KeyboardEvent("keydown", {
+						key: "Enter",
+						bubbles: true,
+						cancelable: true,
+						...modifiers,
+					}),
+				);
+			});
+		}
+		expect(onSteerPromptInQueue).not.toHaveBeenCalled();
+		await act(async () => {
+			input?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					key: "Enter",
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+		});
+		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith(
+			...(executionTarget === "cloud" ? ["queued-prompt-1"] : []),
+		);
+		onSteerPromptInQueue.mockClear();
 
 		const queueToggle = [
 			...container.querySelectorAll<HTMLButtonElement>(
@@ -2669,6 +2729,7 @@ describe("ChatInputBar token ring", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"

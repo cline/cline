@@ -1491,12 +1491,6 @@ describe("ChatMessages follow-up questions", () => {
 			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
-		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
-
-		const submit = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Submit",
-		);
-		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});

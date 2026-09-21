@@ -61,11 +61,15 @@ import {
 	type SessionHistoryItem,
 	type SessionHistoryStatus,
 } from "@/lib/session-history";
+import { eventEnvironmentId } from "@/lib/session-identity";
 import { readImportedHistorySummaryActivity } from "@/lib/session-import";
 import {
+	isTaskWorktreePath,
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
+	registerTaskWorktreeRoot,
 } from "@/lib/workspace-paths";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
@@ -81,6 +85,7 @@ const STREAM_FLUSH_INTERVAL_MS = 48;
 // turn metadata) races the done event by a few milliseconds, so an immediate
 // read could catch the file mid-rewrite.
 const TURN_END_RECONCILE_DELAY_MS = 250;
+const QUEUE_ACKNOWLEDGEMENT_WAIT_MS = 1_000;
 
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
@@ -538,12 +543,21 @@ function dispatchCoreLog(chunk: string): void {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useChatSession() {
+export function useChatSession(environmentId: string) {
+	const subscribeToEnvironment = useCallback(
+		(name: string, listener: (payload: unknown) => void) =>
+			desktopClient.subscribe(name, (payload) => {
+				if (eventEnvironmentId(payload) === environmentId) listener(payload);
+			}),
+		[environmentId],
+	);
 	const [sessionId, setSessionId] = useState<string | null>(null);
 	const [status, setStatus] = useState<ChatSessionStatus>("idle");
 	const [isHydratingSession, setIsHydratingSession] = useState(false);
 	const [isCloudSessionExpired, setIsCloudSessionExpired] = useState(false);
-	const [config, setConfig] = useState<ChatSessionConfig>(getInitialChatConfig);
+	const [config, setConfig] = useState<ChatSessionConfig>(() =>
+		getInitialChatConfig(environmentId),
+	);
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [rawTranscript, setRawTranscript] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -570,7 +584,18 @@ export function useChatSession() {
 	const [pendingAskQuestions, setPendingAskQuestions] = useState<
 		AskQuestionRequestItem[]
 	>([]);
-	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
+	const [promptsInQueue, setPromptsInQueueState] = useState<PromptInQueue[]>(
+		[],
+	);
+	const queueRevisionRef = useRef(0);
+	const setPromptsInQueue = useCallback(
+		(value: React.SetStateAction<PromptInQueue[]>) => {
+			// Invalidate in-flight snapshots immediately, before React renders.
+			queueRevisionRef.current += 1;
+			setPromptsInQueueState(value);
+		},
+		[],
+	);
 	const messagesRef = useRef<ChatMessage[]>([]);
 	// When the last chat_event chunk for the active session arrived. The
 	// stale-stream fallback below only polls while this stays quiet.
@@ -606,6 +631,7 @@ export function useChatSession() {
 	const workspaceSelectionRequestRef = useRef(0);
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
+	const pendingQueueSubmissionsRef = useRef(new Map<Promise<void>, string>());
 	const activePromptSubmissionsRef = useRef(0);
 	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
@@ -972,6 +998,7 @@ export function useChatSession() {
 				turnEndReconcileTimerRef.current = null;
 				void desktopClient
 					.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
 						sessionId: sid,
 						maxMessages: MAX_MESSAGES,
 					})
@@ -1000,7 +1027,7 @@ export function useChatSession() {
 					});
 			}, TURN_END_RECONCILE_DELAY_MS);
 		},
-		[applyCanonicalHistory],
+		[applyCanonicalHistory, environmentId],
 	);
 
 	useEffect(() => {
@@ -1013,27 +1040,37 @@ export function useChatSession() {
 
 	// ---- Data fetching ----
 
-	const postSession = useCallback(async (body: Record<string, unknown>) => {
-		const request = { request: body };
-		const config =
-			body.config && typeof body.config === "object"
-				? (body.config as Record<string, unknown>)
-				: undefined;
-		const isLongRunningCommand =
-			body.action === "send" ||
-			(body.action === "start" && config?.executionTarget === "cloud");
-		if (isLongRunningCommand) {
+	const postSession = useCallback(
+		async (body: Record<string, unknown>) => {
+			const bodyConfig =
+				body.config &&
+				typeof body.config === "object" &&
+				!Array.isArray(body.config)
+					? (body.config as Record<string, unknown>)
+					: {};
+			const request = {
+				request: {
+					...body,
+					config: { ...bodyConfig, environmentId },
+				},
+			};
+			if (
+				body.action === "send" ||
+				(body.action === "start" && bodyConfig.executionTarget === "cloud")
+			) {
+				return await desktopClient.invoke<ChatSessionCommandResponse>(
+					"chat_session_command",
+					request,
+					{ timeoutMs: null },
+				);
+			}
 			return await desktopClient.invoke<ChatSessionCommandResponse>(
 				"chat_session_command",
 				request,
-				{ timeoutMs: null },
 			);
-		}
-		return await desktopClient.invoke<ChatSessionCommandResponse>(
-			"chat_session_command",
-			request,
-		);
-	}, []);
+		},
+		[environmentId],
+	);
 
 	// Confirms a "still running because prompts are queued" status against the
 	// server. The local queue snapshot can be stale when the dequeue
@@ -1069,7 +1106,7 @@ export function useChatSession() {
 					// Keep the last known state on transient transport failures.
 				});
 		},
-		[finalizeSettledTurn, postSession],
+		[finalizeSettledTurn, postSession, setPromptsInQueue],
 	);
 
 	const refreshPromptsInQueue = useCallback(
@@ -1090,15 +1127,18 @@ export function useChatSession() {
 				// Ignore queue refresh failures and keep the last known state.
 			}
 		},
-		[postSession],
+		[postSession, setPromptsInQueue],
 	);
 
-	const applyPromptsInQueue = useCallback((value: unknown) => {
-		if (!Array.isArray(value)) {
-			return;
-		}
-		setPromptsInQueue(value as PromptInQueue[]);
-	}, []);
+	const applyPromptsInQueue = useCallback(
+		(value: unknown) => {
+			if (!Array.isArray(value)) {
+				return;
+			}
+			setPromptsInQueue(value as PromptInQueue[]);
+		},
+		[setPromptsInQueue],
+	);
 
 	const sessionDiffCwd = (config.cwd || config.workspaceRoot || "").trim();
 	const refreshSessionDiffSummary = useCallback(
@@ -1106,7 +1146,7 @@ export function useChatSession() {
 			try {
 				const events = await desktopClient.invoke<ChatSessionHookEvent[]>(
 					"read_session_hooks",
-					{ sessionId: targetSessionId, limit: MAX_MESSAGES },
+					{ environmentId, sessionId: targetSessionId, limit: MAX_MESSAGES },
 				);
 				const diffState = buildSessionDiffState(events, sessionDiffCwd);
 				setFileDiffs(diffState.fileDiffs);
@@ -1121,7 +1161,7 @@ export function useChatSession() {
 				// Ignore in non-Tauri mode.
 			}
 		},
-		[sessionDiffCwd],
+		[environmentId, sessionDiffCwd],
 	);
 
 	// ---- Message helpers ----
@@ -1350,19 +1390,36 @@ export function useChatSession() {
 		try {
 			const ctx = await desktopClient.invoke<ProcessContext>(
 				"get_process_context",
+				{ environmentId },
 			);
+			if (ctx.environmentId !== environmentId) {
+				return;
+			}
 			if (ctx.homeDir) {
 				registerHostHomeDirectory(ctx.homeDir);
 			}
+			if (ctx.taskWorktreeRoot) {
+				registerTaskWorktreeRoot(ctx.taskWorktreeRoot);
+			}
 			const rememberedWorkspace =
-				readWorkspaceSelectionFromWindow().lastWorkspace;
+				readWorkspaceSelectionFromWindow(environmentId).lastWorkspace;
 			const validation = rememberedWorkspace
 				? await desktopClient
-						.invoke<{ valid?: boolean }>("validate_workspace_directory", {
-							path: rememberedWorkspace,
-						})
+						.invoke<{ environmentId: string; valid: boolean }>(
+							"validate_workspace_directory",
+							{
+								environmentId,
+								path: rememberedWorkspace,
+							},
+						)
 						.catch(() => ({ valid: false }))
 				: { valid: false };
+			if (
+				"environmentId" in validation &&
+				validation.environmentId !== environmentId
+			) {
+				return;
+			}
 			if (requestId !== workspaceSelectionRequestRef.current) {
 				return;
 			}
@@ -1380,6 +1437,7 @@ export function useChatSession() {
 						: ctx.workspaceRoot || ctx.cwd;
 				return {
 					...prev,
+					environmentId,
 					workspaceRoot: workspace,
 					cwd: workspace,
 				};
@@ -1387,7 +1445,7 @@ export function useChatSession() {
 		} catch {
 			// Ignore in non-Tauri mode.
 		}
-	}, []);
+	}, [environmentId]);
 
 	useEffect(() => {
 		void applyProcessContext();
@@ -1406,7 +1464,12 @@ export function useChatSession() {
 		}
 		void refreshSessionDiffSummary(sessionId);
 		void refreshPromptsInQueue(sessionId);
-	}, [refreshPromptsInQueue, refreshSessionDiffSummary, sessionId]);
+	}, [
+		refreshPromptsInQueue,
+		refreshSessionDiffSummary,
+		sessionId,
+		setPromptsInQueue,
+	]);
 
 	// Fallback for sessions with no tool events in the hook log (e.g. sessions
 	// recorded before tool_call/tool_result hook logging existed): rebuild the
@@ -1463,6 +1526,7 @@ export function useChatSession() {
 
 		void desktopClient
 			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
+				environmentId,
 				sessionId: activeSessionId,
 				limit: 20,
 			})
@@ -1475,6 +1539,7 @@ export function useChatSession() {
 
 		void desktopClient
 			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				environmentId,
 				sessionId: activeSessionId,
 			})
 			.then((pending) => {
@@ -1484,7 +1549,7 @@ export function useChatSession() {
 			})
 			.catch(() => {});
 
-		const unsubscribe = desktopClient.subscribe(
+		const unsubscribe = subscribeToEnvironment(
 			"tool_approval_state",
 			(payload) => {
 				if (!payload || typeof payload !== "object") return;
@@ -1503,10 +1568,10 @@ export function useChatSession() {
 			cancelled = true;
 			unsubscribe();
 		};
-	}, [sessionId]);
+	}, [environmentId, sessionId, subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_requested", (payload) => {
+		return subscribeToEnvironment("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
 			if (
@@ -1524,10 +1589,10 @@ export function useChatSession() {
 				return [...prev, item];
 			});
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_answered", (payload) => {
+		return subscribeToEnvironment("ask_question_answered", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const requestId = String(
 				(payload as { requestId?: unknown }).requestId ?? "",
@@ -1537,10 +1602,10 @@ export function useChatSession() {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("ask_question_cancelled", (payload) => {
+		return subscribeToEnvironment("ask_question_cancelled", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const requestId = String(
 				(payload as { requestId?: unknown }).requestId ?? "",
@@ -1550,10 +1615,10 @@ export function useChatSession() {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		});
-	}, []);
+	}, [subscribeToEnvironment]);
 
 	useEffect(() => {
-		return desktopClient.subscribe("prompts_in_queue_state", (payload) => {
+		return subscribeToEnvironment("prompts_in_queue_state", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const record = payload as {
 				sessionId?: string;
@@ -1562,7 +1627,7 @@ export function useChatSession() {
 			if (record.sessionId !== activeSessionIdRef.current) return;
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
-	}, []);
+	}, [setPromptsInQueue, subscribeToEnvironment]);
 
 	// ---- Incoming chunk handler ----
 
@@ -2058,12 +2123,6 @@ export function useChatSession() {
 			const toolInput =
 				parsed.input ??
 				(toolCallId ? liveToolInputsRef.current[toolCallId] : undefined);
-			const toolPayload = buildToolPayloadString({
-				toolName,
-				input: toolInput,
-				output: parsed.output,
-				error: parsed.error,
-			});
 			if (toolCallId) {
 				delete liveToolMessageIdsRef.current[toolCallId];
 				delete liveToolInputsRef.current[toolCallId];
@@ -2073,7 +2132,19 @@ export function useChatSession() {
 				setMessages((prev) =>
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
-						content: toolPayload,
+						// A tool that streamed its output through chat_tool_call_update
+						// may finish without repeating it in `output`. Writing the absent
+						// value would leave the payload result null, which
+						// buildToolPresentation reads as "still running" — the finished
+						// tool would go back to spinning. Fall back to the streamed
+						// output, which flushPendingStream folded into meta.toolOutput
+						// before this non-delta event was handled.
+						content: buildToolPayloadString({
+							toolName,
+							input: toolInput,
+							output: parsed.output ?? msg.meta?.toolOutput ?? null,
+							error: parsed.error,
+						}),
 						meta: {
 							...msg.meta,
 							toolName,
@@ -2098,6 +2169,7 @@ export function useChatSession() {
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 			verifyQueueStillBusy,
+			setPromptsInQueue,
 		],
 	);
 
@@ -2110,7 +2182,7 @@ export function useChatSession() {
 				setChatTransportError(desktopClient.getTransportError());
 			},
 		);
-		const unsubscribeEvents = desktopClient.subscribe(
+		const unsubscribeEvents = subscribeToEnvironment(
 			"chat_event",
 			(payload) => {
 				if (payload && typeof payload === "object") {
@@ -2122,10 +2194,10 @@ export function useChatSession() {
 			unsubscribeTransport();
 			unsubscribeEvents();
 		};
-	}, [handleIncomingChunk]);
+	}, [handleIncomingChunk, subscribeToEnvironment]);
 
 	useEffect(() => {
-		const unsubscribeStatus = desktopClient.subscribe(
+		const unsubscribeStatus = subscribeToEnvironment(
 			"chat_session_status",
 			(payload) => {
 				if (!payload || typeof payload !== "object") {
@@ -2183,7 +2255,7 @@ export function useChatSession() {
 				);
 			},
 		);
-		const unsubscribeEnded = desktopClient.subscribe(
+		const unsubscribeEnded = subscribeToEnvironment(
 			"chat_session_ended",
 			(payload) => {
 				if (!payload || typeof payload !== "object") {
@@ -2239,85 +2311,68 @@ export function useChatSession() {
 				) {
 					return;
 				}
-				const rehydrationEpoch = turnEpochRef.current;
-				const applySnapshot = (rehydratedMessages: ChatMessage[]) => {
-					if (activeSessionIdRef.current !== targetSessionId) return;
-					if (turnEpochRef.current !== rehydrationEpoch) return;
-					const nextStatus = record.status?.trim();
-					// A locally submitted turn owns status and live routing until its RPC
-					// settles. A reconnect snapshot may describe the preceding turn.
-					const previousUserIds =
-						cloudTranscriptUserIdsRef.current[targetSessionId] ?? new Set();
-					const snapshotNewUserCounts = userMessageCounts(
-						rehydratedMessages.filter(
-							(message) => !previousUserIds.has(message.id),
-						),
-					);
-					const liveNewUserCounts = userMessageCounts(
-						messagesRef.current.filter(
-							(message) => !previousUserIds.has(message.id),
-						),
-					);
-					const snapshotHasNewUserMessage = Array.from(
-						snapshotNewUserCounts,
-					).some(
-						([content, count]) => count > (liveNewUserCounts.get(content) ?? 0),
-					);
-					const reflectedPromptBudget = new Map(snapshotNewUserCounts);
-					const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
-						(message) => {
-							if (!outstandingOptimisticUserIdsRef.current.has(message.id))
-								return false;
-							const content = comparableUserContent(message.content);
-							const count = reflectedPromptBudget.get(content) ?? 0;
-							if (count === 0) return true;
-							reflectedPromptBudget.set(content, count - 1);
+				if (!Array.isArray(record.messages)) return;
+				const rehydratedMessages = record.messages;
+				const nextStatus = record.status?.trim();
+				// A locally submitted turn owns status and live routing until its RPC
+				// settles. A reconnect snapshot may describe the preceding turn.
+				const previousUserIds =
+					cloudTranscriptUserIdsRef.current[targetSessionId] ?? new Set();
+				const snapshotNewUserCounts = userMessageCounts(
+					rehydratedMessages.filter(
+						(message) => !previousUserIds.has(message.id),
+					),
+				);
+				const liveNewUserCounts = userMessageCounts(
+					messagesRef.current.filter(
+						(message) => !previousUserIds.has(message.id),
+					),
+				);
+				const snapshotHasNewUserMessage = Array.from(
+					snapshotNewUserCounts,
+				).some(
+					([content, count]) => count > (liveNewUserCounts.get(content) ?? 0),
+				);
+				const reflectedPromptBudget = new Map(snapshotNewUserCounts);
+				const hasUnreflectedOptimisticPrompt = messagesRef.current.some(
+					(message) => {
+						if (!outstandingOptimisticUserIdsRef.current.has(message.id))
 							return false;
-						},
-					);
-					const localSubmissionActive =
-						activePromptSubmissionsRef.current > 0 ||
-						hasUnreflectedOptimisticPrompt;
-					const snapshotBusy =
-						nextStatus === "running" || nextStatus === "pending";
-					applyCloudSnapshotMessages({
-						sessionId: targetSessionId,
-						messages: rehydratedMessages,
-						transcriptKnown: record.transcriptKnown,
-						preserveUnmatchedLive: snapshotBusy || localSubmissionActive,
-						preserveLiveRouting: snapshotBusy || localSubmissionActive,
-					});
-					if (!snapshotBusy && localSubmissionActive) return;
-					if (!snapshotBusy) {
-						clearLiveToolRefs();
-					}
-					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
-					if (
-						mappedStatus === "running" &&
-						turnEpochRef.current === turnSettledEpochRef.current &&
-						!snapshotHasNewUserMessage
-					) {
-						return;
-					}
-					if (mappedStatus) {
-						authoritativeStatusRevisionRef.current += 1;
-						setStatus(mappedStatus);
-					}
-				};
-				if (Array.isArray(record.messages)) {
-					applySnapshot(record.messages);
+						const content = comparableUserContent(message.content);
+						const count = reflectedPromptBudget.get(content) ?? 0;
+						if (count === 0) return true;
+						reflectedPromptBudget.set(content, count - 1);
+						return false;
+					},
+				);
+				const localSubmissionActive =
+					activePromptSubmissionsRef.current > 0 ||
+					hasUnreflectedOptimisticPrompt;
+				const snapshotBusy =
+					nextStatus === "running" || nextStatus === "pending";
+				applyCloudSnapshotMessages({
+					sessionId: targetSessionId,
+					messages: rehydratedMessages,
+					transcriptKnown: record.transcriptKnown,
+					preserveUnmatchedLive: snapshotBusy || localSubmissionActive,
+					preserveLiveRouting: snapshotBusy || localSubmissionActive,
+				});
+				if (!snapshotBusy && localSubmissionActive) return;
+				if (!snapshotBusy) {
+					clearLiveToolRefs();
+				}
+				const mappedStatus = mapCloudRuntimeStatus(nextStatus);
+				if (
+					mappedStatus === "running" &&
+					turnEpochRef.current === turnSettledEpochRef.current &&
+					!snapshotHasNewUserMessage
+				) {
 					return;
 				}
-				void desktopClient
-					.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: targetSessionId,
-						maxMessages: MAX_MESSAGES,
-					})
-					.then(applySnapshot)
-					.catch((error) => {
-						if (activeSessionIdRef.current !== targetSessionId) return;
-						setError(humanizeCloudSessionError(errorMessage(error)));
-					});
+				if (mappedStatus) {
+					authoritativeStatusRevisionRef.current += 1;
+					setStatus(mappedStatus);
+				}
 			},
 		);
 		const unsubscribeSyncFailed = desktopClient.subscribe(
@@ -2345,6 +2400,7 @@ export function useChatSession() {
 		applyCloudSnapshotMessages,
 		clearLiveToolRefs,
 		finalizeSettledTurn,
+		subscribeToEnvironment,
 	]);
 
 	// ---- Stale-stream fallback for attached sessions ----
@@ -2400,12 +2456,14 @@ export function useChatSession() {
 				const readMessages = () =>
 					desktopClient
 						.invoke<ChatMessage[]>("read_session_messages", {
+							environmentId,
 							sessionId,
 							maxMessages: MAX_MESSAGES,
 						})
 						.catch(() => null);
 				const recordPromise = desktopClient
 					.invoke<{ status?: string } | null>("get_discovered_session", {
+						environmentId,
 						sessionId,
 					})
 					.catch(() => null);
@@ -2488,7 +2546,14 @@ export function useChatSession() {
 			cancelled = true;
 			window.clearInterval(interval);
 		};
-	}, [config.executionTarget, hydratedHistorySessionId, sessionId, status]);
+	}, [
+		config.executionTarget,
+		hydratedHistorySessionId,
+		sessionId,
+		status,
+		setPromptsInQueue,
+		environmentId,
+	]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -2499,13 +2564,22 @@ export function useChatSession() {
 		): Promise<string> => {
 			hydrationRequestIdRef.current += 1;
 			setIsHydratingSession(false);
+			const boundConfig = { ...validatedConfig, environmentId };
 			const payload = await postSession({
 				action: "start",
-				config: validatedConfig,
+				config: boundConfig,
 				...(options.initialPrompt?.trim()
 					? { prompt: options.initialPrompt.trim() }
 					: {}),
 			});
+			if (
+				payload.environmentId !== undefined &&
+				payload.environmentId !== environmentId
+			) {
+				throw new Error(
+					`Session started in environment ${payload.environmentId}, not ${environmentId}.`,
+				);
+			}
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
 			if (
@@ -2516,9 +2590,9 @@ export function useChatSession() {
 				cloudTranscriptUserIdsRef.current[id] = new Set();
 			}
 			const workspaceRoot =
-				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
+				payload.workspaceRoot?.trim() || boundConfig.workspaceRoot.trim();
 			const cwd =
-				payload.cwd?.trim() || validatedConfig.cwd?.trim() || workspaceRoot;
+				payload.cwd?.trim() || boundConfig.cwd?.trim() || workspaceRoot;
 			if (!workspaceRoot || !cwd) {
 				throw new Error("Missing resolved workspace from server");
 			}
@@ -2532,23 +2606,26 @@ export function useChatSession() {
 			}
 			workspaceSelectionRequestRef.current += 1;
 			setConfig({
-				...validatedConfig,
+				...boundConfig,
 				cwd,
 				workspaceRoot,
 			});
 			setHydratedHistorySessionId(null);
 			return id;
 		},
-		[postSession],
+		[environmentId, postSession],
 	);
 
 	// ---- Actions ----
 
 	const start = useCallback(
 		async (nextConfig: ChatSessionConfig) => {
-			const validation = validateConfig(nextConfig, {
-				hasActiveSession: Boolean(nextConfig.sessionId),
-			});
+			const validation = validateConfig(
+				{ ...nextConfig, environmentId },
+				{
+					hasActiveSession: Boolean(nextConfig.sessionId),
+				},
+			);
 			if (!validation.parsed) {
 				setErrorState(validation.error);
 				return;
@@ -2585,9 +2662,11 @@ export function useChatSession() {
 			addMessage,
 			clearAbortFallbackTimeout,
 			discardPendingStream,
+			environmentId,
 			resetCounters,
 			setErrorState,
 			startSession,
+			setPromptsInQueue,
 		],
 	);
 
@@ -2595,7 +2674,14 @@ export function useChatSession() {
 	// before dispatch, or a provider switch / OAuth refresh that threw before
 	// the turn began) so the caller can hand the text back to the composer.
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []): Promise<boolean> => {
+		async (
+			prompt: string,
+			attachedFiles: File[] = [],
+			options?: {
+				/** Start the session in a fresh git worktree of the current workspace. */
+				inNewWorktree?: boolean;
+			},
+		): Promise<boolean> => {
 			if (isCloudSessionExpired) return false;
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return true;
@@ -2607,20 +2693,29 @@ export function useChatSession() {
 			const pendingSessionStart = sessionStartPromiseRef.current;
 			let activeSessionId = sessionId ?? activeSessionIdRef.current;
 
-			const validation = validateConfig(config, {
-				hasActiveSession: Boolean(activeSessionId),
-			});
+			const validation = validateConfig(
+				{ ...config, environmentId },
+				{
+					hasActiveSession: Boolean(activeSessionId),
+				},
+			);
 			if (!validation.parsed) {
 				setErrorState(validation.error, activeSessionId);
 				return false;
 			}
-			const parsed = validation.parsed;
+			let parsed = validation.parsed;
 			const hasEarlierPromptSubmission = activePromptSubmissionsRef.current > 0;
 			activePromptSubmissionsRef.current += 1;
 			let promptSubmissionFinished = false;
+			let queuedSubmission: Promise<void> | undefined;
+			let resolveQueuedSubmission: (() => void) | undefined;
 			const finishPromptSubmission = () => {
 				if (promptSubmissionFinished) return;
 				promptSubmissionFinished = true;
+				if (queuedSubmission) {
+					pendingQueueSubmissionsRef.current.delete(queuedSubmission);
+					resolveQueuedSubmission?.();
+				}
 				activePromptSubmissionsRef.current = Math.max(
 					0,
 					activePromptSubmissionsRef.current - 1,
@@ -2665,6 +2760,15 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
+			if (shouldQueue && activeSessionId) {
+				queuedSubmission = new Promise<void>((resolve) => {
+					resolveQueuedSubmission = resolve;
+				});
+				pendingQueueSubmissionsRef.current.set(
+					queuedSubmission,
+					activeSessionId,
+				);
+			}
 			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
 				? undefined
 				: { streamedCostUsd: 0 };
@@ -2785,17 +2889,53 @@ export function useChatSession() {
 				}
 
 				if (!activeSessionId) {
-					const startPromise = startSession(
-						{
-							...parsed,
-							sessionId: plannedSessionId,
-						},
-						{
-							preserveStatus: true,
-							initialPrompt:
-								parsed.executionTarget === "cloud" ? userLabel : undefined,
-						},
-					);
+					// Worktree allocation is part of the pending start, so a prompt
+					// submitted while it runs queues behind it instead of cutting a
+					// second worktree and session.
+					const startPromise =
+						options?.inNewWorktree && parsed.executionTarget !== "cloud"
+							? desktopClient
+									.invoke<{ path: string }>("create_git_worktree", {
+										cwd: parsed.cwd || parsed.workspaceRoot,
+									})
+									.catch((err) => {
+										throw new Error(
+											`Couldn't create a worktree: ${errorMessage(err)}`,
+										);
+									})
+									.then(async (worktree) => {
+										parsed = {
+											...parsed,
+											cwd: worktree.path,
+											workspaceRoot: worktree.path,
+										};
+										try {
+											return await startSession(
+												{ ...parsed, sessionId: plannedSessionId },
+												{ preserveStatus: true },
+											);
+										} catch (err) {
+											// No session owns the worktree yet: drop it rather
+											// than leave an orphan directory and branch behind.
+											void desktopClient
+												.invoke("remove_git_worktree", { path: worktree.path })
+												.catch(() => undefined);
+											throw err;
+										}
+									})
+							: startSession(
+									{
+										...parsed,
+										sessionId: plannedSessionId,
+									},
+									{
+										preserveStatus: true,
+										initialPrompt:
+											parsed.executionTarget === "cloud"
+												? userLabel
+												: undefined,
+									},
+								);
 					sessionStartPromiseRef.current = startPromise;
 					try {
 						activeSessionId = await startPromise;
@@ -2819,12 +2959,8 @@ export function useChatSession() {
 					);
 					if (cloudOptimistic) {
 						cloudOptimistic.sessionId = activeSessionId;
-						// Re-key the bubble itself too: a cloud create returns a
-						// server-assigned id, and the snapshot merge drops
-						// other-session messages before consulting the optimistic
-						// map. Without this, the first prompt's bubble loses its
-						// retention semantics (a failed first send would vanish
-						// from the next rehydration).
+						// Use the server-assigned ID so snapshot merging preserves
+						// the optimistic bubble, including a failed first send.
 						if (activeSessionId && activeSessionId !== plannedSessionId) {
 							const rekeyedSessionId = activeSessionId;
 							setMessages((prev) =>
@@ -3120,7 +3256,11 @@ export function useChatSession() {
 					try {
 						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 							"read_session_messages",
-							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
+							{
+								environmentId,
+								sessionId: activeSessionId,
+								maxMessages: MAX_MESSAGES,
+							},
 						);
 						if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 							applyCanonicalHistory(activeSessionId, historyMessages);
@@ -3144,7 +3284,11 @@ export function useChatSession() {
 				try {
 					const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 						"read_session_messages",
-						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
+						{
+							environmentId,
+							sessionId: activeSessionId,
+							maxMessages: MAX_MESSAGES,
+						},
 					);
 					if (historyMessages.length > 0 && !newerTurnOwnsTranscript()) {
 						if (config.executionTarget === "cloud") {
@@ -3375,6 +3519,7 @@ export function useChatSession() {
 			clearLiveToolRefs,
 			config,
 			finalizeSettledTurn,
+			environmentId,
 			hydratedHistorySessionId,
 			isCloudSessionExpired,
 			materializeToolMessagesFromResult,
@@ -3385,6 +3530,7 @@ export function useChatSession() {
 			startSession,
 			status,
 			postSession,
+			setPromptsInQueue,
 		],
 	);
 
@@ -3394,6 +3540,7 @@ export function useChatSession() {
 			if (!activeSessionId) return;
 			try {
 				await desktopClient.invoke("respond_tool_approval", {
+					environmentId,
 					sessionId: activeSessionId,
 					requestId,
 					approved,
@@ -3410,7 +3557,7 @@ export function useChatSession() {
 				setError(errorMessage(error));
 			}
 		},
-		[],
+		[environmentId],
 	);
 
 	const approveToolApproval = useCallback(
@@ -3426,6 +3573,7 @@ export function useChatSession() {
 	const answerAskQuestion = useCallback(
 		async (requestId: string, answer: string) => {
 			await desktopClient.invoke("respond_ask_question", {
+				environmentId,
 				requestId,
 				answer,
 			});
@@ -3433,7 +3581,7 @@ export function useChatSession() {
 				prev.filter((item) => item.requestId !== requestId),
 			);
 		},
-		[],
+		[environmentId],
 	);
 
 	const restoreCheckpoint = useCallback(
@@ -3470,13 +3618,13 @@ export function useChatSession() {
 				throw new Error("Checkpoint restore did not return a new session id");
 			}
 
-			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
-				"read_session_messages",
-				{
-					sessionId: nextSessionId,
-					maxMessages: MAX_MESSAGES,
-				},
-			);
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
+						sessionId: nextSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
 
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
@@ -3491,11 +3639,13 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
+			environmentId,
 			postSession,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetCounters,
 			status,
+			setPromptsInQueue,
 		],
 	);
 
@@ -3547,6 +3697,7 @@ export function useChatSession() {
 			const response = await desktopClient.invoke<{ detachedCount?: number }>(
 				"proceed_while_running",
 				{
+					environmentId,
 					sessionId: normalizedSessionId,
 					...(toolCallId ? { toolCallId } : {}),
 				},
@@ -3555,7 +3706,7 @@ export function useChatSession() {
 				throw new Error("The command finished before it could be detached.");
 			}
 		},
-		[],
+		[environmentId],
 	);
 
 	const reset = useCallback(async () => {
@@ -3577,7 +3728,12 @@ export function useChatSession() {
 			// source a freshly mounted thread uses) so a reset after viewing
 			// a historical session does not retain that session's
 			// provider/model for the next chat.
-			const initial = getInitialChatConfig();
+			const initial = getInitialChatConfig(environmentId);
+			// A task worktree belongs to the thread that created it; the next
+			// thread goes back to the remembered repo (and its branch).
+			const leavingTaskWorktree = isTaskWorktreePath(
+				prev.workspaceRoot || prev.cwd || "",
+			);
 			return {
 				...prev,
 				sessionId: undefined,
@@ -3585,6 +3741,9 @@ export function useChatSession() {
 				model: initial.model,
 				apiKey:
 					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
+				...(leavingTaskWorktree
+					? { workspaceRoot: initial.workspaceRoot, cwd: initial.cwd }
+					: {}),
 			};
 		});
 		activeSessionIdRef.current = null;
@@ -3613,15 +3772,25 @@ export function useChatSession() {
 		}
 	}, [
 		sessionId,
+		environmentId,
 		clearAbortFallbackTimeout,
 		discardPendingStream,
 		postSession,
 		resetCounters,
 		clearLiveToolRefs,
+		setPromptsInQueue,
 	]);
 
 	const hydrateSession = useCallback(
 		async (session: SessionHistoryItem) => {
+			if (
+				(session.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID) !==
+				environmentId
+			) {
+				throw new Error(
+					`Session ${session.sessionId} belongs to environment ${session.environmentId}, not ${environmentId}.`,
+				);
+			}
 			const requestId = hydrationRequestIdRef.current + 1;
 			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
@@ -3637,6 +3806,7 @@ export function useChatSession() {
 			setSessionId(session.sessionId);
 			setConfig((prev) => ({
 				...prev,
+				environmentId,
 				sessionId: session.sessionId,
 				executionTarget: session.origin === "cloud" ? "cloud" : "local",
 				repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
@@ -3708,7 +3878,11 @@ export function useChatSession() {
 			try {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
-					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
+					{
+						environmentId,
+						sessionId: session.sessionId,
+						maxMessages: MAX_MESSAGES,
+					},
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
 				if (historyMessages.length > 0) {
@@ -3727,6 +3901,7 @@ export function useChatSession() {
 						workspaceRoot?: string;
 						branch?: string;
 						prompt?: string;
+						environmentId?: string;
 					}>("chat_session_command", {
 						request: {
 							action: "attach",
@@ -3734,6 +3909,7 @@ export function useChatSession() {
 							config: {
 								executionTarget: session.origin === "cloud" ? "cloud" : "local",
 								repoUrl: session.repoUrl,
+								environmentId,
 								provider: session.provider,
 								model: session.model,
 								cwd: session.cwd,
@@ -3750,8 +3926,17 @@ export function useChatSession() {
 						return undefined;
 					});
 				if (hydrationRequestIdRef.current !== requestId) return;
+				if (
+					attached?.environmentId !== undefined &&
+					attached.environmentId !== environmentId
+				) {
+					throw new Error(
+						`Session ${session.sessionId} attached to environment ${attached.environmentId}, not ${environmentId}.`,
+					);
+				}
 				setConfig((prev) => ({
 					...prev,
+					environmentId,
 					sessionId: session.sessionId,
 					executionTarget: session.origin === "cloud" ? "cloud" : "local",
 					repoUrl: session.origin === "cloud" ? session.repoUrl : undefined,
@@ -3836,10 +4021,12 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			discardPendingStream,
+			environmentId,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
 			resetStreamDedupe,
 			resetCounters,
+			setPromptsInQueue,
 		],
 	);
 
@@ -3876,34 +4063,69 @@ export function useChatSession() {
 				typeof payload.forkedFromSessionId === "string"
 					? payload.forkedFromSessionId
 					: activeSessionId;
-			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
-				"read_session_messages",
-				{
-					sessionId: newSessionId,
-					maxMessages: MAX_MESSAGES,
-				},
-			);
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						environmentId,
+						sessionId: newSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
 			return { newSessionId, forkedFromSessionId, messages: nextMessages };
 		},
-		[config, postSession, status],
+		[config, environmentId, postSession, status],
 	);
 
 	const steerPromptInQueue = useCallback(
-		async (promptId: string) => {
+		async (promptId?: string) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (isCloudSessionExpired || !activeSessionId || !promptId.trim()) {
-				return;
+			if (isCloudSessionExpired || !activeSessionId) return;
+			if (promptId === undefined) {
+				// Enter targets the first server queue entry. The composer can
+				// already be empty while its optimistic entry is still being sent.
+				// Give new submissions a bounded chance to reach the server. A
+				// lost acknowledgement must not block already queued prompts.
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				try {
+					await Promise.race([
+						Promise.all(
+							[...pendingQueueSubmissionsRef.current]
+								.filter(([, sid]) => sid === activeSessionId)
+								.map(([submission]) => submission),
+						),
+						new Promise<void>((resolve) => {
+							timer = setTimeout(resolve, QUEUE_ACKNOWLEDGEMENT_WAIT_MS);
+						}),
+					]);
+				} finally {
+					clearTimeout(timer);
+				}
+				if (activeSessionIdRef.current !== activeSessionId) return;
 			}
+			if (
+				(promptId !== undefined && !promptId.trim()) ||
+				activeSessionIdRef.current !== activeSessionId
+			)
+				return;
+			const epoch = turnEpochRef.current;
+			const queueRevision = queueRevisionRef.current;
 			const payload = await postSession({
 				action: "steer_prompt",
 				sessionId: activeSessionId,
-				promptId,
+				...(promptId === undefined ? {} : { promptId }),
 			});
-			setPromptsInQueue(
-				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
-			);
+			// Steering can consume the prompt before this RPC returns. Its
+			// snapshot must not overwrite any newer local or remote queue change.
+			if (
+				activeSessionIdRef.current === activeSessionId &&
+				turnEpochRef.current === epoch &&
+				queueRevisionRef.current === queueRevision
+			) {
+				setPromptsInQueue(
+					Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+				);
+			}
 		},
-		[isCloudSessionExpired, postSession],
+		[isCloudSessionExpired, postSession, setPromptsInQueue],
 	);
 
 	const updatePromptInQueue = useCallback(
@@ -3922,7 +4144,7 @@ export function useChatSession() {
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
 		},
-		[isCloudSessionExpired, postSession],
+		[isCloudSessionExpired, postSession, setPromptsInQueue],
 	);
 
 	const removePromptInQueue = useCallback(
@@ -3941,7 +4163,7 @@ export function useChatSession() {
 			);
 			return payload.prompt;
 		},
-		[isCloudSessionExpired, postSession],
+		[isCloudSessionExpired, postSession, setPromptsInQueue],
 	);
 
 	const summary = useMemo(

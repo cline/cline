@@ -62,6 +62,9 @@ export function AgentAskQuestion({
 	const [selections, setSelections] = useState<
 		Readonly<Record<string, readonly string[]>>
 	>({});
+	const [customAnswers, setCustomAnswers] = useState<
+		Readonly<Record<string, string>>
+	>({});
 
 	return (
 		<section
@@ -82,30 +85,33 @@ export function AgentAskQuestion({
 							? [pendingAnswer]
 							: []
 				).filter((option) => options.includes(option));
-				const validSelection = (
+				const selected = (
 					isPending ? pendingSelection : (selections[item.id] ?? [])
 				).filter((option) => options.includes(option));
-				const selected = item.multiple
-					? validSelection
-					: validSelection.slice(-1);
-				const canSubmit =
-					selected.length > 0 && (!item.multiple || Boolean(onAnswers));
+				const customAnswer = customAnswers[item.id] ?? "";
+				const canSubmit = item.multiple
+					? selected.length > 0 && Boolean(onAnswers)
+					: customAnswer.trim().length > 0;
+				// Single-choice items answer as soon as an option is picked; only
+				// multiple-choice items collect a selection for explicit submission.
 				const selectOption = (option: string) => {
+					if (!item.multiple) {
+						onAnswer(item.id, option);
+						return;
+					}
 					setSelections((current) => {
 						const currentSelection = current[item.id] ?? [];
-						const nextSelection = item.multiple
-							? currentSelection.includes(option)
-								? currentSelection.filter((value) => value !== option)
-								: [...currentSelection, option]
-							: [option];
+						const nextSelection = currentSelection.includes(option)
+							? currentSelection.filter((value) => value !== option)
+							: [...currentSelection, option];
 
 						return { ...current, [item.id]: nextSelection };
 					});
 				};
 				const submit = () => {
-					if (!canSubmit) return;
+					if (!canSubmit || isPending) return;
 					if (item.multiple) onAnswers?.(item.id, selected);
-					else onAnswer(item.id, selected[0] as string);
+					else onAnswer(item.id, customAnswer.trim());
 				};
 				const handleOptionKeyDown = (
 					event: ReactKeyboardEvent<HTMLFieldSetElement>,
@@ -210,32 +216,57 @@ export function AgentAskQuestion({
 								</Button>
 							))}
 						</fieldset>
-						<div className="cline-ui-agent-ask-question__footer flex justify-end border-cline-ui-border border-t px-2 py-2 items-baseline">
+						<div className="cline-ui-agent-ask-question__footer flex flex-col gap-2 border-cline-ui-border border-t px-2 py-2">
 							{error ? (
 								<div
-									className="cline-ui-agent-ask-question__error mt-2 text-cline-ui-destructive text-cline-ui-xs w-full px-2"
+									className="cline-ui-agent-ask-question__error text-cline-ui-destructive text-cline-ui-xs px-2"
 									role="alert"
 								>
 									{error}
 								</div>
 							) : null}
-							<Button
-								className="cline-ui-agent-ask-question__submit"
-								disabled={!canSubmit || isPending}
-								onClick={submit}
-								size="sm"
-								tone="neutral"
-								variant="fill"
-							>
-								{isPending ? (
-									<>
-										<Spinner />
-										Sending…
-									</>
-								) : (
-									"Submit"
+							<div className="flex items-center justify-end gap-2">
+								{item.multiple ? null : (
+									<input
+										aria-label="Custom answer"
+										className="cline-ui-agent-ask-question__custom min-w-0 flex-1 h-8 rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-2 text-cline-ui-foreground text-cline-ui-sm outline-none focus:border-[color-mix(in_oklab,var(--cline-ui-primary)_50%,transparent)] focus:shadow-[0_0_0_1px_color-mix(in_oklab,var(--cline-ui-primary)_20%,transparent)]"
+										disabled={isPending}
+										onChange={(event) => {
+											const value = event.target.value;
+											setCustomAnswers((current) => ({
+												...current,
+												[item.id]: value,
+											}));
+										}}
+										onKeyDown={(event) => {
+											if (event.key === "Enter" && !event.shiftKey) {
+												event.preventDefault();
+												submit();
+											}
+										}}
+										placeholder="Or type your own answer…"
+										type="text"
+										value={customAnswer}
+									/>
 								)}
-							</Button>
+								<Button
+									className="cline-ui-agent-ask-question__submit"
+									disabled={!canSubmit || isPending}
+									onClick={submit}
+									size="sm"
+									tone="neutral"
+									variant="fill"
+								>
+									{isPending ? (
+										<>
+											<Spinner />
+											Sending…
+										</>
+									) : (
+										"Submit"
+									)}
+								</Button>
+							</div>
 						</div>
 					</div>
 				);

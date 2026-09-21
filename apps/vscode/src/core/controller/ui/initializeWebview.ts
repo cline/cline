@@ -20,6 +20,11 @@ import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
  */
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
+		// The webview calls this once on mount, on every host. The VS Code-only
+		// "sidebar_resolved"/"sidebar_visible" sources never fire for JetBrains, so
+		// this is the only host-neutral signal that the Cline UI actually rendered.
+		telemetryService.capturePanelOpened("webview_initialized")
+
 		// Sync workflow toggles with the files on disk so the chat input's slash
 		// command menu knows about workflows without requiring the user to open
 		// the Workflows modal first (which is the only other place that refreshes
