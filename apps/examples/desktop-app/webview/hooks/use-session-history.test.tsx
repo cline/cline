@@ -64,6 +64,16 @@ it("uses server activity when it is newer than local timestamps", () => {
 });
 
 describe("resolveLiveHistorySession", () => {
+	it("refreshes only the snapshot's environment when session IDs collide", () => {
+		const snapshot = sessionRow("shared-id");
+		const remote = { ...snapshot, environmentId: "ssh-1" };
+		const local = { ...snapshot, metadata: { title: "Local updated" } };
+
+		expect(resolveLiveHistorySession(snapshot, [remote, local])).toBe(local);
+		expect(resolveLiveHistorySession(snapshot, [remote])).toBe(snapshot);
+		expect(resolveLiveHistorySession(remote, [local, remote])).toBe(remote);
+	});
+
 	it("uses refreshed metadata for an already-open session", () => {
 		const snapshot = sessionRow("handoff-source");
 		const refreshed = {
