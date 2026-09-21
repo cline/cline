@@ -23,6 +23,7 @@ import {
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
+import { OAUTH_LOGIN_TIMEOUT_MS } from "@/lib/provider-connection";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import type { WorkIn } from "@/lib/work-in-selection";
@@ -333,9 +334,11 @@ export function WelcomeScreen({
 		setSigningIn(true);
 		setSignInError(null);
 		try {
-			await desktopClient.invoke("run_provider_oauth_login", {
-				provider: "cline",
-			});
+			await desktopClient.invoke(
+				"run_provider_oauth_login",
+				{ provider: "cline" },
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
 			invalidateProviderCatalogCache();
 			await refreshAccount();
 		} catch (error) {
