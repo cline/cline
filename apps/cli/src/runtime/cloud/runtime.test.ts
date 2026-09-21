@@ -406,6 +406,25 @@ describe("CLI cloud isolation and creation lifecycle", () => {
 		expect(f.api.delete).toHaveBeenCalledWith("ses-one", "token");
 		expect(f.runtime.getSnapshot().eligibility.enabled).toBe(false);
 	});
+	it.each([
+		"attach",
+		"readMessages",
+	] as const)("cancelling during %s prevents the creation draft from sending", async (boundary) => {
+		const f = await fixture();
+		const pending = deferred<never>();
+		f.controller[boundary].mockReturnValueOnce(pending.promise);
+		const creating = f.runtime.create(input);
+		await until(() => f.controller[boundary].mock.calls.length > 0);
+		const row = f.runtime.getSnapshot().pendingCreations[0];
+		await f.runtime.cancelCreation(row.requestId);
+		pending.resolve(undefined as never);
+		await creating;
+		expect(f.controller.send).not.toHaveBeenCalled();
+		expect(f.api.delete).toHaveBeenCalledExactlyOnceWith("ses-one", "token");
+		expect(f.runtime.getSnapshot().pendingCreations).toEqual([]);
+		expect(f.runtime.getSnapshot().target).toBeUndefined();
+	});
+
 	it("late send completion cannot resurrect a cancelled creation record", async () => {
 		const f = await fixture();
 		const sent = deferred<object>();
