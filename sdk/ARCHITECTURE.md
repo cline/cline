@@ -378,7 +378,6 @@ different process.
 3. Hub-required flows such as `cline hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
-6. `createCliCore()` refreshes feature flags in the background and uses cached values during startup. Consumers that require resolved flags, such as the desktop flag snapshot, still await `FeatureFlagsService.poll()`.
 
 ### Connector Persistence and Recovery
 
