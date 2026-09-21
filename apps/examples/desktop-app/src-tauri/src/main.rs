@@ -1323,6 +1323,14 @@ fn main() {
     };
 
     tauri::Builder::default()
+        // Closing the window only hides it, so on Windows a second launch from
+        // Start used to start another full copy (tray icon, sidecar) instead
+        // of showing this one. Must be the first plugin so the duplicate exits
+        // before setup creates the tray icon or spawns the sidecar. Keyed on
+        // the bundle identifier, so Cline and Cline Beta still run side by side.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
