@@ -5,6 +5,11 @@ import type { ComponentProps } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { StreamingSpeechSession } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
 
@@ -149,6 +154,7 @@ export function SpeechInput({
 	);
 	const [isListening, setIsListening] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const [isStopHintOpen, setIsStopHintOpen] = useState(false);
 	const [isRecognitionReady, setIsRecognitionReady] = useState(false);
 	const recognitionRef = useRef<SpeechRecognition | null>(null);
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -366,6 +372,7 @@ export function SpeechInput({
 			recorder.start();
 			setIsListening(true);
 			setIsProcessing(false);
+			setIsStopHintOpen(true);
 		} catch (error) {
 			if (!mountedRef.current || operationId !== operationIdRef.current) {
 				return;
@@ -424,51 +431,67 @@ export function SpeechInput({
 		(mode === "speech-recognition" && !isRecognitionReady) ||
 		(mode === "media-recorder" && !onAudioRecorded) ||
 		(mode === "streaming" && !onStartStreaming);
+	const canShowStopHint =
+		mode === "media-recorder" && isListening && !isProcessing;
 
 	return (
 		<div className="relative inline-flex items-center justify-center">
 			{isListening ? (
 				<div className="absolute inset-0 animate-ping rounded-full border-2 border-destructive/40" />
 			) : null}
-			<Button
-				{...props}
-				aria-label={isListening ? "Stop recording" : "Record speech"}
-				aria-pressed={isListening}
-				className={cn(
-					"group relative z-10 size-7 rounded-md p-1.5 transition-colors",
-					isListening
-						? "bg-destructive text-white hover:bg-destructive/80"
-						: "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
-					className,
-				)}
-				disabled={
-					disabled || (unavailable && !allowUnavailableClick) || isProcessing
-				}
-				onClick={(event) => {
-					onClick?.(event);
-					if (!event.defaultPrevented) toggleListening();
-				}}
-				title={
-					isListening
-						? "Stop recording"
-						: (title ??
-							(unavailable
-								? "Speech input is not supported in this browser"
-								: "Record speech"))
-				}
-				type="button"
+			<Tooltip
+				onOpenChange={setIsStopHintOpen}
+				open={canShowStopHint && isStopHintOpen}
 			>
-				{isProcessing ? (
-					<Spinner className="size-4" />
-				) : isListening ? (
-					<span className="relative size-4">
-						<MicIcon className="absolute inset-0 size-4 animate-pulse transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0" />
-						<SquareIcon className="absolute inset-0 m-auto size-3.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-					</span>
-				) : (
-					<MicIcon className="size-4" />
-				)}
-			</Button>
+				<TooltipTrigger asChild>
+					<Button
+						{...props}
+						aria-label={isListening ? "Stop recording" : "Record speech"}
+						aria-pressed={isListening}
+						className={cn(
+							"group relative z-10 size-7 rounded-md p-1.5 transition-colors",
+							isListening
+								? "bg-destructive text-white hover:bg-destructive/80"
+								: "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
+							className,
+						)}
+						disabled={
+							disabled ||
+							(unavailable && !allowUnavailableClick) ||
+							isProcessing
+						}
+						onClick={(event) => {
+							onClick?.(event);
+							if (!event.defaultPrevented) toggleListening();
+						}}
+						title={
+							isListening
+								? "Stop recording"
+								: (title ??
+									(unavailable
+										? "Speech input is not supported in this browser"
+										: "Record speech"))
+						}
+						type="button"
+					>
+						{isProcessing ? (
+							<Spinner className="size-4" />
+						) : isListening ? (
+							<span className="relative size-4">
+								<MicIcon className="absolute inset-0 size-4 animate-pulse transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0" />
+								<SquareIcon className="absolute inset-0 m-auto size-3.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+							</span>
+						) : (
+							<MicIcon className="size-4" />
+						)}
+					</Button>
+				</TooltipTrigger>
+				{canShowStopHint ? (
+					<TooltipContent side="top" sideOffset={8}>
+						Click Stop to transcribe your recording.
+					</TooltipContent>
+				) : null}
+			</Tooltip>
 		</div>
 	);
 }

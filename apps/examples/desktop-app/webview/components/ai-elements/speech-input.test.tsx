@@ -107,6 +107,14 @@ let stopTrack: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
 	FakeMediaRecorder.instances = [];
 	FakeMediaRecorder.deferStopEvents = false;
 	FakeMediaRecorder.stopError = undefined;
@@ -154,6 +162,7 @@ afterEach(async () => {
 	delete (window as typeof window & { AudioContext?: typeof AudioContext })
 		.AudioContext;
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe("SpeechInput", () => {
