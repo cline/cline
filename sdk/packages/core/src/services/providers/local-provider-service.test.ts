@@ -1922,7 +1922,6 @@ describe("listLocalProviders", () => {
 		const catalogSlugs = new Set(
 			modelList.map((model) => model.id.split("/").at(-1)),
 		);
-		// The bundled feed can use a different vendor prefix than the catalog.
 		const stampedSlugs = modelList
 			.filter((model) => model.featured?.tier === "recommended")
 			.map((model) => model.id.split("/").at(-1));
@@ -1934,7 +1933,7 @@ describe("listLocalProviders", () => {
 		// synchronously from the bundled fallback instead of waiting on (or
 		// triggering) a feed fetch.
 		expect(stampedSlugs.length).toBeGreaterThan(0);
-		expect(new Set(stampedSlugs)).toEqual(new Set(expectedSlugs));
+		expect(stampedSlugs.sort()).toEqual(expectedSlugs.sort());
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 

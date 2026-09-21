@@ -328,6 +328,7 @@ describe("applyClineFeaturedModels", () => {
 			fallbackVintage,
 		);
 		expect(slugOnly[0]?.featured?.tier).toBe("free");
+		expect(slugOnly[0]?.id).toBe("cline-free/kat-coder-pro");
 
 		// Catalog carries BOTH spellings: the exact id wins and the slug match
 		// must not stamp the second row, or the tier would render twice.
@@ -556,8 +557,6 @@ describe("generated offline featured models", () => {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
 					.sort((a, b) => a.featured!.rank - b.featured!.rank);
-				// Feed and catalog vendor prefixes can differ (spacexai/ vs x-ai/).
-				// Stamping preserves catalog IDs while matching unambiguous slugs.
 				expect(
 					stamped.map((entry) => ({
 						slug: entry.id.split("/").at(-1),
