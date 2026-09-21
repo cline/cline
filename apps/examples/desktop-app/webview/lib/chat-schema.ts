@@ -14,6 +14,9 @@ export const ProviderAuthInfoSchema = z.object({
 
 export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
+	executionTarget: z.enum(["local", "cloud"]).default("local"),
+	repoUrl: z.string().optional(),
+	branch: z.string().optional(),
 	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
 	environmentId: z.string().trim().min(1),

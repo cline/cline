@@ -157,7 +157,9 @@ random local loopback port. Linux x64 and arm64 helpers are bundled by
 `bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
 supported. macOS SSH targets need a locally built helper passed through
 `CLINE_REMOTE_HELPER_BINARY` until the bundled helpers are codesigned for
-notarization. The helper includes its own runtime. It is copied once per matching desktop build and cached, with no
+notarization. The helper includes its own runtime and is UPX-compressed at
+build time (about 27 MB instead of 115 MB per helper; install `upx` locally to
+match the packaged size). It is copied once per matching desktop build and cached, with no
 `apt`, `npm`, root access,
 global CLI install, or public Hub port. Disconnecting stops the desktop-owned
 remote Hub but leaves the helper cached for a faster reconnect. The helper

@@ -143,6 +143,42 @@ describe("createRetryEmptyResponseMiddleware", () => {
 		expect(parts.filter((p) => p.type === "finish")).toHaveLength(1);
 	});
 
+	it.each([
+		"accepted-request",
+		undefined,
+	])("updates response headers after retry, including when the final ID is %s", async (requestId) => {
+		const doStream = vi
+			.fn()
+			.mockResolvedValueOnce({
+				...streamOf(emptyParts),
+				response: { headers: { "x-request-id": "discarded-request" } },
+			})
+			.mockResolvedValueOnce({
+				...streamOf(textParts),
+				response: requestId
+					? { headers: { "x-request-id": requestId } }
+					: undefined,
+			});
+		const result = await run(doStream);
+		const response = result.response;
+		await collect(result);
+		expect(response?.headers?.["x-request-id"]).toBe(requestId);
+	});
+
+	it("does not expose discarded headers when starting the retry fails", async () => {
+		const failure = new Error("retry failed");
+		const doStream = vi
+			.fn()
+			.mockResolvedValueOnce({
+				...streamOf(emptyParts),
+				response: { headers: { "x-request-id": "discarded-request" } },
+			})
+			.mockRejectedValueOnce(failure);
+		const result = await run(doStream);
+		await expect(collect(result)).rejects.toBe(failure);
+		expect(result.response?.headers).toBeUndefined();
+	});
+
 	it("does not retry a tool-call-only turn (it is not empty)", async () => {
 		const doStream = vi.fn(async () => streamOf(toolCallParts));
 		const parts = await collect(await run(doStream));

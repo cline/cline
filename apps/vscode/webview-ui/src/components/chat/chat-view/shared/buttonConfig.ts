@@ -4,15 +4,8 @@ import type { Mode } from "@shared/storage/types"
 /**
  * Button action types that determine the behavior
  */
-export type ButtonActionType =
-	| "approve" // Send yesButtonClicked
-	| "reject" // Send noButtonClicked
-	| "proceed" // Send messageResponse or yesButtonClicked
-	| "proceed_while_running" // Detach the running foreground terminal command
-	| "new_task" // Start a new task
-	| "cancel" // Cancel streaming
-	| "utility" // Execute utility function (condense, report_bug)
-	| "retry" // Retry the last action
+export type SubmittingButtonActionType = "approve" | "reject" | "proceed"
+export type ButtonActionType = SubmittingButtonActionType | "proceed_while_running" | "new_task" | "cancel" | "utility" | "retry"
 
 /**
  * Button configuration for different message states

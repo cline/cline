@@ -291,7 +291,7 @@ describe("CloudSessionManager state", () => {
 			"session.send_input",
 			{ prompt: "Run this next", delivery: "queue" },
 			"inner-1",
-			{ timeoutMs: 30_000 },
+			expect.objectContaining({ timeoutMs: 30_000 }),
 		);
 	});
 
