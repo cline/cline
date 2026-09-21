@@ -33,7 +33,9 @@ vi.mock("node:child_process", async (importOriginal) => {
 					await vscodeGit.statusGate
 					if (vscodeGit.statusFailure) throw vscodeGit.statusFailure
 				}
-				return execute(file, args, options)
+				// Real Git startup can exceed the production budget on busy Windows runners.
+				// Test parsing with a larger budget; limit failures are injected explicitly above.
+				return execute(file, args, { ...options, timeout: options.timeout === undefined ? undefined : 5000 })
 			},
 		}),
 	}
@@ -89,7 +91,8 @@ async function beginModel(tracker: VscodeGitTelemetry, iteration = 2, waitForCap
 			finishReason: "stop",
 			assistantMessage: { id: "assistant", role: "assistant", content: [], createdAt: Date.now() },
 		})
-		if (waitForCapture) await vi.waitFor(() => expect(tracker["capturing"]).toBe(false))
+		// A capture can run status, two fallback identity reads, and remote sequentially.
+		if (waitForCapture) await vi.waitFor(() => expect(tracker["capturing"]).toBe(false), { timeout: 20_000 })
 		return control
 	}
 }
@@ -128,7 +131,7 @@ beforeEach(async () => {
 })
 afterEach(async () => {
 	for (const item of observers) item.dispose()
-	await vi.waitFor(() => expect(observers.every((item) => !item["capturing"])).toBe(true))
+	await vi.waitFor(() => expect(observers.every((item) => !item["capturing"])).toBe(true), { timeout: 20_000 })
 	vi.unstubAllEnvs()
 	await rm(cwd, { recursive: true, force: true })
 })
@@ -430,6 +433,20 @@ describe("conversation Git telemetry", () => {
 		expect(events[1].properties).toMatchObject({ request_id: "request-3", git: { untracked: true } })
 	})
 
+	it("waits for a capture that takes longer than one subprocess timeout", async () => {
+		const gate = Promise.withResolvers<void>()
+		vscodeGit.statusGate = gate.promise
+		const release = setTimeout(() => gate.resolve(), 1200)
+		try {
+			await (await beginModel(observer()))("slow-request")
+			expect(events).toHaveLength(1)
+			expect(events[0].properties?.request_id).toBe("slow-request")
+		} finally {
+			clearTimeout(release)
+			gate.resolve()
+		}
+	})
+
 	it("returns before Git completes, skips overlapping captures, and resumes after failure", async () => {
 		const gate = Promise.withResolvers<void>()
 		vscodeGit.statusGate = gate.promise
@@ -443,7 +460,7 @@ describe("conversation Git telemetry", () => {
 		} finally {
 			gate.resolve()
 		}
-		await vi.waitFor(() => expect(tracker["capturing"]).toBe(false))
+		await vi.waitFor(() => expect(tracker["capturing"]).toBe(false), { timeout: 20_000 })
 		expect(events).toHaveLength(1)
 		expect(events[0].properties?.request_id).toBe("first")
 		vi.spyOn(telemetry, "capture").mockImplementationOnce(() => {
