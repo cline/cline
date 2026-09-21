@@ -20,14 +20,24 @@ import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 export * from "@cline/core/cloud";
 
+// Credential refresh replaces the controller, not the sidecar's creation intent.
+const pendingInitialTasksByContext = new WeakMap<SidecarContext, Set<string>>();
+
 /** Desktop projection adapter. Cloud transport and authoritative state live in core. */
 export class CloudSessionManager extends CloudSessionController {
 	private readonly ownedIds = new Set<string>();
 	private readonly approvalSnapshots = new Map<string, string>();
 	private readonly ctx: SidecarContext;
 	constructor(ctx: SidecarContext, options: CloudSessionControllerOptions) {
+		const owner = getSidecarContextOwner(ctx);
+		let pendingInitialTasks = pendingInitialTasksByContext.get(owner);
+		if (!pendingInitialTasks) {
+			pendingInitialTasks = new Set();
+			pendingInitialTasksByContext.set(owner, pendingInitialTasks);
+		}
 		super({
 			...options,
+			pendingInitialTasks,
 			logger: options.logger ?? ctx.logger,
 			lateCreateDisposition: options.lateCreateDisposition ?? "delete",
 			clientIdentity: options.clientIdentity ?? {

@@ -210,6 +210,8 @@ export type CloudSessionControllerOptions = {
 	};
 	/** Desktop preserves its historical cleanup; CLI keeps late successful creations recoverable. */
 	lateCreateDisposition?: "preserve" | "delete";
+	/** Host-owned first-task state survives controller replacement; established tasks never qualify. */
+	pendingInitialTasks?: Set<string>;
 
 	api: Pick<
 		CloudSessionApi,
@@ -392,7 +394,7 @@ export class CloudSessionController {
 		Promise<CloudConnection>
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
-	private readonly pendingInitialTasks = new Set<string>();
+	private readonly pendingInitialTasks: Set<string>;
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly unconfirmedInnerCreates = new Map<string, string>();
@@ -412,6 +414,7 @@ export class CloudSessionController {
 	>;
 
 	constructor(private readonly options: CloudSessionControllerOptions) {
+		this.pendingInitialTasks = options.pendingInitialTasks ?? new Set();
 		this.createHubClient =
 			options.createHubClient ??
 			((clientOptions) => new NodeHubClient(clientOptions));
@@ -1938,7 +1941,7 @@ export class CloudSessionController {
 			this.publish({ type: "removed", sessionId });
 		}
 		this.knownSessions.clear();
-		this.pendingInitialTasks.clear();
+		if (!this.options.pendingInitialTasks) this.pendingInitialTasks.clear();
 		this.listeners.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
