@@ -541,23 +541,19 @@ describe("CloudSessionController neutral host contract", () => {
 		expect(f.controller.getSnapshot(record.id)?.approvals).toEqual([]);
 		await f.controller.dispose();
 	});
-	it("restores explicit manual creation options before lazy inner-session creation", async () => {
+	it("does not recreate a missing established session with manual creation options", async () => {
 		const f = fixture();
 		f.setHasInner(false);
-		await f.controller.attach(record.id, {
-			autoApproveTools: false,
-			thinking: true,
-			reasoningEffort: "high",
-		});
-		await f.controller.send(record.id, "Task");
-		const create = f.commands.find(
-			(item) => item.command === "session.create",
-		)!;
-		expect(create.payload).toMatchObject({
-			metadata: { interactive: true },
-			toolPolicies: { "*": { autoApprove: false } },
-			sessionConfig: { thinking: true, reasoningEffort: "high" },
-		});
+		await expect(
+			f.controller.attach(record.id, {
+				autoApproveTools: false,
+				thinking: true,
+				reasoningEffort: "high",
+			}),
+		).rejects.toThrow("task is unavailable");
+		expect(f.commands.some((item) => item.command === "session.create")).toBe(
+			false,
+		);
 		await f.controller.dispose();
 	});
 	it.each([

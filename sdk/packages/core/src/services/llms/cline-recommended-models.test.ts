@@ -2,7 +2,8 @@ import {
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getGeneratedProviderModels,
 } from "@cline/llms";
-import { describe, expect, it } from "vitest";
+import { setClineClientIdentity } from "@cline/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
@@ -94,6 +95,10 @@ function namesOf(data: ClineRecommendedModelsData) {
 }
 
 describe("fetchClineRecommendedModels", () => {
+	afterEach(() => {
+		setClineClientIdentity(undefined);
+	});
+
 	it("resolves display names from the models catalog", async () => {
 		const data = await fetchClineRecommendedModels({
 			baseUrl: BASE_URL,
@@ -116,6 +121,22 @@ describe("fetchClineRecommendedModels", () => {
 			"cline-free/glm-5.2",
 			"poolside/laguna-s-2.1:free",
 		]);
+	});
+
+	it("identifies the client on the feed request", async () => {
+		setClineClientIdentity({ name: "VSCode Extension", version: "3.40.0" });
+		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
+
+		await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(fetchImpl.mock.calls[0]?.[1]?.headers).toMatchObject({
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "3.40.0",
+		});
 	});
 
 	it("degrades to endpoint names and id slugs when the catalog is unavailable", async () => {

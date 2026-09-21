@@ -152,7 +152,7 @@ describe("seeded cloud handoff controller", () => {
 		await f.controller.verifyHandoffTranscript(record.id, messages);
 		f.setFailure("send-timeout");
 		await expect(f.controller.send(record.id, "Prior request")).rejects.toThrow(
-			"not found in the cloud session",
+			"could not confirm whether this message was accepted",
 		);
 		await f.controller.dispose();
 	});

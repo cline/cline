@@ -293,6 +293,9 @@ export function createRetryEmptyResponseMiddleware(
 			const abortSignal = params.abortSignal;
 			// Kick off the first attempt eagerly, matching normal doStream timing.
 			const firstResult = await doStream();
+			// The AI SDK holds this object until step completion; keep its headers
+			// aligned with the surfaced attempt rather than a discarded retry.
+			const response = { ...firstResult.response };
 
 			const stream = new ReadableStream<LanguageModelV4StreamPart>({
 				async start(controller) {
@@ -304,6 +307,7 @@ export function createRetryEmptyResponseMiddleware(
 					let networkRetries = 0;
 
 					for (let attempt = 1; ; attempt++) {
+						response.headers = result.response?.headers;
 						const reader = result.stream.getReader();
 						// Parts held back until this attempt proves non-empty.
 						const buffered: LanguageModelV4StreamPart[] = [];
@@ -370,6 +374,7 @@ export function createRetryEmptyResponseMiddleware(
 							if (pendingFinish) {
 								discardedUsage.push(pendingFinish.usage);
 							}
+							response.headers = undefined;
 							const delayMs = networkRetryDelayMs * 2 ** networkRetries;
 							networkRetries++;
 							logger?.log?.(
@@ -440,6 +445,7 @@ export function createRetryEmptyResponseMiddleware(
 							discardedUsage.push(pendingFinish.usage);
 						}
 
+						response.headers = undefined;
 						logger?.log?.("Model returned an empty response; retrying", {
 							severity: "warn",
 							provider: model.provider,
@@ -462,7 +468,7 @@ export function createRetryEmptyResponseMiddleware(
 				},
 			});
 
-			return { ...firstResult, stream };
+			return { ...firstResult, response, stream };
 		},
 	};
 }

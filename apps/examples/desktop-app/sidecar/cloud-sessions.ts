@@ -8,9 +8,15 @@ import {
 } from "@cline/core/cloud";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import { resolveFreshClineAuthToken } from "./cline-auth";
-import { handleHubLiveEvent, sendEvent } from "./context";
+import {
+	getEnvironmentContext,
+	getSidecarContextOwner,
+	handleHubLiveEvent,
+	sendEvent,
+} from "./context";
 import { readSessionMessagesSync } from "./session-data/messages";
 import type { LiveSession, SidecarContext } from "./types";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 export * from "@cline/core/cloud";
 
@@ -18,10 +24,8 @@ export * from "@cline/core/cloud";
 export class CloudSessionManager extends CloudSessionController {
 	private readonly ownedIds = new Set<string>();
 	private readonly approvalSnapshots = new Map<string, string>();
-	constructor(
-		private readonly ctx: SidecarContext,
-		options: CloudSessionControllerOptions,
-	) {
+	private readonly ctx: SidecarContext;
+	constructor(ctx: SidecarContext, options: CloudSessionControllerOptions) {
 		super({
 			...options,
 			logger: options.logger ?? ctx.logger,
@@ -33,10 +37,27 @@ export class CloudSessionManager extends CloudSessionController {
 				source: "desktop",
 			},
 		});
+		this.ctx = getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID);
 		for (const [id, state] of ctx.liveSessions)
 			if (state.config.executionTarget === "cloud")
 				this.seedSessionState(id, state);
 		this.subscribe((event) => this.project(event));
+	}
+	override async listForDiscovery(
+		options: { timeoutMs?: number } = {},
+	): Promise<Record<string, unknown>[]> {
+		return (await super.listForDiscovery(options)).map((record) => ({
+			...record,
+			environmentId: LOCAL_ENVIRONMENT_ID,
+		}));
+	}
+	override getCachedDiscoveryRecord(
+		sessionId: string,
+	): Record<string, unknown> | undefined {
+		const record = super.getCachedDiscoveryRecord(sessionId);
+		return record
+			? { ...record, environmentId: LOCAL_ENVIRONMENT_ID }
+			: undefined;
 	}
 	private project(event: CloudSessionEvent): void {
 		if (event.type === "prompt_accepted") return;
@@ -172,6 +193,7 @@ export class CloudSessionManager extends CloudSessionController {
 export function getCloudSessionManager(
 	ctx: SidecarContext,
 ): CloudSessionManager {
+	ctx = getSidecarContextOwner(ctx);
 	const existing = ctx.cloudSessionManager;
 	if (existing instanceof CloudSessionManager) {
 		return existing;
@@ -224,6 +246,7 @@ export function getCloudSessionManager(
 export async function resetCloudSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
+	ctx = getSidecarContextOwner(ctx);
 	const manager = ctx.cloudSessionManager;
 	ctx.cloudSessionManager = null;
 	await manager?.dispose();
