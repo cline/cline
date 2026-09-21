@@ -46,8 +46,6 @@ describe("AgentAskQuestion", () => {
 			[...buttons].every((button) => button.dataset.slot === "button"),
 		).toBe(true);
 		await act(async () => buttons[1]?.click());
-		expect(onAnswer).not.toHaveBeenCalled();
-		await act(async () => buttons[2]?.click());
 
 		// The element carries no visible heading — the question itself leads —
 		// but stays labelled for assistive tech.
@@ -61,6 +59,77 @@ describe("AgentAskQuestion", () => {
 			".cline-ui-agent-ask-question__meta",
 		);
 		expect(meta?.dataset.slot).toBe("badge");
+	});
+
+	it("submits a typed custom answer for a single-choice item", async () => {
+		const onAnswer = vi.fn();
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							options: ["Continue", "Stop"],
+							question: "Continue this task?",
+						},
+					]}
+					onAnswer={onAnswer}
+				/>,
+			),
+		);
+
+		const input = container.querySelector<HTMLInputElement>(
+			".cline-ui-agent-ask-question__custom",
+		);
+		const submit = container.querySelector<HTMLButtonElement>(
+			".cline-ui-agent-ask-question__submit",
+		);
+		expect(input).not.toBeNull();
+		expect(submit?.disabled).toBe(true);
+
+		await act(async () => {
+			if (!input) return;
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(input, "  Pause and ask me later  ");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(submit?.disabled).toBe(false);
+
+		await act(async () =>
+			input?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+			),
+		);
+		expect(onAnswer).toHaveBeenCalledWith(
+			"request-1",
+			"Pause and ask me later",
+		);
+	});
+
+	it("hides the custom answer field for multiple-choice items", async () => {
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							multiple: true,
+							options: ["First", "Second"],
+							question: "Choose",
+						},
+					]}
+					onAnswer={() => {}}
+					onAnswers={() => {}}
+				/>,
+			),
+		);
+
+		expect(
+			container.querySelector(".cline-ui-agent-ask-question__custom"),
+		).toBeNull();
 	});
 
 	it("shows controlled pending and error states", async () => {
@@ -85,6 +154,11 @@ describe("AgentAskQuestion", () => {
 		expect([...buttons].every((button) => button.disabled)).toBe(true);
 		expect(buttons[0]?.getAttribute("aria-pressed")).toBe("true");
 		expect(buttons[2]?.textContent).toContain("Sending…");
+		expect(
+			container.querySelector<HTMLInputElement>(
+				".cline-ui-agent-ask-question__custom",
+			)?.disabled,
+		).toBe(true);
 		expect(container.textContent).toContain("Could not send answer");
 		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
 			"Could not send answer",
@@ -168,8 +242,6 @@ describe("AgentAskQuestion", () => {
 		);
 
 		await act(async () => buttons[1]?.click());
-		expect(onAnswer).not.toHaveBeenCalled();
-		await act(async () => buttons[2]?.click());
 		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
 	});
 
@@ -238,7 +310,7 @@ describe("AgentAskQuestion", () => {
 		expect(container.textContent).toContain("Select all that apply.");
 	});
 
-	it("replaces a single choice and toggles a multiple choice off", async () => {
+	it("answers a single choice immediately and toggles a multiple choice off", async () => {
 		const onAnswer = vi.fn();
 		const onAnswers = vi.fn();
 		await act(async () =>
@@ -264,13 +336,8 @@ describe("AgentAskQuestion", () => {
 		);
 
 		const buttons = container.querySelectorAll("button");
-		await act(async () => {
-			buttons[0]?.click();
-			buttons[1]?.click();
-		});
-		expect(buttons[0]?.getAttribute("aria-pressed")).toBe("false");
-		expect(buttons[1]?.getAttribute("aria-pressed")).toBe("true");
-		await act(async () => buttons[2]?.click());
+		await act(async () => buttons[1]?.click());
+		expect(onAnswer).toHaveBeenCalledTimes(1);
 		expect(onAnswer).toHaveBeenCalledWith("single", "Second");
 
 		await act(async () => {
@@ -279,14 +346,18 @@ describe("AgentAskQuestion", () => {
 		});
 		expect(buttons[3]?.getAttribute("aria-pressed")).toBe("false");
 		expect(buttons[5]?.disabled).toBe(true);
+		expect(onAnswers).not.toHaveBeenCalled();
 	});
 
 	it("does not submit a selection removed by an item update", async () => {
-		const onAnswer = vi.fn();
+		const onAnswers = vi.fn();
 		const renderItem = (options: readonly string[]) => (
 			<AgentAskQuestion
-				items={[{ id: "request-1", options, question: "Choose" }]}
-				onAnswer={onAnswer}
+				items={[
+					{ id: "request-1", multiple: true, options, question: "Choose" },
+				]}
+				onAnswer={() => {}}
+				onAnswers={onAnswers}
 			/>
 		);
 
@@ -297,7 +368,7 @@ describe("AgentAskQuestion", () => {
 		const buttons = container.querySelectorAll("button");
 		expect(buttons[2]?.disabled).toBe(true);
 		await act(async () => buttons[2]?.click());
-		expect(onAnswer).not.toHaveBeenCalled();
+		expect(onAnswers).not.toHaveBeenCalled();
 	});
 
 	it("focuses the first choice and supports letter and arrow-key selection", async () => {
@@ -333,12 +404,10 @@ describe("AgentAskQuestion", () => {
 			),
 		);
 		expect(document.activeElement).toBe(buttons[2]);
-		expect(buttons[2]?.getAttribute("aria-pressed")).toBe("true");
-
-		expect(onAnswer).not.toHaveBeenCalled();
+		expect(onAnswer).toHaveBeenCalledWith("request-1", "Third");
 	});
 
-	it("lets Enter activate the focused option instead of submitting another selection", async () => {
+	it("lets Enter activate the focused option", async () => {
 		const onAnswer = vi.fn();
 		await act(async () =>
 			root.render(
@@ -356,7 +425,6 @@ describe("AgentAskQuestion", () => {
 		);
 
 		const buttons = container.querySelectorAll("button");
-		await act(async () => buttons[0]?.click());
 		await act(async () =>
 			buttons[0]?.dispatchEvent(
 				new KeyboardEvent("keydown", {
@@ -377,10 +445,7 @@ describe("AgentAskQuestion", () => {
 		});
 
 		expect(enter.defaultPrevented).toBe(false);
-		expect(buttons[0]?.getAttribute("aria-pressed")).toBe("false");
-		expect(buttons[1]?.getAttribute("aria-pressed")).toBe("true");
-
-		await act(async () => buttons[2]?.click());
+		expect(onAnswer).toHaveBeenCalledTimes(1);
 		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
 	});
 });

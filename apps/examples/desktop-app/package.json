@@ -1,6 +1,6 @@
 {
 	"name": "@cline/code",
-	"version": "0.0.29",
+	"version": "0.0.32",
 	"private": true,
 	"scripts": {
 		"build:ui": "bun -F @cline/ui build",
@@ -19,6 +19,7 @@
 		"build:binary": "tauri build",
 		"dmg:background": "bun run scripts/dmg-background.ts",
 		"test:dmg-background": "bun test scripts/dmg-background.test.ts",
+		"test:windows-installer": "bun test scripts/windows-installer.test.ts",
 		"package": "bun run package:desktop",
 		"package:desktop": "bun run scripts/package-desktop.ts",
 		"package:desktop:mac": "bun run scripts/package-desktop.ts --platform mac",
@@ -31,7 +32,8 @@
 		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/messages --config vitest.config.ts",
 		"pretest:settings-ui": "bun run build:ui",
 		"test:settings-ui": "vitest run webview/components/views/settings webview/components/ui/switch-integration.test.tsx --config vitest.config.ts",
-		"test:sidecar": "vitest run sidecar scripts/telemetry-define-args.test.ts --config vitest.config.ts",
+		"test:sidecar": "vitest run sidecar scripts/telemetry-define-args.test.ts webview/hooks/chat-session/helpers.test.ts webview/hooks/use-chat-session.test.tsx webview/hooks/use-session-history.test.tsx webview/lib/cloud-repositories.test.ts webview/lib/cloud-session-error.test.ts webview/lib/image-attachments.test.ts webview/lib/session-status.test.ts webview/lib/workspace-paths.test.ts webview/components/agent-sidebar.test.tsx webview/components/views/chat/chat-input-bar.test.tsx webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/environment-selector.test.tsx webview/components/views/chat/welcome-chat.test.tsx webview/components/views/chat/welcome-workspace-controls.test.tsx webview/components/views/sessions/sessions-view.test.tsx webview/components/views/settings/settings-view.test.tsx --config vitest.config.ts",
+		"test:sidecar-startup": "bun test scripts/desktop-startup.test.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
@@ -75,8 +77,8 @@
 		"@streamdown/cjk": "^1.0.3",
 		"@tauri-apps/api": "^2.0.0",
 		"@tauri-apps/plugin-notification": "^2.0.0",
-		"autoprefixer": "^10.4.20",
 		"ansi-to-react": "^6.2.6",
+		"autoprefixer": "^10.4.20",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"cmdk": "1.1.1",
@@ -101,8 +103,9 @@
 		"zod": "^3.24.1"
 	},
 	"devDependencies": {
-		"@tauri-apps/cli": "^2.0.0",
 		"@tailwindcss/postcss": "^4.2.0",
+		"@tauri-apps/cli": "^2.0.0",
+		"@types/bun": "^1.3.14",
 		"@types/react": "19.2.14",
 		"@types/react-dom": "19.2.3",
 		"jsdom": "^26.0.0",
@@ -110,7 +113,6 @@
 		"tailwindcss": "^4.2.0",
 		"tw-animate-css": "1.3.3",
 		"typescript": "5.7.3",
-		"vitest": "^4.0.18",
-		"@types/bun": "^1.3.14"
+		"vitest": "^4.0.18"
 	}
 }
