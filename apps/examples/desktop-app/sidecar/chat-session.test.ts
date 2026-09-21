@@ -251,6 +251,10 @@ describe("pathless session starts", () => {
 				expect(input.config).not.toHaveProperty("workspaceRoot");
 				expect(input.config).not.toHaveProperty("enableSpawnAgent");
 				expect(input.config).not.toHaveProperty("enableAgentTeams");
+				expect(input.config).toMatchObject({
+					checkpoint: { enabled: true },
+					compaction: { enabled: true },
+				});
 				expect(input.localRuntime?.extensionContext?.client).toMatchObject({
 					name: "cline-desktop",
 					platform: "Cline Desktop",

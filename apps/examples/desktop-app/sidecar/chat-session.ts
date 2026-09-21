@@ -640,6 +640,9 @@ function buildCoreSessionConfig(
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
 		checkpoint: { enabled: true },
+		// Core auto-compaction is opt-in; without this the 90% trigger never
+		// runs and long desktop sessions overflow the context window.
+		compaction: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
