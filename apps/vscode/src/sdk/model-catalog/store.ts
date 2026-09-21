@@ -591,10 +591,24 @@ function saveProviderSettings(providerId: ProviderId, next: ProviderSettingsReco
 // purely "migration"/"oauth" sourced. Custom headers count too: for
 // OpenAI-compatible endpoints the credential often travels in a header
 // (Authorization, api-key) rather than the apiKey field.
-const CREDENTIAL_PATCH_KEYS = ["apiKey", "aws", "auth", "headers"] as const
+const CREDENTIAL_PATCH_KEYS = ["apiKey", "auth", "headers"] as const
+// Only the authentication part of the AWS block is a credential; region,
+// prompt caching, endpoint, base-model and inference-profile toggles are not.
+const AWS_CREDENTIAL_PATCH_KEYS = ["accessKey", "secretKey", "sessionToken", "authentication", "profile"] as const
 
 function patchTouchesCredentials(patch: ProviderConfigPatch): boolean {
-	return CREDENTIAL_PATCH_KEYS.some((key) => key in patch)
+	if (CREDENTIAL_PATCH_KEYS.some((key) => key in patch)) {
+		return true
+	}
+	if (!("aws" in patch)) {
+		return false
+	}
+	const aws = patch.aws
+	// Clearing the whole block drops the credentials too.
+	if (aws === null || aws === undefined) {
+		return true
+	}
+	return AWS_CREDENTIAL_PATCH_KEYS.some((key) => key in aws)
 }
 
 function writeProviderSettingsFields(providerId: ProviderId, patch: ProviderConfigPatch): void {

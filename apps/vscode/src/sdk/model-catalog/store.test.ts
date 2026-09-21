@@ -251,6 +251,22 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]).toMatchObject({ tokenSource: "manual" })
 	})
 
+	it("keeps the inherited tokenSource when an AWS patch only changes non-credential settings", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile", profile: "work" } } })
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("bedrock")
+
+		store.write(providerId, {
+			aws: { useCrossRegionInference: true, usePromptCache: false, endpoint: "https://vpce.example" },
+		})
+
+		expect(mocks.getSavedProviderSettings("bedrock")).toMatchObject({
+			aws: { authentication: "profile", profile: "work", useCrossRegionInference: true },
+		})
+		expect(mocks.getSaveProviderSettingsMock().mock.calls.at(-1)?.[1]?.tokenSource).toBeUndefined()
+	})
+
 	it("keeps the inherited tokenSource when a GUI patch has no credential fields", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		mocks.setProviderSettings({ bedrock: { provider: "bedrock", aws: { authentication: "profile" } } })
