@@ -23,6 +23,7 @@ import {
 	resolveConnectorSettingsPath,
 	resolveDbDataDir,
 	resolveGlobalAgentsRulesPath,
+	resolveGlobalRulesConfigPaths,
 	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
@@ -32,6 +33,7 @@ import {
 	resolveSessionDataDir,
 	resolveTeamDataDir,
 	resolveWorkflowsConfigSearchPaths,
+	resolveWorkspaceRulesConfigPaths,
 	setHomeDir,
 } from "./paths";
 
@@ -235,6 +237,63 @@ describe("storage path resolution", () => {
 		expect(resolveRulesConfigSearchPaths()).not.toContain(
 			join("/tmp/home", ".cline", "data", RULES_CONFIG_DIRECTORY_NAME),
 		);
+	});
+
+	it("resolves both workspace rule layouts (.clinerules and .cline/rules)", () => {
+		const workspacePath = join("/repo", "demo");
+
+		expect(resolveWorkspaceRulesConfigPaths(workspacePath)).toEqual([
+			join(workspacePath, ".clinerules"),
+			join(workspacePath, ".cline", RULES_CONFIG_DIRECTORY_NAME),
+		]);
+		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
+			expect.arrayContaining(resolveWorkspaceRulesConfigPaths(workspacePath)),
+		);
+	});
+
+	it("includes OneDrive-redirected Documents rule locations when the env vars are set", () => {
+		snapshot = captureEnv();
+		const previousOneDrive = process.env.OneDrive;
+		const previousOneDriveConsumer = process.env.OneDriveConsumer;
+		try {
+			process.env.OneDrive = join("/tmp", "user", "OneDrive");
+			process.env.OneDriveConsumer = join("/tmp", "user", "OneDrive");
+
+			const globalPaths = resolveGlobalRulesConfigPaths();
+			// Deduped: OneDrive and OneDriveConsumer point at the same folder.
+			expect(
+				globalPaths.filter(
+					(candidate) =>
+						candidate ===
+						join("/tmp", "user", "OneDrive", "Documents", "Cline", "Rules"),
+				),
+			).toHaveLength(1);
+			expect(resolveRulesConfigSearchPaths("/repo/demo")).toContain(
+				join("/tmp", "user", "OneDrive", "Documents", "Cline", "Rules"),
+			);
+		} finally {
+			process.env.OneDrive = previousOneDrive;
+			process.env.OneDriveConsumer = previousOneDriveConsumer;
+		}
+	});
+
+	it("omits OneDrive rule locations when the env vars are unset", () => {
+		const previousOneDrive = process.env.OneDrive;
+		const previousOneDriveConsumer = process.env.OneDriveConsumer;
+		const previousOneDriveCommercial = process.env.OneDriveCommercial;
+		try {
+			delete process.env.OneDrive;
+			delete process.env.OneDriveConsumer;
+			delete process.env.OneDriveCommercial;
+
+			for (const candidate of resolveGlobalRulesConfigPaths()) {
+				expect(candidate).not.toContain("OneDrive");
+			}
+		} finally {
+			process.env.OneDrive = previousOneDrive;
+			process.env.OneDriveConsumer = previousOneDriveConsumer;
+			process.env.OneDriveCommercial = previousOneDriveCommercial;
+		}
 	});
 
 	it("resolves legacy and new workflow paths, with .cline paths later for duplicate-name precedence", () => {

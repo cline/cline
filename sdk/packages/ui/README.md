@@ -88,9 +88,10 @@ static when reduced motion is requested.
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
-`AgentAskQuestion` keeps option selection locally and submits explicitly. The
-host owns pending answers, errors, and response transport. Multiple-choice
-items set `multiple: true` and provide `onAnswers` for array submission.
+`AgentAskQuestion` answers single-choice items as soon as an option is picked
+and also accepts a typed custom answer. The host owns pending answers, errors,
+and response transport. Multiple-choice items set `multiple: true` and provide
+`onAnswers` for explicit array submission.
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.

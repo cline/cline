@@ -28,7 +28,10 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 		return "bun-darwin-arm64";
 	if (targetTriple.startsWith("x86_64-apple-darwin")) return "bun-darwin-x64";
 	if (targetTriple.startsWith("x86_64-pc-windows")) return "bun-windows-x64";
-	if (targetTriple.startsWith("x86_64-unknown-linux")) return "bun-linux-x64";
+	// SSH hosts may predate AVX2 (e.g. Ivy Bridge Xeons). The default Bun
+	// x64 runtime can SIGILL before our entrypoint runs on those CPUs.
+	if (targetTriple.startsWith("x86_64-unknown-linux"))
+		return "bun-linux-x64-baseline";
 	if (targetTriple.startsWith("aarch64-unknown-linux"))
 		return "bun-linux-arm64";
 	return undefined;
@@ -70,6 +73,29 @@ const buildSidecar = async (
 	return outfile;
 };
 
+// Each compiled helper embeds a full Bun runtime (~100 MB) around ~14 MB of
+// our code, and both helpers ship inside every desktop bundle. UPX packs the
+// ELF in place to about a quarter of its size and it self-extracts in memory on
+// launch (measured: ~1.6 s extra startup, ~55 MB extra RSS on the Hub daemon),
+// so nothing downstream changes: the installer, the SSH upload, and the remote
+// run all see one ordinary executable. `strip` is not an option here; it
+// discards Bun's appended module payload. Requires upx on PATH; the publish
+// workflow installs it on every runner.
+const compressRemoteHelper = async (outfile: string): Promise<void> => {
+	if (!Bun.which("upx")) {
+		if (process.env.CI) {
+			throw new Error(
+				`upx is required to compress ${outfile} but was not found on PATH`,
+			);
+		}
+		console.warn(
+			`upx not found on PATH; leaving ${outfile} uncompressed (only the packaged size is affected)`,
+		);
+		return;
+	}
+	await $`upx --best --lzma -q ${outfile}`;
+};
+
 // SSH environments run the same Hub build as the desktop in a dedicated
 // bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
 // command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
@@ -87,12 +113,13 @@ const buildRemoteHelpers = async (): Promise<void> => {
 		"x86_64-unknown-linux-gnu",
 		"aarch64-unknown-linux-gnu",
 	]) {
-		await buildSidecar(
+		const outfile = await buildSidecar(
 			targetTriple,
 			`./src-tauri/bin/remote-helpers/cline-remote-helper-${targetTriple}`,
 			"../../../sdk/packages/core/dist/remote/remote-helper-entry.js",
 			true,
 		);
+		await compressRemoteHelper(outfile);
 	}
 };
 
