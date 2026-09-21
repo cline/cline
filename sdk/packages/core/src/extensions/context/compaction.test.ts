@@ -1625,6 +1625,74 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 	});
 
+	it("summarizes with the session's current credentials and model, not the ones at construction", async () => {
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{ type: "text", id: "summary-1", text: "## Goal\nShip it" },
+					{ type: "done", id: "summary-1", success: true },
+				]),
+			),
+		});
+		// Mirrors the live session config: the host refreshes the OAuth token by
+		// mutating `apiKey`, and swaps `providerConfig` on a model switch.
+		const config: Parameters<typeof createContextCompactionPrepareTurn>[0] = {
+			providerId: "cline",
+			modelId: "cline-free/model",
+			apiKey: "workos:initial",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "cline-free/model",
+				apiKey: "workos:initial",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: undefined,
+		};
+		const prepareTurn = createContextCompactionPrepareTurn(config);
+		config.apiKey = "workos:refreshed";
+		config.modelId = "anthropic/claude-sonnet-4.5";
+		config.providerConfig = {
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.5",
+			apiKey: "workos:refreshed",
+		} as LlmsProviders.ProviderConfig;
+
+		const messages: LlmsProviders.Message[] = [
+			{ role: "user", content: "Old turn to compact" },
+			{ role: "assistant", content: "Old answer" },
+			{ role: "user", content: "Recent turn" },
+			{ role: "assistant", content: "Recent assistant state" },
+		];
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages,
+			apiMessages: messages,
+			model: {
+				id: "mock-model",
+				provider: "cline",
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.5",
+				apiKey: "workos:refreshed",
+			}),
+		);
+	});
+
 	it("falls back to basic compaction when the agentic request fails", async () => {
 		const providerError = new Error("temporary summarizer failure");
 		createHandlerMock.mockReturnValue({

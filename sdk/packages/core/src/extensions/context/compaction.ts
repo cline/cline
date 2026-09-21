@@ -267,6 +267,7 @@ export function createContextCompactionPrepareTurn(
 		| "providerConfig"
 		| "providerId"
 		| "modelId"
+		| "apiKey"
 		| "compaction"
 		| "logger"
 		| "telemetry"
@@ -283,12 +284,15 @@ export function createContextCompactionPrepareTurn(
 		return undefined;
 	}
 
-	const providerConfig =
-		config.providerConfig ??
-		({
-			providerId: config.providerId,
-			modelId: config.modelId,
-		} as ProviderConfig);
+	// Resolved per turn, not at construction: the host refreshes OAuth tokens
+	// and applies model switches by mutating `config` between turns, and the
+	// summarizer must use the same credentials as the main request.
+	const resolveProviderConfig = (): ProviderConfig => ({
+		...(config.providerConfig ?? {}),
+		providerId: config.providerId,
+		modelId: config.modelId,
+		apiKey: config.apiKey ?? config.providerConfig?.apiKey,
+	});
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
@@ -462,7 +466,7 @@ export function createContextCompactionPrepareTurn(
 		const builtinOptions = {
 			context: compactionContext,
 			providerConfig: {
-				...providerConfig,
+				...resolveProviderConfig(),
 				abortSignal: context.abortSignal,
 			},
 			compaction: userCompaction,
