@@ -37,7 +37,6 @@ import {
 } from "./context";
 import { resolveSessionListTitle } from "./session-data/common";
 import { readSessionMessages } from "./session-data/messages";
-import { LOCAL_ENVIRONMENT_ID } from "./types";
 import type {
 	JsonRecord,
 	LiveSession,
@@ -45,6 +44,7 @@ import type {
 	SidecarContext,
 	ToolApprovalRequestItem,
 } from "./types";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
@@ -1262,6 +1262,10 @@ export class CloudSessionManager {
 			updatedAt: new Date().toISOString(),
 		};
 		this.knownSessions.set(record.id, record);
+		// Keep new sessions discoverable if the next list request fails or times out.
+		if (!this.lastListedSessions.some((session) => session.id === record.id)) {
+			this.lastListedSessions.push(record);
+		}
 		this.pendingInitialTasks.add(record.id);
 		const live = recordToLiveSession(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;

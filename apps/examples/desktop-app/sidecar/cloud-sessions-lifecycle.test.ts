@@ -285,6 +285,52 @@ describe("CloudSessionManager lifecycle", () => {
 		expect(first.sessionId).not.toBe(second.sessionId);
 	});
 
+	it.each([
+		"failure",
+		"timeout",
+	])("keeps a newly created session discoverable after a listing %s", async (mode) => {
+		const { ctx } = createContext();
+		const refresh = Promise.withResolvers<CloudSessionRecord[]>();
+		const list = vi.fn(() =>
+			mode === "failure"
+				? Promise.reject(new Error("Cloud list unavailable"))
+				: refresh.promise,
+		);
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({
+					sessionId: "ses-created",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list,
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "Fix this",
+		});
+
+		try {
+			expect(await manager.listForDiscovery({ timeoutMs: 1 })).toEqual([
+				expect.objectContaining({
+					sessionId: "ses-created",
+					origin: "cloud",
+					environmentId: "local",
+					prompt: "Fix this",
+				}),
+			]);
+		} finally {
+			refresh.resolve([]);
+		}
+		// A successful listing remains authoritative; this is only a cache fallback.
+		list.mockResolvedValue([]);
+		expect(await manager.listForDiscovery()).toEqual([]);
+	});
+
 	it("returns cached cloud discovery promptly while a refresh is slow", async () => {
 		const { ctx } = createContext();
 		let listCalls = 0;
