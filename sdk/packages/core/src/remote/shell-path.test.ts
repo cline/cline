@@ -173,6 +173,18 @@ describe.skipIf(isWindows)("resolveLoginShellPath", () => {
 		await expect(resolveLoginShellPath(shell, 200)).resolves.toBeUndefined();
 	});
 
+	it("waits out a slow profile within the default budget", async () => {
+		// nvm-style profiles can take seconds before the command runs; the
+		// default timeout must survive a multi-second profile instead of
+		// abandoning the PATH (cline/cline#14129).
+		const shell = writeFakeShell(
+			'sleep 3; PATH="/opt/homebrew/bin:/usr/bin"; eval "$4"',
+		);
+		await expect(resolveLoginShellPath(shell)).resolves.toBe(
+			"/opt/homebrew/bin:/usr/bin",
+		);
+	});
+
 	it("invokes csh-family shells without login/interactive flags", async () => {
 		// A csh stand-in that rejects any first flag other than -c.
 		const shell = writeFakeShell(
