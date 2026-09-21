@@ -1756,6 +1756,19 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("encodes a metadata clear as an empty record so the hub does not drop it", async () => {
+		commandMock.mockResolvedValue({ ok: true, payload: { updated: true } });
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.updateSession("sess-1", { metadata: null });
+		expect(commandMock).toHaveBeenCalledWith("session.update", {
+			sessionId: "sess-1",
+			metadata: {},
+		});
+	});
+
 	it("throws when the hub rejects settings list", async () => {
 		commandMock.mockResolvedValue({
 			ok: false,

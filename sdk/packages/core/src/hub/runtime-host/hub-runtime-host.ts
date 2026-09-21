@@ -1413,10 +1413,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		// Forward prompt/title as their own fields: the persistence layer only
 		// treats an explicit `title` as a rename and otherwise keeps the stored
 		// one, so folding it into `metadata.title` would silently drop renames.
+		// A `null` metadata clear is sent as `{}` because the daemon decodes
+		// non-record payload values as "omitted".
 		const reply = await this.client.command("session.update", {
 			sessionId,
 			...(updates.prompt !== undefined ? { prompt: updates.prompt } : {}),
-			...(updates.metadata !== undefined ? { metadata: updates.metadata } : {}),
+			...(updates.metadata !== undefined
+				? { metadata: updates.metadata ?? {} }
+				: {}),
 			...(updates.title !== undefined ? { title: updates.title } : {}),
 		});
 		return { updated: reply.ok };
