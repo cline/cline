@@ -1703,6 +1703,304 @@ describe("models.json model overlays", () => {
 // saveLocalProviderSettings
 // ===========================================================================
 
+describe("provider mutation consistency", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+	const providerId = "concurrent-provider";
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (_url: string, init: RequestInit) =>
+				Response.json({
+					data: [
+						{
+							id: new Headers(init.headers).get("authorization") ?? "anonymous",
+						},
+					],
+				}),
+			),
+		);
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Concurrent Provider",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			apiKey: "old",
+			models: [],
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("queues a newer save behind a failing save across manager instances", async () => {
+		let notifyEntered!: () => void;
+		let releaseWrite!: () => void;
+		const entered = new Promise<void>((resolve) => {
+			notifyEntered = resolve;
+		});
+		const release = new Promise<void>((resolve) => {
+			releaseWrite = resolve;
+		});
+		const failure = new Error("catalog write failed");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				notifyEntered();
+				await release;
+				throw failure;
+			},
+		);
+		const first = saveLocalProviderSettings(manager, {
+			providerId,
+			apiKey: "first",
+		});
+		const rejected = expect(first).rejects.toBe(failure);
+		await entered;
+		const otherManager = new ProviderSettingsManager({
+			filePath: manager.getFilePath(),
+		});
+		const second = saveLocalProviderSettings(otherManager, {
+			providerId,
+			apiKey: "second",
+		});
+		releaseWrite();
+		await rejected;
+		await second;
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "second",
+			model: "Bearer second",
+		});
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(Object.keys(catalog.providers[providerId].models ?? {})).toEqual([
+			"Bearer second",
+		]);
+	});
+
+	it("merges overlapping credential and header patches from the latest saved settings", async () => {
+		await Promise.all([
+			saveLocalProviderSettings(manager, { providerId, apiKey: "new" }),
+			saveLocalProviderSettings(manager, {
+				providerId,
+				headers: { "X-Tenant": "tenant" },
+			}),
+		]);
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new",
+			headers: { "X-Tenant": "tenant" },
+			model: "Bearer new",
+		});
+	});
+
+	it("preserves catalog edits for different providers", async () => {
+		await addLocalProvider(manager, {
+			providerId: "other-provider",
+			name: "Other",
+			baseUrl: "https://other.example",
+			models: ["original"],
+		});
+		await Promise.all([
+			updateLocalProvider(manager, { providerId, apiKey: "new" }),
+			updateLocalProvider(manager, {
+				providerId: "other-provider",
+				models: ["updated"],
+			}),
+		]);
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(Object.keys(catalog.providers[providerId].models ?? {})).toEqual([
+			"Bearer new",
+		]);
+		expect(
+			Object.keys(catalog.providers["other-provider"].models ?? {}),
+		).toEqual(["updated"]);
+	});
+
+	it("does not resurrect a provider deleted during a refresh", async () => {
+		await Promise.all([
+			refreshProviderModelsFromSource(manager, providerId),
+			deleteLocalProvider(manager, { providerId }),
+		]);
+		expect(manager.getProviderSettings(providerId)).toBeUndefined();
+		expect(
+			(await readModelsFile(resolveModelsRegistryPath(manager))).providers[
+				providerId
+			],
+		).toBeUndefined();
+		expect(LlmsModels.hasProvider(providerId)).toBe(false);
+	});
+
+	it.each([
+		"newer-save",
+		"removal",
+	] as const)("does not roll back a direct %s while a catalog write is pending", async (change) => {
+		const failure = new Error("catalog write failed");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				if (change === "newer-save") {
+					manager.saveProviderSettings(
+						{
+							provider: providerId,
+							apiKey: "newest",
+							baseUrl: "https://newest.example/v1",
+						},
+						{ setLastUsed: false },
+					);
+				} else {
+					const state = manager.read();
+					delete state.providers[providerId];
+					manager.write(state);
+				}
+				throw failure;
+			},
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "failing" }),
+		).rejects.toBe(failure);
+		if (change === "newer-save") {
+			expect(manager.getProviderSettings(providerId)).toMatchObject({
+				apiKey: "newest",
+				baseUrl: "https://newest.example/v1",
+			});
+		} else expect(manager.getProviderSettings(providerId)).toBeUndefined();
+	});
+
+	it("preserves unrelated settings during rollback", async () => {
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				manager.saveProviderSettings({
+					provider: "openai",
+					apiKey: "unrelated",
+				});
+				throw new Error("catalog write failed");
+			},
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "failing" }),
+		).rejects.toThrow("catalog write failed");
+		expect(manager.getProviderSettings(providerId)?.apiKey).toBe("old");
+		expect(manager.getProviderSettings("openai")?.apiKey).toBe("unrelated");
+		expect(manager.read().lastUsedProvider).toBe("openai");
+	});
+
+	it("reports both catalog and rollback failures", async () => {
+		const failure = new Error("catalog write failed");
+		const rollbackFailure = new Error("settings rollback failed");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockImplementationOnce(
+			async () => {
+				vi.spyOn(manager, "write").mockImplementationOnce(() => {
+					throw rollbackFailure;
+				});
+				throw failure;
+			},
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "failing" }),
+		).rejects.toMatchObject({ errors: [failure, rollbackFailure] });
+	});
+
+	it("persists the complete settings patch exactly once", async () => {
+		const save = vi.spyOn(manager, "saveProviderSettings");
+		await saveLocalProviderSettings(manager, {
+			providerId,
+			apiKey: "new",
+			timeout: 12345,
+			region: "region",
+			maxTokens: 2048,
+		});
+		expect(save).toHaveBeenCalledTimes(1);
+		expect(manager.getProviderSettings(providerId)).toMatchObject({
+			apiKey: "new",
+			timeout: 12345,
+			region: "region",
+			maxTokens: 2048,
+			model: "Bearer new",
+		});
+	});
+
+	it("does not write the catalog when settings persistence fails", async () => {
+		const before = manager.read();
+		const writeCatalog = vi.spyOn(LocalProviderRegistry, "writeModelsFile");
+		const failure = new Error("settings write failed");
+		vi.spyOn(manager, "write").mockImplementationOnce(() => {
+			throw failure;
+		});
+		await expect(
+			saveLocalProviderSettings(manager, { providerId, apiKey: "new" }),
+		).rejects.toBe(failure);
+		expect(writeCatalog).not.toHaveBeenCalled();
+		expect(manager.read()).toEqual(before);
+	});
+
+	it("preserves an endpoint saved offline during later partial updates", async () => {
+		vi.mocked(fetch).mockRejectedValueOnce(new TypeError("offline"));
+		await saveLocalProviderSettings(manager, {
+			providerId,
+			baseUrl: "https://new.example/v1",
+		});
+		await updateLocalProvider(manager, { providerId, name: "Renamed" });
+		expect(manager.getProviderSettings(providerId)?.baseUrl).toBe(
+			"https://new.example/v1",
+		);
+		const catalog = await readModelsFile(resolveModelsRegistryPath(manager));
+		expect(catalog.providers[providerId].provider).toMatchObject({
+			baseUrl: "https://new.example/v1",
+			modelsSourceUrl: "https://new.example/v1/models",
+		});
+	});
+
+	it("rolls back creation of settings for an existing catalog-only provider", async () => {
+		const state = manager.read();
+		delete state.providers[providerId];
+		manager.write(state);
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			new Error("catalog write failed"),
+		);
+		await expect(
+			updateLocalProvider(manager, { providerId, apiKey: "new" }),
+		).rejects.toThrow("catalog write failed");
+		expect(manager.getProviderSettings(providerId)).toBeUndefined();
+	});
+
+	it("preserves provider protocol metadata during a credential-only save", async () => {
+		await updateLocalProvider(manager, { providerId, protocol: "openai-chat" });
+		await saveLocalProviderSettings(manager, { providerId, apiKey: "new" });
+		expect(
+			(await readModelsFile(resolveModelsRegistryPath(manager))).providers[
+				providerId
+			].provider?.protocol,
+		).toBe("openai-chat");
+	});
+
+	it("restores settings when a failed patch contains optional undefined fields", async () => {
+		const before = manager.read();
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			new Error("catalog write failed"),
+		);
+		await expect(
+			saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new",
+				timeout: undefined,
+			}),
+		).rejects.toThrow("catalog write failed");
+		expect(manager.read()).toEqual(before);
+	});
+
+	it("validates the complete settings patch before changing either file", async () => {
+		const before = manager.read();
+		const writeCatalog = vi.spyOn(LocalProviderRegistry, "writeModelsFile");
+		await expect(
+			saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new",
+				timeout: "invalid" as never,
+			}),
+		).rejects.toThrow();
+		expect(writeCatalog).not.toHaveBeenCalled();
+		expect(manager.read()).toEqual(before);
+	});
+});
+
 describe("saveLocalProviderSettings", () => {
 	let manager: ProviderSettingsManager;
 	let cleanup: () => void;
