@@ -3494,7 +3494,9 @@ Follow the user cloud workflow instructions.`,
 		);
 		const { ctx, send, sessionId } = createContext(workspace);
 
-		// Gate off (default in tests): the user's workflow owns /cloud.
+		// Explicitly disable the gate so local rollout/settings cannot affect this test.
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		// Gate off: the user's workflow owns /cloud.
 		await handleChatSessionCommand(ctx, {
 			action: "send",
 			sessionId,
