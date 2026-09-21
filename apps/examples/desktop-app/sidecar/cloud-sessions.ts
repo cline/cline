@@ -1043,6 +1043,12 @@ export class CloudSessionManager {
 			this.knownSessions.set(session.id, session);
 			this.unlistedSessions.delete(session.id);
 		}
+		// Omission can be a listing race; only a definitive status error drops a fallback.
+		await Promise.all(
+			Array.from(this.unlistedSessions.keys(), (sessionId) =>
+				this.getCrossScopeDiscoveryRecord(sessionId),
+			),
+		);
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
 				if (session.status !== "provisioning") {
