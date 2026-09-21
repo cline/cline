@@ -581,7 +581,7 @@ export function resolveLiveHistorySession(
 ): SessionHistoryItem | undefined {
 	if (!snapshot) return undefined;
 	return (
-		sessions.find((session) => session.sessionId === snapshot.sessionId) ??
+		sessions.find((session) => sessionKey(session) === sessionKey(snapshot)) ??
 		snapshot
 	);
 }

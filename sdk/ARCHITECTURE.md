@@ -189,6 +189,7 @@ its notification and session-data projection in its sidecar adapter; the CLI kee
 feature gate, private creation ledger, text-only input and terminal controls in the CLI.
 
 `CloudSessionController` publishes immutable snapshots and reconciled Hub envelopes.
+Desktop retains first-task creation IDs in its sidecar context across controller resets; resolving or creating the inner task removes the ID, so an established missing task is never recreated by this recovery path.
 Reconnect replaces the transcript baseline before replaying buffered live events; each
 connection has a generation so a detached connection cannot update a later attachment.
 Other-viewer turns refresh the canonical transcript at first progress and completion.
