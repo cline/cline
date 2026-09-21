@@ -584,7 +584,8 @@ export class UnifiedSessionPersistenceService {
 		const id = sessionId.trim();
 		if (!id) throw new Error("session id is required");
 
-		const row = await this.adapter.getSession(id);
+		const indexedRow = await this.adapter.getSession(id);
+		const row = indexedRow ?? this.manifestStore.readSessionRowFromManifest(id);
 		if (!row) return { deleted: false };
 
 		await this.adapter.deleteSession(id, false);
@@ -611,8 +612,14 @@ export class UnifiedSessionPersistenceService {
 			);
 		}
 
-		await deleteCheckpointRefs(row.cwd, id);
+		if (!indexedRow) {
+			// Restored manifests can contain workspace and artifact paths from another
+			// machine. Delete only the canonical directory under the current data root.
+			this.manifestStore.artifacts.removeSessionDir(id);
+			return { deleted: true };
+		}
 
+		await deleteCheckpointRefs(row.cwd, id);
 		unlinkIfExists(row.messagesPath);
 		await this.deleteSessionCompactionStateIfExists(id);
 		unlinkIfExists(this.manifestStore.artifacts.sessionManifestPath(id, false));

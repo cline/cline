@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WorkIn } from "@/lib/work-in-selection";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 let container: HTMLDivElement;
@@ -48,6 +49,23 @@ async function click(target: HTMLElement) {
 	});
 }
 
+function mockIntersectionObserver() {
+	const observer: {
+		callback?: (entries: IntersectionObserverEntry[]) => void;
+	} = {};
+	vi.stubGlobal(
+		"IntersectionObserver",
+		class {
+			constructor(listener: (entries: IntersectionObserverEntry[]) => void) {
+				observer.callback = listener;
+			}
+			observe() {}
+			disconnect() {}
+		},
+	);
+	return observer;
+}
+
 function renderControls(
 	overrides: Partial<ComponentProps<typeof WelcomeWorkspaceControls>> = {},
 ) {
@@ -59,7 +77,6 @@ function renderControls(
 		onCloudBranchChange: vi.fn(),
 		signedIn: true,
 		signingIn: false,
-		onExecutionTargetChange: vi.fn(),
 		onRepoUrlChange: vi.fn(),
 		onListCloudRepositories: vi.fn(async () => ({
 			connected: true,
@@ -99,10 +116,9 @@ function renderControls(
 }
 
 describe("WelcomeWorkspaceControls cloud mode", () => {
-	it("selects Cloud from the same workspace control row", async () => {
-		const props = renderControls();
-		await click(button("Cloud"));
-		expect(props.onExecutionTargetChange).toHaveBeenCalledWith("cloud");
+	it("does not duplicate the environment menu with Local/Cloud tabs", () => {
+		renderControls();
+		expect(container.querySelector("fieldset")).toBeNull();
 	});
 
 	it("hides the Local/Cloud selector when the feature flag is off", () => {
@@ -130,9 +146,12 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		const onCloudBranchChange = vi.fn();
 		const props = renderControls({
 			executionTarget: "cloud",
+			workIn: "worktree",
+			onWorkInChange: vi.fn(),
 			onRepoUrlChange,
 			onCloudBranchChange,
 		});
+		expect(container.querySelector('[role="switch"]')).toBeNull();
 		await act(async () => {
 			button("Select repository").click();
 			await Promise.resolve();
@@ -217,19 +236,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		["deleted", true, false],
 		["feature/keep", false, true],
 	] as const)("reconciles selection after all browse pages for %s (fallback=%s, unavailable=%s)", async (selectedBranch, shouldFallback, unavailable) => {
-		let intersectionCallback:
-			| ((entries: IntersectionObserverEntry[]) => void)
-			| undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersectionCallback = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		const onCloudBranchChange = vi.fn();
 		const onListCloudBranches = vi.fn(
 			async (_id: number, options?: { cursor?: string }) =>
@@ -251,9 +258,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		);
 		expect(onCloudBranchChange).not.toHaveBeenCalled();
 		await click(button(selectedBranch));
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () =>
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]),
 		);
@@ -282,17 +289,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 	});
 
 	it("ignores a pending branch page after switching repositories", async () => {
-		let intersect: ((entries: IntersectionObserverEntry[]) => void) | undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersect = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		let releasePage: (() => void) | undefined;
 		const onCloudBranchChange = vi.fn();
 		const props = renderControls({
@@ -340,7 +337,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		});
 		await click(button("deleted"));
 		await act(async () =>
-			intersect?.([{ isIntersecting: true } as IntersectionObserverEntry]),
+			observer.callback?.([
+				{ isIntersecting: true } as IntersectionObserverEntry,
+			]),
 		);
 		expect(releasePage).toBeDefined();
 		await click(button("cline/cline"));
@@ -402,19 +401,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 	});
 
 	it("ignores a pending page from an invalidated browse request", async () => {
-		let intersectionCallback:
-			| ((entries: IntersectionObserverEntry[]) => void)
-			| undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersectionCallback = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		let releaseStalePage: (() => void) | undefined;
 		const onListCloudBranches = vi.fn(
 			async (_id: number, options?: { cursor?: string }) =>
@@ -439,9 +426,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			expect(onListCloudBranches).toHaveBeenCalledWith(42),
 		);
 		await click(button("old/first"));
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () =>
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]),
 		);
@@ -467,19 +454,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 	});
 
 	it("recovers pagination when the search changes while a page fetch is in flight", async () => {
-		let intersectionCallback:
-			| ((entries: IntersectionObserverEntry[]) => void)
-			| undefined;
-		vi.stubGlobal(
-			"IntersectionObserver",
-			class {
-				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
-					intersectionCallback = callback;
-				}
-				observe() {}
-				disconnect() {}
-			},
-		);
+		const observer = mockIntersectionObserver();
 		let releaseHungPage:
 			| ((result: {
 					available: boolean;
@@ -541,9 +516,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			expect(onListCloudBranches).toHaveBeenCalledWith(42),
 		);
 		await click(button("main"));
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () => {
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]);
 		});
@@ -576,7 +551,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		});
 		expect(container.textContent).not.toContain("stale/page");
 
-		intersectionCallback = undefined;
+		observer.callback = undefined;
 		await act(async () => {
 			const valueSetter = Object.getOwnPropertyDescriptor(
 				HTMLInputElement.prototype,
@@ -585,9 +560,9 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			valueSetter?.call(search, "");
 			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await vi.waitFor(() => expect(observer.callback).toBeDefined());
 		await act(async () => {
-			intersectionCallback?.([
+			observer.callback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
 			]);
 		});
@@ -776,10 +751,14 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 async function renderBranchChipControls(overrides: {
 	currentBranch: string;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 }): Promise<void> {
 	renderControls({
 		cloudEnabled: false,
 		currentBranch: overrides.currentBranch,
+		workIn: overrides.workIn,
+		onWorkInChange: overrides.onWorkInChange,
 		onListGitBranches: vi.fn(async () => ({
 			current: overrides.currentBranch,
 			branches:
@@ -823,5 +802,56 @@ describe("WelcomeWorkspaceControls branch chip", () => {
 			expect(container.textContent).toContain("Open folder...");
 		});
 		expect(container.textContent).not.toContain("Add project");
+	});
+});
+
+describe("WelcomeWorkspaceControls worktree toggle", () => {
+	const worktreeSwitch = () =>
+		container.querySelector<HTMLInputElement>('[role="switch"]');
+
+	it("sits right of the branch chip as a switch and turns on Worktree", async () => {
+		const onWorkInChange = vi.fn();
+		await renderBranchChipControls({
+			currentBranch: "main",
+			workIn: "local",
+			onWorkInChange,
+		});
+
+		// No second "Local" chip: the environment selector already says Local.
+		expect(container.textContent).not.toContain("Local");
+		const label = worktreeSwitch()?.closest("label");
+		expect(label?.textContent).toBe("Worktree");
+		expect(worktreeSwitch()?.checked).toBe(false);
+		expect(
+			container.querySelector('[aria-label="About worktrees"]'),
+		).not.toBeNull();
+
+		await click(label as HTMLElement);
+
+		expect(onWorkInChange).toHaveBeenCalledWith("worktree");
+	});
+
+	it("turns back off to local when already in worktree mode", async () => {
+		const onWorkInChange = vi.fn();
+		await renderBranchChipControls({
+			currentBranch: "main",
+			workIn: "worktree",
+			onWorkInChange,
+		});
+		expect(worktreeSwitch()?.checked).toBe(true);
+
+		await click(worktreeSwitch() as HTMLElement);
+
+		expect(onWorkInChange).toHaveBeenCalledWith("local");
+	});
+
+	it("is hidden for a plain (non-git) folder where a worktree is impossible", async () => {
+		await renderBranchChipControls({
+			currentBranch: "no-git",
+			workIn: "local",
+			onWorkInChange: vi.fn(),
+		});
+		expect(worktreeSwitch()).toBeNull();
+		expect(container.textContent).not.toContain("Worktree");
 	});
 });

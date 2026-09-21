@@ -1,14 +1,14 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
+import { Switch } from "@cline/ui";
 import {
 	Check,
-	Cloud,
 	FilePlus2,
 	Folder,
 	GitBranch,
 	Github,
-	HardDrive,
+	Info,
 	LoaderCircle,
 	LogIn,
 	Plus,
@@ -19,12 +19,18 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
+	useId,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
@@ -36,6 +42,7 @@ import {
 } from "@/lib/cloud-repositories";
 import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
 import { cn } from "@/lib/utils";
+import type { WorkIn } from "@/lib/work-in-selection";
 import {
 	looksLikeFolderPath,
 	normalizeWorkspacePath,
@@ -65,41 +72,6 @@ const TRIGGER_CLASS =
 	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const PANEL_CLASS =
 	"absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 motion-reduce:animate-none";
-
-function ExecutionTargetPicker({
-	executionTarget,
-	onChange,
-}: {
-	executionTarget: "local" | "cloud";
-	onChange: (target: "local" | "cloud") => void;
-}) {
-	return (
-		<fieldset className="inline-flex shrink-0 items-center rounded-md border border-border/70 bg-background/80 p-0.5">
-			<legend className="sr-only">Execution location</legend>
-			{(["local", "cloud"] as const).map((target) => {
-				const active = executionTarget === target;
-				const Icon = target === "local" ? HardDrive : Cloud;
-				return (
-					<button
-						aria-pressed={active}
-						className={cn(
-							"inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
-							active
-								? "bg-accent text-foreground shadow-xs"
-								: "text-muted-foreground hover:text-foreground",
-						)}
-						key={target}
-						onClick={() => onChange(target)}
-						type="button"
-					>
-						<Icon className="size-3" />
-						{target === "local" ? "Local" : "Cloud"}
-					</button>
-				);
-			})}
-		</fieldset>
-	);
-}
 
 function CloudRepositoryPicker({
 	open,
@@ -956,6 +928,48 @@ function BranchPicker({
 	);
 }
 
+function WorktreeToggle({
+	value,
+	onChange,
+}: {
+	value: WorkIn;
+	onChange: (next: WorkIn) => void;
+}) {
+	const switchId = useId();
+	return (
+		<span className="inline-flex shrink-0 items-center gap-1.5 pl-1">
+			<label
+				className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground"
+				htmlFor={switchId}
+			>
+				<Switch
+					checked={value === "worktree"}
+					id={switchId}
+					onCheckedChange={(checked) =>
+						onChange(checked ? "worktree" : "local")
+					}
+				/>
+				Worktree
+			</label>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label="About worktrees"
+						className="inline-flex rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						type="button"
+					>
+						<Info aria-hidden="true" className="size-3.5" />
+					</button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-64" side="top" sideOffset={6}>
+					Runs the task on a separate copy of this folder on its own branch, so
+					your files stay untouched until you merge.
+				</TooltipContent>
+			</Tooltip>
+		</span>
+	);
+}
+
 export function WelcomeWorkspaceControls({
 	cloudEnabled,
 	cloudControlsHidden = false,
@@ -964,7 +978,6 @@ export function WelcomeWorkspaceControls({
 	cloudBranch,
 	signedIn,
 	signingIn,
-	onExecutionTargetChange,
 	onCloudBranchChange,
 	onListCloudRepositories,
 	onListCloudBranches,
@@ -980,6 +993,8 @@ export function WelcomeWorkspaceControls({
 	currentBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
+	workIn = "local",
+	onWorkInChange,
 }: {
 	cloudEnabled: boolean;
 	cloudControlsHidden?: boolean;
@@ -995,7 +1010,6 @@ export function WelcomeWorkspaceControls({
 	onOpenExternalUrl: (url: string) => Promise<void>;
 	signedIn: boolean;
 	signingIn: boolean;
-	onExecutionTargetChange: (target: "local" | "cloud") => void;
 	onRepoUrlChange: (repoUrl: string) => void;
 	onSignIn: () => void | Promise<void>;
 	workspaceRoot: string;
@@ -1008,6 +1022,9 @@ export function WelcomeWorkspaceControls({
 	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
+	/** Where the next task runs; the worktree toggle is shown for git repos when provided. */
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 }) {
 	const [openMenu, setOpenMenu] = useState<
 		"workspace" | "branch" | "cloud-repository" | "cloud-branch" | null
@@ -1081,15 +1098,6 @@ export function WelcomeWorkspaceControls({
 			className="flex min-w-0 flex-wrap items-center gap-2"
 			ref={containerRef}
 		>
-			{cloudEnabled ? (
-				<ExecutionTargetPicker
-					executionTarget={executionTarget}
-					onChange={(target) => {
-						setOpenMenu(null);
-						onExecutionTargetChange(target);
-					}}
-				/>
-			) : null}
 			{cloudEnabled && executionTarget === "cloud" ? (
 				cloudControlsHidden ? null : signedIn ? (
 					<>
@@ -1159,18 +1167,23 @@ export function WelcomeWorkspaceControls({
 					{!isChatWorkspace &&
 					currentBranch !== null &&
 					currentBranch !== "no-git" ? (
-						<BranchPicker
-							currentBranch={currentBranch}
-							onClose={() => setOpenMenu(null)}
-							onListGitBranches={onListGitBranches}
-							onSwitchGitBranch={onSwitchGitBranch}
-							onToggle={() =>
-								setOpenMenu((current) =>
-									current === "branch" ? null : "branch",
-								)
-							}
-							open={openMenu === "branch"}
-						/>
+						<>
+							<BranchPicker
+								currentBranch={currentBranch}
+								onClose={() => setOpenMenu(null)}
+								onListGitBranches={onListGitBranches}
+								onSwitchGitBranch={onSwitchGitBranch}
+								onToggle={() =>
+									setOpenMenu((current) =>
+										current === "branch" ? null : "branch",
+									)
+								}
+								open={openMenu === "branch"}
+							/>
+							{onWorkInChange ? (
+								<WorktreeToggle onChange={onWorkInChange} value={workIn} />
+							) : null}
+						</>
 					) : null}
 				</>
 			)}

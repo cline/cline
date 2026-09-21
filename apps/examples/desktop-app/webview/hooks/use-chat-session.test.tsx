@@ -8,10 +8,13 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import { startsNewThread } from "@/lib/work-in-selection";
+import { writeWorkspaceSelectionToWindow } from "@/lib/workspace-paths";
 import {
 	buildPreviousTimestampMap,
 	getThoughtDurationMilliseconds,
 } from "../components/views/chat/messages/group-messages";
+import { buildToolPresentation } from "../components/views/chat/messages/tool-summaries";
 import { mergeCloudSnapshotWithLive, useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -35,6 +38,18 @@ vi.mock("@/lib/desktop-client", () => ({
 type ChatSessionHook = ReturnType<typeof useChatSession>;
 
 describe("mergeCloudSnapshotWithLive", () => {
+	function snapshotOptions(
+		overrides: Partial<Parameters<typeof mergeCloudSnapshotWithLive>[2]> = {},
+	): Parameters<typeof mergeCloudSnapshotWithLive>[2] {
+		return {
+			sessionId: "ses-cloud",
+			transcriptKnown: true,
+			previousUserIds: new Set(),
+			optimisticStates: new Map(),
+			...overrides,
+		};
+	}
+
 	const message = (
 		id: string,
 		role: "user" | "assistant",
@@ -56,12 +71,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 				),
 			],
 			[message("optimistic", "user", "one prompt", 1)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
+			snapshotOptions({
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(merged.filter((item) => item.role === "user")).toHaveLength(1);
@@ -76,13 +88,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("live-old", "assistant", "Done", 1),
 				message("live-new", "assistant", "Done", 2),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
+			snapshotOptions({
 				preserveUnmatchedLive: true,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["saved-old", "live-new"]);
@@ -105,12 +113,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const first = mergeCloudSnapshotWithLive(
 			[message("saved", "user", "describe this", 2)],
 			[optimistic],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
+			snapshotOptions({
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(first).toEqual([
@@ -124,12 +129,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const second = mergeCloudSnapshotWithLive(
 			[message("saved", "user", "describe this", 2)],
 			first,
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["saved"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(second[0]?.images?.[0]?.data).toBe("AQID");
 	});
@@ -152,12 +155,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 					],
 				},
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["old-saved"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(
 			merged.filter(
@@ -180,12 +181,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("older", "user", "repeat", 1)],
 			[message("failed-prompt", "user", "repeat", 2)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
+			snapshotOptions({
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["older", "failed-prompt"]);
@@ -198,12 +196,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("older", "user", "repeat", 1)],
 			[message("pending-prompt", "user", "repeat", 2)],
-			{
-				sessionId: "ses-cloud",
+			snapshotOptions({
 				transcriptKnown: false,
-				previousUserIds: new Set(),
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["older", "pending-prompt"]);
@@ -224,12 +220,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("pending-a", "user", "same prompt", 2),
 				message("pending-b", "user", "same prompt", 4),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["saved-1"]),
 				optimisticStates,
-			},
+			}),
 		);
 
 		expect(
@@ -257,13 +251,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 					createdAt: 3,
 				},
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
+			snapshotOptions({
 				preserveUnmatchedLive: false,
-			},
+			}),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["saved", "error-bubble"]);
@@ -273,12 +263,7 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("saved", "assistant", "the complete answer", 2)],
 			[message("partial", "assistant", "the complete", 1)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
-			},
+			snapshotOptions(),
 		);
 
 		expect(merged.map((item) => item.id)).toEqual(["saved"]);
@@ -306,13 +291,9 @@ describe("mergeCloudSnapshotWithLive", () => {
 					meta: { toolCallId: "call-1" },
 				},
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
-				previousUserIds: new Set(),
-				optimisticStates: new Map(),
+			snapshotOptions({
 				preserveUnmatchedLive: true,
-			},
+			}),
 		);
 
 		expect(merged.map((message) => message.id)).toEqual(["saved-tool"]);
@@ -332,12 +313,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("old", "user", "Continue", 1),
 				message("optimistic-new", "user", "Continue", 1001),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["old"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(
 			merged.filter(
@@ -354,12 +333,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("canonical", "user", "saved prompt", 2)],
 			[message("pending", "user", "new prompt", 1)],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["old-baseline"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(merged.map((item) => item.id)).toEqual(
 			expect.arrayContaining(["canonical", "pending"]),
@@ -378,12 +355,10 @@ describe("mergeCloudSnapshotWithLive", () => {
 				message("saved", "user", "repeat", 2),
 				message("pending", "user", "repeat", 3),
 			],
-			{
-				sessionId: "ses-cloud",
-				transcriptKnown: true,
+			snapshotOptions({
 				previousUserIds: new Set(["saved"]),
 				optimisticStates,
-			},
+			}),
 		);
 		expect(merged.map((item) => item.id)).toEqual(
 			expect.arrayContaining(["saved", "pending"]),
@@ -397,8 +372,8 @@ let container: HTMLDivElement;
 let root: Root;
 let current: ChatSessionHook;
 
-function HookHarness() {
-	current = useChatSession();
+function HookHarness({ environmentId = "local" }: { environmentId?: string }) {
+	current = useChatSession(environmentId);
 	return null;
 }
 
@@ -434,7 +409,12 @@ beforeEach(async () => {
 	subscribeMock.mockClear();
 	invokeMock.mockImplementation(async (command: string) => {
 		if (command === "get_process_context") {
-			return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			return {
+				environmentId: "local",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				taskWorktreeRoot: "/home/host/cline-dir/worktrees",
+			};
 		}
 		return [];
 	});
@@ -448,6 +428,13 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	const cloudSessionConfig = {
+		provider: "cline",
+		model: "test-model",
+		cwd: "/workspace",
+		workspaceRoot: "/workspace",
+	};
+
 	it("accepts a running snapshot when a repeated prompt has a new canonical id", async () => {
 		const sessionId = "session-repeated-status";
 		invokeMock.mockImplementation(
@@ -468,10 +455,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId,
 							status: "completed",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 				}
 				return [];
@@ -482,10 +466,7 @@ describe("useChatSession", () => {
 				sessionId,
 				origin: "cloud",
 				status: "completed",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
 		);
@@ -541,10 +522,7 @@ describe("useChatSession", () => {
 					return {
 						sessionId: "new-cloud",
 						status: "running",
-						provider: "cline",
-						model: "test-model",
-						cwd: "/workspace",
-						workspaceRoot: "/workspace",
+						...cloudSessionConfig,
 					};
 				return { promptsInQueue: [] };
 			},
@@ -568,10 +546,7 @@ describe("useChatSession", () => {
 				current.start({
 					...current.config,
 					executionTarget: "cloud",
-					provider: "cline",
-					model: "test-model",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
+					...cloudSessionConfig,
 				}),
 			);
 		}
@@ -593,9 +568,10 @@ describe("useChatSession", () => {
 		expect(current.isCloudSessionExpired).toBe(replacementState.expired);
 	});
 	it.each([
-		false,
-		true,
-	])("shows expired cloud history as read-only (archive: %s)", async (hasHistory) => {
+		[false, undefined],
+		[true, undefined],
+		[true, "read_session_messages"],
+	] as const)("shows expired cloud history as read-only (archive: %s, failure: %s)", async (hasHistory, failedCommand) => {
 		const history = hasHistory
 			? [
 					{
@@ -608,6 +584,7 @@ describe("useChatSession", () => {
 				]
 			: [];
 		invokeMock.mockImplementation(async (command: string) => {
+			if (command === failedCommand) throw new Error("offline");
 			if (command === "read_session_messages") return history;
 			if (command === "chat_session_command")
 				return { sessionId: "expired-cloud", status: "expired" };
@@ -616,16 +593,29 @@ describe("useChatSession", () => {
 		await act(async () =>
 			current.hydrateSession({
 				sessionId: "expired-cloud",
+				environmentId: "local",
 				origin: "cloud",
-				status: "completed",
+				status: failedCommand ? "expired" : "completed",
+				...cloudSessionConfig,
 				repoUrl: "https://github.com/cline/test",
 				startedAt: "2026-09-01T00:00:00Z",
 			}),
 		);
 		expect(current.isCloudSessionExpired).toBe(true);
-		expect(current.error).toContain("This cloud session has expired");
-		expect(current.error?.includes("no archived history")).toBe(!hasHistory);
-		expect(current.messages).toEqual(history);
+		if (failedCommand) {
+			expect(current.error).toContain("offline");
+			expect(
+				invokeMock.mock.calls.some(
+					([command, args]) =>
+						command === "chat_session_command" &&
+						args?.request?.action === "attach",
+				),
+			).toBe(false);
+		} else {
+			expect(current.error).toContain("This cloud session has expired");
+			expect(current.error?.includes("no archived history")).toBe(!hasHistory);
+			expect(current.messages).toEqual(history);
+		}
 		invokeMock.mockClear();
 		await act(async () => {
 			expect(await current.sendPrompt("Test")).toBe(false);
@@ -677,6 +667,286 @@ describe("useChatSession", () => {
 			},
 			{ timeoutMs: null },
 		);
+	});
+
+	it("ignores another environment's question for the same session", async () => {
+		invokeMock.mockImplementation(async (command: string) =>
+			command === "chat_session_command" ? { sessionId: "same-id" } : [],
+		);
+		await act(async () => current.start(current.config));
+		const handler = handlerFor("ask_question_requested");
+		const question = {
+			sessionId: "same-id",
+			requestId: "question-id",
+			question: "Which branch?",
+			options: [],
+			createdAt: new Date().toISOString(),
+		};
+		await act(async () => {
+			handler({ ...question, environmentId: "remote" });
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+		await act(async () => {
+			handler({ ...question, environmentId: "local" });
+		});
+		expect(current.pendingAskQuestions).toHaveLength(1);
+	});
+
+	it("sends first-prompt steering intent without reading a queue snapshot", async () => {
+		const requests: Record<string, unknown>[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as Record<string, unknown>;
+				requests.push(request);
+				if (request.action === "start") return { sessionId: "atomic-steer" };
+				return { promptsInQueue: [] };
+			},
+		);
+		await act(async () => current.start(current.config));
+		requests.length = 0;
+		await act(async () => current.steerPromptInQueue());
+		expect(requests).toEqual([
+			{
+				action: "steer_prompt",
+				sessionId: "atomic-steer",
+				config: { environmentId: "local" },
+			},
+		]);
+	});
+
+	it("steers the first server entry after enqueue acknowledgement without waiting for the active response", async () => {
+		const sessionId = "session-quick-steer";
+		const activeResponse = deferred<unknown>();
+		const queuedResponse = deferred<unknown>();
+		let acknowledged = false;
+		const queued = { id: "pending-real", prompt: "queued", steer: false };
+		const requests: Array<{
+			action?: string;
+			prompt?: string;
+			promptId?: string;
+		}> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as (typeof requests)[number];
+				requests.push(request);
+				if (request.action === "start") return { sessionId };
+				if (request.action === "send")
+					return request.prompt === "active"
+						? activeResponse.promise
+						: queuedResponse.promise;
+				if (request.action === "pending_prompts")
+					return { promptsInQueue: acknowledged ? [queued] : [] };
+				if (request.action === "steer_prompt")
+					return {
+						updated: true,
+						promptsInQueue: [{ ...queued, steer: true }],
+					};
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		let activeTask!: Promise<void>;
+		await act(async () => {
+			activeTask = current.sendPrompt("active");
+		});
+		let queuedTask!: Promise<void>;
+		await act(async () => {
+			queuedTask = current.sendPrompt("queued");
+		});
+		expect(current.promptsInQueue[0]?.id).not.toBe(queued.id);
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue();
+		});
+		expect(requests.some((request) => request.action === "steer_prompt")).toBe(
+			false,
+		);
+		await act(async () => {
+			acknowledged = true;
+			queuedResponse.resolve({
+				ok: true,
+				queued: true,
+				promptsInQueue: [queued],
+			});
+			await queuedTask;
+			await steerTask;
+		});
+		expect(
+			requests.filter((request) => request.action === "steer_prompt"),
+		).toEqual([
+			{ action: "steer_prompt", sessionId, config: { environmentId: "local" } },
+		]);
+		expect(current.status).toBe("running");
+		await act(async () => {
+			activeResponse.resolve({ ok: true });
+			await activeTask;
+		});
+	});
+
+	it("steers an acknowledged prompt when another submission never acknowledges", async () => {
+		vi.useFakeTimers();
+		try {
+			const sessionId = "session-quick-steer";
+			const activeResponse = deferred<unknown>();
+			const queuedResponse = deferred<unknown>();
+			const acknowledged = true;
+			const queued = { id: "pending-real", prompt: "queued", steer: false };
+			const requests: Array<{
+				action?: string;
+				prompt?: string;
+				promptId?: string;
+			}> = [];
+			invokeMock.mockImplementation(
+				async (command: string, args?: Record<string, unknown>) => {
+					if (command !== "chat_session_command") return [];
+					const request = args?.request as (typeof requests)[number];
+					requests.push(request);
+					if (request.action === "start") return { sessionId };
+					if (request.action === "send")
+						return request.prompt === "active"
+							? activeResponse.promise
+							: queuedResponse.promise;
+					if (request.action === "pending_prompts")
+						return { promptsInQueue: acknowledged ? [queued] : [] };
+					if (request.action === "steer_prompt")
+						return {
+							updated: true,
+							promptsInQueue: [{ ...queued, steer: true }],
+						};
+					return {};
+				},
+			);
+			await act(async () => current.start(current.config));
+			let activeTask!: Promise<void>;
+			await act(async () => {
+				activeTask = current.sendPrompt("active");
+			});
+
+			await act(async () => {
+				void current.sendPrompt("queued");
+			});
+			expect(current.promptsInQueue[0]?.id).toBe(queued.id);
+			let steerTask!: Promise<void>;
+			await act(async () => {
+				steerTask = current.steerPromptInQueue();
+			});
+			expect(
+				requests.some((request) => request.action === "steer_prompt"),
+			).toBe(false);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(1_000);
+				await steerTask;
+			});
+			expect(
+				requests.filter((request) => request.action === "steer_prompt"),
+			).toEqual([
+				{
+					action: "steer_prompt",
+					sessionId,
+					config: { environmentId: "local" },
+				},
+			]);
+			await act(async () => {
+				activeResponse.resolve({ ok: true });
+				await activeTask;
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+	it("does not resurrect a consumed queued prompt when its steering reply arrives late", async () => {
+		const sessionId = "session-steer-snapshot";
+		const reply = deferred<unknown>();
+		const first = { id: "pending-first", prompt: "first", steer: false };
+		const second = { id: "pending-second", prompt: "second", steer: false };
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string };
+				if (request.action === "start") return { sessionId };
+				if (request.action === "steer_prompt") return reply.promise;
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({
+				sessionId,
+				items: [first, second],
+			});
+		});
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue(first.id);
+		});
+		await act(async () => {
+			handlerFor("chat_event")({
+				sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({ promptId: first.id, prompt: first.prompt }),
+				ts: Date.now(),
+				index: 1,
+			});
+			handlerFor("prompts_in_queue_state")({ sessionId, items: [second] });
+		});
+		await act(async () => {
+			reply.resolve({
+				updated: true,
+				promptsInQueue: [{ ...first, steer: true }, second],
+			});
+			await steerTask;
+		});
+		expect(current.promptsInQueue).toEqual([second]);
+	});
+
+	it.each([
+		"remove",
+		"edit",
+		"enqueue",
+	] as const)("preserves a concurrent queue %s when a steering reply arrives late", async (mutation) => {
+		const sessionId = "session-steer-snapshot";
+		const reply = deferred<unknown>();
+		const first = { id: "pending-first", prompt: "first", steer: false };
+		const second = { id: "pending-second", prompt: "second", steer: false };
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string };
+				if (request.action === "start") return { sessionId };
+				if (request.action === "steer_prompt") return reply.promise;
+				return {};
+			},
+		);
+		await act(async () => current.start(current.config));
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({
+				sessionId,
+				items: [first, second],
+			});
+		});
+		let steerTask!: Promise<void>;
+		await act(async () => {
+			steerTask = current.steerPromptInQueue(first.id);
+		});
+		const newerQueue =
+			mutation === "remove"
+				? [second]
+				: mutation === "edit"
+					? [first, { ...second, prompt: "edited" }]
+					: [first, second, { id: "third", prompt: "third", steer: false }];
+		await act(async () => {
+			handlerFor("prompts_in_queue_state")({ sessionId, items: newerQueue });
+		});
+		await act(async () => {
+			reply.resolve({
+				updated: true,
+				promptsInQueue: [{ ...first, steer: true }, second],
+			});
+			await steerTask;
+		});
+		expect(current.promptsInQueue).toEqual(newerQueue);
 	});
 
 	it("restores an idle parent when aborting its child fails", async () => {
@@ -1101,12 +1371,19 @@ describe("useChatSession", () => {
 			current.proceedWhileRunning(current.sessionId as string, "call-output"),
 		);
 		expect(invokeMock).toHaveBeenCalledWith("proceed_while_running", {
+			environmentId: "local",
 			sessionId: current.sessionId,
 			toolCallId: "call-output",
 		});
 	});
 
-	it("heals a running attached session with a dead event stream by polling history", async () => {
+	it.each([
+		"local",
+		"remote",
+	])("heals a running attached session in %s with a dead event stream by polling history", async (environmentId) => {
+		await act(async () =>
+			root.render(<HookHarness environmentId={environmentId} />),
+		);
 		// Scheduled runs can execute on a host whose live events never reach
 		// this client; the transcript must still settle without a remount.
 		const hydratedSessionId = "session-dead-stream";
@@ -1118,6 +1395,7 @@ describe("useChatSession", () => {
 					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 				}
 				if (command === "read_session_messages") {
+					expect(args?.environmentId).toBe(environmentId);
 					readCount += 1;
 					const base = [
 						{
@@ -1142,6 +1420,7 @@ describe("useChatSession", () => {
 							];
 				}
 				if (command === "get_discovered_session") {
+					expect(args?.environmentId).toBe(environmentId);
 					recordReads += 1;
 					// Still running on the first poll — the snapshot already
 					// ends on assistant narration, which must NOT read as
@@ -1176,6 +1455,7 @@ describe("useChatSession", () => {
 		try {
 			await act(async () => {
 				await current.hydrateSession({
+					environmentId,
 					sessionId: hydratedSessionId,
 					status: "running",
 					provider: "cline",
@@ -1223,10 +1503,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId,
 							status: "running",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 				}
 				return [];
@@ -1239,10 +1516,7 @@ describe("useChatSession", () => {
 					sessionId,
 					origin: "cloud",
 					status: "running",
-					provider: "cline",
-					model: "test-model",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
+					...cloudSessionConfig,
 					startedAt: "2026-09-01T00:00:00Z",
 				}),
 			);
@@ -1464,6 +1738,207 @@ describe("useChatSession", () => {
 		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
 	});
 
+	function mockStreamingToolSession() {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-stream-end",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+	}
+
+	it("keeps streamed output and stops the running presentation when the tool ends without a final output", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "compiling...\n" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "done\n" },
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const streaming = current.messages.find((m) => m.role === "tool");
+		if (!streaming) throw new Error("Expected a tool message");
+		expect(streaming.meta?.toolOutput).toBe("compiling...\ndone\n");
+		expect(buildToolPresentation(streaming).inProgress).toBe(true);
+
+		// The runtime finishes the call without repeating the streamed output.
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-stream-end",
+					toolName: "run_commands",
+					durationMs: 12,
+				}),
+				ts: Date.now(),
+				index: 4,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(completed.meta?.hookEventName).toBe("tool_call_end");
+		// The streamed output survives completion as the payload result…
+		expect(JSON.parse(completed.content)).toMatchObject({
+			toolName: "run_commands",
+			result: "compiling...\ndone\n",
+			isError: false,
+		});
+		expect(completed.meta?.toolOutput).toBe("compiling...\ndone\n");
+		// …so the finished tool no longer presents as pending/spinning.
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
+	it("prefers a final chat_tool_call_end output over the streamed output", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "partial" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-final-output",
+					toolName: "run_commands",
+					output: "final output",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(JSON.parse(completed.content)).toMatchObject({
+			result: "final output",
+			isError: false,
+		});
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
+	it("reports a tool error even when output was streamed first", async () => {
+		mockStreamingToolSession();
+		await act(async () => current.start(current.config));
+		const chatEventHandler = handlerFor("chat_event");
+
+		await act(async () => {
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					input: { commands: ["bun run build"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					update: { stream: "stderr", chunk: "boom\n" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+			chatEventHandler({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-error",
+					toolName: "run_commands",
+					error: "command failed",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		const completed = current.messages.find((m) => m.role === "tool");
+		if (!completed) throw new Error("Expected a tool message");
+		expect(JSON.parse(completed.content)).toMatchObject({
+			result: "command failed",
+			isError: true,
+		});
+		expect(buildToolPresentation(completed).inProgress).toBe(false);
+	});
+
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
 		let startedSessionId = "";
 		await act(async () => {
@@ -1523,6 +1998,299 @@ describe("useChatSession", () => {
 			},
 			{ timeoutMs: null },
 		);
+	});
+
+	it("starts in a fresh git worktree when asked to", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; config?: Record<string, unknown> }
+					| undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: request.config?.cwd,
+						workspaceRoot: request.config?.workspaceRoot,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBeNull();
+		// The worktree is cut from the workspace the user had selected...
+		expect(invokeMock).toHaveBeenCalledWith("create_git_worktree", {
+			cwd: "/repos/demo",
+		});
+		// ...and the session starts inside it, which the UI then adopts.
+		expect(invokeMock).toHaveBeenCalledWith("chat_session_command", {
+			request: expect.objectContaining({
+				action: "start",
+				config: expect.objectContaining({
+					cwd: worktreePath,
+					workspaceRoot: worktreePath,
+				}),
+			}),
+		});
+		expect(current.config).toMatchObject({
+			cwd: worktreePath,
+			workspaceRoot: worktreePath,
+		});
+	});
+
+	it("returns to the remembered repo when a new thread follows a worktree task", async () => {
+		const repo = "/repos/demo";
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
+		// The page remembers the repo, never the worktree it was cut from.
+		writeWorkspaceSelectionToWindow("local", {
+			lastWorkspace: repo,
+			workspaces: [repo],
+		});
+		await act(async () => {
+			current.setWorkspacePath(repo);
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+		expect(current.config.cwd).toBe(worktreePath);
+
+		await act(async () => current.reset());
+
+		expect(current.config).toMatchObject({ cwd: repo, workspaceRoot: repo });
+	});
+
+	it("keeps the workspace across a reset when it is not a task worktree", async () => {
+		writeWorkspaceSelectionToWindow("local", {
+			lastWorkspace: "/repos/other",
+			workspaces: ["/repos/other"],
+		});
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+
+		await act(async () => current.reset());
+
+		expect(current.config).toMatchObject({
+			cwd: "/repos/demo",
+			workspaceRoot: "/repos/demo",
+		});
+	});
+
+	it("surfaces a worktree creation failure without starting a session", async () => {
+		invokeMock.mockImplementation(async (command: string) => {
+			if (command === "create_git_worktree") {
+				throw new Error("Not a git repository: /workspace/cline");
+			}
+			return [];
+		});
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBe(
+			"Couldn't create a worktree: Not a git repository: /workspace/cline",
+		);
+		expect(current.status).toBe("error");
+		expect(
+			invokeMock.mock.calls.some(
+				([command]) => command === "chat_session_command",
+			),
+		).toBe(false);
+		// Only the error message remains, so the page still treats the
+		// thread as new and the retried prompt asks for a worktree again.
+		expect(current.sessionId).toBeNull();
+		expect(startsNewThread(current.sessionId, current.messages)).toBe(true);
+
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/cline";
+		invokeMock.mockClear();
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-retry",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					return {
+						ok: true,
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+		await act(async () =>
+			current.sendPrompt("Start the task", [], {
+				inNewWorktree: startsNewThread(current.sessionId, current.messages),
+			}),
+		);
+
+		expect(invokeMock).toHaveBeenCalledWith("create_git_worktree", {
+			cwd: "/workspace/cline",
+		});
+		expect(current.sessionId).not.toBeNull();
+		expect(current.config).toMatchObject({
+			cwd: worktreePath,
+			workspaceRoot: worktreePath,
+		});
+	});
+
+	it("queues a prompt sent during worktree allocation behind the one session", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
+		let releaseWorktree: (() => void) | undefined;
+		const sends: string[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					await new Promise<void>((resolve) => {
+						releaseWorktree = resolve;
+					});
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command !== "chat_session_command") return [];
+				const request = args?.request as
+					| { action?: string; prompt?: string; sessionId?: string }
+					| undefined;
+				if (request?.action === "start") {
+					return {
+						sessionId: "session-worktree",
+						cwd: worktreePath,
+						workspaceRoot: worktreePath,
+					};
+				}
+				if (request?.action === "send") {
+					sends.push(`${request.sessionId}:${request.prompt}`);
+					return {
+						ok: true,
+						queued: request.prompt === "Second",
+						result: { text: "done", finishReason: "completed" },
+					};
+				}
+				return [];
+			},
+		);
+
+		let first: Promise<boolean> | undefined;
+		let second: Promise<boolean> | undefined;
+		await act(async () => {
+			first = current.sendPrompt("First", [], { inNewWorktree: true });
+			second = current.sendPrompt("Second", [], { inNewWorktree: true });
+			await Promise.resolve();
+		});
+		expect(releaseWorktree).toBeDefined();
+		await act(async () => {
+			releaseWorktree?.();
+			await Promise.all([first, second]);
+		});
+
+		expect(
+			invokeMock.mock.calls.filter(
+				([command]) => command === "create_git_worktree",
+			),
+		).toHaveLength(1);
+		expect(
+			invokeMock.mock.calls.filter(
+				([command, args]) =>
+					command === "chat_session_command" &&
+					(args as { request?: { action?: string } })?.request?.action ===
+						"start",
+			),
+		).toHaveLength(1);
+		expect(sends).toEqual([
+			"session-worktree:First",
+			"session-worktree:Second",
+		]);
+	});
+
+	it("removes the new worktree when the session fails to start in it", async () => {
+		await act(async () => {
+			current.setWorkspacePath("/repos/demo");
+		});
+		invokeMock.mockClear();
+		const worktreePath = "/home/host/cline-dir/worktrees/ab12c/demo";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "create_git_worktree") {
+					return { path: worktreePath, branch: "cline/ab12c" };
+				}
+				if (command === "remove_git_worktree") return { path: worktreePath };
+				const request = args?.request as { action?: string } | undefined;
+				if (request?.action === "start") {
+					throw new Error("runtime unavailable");
+				}
+				return [];
+			},
+		);
+
+		await act(async () =>
+			current.sendPrompt("Start the task", [], { inNewWorktree: true }),
+		);
+
+		expect(current.error).toBe("runtime unavailable");
+		expect(invokeMock).toHaveBeenCalledWith("remove_git_worktree", {
+			path: worktreePath,
+		});
+		expect(
+			invokeMock.mock.calls.some(
+				([, args]) =>
+					(args as { request?: { action?: string } })?.request?.action ===
+					"send",
+			),
+		).toBe(false);
 	});
 
 	it("preserves server validation errors", async () => {
@@ -1601,9 +2369,7 @@ describe("useChatSession", () => {
 
 		await act(async () => current.sendPrompt("Explain this validation error"));
 
-		// Error-role content goes through the turn-failure reporter, which
-		// wraps the detail in user-facing copy — assert containment, not
-		// equality, so the schema text is preserved either way.
+		// Error-role messages wrap the detail in user-facing copy.
 		expect(
 			current.messages.findLast((message) => message.role === expectedRole)
 				?.content,
@@ -1702,9 +2468,7 @@ describe("useChatSession", () => {
 		await act(async () => current.sendPrompt("build the feature"));
 		expect(startPrompt).toBe("build the feature");
 
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
 		expect(rehydratedHandler).toBeDefined();
 
 		// A rehydration snapshot that lags the just-sent prompt (assistant
@@ -1803,10 +2567,7 @@ describe("useChatSession", () => {
 							sessionId: "cloud-transition",
 							prompt: "Fix the provisioning flow",
 							status: "provisioning",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 					}
 					throw new Error(`unexpected chat action: ${request?.action}`);
@@ -1822,10 +2583,7 @@ describe("useChatSession", () => {
 					origin: "cloud",
 					repoUrl: "https://github.com/cline/test",
 					status: "provisioning",
-					provider: "cline",
-					model: "test-model",
-					cwd: "/workspace",
-					workspaceRoot: "/workspace",
+					...cloudSessionConfig,
 					startedAt: "2026-08-17T00:00:00.000Z",
 				});
 			});
@@ -1868,7 +2626,10 @@ describe("useChatSession", () => {
 		}
 	});
 
-	it("replaces the first cloud prompt with its canonical snapshot copy", async () => {
+	it.each([
+		false,
+		true,
+	])("replaces the first cloud prompt without a local worktree (worktree option: %s)", async (inNewWorktree) => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1910,7 +2671,13 @@ describe("useChatSession", () => {
 				repoUrl: "https://github.com/cline/test",
 			}));
 		});
-		await act(async () => current.sendPrompt("build the feature"));
+		await act(async () =>
+			current.sendPrompt("build the feature", [], { inNewWorktree }),
+		);
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"create_git_worktree",
+			expect.anything(),
+		);
 
 		expect(
 			current.messages.filter(
@@ -1933,17 +2700,6 @@ describe("useChatSession", () => {
 						workspaceRoot: "/workspace",
 					};
 				}
-				if (command === "read_session_messages") {
-					return [
-						{
-							id: "assistant-recovered",
-							sessionId: "ses-cloud",
-							role: "assistant",
-							content: "Finished while reconnecting",
-							createdAt: Date.now(),
-						},
-					];
-				}
 				return [];
 			},
 		);
@@ -1958,16 +2714,30 @@ describe("useChatSession", () => {
 		const rehydratedHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "cloud_session_rehydrated",
 		)?.[1] as ((payload: unknown) => void) | undefined;
-		const endedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_session_ended",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const endedHandler = handlerFor("chat_session_ended");
 		expect(rehydratedHandler).toBeDefined();
 
+		invokeMock.mockClear();
 		await act(async () => {
-			rehydratedHandler?.({ sessionId: "ses-cloud", status: "completed" });
-			await Promise.resolve();
-			await Promise.resolve();
+			rehydratedHandler?.({
+				sessionId: "ses-cloud",
+				status: "completed",
+				transcriptKnown: true,
+				messages: [
+					{
+						id: "assistant-recovered",
+						sessionId: "ses-cloud",
+						role: "assistant",
+						content: "Finished while reconnecting",
+						createdAt: Date.now(),
+					},
+				],
+			});
 		});
+		expect(invokeMock).not.toHaveBeenCalledWith(
+			"read_session_messages",
+			expect.anything(),
+		);
 
 		expect(current.messages.at(-1)?.content).toBe(
 			"Finished while reconnecting",
@@ -2029,21 +2799,14 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "running",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-06T00:00:00.000Z",
 			});
 			await requested;
 		});
 
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-		const chatEventHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_event",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
+		const chatEventHandler = handlerFor("chat_event");
 		const snapshot = [
 			{
 				id: "saved-assistant",
@@ -2105,12 +2868,8 @@ describe("useChatSession", () => {
 				repoUrl: "https://github.com/cline/test",
 			});
 		});
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-		const chatEventHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "chat_event",
-		)?.[1] as ((payload: unknown) => void) | undefined;
+		const rehydratedHandler = handlerFor("cloud_session_rehydrated");
+		const chatEventHandler = handlerFor("chat_event");
 
 		await act(async () => {
 			chatEventHandler?.({
@@ -2244,10 +3003,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId: "ses-cloud",
 							status: "running",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 					}
 				}
@@ -2261,10 +3017,7 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "running",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-06T00:00:00.000Z",
 			});
 		});
@@ -2287,10 +3040,7 @@ describe("useChatSession", () => {
 						return {
 							sessionId: "ses-cloud",
 							status: "completed",
-							provider: "cline",
-							model: "test-model",
-							cwd: "/workspace",
-							workspaceRoot: "/workspace",
+							...cloudSessionConfig,
 						};
 					}
 				}
@@ -2304,10 +3054,7 @@ describe("useChatSession", () => {
 				origin: "cloud",
 				repoUrl: "https://github.com/cline/test",
 				status: "completed",
-				provider: "cline",
-				model: "test-model",
-				cwd: "/workspace",
-				workspaceRoot: "/workspace",
+				...cloudSessionConfig,
 				startedAt: "2026-08-05T00:00:00.000Z",
 				metadata: {
 					git: {
@@ -3398,6 +4145,23 @@ describe("useChatSession", () => {
 		).not.toBeUndefined();
 	});
 
+	it("rejects hydration for a session owned by another environment", async () => {
+		await expect(
+			current.hydrateSession({
+				sessionId: "remote-session",
+				environmentId: "pi-server",
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/home/pi/project",
+				workspaceRoot: "/home/pi/project",
+				startedAt: "2026-07-31T00:00:00.000Z",
+			}),
+		).rejects.toThrow("belongs to environment pi-server, not local");
+		expect(current.sessionId).toBeNull();
+		expect(current.config.environmentId).toBe("local");
+	});
+
 	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
 		type SendResponse = {
 			ok: true;
@@ -3604,6 +4368,7 @@ describe("useChatSession", () => {
 		await act(async () => {
 			await current.hydrateSession({
 				sessionId: hydratedSessionId,
+				environmentId: "local",
 				status: "completed",
 				provider: "cline",
 				model: "test-model",
@@ -3619,6 +4384,21 @@ describe("useChatSession", () => {
 			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+		expect(invokeMock).toHaveBeenCalledWith("read_session_messages", {
+			environmentId: "local",
+			sessionId: hydratedSessionId,
+			maxMessages: 800,
+		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			expect.objectContaining({
+				request: expect.objectContaining({
+					action: "attach",
+					config: expect.objectContaining({ environmentId: "local" }),
+					sessionId: hydratedSessionId,
+				}),
+			}),
+		);
 	});
 
 	it("restores a pending question when switching to its session", async () => {
@@ -3689,6 +4469,7 @@ describe("useChatSession", () => {
 			expect(current.pendingAskQuestions).toEqual([pendingQuestion]),
 		);
 		expect(invokeMock).toHaveBeenCalledWith("poll_ask_questions", {
+			environmentId: "local",
 			sessionId: hydratedSessionId,
 		});
 	});
@@ -3859,6 +4640,7 @@ describe("useChatSession", () => {
 					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
 				}
 				if (command === "read_session_messages") {
+					expect(args?.environmentId).toBe("local");
 					return canonicalMessages;
 				}
 				if (command === "chat_session_command") {
@@ -5260,18 +6042,26 @@ describe("useChatSession", () => {
 	it("falls back to process context when the remembered workspace is stale", async () => {
 		await act(async () => root.unmount());
 		window.localStorage.setItem(
-			"cline.code.workspace-selection.v1",
+			"cline.code.workspace-selection.v2",
 			JSON.stringify({
-				lastWorkspace: "/workspace/deleted",
-				workspaces: ["/workspace/deleted"],
+				environments: {
+					local: {
+						lastWorkspace: "/workspace/deleted",
+						workspaces: ["/workspace/deleted"],
+					},
+				},
 			}),
 		);
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
-				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				return {
+					environmentId: "local",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+				};
 			}
 			if (command === "validate_workspace_directory") {
-				return { valid: false };
+				return { environmentId: "local", valid: false };
 			}
 			return [];
 		});
@@ -5283,16 +6073,74 @@ describe("useChatSession", () => {
 			expect(current.config.cwd).toBe("/workspace/cline");
 		});
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			environmentId: "local",
 			path: "/workspace/deleted",
+		});
+	});
+
+	it("binds process context and remembered workspace to the requested remote environment", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			"cline.code.workspace-selection.v2",
+			JSON.stringify({
+				environments: {
+					local: {
+						lastWorkspace: "/Users/local/project",
+						workspaces: ["/Users/local/project"],
+					},
+					"pi-server": {
+						lastWorkspace: "/home/pi/project",
+						workspaces: ["/home/pi/project"],
+					},
+				},
+			}),
+		);
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					expect(args).toEqual({ environmentId: "pi-server" });
+					return {
+						environmentId: "pi-server",
+						activeEnvironmentId: "another-host",
+						cwd: "/home/pi",
+						workspaceRoot: "/home/pi",
+					};
+				}
+				if (command === "validate_workspace_directory") {
+					return { environmentId: "pi-server", valid: true };
+				}
+				return [];
+			},
+		);
+		root = createRoot(container);
+		await act(async () =>
+			root.render(<HookHarness environmentId="pi-server" />),
+		);
+
+		await vi.waitFor(() => {
+			expect(current.config).toMatchObject({
+				environmentId: "pi-server",
+				cwd: "/home/pi/project",
+				workspaceRoot: "/home/pi/project",
+			});
+		});
+		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			environmentId: "pi-server",
+			path: "/home/pi/project",
 		});
 	});
 
 	it("applies a remembered workspace that becomes available while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
-			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| ((value: {
+					environmentId: string;
+					cwd: string;
+					workspaceRoot: string;
+			  }) => void)
 			| undefined;
 		const contextResponse = new Promise<{
+			environmentId: string;
 			cwd: string;
 			workspaceRoot: string;
 		}>((resolve) => {
@@ -5303,25 +6151,32 @@ describe("useChatSession", () => {
 				return await contextResponse;
 			}
 			if (command === "validate_workspace_directory") {
-				return { valid: true };
+				return { environmentId: "local", valid: true };
 			}
 			return [];
 		});
 		root = createRoot(container);
 		await act(async () => root.render(<HookHarness />));
 		await vi.waitFor(() => {
-			expect(invokeMock).toHaveBeenCalledWith("get_process_context");
+			expect(invokeMock).toHaveBeenCalledWith("get_process_context", {
+				environmentId: "local",
+			});
 		});
 		window.localStorage.setItem(
-			"cline.code.workspace-selection.v1",
+			"cline.code.workspace-selection.v2",
 			JSON.stringify({
-				lastWorkspace: "/workspace/remembered",
-				workspaces: ["/workspace/remembered"],
+				environments: {
+					local: {
+						lastWorkspace: "/workspace/remembered",
+						workspaces: ["/workspace/remembered"],
+					},
+				},
 			}),
 		);
 
 		await act(async () => {
 			resolveContext?.({
+				environmentId: "local",
 				cwd: "/workspace/default",
 				workspaceRoot: "/workspace/default",
 			});
@@ -5333,6 +6188,7 @@ describe("useChatSession", () => {
 			expect(current.config.cwd).toBe("/workspace/remembered");
 		});
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			environmentId: "local",
 			path: "/workspace/remembered",
 		});
 	});
@@ -5340,9 +6196,14 @@ describe("useChatSession", () => {
 	it("preserves a workspace selected while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
-			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| ((value: {
+					environmentId: string;
+					cwd: string;
+					workspaceRoot: string;
+			  }) => void)
 			| undefined;
 		const contextResponse = new Promise<{
+			environmentId: string;
 			cwd: string;
 			workspaceRoot: string;
 		}>((resolve) => {
@@ -5360,6 +6221,7 @@ describe("useChatSession", () => {
 
 		await act(async () => {
 			resolveContext?.({
+				environmentId: "local",
 				cwd: "/workspace/default",
 				workspaceRoot: "/workspace/default",
 			});
@@ -5372,9 +6234,14 @@ describe("useChatSession", () => {
 	it("preserves a chat selection while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
-			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| ((value: {
+					environmentId: string;
+					cwd: string;
+					workspaceRoot: string;
+			  }) => void)
 			| undefined;
 		const contextResponse = new Promise<{
+			environmentId: string;
 			cwd: string;
 			workspaceRoot: string;
 		}>((resolve) => {
@@ -5392,6 +6259,7 @@ describe("useChatSession", () => {
 
 		await act(async () => {
 			resolveContext?.({
+				environmentId: "local",
 				cwd: "/workspace/default",
 				workspaceRoot: "/workspace/default",
 			});
@@ -5987,43 +6855,6 @@ describe("coerced-queue first turn vs stale send response", () => {
 					message.role === "user" && message.content === "Continue working",
 			),
 		).toBe(true);
-	});
-
-	it("ignores a rehydration read that resolves after a new turn starts", async () => {
-		mockTransport({ deferredSendCount: 0 });
-		const transport = invokeMock.getMockImplementation();
-		let resolveRead!: (messages: unknown[]) => void;
-		const read = new Promise<unknown[]>((resolve) => {
-			resolveRead = resolve;
-		});
-		invokeMock.mockImplementation(async (command, args) => {
-			if (command === "read_session_messages") return await read;
-			return await transport?.(command, args);
-		});
-		const { sendPromise } = await dispatchPrompt("first prompt");
-		await act(async () => sendPromise);
-		const sid = current.sessionId;
-		const chatEventHandler = getChatEventHandler();
-		const rehydratedHandler = subscribeMock.mock.calls.find(
-			([eventName]) => eventName === "cloud_session_rehydrated",
-		)?.[1] as ((payload: unknown) => void) | undefined;
-
-		await act(async () => {
-			rehydratedHandler?.({ sessionId: sid, status: "completed" });
-		});
-		await act(async () => {
-			emitTurnEvents(chatEventHandler, sid, [
-				{
-					stream: "chat_queued_prompt_start",
-					chunk: JSON.stringify({ prompt: "first prompt" }),
-					index: 1,
-				},
-			]);
-			resolveRead([]);
-			await read;
-		});
-
-		expect(current.status).toBe("running");
 	});
 
 	it("still applies a queued response for a deliberately queued prompt", async () => {

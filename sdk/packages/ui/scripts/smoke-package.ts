@@ -105,6 +105,38 @@ function createConsumer(root: string): void {
 	);
 }
 
+async function verifyDiffDeclarations(root: string): Promise<void> {
+	const consumer = join(root, "tool-diff-consumer.ts");
+	writeFileSync(
+		consumer,
+		`import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import type { ComponentProps } from "react";
+const options: NonNullable<ComponentProps<typeof ToolFileDiff>["options"]> = {
+	diffStyle: "split",
+};
+void options;
+`,
+	);
+	await run(
+		[
+			process.execPath,
+			join(root, "node_modules/typescript/bin/tsc"),
+			"--noEmit",
+			"--strict",
+			"--skipLibCheck",
+			"false",
+			"--target",
+			"ES2022",
+			"--module",
+			"ESNext",
+			"--moduleResolution",
+			"Bundler",
+			consumer,
+		],
+		root,
+	);
+}
+
 async function compileTailwind(
 	root: string,
 	name: string,
@@ -255,13 +287,17 @@ try {
 			archive,
 			"react@19.2.4",
 			"react-dom@19.2.4",
-			"@pierre/diffs@1.3.2",
+			"@pierre/diffs@1.4.0",
+			"@types/react@19.2.14",
+			"@types/node@22.20.3",
+			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		bunConsumer,
 	);
 	await run([process.execPath, "-e", importCheck], bunConsumer);
+	await verifyDiffDeclarations(bunConsumer);
 	await verifyTailwindContract(bunConsumer, [
 		process.execPath,
 		"x",
@@ -281,19 +317,23 @@ try {
 			"react@18.3.1",
 			"react-dom@18.3.1",
 			"@pierre/diffs@1.3.2",
+			"@types/react@18.3.1",
+			"@types/node@22.20.3",
+			"typescript@5.9.3",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
 		npmConsumer,
 	);
 	await run(["node", "--input-type=module", "-e", importCheck], npmConsumer);
+	await verifyDiffDeclarations(npmConsumer);
 	await verifyTailwindContract(npmConsumer, [
 		"npx",
 		"--no-install",
 		"tailwindcss",
 	]);
 	console.log(
-		`Verified packed ${basename(archive)} with Bun/React 19 and npm/Node/React 18, including Tailwind contracts`,
+		`Verified packed ${basename(archive)} with Bun/React 19/diffs 1.4 and npm/Node/React 18/diffs 1.3, including declarations and Tailwind contracts`,
 	);
 } finally {
 	rmSync(temporaryRoot, { force: true, recursive: true });

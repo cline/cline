@@ -30,13 +30,18 @@ function fileApprovalAsk(ts: number, path: string): ClineMessage {
 }
 
 function makeChatState(): ChatState {
+	const draft = { revision: 3, text: "", activeQuote: null, images: [] as string[], files: [] as string[] }
 	return {
-		inputValue: "",
-		selectedImages: [],
-		selectedFiles: [],
+		inputValue: draft.text,
+		activeQuote: draft.activeQuote,
+		selectedImages: draft.images,
+		selectedFiles: draft.files,
 		setInputValue: vi.fn(),
+		setActiveQuote: vi.fn(),
 		setSelectedImages: vi.fn(),
 		setSelectedFiles: vi.fn(),
+		getDraftSnapshot: vi.fn(() => draft),
+		consumeDraftSnapshot: vi.fn(),
 		setSendingDisabled: vi.fn(),
 	} as unknown as ChatState
 }
@@ -103,5 +108,90 @@ describe("ActionButtons", () => {
 
 		expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled()
 		expect(screen.getByRole("button", { name: "Reject" })).not.toBeDisabled()
+	})
+
+	it("passes Retry its preserving action without reading the draft", () => {
+		mockTurnState.mockReturnValue({ phase: "error", anchorTs: 2 })
+		const task: ClineMessage = { ts: 1, type: "say", say: "task", text: "task" }
+		const failed: ClineMessage = { ts: 2, type: "ask", ask: "api_req_failed", text: "server error" }
+		const executeButtonAction = vi.fn().mockResolvedValue(undefined)
+		const chatState = {
+			...makeChatState(),
+			inputValue: "unsent draft",
+			activeQuote: "selected context",
+			selectedImages: ["image.png"],
+			selectedFiles: ["notes.md"],
+			getDraftSnapshot: vi.fn(() => ({
+				revision: 9,
+				text: "unsent draft",
+				activeQuote: "selected context",
+				images: ["image.png"],
+				files: ["notes.md"],
+			})),
+		} as ChatState
+
+		render(
+			<ActionButtons
+				chatState={chatState}
+				messageHandlers={{ executeButtonAction } as unknown as MessageHandlers}
+				messages={[task, failed]}
+				mode="act"
+				task={task}
+			/>,
+		)
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+
+		expect(executeButtonAction).toHaveBeenCalledWith({ type: "retry" })
+		expect(chatState.getDraftSnapshot).not.toHaveBeenCalled()
+	})
+
+	it("passes a submitting action the complete draft snapshot", () => {
+		mockTurnState.mockReturnValue({ phase: "awaiting_approval", anchorTs: 1 })
+		const task = fileApprovalAsk(1, "/notes.txt")
+		const draft = {
+			revision: 12,
+			text: "approval feedback",
+			activeQuote: "selected context",
+			images: ["image.png"],
+			files: ["notes.md"],
+		}
+		const executeButtonAction = vi.fn().mockResolvedValue(undefined)
+		const chatState = { ...makeChatState(), getDraftSnapshot: vi.fn(() => draft) } as ChatState
+
+		render(
+			<ActionButtons
+				chatState={chatState}
+				messageHandlers={{ executeButtonAction } as unknown as MessageHandlers}
+				messages={[task]}
+				mode="act"
+				task={task}
+			/>,
+		)
+
+		fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+		expect(executeButtonAction).toHaveBeenCalledWith({ type: "approve", draft })
+	})
+
+	it("does not clear a draft when command output advances to the next request", () => {
+		mockTurnState.mockReturnValue({ phase: "streaming" })
+		const commandOutput: ClineMessage = { ts: 1, type: "ask", ask: "command_output", text: "partial output" }
+		const requestStarted: ClineMessage = { ts: 2, type: "say", say: "api_req_started", text: "{}" }
+		const chatState = makeChatState()
+
+		render(
+			<ActionButtons
+				chatState={chatState}
+				messageHandlers={{ executeButtonAction: vi.fn() } as unknown as MessageHandlers}
+				messages={[commandOutput, requestStarted]}
+				mode="act"
+				task={commandOutput}
+			/>,
+		)
+
+		expect(chatState.setInputValue).not.toHaveBeenCalled()
+		expect(chatState.setSelectedImages).not.toHaveBeenCalled()
+		expect(chatState.setSelectedFiles).not.toHaveBeenCalled()
 	})
 })

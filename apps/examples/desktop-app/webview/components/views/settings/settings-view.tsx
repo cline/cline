@@ -72,6 +72,7 @@ import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
+import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
@@ -625,6 +626,8 @@ export function SettingsView({
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Import" ? (
 			<ImportContent />
+		) : activeNav === "Remote" ? (
+			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -640,7 +643,7 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="h-full overflow-hidden bg-background">
+		<div className="cline-settings-content h-full overflow-hidden bg-background">
 			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
@@ -706,7 +709,6 @@ function GeneralSettingsContent({
 	>(null);
 	// Keep the preview hidden until the rollout service explicitly enables it.
 	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(false);
-	const cloudSessionsSettingVisible = cloudSessionsAvailable;
 
 	const refreshCloudSessionsEffective = useCallback(async () => {
 		try {
@@ -1181,7 +1183,7 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
-				{cloudSessionsSettingVisible ? (
+				{cloudSessionsAvailable ? (
 					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 						<div className="flex flex-col gap-1">
 							<p className="flex items-center gap-2 text-base font-semibold text-foreground">

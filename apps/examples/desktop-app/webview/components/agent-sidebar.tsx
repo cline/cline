@@ -14,6 +14,7 @@ import {
 	Import,
 	Loader2,
 	Mic,
+	Network,
 	PanelLeftOpen,
 	Pencil,
 	Pin,
@@ -108,6 +109,8 @@ import {
 	workspaceDisplayName,
 } from "@/lib/sidebar-session-organization";
 import { cn } from "@/lib/utils";
+import { TASK_WORKTREE_DELETE_WARNING } from "@/lib/work-in-selection";
+import { isTaskWorktreePath } from "@/lib/workspace-paths";
 
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
@@ -148,6 +151,7 @@ const SETTINGS_SECTION_ICONS = {
 	Channels: Radio,
 	Schedules: Clock3,
 	Import: Import,
+	Remote: Network,
 	Account: CircleUserRound,
 	Customize: Blocks,
 	Marketplace: Store,
@@ -660,7 +664,7 @@ export function AgentSidebar({
 	);
 	// A single click flips straight to the other mode (a dropdown here would
 	// cost an extra click for a two-option choice); the icon shows the mode
-	// that is currently active.
+	// the click switches to, not the one currently active.
 	const sortToggle = (
 		<Button
 			aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
@@ -677,9 +681,9 @@ export function AgentSidebar({
 			variant="ghost"
 		>
 			{sortMode === "time" ? (
-				<Clock3 className="size-3.5" />
-			) : (
 				<FolderTree className="size-3.5" />
+			) : (
+				<Clock3 className="size-3.5" />
 			)}
 		</Button>
 	);
@@ -1284,6 +1288,10 @@ export function AgentSidebar({
 							{deleteConfirmThread?.origin === "cloud"
 								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
 								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
+							{deleteConfirmThread?.origin !== "cloud" &&
+							isTaskWorktreePath(deleteConfirmThread?.workspacePath ?? "")
+								? ` ${TASK_WORKTREE_DELETE_WARNING}`
+								: null}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1651,7 +1659,6 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowPin={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				allowRename
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
@@ -1750,8 +1757,6 @@ function EditableSessionTitle({
 function SessionContextMenuContent({
 	allowPin,
 	allowFork,
-	allowRename,
-	allowDelete = true,
 	pinned,
 	onRename,
 	onTogglePin,
@@ -1761,8 +1766,6 @@ function SessionContextMenuContent({
 }: {
 	allowPin: boolean;
 	allowFork: boolean;
-	allowRename: boolean;
-	allowDelete?: boolean;
 	pinned: boolean;
 	onRename: () => void;
 	onTogglePin: () => void;
@@ -1779,16 +1782,14 @@ function SessionContextMenuContent({
 					{pinned ? "Unpin" : "Pin"}
 				</ContextMenuItem>
 			) : null}
-			{allowRename ? (
-				<ContextMenuItem disabled={pending} onSelect={onRename}>
-					{pendingAction === "rename" ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<Pencil className="size-4" />
-					)}
-					{pendingAction === "rename" ? "Renaming..." : "Rename"}
-				</ContextMenuItem>
-			) : null}
+			<ContextMenuItem disabled={pending} onSelect={onRename}>
+				{pendingAction === "rename" ? (
+					<Loader2 className="size-4 animate-spin" />
+				) : (
+					<Pencil className="size-4" />
+				)}
+				{pendingAction === "rename" ? "Renaming..." : "Rename"}
+			</ContextMenuItem>
 			{allowFork ? (
 				<ContextMenuItem disabled={pending} onSelect={onFork}>
 					{pendingAction === "fork" ? (
@@ -1800,7 +1801,7 @@ function SessionContextMenuContent({
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuItem
-				disabled={pending || !allowDelete}
+				disabled={pending}
 				onSelect={onDelete}
 				variant="destructive"
 			>

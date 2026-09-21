@@ -329,6 +329,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			send: (input) => this.runTurn(input),
 		});
 		this.pendingPrompts = {
+			steerFirst: async (input) =>
+				this.pendingPromptsController.steerFirst(input.sessionId),
 			list: async (input) =>
 				this.pendingPromptsController.list(input.sessionId),
 			update: async (input) => this.pendingPromptsController.update(input),
