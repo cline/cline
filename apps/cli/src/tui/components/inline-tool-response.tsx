@@ -3,6 +3,7 @@ import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "../hooks/use-theme";
 import type { RuntimeToolInteraction } from "../types";
+import { getPrintableKeyText, removeLastGrapheme } from "./ask-question-input";
 import { formatApprovalParams } from "./dialogs/tool-approval";
 
 export interface InlineToolResponseProps {
@@ -13,14 +14,6 @@ export interface InlineToolResponseProps {
 	inputPlaceholder: string;
 	onResolveToolApproval: (id: number, approved: boolean) => void;
 	onResolveAskQuestion: (id: number, answer: string | null) => void;
-}
-
-function isPrintableKey(name: string): boolean {
-	return name.length === 1 || name === "space";
-}
-
-function keyToText(name: string): string {
-	return name === "space" ? " " : name;
 }
 
 function getToolShellMaxHeight(terminalHeight: number): number {
@@ -354,7 +347,7 @@ function AskQuestionResponse(
 			return;
 		}
 		if (typing && key.name === "backspace") {
-			setCustomText(customValueRef.current.slice(0, -1));
+			setCustomText(removeLastGrapheme(customValueRef.current));
 			return;
 		}
 		if (typing && key.name === "delete") {
@@ -394,13 +387,12 @@ function AskQuestionResponse(
 				return;
 			}
 		}
-		if (typing && !key.ctrl && !key.meta && isPrintableKey(key.name)) {
-			const value = keyToText(key.name);
+		const value = getPrintableKeyText(key);
+		if (typing && value !== null) {
 			setCustomText(`${customValueRef.current}${value}`);
 			return;
 		}
-		if (!key.ctrl && !key.meta && isPrintableKey(key.name)) {
-			const value = keyToText(key.name);
+		if (value !== null) {
 			setCustomText(value);
 			selectIndex(customIndex);
 		}

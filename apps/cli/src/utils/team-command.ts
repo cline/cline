@@ -29,9 +29,7 @@ export function rewriteTeamPrompt(input: string): TeamPromptRewriteResult {
 }
 
 export async function enableTeamsForPrompt(config: Config): Promise<void> {
-	if (config.enableAgentTeams) {
-		return;
-	}
+	if (config.enableAgentTeams) return;
 	config.enableAgentTeams = true;
 	config.teamName = config.teamName?.trim() || createTeamName();
 }

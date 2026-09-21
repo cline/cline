@@ -25,6 +25,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
+import type { WorkIn } from "@/lib/work-in-selection";
 import {
 	CloudOnboardingCard,
 	type CloudOnboardingVariant,
@@ -57,16 +58,18 @@ export function WelcomeScreen({
 	body,
 	composer,
 	notice,
+	environmentSelector,
 	gitBranch,
 	onListGitBranches,
 	onSwitchGitBranch,
 	executionTarget = "local",
 	repoUrl = "",
 	cloudBranch = "",
-	onExecutionTargetChange = noop,
 	onRepoUrlChange = noop,
 	onCloudBranchChange = noop,
 	cloudAgentsEnabled = false,
+	workIn,
+	onWorkInChange,
 	onOpenSession,
 }: {
 	active: boolean;
@@ -76,15 +79,17 @@ export function WelcomeScreen({
 	notice?: ReactNode;
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	environmentSelector: ReactNode;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	executionTarget?: "local" | "cloud";
 	repoUrl?: string;
 	cloudBranch?: string;
-	onExecutionTargetChange?: (target: "local" | "cloud") => void;
 	onRepoUrlChange?: (repoUrl: string) => void;
 	onCloudBranchChange?: (branch: string) => void;
 	cloudAgentsEnabled?: boolean;
+	workIn?: WorkIn;
+	onWorkInChange?: (next: WorkIn) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
@@ -380,7 +385,8 @@ export function WelcomeScreen({
 							<h1 className="sr-only">What would you like to build?</h1>
 							<AgentWelcomeHero />
 
-							<div className="mt-11 flex min-w-0 items-center">
+							<div className="mt-11 flex min-w-0 items-center gap-2">
+								{environmentSelector}
 								<WelcomeWorkspaceControls
 									cloudBranch={cloudBranch}
 									cloudControlsHidden={showCloudOnboarding}
@@ -394,7 +400,6 @@ export function WelcomeScreen({
 									onOpenExternalUrl={connectGitHub}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
-									onExecutionTargetChange={onExecutionTargetChange}
 									onRepoUrlChange={onRepoUrlChange}
 									onSignIn={signIn}
 									onSelectChat={selectChat}
@@ -403,6 +408,8 @@ export function WelcomeScreen({
 									repoUrl={repoUrl}
 									signedIn={signedIn}
 									signingIn={signingIn}
+									onWorkInChange={onWorkInChange}
+									workIn={workIn}
 									workspaceRoot={workspaceRoot}
 									workspaces={workspaces}
 								/>

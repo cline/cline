@@ -392,6 +392,7 @@ export class CloudSessionController {
 		Promise<CloudConnection>
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
+	private readonly pendingInitialTasks = new Set<string>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly unconfirmedInnerCreates = new Map<string, string>();
@@ -634,6 +635,7 @@ export class CloudSessionController {
 				(error.code === "session_not_found" || error.code === "session_expired")
 			) {
 				this.knownSessions.delete(sessionId);
+				this.pendingInitialTasks.delete(sessionId);
 				return undefined;
 			}
 			// A scope/auth/network failure cannot prove the cached session is gone.
@@ -1049,6 +1051,7 @@ export class CloudSessionController {
 			updatedAt: new Date().toISOString(),
 		};
 		this.knownSessions.set(record.id, record);
+		this.pendingInitialTasks.add(record.id);
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
 		// REST does not round-trip the client-side approval preference.
@@ -1116,6 +1119,7 @@ export class CloudSessionController {
 		onRemoved?: (sessionId: string) => Promise<void>,
 	): Promise<void> {
 		this.knownSessions.delete(outerSessionId);
+		this.pendingInitialTasks.delete(outerSessionId);
 		this.sessions.delete(outerSessionId);
 		await this.options.api
 			.delete(outerSessionId, authToken)
@@ -1256,9 +1260,11 @@ export class CloudSessionController {
 			}
 		};
 		if (live && ownsBusyState) {
+			const statusChanged = live.status !== "running";
 			live.busy = true;
 			live.status = "running";
 			live.prompt ||= prompt;
+			if (statusChanged) this.publishSnapshot(outerSessionId, false, "status");
 		}
 		const record = this.knownSessions.get(outerSessionId);
 		if (
@@ -1378,7 +1384,7 @@ export class CloudSessionController {
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
 					throw new CloudSessionError(
 						"request_failed",
-						"The connection was interrupted before this message could be confirmed. It was not found in the cloud session, so please send it again.",
+						"Cline could not confirm whether this message was accepted. Check the cloud session before resending it.",
 					);
 				}
 				return {
@@ -1509,11 +1515,17 @@ export class CloudSessionController {
 			).trim();
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
 
-			const messagesReply = await connection.client.command(
-				"session.messages",
-				{ sessionId: innerSessionId },
-				innerSessionId,
-			);
+			const readMessages = () =>
+				connection.client.command(
+					"session.messages",
+					{ sessionId: innerSessionId },
+					innerSessionId,
+				);
+			const messagesReply = await readMessages().catch((error) => {
+				if (!isHubCommandTimeoutError(error, "session.messages")) throw error;
+				this.assertSessionActive(outerSessionId, connection);
+				return readMessages();
+			});
 			this.assertSessionActive(outerSessionId, connection);
 			if (!Array.isArray(messagesReply.payload?.messages)) {
 				throw new Error("Cloud Hub returned an invalid transcript snapshot");
@@ -1883,6 +1895,7 @@ export class CloudSessionController {
 				}
 			}
 			this.knownSessions.delete(outerSessionId);
+			this.pendingInitialTasks.delete(outerSessionId);
 			this.sessions.delete(outerSessionId);
 			this.authoritativeMessages.delete(outerSessionId);
 			this.restoredOptions.delete(outerSessionId);
@@ -1925,6 +1938,7 @@ export class CloudSessionController {
 			this.publish({ type: "removed", sessionId });
 		}
 		this.knownSessions.clear();
+		this.pendingInitialTasks.clear();
 		this.listeners.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
@@ -2044,20 +2058,27 @@ export class CloudSessionController {
 		if (existing) {
 			this.assertSessionActive(outerSessionId, existing);
 			// Reconnect clears the id while looking up the existing root session.
-			if (options.createInner) await existing.reconnectResolution;
+			await existing.reconnectResolution;
 			this.assertSessionActive(outerSessionId, existing);
+			if (!existing.innerSessionId) {
+				// An initial failed upgrade can leave a retained, unresolved client.
+				await existing.client.connect();
+				await existing.reconnectResolution;
+				this.assertSessionActive(outerSessionId, existing);
+				await this.resolveInnerSession(
+					outerSessionId,
+					existing,
+					Boolean(options.handoffSeed),
+				);
+				this.assertSessionActive(outerSessionId, existing);
+			}
 			if (options.handoffSeed && existing.innerSessionId)
 				await this.assertHandoffConnectionReusable(
 					existing,
 					options.handoffSeed,
 				);
-			if (options.createInner && !existing.innerSessionId) {
-				// An initial failed upgrade can leave a retained, unresolved client.
-				await existing.client.connect();
-				await existing.reconnectResolution;
-				await this.resolveInnerSession(outerSessionId, existing);
+			if (options.createInner && !existing.innerSessionId)
 				await this.createInnerSession(existing, options.handoffSeed);
-			}
 			this.assertSessionActive(outerSessionId, existing);
 			return existing;
 		}
@@ -2215,7 +2236,11 @@ export class CloudSessionController {
 				connection.connected = true;
 				this.publishSnapshot(outerSessionId);
 				this.assertSessionActive(outerSessionId, connection);
-				await this.resolveInnerSession(outerSessionId, connection);
+				await this.resolveInnerSession(
+					outerSessionId,
+					connection,
+					Boolean(options.handoffSeed),
+				);
 				this.assertSessionActive(outerSessionId, connection);
 				if (options.handoffSeed && connection.innerSessionId)
 					await this.assertHandoffConnectionReusable(
@@ -2234,8 +2259,7 @@ export class CloudSessionController {
 					!connection.disposed &&
 					!this.deletingSessions.has(outerSessionId)
 				) {
-					if (options.createInner) throw error;
-					return connection;
+					throw error;
 				}
 				if (this.connections.get(outerSessionId) === connection)
 					this.connections.delete(outerSessionId);
@@ -2264,6 +2288,7 @@ export class CloudSessionController {
 	private async resolveInnerSession(
 		outerSessionId: string,
 		connection: CloudConnection,
+		allowMissing = false,
 	): Promise<void> {
 		this.assertSessionActive(outerSessionId, connection);
 		if (connection.innerSessionId) return;
@@ -2296,7 +2321,15 @@ export class CloudSessionController {
 				.sort((left, right) => updatedAt(right) - updatedAt(left))[0];
 		}
 		const innerSessionId = String(session?.sessionId ?? "").trim();
-		if (!innerSessionId) return;
+		if (!innerSessionId) {
+			if (!allowMissing && !this.pendingInitialTasks.has(outerSessionId)) {
+				throw new Error(
+					"This cloud session's task is unavailable. Start a new cloud session to continue.",
+				);
+			}
+			return;
+		}
+		this.pendingInitialTasks.delete(outerSessionId);
 		connection.innerSessionId = innerSessionId;
 		this.subscribeToInnerSession(outerSessionId, connection);
 		const modelId = sessionRowModelId(session);
@@ -2532,6 +2565,7 @@ export class CloudSessionController {
 			throw new Error("Cloud Hub did not return an inner session id");
 		}
 		this.unconfirmedInnerCreates.delete(connection.remote.id);
+		this.pendingInitialTasks.delete(connection.remote.id);
 		connection.innerSessionId = innerSessionId;
 		connection.remote.metadata.cwd = cwd;
 		if (live) {

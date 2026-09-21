@@ -1466,6 +1466,7 @@ async function* emitAiSdkEvents(
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
 	let finishReason: unknown;
+	let requestId: string | undefined;
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
@@ -1490,6 +1491,16 @@ async function* emitAiSdkEvents(
 	try {
 		if (stream.fullStream) {
 			for await (const part of stream.fullStream) {
+				if (part.type === "start-step") {
+					requestId = undefined;
+					continue;
+				}
+				if (part.type === "finish-step") {
+					requestId = Object.entries(part.response?.headers ?? {}).find(
+						([name]) => name.toLowerCase() === "x-request-id",
+					)?.[1];
+					continue;
+				}
 				if (part.type === "text-delta") {
 					const text =
 						(part.textDelta as string | undefined) ??
@@ -1968,6 +1979,7 @@ async function* emitAiSdkEvents(
 	yield {
 		type: "finish",
 		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
+		...(requestId ? { requestId } : {}),
 		error: streamError?.message,
 		errorClass: streamError?.errorClass,
 		errorRetryable: streamError?.retryable,

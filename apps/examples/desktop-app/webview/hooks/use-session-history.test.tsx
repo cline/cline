@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { sessionKey } from "../lib/session-identity";
 import {
 	resolveLiveHistorySession,
 	sessionActivityTimestamp,
@@ -42,7 +43,8 @@ type PendingList = {
 function sessionRow(sessionId: string) {
 	return {
 		sessionId,
-		status: "completed",
+		environmentId: "local",
+		status: "completed" as const,
 		provider: "cline",
 		model: "glm-5.2",
 		cwd: "/workspace",
@@ -127,6 +129,44 @@ afterEach(async () => {
 });
 
 describe("useSessionHistory session mapping", () => {
+	it("keeps duplicate IDs visible and renames only the selected environment", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				["local", "remote"].map((environmentId) => ({
+					...sessionRow("same-id"),
+					environmentId,
+					metadata: { title: environmentId },
+				})),
+			);
+			await Promise.resolve();
+		});
+		expect(current.threads).toHaveLength(2);
+		const remoteKey = sessionKey({
+			sessionId: "same-id",
+			environmentId: "remote",
+		});
+		await act(async () => {
+			await current.renameThread(remoteKey, "Renamed remote");
+		});
+		expect(invokeMock).toHaveBeenCalledWith("update_chat_session_title", {
+			sessionId: "same-id",
+			environmentId: "remote",
+			title: "Renamed remote",
+		});
+		expect(
+			current.threads.find(
+				(thread) => thread.id === sessionKey({ sessionId: "same-id" }),
+			)?.title,
+		).toBe("local");
+		expect(
+			current.threads.find((thread) => thread.id === remoteKey)?.title,
+		).toBe("Renamed remote");
+	});
+
 	it("maps nested Core schedule provenance onto sidebar threads", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);
@@ -155,10 +195,15 @@ describe("useSessionHistory session mapping", () => {
 		});
 
 		expect(
-			current.threads.find((thread) => thread.id === "scheduled-session"),
+			current.threads.find(
+				(thread) =>
+					thread.id === sessionKey({ sessionId: "scheduled-session" }),
+			),
 		).toMatchObject({ source: "core", isScheduled: true });
 		expect(
-			current.threads.find((thread) => thread.id === "regular-session"),
+			current.threads.find(
+				(thread) => thread.id === sessionKey({ sessionId: "regular-session" }),
+			),
 		).toMatchObject({ source: "core", isScheduled: false });
 	});
 
@@ -211,14 +256,18 @@ describe("useSessionHistory session mapping", () => {
 		// The executions list also supplies the schedule identity the session
 		// record itself lacks, so the sidebar can group it with its siblings.
 		expect(
-			current.threads.find((thread) => thread.id === "cron-session"),
+			current.threads.find(
+				(thread) => thread.id === sessionKey({ sessionId: "cron-session" }),
+			),
 		).toMatchObject({
 			isScheduled: true,
 			scheduleId: "sched_daily",
 			scheduleName: "Daily report",
 		});
 		expect(
-			current.threads.find((thread) => thread.id === "regular-session"),
+			current.threads.find(
+				(thread) => thread.id === sessionKey({ sessionId: "regular-session" }),
+			),
 		).toMatchObject({ isScheduled: false });
 	});
 
@@ -285,7 +334,9 @@ describe("useSessionHistory session mapping", () => {
 		});
 
 		expect(
-			current.threads.find((thread) => thread.id === "run-session"),
+			current.threads.find(
+				(thread) => thread.id === sessionKey({ sessionId: "run-session" }),
+			),
 		).toMatchObject({
 			isScheduled: true,
 			startedAt: "2026-07-20T10:00:00.000Z",
@@ -352,12 +403,14 @@ describe("useSessionHistory cloud scope", () => {
 			(row) => row.sessionId === local.sessionId,
 		);
 		const localThread = current.threads.find(
-			(row) => row.id === local.sessionId,
+			(row) => row.id === sessionKey(local),
 		);
+		const oldThreadId = sessionKey({ sessionId: "old-account" });
+		expect(current.getSessionByThreadId(oldThreadId)).toBeDefined();
 
 		await act(async () => {
 			subscribers.get("cloud_sessions_changed")?.({});
-			expect(current.getSessionByThreadId("old-account")).toBeUndefined();
+			expect(current.getSessionByThreadId(oldThreadId)).toBeUndefined();
 		});
 		expect(current.sessions).toEqual([localSession]);
 		expect(current.threads).toEqual([localThread]);
@@ -382,8 +435,8 @@ describe("useSessionHistory cloud scope", () => {
 			"new-account",
 		]);
 		expect(current.threads.map((row) => row.id).sort()).toEqual([
-			"local-session",
-			"new-account",
+			sessionKey({ sessionId: "local-session" }),
+			sessionKey({ sessionId: "new-account" }),
 		]);
 	});
 
@@ -417,7 +470,9 @@ describe("useSessionHistory cloud scope", () => {
 		expect(current.sessions.map((session) => session.sessionId)).toEqual([
 			"new-account",
 		]);
-		expect(current.threads.map((thread) => thread.id)).toEqual(["new-account"]);
+		expect(current.threads.map((thread) => thread.id)).toEqual([
+			sessionKey({ sessionId: "new-account" }),
+		]);
 	});
 });
 
@@ -844,7 +899,9 @@ describe("useSessionHistory usage hydration", () => {
 
 		await renderWithRows(12);
 		expect(current.threads.map((thread) => thread.id)).toEqual(
-			Array.from({ length: 12 }, (_, index) => `session-${index}`),
+			Array.from({ length: 12 }, (_, index) =>
+				sessionKey({ sessionId: `session-${index}` }),
+			),
 		);
 
 		await flush(800);
@@ -877,7 +934,11 @@ describe("useSessionHistory usage hydration", () => {
 
 		// The second page comes into view: only the rows it asks for are read.
 		await act(async () => {
-			current.requestUsage(["session-11", "  ", "not-a-session"]);
+			current.requestUsage(
+				["session-11", "  ", "not-a-session"].map((sessionId) =>
+					sessionKey({ sessionId }),
+				),
+			);
 		});
 		await flush(800);
 		await settle();
@@ -890,7 +951,11 @@ describe("useSessionHistory usage hydration", () => {
 
 		// Asking again for rows that already have usage is a no-op.
 		await act(async () => {
-			current.requestUsage(["session-0", "session-11"]);
+			current.requestUsage(
+				["session-0", "session-11"].map((sessionId) =>
+					sessionKey({ sessionId }),
+				),
+			);
 		});
 		await flush(800);
 		await settle();
@@ -958,7 +1023,9 @@ describe("useSessionHistory usage hydration", () => {
 		// A page request restarts the effect while four reads are pending. The
 		// restarted run must not add four reads of its own on top of them.
 		await act(async () => {
-			current.requestUsage(["session-11"]);
+			current.requestUsage(
+				["session-11"].map((sessionId) => sessionKey({ sessionId })),
+			);
 		});
 		await flush(800);
 		await settle();
@@ -1097,7 +1164,9 @@ describe("useSessionHistory usage hydration", () => {
 		expect(readsOfRunning()).toBe(0);
 
 		await act(async () => {
-			current.requestUsage(["session-11"]);
+			current.requestUsage(
+				["session-11"].map((sessionId) => sessionKey({ sessionId })),
+			);
 		});
 		await flush(800);
 		await settle();
@@ -1117,7 +1186,7 @@ describe("useSessionHistory usage hydration", () => {
 		// The view pages away or unmounts: the next refresh leaves it alone,
 		// and the completed rows it already hydrated are not read again either.
 		await act(async () => {
-			current.requestUsage([]);
+			current.requestUsage([].map((sessionId) => sessionKey({ sessionId })));
 		});
 		await flush(12_000);
 		await flush();

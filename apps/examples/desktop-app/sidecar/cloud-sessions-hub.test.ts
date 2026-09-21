@@ -1,4 +1,8 @@
-import { HubTransportError, type NodeHubClient } from "@cline/core";
+import {
+	HubCommandError,
+	HubTransportError,
+	type NodeHubClient,
+} from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import type { HubEventEnvelope } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
@@ -9,6 +13,7 @@ import {
 	type CloudSessionRecord,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import { createSidecarContext } from "./context";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -20,6 +25,16 @@ const REMOTE_SESSION: CloudSessionRecord = {
 	createdAt: "2026-08-05T10:00:00.000Z",
 	updatedAt: "2026-08-05T10:01:00.000Z",
 };
+
+const CREATE_INPUT = {
+	modelId: "anthropic/claude-sonnet-5",
+	repoUrl: "https://github.com/cline/test",
+};
+const createRemote = async () => ({
+	sessionId: "ses-outer",
+	status: "ready",
+	sandboxUrl: REMOTE_SESSION.sandboxUrl,
+});
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -33,11 +48,8 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx = {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		coreStreamActivity: new Map(),
+	const ctx: SidecarContext = {
+		...createSidecarContext("/local/workspace"),
 		bootId: "cloud-test-boot",
 		wsClients: new Set([
 			{
@@ -51,15 +63,7 @@ function createContext(): {
 				},
 			},
 		]),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot: "/local/workspace",
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-		hubBuildMismatch: null,
-	} as SidecarContext;
+	};
 	return { ctx, events };
 }
 
@@ -214,7 +218,10 @@ function createFixture({
 } = {}) {
 	const { ctx, events } = createContext();
 	const manager = new CloudSessionManager(ctx, {
-		api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+		api: {
+			list: async () => [REMOTE_SESSION],
+			create: createRemote,
+		} as unknown as CloudSessionApi,
 		apiBaseUrl: "https://api.example",
 		getAuthToken: async () => "workos:fresh",
 		createHubClient: (clientOptions) => {
@@ -227,6 +234,82 @@ function createFixture({
 }
 
 describe("CloudSessionManager Hub runtime", () => {
+	it.each([
+		"once",
+		"always",
+		"other",
+	])("bounds history retry for %s failure", async (failure) => {
+		const { manager, hub } = createFixture();
+		const connect = vi.spyOn(hub, "connect");
+		await manager.attach("ses-outer");
+		let reads = 0;
+		hub.commandHook = (command) => {
+			if (
+				command === "session.messages" &&
+				(++reads === 1 || failure !== "once")
+			) {
+				throw new HubCommandError(
+					"session.messages",
+					failure === "other" ? "session_not_found" : "hub_command_timeout",
+					"read failed",
+				);
+			}
+		};
+		try {
+			const read = manager.readMessages("ses-outer");
+			if (failure === "once") await expect(read).resolves.toEqual(hub.messages);
+			else await expect(read).rejects.toThrow("read failed");
+			expect(reads).toBe(failure === "other" ? 1 : 2);
+			expect(connect).toHaveBeenCalledTimes(1);
+			expect(hub.disposed).toBe(false);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
+	it.each([
+		undefined,
+		"task-established",
+	])("never recreates a missing established task (%s)", async (taskId) => {
+		const hub = new FakeHubClient(false);
+		hub.commandHook = (command) => {
+			if (command === "session.get")
+				throw new HubCommandError(command, "session_not_found", "gone");
+		};
+		const archive = [{ role: "assistant", content: "saved history" }];
+		const history = vi.fn<() => Promise<unknown[] | null>>(async () => archive);
+		const { manager } = createFixture({
+			hub,
+			api: {
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						metadata: { ...REMOTE_SESSION.metadata, taskId },
+					},
+				],
+				history,
+			} as unknown as CloudSessionApi,
+		});
+		try {
+			await expect(manager.readMessages("ses-outer")).resolves.toEqual(archive);
+			history.mockResolvedValueOnce(null);
+			await expect(manager.readMessages("ses-outer")).rejects.toThrow(
+				"task is unavailable",
+			);
+			await expect(manager.send("ses-outer", "continue")).rejects.toThrow(
+				"task is unavailable",
+			);
+			expect(
+				hub.commands.some(
+					({ command }) =>
+						command === "session.create" || command === "session.send_input",
+				),
+			).toBe(false);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("does not recover a send rejected by deleting its connection", async () => {
 		const hub = new FakeHubClient();
 		const started = Promise.withResolvers<void>();
@@ -257,6 +340,13 @@ describe("CloudSessionManager Hub runtime", () => {
 			.send("ses-outer", "active prompt")
 			.catch((error: unknown) => error);
 		await started.promise;
+		expect(events).toContainEqual({
+			name: "chat_session_status",
+			payload: expect.objectContaining({
+				sessionId: "ses-outer",
+				status: "running",
+			}),
+		});
 		events.length = 0;
 		await manager.delete("ses-outer");
 		expect(await sending).toBeInstanceOf(Error);
@@ -264,7 +354,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(events).toEqual([
 			{
 				name: "tool_approval_state",
-				payload: { items: [], sessionId: "ses-outer" },
+				payload: { items: [], sessionId: "ses-outer", environmentId: "local" },
 			},
 		]);
 	});
@@ -645,6 +735,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		"session.create",
 	])("cancels a send stopped while %s is pending", async (blockedCommand) => {
 		const { manager, hub } = createFixture({ hub: new FakeHubClient(false) });
+		await manager.create(CREATE_INPUT);
 		let release!: () => void;
 		hub.commandHook = (command) => {
 			if (command === blockedCommand) {
@@ -727,7 +818,11 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				sessionId: "ses-outer",
+				status: "running",
+				environmentId: "local",
+			},
 		});
 	});
 
@@ -792,7 +887,11 @@ describe("CloudSessionManager Hub runtime", () => {
 		});
 		expect(events).toContainEqual({
 			name: "chat_session_status",
-			payload: { sessionId: "ses-outer", status: "running" },
+			payload: {
+				sessionId: "ses-outer",
+				status: "running",
+				environmentId: "local",
+			},
 		});
 		hub.events?.({
 			...envelope,
@@ -898,24 +997,45 @@ describe("CloudSessionManager Hub runtime", () => {
 		);
 	});
 
-	it("keeps a scoped client alive after the initial WebSocket fails", async () => {
-		const { ctx } = createContext();
+	it.each([
+		false,
+		true,
+	])("preserves reconnect recovery without hiding history failures (archive=%s)", async (hasArchive) => {
 		const hub = new (class extends FakeHubClient {
 			override async connect(): Promise<void> {
 				throw new HubTransportError("hub_connect_failed", "pod starting");
 			}
 		})();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+		const archive: unknown[] | null = hasArchive
+			? [
+					{
+						role: "assistant",
+						content: [{ type: "text", text: "Saved reply" }],
+					},
+				]
+			: null;
+		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
 			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
+		});
+		vi.spyOn(api, "list").mockResolvedValue([REMOTE_SESSION]);
+		vi.spyOn(api, "history").mockResolvedValue(archive);
+		const { manager } = createFixture({
+			hub,
+			api,
 		});
 
 		await manager.list();
-		await expect(manager.attach("ses-outer")).resolves.toMatchObject({
-			sessionId: "ses-outer",
-		});
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			const history = manager.readMessages("ses-outer");
+			if (hasArchive) {
+				await expect(history).resolves.toEqual(archive);
+			} else {
+				await expect(history).rejects.toThrow("pod starting");
+			}
+		}
+		await expect(manager.attach("ses-outer")).rejects.toThrow("pod starting");
 		expect(hub.disposed).toBe(false);
 		expect(hub.subscriptionSessionIds.at(-1)).toBe("ses-outer");
 		await manager.dispose();
@@ -1406,6 +1526,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		const { manager, hub } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
+				create: createRemote,
 				list: async () => [
 					{
 						...REMOTE_SESSION,
@@ -1414,6 +1535,8 @@ describe("CloudSessionManager Hub runtime", () => {
 				],
 			} as unknown as CloudSessionApi,
 		});
+		await manager.create(CREATE_INPUT);
+		await manager.list();
 		await manager.send("ses-outer", "Fix it");
 		const config = hub.commands.find(
 			({ command }) => command === "session.create",
@@ -1463,12 +1586,6 @@ describe("CloudSessionManager Hub runtime", () => {
 		expect(created.sessionId).toBe("ses-outer");
 		expect(created.prompt).toBe("Fix it");
 		expect(attached.prompt).toBe("Fix it");
-		expect(
-			hub.commands.find(({ command }) => command === "session.create")?.payload
-				?.toolPolicies,
-		).toEqual({
-			"*": { autoApprove: true },
-		});
 		expect(hub.commands).toContainEqual(
 			expect.objectContaining({
 				command: "session.create",
@@ -2023,6 +2140,7 @@ describe("CloudSessionManager Hub runtime", () => {
 		const clients: FakeHubClient[] = [];
 		const { manager, ctx } = createFixture({
 			api: {
+				create: createRemote,
 				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
 			} as unknown as CloudSessionApi,
 			createHubClient: () => {
@@ -2039,6 +2157,7 @@ describe("CloudSessionManager Hub runtime", () => {
 			},
 		});
 		ctx.cloudSessionManager = manager;
+		await manager.create(CREATE_INPUT);
 		await manager.list();
 
 		await expect(manager.send("ses-outer", "first")).rejects.toThrow(
@@ -2056,10 +2175,12 @@ describe("CloudSessionManager Hub runtime", () => {
 		const { manager, ctx, hub } = createFixture({
 			hub: new FakeHubClient(false),
 			api: {
+				create: createRemote,
 				list: async () => [{ ...REMOTE_SESSION, title: undefined }],
 			} as unknown as CloudSessionApi,
 		});
 		ctx.cloudSessionManager = manager;
+		await manager.create(CREATE_INPUT);
 		await manager.list();
 
 		await Promise.all([

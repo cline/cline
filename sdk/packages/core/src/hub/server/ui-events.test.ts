@@ -173,6 +173,11 @@ describe("hub UI events", () => {
 					throw new Error("not used in this test");
 				},
 				pendingPrompts: {
+					steerFirst: async ({ sessionId }: { sessionId: string }) => ({
+						sessionId,
+						prompts: [],
+						updated: false,
+					}),
 					list: async () => [],
 					update: async () => ({
 						sessionId: sessionRecord.sessionId,

@@ -484,6 +484,11 @@ export {
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "./runtime/build-env";
+export type { ClineClientIdentity } from "./runtime/cline-client-identity";
+export {
+	getClineClientIdentity,
+	setClineClientIdentity,
+} from "./runtime/cline-client-identity";
 export type {
 	ClineEnvironment,
 	ClineEnvironmentConfig,
@@ -515,10 +520,15 @@ export {
 	setConnectorCliLaunchSpec,
 	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
+export {
+	disableCurrentDirectoryExecutableSearch,
+	NO_DEFAULT_CURRENT_DIRECTORY_IN_EXE_PATH_ENV,
+} from "./runtime/windows-exe-path";
 export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureSdkErrorInput,
 	CaptureTaskLifecycleEventInput,
+	CoreSpawnReason,
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	SdkTelemetryErrorComponent,
@@ -533,6 +543,7 @@ export type {
 export {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
 	buildSdkErrorProperties,
+	CORE_SPAWN_REASONS,
 	captureAgentUnexpectedReasoningTokens,
 	captureSdkError,
 	captureTaskLifecycleEvent,

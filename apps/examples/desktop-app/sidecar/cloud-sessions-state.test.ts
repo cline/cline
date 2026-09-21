@@ -457,7 +457,7 @@ describe("CloudSessionManager state", () => {
 		};
 		command.mockRejectedValueOnce(transportError());
 		await expect(manager.send("ses-outer", "yes")).rejects.toThrow(
-			/please send it again/,
+			/could not confirm.*before resending/,
 		);
 	});
 
@@ -527,12 +527,12 @@ describe("CloudSessionManager state", () => {
 		expect(ensureAttached).toHaveBeenCalledTimes(2);
 	});
 
-	it("asks the user to resend when transport recovery cannot find the prompt", async () => {
+	it("keeps a direct send uncertain when transport recovery cannot find the prompt", async () => {
 		const { manager, command } = await createFixture();
 		await manager.readMessages("ses-outer");
 		command.mockRejectedValueOnce(transportError());
 		await expect(manager.send("ses-outer", "Lost prompt")).rejects.toThrow(
-			/not found in the cloud session.*send it again/i,
+			/could not confirm.*before resending/,
 		);
 		expect(
 			command.mock.calls.filter(([name]) => name === "session.send_input"),

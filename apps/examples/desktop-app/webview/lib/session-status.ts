@@ -12,6 +12,7 @@ export function resolveSessionHeaderStatus({
 	liveHistoryStatus?: SessionHistoryStatus;
 }): ChatSessionStatus {
 	if (!isCloudSession || !liveHistoryStatus) return chatStatus;
+	if (liveHistoryStatus === "expired") return "completed";
 	return liveHistoryStatus === "provisioning" ? "starting" : liveHistoryStatus;
 }
 

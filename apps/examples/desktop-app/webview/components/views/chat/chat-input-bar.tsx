@@ -48,7 +48,7 @@ import {
 } from "@/lib/featured-models";
 import {
 	imageAttachmentMediaType,
-	isUnsupportedImageAttachment,
+	isSupportedImageAttachment,
 } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
@@ -308,7 +308,16 @@ export type PromptDraft = {
 	value: string;
 };
 
+export function buildWorkspaceFileSearchKey(
+	environmentId: string,
+	workspaceRoot: string,
+	query: string,
+): string {
+	return JSON.stringify([environmentId, workspaceRoot, query]);
+}
+
 type ChatInputBarProps = {
+	environmentId: string;
 	variant?: "conversation" | "welcome";
 	readOnly?: boolean;
 	cloudHandoffAvailable?: boolean;
@@ -342,7 +351,7 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
+	onSteerPromptInQueue: (promptId?: string) => Promise<void> | void;
 	onEditPromptInQueue: (
 		promptId: string,
 		prompt: string,
@@ -359,6 +368,7 @@ type ChatInputBarProps = {
 };
 
 function ChatInputBarImpl({
+	environmentId,
 	variant = "conversation",
 	readOnly = false,
 	cloudHandoffAvailable = false,
@@ -534,11 +544,7 @@ function ChatInputBarImpl({
 		(files: File[]) => {
 			const supportedFiles =
 				executionTarget === "cloud"
-					? files.filter(
-							(file) =>
-								imageAttachmentMediaType(file) &&
-								!isUnsupportedImageAttachment(file),
-						)
+					? files.filter(isSupportedImageAttachment)
 					: files;
 			if (supportedFiles.length !== files.length) {
 				toast({
@@ -565,6 +571,27 @@ function ChatInputBarImpl({
 		: 0;
 	const canSend =
 		hasDraft && !speechInputActive && !needsCloudRepository && !readOnly;
+	const steeringPromptRef = useRef(false);
+	const steerFirstQueuedPrompt = async () => {
+		const firstPrompt = promptsInQueue[0];
+		if (!firstPrompt || firstPrompt.steer || steeringPromptRef.current) return;
+		steeringPromptRef.current = true;
+		try {
+			if (executionTarget === "cloud") {
+				await onSteerPromptInQueue(firstPrompt.id);
+			} else {
+				await onSteerPromptInQueue();
+			}
+		} catch (error) {
+			toast({
+				variant: "destructive",
+				title: "Could not steer queued message",
+				description: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			steeringPromptRef.current = false;
+		}
+	};
 	const handleSend = useCallback(() => {
 		if (speechInputActive || readOnly) return;
 		if (unsupportedDraftImageCount > 0) {
@@ -1001,7 +1028,11 @@ function ChatInputBarImpl({
 			return;
 		}
 
-		const requestKey = `${workspaceRoot}::${activeMention.query}`;
+		const requestKey = buildWorkspaceFileSearchKey(
+			environmentId,
+			workspaceRoot,
+			activeMention.query,
+		);
 		if (mentionLastRequestKeyRef.current === requestKey) {
 			return;
 		}
@@ -1023,6 +1054,7 @@ function ChatInputBarImpl({
 				const results = await desktopClient.invoke<string[]>(
 					"search_workspace_files",
 					{
+						environmentId,
 						workspaceRoot,
 						query: activeMention.query,
 						limit: 10,
@@ -1053,7 +1085,13 @@ function ChatInputBarImpl({
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [activeMention, mentionOpen, workspaceRoot, mentionFiles.length]);
+	}, [
+		activeMention,
+		environmentId,
+		mentionOpen,
+		workspaceRoot,
+		mentionFiles.length,
+	]);
 
 	const insertMentionFile = useCallback(
 		(filePath: string) => {
@@ -1184,7 +1222,11 @@ function ChatInputBarImpl({
 			<div
 				className={cn(
 					"px-4 py-3",
-					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+					variant === "welcome"
+						? "pb-2 pt-4"
+						: promptsInQueue.length > 0
+							? "pb-4 pt-0"
+							: "py-4",
 				)}
 			>
 				<AgentPromptQueue
@@ -1428,6 +1470,15 @@ function ChatInputBarImpl({
 									e.preventDefault();
 									if (canSend) {
 										handleSend();
+									} else if (
+										!hasDraft &&
+										!speechInputActive &&
+										!e.ctrlKey &&
+										!e.metaKey &&
+										!e.altKey &&
+										!e.repeat
+									) {
+										void steerFirstQueuedPrompt();
 									}
 								}
 							}}
@@ -1442,7 +1493,9 @@ function ChatInputBarImpl({
 									: needsCloudRepository
 										? "Choose a repository"
 										: isBusy && variant !== "welcome"
-											? "Agent is working... submit to queue another message"
+											? promptsInQueue.length > 0
+												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
+												: "Agent is working... submit to queue another message"
 											: executionTarget === "cloud"
 												? "Describe what Cline should do in this repository."
 												: variant === "welcome"
