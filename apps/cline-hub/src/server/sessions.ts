@@ -1,6 +1,8 @@
 import process from "node:process";
 import {
 	type ClineCoreStartInput,
+	isSessionNotFoundError,
+	type SendSessionInput,
 	type SessionRecord,
 	SessionSource,
 } from "@cline/core";
@@ -273,12 +275,58 @@ export async function sendMessage(
 		await createSession(ctx, peer, text, config, attachments);
 		return;
 	}
-	await ctx.cline.send({
-		sessionId: peer.selectedSessionId,
+	const cline = ctx.cline;
+	const sessionId = peer.selectedSessionId;
+	const input: SendSessionInput = {
+		sessionId,
 		prompt: text,
 		mode: config?.mode === "plan" ? "plan" : "act",
 		userImages: attachments?.userImages,
-	});
+	};
+	const previousResume = ctx.sessionResumes.get(sessionId);
+	await previousResume;
+	try {
+		await cline.send(input);
+		return;
+	} catch (error) {
+		if (!isSessionNotFoundError(error)) throw error;
+
+		// History can survive a hub restart without an executable session.
+		// Share a restore with other browsers, including late missing-session replies.
+		let resume = ctx.sessionResumes.get(sessionId);
+		if (!resume || resume === previousResume) {
+			resume = (async () => {
+				const session = await cline.get(sessionId);
+				if (!session) throw error;
+				const initialMessages = await cline.readMessages(sessionId);
+				if (initialMessages.length === 0) {
+					throw new Error(`Cannot resume an empty session: ${sessionId}`);
+				}
+				const startInput = buildStartInputFromSession(session, {
+					initialMessages,
+				});
+				await cline.start({
+					...startInput,
+					config: { ...startInput.config, sessionId },
+					// Imported CLI/IDE sessions may not record an approval preference.
+					toolPolicies: {
+						"*": { autoApprove: session.metadata?.autoApproveTools === true },
+					},
+				});
+			})();
+			ctx.sessionResumes.set(sessionId, resume);
+		}
+		try {
+			await resume;
+		} catch (resumeError) {
+			if (ctx.sessionResumes.get(sessionId) === resume) {
+				ctx.sessionResumes.delete(sessionId);
+			}
+			throw resumeError;
+		}
+	}
+	// Retry only once; a provider or second missing-session error must surface.
+	await cline.send(input);
 }
 
 export async function deleteSession(
@@ -296,6 +344,7 @@ export async function deleteSession(
 		return;
 	}
 	ctx.sessions.delete(sessionId);
+	ctx.sessionResumes.delete(sessionId);
 	if (peer.selectedSessionId === sessionId) {
 		peer.selectedSessionId = undefined;
 		ctx.send(peer, { type: "reset_done" });
