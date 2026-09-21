@@ -365,6 +365,15 @@ function buildProviderModels(
 	);
 }
 
+class ModelDiscoveryError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : "Model discovery failed", {
+			cause,
+		});
+		this.name = "ModelDiscoveryError";
+	}
+}
+
 async function resolveModelIds(params: {
 	providerId: string;
 	baseUrl: string;
@@ -378,13 +387,18 @@ async function resolveModelIds(params: {
 	if (!params.shouldRecompute) {
 		return params.fallbackModelIds ?? [];
 	}
-	const fetchedModels = params.modelsSourceUrl
-		? await fetchModelIdsFromSource(
+	let fetchedModels: string[] = [];
+	if (params.modelsSourceUrl) {
+		try {
+			fetchedModels = await fetchModelIdsFromSource(
 				params.modelsSourceUrl,
 				params.providerId,
 				params,
-			)
-		: [];
+			);
+		} catch (cause) {
+			throw new ModelDiscoveryError(cause);
+		}
+	}
 	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
 }
 
@@ -1178,7 +1192,8 @@ export async function saveLocalProviderSettings(
 						typeof next.model === "string" ? next.model : undefined,
 				});
 				next.model = manager.getProviderSettings(providerId)?.model;
-			} catch {
+			} catch (error) {
+				if (!(error instanceof ModelDiscoveryError)) throw error;
 				// Keep the last known catalog; discovery or the next turn reports
 				// connection/authentication failures using the newly saved settings.
 			}

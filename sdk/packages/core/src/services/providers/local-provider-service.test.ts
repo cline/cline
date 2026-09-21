@@ -14,6 +14,7 @@ import {
 	clearPrivateModelsCatalogCache,
 } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import * as LocalProviderRegistry from "./local-provider-registry";
 import {
 	parseModelsFile,
 	readModelsFile,
@@ -610,6 +611,36 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		expect(manager.getProviderSettings(providerId)).not.toHaveProperty(
 			"apiKey",
 		);
+	});
+
+	it("rejects settings saves when catalog persistence fails", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockImplementation(async () =>
+					Response.json({ data: [{ id: "model" }] }),
+				),
+		);
+		const providerId = "catalog-write-failure";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Catalog Write Failure",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			apiKey: "old-key",
+			models: [],
+		});
+		const failure = new Error("EACCES: cannot write models.json");
+		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
+			failure,
+		);
+		await expect(
+			saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new-key",
+			}),
+		).rejects.toBe(failure);
 	});
 
 	it("parses a flat array payload from modelsSourceUrl", async () => {

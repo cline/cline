@@ -115,6 +115,7 @@ its model list before saving the new settings. `updateLocalProvider` follows the
 same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
 changes relocate same-origin model sources; separate catalog origins remain
 unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
-fails, the new settings are still saved and the last known catalog is retained.
+fails during discovery, the new settings are still saved and the last known
+catalog is retained. Settings and catalog persistence errors still reject the save.
 Explicit `updateLocalProvider` calls still reject failed model fetches and retain
 the prior settings and catalog.
