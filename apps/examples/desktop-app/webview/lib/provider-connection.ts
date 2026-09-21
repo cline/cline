@@ -19,6 +19,17 @@ export const OAUTH_PROVIDER_IDS = new Set([
 export type ProviderAuthKind = "oauth" | "local" | "api-key";
 
 /**
+ * Client-side deadline for `run_provider_oauth_login` invokes. The browser
+ * round-trip legitimately takes minutes — the user may still be choosing a
+ * browser or confirming a device code, and Cline device codes stay valid for
+ * many minutes — so the transport's default 120s command deadline would fail
+ * a sign-in that is still perfectly viable (observed while verifying
+ * cline/cline#14201). The sidecar already bounds the flow by the device-code
+ * expiry; this is only a backstop against a wedged command.
+ */
+export const OAUTH_LOGIN_TIMEOUT_MS = 15 * 60_000;
+
+/**
  * How a provider expects to be authenticated, which drives which connect UI
  * to show: a browser sign-in button (oauth), a "uses your local CLI" notice
  * (local), or credential fields (api-key).
