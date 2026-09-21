@@ -538,7 +538,12 @@ describe("generated offline featured models", () => {
 				providerId,
 				Object.values(
 					providerId === "cline"
-						? { ...catalog.openrouter, ...catalog.cline }
+						? {
+								...catalog.openrouter,
+								...catalog.cline,
+								"spacexai/grok-4.7":
+									catalog["vercel-ai-gateway"]["spacexai/grok-4.7"],
+							}
 						: catalog["cline-pass"],
 				).map((entry) => ({ id: entry.id, name: entry.name ?? entry.id })),
 				data,
@@ -559,13 +564,13 @@ describe("generated offline featured models", () => {
 					.sort((a, b) => a.featured!.rank - b.featured!.rank);
 				expect(
 					stamped.map((entry) => ({
-						slug: entry.id.split("/").at(-1),
+						id: entry.id,
 						description: entry.description ?? "",
 						featured: entry.featured,
 					})),
 				).toEqual(
 					entries.map((entry, rank) => ({
-						slug: entry.id.split("/").at(-1),
+						id: entry.id,
 						description: entry.description.trim(),
 						featured: { tier, rank, tags: entry.tags },
 					})),
