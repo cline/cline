@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import type { CoreSpawnReason } from "@cline/shared"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
 
 export interface OAuthCredentials {
@@ -12,7 +13,10 @@ export interface StartSessionResult {
 	sessionId: string
 }
 
-export const MAX_COMMAND_OUTPUT_CHARS = 200_000
+export {
+	MAX_COMMAND_OUTPUT_CHARS,
+	truncateCommandOutput,
+} from "../../../../sdk/packages/core/src/extensions/tools/executors/output-limits"
 
 export interface StoredModelEntry {
 	id?: string
@@ -53,6 +57,7 @@ export function resolveModelsRegistryPath(): string {
 
 export function ensureCustomProvidersLoadedSync(): void {}
 
+export { toClineCoreStartInput } from "../../../../sdk/packages/core/src/cline-core/start-input"
 export { isPrivateModelCatalogProvider } from "../../../../sdk/packages/core/src/services/llms/provider-defaults"
 // Real implementation re-exported from the sdk source (same pattern as the
 // apply-patch executors below) so store writes are reflected in the live
@@ -62,6 +67,7 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 
@@ -106,10 +112,6 @@ export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolea
 		} catch {}
 		writeFileSync(filePath, JSON.stringify({ ...settings, tools: { ...settings.tools, [name]: { enabled } } }))
 	}
-}
-
-export function truncateCommandOutput(output: string): string {
-	return output
 }
 
 export class CommandExitError extends Error {
@@ -228,6 +230,8 @@ export interface TelemetryMetadata {
 	os_type: string
 	os_version: string
 	is_dev?: string
+	core_spawn_ordinal?: number
+	core_spawn_reason?: CoreSpawnReason
 }
 
 export interface ITelemetryService {

@@ -2,11 +2,6 @@ import { isUserRunMessage } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import type { JsonRecord, PromptInQueue } from "./types";
 
-// Hub replay is best-effort: logs may be unavailable or pruned without a gap
-// signal. Snapshots restore persisted state, but have no atomic event watermark.
-// Buffering can begin mid-reply, so streamed text may be a suffix of persisted
-// text; the reply-arrival cutoff only excludes events received after the snapshot.
-
 export function readSessionRows(
 	payload: Record<string, unknown> | undefined,
 ): JsonRecord[] {

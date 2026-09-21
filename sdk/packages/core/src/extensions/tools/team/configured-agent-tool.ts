@@ -5,9 +5,6 @@ import {
 	type AgentToolContext,
 	createTool,
 	type HookErrorMode,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-	type ToolPolicy,
 	zodToJsonSchema,
 } from "@cline/shared";
 import { z } from "zod";
@@ -48,10 +45,6 @@ export interface ConfiguredAgentToolConfig {
 	) => AgentTool[] | Promise<AgentTool[]>;
 	onSubAgentEvent?: (event: AgentEvent) => void;
 	hookErrorMode?: HookErrorMode;
-	toolPolicies?: Record<string, ToolPolicy>;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	onSubAgentStart?: (context: SubAgentStartContext) => void | Promise<void>;
 	onSubAgentEnd?: (context: SubAgentEndContext) => void | Promise<void>;
 }
@@ -156,6 +149,7 @@ export function createConfiguredAgentTools(
 		({ toolName, config }) => {
 			const tool = createTool<ConfiguredAgentInput, SpawnAgentOutput>({
 				name: toolName,
+				executionMode: "parallel",
 				description: `Use the "${config.name}" subagent: ${config.description}`,
 				inputSchema: zodToJsonSchema(ConfiguredAgentInputSchema),
 				execute: async (input, context) => {
@@ -166,6 +160,8 @@ export function createConfiguredAgentTools(
 					const tools = options.createSubAgentTools
 						? await options.createSubAgentTools(config, input, context)
 						: [];
+					// The parent approves delegation; child tools run autonomously,
+					// matching generic subagents and teammates. Do not inherit approval policy.
 					const subAgent = createDelegatedAgent({
 						kind: "subagent",
 						prompt: config.systemPrompt,
@@ -176,8 +172,6 @@ export function createConfiguredAgentTools(
 						abortSignal: context.signal,
 						onEvent: options.onSubAgentEvent,
 						hookErrorMode: options.hookErrorMode,
-						toolPolicies: options.toolPolicies,
-						requestToolApproval: options.requestToolApproval,
 					});
 					const subAgentId = subAgent.getAgentId();
 					const conversationId = subAgent.getConversationId();

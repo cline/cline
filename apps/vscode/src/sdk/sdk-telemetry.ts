@@ -11,6 +11,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { getCoreSpawnTelemetryMetadata } from "@/services/telemetry/core-spawn-metadata"
 import { getRolloutTelemetryMetadata } from "@/services/telemetry/rollout-metadata"
 import { Setting } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"
@@ -44,6 +45,7 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 					os_type: process.platform,
 					os_version: os.version(),
 					is_dev: process.env.IS_DEV,
+					...getCoreSpawnTelemetryMetadata(),
 					...options.metadata,
 				},
 			}),
