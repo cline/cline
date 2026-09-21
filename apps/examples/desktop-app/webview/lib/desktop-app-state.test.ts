@@ -97,23 +97,21 @@ describe("desktopAppReducer", () => {
 		state = desktopAppReducer(state, {
 			type: "open-session",
 			session: createSession("handoff-target"),
+			environmentId: "local",
 			initialAttachments: [attachment],
 		});
+		const threadId = `session_${sessionKey({ sessionId: "handoff-target", environmentId: "local" })}`;
 
-		const thread = state.threads.find(
-			(item) => item.id === "session_handoff-target",
-		);
+		const thread = state.threads.find((item) => item.id === threadId);
 		expect(thread?.initialPromptDraft).toBeUndefined();
 		expect(thread?.initialAttachments).toEqual([attachment]);
 
 		state = desktopAppReducer(state, {
 			type: "consume-initial-prompt-draft",
-			threadId: "session_handoff-target",
+			threadId,
 		});
 
-		const consumed = state.threads.find(
-			(item) => item.id === "session_handoff-target",
-		);
+		const consumed = state.threads.find((item) => item.id === threadId);
 		expect(consumed?.initialPromptDraft).toBeUndefined();
 		expect(consumed?.initialAttachments).toBeUndefined();
 	});
