@@ -13,10 +13,10 @@
 
 import type {
 	AgentAfterToolContext,
+	AgentBeforeRunResult,
 	AgentBeforeToolContext,
 	AgentHooks,
 	AgentRunLifecycleContext,
-	AgentStopControl,
 } from "@cline/shared"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
@@ -37,13 +37,14 @@ function toStringRecord(input: unknown): Record<string, string> {
 	return result
 }
 
-function mapStopControl(hookOutput: {
+function mapHookResult(hookOutput: {
 	cancel?: boolean
 	errorMessage?: string
 	contextModification?: string
-}): AgentStopControl | undefined {
+}): AgentBeforeRunResult | undefined {
 	if (!hookOutput.cancel) {
-		return undefined
+		const appendContext = hookOutput.contextModification?.trim()
+		return appendContext ? { appendContext } : undefined
 	}
 	// A cancelling hook's contextModification is never injected as context;
 	// it serves as the fallback explanation when no errorMessage was given.
@@ -68,7 +69,7 @@ function textFromMessageContent(content: readonly { type: string; text?: string 
 function latestUserPrompt(ctx: AgentRunLifecycleContext): string {
 	for (let index = ctx.snapshot.messages.length - 1; index >= 0; index -= 1) {
 		const message = ctx.snapshot.messages[index]
-		if (message?.role === "user") {
+		if (message?.role === "user" && message.metadata?.displayRole !== "system") {
 			return textFromMessageContent(message.content)
 		}
 	}
@@ -106,12 +107,15 @@ export function buildAgentHooks(
 	const createFactory = () => new HookFactory({ sessionWorkspaceRoot })
 
 	return {
-		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentStopControl | undefined> {
+		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentBeforeRunResult | undefined> {
 			const taskStartControl = await runTaskStart(ctx, hooksEnabled, createFactory, emitHookMessage)
-			if (taskStartControl) {
+			if (taskStartControl?.stop) {
 				return taskStartControl
 			}
-			return runUserPromptSubmit(ctx, hooksEnabled, createFactory, emitHookMessage)
+			const promptControl = await runUserPromptSubmit(ctx, hooksEnabled, createFactory, emitHookMessage)
+			if (promptControl?.stop) return promptControl
+			const appendContext = [taskStartControl?.appendContext, promptControl?.appendContext].filter(Boolean).join("\n\n")
+			return appendContext ? { appendContext } : undefined
 		},
 
 		async beforeTool(
@@ -151,15 +155,7 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				const stopControl = mapStopControl(result)
-				if (stopControl) {
-					return stopControl
-				}
-				// The runtime injects appendContext into the conversation as a
-				// <hook_context> block, restoring the documented contextModification
-				// behavior. HookFactory already truncates it at 50KB.
-				const contextModification = result.contextModification?.trim()
-				return contextModification ? { appendContext: contextModification } : undefined
+				return mapHookResult(result)
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -214,15 +210,7 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				const stopControl = mapStopControl(result)
-				if (stopControl) {
-					return stopControl
-				}
-				// The runtime injects appendContext into the conversation as a
-				// <hook_context> block, restoring the documented contextModification
-				// behavior. HookFactory already truncates it at 50KB.
-				const contextModification = result.contextModification?.trim()
-				return contextModification ? { appendContext: contextModification } : undefined
+				return mapHookResult(result)
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -308,7 +296,7 @@ async function runTaskStart(
 	hooksEnabled: () => boolean,
 	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
-): Promise<AgentStopControl | undefined> {
+): Promise<AgentBeforeRunResult | undefined> {
 	let runningTs: number | undefined
 	try {
 		if (!hooksEnabled()) {
@@ -344,7 +332,7 @@ async function runTaskStart(
 				ts: runningTs,
 			}),
 		)
-		return mapStopControl(result)
+		return mapHookResult(result)
 	} catch (error) {
 		emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed", ts: runningTs }))
 		Logger.error("[HooksAdapter] beforeRun (TaskStart) hook failed:", error)
@@ -357,7 +345,7 @@ async function runUserPromptSubmit(
 	hooksEnabled: () => boolean,
 	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
-): Promise<AgentStopControl | undefined> {
+): Promise<AgentBeforeRunResult | undefined> {
 	let runningTs: number | undefined
 	try {
 		if (!hooksEnabled()) {
@@ -390,7 +378,7 @@ async function runUserPromptSubmit(
 				ts: runningTs,
 			}),
 		)
-		return mapStopControl(result)
+		return mapHookResult(result)
 	} catch (error) {
 		emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed", ts: runningTs }))
 		Logger.error("[HooksAdapter] beforeRun (UserPromptSubmit) hook failed:", error)
