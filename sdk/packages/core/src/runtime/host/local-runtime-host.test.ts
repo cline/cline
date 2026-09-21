@@ -3996,6 +3996,69 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("re-issues an abort that landed before the agent run started", async () => {
+		const sessionId = "sess-abort-before-run";
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest: createManifest(sessionId),
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		// Like SessionRuntime: an abort received while idle is dropped when the
+		// run begins; one received after it started is honored.
+		let abortRequested = false;
+		const run = vi.fn(async () => {
+			abortRequested = false;
+			await Promise.resolve();
+			return createResult({
+				finishReason: abortRequested ? "aborted" : "completed",
+			});
+		});
+		const agent = {
+			run,
+			continue: run,
+			abort: vi.fn(() => {
+				abortRequested = true;
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn().mockReturnValue(true),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () => agent as never,
+		});
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		await manager.abort(sessionId, new Error("user stopped"));
+		await expect(
+			manager.runTurn({ sessionId, prompt: "stop me" }),
+		).resolves.toMatchObject({ finishReason: "aborted" });
+		// The settled abort does not cancel the next turn.
+		await expect(
+			manager.runTurn({ sessionId, prompt: "next" }),
+		).resolves.toMatchObject({ finishReason: "completed" });
+	});
+
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
 		const sessionId = "sess-meta-multi";
 		const manifest = createManifest(sessionId);

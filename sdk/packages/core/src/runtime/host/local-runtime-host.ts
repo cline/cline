@@ -1932,9 +1932,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		try {
-			const runFn = shouldContinue
-				? () => session.agent.continue(prompt, userImages, userFiles)
-				: () => session.agent.run(prompt, userImages, userFiles);
+			const runFn = () => {
+				const run = shouldContinue
+					? session.agent.continue(prompt, userImages, userFiles)
+					: session.agent.run(prompt, userImages, userFiles);
+				// Stop pressed before this run existed: SessionRuntime only
+				// retains aborts for a run in flight, so re-issue it now that
+				// the run has started and it is applied at run-started.
+				if (session.aborting) {
+					session.agent.abort();
+				}
+				return run;
+			};
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,
