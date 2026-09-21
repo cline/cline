@@ -7,6 +7,7 @@ import {
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleCommand } from "./commands";
+import { createSidecarContext } from "./context";
 import type { SidecarContext } from "./types";
 
 function createContext(): {
@@ -14,28 +15,10 @@ function createContext(): {
 	events: Array<{ name: string; payload: Record<string, unknown> }>;
 } {
 	const events: Array<{ name: string; payload: Record<string, unknown> }> = [];
-	const ctx = {
-		liveSessions: new Map(),
-		restoringWorkspacePaths: new Set(),
-		streamIndices: new Map(),
-		wsClients: new Set([
-			{
-				send(message: string) {
-					const parsed = JSON.parse(message) as {
-						event: { name: string; payload: Record<string, unknown> };
-					};
-					events.push(parsed.event);
-				},
-			},
-		]),
-		pendingApprovals: new Map(),
-		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot: "/local/workspace",
-		unsubscribeSessionEvents: null,
-		cloudSessionManager: null,
-	} as SidecarContext;
+	const ctx = createSidecarContext("/local/workspace");
+	ctx.wsClients.add({
+		send: (message) => events.push(JSON.parse(message).event),
+	});
 	return { ctx, events };
 }
 
@@ -120,6 +103,7 @@ describe("desktop settings commands", () => {
 				payload: {
 					cloudAgents: false,
 					cloudAgentsAvailable: false,
+					environmentId: "local",
 				},
 			},
 		]);
@@ -138,6 +122,7 @@ describe("desktop settings commands", () => {
 			payload: {
 				cloudAgents: false,
 				cloudAgentsAvailable: false,
+				environmentId: "local",
 			},
 		});
 	});

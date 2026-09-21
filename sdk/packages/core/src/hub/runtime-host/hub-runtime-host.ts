@@ -797,6 +797,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.telemetry = options.telemetry;
 		this.runtimeAddress = options.url;
 		this.pendingPrompts = {
+			steerFirst: (input) => this.requestSteerFirstPendingPrompt(input),
 			list: (input) => this.requestPendingPromptsList(input),
 			update: (input) => this.requestPendingPromptUpdate(input),
 			delete: (input) => this.requestPendingPromptDelete(input),
@@ -1197,6 +1198,25 @@ export class HubRuntimeHost implements RuntimeHost {
 		return Array.isArray(reply.payload?.prompts)
 			? (reply.payload.prompts as SessionPendingPrompt[])
 			: [];
+	}
+
+	private async requestSteerFirstPendingPrompt(
+		input: Parameters<PendingPromptsServiceApi["steerFirst"]>[0],
+	): Promise<PendingPromptMutationResult> {
+		this.ensureSessionSubscription(input.sessionId);
+		const reply = await this.client.command(
+			"session.steer_first_pending_prompt",
+			{ ...input },
+			input.sessionId,
+		);
+		return {
+			sessionId: input.sessionId,
+			prompts: Array.isArray(reply.payload?.prompts)
+				? (reply.payload.prompts as SessionPendingPrompt[])
+				: [],
+			prompt: reply.payload?.prompt as SessionPendingPrompt | undefined,
+			updated: reply.payload?.updated === true,
+		};
 	}
 
 	private async requestPendingPromptUpdate(
