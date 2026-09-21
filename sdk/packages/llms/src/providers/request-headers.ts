@@ -32,7 +32,7 @@ export interface ResolveProviderRequestHeadersInput {
 	headers?: ProviderRequestHeaderLayers;
 }
 
-const DEFAULT_CLINE_REQUEST_HEADERS: Record<string, string> = {
+export const DEFAULT_CLINE_REQUEST_HEADERS: Record<string, string> = {
 	"HTTP-Referer": "https://cline.bot",
 	"X-Title": "Cline",
 	"X-IS-MULTIROOT": "false",
