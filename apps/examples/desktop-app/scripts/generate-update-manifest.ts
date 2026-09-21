@@ -43,6 +43,16 @@ const WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
 	arm64: ["windows-aarch64"],
 };
 
+// On Linux the updater artifact is the AppImage itself, signed in place by
+// createUpdaterArtifacts (`<Product>_<version>_<arch>.AppImage` next to a
+// `.sig`), and the AppImage is the only Linux bundle the updater can install
+// at all: it overwrites the running AppImage file. A .deb or .rpm install has
+// no update path and is expected to be refreshed by its package manager.
+const LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
+	amd64: ["linux-x86_64"],
+	aarch64: ["linux-aarch64"],
+};
+
 const getArgValue = (args: string[], name: string): string | undefined => {
 	const index = args.indexOf(name);
 	if (index >= 0 && args[index + 1] && !args[index + 1].startsWith("--")) {
@@ -56,6 +66,12 @@ const getArgValue = (args: string[], name: string): string | undefined => {
 const platformKeysOfUpdaterArtifact = (
 	fileName: string,
 ): string[] | undefined => {
+	if (fileName.endsWith(".AppImage")) {
+		const arch = Object.keys(LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
+			(candidate) => fileName.endsWith(`_${candidate}.AppImage`),
+		);
+		return arch ? LINUX_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
+	}
 	if (fileName.endsWith(".app.tar.gz")) {
 		const arch = Object.keys(MACOS_PLATFORM_KEYS_BY_ARCH_SUFFIX).find(
 			(candidate) => fileName.includes(`_${candidate}`),
@@ -106,7 +122,7 @@ export const buildUpdateManifest = (options: {
 
 	if (Object.keys(platforms).length === 0) {
 		throw new Error(
-			`no updater artifacts (*.app.tar.gz or *-setup.exe with a known arch suffix) found in ${options.dir}`,
+			`no updater artifacts (*.app.tar.gz, *-setup.exe, or *.AppImage with a known arch suffix) found in ${options.dir}`,
 		);
 	}
 

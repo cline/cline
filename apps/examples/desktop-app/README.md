@@ -196,12 +196,13 @@ desktop integration notes.
 
 ## Releases & Auto-Updates
 
-Releases are built, signed, notarized, and published by the `desktop-publish`
-GitHub workflow as a single universal macOS DMG — one download that runs
-natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture). The step-by-step flow (version
-bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
-(`.cline/skills/publish-desktop/SKILL.md`).
+Releases are built, signed where the platform requires it, and published by the
+`desktop-publish` GitHub workflow: a single universal macOS DMG — one download
+that runs natively on both Apple Silicon and Intel (macOS picks the matching
+slice at launch, so users never choose an architecture) — an Authenticode-signed
+Windows NSIS installer, and Linux x64 AppImage, `.deb`, and `.rpm` bundles. The
+step-by-step flow (version bumps, changelog, tag, repo secrets) lives in the
+`publish-desktop` skill (`.cline/skills/publish-desktop/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling
 `desktop-latest` release's `latest.json` on launch and every 2 hours, install
@@ -209,6 +210,10 @@ updates in the background, and prompt for a restart. Two things must never be
 lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
 apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
 shipped apps can't verify new updates).
+
+On Linux only the AppImage auto-updates: the Tauri updater replaces the running
+AppImage file in place and has no `.deb`/`.rpm` path, so package installs are
+refreshed by downloading a newer package.
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
@@ -232,6 +237,44 @@ Set either `APPLE_CERTIFICATE` or `APPLE_SIGNING_IDENTITY`, plus one notarizatio
 - `APPLE_API_KEY` or `APPLE_API_KEY_PATH`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`
 
 For local-only macOS testing, use `bun run package:desktop:mac --allow-unsigned-mac`. That ad-hoc signs the `.app` and strips quarantine attributes, but it is not suitable for a downloaded build shared with teammates.
+
+### Linux packaging
+
+`bun run package:desktop:linux` produces an AppImage, a `.deb`, and a `.rpm` in
+`dist/desktop/`. On Debian/Ubuntu the build needs:
+
+```sh
+sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+  libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+  build-essential file patchelf rpm upx-ucl
+```
+
+`upx` is required because `build:sidecar:bin` UPX-packs the SSH remote helpers;
+`rpm` is the `.rpm` bundler; `patchelf` is used by the AppImage bundler.
+
+Linux builds go through `scripts/tauri-build-linux.ts` instead of calling
+`tauri build` directly, and the CI job does the same. Tauri's AppImage bundler
+hands the staged AppDir to linuxdeploy, which sets `rpath` to `$ORIGIN/../lib`
+on every executable it stages. That corrupts the sidecar: it is a `bun build
+--compile` binary whose program lives in a non-allocated `.bun` ELF section,
+which patchelf relocates out from under the loader stub. The wrapper points
+linuxdeploy's `$PATCHELF` at `scripts/elf-rewrite-guard.ts`, which no-ops
+rewrites of any binary carrying a Bun or UPX payload and forwards everything
+else to the real patchelf. A PATH shim would not work — linuxdeploy ships its
+own patchelf inside its AppImage and prefers it. Skipping the rpath fixup
+costs nothing here: the sidecar links only against libc/libm/libdl/libpthread,
+none of which are bundled into the AppImage.
+
+Without the wrapper the bundle fails late and unhelpfully — linuxdeploy dies
+with `Failed to run ldd: exited with code 1` after patchelf has already
+corrupted the sidecar — and `.deb`/`.rpm` still succeed, so the failure looks
+like an AppImage-only quirk rather than a broken binary. The wrapper also
+deletes any leftover `*.AppDir` first: Tauri stages over an existing one, so a
+corrupted sidecar from a failed run would otherwise survive every rebuild.
+
+The bundle links against the build machine's glibc, so package on the oldest
+distribution you intend to support; the CI job pins `ubuntu-22.04` for that
+reason.
 
 ### macOS signing & notarization, step by step
 

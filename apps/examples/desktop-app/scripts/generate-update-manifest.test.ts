@@ -105,6 +105,53 @@ describe("buildUpdateManifest", () => {
 		]);
 	});
 
+	test("maps a signed Linux AppImage to linux-x86_64", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_amd64.AppImage"), "app");
+		writeFileSync(
+			path.join(dir, "Cline-Code_0.1.0_amd64.AppImage.sig"),
+			"sig-linux-x64\n",
+		);
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+
+		expect(manifest.platforms["linux-x86_64"]).toEqual({
+			signature: "sig-linux-x64",
+			url: "https://github.com/cline/cline/releases/download/desktop-v0.1.0/Cline-Code_0.1.0_amd64.AppImage",
+		});
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+			"linux-x86_64",
+		]);
+	});
+
+	// .deb and .rpm ship in the same release but have no updater path; a feed
+	// entry pointing at one would hand the updater a package it cannot install.
+	test("ignores Linux package bundles", () => {
+		const dir = makeUniversalArtifactDir();
+		writeFileSync(path.join(dir, "Cline-Code_0.1.0_amd64.deb"), "deb");
+		writeFileSync(path.join(dir, "Cline-Code-0.1.0-1.x86_64.rpm"), "rpm");
+		const manifest = buildUpdateManifest({
+			version: "0.1.0",
+			tag: "desktop-v0.1.0",
+			dir,
+			repo: "cline/cline",
+			notes: "notes",
+			pubDate: "2026-07-21T00:00:00.000Z",
+		});
+		expect(Object.keys(manifest.platforms).sort()).toEqual([
+			"darwin-aarch64",
+			"darwin-x86_64",
+		]);
+	});
+
 	test("ignores non-updater exe files without a setup arch suffix", () => {
 		const dir = makeUniversalArtifactDir();
 		writeFileSync(path.join(dir, "Cline-Code_0.1.0_x64.exe"), "exe");

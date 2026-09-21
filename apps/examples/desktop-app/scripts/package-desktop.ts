@@ -289,7 +289,11 @@ const main = async () => {
 	}
 
 	if (!skipBuild) {
-		await $`bun run build:binary`;
+		// Linux goes through the wrapper so linuxdeploy cannot rewrite the
+		// Bun-compiled sidecar while building the AppImage.
+		const buildScript =
+			platform === "linux" ? "build:binary:linux" : "build:binary";
+		await $`bun run ${buildScript}`;
 	}
 
 	const artifacts = await collectArtifacts(platform, allowUnsignedMac);

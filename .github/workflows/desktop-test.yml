@@ -9,6 +9,11 @@ on:
       - "apps/examples/desktop-app/package.json"
       - "apps/examples/desktop-app/scripts/dmg-background.ts"
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
+      - "apps/examples/desktop-app/scripts/elf-rewrite-guard.ts"
+      - "apps/examples/desktop-app/scripts/elf-rewrite-guard.test.ts"
+      - "apps/examples/desktop-app/scripts/generate-update-manifest.ts"
+      - "apps/examples/desktop-app/scripts/generate-update-manifest.test.ts"
+      - "apps/examples/desktop-app/scripts/tauri-build-linux.ts"
       - "apps/examples/desktop-app/src-tauri/dmg/background.png"
       - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
@@ -20,6 +25,11 @@ on:
       - "apps/examples/desktop-app/package.json"
       - "apps/examples/desktop-app/scripts/dmg-background.ts"
       - "apps/examples/desktop-app/scripts/dmg-background.test.ts"
+      - "apps/examples/desktop-app/scripts/elf-rewrite-guard.ts"
+      - "apps/examples/desktop-app/scripts/elf-rewrite-guard.test.ts"
+      - "apps/examples/desktop-app/scripts/generate-update-manifest.ts"
+      - "apps/examples/desktop-app/scripts/generate-update-manifest.test.ts"
+      - "apps/examples/desktop-app/scripts/tauri-build-linux.ts"
       - "apps/examples/desktop-app/src-tauri/dmg/background.png"
       - "apps/examples/desktop-app/src-tauri/dmg/background@2x.png"
       - ".github/workflows/desktop-test.yml"
@@ -48,3 +58,27 @@ jobs:
       # not need a workspace dependency install or macOS runner.
       - name: Test DMG background tooling
         run: bun run test:dmg-background
+
+  linux-bundling:
+    name: Test Linux bundling tooling
+    # The guard decides whether linuxdeploy may rewrite the compiled sidecar,
+    # and the manifest generator decides which artifact the Linux update feed
+    # points at. A regression in either only surfaces during a publish — after
+    # a 40-minute build and an environment approval — so gate them here.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/examples/desktop-app
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      # Bun built-ins only, like the job above: the guard suite compiles a
+      # throwaway binary with `bun build --compile` and inspects it.
+      - name: Test bundling tooling
+        run: bun test scripts/elf-rewrite-guard.test.ts scripts/generate-update-manifest.test.ts
