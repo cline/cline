@@ -2280,6 +2280,73 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 	});
 
+	it("reads provider credentials from the config on every compaction", async () => {
+		createHandlerMock.mockReturnValue({
+			createMessage: vi.fn(() =>
+				streamChunks([
+					{ type: "text", id: "summary-4", text: "## Goal\nSummarized" },
+					{ type: "done", id: "summary-4", success: true },
+				]),
+			),
+		});
+
+		// OAuth providers refresh the access token mid-session and swap in a new
+		// providerConfig. Compaction must summarize with the live credentials
+		// instead of the ones captured when the session started, otherwise the
+		// summarizer request 401s once the original token expires.
+		const config: Parameters<typeof createContextCompactionPrepareTurn>[0] = {
+			providerId: "cline",
+			modelId: "primary-model",
+			providerConfig: {
+				providerId: "cline",
+				modelId: "primary-model",
+				apiKey: "expired-token",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: undefined,
+		};
+		const prepareTurn = createContextCompactionPrepareTurn(config);
+		config.providerConfig = {
+			...config.providerConfig,
+			apiKey: "refreshed-token",
+		} as LlmsProviders.ProviderConfig;
+
+		await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
+			model: {
+				id: "primary-model",
+				provider: "cline",
+				info: { id: "primary-model", maxInputTokens: 10 },
+			},
+		});
+
+		expect(createHandlerMock).toHaveBeenCalledWith(
+			expect.objectContaining({ apiKey: "refreshed-token" }),
+		);
+	});
+
 	it("budgets agentic summary input against the configured summarizer context window", async () => {
 		let summaryRequest = "";
 		createHandlerMock.mockReturnValue({

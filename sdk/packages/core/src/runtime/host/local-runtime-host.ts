@@ -2536,6 +2536,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
 		session.config.apiKey = resolved.apiKey;
+		// Context compaction builds its own provider handler from
+		// `config.providerConfig` instead of going through the agent connection,
+		// so the refreshed key has to land there too. Without this the summarizer
+		// request 401s once the bootstrap token expires and the session silently
+		// degrades to basic compaction for the rest of its life.
+		if (session.config.providerConfig) {
+			session.config.providerConfig = {
+				...session.config.providerConfig,
+				apiKey: resolved.apiKey,
+			};
+		}
 		session.agent.updateConnection({ apiKey: resolved.apiKey });
 		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
 			apiKey: resolved.apiKey,

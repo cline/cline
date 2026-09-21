@@ -5765,6 +5765,74 @@ describe("LocalRuntimeHost", () => {
 		expect(run).toHaveBeenCalledTimes(1);
 	});
 
+	it("refreshes the session provider config with the new OAuth key before turn", async () => {
+		const sessionId = "sess-oauth-provider-config";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-oauth-provider-config.json",
+				messagesPath: "/tmp/messages-oauth-provider-config.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			oauthTokenManager: {
+				resolveProviderApiKey: vi.fn().mockResolvedValue({
+					apiKey: "oauth-access-new",
+					refreshed: true,
+				}),
+			} as never,
+			createAgent: () =>
+				({
+					run: vi.fn().mockResolvedValue(createResult({ text: "ok" })),
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore: vi.fn(),
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					providerId: "openai-codex",
+					apiKey: "oauth-access-old",
+				}),
+				interactive: true,
+			}),
+		);
+		await manager.runTurn({ sessionId, prompt: "hello" });
+
+		// Compaction summarizes through `config.providerConfig`, not through the
+		// agent connection, so a refresh that stops at the connection leaves the
+		// summarizer request authenticating with the expired token.
+		const sessionConfig = runtimeBuilder.build.mock.calls[0]?.[0]?.config;
+		expect(sessionConfig?.providerConfig?.apiKey).toBe("oauth-access-new");
+	});
+
 	it("hydrates provider-specific config from provider settings", async () => {
 		const sessionId = "sess-provider-config";
 		const manifest = createManifest(sessionId);
