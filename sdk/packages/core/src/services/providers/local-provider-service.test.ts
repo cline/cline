@@ -613,7 +613,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		);
 	});
 
-	it("rejects settings saves when catalog persistence fails", async () => {
+	it.each([
+		"settings",
+		"update",
+	] as const)("restores provider settings when catalog persistence fails through %s", async (savePath) => {
 		vi.stubGlobal(
 			"fetch",
 			vi
@@ -631,16 +634,30 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			apiKey: "old-key",
 			models: [],
 		});
+		const previousSettings = manager.read();
+		const previousCatalog = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
 		const failure = new Error("EACCES: cannot write models.json");
 		vi.spyOn(LocalProviderRegistry, "writeModelsFile").mockRejectedValueOnce(
 			failure,
 		);
+		const save =
+			savePath === "settings" ? saveLocalProviderSettings : updateLocalProvider;
 		await expect(
-			saveLocalProviderSettings(manager, {
+			save(manager, {
 				providerId,
 				apiKey: "new-key",
+				baseUrl: "https://new.example/v1",
 			}),
 		).rejects.toBe(failure);
+		expect(manager.read()).toEqual(previousSettings);
+		expect(await readModelsFile(resolveModelsRegistryPath(manager))).toEqual(
+			previousCatalog,
+		);
+		expect((await LlmsModels.getProvider(providerId))?.baseUrl).toBe(
+			"https://provider.example/v1",
+		);
 	});
 
 	it("parses a flat array payload from modelsSourceUrl", async () => {

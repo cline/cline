@@ -704,6 +704,7 @@ export async function updateLocalProvider(
 		}
 	}
 
+	const previousEntry = manager.read().providers[providerId];
 	manager.saveProviderSettings(nextSettings, { setLastUsed: false });
 
 	modelsState.providers[providerId] = {
@@ -718,7 +719,24 @@ export async function updateLocalProvider(
 		},
 		models: buildProviderModels(modelIds, capabilities),
 	};
-	await writeModelsFile(modelsPath, modelsState);
+	try {
+		await writeModelsFile(modelsPath, modelsState);
+	} catch (error) {
+		// The catalog write is atomic. Restore only this provider's settings,
+		// preserving unrelated settings changed while the write was pending.
+		try {
+			const state = manager.read();
+			if (previousEntry) state.providers[providerId] = previousEntry;
+			else delete state.providers[providerId];
+			manager.write(state);
+		} catch (rollbackError) {
+			throw new AggregateError(
+				[error, rollbackError],
+				"Provider catalog persistence failed and prior settings could not be restored",
+			);
+		}
+		throw error;
+	}
 	registerCustomProvider(providerId, modelsState.providers[providerId]);
 
 	return {

@@ -117,5 +117,8 @@ changes relocate same-origin model sources; separate catalog origins remain
 unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
 fails during discovery, the new settings are still saved and the last known
 catalog is retained. Settings and catalog persistence errors still reject the save.
+If the catalog write fails after settings are saved, the prior provider settings
+are restored before rejection; a rollback failure is reported alongside the
+original error.
 Explicit `updateLocalProvider` calls still reject failed model fetches and retain
 the prior settings and catalog.
