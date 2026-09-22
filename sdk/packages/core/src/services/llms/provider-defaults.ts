@@ -152,6 +152,15 @@ async function mergeKnownModels(
 	if (providerId === "litellm") {
 		return Llms.sortModelsByReleaseDate(privateModels);
 	}
+	if (providerId === "openllm") {
+		// The daemon's `/v1/models` is authoritative (limits, capabilities,
+		// chat filtering). The bundled alias list is only an offline fallback.
+		const discovered =
+			Object.keys(privateModels).length > 0
+				? privateModels
+				: defaultKnownModels;
+		return { ...discovered, ...userKnownModels };
+	}
 
 	const generatedProviderModels = await loadGeneratedProviderModels();
 	const generatedKeys = Llms.resolveProviderModelCatalogKeys(providerId);
@@ -647,6 +656,24 @@ async function fetchLiteLlmPrivateModels(
 	);
 }
 
+async function fetchOpenLlmModels(
+	config: ProviderConfig,
+	token: string,
+): Promise<Record<string, ModelInfo>> {
+	const endpoint = Llms.resolveOpenLlmModelsUrl(config.baseUrl);
+	const response = await fetchWithTimeout(endpoint, {
+		method: "GET",
+		headers: {
+			accept: "application/json",
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+		},
+	});
+	if (!response.ok) {
+		throw new Error(`OpenLLM model refresh failed: HTTP ${response.status}`);
+	}
+	return Llms.parseOpenLlmModels(await response.json());
+}
+
 type PrivateProviderModelFetcher = (
 	config: ProviderConfig,
 	token: string,
@@ -659,8 +686,12 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	baseten: fetchBasetenPrivateModels,
 	hicap: fetchHicapPrivateModels,
 	litellm: fetchLiteLlmPrivateModels,
+	openllm: fetchOpenLlmModels,
 	poolside: fetchPoolsidePrivateModels,
 };
+
+/** Endpoint-owned catalogs that may be read without a credential (local daemons). */
+const KEYLESS_PRIVATE_MODEL_PROVIDER_IDS = new Set<string>(["openllm"]);
 
 /**
  * Whether a provider's model catalog comes from the customer's configured
@@ -750,7 +781,7 @@ async function fetchPrivateProviderModels(
 	config: ProviderConfig,
 ): Promise<Record<string, ModelInfo>> {
 	const token = resolveAuthToken(config);
-	if (!token) {
+	if (!token && !KEYLESS_PRIVATE_MODEL_PROVIDER_IDS.has(providerId)) {
 		return {};
 	}
 
@@ -758,7 +789,7 @@ async function fetchPrivateProviderModels(
 	if (!fetcher) {
 		return {};
 	}
-	return fetcher(config, token);
+	return fetcher(config, token ?? "");
 }
 
 function shouldLoadPrivateModels(
@@ -775,7 +806,10 @@ function shouldLoadPrivateModels(
 	if (modelCatalog?.loadPrivateOnAuth === false) {
 		return false;
 	}
-	return Boolean(resolveAuthToken(config));
+	return (
+		KEYLESS_PRIVATE_MODEL_PROVIDER_IDS.has(providerId) ||
+		Boolean(resolveAuthToken(config))
+	);
 }
 
 async function getPrivateProviderModels(
@@ -946,9 +980,25 @@ export async function resolveProviderConfig(
 		const liveModels = liveCatalog
 			? resolveCatalogModels(providerId, liveCatalog)
 			: {};
+		// Keyless endpoint catalogs (OpenLLM) are read from the default local
+		// endpoint even before the user saves any configuration.
+		const privateConfig: ProviderConfig | undefined =
+			config ??
+			(KEYLESS_PRIVATE_MODEL_PROVIDER_IDS.has(providerId)
+				? {
+						providerId: providerId as ProviderConfig["providerId"],
+						modelId: defaults.modelId,
+						baseUrl: defaults.baseUrl,
+					}
+				: undefined);
 		const privateModels =
-			config && shouldLoadPrivateModels(providerId, modelCatalog, config)
-				? await getPrivateProviderModels(providerId, modelCatalog, config)
+			privateConfig &&
+			shouldLoadPrivateModels(providerId, modelCatalog, privateConfig)
+				? await getPrivateProviderModels(
+						providerId,
+						modelCatalog,
+						privateConfig,
+					)
 				: {};
 		// Public (keyless) live model sources run whenever `modelsSourceUrl` is
 		// registered for the provider — even if the caller didn't pass a

@@ -19,6 +19,7 @@ describe("isPrivateModelCatalogProvider", () => {
 		"baseten",
 		"hicap",
 		"litellm",
+		"openllm",
 		"poolside",
 	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
@@ -848,5 +849,149 @@ describe("resolveProviderConfig", () => {
 		);
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 		expect(resolved?.knownModels?.["gpt-5.4-nano"]).toBeUndefined();
+	});
+});
+
+describe("OpenLLM model discovery", () => {
+	const catalog = {
+		object: "list",
+		data: [
+			{
+				id: "ultra",
+				display_name: "Ultra",
+				capabilities: ["chat", "tools", "vision", "reasoning"],
+				context_window: 200_000,
+				max_input_tokens: 200_000,
+				max_output_tokens: 64_000,
+			},
+			{
+				id: "claude_code/claude-sonnet-4-6",
+				display_name: "Claude Sonnet",
+				capabilities: ["chat", "tools"],
+				meta: { n_ctx: 100_000 },
+			},
+			{ id: "my-custom-alias" },
+			{ id: "text-embedding-3-small", capabilities: ["embedding"] },
+			{
+				id: "gpt-image-1",
+				capabilities: ["image_generation", "image_editing"],
+			},
+			{ id: "tts-1", capabilities: ["speech"] },
+		],
+	};
+
+	function jsonResponse(body: unknown, status = 200) {
+		return new Response(JSON.stringify(body), {
+			status,
+			headers: { "content-type": "application/json" },
+		});
+	}
+
+	it("reads the default loopback endpoint without a key and keeps chat models", async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(catalog));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("openllm", {
+			failOnError: true,
+			cacheTtlMs: 0,
+		});
+
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe("http://127.0.0.1:8787/v1/models");
+		expect(
+			(init.headers as Record<string, string>).Authorization,
+		).toBeUndefined();
+		const models = resolved?.knownModels ?? {};
+		expect(Object.keys(models).sort()).toEqual([
+			"claude_code/claude-sonnet-4-6",
+			"my-custom-alias",
+			"ultra",
+		]);
+		expect(models.ultra).toEqual(
+			expect.objectContaining({
+				contextWindow: 200_000,
+				maxTokens: 64_000,
+				capabilities: ["streaming", "tools", "images", "reasoning"],
+			}),
+		);
+		expect(models["claude_code/claude-sonnet-4-6"]?.contextWindow).toBe(
+			100_000,
+		);
+		expect(models["my-custom-alias"]?.capabilities).toBeUndefined();
+	});
+
+	it("falls back to aliases without limits when the daemon is unreachable", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				throw new TypeError("fetch failed");
+			}),
+		);
+
+		const resolved = await resolveProviderConfig("openllm", {
+			cacheTtlMs: 0,
+		});
+
+		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
+			"lite",
+			"plus",
+			"ultra",
+		]);
+		expect(resolved?.knownModels?.ultra?.contextWindow).toBeUndefined();
+		expect(resolved?.knownModels?.ultra?.capabilities).toBeUndefined();
+	});
+
+	it("sends a configured key and scopes the cache per endpoint and key", async () => {
+		const fetchMock = vi.fn(async () => jsonResponse(catalog));
+		vi.stubGlobal("fetch", fetchMock);
+		const config = {
+			providerId: "openllm" as const,
+			modelId: "",
+			apiKey: "secret-a",
+			baseUrl: "https://openllm.example.com/v1/",
+		};
+
+		await resolveProviderConfig("openllm", { cacheTtlMs: 60_000 }, config);
+		await resolveProviderConfig("openllm", { cacheTtlMs: 60_000 }, config);
+		await resolveProviderConfig(
+			"openllm",
+			{ cacheTtlMs: 60_000 },
+			{ ...config, apiKey: "secret-b" },
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe("https://openllm.example.com/v1/models");
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			"Bearer secret-a",
+		);
+	});
+
+	it("propagates discovery errors when failOnError is set", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				throw new TypeError("fetch failed");
+			}),
+		);
+		await expect(
+			resolveProviderConfig("openllm", { failOnError: true, cacheTtlMs: 0 }),
+		).rejects.toThrow(/fetch failed/);
+	});
+
+	it("defaults a fresh configuration to the ultra alias", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => jsonResponse(catalog)),
+		);
+		const resolved = await resolveProviderConfig("openllm", { cacheTtlMs: 0 });
+		expect(resolved?.modelId).toBe("ultra");
+		expect(resolved?.knownModels?.ultra?.contextWindow).toBe(200_000);
 	});
 });

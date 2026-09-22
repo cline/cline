@@ -46,6 +46,11 @@ import {
 	BUILTIN_TRANSCRIPTION_TRANSPORTS,
 } from "./model-operations";
 import { filterOpenAICodexModels } from "./openai-codex-models";
+import {
+	buildOpenLlmFallbackModels,
+	OPENLLM_DEFAULT_BASE_URL,
+	OPENLLM_PROVIDER_ID,
+} from "./openllm";
 import { resolveProviderModelCatalogKeys } from "./provider-keys";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
@@ -1082,6 +1087,20 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		modelsProviderId: "lmstudio",
 		defaults: { baseUrl: "http://localhost:1234/v1" },
 		modelsSourceUrl: "http://localhost:1234/v1/models",
+	},
+	{
+		id: OPENLLM_PROVIDER_ID,
+		name: "OpenLLM",
+		description: "Gateway for supported subscription and API-key model access",
+		// OpenLLM serves OpenAI Chat Completions, so it reuses the shared
+		// openai-compatible transport. Models are discovered from the daemon's
+		// `/v1/models`; the fallback lists only the server-side aliases.
+		family: "openai-compatible",
+		defaultModelId: "ultra",
+		apiKeyEnv: ["OPENLLM_API_KEY"],
+		docsUrl: "https://docs.openllm.sh",
+		modelsFactory: buildOpenLlmFallbackModels,
+		defaults: { baseUrl: OPENLLM_DEFAULT_BASE_URL },
 	},
 	{
 		id: "oca",

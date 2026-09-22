@@ -186,7 +186,10 @@ async function resolveProviderModelMap(
 		config,
 	);
 
-	if (providerId === "litellm" && resolved?.knownModels) {
+	if (
+		(providerId === "litellm" || providerId === "openllm") &&
+		resolved?.knownModels
+	) {
 		return resolved.knownModels;
 	}
 	if (isClinePass && resolved?.knownModels) {
