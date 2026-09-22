@@ -1085,6 +1085,8 @@ const REASONING_TOKEN_PATHS: UsagePath[] = [
 	["outputTokenDetails", "reasoningTokens"],
 	["output_tokens_details", "reasoning_tokens"],
 	["completion_tokens_details", "reasoning_tokens"],
+	// AI SDK v4's nested outputTokens shape ({ total, text, reasoning, ... }).
+	["outputTokens", "reasoning"],
 	["reasoningTokens"],
 	["reasoning_tokens"],
 ];

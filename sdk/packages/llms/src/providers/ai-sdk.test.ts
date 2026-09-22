@@ -400,6 +400,23 @@ describe("ai-sdk usage normalization", () => {
 			expect(normalized.cacheWriteTokens).toBe(0);
 		});
 
+		it("subtracts AI SDK v4's nested outputTokens.reasoning from outputTokens", () => {
+			const normalized = normalizeUsage({
+				inputTokens: { total: 1000, noCache: 1000 },
+				outputTokens: {
+					total: 120,
+					text: 97,
+					reasoning: 23,
+				},
+			} as Record<string, unknown>);
+
+			expect(normalized.reasoningTokenCount).toBe(23);
+			// total(120) already includes the 23 reasoning tokens, so the
+			// exposed outputTokens should be the 97 non-reasoning tokens left
+			// over, not the raw 120.
+			expect(normalized.outputTokens).toBe(97);
+		});
+
 		it("falls back to raw Gemini usage metadata", () => {
 			const normalized = normalizeUsage({
 				raw: {
