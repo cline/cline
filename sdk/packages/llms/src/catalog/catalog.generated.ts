@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1790022781769,
+  version: 1790038209427,
   providers: {
   "302ai": {
     "deepseek-flash": {
@@ -24799,7 +24799,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3-Flash (free)",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 102400,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -24894,6 +24894,88 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "cline-pass": {
+    "cline-pass/mimo-v2.6-flash": {
+      "name": "MiMo-V2.6-Flash",
+      "id": "cline-pass/mimo-v2.6-flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-22",
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "description": ""
+    },
+    "cline-pass/mimo-v2.6-pro": {
+      "name": "MiMo-V2.6-Pro",
+      "id": "cline-pass/mimo-v2.6-pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-22",
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "description": ""
+    },
     "cline-pass/glm-5.3": {
       "name": "GLM-5.3",
       "id": "cline-pass/glm-5.3",
@@ -25112,7 +25194,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "id": "cline-pass/glm-5.3-flash",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 102400,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -25141,6 +25223,36 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-26",
       "family": "glm-flash",
       "description": "Latest natively multimodal model in the GLM-5 series"
+    },
+    "cline-pass/minimax-m3": {
+      "name": "MiniMax-M3",
+      "id": "cline-pass/minimax-m3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 512000,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-01",
+      "family": "minimax",
+      "description": "Frontier coding and agent model with 1M context window"
     },
     "cline-pass/qwen3.7-max": {
       "name": "Qwen3.7 Max",
@@ -25198,36 +25310,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-06-02",
       "family": "qwen",
       "description": "Fast multimodal agent model with vision and video input"
-    },
-    "cline-pass/minimax-m3": {
-      "name": "MiniMax-M3",
-      "id": "cline-pass/minimax-m3",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 512000,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-01",
-      "family": "minimax",
-      "description": "Frontier coding and agent model with 1M context window"
     },
     "cline-pass/mimo-v2.5-pro": {
       "name": "MiMo-V2.5-Pro",
@@ -25391,7 +25473,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3-Flash (free)",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 102400,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -43624,6 +43706,86 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "empiriolabs": {
+    "mimo-v2-6-flash": {
+      "id": "mimo-v2-6-flash",
+      "name": "MiMo V2.6 Flash",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.7,
+        "output": 1.4,
+        "cacheRead": 0.7,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-22",
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "mimo-v2-6-pro": {
+      "id": "mimo-v2-6-pro",
+      "name": "MiMo V2.6 Pro",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 2.175,
+        "output": 4.35,
+        "cacheRead": 2.175,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-22",
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "qwen3-8-omni-flash": {
       "id": "qwen3-8-omni-flash",
       "name": "Qwen3.8 Omni Flash",
@@ -65646,6 +65808,50 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-09-21",
       "family": "grok"
     },
+    "xiaomi/mimo-v2.6-pro-ultraspeed": {
+      "id": "xiaomi/mimo-v2.6-pro-ultraspeed",
+      "name": "Xiaomi: MiMo-V2.6-Pro-UltraSpeed",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 4.35,
+        "output": 8.7,
+        "cacheRead": 0.036,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-21",
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "prism-ml/ternary-bonsai-2-27b": {
       "id": "prism-ml/ternary-bonsai-2-27b",
       "name": "PrismML: Ternary Bonsai 2 27B",
@@ -65767,9 +65973,9 @@ export const GENERATED_PROVIDER_MODELS: {
     "~deepseek/deepseek-pro-latest": {
       "id": "~deepseek/deepseek-pro-latest",
       "name": "DeepSeek: DeepSeek Pro Latest",
-      "contextWindow": 1024000,
-      "maxInputTokens": 1024000,
-      "maxTokens": 384000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 393216,
       "capabilities": [
         "tools",
         "reasoning",
@@ -65789,9 +65995,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.5544,
-        "output": 1.6632,
-        "cacheRead": 0.01848,
+        "input": 0.53196,
+        "output": 1.59588,
+        "cacheRead": 0.016926,
         "cacheWrite": 0
       },
       "releaseDate": "2026-09-14",
@@ -66714,7 +66920,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3-Flash",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 102400,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -67434,7 +67640,7 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.04,
-        "output": 0.2,
+        "output": 0.4,
         "cacheRead": 0.01,
         "cacheWrite": 0
       },
@@ -69250,9 +69456,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.7,
-        "output": 8.5,
-        "cacheRead": 0.17,
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-27",
@@ -74015,8 +74221,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "meta-llama/llama-4-maverick": {
       "id": "meta-llama/llama-4-maverick",
       "name": "Meta: Llama 4 Maverick",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
       "maxTokens": 16384,
       "capabilities": [
         "images",
@@ -98151,6 +98357,40 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-09-21",
       "family": "qwen"
+    },
+    "x-ai/grok-4.7": {
+      "id": "x-ai/grok-4.7",
+      "name": "Grok 4.7",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.6,
+        "output": 4.8,
+        "cacheRead": 0.4,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-09-21",
+      "family": "grok"
     },
     "google/gemma-4-26b-a4b-it-cybersecurity": {
       "id": "google/gemma-4-26b-a4b-it-cybersecurity",
@@ -125583,7 +125823,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek Pro Latest",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 384000,
+      "maxTokens": 393216,
       "capabilities": [
         "tools",
         "reasoning",
@@ -125605,9 +125845,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.5544,
-        "output": 1.6632,
-        "cacheRead": 0.01848,
+        "input": 0.53196,
+        "output": 1.59588,
+        "cacheRead": 0.016926,
         "cacheWrite": 0
       },
       "releaseDate": "2026-09-14",
@@ -126511,7 +126751,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.3-Flash",
       "contextWindow": 1310720,
       "maxInputTokens": 1310720,
-      "maxTokens": 102400,
+      "maxTokens": 943718,
       "capabilities": [
         "images",
         "video",
@@ -126532,9 +126772,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.075,
-        "output": 0.25,
-        "cacheRead": 0.02,
+        "input": 0.15,
+        "output": 0.5,
+        "cacheRead": 0.05,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-26",
@@ -127218,7 +127458,7 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.04,
-        "output": 0.2,
+        "output": 0.4,
         "cacheRead": 0.01,
         "cacheWrite": 0
       },
@@ -127253,7 +127493,7 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.04,
-        "output": 0.32,
+        "output": 0.64,
         "cacheRead": 0.016,
         "cacheWrite": 0
       },
@@ -129132,9 +129372,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.7,
-        "output": 8.5,
-        "cacheRead": 0.17,
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-27",
@@ -129293,9 +129533,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.91263,
-        "output": 1.82526,
-        "cacheRead": 0.076053,
+        "input": 0.883746,
+        "output": 1.767492,
+        "cacheRead": 0.073646,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -133777,8 +134017,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "pricing": {
-        "input": 0.2,
-        "output": 0.8,
+        "input": 0.1875,
+        "output": 0.6525,
         "cacheRead": 0,
         "cacheWrite": 0
       },

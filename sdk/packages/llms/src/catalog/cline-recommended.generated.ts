@@ -66,6 +66,18 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		clinePass: [
 			{
+				id: "cline-pass/mimo-v2.6-flash",
+				name: "cline-pass/mimo-v2.6-flash",
+				description: "",
+				tags: [],
+			},
+			{
+				id: "cline-pass/mimo-v2.6-pro",
+				name: "cline-pass/mimo-v2.6-pro",
+				description: "",
+				tags: [],
+			},
+			{
 				id: "cline-pass/glm-5.3",
 				name: "cline-pass/glm-5.3",
 				description: "Z-AI's new top open-weights model",
@@ -109,6 +121,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
+				tags: [],
+			},
+			{
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
@@ -118,12 +136,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				id: "cline-pass/qwen3.7-plus",
 				name: "cline-pass/qwen3.7-plus",
 				description: "Fast multimodal agent model with vision and video input",
-				tags: [],
-			},
-			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{
