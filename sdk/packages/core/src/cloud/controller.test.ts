@@ -4,7 +4,7 @@ import type {
 	MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { CloudSessionRecord } from "./api";
+import { CloudSessionApi, type CloudSessionRecord } from "./api";
 import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
@@ -592,5 +592,33 @@ describe("CloudSessionController neutral host contract", () => {
 			JSON.stringify(f.controller.getSnapshot(record.id)?.messages),
 		).not.toContain("Old");
 		await f.controller.dispose();
+	});
+	it("recovers a creation marker without issuing a POST", async () => {
+		const requests: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "token",
+			fetch: async (_url, init) => {
+				requests.push(init?.method ?? "GET");
+				return new Response(
+					JSON.stringify({
+						data: [{ ...record, title: "__cline_create_request__:id" }],
+					}),
+					{ status: 200 },
+				);
+			},
+		});
+		expect(
+			(
+				await api.recoverCreation({
+					requestId: "id",
+					repoUrl: record.repoContext.repoUrl!,
+					modelId: "model",
+					branch: "main",
+				})
+			)?.id,
+		).toBe(record.id);
+		expect(requests).toEqual(["GET"]);
 	});
 });
