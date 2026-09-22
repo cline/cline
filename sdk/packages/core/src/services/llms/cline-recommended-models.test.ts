@@ -2,13 +2,15 @@ import {
 	GENERATED_CLINE_RECOMMENDED_MODELS,
 	getGeneratedProviderModels,
 } from "@cline/llms";
-import { describe, expect, it } from "vitest";
+import { setClineClientIdentity } from "@cline/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	fetchClineRecommendedModels,
 	getCachedClineRecommendedModels,
+	idSlug,
 	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./cline-recommended-models";
@@ -94,6 +96,10 @@ function namesOf(data: ClineRecommendedModelsData) {
 }
 
 describe("fetchClineRecommendedModels", () => {
+	afterEach(() => {
+		setClineClientIdentity(undefined);
+	});
+
 	it("resolves display names from the models catalog", async () => {
 		const data = await fetchClineRecommendedModels({
 			baseUrl: BASE_URL,
@@ -116,6 +122,22 @@ describe("fetchClineRecommendedModels", () => {
 			"cline-free/glm-5.2",
 			"poolside/laguna-s-2.1:free",
 		]);
+	});
+
+	it("identifies the client on the feed request", async () => {
+		setClineClientIdentity({ name: "VSCode Extension", version: "3.40.0" });
+		const fetchImpl = vi.fn(jsonResponse(ENDPOINT_PAYLOAD));
+
+		await fetchClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+			catalogLoader: async () => CATALOG,
+		});
+
+		expect(fetchImpl.mock.calls[0]?.[1]?.headers).toMatchObject({
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "3.40.0",
+		});
 	});
 
 	it("degrades to endpoint names and id slugs when the catalog is unavailable", async () => {
@@ -535,15 +557,19 @@ describe("generated offline featured models", () => {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
 					.sort((a, b) => a.featured!.rank - b.featured!.rank);
+				// The feed can spell a vendor differently from the catalog
+				// ("spacexai/grok-4.7" vs OpenRouter's "x-ai/grok-4.7"); the matcher
+				// then stamps the catalog's id via its slug fallback, so compare
+				// models by slug rather than verbatim id.
 				expect(
 					stamped.map((entry) => ({
-						id: entry.id,
+						slug: idSlug(entry.id),
 						description: entry.description ?? "",
 						featured: entry.featured,
 					})),
 				).toEqual(
 					entries.map((entry, rank) => ({
-						id: entry.id,
+						slug: idSlug(entry.id),
 						description: entry.description.trim(),
 						featured: { tier, rank, tags: entry.tags },
 					})),

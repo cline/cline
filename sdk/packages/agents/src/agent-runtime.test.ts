@@ -3,6 +3,7 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
+	AgentRuntimeEvent,
 	AgentRuntimePlugin,
 	AgentTool,
 	ITelemetryService,
@@ -191,6 +192,28 @@ describe("AgentRuntime", () => {
 					event === TASK_CANCELLED_EVENT,
 			),
 		).toBe(false);
+	});
+
+	it("passes the surfaced request ID to afterModel without carrying it into the next call", async () => {
+		const afterModel = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "first" },
+				{ type: "finish", reason: "stop", requestId: "backend-1" },
+			],
+			() => [
+				{ type: "text-delta", text: "second" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, hooks: { afterModel } });
+		await runtime.run("first");
+		await runtime.run("second");
+		expect(afterModel.mock.calls[0][0]).toMatchObject({
+			requestId: "backend-1",
+			finishReason: "stop",
+		});
+		expect(afterModel.mock.calls[1][0].requestId).toBeUndefined();
 	});
 
 	it("persists generated images in assistant message content", async () => {
@@ -415,48 +438,76 @@ describe("AgentRuntime", () => {
 		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
 	});
 
-	it("fails a turn that hits the model output token limit before completion", async () => {
-		const logger = {
-			debug: vi.fn(),
-			log: vi.fn(),
-			error: vi.fn(),
-		};
+	it.each<{ content: string; events: AgentModelEvent[] }>([
+		{
+			content: "reasoning",
+			events: [{ type: "reasoning-delta", text: "thinking..." }],
+		},
+		{
+			content: "text",
+			events: [{ type: "text-delta", text: "unfinished response..." }],
+		},
+		{ content: "empty", events: [] },
+	])("recovers from an output-token-limit cut-off with $content content by nudging for concision", async ({
+		events,
+	}) => {
 		const model = new ScriptedModel([
+			() => [...events, { type: "finish", reason: "max-tokens" }],
 			() => [
-				{ type: "reasoning-delta", text: "thinking..." },
-				{ type: "finish", reason: "max-tokens" },
+				{ type: "text-delta", text: "done concisely" },
+				{ type: "finish", reason: "stop" },
 			],
 		]);
-		const runtime = new AgentRuntime({ model, logger });
+		const runtime = new AgentRuntime({ model });
+		const turns: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "turn-started" || event.type === "turn-finished") {
+				turns.push(event);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done concisely");
+		expect(model.requests).toHaveLength(2);
+		expect(turns).toMatchObject([
+			{ type: "turn-started", iteration: 1, snapshot: { iteration: 1 } },
+			{
+				type: "turn-finished",
+				iteration: 1,
+				toolCallCount: 0,
+				snapshot: { iteration: 1 },
+			},
+			{ type: "turn-started", iteration: 2, snapshot: { iteration: 2 } },
+			{
+				type: "turn-finished",
+				iteration: 2,
+				toolCallCount: 0,
+				snapshot: { iteration: 2 },
+			},
+		]);
+		// The retried request carries a user nudge about the output limit.
+		const secondRequest = model.requests[1];
+		const nudge = secondRequest?.messages.at(-1);
+		expect(nudge).toMatchObject({ role: "user" });
+		expect(JSON.stringify(nudge)).toContain("output-token limit");
+	});
+
+	it("fails once repeated output-token-limit cut-offs exhaust recovery", async () => {
+		const cutoff = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{ type: "finish" as const, reason: "max-tokens" as const },
+		];
+		// Initial attempt + 3 recovery retries all cut off = 4 requests, then fail.
+		const model = new ScriptedModel([cutoff, cutoff, cutoff, cutoff]);
+		const runtime = new AgentRuntime({ model });
 
 		const result = await runtime.run("Hi");
 
 		expect(result.status).toBe("failed");
 		expect(result.error?.message).toContain("maximum output token limit");
-		expect(model.requests).toHaveLength(1);
-		expect(result.messages).toHaveLength(2);
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "reasoning", text: "thinking..." }],
-		});
-		expect(logger.log).toHaveBeenCalledWith(
-			"Agent loop caught error",
-			expect.objectContaining({
-				severity: "error",
-				status: "failed",
-				errorMessage: expect.stringContaining("maximum output token limit"),
-				iteration: 1,
-				assistantContentPartCount: 1,
-			}),
-		);
-		expect(logger.error).toHaveBeenCalledWith(
-			"Agent run failed",
-			expect.objectContaining({
-				error: expect.objectContaining({
-					message: expect.stringContaining("maximum output token limit"),
-				}),
-			}),
-		);
+		expect(model.requests).toHaveLength(4);
 	});
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {
@@ -908,6 +959,210 @@ describe("AgentRuntime", () => {
 					source: { type: "base64", data: "UERGLWRhdGE=" },
 				},
 			},
+		]);
+	});
+
+	it.each([
+		undefined,
+		"parallel",
+	] as const)("preserves tool boundaries and result order with runtime mode %s", async (toolExecution) => {
+		const firstGate = Promise.withResolvers<void>();
+		const secondGate = Promise.withResolvers<void>();
+		const events: string[] = [];
+		const calls = [
+			["read", "serial"],
+			["a", "worker"],
+			["b", "worker"],
+			["edit", "serial"],
+			["c", "worker"],
+			["d", "worker"],
+			["tail", "serial"],
+		];
+		const model = new ScriptedModel([
+			() => [
+				...calls.map(([id, name]) => ({
+					type: "tool-call-delta" as const,
+					toolCallId: id,
+					toolName: name,
+					inputText: JSON.stringify({ text: id }),
+				})),
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const execute = async (input: { text: string }) => {
+			events.push(`start:${input.text}`);
+			if (input.text === "a") await firstGate.promise;
+			if (input.text === "c") await secondGate.promise;
+			events.push(`end:${input.text}`);
+			if (input.text === "b") throw new Error("worker failed");
+			return input.text;
+		};
+		const runtime = new AgentRuntime({
+			model,
+			toolExecution,
+			tools: [
+				{
+					name: "serial",
+					executionMode:
+						toolExecution === "parallel" ? "sequential" : undefined,
+					description: "ordinary tool",
+					inputSchema: { type: "object" },
+					execute,
+				},
+				{
+					name: "worker",
+					description: "concurrent tool",
+					executionMode: "parallel",
+					inputSchema: { type: "object" },
+					execute,
+				},
+			],
+		});
+		const run = runtime.run("Run tools");
+		try {
+			await vi.waitFor(() => expect(events).toContain("end:b"));
+			expect(events).toEqual([
+				"start:read",
+				"end:read",
+				"start:a",
+				"start:b",
+				"end:b",
+			]);
+			firstGate.resolve();
+			await vi.waitFor(() => expect(events).toContain("end:d"));
+			expect(events.indexOf("start:edit")).toBeGreaterThan(
+				events.indexOf("end:a"),
+			);
+			expect(events.indexOf("start:c")).toBeGreaterThan(
+				events.indexOf("end:edit"),
+			);
+			expect(events).not.toContain("start:tail");
+		} finally {
+			firstGate.resolve();
+			secondGate.resolve();
+		}
+		const result = await run;
+		expect(result.status).toBe("completed");
+		expect(events.indexOf("start:tail")).toBeGreaterThan(
+			events.indexOf("end:c"),
+		);
+		const messages = result.messages.filter(
+			(message) => message.role === "tool",
+		);
+		expect(messages.map((message) => message.content[0])).toEqual(
+			calls.map(([id]) => expect.objectContaining({ toolCallId: id })),
+		);
+		expect(messages[2].content[0]).toMatchObject({
+			isError: true,
+			output: { error: "worker failed" },
+		});
+	});
+
+	it.each([
+		"skip",
+		"stop",
+	] as const)("preserves beforeTool %s semantics for parallel tools", async (decision) => {
+		const executed: string[] = [];
+		const model = new ScriptedModel([
+			() => [
+				...["a", "b"].map((id) => ({
+					type: "tool-call-delta" as const,
+					toolCallId: id,
+					toolName: "worker",
+					inputText: JSON.stringify({ text: id }),
+				})),
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "worker",
+					description: "concurrent tool",
+					executionMode: "parallel",
+					inputSchema: { type: "object" },
+					async execute(input: { text: string }) {
+						executed.push(input.text);
+						return input.text;
+					},
+				},
+			],
+			hooks: {
+				beforeTool: ({ toolCall }) =>
+					toolCall.toolCallId === "b"
+						? { [decision]: true, reason: "blocked" }
+						: undefined,
+			},
+		});
+		const result = await runtime.run("Run tools");
+		expect(result.status).toBe(decision === "stop" ? "aborted" : "completed");
+		expect(executed).toEqual(decision === "stop" ? [] : ["a"]);
+	});
+
+	it("finishes approval preparation before executing opted-in parallel tools", async () => {
+		const gate = Promise.withResolvers<void>();
+		const approvalStarted = Promise.withResolvers<void>();
+		const events: string[] = [];
+		const runtime = new AgentRuntime({
+			model: new ScriptedModel([
+				() => [
+					...["a", "b"].map((id) => ({
+						type: "tool-call-delta" as const,
+						toolCallId: id,
+						toolName: "worker",
+						inputText: JSON.stringify({ text: id }),
+					})),
+					{ type: "finish", reason: "tool-calls" },
+				],
+				() => [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				],
+			]),
+			tools: [
+				{
+					name: "worker",
+					description: "concurrent tool",
+					executionMode: "parallel",
+					inputSchema: { type: "object" },
+					async execute(input: { text: string }) {
+						events.push(`execute:${input.text}`);
+						return input.text;
+					},
+				},
+			],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async ({ toolCallId }) => {
+				events.push(`approve:${toolCallId}`);
+				if (toolCallId === "b") {
+					approvalStarted.resolve();
+					await gate.promise;
+				}
+				return { approved: true };
+			},
+		});
+		const run = runtime.run("Run tools");
+		try {
+			await approvalStarted.promise;
+			expect(events).toEqual(["approve:a", "approve:b"]);
+		} finally {
+			gate.resolve();
+		}
+		expect((await run).status).toBe("completed");
+		expect(events).toEqual([
+			"approve:a",
+			"approve:b",
+			"execute:a",
+			"execute:b",
 		]);
 	});
 
@@ -2517,6 +2772,147 @@ describe("AgentRuntime", () => {
 			displayRole: "system",
 			userRunSpan: 0,
 		});
+	});
+
+	it("injects beforeRun appendContext into the run's first model request", async () => {
+		const model = new ScriptedModel([
+			(request) => {
+				// The hook context lands after the run's input messages, so the
+				// model sees it on the very first request of the run.
+				const contextMessage = request.messages.at(-1);
+				expect(contextMessage?.role).toBe("user");
+				expect(contextMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: '<hook_context source="RunStart">\nrun-context\n</hook_context>',
+				});
+				const promptMessage = request.messages.at(-2);
+				expect(promptMessage?.role).toBe("user");
+				expect(promptMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: "Inject run context",
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: () => ({ appendContext: "run-context" }),
+			},
+		});
+
+		const result = await runtime.run("Inject run context");
+
+		expect(result.status).toBe("completed");
+		const hookContextMessage = result.messages.find(
+			(message) =>
+				message.role === "user" &&
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes('source="RunStart"'),
+				),
+		);
+		// Hidden from user-facing transcripts (live and replayed) while still
+		// sent to the model, like compaction summaries.
+		expect(hookContextMessage?.metadata).toMatchObject({
+			displayRole: "system",
+			userRunSpan: 0,
+		});
+	});
+
+	it("injects run-start context ahead of a seeded trailing tool call", async () => {
+		const hasResumeContext = (message: { content: unknown[] }) =>
+			message.content.some(
+				(part) =>
+					typeof part === "object" &&
+					part !== null &&
+					(part as { type?: string; text?: string }).type === "text" &&
+					(part as { text: string }).text.includes("resume-context"),
+			);
+		const model = new ScriptedModel([
+			(request) => {
+				// The seeded assistant tool_use must stay adjacent to whatever
+				// follows it, so the context lands right before it rather than
+				// being held back (and dropped when no tool call follows).
+				const lastMessage = request.messages.at(-1);
+				expect(lastMessage?.role).toBe("assistant");
+				const contextMessage = request.messages.at(-2);
+				expect(contextMessage?.role).toBe("user");
+				expect(contextMessage && hasResumeContext(contextMessage)).toBe(true);
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			initialMessages: [
+				{
+					id: "u1",
+					role: "user",
+					content: [{ type: "text", text: "resume me" }],
+					createdAt: 1,
+				},
+				{
+					id: "a1",
+					role: "assistant",
+					content: [
+						{
+							type: "tool-call",
+							toolCallId: "dangling",
+							toolName: "echo",
+							input: {},
+						},
+					],
+					createdAt: 2,
+				},
+			],
+			hooks: {
+				beforeRun: () => ({ appendContext: "resume-context" }),
+			},
+		});
+
+		const result = await runtime.run("");
+
+		expect(result.status).toBe("completed");
+		const contextIndex = result.messages.findIndex(hasResumeContext);
+		expect(contextIndex).toBeGreaterThan(0);
+		expect(result.messages[contextIndex + 1]?.id).toBe("a1");
+	});
+
+	it("does not inject context from a beforeRun hook that stops the run", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "unreachable" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			hooks: {
+				beforeRun: () => ({
+					stop: true,
+					reason: "blocked",
+					appendContext: "never-injected",
+				}),
+			},
+		});
+
+		const result = await runtime.run("Blocked run");
+
+		expect(result.status).not.toBe("completed");
+		expect(
+			result.messages.some((message) =>
+				message.content.some(
+					(part) =>
+						part.type === "text" && part.text.includes("never-injected"),
+				),
+			),
+		).toBe(false);
 	});
 
 	it("sanitizes hook context markup against corrupting identity attributes", async () => {

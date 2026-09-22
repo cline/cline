@@ -88,9 +88,10 @@ static when reduced motion is requested.
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
-`AgentAskQuestion` keeps option selection locally and submits explicitly. The
-host owns pending answers, errors, and response transport. Multiple-choice
-items set `multiple: true` and provide `onAnswers` for array submission.
+`AgentAskQuestion` answers single-choice items as soon as an option is picked
+and also accepts a typed custom answer. The host owns pending answers, errors,
+and response transport. Multiple-choice items set `multiple: true` and provide
+`onAnswers` for explicit array submission.
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
@@ -280,6 +281,23 @@ The standalone `ui-publish.yml` workflow validates the package and publishes
 only after a manual dispatch from `main`. Production releases use the npm
 `latest` tag; deliberate previews use `next`. UI releases do not trigger the
 SDK release, GitHub releases, or Slack announcements.
+
+### 0.2.0-next.10 compatibility notes
+
+This preview packages the already-merged desktop UI updates for external
+consumers:
+
+- `SearchCombobox.onOpen` is an optional callback for refreshing a catalog when
+  its picker opens. Hosts still own fetching, selection, and error handling.
+- A single queued prompt is visible immediately with its existing edit/remove/
+  steer controls. Multiple prompts retain the collapsible list. This does not
+  add a runtime queue operation or an Enter-to-steer shortcut to consumers.
+- `ToolFileDiff` derives its options from the peer component, allowing the
+  published declarations to work with both `@pierre/diffs` 1.3 and 1.4.
+
+Consumers on `0.2.0-next.9` can retain existing props. Adopt the callback
+explicitly to enable catalog refresh. The version change prepares a package;
+publication still requires the separate manual workflow below.
 
 ### Publish a preview
 

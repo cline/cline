@@ -620,6 +620,64 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("aggregates beforeRun appendContext across config and extension hooks", async () => {
+		const extension: AgentExtension = {
+			name: "run-start-ext",
+			manifest: { capabilities: ["hooks"] },
+			hooks: {
+				beforeRun: () => ({ appendContext: "ext-context" }),
+			},
+		};
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [extension],
+				hooks: {
+					beforeRun: () => ({ appendContext: "config-context" }),
+				},
+			}),
+			deps,
+		);
+
+		await (
+			session as unknown as {
+				ensureExtensionsInitialized(): Promise<void>;
+			}
+		).ensureExtensionsInitialized();
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const beforeRun = hooks?.beforeRun;
+		expect(beforeRun).toBeDefined();
+
+		const result = await beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({
+			appendContext: "config-context\n\next-context",
+		});
+	});
+
+	it("returns a stopping beforeRun result without aggregating context into it", async () => {
+		const { deps } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: {
+					beforeRun: () => ({ stop: true, reason: "blocked at start" }),
+				},
+			}),
+			deps,
+		);
+
+		const hooks = (
+			session as unknown as {
+				createRuntimeHooks(): AgentRuntimeConfig["hooks"];
+			}
+		).createRuntimeHooks();
+		const result = await hooks?.beforeRun?.({ snapshot: makeSnapshot() });
+		expect(result).toEqual({ stop: true, reason: "blocked at start" });
+	});
+
 	it("merges beforeModel metadata through final message preparation", async () => {
 		const extension: AgentExtension = {
 			name: "metadata-ext",
@@ -791,6 +849,44 @@ describe("SessionRuntime message preparation", () => {
 			{ type: "text", text: "compacted transcript" },
 		]);
 		expect(Object.hasOwn(result ?? {}, "systemPrompt")).toBe(false);
+	});
+
+	it("forwards the previous request's actual input token count to prepareTurn", async () => {
+		// Compaction triggers on the provider's real input count for the previous
+		// request, so this bridge must not drop the field while rebuilding the
+		// context — otherwise the estimate is the only signal in production.
+		const prepareTurn = vi.fn(() => ({
+			systemPrompt: "rewritten system prompt",
+		}));
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(makeAgentConfig({ prepareTurn }), deps);
+
+		await session.run("go");
+		const runtimePrepareTurn = configs[0]?.prepareTurn;
+		expect(runtimePrepareTurn).toBeDefined();
+
+		await runtimePrepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "<user_input>task</user_input>" }],
+					createdAt: 1,
+				},
+			],
+			systemPrompt: "system",
+			tools: [],
+			model: {},
+			previousRequestInputTokens: 123_456,
+		});
+
+		expect(prepareTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ previousRequestInputTokens: 123_456 }),
+		);
 	});
 
 	it("allows prepareTurn to return only a system prompt", async () => {
