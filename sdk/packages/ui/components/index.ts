@@ -11,6 +11,31 @@ export {
 	type AgentAskQuestionProps,
 } from "./agent-ask-question.js";
 export { AgentAurora } from "./agent-aurora.js";
+export {
+	AgentComposer,
+	AgentComposerActions,
+	type AgentComposerActionsProps,
+	AgentComposerAttachments,
+	type AgentComposerAttachmentsProps,
+	AgentComposerBody,
+	type AgentComposerBodyProps,
+	AgentComposerField,
+	type AgentComposerFieldProps,
+	type AgentComposerProps,
+	AgentComposerSendButton,
+	type AgentComposerSendButtonProps,
+	AgentComposerSettings,
+	AgentComposerSettingsEnd,
+	type AgentComposerSettingsEndProps,
+	AgentComposerSettingsGroup,
+	type AgentComposerSettingsGroupProps,
+	type AgentComposerSettingsProps,
+	AgentComposerStopButton,
+	type AgentComposerStopButtonProps,
+	AgentComposerTextarea,
+	type AgentComposerTextareaProps,
+	type AgentComposerVariant,
+} from "./agent-composer.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentPromptQueue,
