@@ -286,7 +286,9 @@ describe("DiffView hunk rendering", () => {
 		expect(
 			container.querySelector('[data-slot="scroll-area-viewport"]'),
 		).not.toBeNull();
-		await click(container.querySelector("button[aria-expanded]") as Element);
+		await click(
+			container.querySelector(".cline-ui-agent-changes__toggle") as Element,
+		);
 		expect(diffContainers()).toHaveLength(1);
 	});
 

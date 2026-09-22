@@ -45,10 +45,10 @@ it("keeps file actions separate from disclosure and forwards panel focus/close",
 		expect(container.textContent).toContain("Files: 1+");
 		expect(container.textContent).toContain("One omitted edit");
 		const toggle = container.querySelector<HTMLButtonElement>(
-			"button[aria-expanded]",
+			".cline-ui-agent-changes__toggle",
 		);
 		expect(toggle).not.toBeNull();
-		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelector("pre")?.textContent).toBe("changed content");
 		await act(async () =>
 			container
 				.querySelector<HTMLButtonElement>(
@@ -57,14 +57,14 @@ it("keeps file actions separate from disclosure and forwards panel focus/close",
 				?.click(),
 		);
 		expect(onCopy).toHaveBeenCalledOnce();
-		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelector("pre")?.textContent).toBe("changed content");
 		await act(async () =>
 			Array.from(container.querySelectorAll("button"))
 				.find((button) => button.textContent === "Open editor")
 				?.click(),
 		);
 		expect(onOpen).toHaveBeenCalledOnce();
-		expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelector("pre")?.textContent).toBe("changed content");
 		await act(async () => toggle?.click());
 		expect(container.querySelector("pre")).toBeNull();
 		await act(async () => toggle?.click());

@@ -70,24 +70,26 @@ export function DiffView({
 					: undefined
 			}
 		>
-			{fileDiffs.map((file) => (
-				<DiffFileSection
-					key={file.path}
-					cwd={cwd}
-					editors={editors}
-					environmentId={environmentId}
-					file={file}
-					collapsed={collapsedFiles.has(file.path)}
-					onToggle={() =>
-						setCollapsedFiles((previous) => {
-							const next = new Set(previous);
-							if (next.has(file.path)) next.delete(file.path);
-							else next.add(file.path);
-							return next;
-						})
-					}
-				/>
-			))}
+			<div className="flex flex-col">
+				{fileDiffs.map((file) => (
+					<DiffFileSection
+						key={file.path}
+						cwd={cwd}
+						editors={editors}
+						environmentId={environmentId}
+						file={file}
+						collapsed={collapsedFiles.has(file.path)}
+						onToggle={() =>
+							setCollapsedFiles((previous) => {
+								const next = new Set(previous);
+								if (next.has(file.path)) next.delete(file.path);
+								else next.add(file.path);
+								return next;
+							})
+						}
+					/>
+				))}
+			</div>
 		</AgentChangesPanel>
 	);
 }

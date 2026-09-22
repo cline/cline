@@ -1,12 +1,6 @@
 "use client";
 
-import {
-	type HTMLAttributes,
-	type ReactNode,
-	type Ref,
-	useId,
-	useState,
-} from "react";
+import { type HTMLAttributes, type ReactNode, type Ref, useState } from "react";
 
 function Icon({
 	name,
@@ -32,22 +26,22 @@ function Icon({
 					<path d="m6 6 12 12" />
 				</>
 			) : name === "check" ? (
-				<path d="m5 12 4 4L19 6" />
+				<path d="M20 6 9 17l-5-5" />
 			) : name === "down" ? (
 				<path d="m6 9 6 6 6-6" />
 			) : name === "right" ? (
 				<path d="m9 6 6 6-6 6" />
 			) : (
 				<>
-					<rect x="9" y="9" width="13" height="13" rx="2" />
-					<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+					<rect x="8" y="8" width="14" height="14" rx="2" ry="2" />
+					<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
 				</>
 			)}
 		</svg>
 	);
 }
 
-export interface AgentChangesPanelProps extends HTMLAttributes<HTMLElement> {
+export interface AgentChangesPanelProps extends HTMLAttributes<HTMLDivElement> {
 	title: string;
 	fileCount: number | string;
 	onClose: () => void;
@@ -87,15 +81,15 @@ export function AgentChangesPanel({
 		</>
 	);
 	return (
-		<section
+		<div
 			{...props}
 			className={`cline-ui-agent-changes flex h-full min-h-0 flex-col overflow-hidden ${className}`}
 		>
 			<div className="cline-ui-agent-changes__header flex h-10 shrink-0 items-center justify-between border-b border-cline-ui-border bg-cline-ui-card px-4">
 				<div className="cline-ui-agent-changes__heading flex items-center gap-3">
-					<h2 className="text-cline-ui-xs font-medium text-cline-ui-foreground">
+					<span className="text-cline-ui-xs font-medium text-cline-ui-foreground">
 						{title}
-					</h2>
+					</span>
 					<span className="cline-ui-agent-changes__count rounded bg-cline-ui-secondary px-1.5 py-0.5 text-[10px] font-cline-ui-mono text-cline-ui-muted-foreground">
 						Files: {fileCount}
 					</span>
@@ -119,7 +113,7 @@ export function AgentChangesPanel({
 					{content}
 				</div>
 			)}
-		</section>
+		</div>
 	);
 }
 
@@ -153,15 +147,12 @@ export function AgentChangedFile({
 		setLocalExpanded(!expanded);
 		onExpandedChange?.(!expanded);
 	};
-	const contentId = useId();
 	return (
 		<div className="cline-ui-agent-changes__file border-b border-cline-ui-border">
 			{/* group preserves hover reveal for host-provided native actions. */}
 			<div className="cline-ui-agent-changes__file-header group flex w-full items-center gap-2 bg-cline-ui-card/80 px-4 py-2 hover:bg-cline-ui-surface-hover-lighter transition-colors">
 				<button
 					className="cline-ui-agent-changes__toggle flex min-w-0 shrink items-center gap-2 text-left"
-					aria-expanded={expanded}
-					aria-controls={contentId}
 					onClick={toggle}
 					type="button"
 				>
@@ -196,10 +187,7 @@ export function AgentChangedFile({
 				</span>
 			</div>
 			{expanded && (
-				<div
-					id={contentId}
-					className="cline-ui-agent-changes__content space-y-2 border-t border-cline-ui-border bg-cline-ui-card/40 px-4 py-3"
-				>
+				<div className="cline-ui-agent-changes__content space-y-2 border-t border-cline-ui-border bg-cline-ui-card/40 px-4 py-3">
 					{children}
 				</div>
 			)}
