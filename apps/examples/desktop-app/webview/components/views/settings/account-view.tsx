@@ -462,8 +462,9 @@ export function AccountView() {
 			<p className="text-sm text-muted-foreground max-w-md">{message}</p>
 			<button
 				type="button"
+				disabled={accountActionPending !== null}
 				onClick={onRetry}
-				className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+				className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors disabled:opacity-60"
 			>
 				<RefreshCw className="h-4 w-4" />
 				Retry
@@ -573,7 +574,8 @@ export function AccountView() {
 			<PageHeader
 				title="Account"
 				actions={
-					user ? (
+					// Failed account requests must not hide the credential-clearing action.
+					user || (!signedOut && overviewError !== null) ? (
 						<button
 							type="button"
 							disabled={accountActionPending !== null}
