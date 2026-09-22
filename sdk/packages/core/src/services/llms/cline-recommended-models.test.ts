@@ -1,4 +1,7 @@
-import { GENERATED_CLINE_RECOMMENDED_MODELS } from "@cline/llms";
+import {
+	GENERATED_CLINE_RECOMMENDED_MODELS,
+	getGeneratedProviderModels,
+} from "@cline/llms";
 import { setClineClientIdentity } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -496,6 +499,55 @@ describe("peekClineRecommendedModels", () => {
 			ENDPOINT_PAYLOAD.recommended.map((m) => m.id),
 		);
 		resetClineRecommendedModelsCacheForTests();
+	});
+});
+
+describe("generated recommendation and provider catalog integration", () => {
+	it.each([
+		"cline",
+		"cline-pass",
+	] as const)("resolves every bundled recommendation exactly once in the %s catalog", (providerId) => {
+		const catalog = getGeneratedProviderModels();
+		const models = Object.values(
+			providerId === "cline"
+				? { ...catalog.openrouter, ...catalog.cline }
+				: catalog["cline-pass"],
+		).map((entry) => ({ id: entry.id, name: entry.name ?? entry.id }));
+		const featured = applyClineFeaturedModels(
+			providerId,
+			models,
+			FALLBACK_CLINE_RECOMMENDED_MODELS,
+		);
+		expect(featured.map((entry) => entry.id)).toEqual(
+			models.map((entry) => entry.id),
+		);
+		const tiers =
+			providerId === "cline"
+				? ([
+						["recommended", "recommended"],
+						["free", "free"],
+					] as const)
+				: ([
+						["subscribed", "clinePass"],
+						["free", "free"],
+					] as const);
+		for (const [tier, feedKey] of tiers) {
+			const entries = GENERATED_CLINE_RECOMMENDED_MODELS[feedKey] ?? [];
+			const stamped = featured.filter((model) => model.featured?.tier === tier);
+			entries.forEach((entry, rank) => {
+				const matches = stamped.filter(
+					(model) => model.featured?.rank === rank,
+				);
+				expect(matches, `${providerId}/${tier}: ${entry.id}`).toHaveLength(1);
+				const match = matches[0]!;
+				// Supported prefix aliases and the unambiguous-slug fallback
+				// preserve the model slug, while routing keeps the catalog ID.
+				expect(match.id.split("/").at(-1)).toBe(entry.id.split("/").at(-1));
+				expect(match.featured).toEqual({ tier, rank, tags: entry.tags ?? [] });
+				expect(match.description ?? "").toBe(entry.description?.trim() ?? "");
+			});
+			expect(stamped).toHaveLength(entries.length);
+		}
 	});
 });
 
