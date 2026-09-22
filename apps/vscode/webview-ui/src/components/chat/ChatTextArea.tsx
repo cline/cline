@@ -122,6 +122,13 @@ const Slider = styled.div.withConfig({
 	transform: translateX(${(props) => (props.isAct ? "100%" : "0%")});
 `
 
+const MODE_TOGGLE_OPTIONS = [
+	{ id: "plan", label: "Plan" },
+	{ id: "act", label: "Act" },
+] as const satisfies readonly { id: Mode; label: string }[]
+
+type ModeToggleOptionId = (typeof MODE_TOGGLE_OPTIONS)[number]["id"]
+
 const ButtonGroup = styled.div`
 	display: flex;
 	align-items: center;
@@ -240,6 +247,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [cursorPosition, setCursorPosition] = useState(0)
 		const [searchQuery, setSearchQuery] = useState("")
 		const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
+		const modeOptionRefs = useRef<Partial<Record<ModeToggleOptionId, HTMLDivElement | null>>>({})
 		const [isMouseDownOnMenu, setIsMouseDownOnMenu] = useState(false)
 		const highlightLayerRef = useRef<HTMLDivElement>(null)
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
@@ -1027,62 +1035,116 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
-		const onModeToggle = useCallback(() => {
-			void (async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const submittedText = inputValue
-				const submittedImages = selectedImages
-				const submittedFiles = selectedFiles
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: submittedText.trim() ? submittedText : undefined,
-							images: submittedImages,
-							files: submittedFiles,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					const consumedComposerContent = response.value === true
-					const currentText = textAreaRef.current?.value ?? ""
-					// Reconcile only the submitted draft: the rebuild can take a moment
-					// and the user may have typed new content in the meantime.
-					const draftAction = getModeToggleDraftAction({
-						consumed: consumedComposerContent,
-						currentText,
-						submittedText,
-					})
+		const onModeToggle = useCallback(
+			(options?: { refocusTextArea?: boolean }) => {
+				void (async () => {
+					const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
+					const submittedText = inputValue
+					const submittedImages = selectedImages
+					const submittedFiles = selectedFiles
+					const response = await StateServiceClient.togglePlanActModeProto(
+						TogglePlanActModeRequest.create({
+							mode: convertedProtoMode,
+							chatContent: {
+								message: submittedText.trim() ? submittedText : undefined,
+								images: submittedImages,
+								files: submittedFiles,
+							},
+						}),
+					)
+					// Focus the textarea after mode toggle with slight delay
+					setTimeout(() => {
+						const consumedComposerContent = response.value === true
+						const currentText = textAreaRef.current?.value ?? ""
+						// Reconcile only the submitted draft: the rebuild can take a moment
+						// and the user may have typed new content in the meantime.
+						const draftAction = getModeToggleDraftAction({
+							consumed: consumedComposerContent,
+							currentText,
+							submittedText,
+						})
 
-					switch (draftAction) {
-						case "clear":
-							setInputValue("")
-							break
-						case "restore":
-							setInputValue(submittedText)
-							break
-						case "keep":
-							break
-					}
-
-					if (consumedComposerContent) {
-						setSelectedImages((current) => (current === submittedImages ? [] : current))
-						setSelectedFiles((current) => (current === submittedFiles ? [] : current))
-					} else {
-						if (submittedImages.length > 0) {
-							setSelectedImages((current) => (current.length === 0 ? submittedImages : current))
+						switch (draftAction) {
+							case "clear":
+								setInputValue("")
+								break
+							case "restore":
+								setInputValue(submittedText)
+								break
+							case "keep":
+								break
 						}
-						if (submittedFiles.length > 0) {
-							setSelectedFiles((current) => (current.length === 0 ? submittedFiles : current))
-						}
-					}
-					textAreaRef.current?.focus()
-				}, 100)
-			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles])
 
-		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+						if (consumedComposerContent) {
+							setSelectedImages((current) => (current === submittedImages ? [] : current))
+							setSelectedFiles((current) => (current === submittedFiles ? [] : current))
+						} else {
+							if (submittedImages.length > 0) {
+								setSelectedImages((current) => (current.length === 0 ? submittedImages : current))
+							}
+							if (submittedFiles.length > 0) {
+								setSelectedFiles((current) => (current.length === 0 ? submittedFiles : current))
+							}
+						}
+						if (options?.refocusTextArea !== false) {
+							textAreaRef.current?.focus()
+						}
+					}, 100)
+				})()
+			},
+			[mode, inputValue, selectedImages, selectedFiles, setInputValue, setSelectedImages, setSelectedFiles],
+		)
+
+		useShortcut(usePlatform().togglePlanActKeys, () => onModeToggle(), { disableTextInputs: false }) // important that we don't disable the text input here
+
+		/**
+		 * Moves focus to a mode option. Per the ARIA radio group pattern, focus moves with
+		 * the arrow keys and the newly focused option becomes the checked one.
+		 */
+		const selectModeOption = useCallback(
+			(target: ModeToggleOptionId) => {
+				modeOptionRefs.current[target]?.focus()
+				if (target !== mode) {
+					// Keep focus inside the group: the textarea refocus is only for clicks and the shortcut.
+					onModeToggle({ refocusTextArea: false })
+				}
+			},
+			[mode, onModeToggle],
+		)
+
+		const handleModeOptionKeyDown = useCallback(
+			(event: React.KeyboardEvent<HTMLDivElement>, current: ModeToggleOptionId) => {
+				const currentIndex = MODE_TOGGLE_OPTIONS.findIndex((option) => option.id === current)
+				const lastIndex = MODE_TOGGLE_OPTIONS.length - 1
+
+				switch (event.key) {
+					case "ArrowRight":
+					case "ArrowDown": {
+						// preventDefault stops the chat from scrolling while moving within the group.
+						event.preventDefault()
+						selectModeOption(MODE_TOGGLE_OPTIONS[currentIndex === lastIndex ? 0 : currentIndex + 1].id)
+						break
+					}
+					case "ArrowLeft":
+					case "ArrowUp": {
+						event.preventDefault()
+						selectModeOption(MODE_TOGGLE_OPTIONS[currentIndex === 0 ? lastIndex : currentIndex - 1].id)
+						break
+					}
+					case " ":
+					case "Enter": {
+						// Space on a focused radio scrolls the page by default, even when it is already checked.
+						event.preventDefault()
+						event.stopPropagation()
+						if (current !== mode) {
+							onModeToggle({ refocusTextArea: false })
+						}
+						break
+					}
+				}
+			},
+			[mode, onModeToggle, selectModeOption],
+		)
 
 		const handleContextButtonClick = useCallback(() => {
 			// Focus the textarea first
@@ -1695,21 +1757,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								aria-label="Plan or Act mode"
 								data-testid="mode-switch"
 								disabled={false}
-								onClick={onModeToggle}
+								onClick={() => onModeToggle()}
 								role="radiogroup">
 								<Slider aria-hidden="true" isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => {
-									const isSelected = mode === m.toLowerCase()
-									const tooltipMode = m.toLowerCase() === "plan" ? "plan" : "act"
+								{MODE_TOGGLE_OPTIONS.map(({ id, label }) => {
+									const isSelected = mode === id
 									return (
 										<div
 											aria-checked={isSelected}
-											aria-label={`${m} mode`}
+											aria-label={`${label} mode`}
 											className={cn(
 												"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
+												// Inset ring: the container clips overflow, so an outer outline would be cut off.
+												"focus-visible:outline-none focus-visible:inset-ring-2 focus-visible:inset-ring-[color:var(--vscode-focusBorder)]",
 												isSelected ? "text-white" : "text-input-foreground",
 											)}
-											key={m}
+											key={id}
 											onBlur={() => setShownTooltipMode(null)}
 											onClick={(e) => {
 												e.stopPropagation()
@@ -1717,19 +1780,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 													onModeToggle()
 												}
 											}}
-											onFocus={() => setShownTooltipMode(tooltipMode)}
-											onKeyDown={(e) => {
-												if (!isSelected && (e.key === "Enter" || e.key === " ")) {
-													e.preventDefault()
-													e.stopPropagation()
-													onModeToggle()
-												}
-											}}
+											onFocus={() => setShownTooltipMode(id)}
+											onKeyDown={(e) => handleModeOptionKeyDown(e, id)}
 											onMouseLeave={() => setShownTooltipMode(null)}
-											onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+											onMouseOver={() => setShownTooltipMode(id)}
+											ref={(element) => {
+												modeOptionRefs.current[id] = element
+											}}
 											role="radio"
 											tabIndex={isSelected ? 0 : -1}>
-											{m}
+											{label}
 										</div>
 									)
 								})}

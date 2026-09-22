@@ -1,15 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { PlanActMode } from "@shared/proto/cline/state"
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import ChatTextArea from "./ChatTextArea"
 
 const mocks = vi.hoisted(() => ({
 	supportsImages: true as boolean | undefined,
 	navigateToSettingsModelPicker: vi.fn(),
+	mode: "act" as "plan" | "act",
+	togglePlanActModeProto: vi.fn(async (_request: { mode?: string | number }) => ({ value: false })),
 }))
 
 vi.mock("@/context/ExtensionStateContext", () => ({
 	useExtensionState: () => ({
-		mode: "act",
+		mode: mocks.mode,
 		apiConfiguration: {},
 		openRouterModels: {},
 		platform: "darwin",
@@ -43,7 +47,7 @@ vi.mock("@/services/grpc-client", () => ({
 		openFile: vi.fn(async () => ({})),
 	},
 	StateServiceClient: {
-		togglePlanActModeProto: vi.fn(async () => ({})),
+		togglePlanActModeProto: (request: { mode?: string | number }) => mocks.togglePlanActModeProto(request),
 	},
 }))
 
@@ -52,9 +56,27 @@ vi.mock("./ServersToggleModal", () => ({ default: () => null }))
 
 const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo="
 
+beforeAll(() => {
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			disconnect() {}
+			observe() {}
+			unobserve() {}
+		},
+	)
+})
+
+/** The mode toggle shows a Radix tooltip on focus, which measures itself with a ResizeObserver. */
+function focusElement(element: HTMLElement) {
+	act(() => {
+		element.focus()
+	})
+}
+
 function renderTextArea(selectedImages: string[] = []) {
 	const setSelectedImages = vi.fn()
-	render(
+	const createTextAreaElement = () => (
 		<ChatTextArea
 			activeQuote={null}
 			inputValue=""
@@ -68,9 +90,14 @@ function renderTextArea(selectedImages: string[] = []) {
 			setSelectedFiles={vi.fn()}
 			setSelectedImages={setSelectedImages}
 			shouldDisableFilesAndImages={false}
-		/>,
+		/>
 	)
-	return { textarea: screen.getByPlaceholderText("Type a message"), setSelectedImages }
+	const view = render(createTextAreaElement())
+	return {
+		textarea: screen.getByPlaceholderText("Type a message"),
+		setSelectedImages,
+		rerender: () => view.rerender(createTextAreaElement()),
+	}
 }
 
 function pasteImage(target: HTMLElement) {
@@ -145,6 +172,11 @@ describe("ChatTextArea image attachments vs. model capability", () => {
 })
 
 describe("ChatTextArea Plan/Act mode toggle accessibility", () => {
+	beforeEach(() => {
+		mocks.mode = "act"
+		mocks.togglePlanActModeProto.mockClear()
+	})
+
 	it("exposes Plan/Act as a radiogroup with roving tabindex", () => {
 		renderTextArea()
 
@@ -159,5 +191,104 @@ describe("ChatTextArea Plan/Act mode toggle accessibility", () => {
 
 		expect(plan).toHaveAttribute("tabindex", "-1")
 		expect(act).toHaveAttribute("tabindex", "0")
+	})
+
+	it("moves focus and selection with arrow keys, without scrolling the chat", () => {
+		const { rerender } = renderTextArea()
+
+		const plan = screen.getByRole("radio", { name: "Plan mode" })
+		const act = screen.getByRole("radio", { name: "Act mode" })
+		focusElement(act)
+		expect(act).toHaveFocus()
+
+		// Arrow keys move focus to the other option and select it.
+		const leftArrow = createEvent.keyDown(act, { key: "ArrowLeft" })
+		fireEvent(act, leftArrow)
+
+		expect(plan).toHaveFocus()
+		expect(leftArrow.defaultPrevented).toBe(true)
+		expect(mocks.togglePlanActModeProto).toHaveBeenCalledTimes(1)
+		expect(mocks.togglePlanActModeProto.mock.calls[0][0].mode).toBe(PlanActMode.PLAN)
+
+		// The extension reports the new mode back, so the roving tabindex follows the selection.
+		mocks.mode = "plan"
+		rerender()
+		expect(plan).toHaveAttribute("tabindex", "0")
+
+		const rightArrow = createEvent.keyDown(plan, { key: "ArrowRight" })
+		fireEvent(plan, rightArrow)
+
+		expect(act).toHaveFocus()
+		expect(rightArrow.defaultPrevented).toBe(true)
+		expect(mocks.togglePlanActModeProto).toHaveBeenCalledTimes(2)
+		expect(mocks.togglePlanActModeProto.mock.calls[1][0].mode).toBe(PlanActMode.ACT)
+	})
+
+	it("does not scroll or toggle when Space is pressed on the selected option", () => {
+		renderTextArea()
+
+		const act = screen.getByRole("radio", { name: "Act mode" })
+		focusElement(act)
+
+		const spacePressed = createEvent.keyDown(act, { key: " " })
+		fireEvent(act, spacePressed)
+
+		expect(spacePressed.defaultPrevented).toBe(true)
+		expect(mocks.togglePlanActModeProto).not.toHaveBeenCalled()
+	})
+
+	it("activates the focused option with Space and Enter, and ignores clicks on the selected option", () => {
+		renderTextArea()
+
+		const plan = screen.getByRole("radio", { name: "Plan mode" })
+		const act = screen.getByRole("radio", { name: "Act mode" })
+
+		fireEvent.click(act)
+		expect(mocks.togglePlanActModeProto).not.toHaveBeenCalled()
+
+		focusElement(plan)
+		const spacePressed = createEvent.keyDown(plan, { key: " " })
+		fireEvent(plan, spacePressed)
+
+		expect(spacePressed.defaultPrevented).toBe(true)
+		expect(mocks.togglePlanActModeProto).toHaveBeenCalledTimes(1)
+		expect(mocks.togglePlanActModeProto.mock.calls[0][0].mode).toBe(PlanActMode.PLAN)
+
+		const enterPressed = createEvent.keyDown(plan, { key: "Enter" })
+		fireEvent(plan, enterPressed)
+
+		expect(enterPressed.defaultPrevented).toBe(true)
+		expect(mocks.togglePlanActModeProto).toHaveBeenCalledTimes(2)
+	})
+
+	it("follows the current mode with aria-checked and the roving tabindex", () => {
+		const { rerender } = renderTextArea()
+
+		mocks.mode = "plan"
+		rerender()
+
+		const plan = screen.getByRole("radio", { name: "Plan mode" })
+		const act = screen.getByRole("radio", { name: "Act mode" })
+
+		expect(plan).toHaveAttribute("aria-checked", "true")
+		expect(plan).toHaveAttribute("tabindex", "0")
+		expect(act).toHaveAttribute("aria-checked", "false")
+		expect(act).toHaveAttribute("tabindex", "-1")
+	})
+
+	it("keeps a single tab stop and lets Tab leave the group", async () => {
+		const user = userEvent.setup()
+		renderTextArea()
+
+		const plan = screen.getByRole("radio", { name: "Plan mode" })
+		const act = screen.getByRole("radio", { name: "Act mode" })
+
+		focusElement(act)
+		expect(act).toHaveFocus()
+
+		await user.tab()
+
+		expect(document.activeElement).not.toBe(act)
+		expect(document.activeElement).not.toBe(plan)
 	})
 })
