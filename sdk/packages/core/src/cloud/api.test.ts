@@ -3,7 +3,7 @@ import {
 	CloudSessionApi,
 	CloudSessionError,
 	type CloudSessionRecord,
-} from "./cloud-sessions";
+} from "./api";
 
 const REMOTE_SESSION: CloudSessionRecord = {
 	id: "ses-outer",

@@ -38,6 +38,9 @@ type HubCommandOptions = {
 	timeoutMs?: number | null;
 	/** Synchronous local guard, checked after connection before each dispatch. */
 	beforeDispatch?: () => void;
+	/** Observes this attempt's correlation id after the local guard, before sending.
+	 * Dispatch alone does not confirm that the server accepted the command. */
+	onDispatch?: (requestId: string) => void;
 };
 
 type SubscriptionEntry = {
@@ -697,6 +700,7 @@ export class NodeHubClient {
 		}
 		options?.beforeDispatch?.();
 		const requestId = createSessionId("hubreq_");
+		options?.onDispatch?.(requestId);
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
 			options?.timeoutMs,

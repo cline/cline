@@ -130,10 +130,12 @@ Owns stateful orchestration:
 - hub server and scheduled-runtime services under `src/hub/`
 - hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
 - host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- the experimental cloud-session client exported from `@cline/core/cloud`: cloud API access, remote session lifecycle, and transcript reconciliation
 
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
+- `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent. It does not implement local-to-cloud handoff.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
   - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
