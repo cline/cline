@@ -217,6 +217,26 @@ describe("ai-sdk usage normalization", () => {
 		).toBe(41);
 	});
 
+	it("subtracts reasoning tokens out of outputTokens instead of double-counting them", () => {
+		const normalized = normalizeUsage({
+			outputTokens: 250,
+			completion_tokens_details: { reasoning_tokens: 90 },
+		});
+		expect(normalized.reasoningTokenCount).toBe(90);
+		// 250 already included the 90 reasoning tokens (standard provider
+		// convention); the exposed outputTokens should be the remainder, not
+		// the raw 250.
+		expect(normalized.outputTokens).toBe(160);
+	});
+
+	it("clamps outputTokens at zero if reported reasoning tokens exceed the total", () => {
+		const normalized = normalizeUsage({
+			outputTokens: 10,
+			reasoningTokens: 25,
+		});
+		expect(normalized.outputTokens).toBe(0);
+	});
+
 	describe("cost extraction with pricing fallback", () => {
 		it.each([
 			["cline-pass", "included-model", { input: 3, output: 15 }],
@@ -335,6 +355,20 @@ describe("ai-sdk usage normalization", () => {
 				pricingInput,
 			);
 			// (1000/1M) * 2.5 + (100/1M) * 10 = 0.0025 + 0.001 = 0.0035
+			expect(normalized.totalCost).toBeCloseTo(0.0035, 5);
+		});
+
+		it("bills pricing-fallback cost on the full output count, including reasoning tokens", () => {
+			const pricingInput = { input: 2.5, output: 10 }; // per 1M tokens
+			const normalized = normalizeUsage(
+				{ inputTokens: 1000, outputTokens: 100, reasoningTokens: 40 },
+				undefined,
+				pricingInput,
+			);
+			// Reasoning tokens are billed at the output rate, so cost must use
+			// the full 100 (not the 60 left after subtracting reasoning out of
+			// the exposed outputTokens).
+			expect(normalized.outputTokens).toBe(60);
 			expect(normalized.totalCost).toBeCloseTo(0.0035, 5);
 		});
 	});

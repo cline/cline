@@ -1335,6 +1335,16 @@ export function normalizeUsage(
 
 	return {
 		...normalizedUsage,
+		// Providers report reasoning tokens as a subset of outputTokens (e.g.
+		// OpenAI's completion_tokens_details.reasoning_tokens), not additional
+		// to it. Strip them back out here so outputTokens reflects the actual
+		// non-reasoning output, with reasoningTokenCount tracked separately —
+		// otherwise every downstream consumer (session totals, telemetry,
+		// Harbor's n_output_tokens) double-books reasoning as both its own
+		// count and part of "output". Cost above is computed from the
+		// pre-subtraction outputTokens, since reasoning tokens are still
+		// billed at the output rate.
+		outputTokens: Math.max(0, normalizedUsage.outputTokens - reasoningTokenCount),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
