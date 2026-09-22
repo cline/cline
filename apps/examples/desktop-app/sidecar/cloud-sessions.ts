@@ -1305,6 +1305,8 @@ export class CloudSessionManager {
 		Promise<CloudConnection>
 	>();
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
+	// Retain new sessions until discovery has observed them at least once.
+	private readonly unlistedSessions = new Map<string, CloudSessionRecord>();
 	private readonly pendingInitialTasks = new Set<string>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
@@ -1363,6 +1365,7 @@ export class CloudSessionManager {
 				(error.code === "session_not_found" || error.code === "session_expired")
 			) {
 				this.knownSessions.delete(sessionId);
+				this.unlistedSessions.delete(sessionId);
 				return undefined;
 			}
 			// A scope/auth/network failure cannot prove the cached session is gone.
@@ -1379,7 +1382,14 @@ export class CloudSessionManager {
 		this.lastListedSessions = listed;
 		for (const session of listed) {
 			this.knownSessions.set(session.id, session);
+			this.unlistedSessions.delete(session.id);
 		}
+		// Omission can be a listing race; only a definitive status error drops a fallback.
+		await Promise.all(
+			Array.from(this.unlistedSessions.keys(), (sessionId) =>
+				this.getCrossScopeDiscoveryRecord(sessionId),
+			),
+		);
 		const scoped = await Promise.all(
 			listed.map(async (session) => {
 				if (session.status !== "provisioning") {
@@ -1582,7 +1592,13 @@ export class CloudSessionManager {
 			records = result.value;
 		}
 
-		const listed = records.map((record) => {
+		const recordsById = new Map(
+			[...this.unlistedSessions.values(), ...records].map((record) => [
+				record.id,
+				record,
+			]),
+		);
+		const listed = [...recordsById.values()].map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.ctx.liveSessions.get(record.id);
 			if (!live) {
@@ -1733,6 +1749,7 @@ export class CloudSessionManager {
 			updatedAt: new Date().toISOString(),
 		};
 		this.knownSessions.set(record.id, record);
+		this.unlistedSessions.set(record.id, record);
 		this.pendingInitialTasks.add(record.id);
 		const live = recordToLiveSession(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
@@ -1812,6 +1829,7 @@ export class CloudSessionManager {
 		onOuterSessionRemoved?: (sessionId: string) => Promise<void>,
 	): Promise<void> {
 		this.knownSessions.delete(outerSessionId);
+		this.unlistedSessions.delete(outerSessionId);
 		this.ctx.liveSessions.delete(outerSessionId);
 		let removed = false;
 		try {
@@ -2563,6 +2581,7 @@ export class CloudSessionManager {
 			}
 			this.knownSessions.delete(outerSessionId);
 			this.unconfirmedInnerCreates.delete(outerSessionId);
+			this.unlistedSessions.delete(outerSessionId);
 			this.pendingInitialTasks.delete(outerSessionId);
 			this.ctx.liveSessions.delete(outerSessionId);
 			this.sendAbortTokens.delete(outerSessionId);
@@ -2598,6 +2617,7 @@ export class CloudSessionManager {
 		}
 		this.knownSessions.clear();
 		this.unconfirmedInnerCreates.clear();
+		this.unlistedSessions.clear();
 		this.pendingInitialTasks.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
