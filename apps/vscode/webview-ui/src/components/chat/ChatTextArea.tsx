@@ -123,11 +123,22 @@ const Slider = styled.div.withConfig({
 `
 
 const MODE_TOGGLE_OPTIONS = [
-	{ id: "plan", label: "Plan" },
-	{ id: "act", label: "Act" },
-] as const satisfies readonly { id: Mode; label: string }[]
+	{
+		description: "In Plan mode, Cline will gather information to architect a plan",
+		id: "plan",
+		label: "Plan",
+	},
+	{
+		description: "In Act mode, Cline will complete the task immediately",
+		id: "act",
+		label: "Act",
+	},
+] as const satisfies readonly { description: string; id: Mode; label: string }[]
 
 type ModeToggleOptionId = (typeof MODE_TOGGLE_OPTIONS)[number]["id"]
+
+const getModeToggleOption = (id: ModeToggleOptionId) =>
+	MODE_TOGGLE_OPTIONS.find((option) => option.id === id) ?? MODE_TOGGLE_OPTIONS[0]
 
 const ButtonGroup = styled.div`
 	display: flex;
@@ -1747,7 +1758,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							className="text-xs px-2 flex flex-col gap-1"
 							hidden={shownTooltipMode === null}
 							side="top">
-							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+							{getModeToggleOption(shownTooltipMode ?? "plan").description}
 							<p className="text-description/80 text-xs mb-0">
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
@@ -1760,11 +1771,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								onClick={() => onModeToggle()}
 								role="radiogroup">
 								<Slider aria-hidden="true" isAct={mode === "act"} isPlan={mode === "plan"} />
-								{MODE_TOGGLE_OPTIONS.map(({ id, label }) => {
+								{MODE_TOGGLE_OPTIONS.map(({ description, id, label }) => {
 									const isSelected = mode === id
 									return (
 										<div
 											aria-checked={isSelected}
+											aria-describedby={`${id}-mode-description`}
 											aria-label={`${label} mode`}
 											className={cn(
 												"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
@@ -1790,6 +1802,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											role="radio"
 											tabIndex={isSelected ? 0 : -1}>
 											{label}
+											<span className="sr-only" id={`${id}-mode-description`}>
+												{description}
+											</span>
 										</div>
 									)
 								})}

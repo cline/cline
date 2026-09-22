@@ -193,6 +193,20 @@ describe("ChatTextArea Plan/Act mode toggle accessibility", () => {
 		expect(act).toHaveAttribute("tabindex", "0")
 	})
 
+	it("describes each mode option, and the focused one in the tooltip", () => {
+		renderTextArea()
+
+		const plan = screen.getByRole("radio", { name: "Plan mode" })
+		const act = screen.getByRole("radio", { name: "Act mode" })
+
+		expect(plan).toHaveAccessibleDescription("In Plan mode, Cline will gather information to architect a plan")
+		expect(act).toHaveAccessibleDescription("In Act mode, Cline will complete the task immediately")
+
+		focusElement(plan)
+
+		expect(screen.getByRole("tooltip")).toHaveTextContent("In Plan mode, Cline will gather information to architect a plan")
+	})
+
 	it("moves focus and selection with arrow keys, without scrolling the chat", () => {
 		const { rerender } = renderTextArea()
 
