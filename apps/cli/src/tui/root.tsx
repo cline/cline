@@ -25,6 +25,7 @@ import {
 	type RepoStatus,
 	readRepoStatus,
 } from "../utils/repo-status";
+import type { Config } from "../utils/types";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
 import { DialogThemeSync } from "./components/dialog-theme-sync";
@@ -36,6 +37,7 @@ import {
 	CheckpointPickerContent,
 	type CheckpointPickerResult,
 } from "./components/dialogs/checkpoint-picker";
+import { CloudConfirmContent } from "./components/dialogs/cloud-dialogs";
 import {
 	CommandPaletteContent,
 	type CommandPaletteResult,
@@ -62,6 +64,7 @@ import { ThemeProvider } from "./hooks/theme-provider";
 import { useAccountDialog } from "./hooks/use-account-dialog";
 import { useAgentEventHandlers } from "./hooks/use-agent-events";
 import { useAutocomplete } from "./hooks/use-autocomplete";
+import { useCloudState } from "./hooks/use-cloud-state";
 import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
 import { useMcpManager } from "./hooks/use-mcp-manager";
@@ -80,6 +83,7 @@ import { createSelectionCopyHandler } from "./utils/selection-copy";
 import type { LocalSlashCommandInvocation } from "./utils/skill-command-input";
 import { deriveTerminalTitle } from "./utils/terminal-title";
 import { ChatView } from "./views/chat-view";
+import { CloudView } from "./views/cloud-view";
 import { HomeView } from "./views/home-view";
 import { type OnboardingResult, OnboardingView } from "./views/onboarding";
 
@@ -92,6 +96,11 @@ function isChatBackedStartupTarget(
 
 function App(props: TuiProps) {
 	const session = useSession();
+	const cloudState = useCloudState(props.cloud);
+	useEffect(() => {
+		void props.cloud?.initialize().catch(() => {});
+	}, [props.cloud]);
+	const pendingCloudOpen = useRef(false);
 	const renderer = useRenderer();
 	const dialog = useDialog();
 	const isDialogOpen = useDialogState((s: { isOpen: boolean }) => s.isOpen);
@@ -147,6 +156,7 @@ function App(props: TuiProps) {
 		workflowSlashCommands,
 		loadAdditionalSlashCommands: props.loadAdditionalSlashCommands,
 		canFork: canForkSession,
+		cloudEnabled: cloudState?.eligibility.enabled,
 	});
 
 	const autocomplete = useAutocomplete({
@@ -217,15 +227,60 @@ function App(props: TuiProps) {
 		[clearToastTimeout],
 	);
 
+	const openCloud = useCallback(async () => {
+		if (!props.cloud || !props.cloud.getSnapshot().eligibility.available) {
+			showToast("Cloud agents are unavailable for this account", "info");
+			return;
+		}
+		if (session.isRunning) {
+			const confirmed = await dialog.choice<boolean>({
+				content: (ctx: ChoiceContext<boolean>) => (
+					<CloudConfirmContent
+						{...ctx}
+						title="Stop local task and open Cloud?"
+						detail="The current local run must finish stopping before Cloud opens."
+					/>
+				),
+			});
+			if (!confirmed) return;
+			pendingCloudOpen.current = true;
+			if (!props.onAbort()) {
+				pendingCloudOpen.current = false;
+				showToast(
+					"Wait for the local task to stop, then open Cloud again",
+					"info",
+				);
+			}
+			return;
+		}
+		autocomplete.close();
+		setAppView("cloud");
+	}, [props, session.isRunning, dialog, showToast, autocomplete]);
+	useEffect(() => {
+		if (pendingCloudOpen.current && !session.isRunning) {
+			pendingCloudOpen.current = false;
+			if (props.cloud?.getSnapshot().eligibility.available) setAppView("cloud");
+		}
+	}, [session.isRunning, props.cloud]);
+
 	const toggleMode = useCallback(() => {
 		const newMode = session.uiMode === "act" ? "plan" : "act";
-		session.toggleMode();
-		void props.onModeChange(newMode);
-	}, [props, session]);
+		void props.onModeChange(newMode).then(
+			() => session.setUiMode(newMode),
+			(error) =>
+				showToast(
+					error instanceof Error ? error.message : String(error),
+					"error",
+				),
+		);
+	}, [props, session, showToast]);
 
-	const handleModelChange = useCallback(async () => {
-		await props.onModelChange();
-	}, [props]);
+	const handleModelChange = useCallback(
+		async (nextConfig?: Config) => {
+			await props.onModelChange(nextConfig);
+		},
+		[props],
+	);
 
 	const openModelSelector = useModelSelector({
 		dialog,
@@ -758,26 +813,38 @@ function App(props: TuiProps) {
 		setSessionLastTotalTokens,
 	]);
 
-	const { handleSlashCommand, openHistory } = useLocalCommandActions({
-		slashCommandRegistry,
-		canForkSession,
-		openAccount,
-		openConfig,
-		openMcpManager,
-		openModelSelector,
-		openSkills,
-		openThemePicker,
-		refocusTextarea: () => refocusTextareaRef.current(),
-		setAppView,
-		onClearConversation: clearConversation,
-		onResumeSession: props.onResumeSession,
-		onExportHistorySession: props.onExportHistorySession,
-		onDeleteHistorySession: props.onDeleteHistorySession,
-		onCompact: props.onCompact,
-		onFork: props.onFork,
-		onUndo: openCheckpointRestore,
-		onExit: exitCline,
-	});
+	const { handleSlashCommand: handleLocalSlashCommand, openHistory } =
+		useLocalCommandActions({
+			slashCommandRegistry,
+			canForkSession,
+			openAccount,
+			openConfig,
+			openMcpManager,
+			openModelSelector,
+			openSkills,
+			openThemePicker,
+			refocusTextarea: () => refocusTextareaRef.current(),
+			setAppView,
+			onClearConversation: clearConversation,
+			onResumeSession: props.onResumeSession,
+			onExportHistorySession: props.onExportHistorySession,
+			onDeleteHistorySession: props.onDeleteHistorySession,
+			onCompact: props.onCompact,
+			onFork: props.onFork,
+			onUndo: openCheckpointRestore,
+			onExit: exitCline,
+		});
+
+	const handleSlashCommand = useCallback(
+		(command: string, invocation?: LocalSlashCommandInvocation) => {
+			if (command.replace(/^\/+/, "").toLowerCase() === "cloud") {
+				void openCloud();
+				return true;
+			}
+			return handleLocalSlashCommand(command, invocation);
+		},
+		[handleLocalSlashCommand, openCloud],
+	);
 
 	const startupActionsRef = useRef({ openConfig, openHistory });
 	startupActionsRef.current = { openConfig, openHistory };
@@ -807,8 +874,12 @@ function App(props: TuiProps) {
 
 	const commandPaletteOpenRef = useRef(false);
 	const globalPaletteItems = useMemo(
-		() => buildCommandPaletteItems({ canForkSession }),
-		[canForkSession],
+		() =>
+			buildCommandPaletteItems({
+				canForkSession,
+				cloudEnabled: cloudState?.eligibility.enabled,
+			}),
+		[canForkSession, cloudState?.eligibility.enabled],
 	);
 	const openCommandPalette = useCallback(async () => {
 		if (commandPaletteOpenRef.current) return;
@@ -825,6 +896,7 @@ function App(props: TuiProps) {
 					<CommandPaletteContent
 						{...ctx}
 						canForkSession={canForkSession}
+						cloudEnabled={cloudState?.eligibility.enabled}
 						contentWidth={dialogWidth - 2}
 					/>
 				),
@@ -837,7 +909,14 @@ function App(props: TuiProps) {
 		} finally {
 			commandPaletteOpenRef.current = false;
 		}
-	}, [canForkSession, dialog, runCommandPaletteResult, termHeight, termWidth]);
+	}, [
+		canForkSession,
+		cloudState?.eligibility.enabled,
+		dialog,
+		runCommandPaletteResult,
+		termHeight,
+		termWidth,
+	]);
 
 	const runCommandPaletteShortcut = useCallback(
 		(key: KeyEvent) => {
@@ -947,7 +1026,12 @@ function App(props: TuiProps) {
 	const initialPromptSubmittedRef = useRef(false);
 
 	useEffect(() => {
-		if (isDialogOpen || isRuntimeInteractionOpen || appView === "onboarding") {
+		if (
+			isDialogOpen ||
+			isRuntimeInteractionOpen ||
+			appView === "onboarding" ||
+			appView === "cloud"
+		) {
 			return;
 		}
 		focusPromptTextarea();
@@ -955,7 +1039,7 @@ function App(props: TuiProps) {
 
 	useEffect(() => {
 		if (initialPromptSubmittedRef.current) return;
-		if (appView === "onboarding") return;
+		if (appView === "onboarding" || appView === "cloud") return;
 		if (!props.initialPrompt?.trim()) return;
 		const timeout = setTimeout(() => {
 			if (initialPromptSubmittedRef.current) return;
@@ -1050,21 +1134,56 @@ function App(props: TuiProps) {
 
 	let content: React.ReactNode;
 
-	if (appView === "onboarding") {
+	if (appView === "cloud" && props.cloud) {
+		content = (
+			<CloudView
+				runtime={props.cloud}
+				initialBranch={repoStatus.branch}
+				onHistory={() => {
+					void openHistory();
+				}}
+				onLocal={() =>
+					setAppView(
+						isProviderConfigured(props.config)
+							? session.hasSubmitted
+								? "chat"
+								: "home"
+							: "onboarding",
+					)
+				}
+				onExit={props.onExit}
+				onAccount={() => {
+					void openAccount();
+				}}
+				onTheme={() => {
+					void openThemePicker({ refocus: false });
+				}}
+			/>
+		);
+	} else if (appView === "onboarding") {
 		content = (
 			<OnboardingView
 				onComplete={(result: OnboardingResult) => {
-					props.config.providerId = result.providerId;
-					props.config.modelId = result.modelId;
-					props.config.apiKey = result.apiKey ?? "";
-					if (result.thinking !== undefined) {
-						props.config.thinking = result.thinking;
-					}
-					if (result.reasoningEffort !== undefined) {
-						props.config.reasoningEffort = result.reasoningEffort;
-					}
-
-					handleModelChange().then(() => setAppView("home"));
+					const nextConfig = {
+						...props.config,
+						providerId: result.providerId,
+						modelId: result.modelId,
+						apiKey: result.apiKey ?? "",
+						...(result.thinking !== undefined
+							? { thinking: result.thinking }
+							: {}),
+						...(result.reasoningEffort !== undefined
+							? { reasoningEffort: result.reasoningEffort }
+							: {}),
+					};
+					void handleModelChange(nextConfig).then(
+						() => setAppView("home"),
+						(error) =>
+							showToast(
+								error instanceof Error ? error.message : String(error),
+								"error",
+							),
+					);
 				}}
 				onExit={() => {
 					exitCline();

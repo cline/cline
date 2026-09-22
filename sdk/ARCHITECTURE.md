@@ -203,6 +203,12 @@ workspace-wide operations on busy sessions (for example the desktop's
 checkpoint-restore gate) depend on this: a defaulted `running` with no owning
 turn leaves such gates blocked with nothing to clear them.
 
+`HubRuntimeHost` and the interactive CLI cloud viewer share the pure
+`createHubEventProjector` envelope-to-`CoreSessionEvent` mapper. The projector
+does not initialize a local runtime or execute capabilities; approval decisions
+and capability execution remain host-owned. Cloud snapshots reset its per-session
+deduplication state before subsequent live events reach the transcript.
+
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through
 `AgentToolContext.emitUpdate`; the agent runtime projects them as tool

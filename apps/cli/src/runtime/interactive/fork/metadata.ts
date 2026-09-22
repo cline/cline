@@ -19,7 +19,15 @@ export function buildForkSessionMetadata(input: {
 
 	if (sourceMetadata) {
 		for (const [key, value] of Object.entries(sourceMetadata)) {
-			if (key !== "fork") {
+			if (
+				![
+					"fork",
+					"handoff",
+					"cloudHandoffScope",
+					"cloudHandoffIntent",
+					"cloudHandoffSeedDispatched",
+				].includes(key)
+			) {
 				forkMetadata[key] = value;
 			}
 		}
