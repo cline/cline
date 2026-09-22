@@ -1,4 +1,33 @@
 
+## Shared agent review UI
+
+`@cline/ui` exports presentation-only components for showing a session's changed
+files and pull-request status. Import `@cline/ui/components.css` with the root
+components entry point:
+
+```tsx
+import {
+  AgentChangedFile,
+  AgentChangesPanel,
+  AgentPullRequestBar,
+} from "@cline/ui";
+import "@cline/ui/components.css";
+```
+
+`AgentChangesPanel` owns the Changes header, count, close action, empty state,
+and scroll region. Compose `AgentChangedFile` children to show collapsible paths,
+copy feedback, additions/deletions, host-provided actions, and rendered diff
+content. The host retains change collection, clipboard and editor integration,
+and conversation focus.
+
+`AgentPullRequestBar` accepts normalized `AgentPullRequestData` plus loading and
+error state. The host owns refresh, polling, navigation, and telemetry, and
+provides its accessible checks popover through `renderChecks`. Native hosts can
+intercept links with `onNavigate`; web hosts can omit it to render external
+anchors. `getAgentPullRequestMergeStatus` and
+`summarizeAgentPullRequestChecks` expose the same status normalization for other
+host presentation.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH
