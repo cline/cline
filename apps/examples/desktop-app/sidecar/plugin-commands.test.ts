@@ -57,7 +57,7 @@ describe("runPluginSlashCommand", () => {
 		const workspacePath = await createWorkspaceWithPlugin();
 		await expect(
 			runPluginSlashCommand({ workspacePath, prompt: "/goalish status" }),
-		).resolves.toEqual({ name: "goalish", reply: "No goal is active." });
+		).resolves.toEqual({ reply: "No goal is active." });
 	});
 
 	it("passes the remainder to the handler and surfaces submitPrompt", async () => {
@@ -68,7 +68,6 @@ describe("runPluginSlashCommand", () => {
 				prompt: "/Goalish fix the failing tests",
 			}),
 		).resolves.toEqual({
-			name: "goalish",
 			reply: "Goal set: fix the failing tests",
 			submitPrompt: "fix the failing tests",
 		});

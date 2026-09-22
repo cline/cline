@@ -1,7 +1,6 @@
-import { stat } from "node:fs/promises";
+import { statSync } from "node:fs";
 import {
 	type AgentExtensionCommand,
-	type AgentExtensionCommandResult,
 	createContributionRegistry,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
@@ -9,7 +8,6 @@ import {
 import type { AgentTool, Message } from "@cline/shared";
 
 export type PluginSlashCommandResult = {
-	name: string;
 	reply?: string;
 	submitPrompt?: string;
 };
@@ -29,41 +27,6 @@ function normalizeCommandName(name: string): string {
 	return name.trim().replace(/^\/+/, "").toLowerCase();
 }
 
-function normalizeCommandResult(
-	name: string,
-	result: AgentExtensionCommandResult | undefined,
-): PluginSlashCommandResult {
-	if (typeof result === "string") {
-		const reply = result.trim();
-		return reply ? { name, reply } : { name };
-	}
-	if (!result || typeof result !== "object") {
-		return { name };
-	}
-	const reply = result.reply?.trim();
-	const submitPrompt = result.submitPrompt?.trim();
-	return {
-		name,
-		...(reply ? { reply } : {}),
-		...(submitPrompt ? { submitPrompt } : {}),
-	};
-}
-
-async function pluginSetKey(pluginPaths: string[]): Promise<string> {
-	return (
-		await Promise.all(
-			pluginPaths.map(async (pluginPath) => {
-				try {
-					const stats = await stat(pluginPath);
-					return `${pluginPath}:${stats.mtimeMs}:${stats.size}`;
-				} catch {
-					return `${pluginPath}:missing`;
-				}
-			}),
-		)
-	).join("\n");
-}
-
 async function loadPluginCommandHost(
 	workspacePath: string,
 	key: string,
@@ -81,9 +44,7 @@ async function loadPluginCommandHost(
 		await registry.initialize();
 		return {
 			key,
-			commands: registry
-				.getRegistrySnapshot()
-				.commands.filter((command) => typeof command.handler === "function"),
+			commands: registry.getRegistrySnapshot().commands,
 			shutdown: loaded.shutdown,
 		};
 	} catch (error) {
@@ -100,21 +61,21 @@ async function getPluginCommandHost(
 		workspacePath,
 	});
 	if (pluginPaths.length === 0) return undefined;
-	const key = await pluginSetKey(pluginPaths);
+	const key = pluginPaths
+		.map((path) => {
+			try {
+				return `${path}:${statSync(path).mtimeMs}`;
+			} catch {
+				return path;
+			}
+		})
+		.join("\n");
 	const cached = hostsByWorkspace.get(workspacePath);
-	if (cached) {
-		const host = await cached.catch(() => undefined);
-		if (host?.key === key) return host;
-		hostsByWorkspace.delete(workspacePath);
-		await host?.shutdown?.().catch(() => {});
-	}
+	const host = cached ? await cached.catch(() => undefined) : undefined;
+	if (host?.key === key) return host;
+	await host?.shutdown?.().catch(() => {});
 	const loading = loadPluginCommandHost(workspacePath, key);
 	hostsByWorkspace.set(workspacePath, loading);
-	loading.catch(() => {
-		if (hostsByWorkspace.get(workspacePath) === loading) {
-			hostsByWorkspace.delete(workspacePath);
-		}
-	});
 	return await loading;
 }
 
@@ -128,15 +89,18 @@ export async function runPluginSlashCommand(input: {
 	prompt: string;
 }): Promise<PluginSlashCommandResult | undefined> {
 	const match = input.prompt.match(/^\/(\S+)([\s\S]*)$/);
-	const name = match?.[1] ? normalizeCommandName(match[1]) : "";
-	if (!name) return undefined;
+	if (!match) return undefined;
+	const name = normalizeCommandName(match[1] ?? "");
 	const host = await getPluginCommandHost(input.workspacePath);
 	const command = host?.commands.find(
 		(candidate) => normalizeCommandName(candidate.name) === name,
 	);
 	if (!command?.handler) return undefined;
-	return normalizeCommandResult(
-		name,
-		await command.handler((match?.[2] ?? "").trim()),
-	);
+	const result = await command.handler((match[2] ?? "").trim());
+	const { reply, submitPrompt }: PluginSlashCommandResult =
+		typeof result === "string" ? { reply: result } : (result ?? {});
+	return {
+		reply: reply?.trim() || undefined,
+		submitPrompt: submitPrompt?.trim() || undefined,
+	};
 }
