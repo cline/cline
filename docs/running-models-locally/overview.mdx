@@ -112,9 +112,8 @@ Run Cline with local inference on your machine.
     ### 1) Install
     ```bash
     npm i -g @qvac/cli
-    npm i @qvac/sdk
     ```
-    Install `@qvac/sdk` in the project directory where you will create `qvac.config.json` and run `qvac serve openai`.
+    Run the following steps from the project directory where you will create `qvac.config.json`.
 
     ### 2) Define a model
     Create a `qvac.config.json` that maps a serve alias to a model:
@@ -135,7 +134,7 @@ Run Cline with local inference on your machine.
 
     ### 3) Start the server
     ```bash
-    qvac serve openai
+    qvac serve --openai
     ```
     This starts an OpenAI-compatible REST API on port `11434` by default. Pass `--port <port>` to change it (useful if Ollama is already using `11434`).
 
@@ -147,7 +146,7 @@ Run Cline with local inference on your machine.
     5. Model ID: the serve alias from `qvac.config.json` (e.g. `gpt-oss-20b`)
 
     ### 5) Troubleshooting
-    - Make sure `qvac serve openai` is running before sending prompts
+    - Make sure `qvac serve --openai` is running before sending prompts
     - Ensure the Model ID exactly matches a serve alias in `qvac.config.json`
     - Local tool-calling quality depends on the model — use a larger, agent-tuned model such as `gpt-oss-20b` for reliable tool use
     - If connection fails, verify the Base URL and port (`http://127.0.0.1:11434/v1`)
