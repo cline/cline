@@ -969,12 +969,16 @@ API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and
-tool pages additionally carry `total`. The sidecar fetches every catalog and
-connection page, including empty pages with continuation tokens, and rejects
-failed, malformed, or cyclic pagination before caching or reconciliation.
-Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
-per toolkit and persists `input_parameters` and the pinned version for the core
-extension. Tool execution sends arguments and the optional version to
+tool pages additionally carry `total`. The sidecar fetches every catalog,
+connection, and tool page, including empty pages with continuation tokens, and
+rejects failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It persists every tool's
+`input_parameters` and pinned version for the core extension. A status refresh
+re-fetches schemas for active connections, including existing nonempty caches;
+ordinary status polling reads local state. New sessions pick up the refreshed
+schemas, while running sessions retain their tool set. The connector dialog
+shows the loaded count and includes a catalog total only when it is known.
+Tool execution sends arguments and the optional version to
 `/tools/{slug}/execute` and retains the provider response body.
 
 Customize > Connectors displays the usage-ranked catalog, with search across
