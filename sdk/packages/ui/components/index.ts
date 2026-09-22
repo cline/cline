@@ -11,6 +11,14 @@ export {
 	type AgentAskQuestionProps,
 } from "./agent-ask-question.js";
 export { AgentAurora } from "./agent-aurora.js";
+export {
+	AgentConversationHeader,
+	type AgentConversationHeaderProps,
+	AgentConversationLayout,
+	type AgentConversationLayoutProps,
+	AgentSessionContent,
+	type AgentSessionContentProps,
+} from "./agent-conversation-layout.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentPromptQueue,

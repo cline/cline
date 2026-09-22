@@ -1,6 +1,6 @@
 "use client";
 
-import { AgentAskQuestion } from "@cline/ui";
+import { AgentAskQuestion, AgentSessionContent } from "@cline/ui";
 import {
 	Conversation,
 	ConversationContent,
@@ -49,7 +49,6 @@ import {
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
 import { WorkBlock } from "./messages/work-block";
-import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -553,7 +552,7 @@ function ChatMessagesImpl({
 						showIdleDetails ? "p-0" : "px-6",
 					)}
 				>
-					<SessionContent
+					<AgentSessionContent
 						className={cn(
 							"relative min-h-full",
 							// Bottom padding clears a pinned action pill (~40px with its
@@ -798,7 +797,7 @@ function ChatMessagesImpl({
 								) : null}
 							</div>
 						) : null}
-					</SessionContent>
+					</AgentSessionContent>
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />
