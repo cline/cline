@@ -87,10 +87,14 @@ export interface ChatState {
  * Message handlers interface
  */
 export interface MessageHandlers {
-	executeButtonAction: (invocation: ButtonActionInvocation) => Promise<void>
+	errorRecoveryAvailable: boolean
+	recoveryActionInFlight: boolean
+	compactTask: () => Promise<boolean>
+	executeButtonAction: (invocation: ButtonActionInvocation) => Promise<boolean>
 	handleSendMessage: (text: string, images: string[], files: string[]) => Promise<void>
 	handleTaskCloseButtonClick: () => void
-	startNewTask: () => Promise<void>
+	retryFailedRequest: () => Promise<boolean>
+	startNewTask: (source?: "chat_new_task" | "navbar") => Promise<boolean>
 }
 
 /**

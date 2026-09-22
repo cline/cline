@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonConfig"
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
@@ -81,6 +82,7 @@ interface ChatRowProps {
 	mode?: Mode
 	reasoningContent?: string
 	responseStarted?: boolean
+	retryFailedRequest?: () => Promise<boolean>
 }
 
 export interface QuoteButtonState {
@@ -147,6 +149,7 @@ export const ChatRowContent = memo(
 		mode,
 		reasoningContent,
 		responseStarted,
+		retryFailedRequest,
 	}: ChatRowContentProps) => {
 		const {
 			backgroundEditEnabled,
@@ -155,6 +158,7 @@ export const ChatRowContent = memo(
 			clineMessages,
 			showFeatureTips,
 			enableCheckpointsSetting,
+			turnState,
 		} = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -826,6 +830,7 @@ export const ChatRowContent = memo(
 								mode={mode}
 								reasoningContent={reasoningContent}
 								responseStarted={responseStarted}
+								retryFailedRequest={retryFailedRequest}
 							/>
 						)
 					case "api_req_finished":
@@ -926,7 +931,7 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "error":
-						return <ErrorRow errorType="error" message={message} />
+						return <ErrorRow errorType="error" message={message} retryFailedRequest={retryFailedRequest} />
 					case "diff_error":
 						return <ErrorRow errorType="diff_error" message={message} />
 					case "clineignore_error":
@@ -1042,7 +1047,13 @@ export const ChatRowContent = memo(
 			case "ask":
 				switch (message.ask) {
 					case "mistake_limit_reached":
-						return <ErrorRow errorType="mistake_limit_reached" message={message} />
+						return (
+							<ErrorRow
+								errorType="mistake_limit_reached"
+								message={message}
+								retryFailedRequest={retryFailedRequest}
+							/>
+						)
 					case "completion_result":
 						if (message.text) {
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
@@ -1099,10 +1110,7 @@ export const ChatRowContent = memo(
 								<div className="pt-3">
 									<OptionsButtons
 										inputValue={inputValue}
-										isActive={
-											(isLast && lastModifiedMessage?.ask === "followup") ||
-											(!selected && options && options.length > 0)
-										}
+										isActive={isOptionsAskActive(message, turnState, isLast, lastModifiedMessage)}
 										options={options}
 										selected={selected}
 									/>
@@ -1157,10 +1165,7 @@ export const ChatRowContent = memo(
 								<PlanCompletionOutputRow text={response || message.text || ""} />
 								<OptionsButtons
 									inputValue={inputValue}
-									isActive={
-										(isLast && lastModifiedMessage?.ask === "plan_mode_respond") ||
-										(!selected && options && options.length > 0)
-									}
+									isActive={isOptionsAskActive(message, turnState, isLast, lastModifiedMessage)}
 									options={options}
 									selected={selected}
 								/>

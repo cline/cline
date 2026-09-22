@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 // gRPC clients: record which RPC the send path chose.
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
+const cancelBackgroundCommand = vi.fn().mockResolvedValue(undefined)
+const cancelTask = vi.fn().mockResolvedValue(undefined)
 const clearTask = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
 const trackIntent = vi.fn().mockResolvedValue(undefined)
@@ -14,6 +16,8 @@ vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
 		newTask: (req: unknown) => newTask(req),
 		askResponse: (req: unknown) => askResponse(req),
+		cancelBackgroundCommand: (req: unknown) => cancelBackgroundCommand(req),
+		cancelTask: (req: unknown) => cancelTask(req),
 		clearTask: (req: unknown) => clearTask(req),
 	},
 	SlashServiceClient: {
@@ -104,6 +108,10 @@ describe("useMessageHandlers — send routing", () => {
 		newTask.mockResolvedValue(undefined)
 		askResponse.mockReset()
 		askResponse.mockResolvedValue(undefined)
+		cancelBackgroundCommand.mockReset()
+		cancelBackgroundCommand.mockResolvedValue(undefined)
+		cancelTask.mockReset()
+		cancelTask.mockResolvedValue(undefined)
 		clearTask.mockReset()
 		clearTask.mockResolvedValue(undefined)
 		condense.mockReset()
@@ -506,6 +514,330 @@ describe("useMessageHandlers — send routing", () => {
 		})
 	})
 
+	it("submits a new prompt instead of retrying the failed prompt from the error state", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		const setPendingUserMessage = vi.fn()
+		const consumeDraftSnapshot = vi.fn()
+		const draft = {
+			revision: 4,
+			text: "try a different approach",
+			activeQuote: null,
+			images: ["image.png"],
+			files: ["notes.txt"],
+		}
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				failedConversation,
+				makeChatState(failedConversation, {
+					consumeDraftSnapshot,
+					getDraftSnapshot: () => draft,
+					setPendingUserMessage,
+				}),
+			),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("try a different approach", ["image.png"], ["notes.txt"])
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith({
+			responseType: "messageResponse",
+			text: "try a different approach",
+			images: ["image.png"],
+			files: ["notes.txt"],
+		})
+		expect(askResponse).not.toHaveBeenCalledWith(expect.objectContaining({ responseType: "yesButtonClicked" }))
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				afterTs: 2,
+				message: expect.objectContaining({ say: "user_feedback", text: "try a different approach" }),
+			}),
+		)
+		expect(consumeDraftSnapshot).toHaveBeenCalledWith(draft)
+	})
+
+	it("lets the first recovery action claim the failed turn", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		let resolveAskResponse: () => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAskResponse = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("try a different approach"))
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("try a different approach", [], [])
+			await Promise.resolve()
+		})
+		expect(result.current.handlers.recoveryActionInFlight).toBe(true)
+
+		await act(async () => {
+			await result.current.handlers.executeButtonAction({ type: "retry" })
+		})
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "try a different approach" }),
+		)
+
+		await act(async () => {
+			resolveAskResponse()
+			await sendPromise
+		})
+	})
+
+	it("uses the anchored API error when a status message trails it", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+			{ ts: 3, type: "say", say: "task_progress", text: "bookkeeping" },
+		]
+		let resolveAskResponse: () => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAskResponse = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("try a different approach"))
+		expect(result.current.handlers.errorRecoveryAvailable).toBe(true)
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("try a different approach", [], [])
+			await Promise.resolve()
+		})
+		await act(async () => {
+			await result.current.handlers.executeButtonAction({ type: "retry" })
+		})
+
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "messageResponse", text: "try a different approach" }),
+		)
+		await act(async () => {
+			resolveAskResponse()
+			await sendPromise
+		})
+	})
+
+	it("blocks composer submission after Retry claims the failed turn", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		let resolveAskResponse: () => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAskResponse = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("try a different approach"))
+
+		let retryPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			retryPromise = result.current.handlers.executeButtonAction({ type: "retry" })
+			await Promise.resolve()
+		})
+		expect(result.current.handlers.recoveryActionInFlight).toBe(true)
+
+		await act(async () => {
+			await result.current.handlers.handleSendMessage("try a different approach", [], [])
+		})
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith({ responseType: "yesButtonClicked" })
+
+		await act(async () => {
+			resolveAskResponse()
+			await retryPromise
+		})
+	})
+
+	it("blocks composer submission after Start New Task claims the failed turn", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		let resolveClearTask: () => void = () => {}
+		clearTask.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveClearTask = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("try a different approach"))
+
+		let newTaskPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			newTaskPromise = result.current.handlers.executeButtonAction({ type: "new_task" })
+			await Promise.resolve()
+		})
+
+		await act(async () => {
+			await result.current.handlers.handleSendMessage("try a different approach", [], [])
+		})
+		expect(clearTask).toHaveBeenCalledTimes(1)
+		expect(askResponse).not.toHaveBeenCalled()
+
+		await act(async () => {
+			resolveClearTask()
+			await newTaskPromise
+		})
+	})
+
+	it("rejects task compaction while API error recovery is available", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		const { result } = renderHook(() => useMessageHandlers(failedConversation, makeChatState(failedConversation)))
+
+		await expect(result.current.compactTask()).resolves.toBe(false)
+
+		expect(condense).not.toHaveBeenCalled()
+	})
+
+	it("reports that a duplicate cancellation did not start", async () => {
+		mockTurnState = { phase: "streaming", seq: 4 }
+		let resolveCancelTask: () => void = () => {}
+		cancelTask.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveCancelTask = resolve
+				}),
+		)
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		let firstCancel: Promise<boolean> = Promise.resolve(false)
+		await act(async () => {
+			firstCancel = result.current.executeButtonAction({ type: "cancel" })
+			await Promise.resolve()
+		})
+
+		await expect(result.current.executeButtonAction({ type: "cancel" })).resolves.toBe(false)
+		expect(cancelTask).toHaveBeenCalledTimes(1)
+
+		await act(async () => {
+			resolveCancelTask()
+			await expect(firstCancel).resolves.toBe(true)
+		})
+	})
+
+	it("attributes a navbar new-task transition to the navbar", async () => {
+		mockTurnState = { phase: "completed", seq: 4 }
+		const { result } = renderHook(() => useMessageHandlers(completedConversation, makeChatState(completedConversation)))
+
+		await act(async () => {
+			await result.current.startNewTask("navbar")
+		})
+
+		expect(clearTask).toHaveBeenCalledTimes(1)
+		expect(trackIntent).toHaveBeenCalledWith(expect.objectContaining({ action: "new_task_clicked", source: "navbar" }))
+	})
+
+	it("preserves edits made while a recovery response succeeds", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		let resolveAskResponse: () => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					resolveAskResponse = resolve
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("submitted draft"))
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("submitted draft", [], [])
+			await Promise.resolve()
+		})
+		act(() => {
+			result.current.chatState.setInputValue("newer draft")
+			result.current.chatState.setSelectedFiles(["newer.md"])
+		})
+
+		await act(async () => {
+			resolveAskResponse()
+			await sendPromise
+		})
+		expect(result.current.chatState.inputValue).toBe("newer draft")
+		expect(result.current.chatState.selectedFiles).toEqual(["newer.md"])
+	})
+
+	it("preserves edits and releases the claim when a recovery response fails", async () => {
+		mockTurnState = { phase: "error", anchorTs: 2, seq: 4 }
+		const failedConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "api_req_failed", text: "provider unavailable" },
+		]
+		let rejectAskResponse: (error: Error) => void = () => {}
+		askResponse.mockImplementationOnce(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					rejectAskResponse = reject
+				}),
+		)
+		const { result } = renderHook(() => {
+			const chatState = useChatState(failedConversation)
+			return { chatState, handlers: useMessageHandlers(failedConversation, chatState) }
+		})
+		act(() => result.current.chatState.setInputValue("submitted draft"))
+
+		let sendPromise: Promise<void> = Promise.resolve()
+		await act(async () => {
+			sendPromise = result.current.handlers.handleSendMessage("submitted draft", [], [])
+			await Promise.resolve()
+		})
+		act(() => result.current.chatState.setInputValue("newer draft"))
+
+		await act(async () => {
+			rejectAskResponse(new Error("transport down"))
+			await expect(sendPromise).rejects.toThrow("transport down")
+		})
+		expect(result.current.chatState.inputValue).toBe("newer draft")
+		expect(result.current.handlers.recoveryActionInFlight).toBe(false)
+	})
+
 	it("does not show a pending chat bubble when answering an active follow-up question with freeform text", async () => {
 		mockTurnState = { phase: "awaiting_followup", anchorTs: 2, seq: 3 }
 		const questionConversation: ClineMessage[] = [
@@ -758,6 +1090,32 @@ describe("useMessageHandlers — send routing", () => {
 			images: draft.images,
 			files: draft.files,
 		})
+		expect(consumeDraftSnapshot).toHaveBeenCalledWith(draft)
+	})
+
+	it("does not submit a quote without message content", async () => {
+		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 3 }
+		const approvalConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "tool", text: JSON.stringify({ tool: "newFileCreated", path: "notes.md" }) },
+		]
+		const consumeDraftSnapshot = vi.fn()
+		const draft = {
+			revision: 12,
+			text: "  ",
+			activeQuote: "selected context",
+			images: [],
+			files: [],
+		}
+		const { result } = renderHook(() =>
+			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { consumeDraftSnapshot })),
+		)
+
+		await act(async () => {
+			await result.current.executeButtonAction({ type: "approve", draft })
+		})
+
+		expect(askResponse).toHaveBeenCalledWith({ responseType: "yesButtonClicked" })
 		expect(consumeDraftSnapshot).toHaveBeenCalledWith(draft)
 	})
 

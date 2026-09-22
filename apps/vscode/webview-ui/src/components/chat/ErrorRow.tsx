@@ -19,9 +19,11 @@ interface ErrorRowProps {
 	errorType: "error" | "mistake_limit_reached" | "diff_error" | "clineignore_error"
 	apiRequestFailedMessage?: string
 	apiReqStreamingFailedMessage?: string
+	retryFailedRequest?: () => Promise<boolean>
 }
 
-const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
+const ErrorRow = memo((props: ErrorRowProps) => {
+	const { message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage, retryFailedRequest } = props
 	const { clineUser } = useClineAuth()
 	const rawApiError = apiRequestFailedMessage || apiReqStreamingFailedMessage
 
@@ -52,6 +54,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 									buyCreditsUrl={errorDetails?.buy_credits_url}
 									currentBalance={errorDetails?.current_balance}
 									message={errorDetails?.message}
+									retryFailedRequest={retryFailedRequest}
 									totalPromotions={errorDetails?.total_promotions}
 									totalSpent={errorDetails?.total_spent}
 								/>
@@ -74,7 +77,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					if (clineError?.isErrorType(ClineErrorType.Entitlement)) {
 						const detailMessage = clineError?._error?.details?.message || errorMessage
-						return <EntitlementError message={detailMessage} />
+						return <EntitlementError message={detailMessage} retryFailedRequest={retryFailedRequest} />
 					}
 
 					if (clineError?.isErrorType(ClineErrorType.OrgClinePassRestriction)) {
