@@ -92,6 +92,8 @@ type BuiltinCompactionStrategyRunner = (
 export interface ContextCompactionPrepareTurnOptions {
 	mode?: CoreCompactionMode;
 	manualTargetRatio?: number;
+	/** Overrides layered over `config.compaction`. */
+	compaction?: Partial<CoreCompactionConfig>;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -279,8 +281,11 @@ export function createContextCompactionPrepareTurn(
 			context: ContextPipelinePrepareTurnInput,
 	  ) => Promise<ContextPipelinePrepareTurnResult | undefined>)
 	| undefined {
-	const userCompaction = config.compaction;
-	if (userCompaction?.enabled !== true) {
+	const userCompaction: CoreCompactionConfig = {
+		...config.compaction,
+		...options.compaction,
+	};
+	if (userCompaction.enabled !== true) {
 		return undefined;
 	}
 
@@ -703,18 +708,12 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 	importedFrom: string;
 	next?: ContextPipelinePrepareTurn;
 }): ContextPipelinePrepareTurn {
-	const summarize = createContextCompactionPrepareTurn(
-		{
-			...input.config,
-			compaction: {
-				...input.config.compaction,
-				enabled: true,
-				strategy: "agentic",
-				preserveRecentTokens: 0,
-			},
-		},
-		{ mode: "manual" },
-	);
+	// Pass the live config through (not a copy) so the summary uses the
+	// credentials and model current on the resumed turn.
+	const summarize = createContextCompactionPrepareTurn(input.config, {
+		mode: "manual",
+		compaction: { enabled: true, strategy: "agentic", preserveRecentTokens: 0 },
+	});
 	let pending = summarize !== undefined;
 	return async (context) => {
 		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {

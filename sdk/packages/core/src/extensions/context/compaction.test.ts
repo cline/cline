@@ -14,6 +14,7 @@ import { runBasicCompaction } from "./basic-compaction";
 import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
+	createImportedHistoryCompactionPrepareTurn,
 } from "./compaction";
 import {
 	COMPACTION_TRIGGER_RATIO,
@@ -1653,6 +1654,10 @@ describe("createContextCompactionPrepareTurn", () => {
 			logger: undefined,
 		};
 		const prepareTurn = createContextCompactionPrepareTurn(config);
+		const importedPrepareTurn = createImportedHistoryCompactionPrepareTurn({
+			config,
+			importedFrom: "claude-code",
+		});
 		config.apiKey = "workos:refreshed";
 		config.modelId = "anthropic/claude-sonnet-4.5";
 		config.providerConfig = {
@@ -1667,7 +1672,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			{ role: "user", content: "Recent turn" },
 			{ role: "assistant", content: "Recent assistant state" },
 		];
-		await prepareTurn?.({
+		const context = {
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			parentAgentId: null,
@@ -1682,15 +1687,18 @@ describe("createContextCompactionPrepareTurn", () => {
 				provider: "cline",
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
-		});
+		};
+		await prepareTurn?.(context);
+		await importedPrepareTurn(context);
 
-		expect(createHandlerMock).toHaveBeenCalledWith(
-			expect.objectContaining({
+		expect(createHandlerMock).toHaveBeenCalledTimes(2);
+		for (const [summarizerConfig] of createHandlerMock.mock.calls) {
+			expect(summarizerConfig).toMatchObject({
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.5",
 				apiKey: "workos:refreshed",
-			}),
-		);
+			});
+		}
 	});
 
 	it("falls back to basic compaction when the agentic request fails", async () => {
