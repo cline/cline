@@ -64,6 +64,7 @@ function createSearchCloudManager(
 	ctx: SidecarContext,
 	list: () => Promise<CloudSessionRecord[]>,
 ): CloudSessionManager {
+	vi.stubEnv("CLINE_CODE_CLOUD_AGENTS", "1");
 	return new CloudSessionManager(ctx, {
 		api: { list } as never,
 		apiBaseUrl: "https://api.example",
@@ -89,6 +90,8 @@ function cloudSearchRecord(
 }
 
 describe("Code sidecar runtime capabilities", () => {
+	afterEach(() => vi.unstubAllEnvs());
+
 	beforeEach(() => {
 		createCoreMock.mockReset();
 		connectMock.mockReset();
