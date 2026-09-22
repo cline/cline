@@ -1,7 +1,9 @@
+import { stat } from "node:fs/promises";
 import {
+	type AgentExtensionCommand,
 	type AgentExtensionCommandResult,
 	createContributionRegistry,
-	listPluginToolsWithDiagnostics,
+	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 } from "@cline/core";
 import type { AgentTool, Message } from "@cline/shared";
@@ -11,6 +13,17 @@ export type PluginSlashCommandResult = {
 	reply?: string;
 	submitPrompt?: string;
 };
+
+type PluginCommandHost = {
+	key: string;
+	commands: AgentExtensionCommand[];
+	shutdown?: () => Promise<void>;
+};
+
+// Loaded plugin command hosts by workspace. Like the CLI's interactive
+// session, the sandboxes stay alive so repeated commands answer instantly;
+// the key tracks the plugin set so installs, updates, and toggles reload it.
+const hostsByWorkspace = new Map<string, Promise<PluginCommandHost>>();
 
 function normalizeCommandName(name: string): string {
 	return name.trim().replace(/^\/+/, "").toLowerCase();
@@ -36,37 +49,28 @@ function normalizeCommandResult(
 	};
 }
 
-/**
- * Run a plugin-registered slash command (`api.registerCommand`) for the
- * leading `/name` token of a prompt. Returns undefined when no enabled plugin
- * declares the command so the prompt continues through the normal path.
- *
- * The contribution inventory is cached per plugin mtime, so the (comparatively
- * expensive) sandbox load only happens for prompts that actually target a
- * plugin command.
- */
-export async function runPluginSlashCommand(input: {
-	workspacePath: string;
-	prompt: string;
-}): Promise<PluginSlashCommandResult | undefined> {
-	const match = input.prompt.match(/^\/(\S+)([\s\S]*)$/);
-	const name = match?.[1] ? normalizeCommandName(match[1]) : "";
-	if (!name) return undefined;
-	const inventory = await listPluginToolsWithDiagnostics({
-		workspacePath: input.workspacePath,
-		cwd: input.workspacePath,
-	});
-	if (
-		!inventory.plugins.some((plugin) =>
-			plugin.commands.some((command) => normalizeCommandName(command) === name),
+async function pluginSetKey(pluginPaths: string[]): Promise<string> {
+	return (
+		await Promise.all(
+			pluginPaths.map(async (pluginPath) => {
+				try {
+					const stats = await stat(pluginPath);
+					return `${pluginPath}:${stats.mtimeMs}:${stats.size}`;
+				} catch {
+					return `${pluginPath}:missing`;
+				}
+			}),
 		)
-	) {
-		return undefined;
-	}
+	).join("\n");
+}
 
+async function loadPluginCommandHost(
+	workspacePath: string,
+	key: string,
+): Promise<PluginCommandHost> {
 	const loaded = await resolveAndLoadAgentPlugins({
-		cwd: input.workspacePath,
-		workspacePath: input.workspacePath,
+		cwd: workspacePath,
+		workspacePath,
 	});
 	try {
 		const registry = createContributionRegistry<
@@ -75,21 +79,64 @@ export async function runPluginSlashCommand(input: {
 			Message[]
 		>({ extensions: loaded.extensions });
 		await registry.initialize();
-		const command = registry
-			.getRegistrySnapshot()
-			.commands.find(
-				(candidate) =>
-					normalizeCommandName(candidate.name) === name &&
-					typeof candidate.handler === "function",
-			);
-		if (!command?.handler) return undefined;
-		return normalizeCommandResult(
-			name,
-			await command.handler((match?.[2] ?? "").trim()),
-		);
-	} finally {
-		await loaded.shutdown?.().catch(() => {
-			// Best effort sandbox cleanup after a one-shot command.
-		});
+		return {
+			key,
+			commands: registry
+				.getRegistrySnapshot()
+				.commands.filter((command) => typeof command.handler === "function"),
+			shutdown: loaded.shutdown,
+		};
+	} catch (error) {
+		await loaded.shutdown?.().catch(() => {});
+		throw error;
 	}
+}
+
+async function getPluginCommandHost(
+	workspacePath: string,
+): Promise<PluginCommandHost | undefined> {
+	const pluginPaths = resolveAgentPluginPaths({
+		cwd: workspacePath,
+		workspacePath,
+	});
+	if (pluginPaths.length === 0) return undefined;
+	const key = await pluginSetKey(pluginPaths);
+	const cached = hostsByWorkspace.get(workspacePath);
+	if (cached) {
+		const host = await cached.catch(() => undefined);
+		if (host?.key === key) return host;
+		hostsByWorkspace.delete(workspacePath);
+		await host?.shutdown?.().catch(() => {});
+	}
+	const loading = loadPluginCommandHost(workspacePath, key);
+	hostsByWorkspace.set(workspacePath, loading);
+	loading.catch(() => {
+		if (hostsByWorkspace.get(workspacePath) === loading) {
+			hostsByWorkspace.delete(workspacePath);
+		}
+	});
+	return await loading;
+}
+
+/**
+ * Run a plugin-registered slash command (`api.registerCommand`) for the
+ * leading `/name` token of a prompt. Returns undefined when no enabled plugin
+ * declares the command so the prompt continues through the normal path.
+ */
+export async function runPluginSlashCommand(input: {
+	workspacePath: string;
+	prompt: string;
+}): Promise<PluginSlashCommandResult | undefined> {
+	const match = input.prompt.match(/^\/(\S+)([\s\S]*)$/);
+	const name = match?.[1] ? normalizeCommandName(match[1]) : "";
+	if (!name) return undefined;
+	const host = await getPluginCommandHost(input.workspacePath);
+	const command = host?.commands.find(
+		(candidate) => normalizeCommandName(candidate.name) === name,
+	);
+	if (!command?.handler) return undefined;
+	return normalizeCommandResult(
+		name,
+		await command.handler((match?.[2] ?? "").trim()),
+	);
 }
