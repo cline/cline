@@ -701,6 +701,7 @@ async function listSessionsFromSidecarManager(
 
 	for (const scoped of getEnvironmentContexts(ctx)) {
 		for (const [sessionId, session] of scoped.liveSessions.entries()) {
+			if (session.config.executionTarget === "cloud") continue;
 			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
 			const existing = byId.get(key);
 			byId.set(key, {
@@ -2303,8 +2304,7 @@ export async function handleCommand(
 	if (command === "list_chat_sessions") {
 		const limit = typeof args?.limit === "number" ? args.limit : 300;
 		const local = discoverChatSessions(ctx, limit);
-		// Existing cloud sessions stay listed even when the flag is off — the
-		// flag gates NEW creation only, so a rollback never strands a session.
+		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch((error) => {
@@ -2313,7 +2313,11 @@ export async function handleCommand(
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];
 			});
-		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
+		);
 	}
 	if (command === "list_cli_sessions") {
 		return await listSessionsFromSidecarManager(
@@ -2327,13 +2331,18 @@ export async function handleCommand(
 			ctx,
 			limit,
 		)) as JsonRecord[];
+		if (!isCloudAgentsEnabled()) return local;
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
 			.catch((error) => {
 				ctx.logger?.error?.("Cloud session discovery failed", { error });
 				return [];
 			});
-		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
+		return mergeDiscoveredSessionLists(
+			isCloudAgentsEnabled() ? cloud : [],
+			local,
+			Math.max(1, limit),
+		);
 	}
 	if (command === "search_sessions") {
 		const query = String(args?.query ?? "").trim();
@@ -2348,6 +2357,7 @@ export async function handleCommand(
 				: undefined;
 		// Start now so cloud latency does not add to the local fallback deadline.
 		const cloudDiscovery = (async () => {
+			if (!isCloudAgentsEnabled()) return undefined;
 			const manager = getCloudSessionManager(ctx);
 			const sessions = await manager.listForDiscovery({ timeoutMs: 750 });
 			return { manager, sessions };
@@ -2393,7 +2403,11 @@ export async function handleCommand(
 		);
 		const cloud = await cloudDiscovery;
 		// Account changes replace the manager; discard any in-flight old scope.
-		if (cloud && ctx.cloudSessionManager === cloud.manager) {
+		if (
+			cloud &&
+			isCloudAgentsEnabled() &&
+			ctx.cloudSessionManager === cloud.manager
+		) {
 			const seen = new Set(hits.map((hit) => hit.sessionId));
 			const cloudHits = metadataSessionSearchHits(cloud.sessions, query)
 				.filter((hit) => {
@@ -3155,6 +3169,7 @@ export async function handleCommand(
 			throw new Error("cloud_sessions_enabled must be a boolean");
 		}
 		const settings = setCloudSessionsEnabled(args.cloud_sessions_enabled);
+		broadcastEvent(ctx, "cloud_sessions_changed", {});
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),

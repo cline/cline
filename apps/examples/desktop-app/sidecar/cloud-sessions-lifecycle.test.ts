@@ -285,6 +285,107 @@ describe("CloudSessionManager lifecycle", () => {
 		expect(first.sessionId).not.toBe(second.sessionId);
 	});
 
+	it.each([
+		"failure",
+		"timeout",
+		"in-flight",
+	])("keeps a newly created session discoverable after a listing %s", async (mode) => {
+		const { ctx } = createContext();
+		const refresh = Promise.withResolvers<CloudSessionRecord[]>();
+		const list = vi.fn(() =>
+			mode === "failure"
+				? Promise.reject(new Error("Cloud list unavailable"))
+				: refresh.promise,
+		);
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({
+					sessionId: "ses-created",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list,
+				delete: async () => {},
+				status: async () => ({ status: "provisioning" }),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		const inFlight =
+			mode === "in-flight" ? manager.listForDiscovery() : undefined;
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "Fix this",
+		});
+		if (inFlight) refresh.resolve([]);
+
+		try {
+			expect(
+				await (inFlight ?? manager.listForDiscovery({ timeoutMs: 1 })),
+			).toEqual([
+				expect.objectContaining({
+					sessionId: "ses-created",
+					origin: "cloud",
+					environmentId: "local",
+					prompt: "Fix this",
+				}),
+			]);
+			if (inFlight) {
+				list.mockResolvedValue([{ ...REMOTE_SESSION, id: "ses-created" }]);
+				expect(await manager.listForDiscovery()).toHaveLength(1);
+				// Once observed remotely, later listings determine visibility.
+				list.mockResolvedValue([]);
+				expect(await manager.listForDiscovery()).toEqual([]);
+			}
+			await manager.delete("ses-created");
+			expect(await manager.listForDiscovery({ timeoutMs: 1 })).toEqual([]);
+		} finally {
+			refresh.resolve([]);
+		}
+	});
+
+	it.each([
+		"session_not_found",
+		"session_expired",
+		"authentication_required",
+		"request_failed",
+		"ready",
+	] as const)("revalidates never-listed sessions: %s", async (result) => {
+		const { ctx } = createContext();
+		const status = vi.fn(async () => {
+			if (result === "ready") return { status: "ready" };
+			throw new CloudSessionError(result, "Status check failed");
+		});
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({
+					sessionId: "ses-created",
+					status: "provisioning",
+					sandboxUrl: "",
+				}),
+				list: async () => [],
+				status,
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+		});
+		const removed =
+			result === "session_not_found" || result === "session_expired";
+		for (let attempt = 0; attempt < 2; attempt++) {
+			expect(
+				(await manager.listForDiscovery()).map((session) => session.sessionId),
+			).toEqual(removed ? [] : ["ses-created"]);
+		}
+		expect(status).toHaveBeenCalledWith("ses-created");
+		expect(status).toHaveBeenCalledTimes(removed ? 1 : 2);
+		expect(ctx.liveSessions.has("ses-created")).toBe(true);
+	});
+
 	it("returns cached cloud discovery promptly while a refresh is slow", async () => {
 		const { ctx } = createContext();
 		let listCalls = 0;

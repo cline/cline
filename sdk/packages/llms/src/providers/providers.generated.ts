@@ -567,9 +567,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "CoralBricks",
 		description: "CoralBricks model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "coralbricks",
-		defaultModelId: "glm-5.3-flash-fp4",
+		defaultModelId: "deepseek-v4.1-flash-fast-fp4",
 		apiKeyEnv: ["CORAL_API_KEY"],
 		docsUrl: "https://www.coralbricks.ai/docs",
 		defaults: {
@@ -753,7 +753,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "edenai",
-		defaultModelId: "deepinfra/deepseek-ai/DeepSeek-V4.1-Flash",
+		defaultModelId: "xai/grok-4.7",
 		apiKeyEnv: ["EDENAI_API_KEY"],
 		docsUrl: "https://docs.edenai.co",
 		defaults: {
@@ -767,7 +767,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "empiriolabs",
-		defaultModelId: "qwen3-8-omni-flash",
+		defaultModelId: "mimo-v2-6-flash",
 		apiKeyEnv: ["EMPIRIOLABS_API_KEY"],
 		docsUrl: "https://docs.empiriolabs.ai",
 		defaults: {
@@ -1679,7 +1679,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "qwen/qwen3.8-27b-hemmingway",
+		defaultModelId: "xiaomi/mimo-v2.6-flash",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -2383,7 +2383,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "tempr",
-		defaultModelId: "anthropic/claude-fable-5-1",
+		defaultModelId: "google/gemini-3.8-flash",
 		apiKeyEnv: ["TEMPR_API_KEY"],
 		docsUrl: "https://temprhq.io/docs/gateway-reference.html",
 		defaults: {
@@ -2631,7 +2631,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "spacexai/grok-4.7",
+		defaultModelId: "xiaomi/mimo-v2.6-flash",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
@@ -2756,7 +2756,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "wandb",
-		defaultModelId: "zai-org/GLM-5.3-Flash",
+		defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash",
 		apiKeyEnv: ["WANDB_API_KEY"],
 		docsUrl: "https://docs.wandb.ai/inference",
 		defaults: {
@@ -2781,7 +2781,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "xiaomi",
-		defaultModelId: "mimo-v2.5-pro-ultraspeed",
+		defaultModelId: "mimo-v2.6-flash",
 		apiKeyEnv: ["XIAOMI_API_KEY"],
 		docsUrl: "https://platform.xiaomimimo.com/#/docs",
 		defaults: {
@@ -2795,7 +2795,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "xiaomi-token-plan-ams",
-		defaultModelId: "mimo-v2.5",
+		defaultModelId: "mimo-v2.6-flash",
 		apiKeyEnv: ["XIAOMI_API_KEY"],
 		docsUrl: "https://platform.xiaomimimo.com/#/docs",
 		defaults: {
@@ -2809,7 +2809,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "xiaomi-token-plan-cn",
-		defaultModelId: "mimo-v2.5",
+		defaultModelId: "mimo-v2.6-flash",
 		apiKeyEnv: ["XIAOMI_API_KEY"],
 		docsUrl: "https://platform.xiaomimimo.com/#/docs",
 		defaults: {
@@ -2823,7 +2823,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
 		modelsProviderId: "xiaomi-token-plan-sgp",
-		defaultModelId: "mimo-v2.5",
+		defaultModelId: "mimo-v2.6-flash",
 		apiKeyEnv: ["XIAOMI_API_KEY"],
 		docsUrl: "https://platform.xiaomimimo.com/#/docs",
 		defaults: {
