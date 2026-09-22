@@ -1,6 +1,7 @@
 "use client";
 
 export interface AgentImageLightboxContentProps {
+	/** Host-approved image URL; resolve untrusted provider URLs before passing them here. */
 	src: string;
 	alt: string;
 	onClose: () => void;
