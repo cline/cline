@@ -614,3 +614,25 @@ current product contracts should be compared before standardizing them.
 - [Complete theme](./theme/index.css)
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
+
+## Session rows
+
+`AgentSessionRow`, `AgentSessionRowEditor`, and `AgentSessionOverview` are
+exported from `@cline/ui`. Import `components.css` with the shared theme (or
+scoped tokens inside `.cline-ui-theme`) as for the other root components.
+
+The row owns the desktop row geometry, selected/hover appearance, timestamp
+placement, and pending/provisioning/running/unread dot precedence. Pass
+already-formatted `label` and `timestamp`, optional `leading` icons, a
+`pinnedIndicator`, and an `action` element. The action remains a sibling of the
+navigation button; the host supplies its hover/focus styles, disabled state,
+accessible label, and event cancellation. `onSelect` handles row activation.
+Root DOM props and refs pass through to the existing wrapper so host-owned
+hover-card/context-menu triggers can use `asChild` without another DOM node.
+
+`AgentSessionRowEditor` provides the matching edit frame; the host still owns
+the input, focus, Enter/Escape/blur handling, and saving indicator.
+`AgentSessionOverview` presents a title and `[label, value, fullValue?]` metadata
+rows inside the host's hover card. Formatting, open state, positioning, context
+menus, pin/fork/delete permissions, routing, grouping, and persistence stay in
+the application. These primitives do not add new statuses or cloud actions.
