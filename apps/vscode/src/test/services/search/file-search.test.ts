@@ -3,6 +3,7 @@ import * as actualFileSearch from "@services/search/file-search"
 import * as actualChildProcess from "child_process"
 import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
+import * as path from "path"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
@@ -214,12 +215,14 @@ describe("File Search", () => {
 			should(err.stderr).match(/No such file or directory/)
 		})
 
-		it("normalizes Windows separators in ripgrep results to forward slashes", async () => {
+		it("normalizes platform separators in ripgrep results to forward slashes", async () => {
 			// On Windows `path.relative` yields `cline\evals\README.md`; the webview,
 			// the open-tabs dedupe and stored mentions all assume `/` (CLINE-731).
+			// Built with `path.sep` so the conversion is exercised on Windows CI and
+			// the test stays a valid no-op on POSIX.
 			const mockStdout = new Readable({
 				read() {
-					this.push("/workspace/cline\\evals\\README.md\n")
+					this.push(`/workspace/${["cline", "evals", "README.md"].join(path.sep)}\n`)
 					this.push(null)
 				},
 			})
@@ -338,20 +341,27 @@ describe("File Search", () => {
 			should(srcEntries[0]).have.properties({ path: "src", type: "folder" })
 		})
 
-		it("normalizes Windows separators in host-index results and dedupes them against open tabs", async () => {
+		it("normalizes platform separators in host-index results and dedupes them against open tabs", async () => {
 			// The JetBrains host relativizes with java.nio Path, so on Windows every
 			// nested item arrives as `cline\sdk\README.md`. The webview then shows
 			// only the label for such paths (every README rendered as "/README.md"),
 			// and the open-tabs dedupe, which already normalizes to `/`, misses them.
+			// Built with `path.sep` so the conversion is exercised on Windows CI and
+			// the test stays a valid no-op on POSIX.
+			const hostPath = (...segments: string[]) => segments.join(path.sep)
 			const hostResponse = SearchWorkspaceItemsResponse.create({
 				items: [
-					{ path: "cline\\sdk\\README.md", type: SearchWorkspaceItemsRequest_SearchItemType.FILE, label: "README.md" },
 					{
-						path: "cline\\evals\\README.md",
+						path: hostPath("cline", "sdk", "README.md"),
 						type: SearchWorkspaceItemsRequest_SearchItemType.FILE,
 						label: "README.md",
 					},
-					{ path: "cline\\evals", type: SearchWorkspaceItemsRequest_SearchItemType.FOLDER, label: "evals" },
+					{
+						path: hostPath("cline", "evals", "README.md"),
+						type: SearchWorkspaceItemsRequest_SearchItemType.FILE,
+						label: "README.md",
+					},
+					{ path: hostPath("cline", "evals"), type: SearchWorkspaceItemsRequest_SearchItemType.FOLDER, label: "evals" },
 				],
 			})
 			sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").resolves(hostResponse)
@@ -366,6 +376,21 @@ describe("File Search", () => {
 			should(paths).containEql("cline/evals/README.md")
 			should(paths.filter((p) => p === "cline/evals")).have.length(1)
 			should(paths).containEql("cline")
+		})
+
+		it.skipIf(process.platform === "win32")("keeps literal backslashes in POSIX filenames", async () => {
+			// A backslash is a legal filename character outside Windows, so only the
+			// platform separator may be rewritten — otherwise `foo\bar.txt` would be
+			// offered as the nonexistent `foo/bar.txt`.
+			const hostResponse = SearchWorkspaceItemsResponse.create({
+				items: [{ path: "foo\\bar.txt", type: SearchWorkspaceItemsRequest_SearchItemType.FILE, label: "foo\\bar.txt" }],
+			})
+			sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").resolves(hostResponse)
+			sandbox.stub(HostProvider.window, "getOpenTabs").resolves({ paths: [] } as any)
+
+			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
+
+			should(result.items.map((item) => item.path)).containEql("foo\\bar.txt")
 		})
 
 		it("continues search when the host cannot return open tabs", async () => {
