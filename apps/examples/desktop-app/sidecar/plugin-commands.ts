@@ -70,13 +70,20 @@ async function getPluginCommandHost(
 			}
 		})
 		.join("\n");
-	const cached = hostsByWorkspace.get(workspacePath);
-	const host = cached ? await cached.catch(() => undefined) : undefined;
-	if (host?.key === key) return host;
-	await host?.shutdown?.().catch(() => {});
-	const loading = loadPluginCommandHost(workspacePath, key);
-	hostsByWorkspace.set(workspacePath, loading);
-	return await loading;
+	// Chain onto the previous host promise so concurrent callers serialize:
+	// a stale host is shut down and replaced exactly once.
+	const next = (
+		hostsByWorkspace.get(workspacePath) ??
+		Promise.resolve<PluginCommandHost | undefined>(undefined)
+	)
+		.catch(() => undefined)
+		.then(async (host) => {
+			if (host?.key === key) return host;
+			await host?.shutdown?.().catch(() => {});
+			return await loadPluginCommandHost(workspacePath, key);
+		});
+	hostsByWorkspace.set(workspacePath, next);
+	return await next;
 }
 
 /**

@@ -148,7 +148,7 @@ export function buildUserInstructionSlashCommands(
 	for (const plugin of response.plugins ?? []) {
 		if (plugin.enabled === false) continue;
 		for (const command of plugin.contributions?.commands ?? []) {
-			const name = command.replace(/^\/+/, "").toLowerCase();
+			const name = command.trim().replace(/^\/+/, "").toLowerCase();
 			if (!name || seen.has(name)) continue;
 			seen.add(name);
 			result.push({
