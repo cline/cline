@@ -4360,3 +4360,20 @@ describe("persisted display-only errors", () => {
 		expect(rendered.some((message) => message.say === "completion_result" || message.ask === "completion_result")).toBe(false)
 	})
 })
+
+it("starts a fresh text and reasoning row after a retry notice", () => {
+	const state = new MessageTranslatorState()
+	const translate = (event: AgentEvent) =>
+		translateSessionEvent({ type: "agent_event", payload: { sessionId: "s", event } }, state).messages
+	const before = translate({ type: "content_start", contentType: "text", text: "abandoned", accumulated: "abandoned" })
+	const thought = translate({ type: "content_start", contentType: "reasoning", reasoning: "unfinished thought" })
+	const notice = translate({ type: "notice", noticeType: "status", reason: "provider_error_retry", message: "retrying" })
+	const after = translate({ type: "content_start", contentType: "text", text: "replacement", accumulated: "replacement" })
+	const newThought = translate({ type: "content_start", contentType: "reasoning", reasoning: "new thought" })
+	expect(notice[0]).toMatchObject({ ts: before[0].ts, partial: false })
+	expect(notice.at(-1)!.ts).toBeGreaterThan(before[0].ts)
+	expect(after[0].ts).toBeGreaterThan(notice.at(-1)!.ts)
+	expect(newThought[0].ts).toBeGreaterThan(thought[0].ts)
+	expect(after[0].text).toBe("replacement")
+	expect(newThought[0].text).toBe("new thought")
+})

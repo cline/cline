@@ -7122,3 +7122,42 @@ describe("cloud snapshot replay", () => {
 		expect(users.map((m) => m.id)).toEqual(["canonical-first", secondId]);
 	});
 });
+
+it("keeps buffered text and reasoning separate across a provider retry", async () => {
+	invokeMock.mockImplementation(async (command: string) =>
+		command === "chat_session_command" ? { sessionId: "retry-session" } : [],
+	);
+	await act(async () => current.start(current.config));
+	await act(async () => {
+		const emit = handlerFor("chat_event");
+		for (const [index, [stream, chunk]] of [
+			["chat_text", "abandoned"],
+			["chat_reasoning", JSON.stringify({ text: "old thought" })],
+			[
+				"chat_core_log",
+				JSON.stringify({ reason: "provider_error_retry", message: "retrying" }),
+			],
+			["chat_text", "replacement"],
+			["chat_reasoning", JSON.stringify({ text: "new thought" })],
+			["chat_core_log", "flush"],
+		].entries())
+			emit({ sessionId: "retry-session", stream, chunk, index, ts: index + 1 });
+	});
+	const assistants = current.messages.filter(
+		(message) => message.role === "assistant",
+	);
+	expect(assistants.map((message) => message.content)).toEqual([
+		"abandoned",
+		"replacement",
+	]);
+	expect(assistants.map((message) => message.reasoning)).toEqual([
+		"old thought",
+		"new thought",
+	]);
+
+	expect(
+		current.messages.some(
+			(message) => message.role === "status" && message.content === "retrying",
+		),
+	).toBe(true);
+});

@@ -1033,3 +1033,15 @@ session’s tool approval policies or approval callback, matching generic subage
 and teammates. The parent’s `subagent_<name>` delegation call still follows the
 parent’s approval policy. Tool allowlists and disabled-tool filtering remain in
 effect when constructing child tools. Inherited runtime hooks are unchanged.
+
+### Interrupted provider responses
+
+The agent retries transient unfinished responses from committed conversation history.
+Local tool calls in an abandoned attempt never execute. Recorded model-tool activity
+blocks replay and is committed with any received results on a message marked
+`metadata.interrupted` before failing; missing results remain unknown.
+
+The runtime's retry status notice is exposed as `AgentNoticeEvent.reason =
+"provider_error_retry"`. Desktop, Hub, and VS Code use this boundary to separate
+abandoned streamed text/reasoning from the replacement response. ACP's append-only
+message stream receives a visible retry separator.

@@ -9,6 +9,13 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
+				find: /^@cline\/shared\/browser$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/shared/src/index.browser.ts",
+				),
+			},
+			{
 				find: /^@\/(.+)$/,
 				replacement: resolve(rootDir, "src/webview/src/$1"),
 			},

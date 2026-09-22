@@ -3,7 +3,7 @@ import type {
 	ProviderListItem,
 	ProviderModel,
 } from "@cline/core";
-import type { GeneratedMedia } from "@cline/shared";
+import type { AgentNoticeEvent, GeneratedMedia } from "@cline/shared";
 
 export type WebviewUsage = {
 	inputTokens?: number;
@@ -278,7 +278,7 @@ export type WebviewInboundMessage =
 	| { type: "forkSession" };
 
 export type WebviewOutboundMessage =
-	| { type: "status"; text: string }
+	| { type: "status"; text: string; reason?: AgentNoticeEvent["reason"] }
 	/**
 	 * `recoverable: true` marks an in-run notice (e.g. a MistakeTracker
 	 * mistake such as a plan-mode guard-blocked command) — the run continues,

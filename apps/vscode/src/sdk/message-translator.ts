@@ -121,6 +121,7 @@ function normalizeUsageEvent(usageEvent: {
 export class MessageTranslatorState {
 	/** Current streaming text message timestamp (used for dedup) */
 	private streamingTextTs: number | undefined
+	private streamingText = ""
 	/** Current streaming reasoning message timestamp */
 	private streamingReasoningTs: number | undefined
 	/** Accumulated streaming reasoning text (SDK reasoning events are deltas) */
@@ -218,6 +219,30 @@ export class MessageTranslatorState {
 			this.streamingTextTs = this.nextTs()
 		}
 		return this.streamingTextTs
+	}
+
+	setStreamingText(text: string): void {
+		this.streamingText = text
+	}
+
+	/** Close abandoned rows before emitting the retry notice and replacement. */
+	interruptResponse(): ClineMessage[] {
+		const messages: ClineMessage[] = []
+		if (this.streamingTextTs !== undefined) {
+			messages.push({ ts: this.streamingTextTs, type: "say", say: "text", text: this.streamingText, partial: false })
+		}
+		if (this.streamingReasoningTs !== undefined) {
+			messages.push({
+				ts: this.streamingReasoningTs,
+				type: "say",
+				say: "reasoning",
+				text: this.streamingReasoningText,
+				reasoning: this.streamingReasoningText,
+				partial: false,
+			})
+		}
+		this.reset()
+		return messages
 	}
 
 	/** Clear streaming text (content ended) */
@@ -526,6 +551,8 @@ export class MessageTranslatorState {
 	 * `attemptCompletionSeen` — those are scoped to the whole turn and survive its iterations.
 	 */
 	reset(): void {
+		this.streamingText = ""
+		this.streamingReasoningText = ""
 		this.streamingTextTs = undefined
 		this.streamingReasoningTs = undefined
 		this.streamingToolTs = undefined
@@ -1304,6 +1331,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// would cause a "flip book" effect where each update replaces the
 					// previous content with just the new chunk.
 					const ts = state.getStreamingTextTs()
+					state.setStreamingText(event.accumulated ?? event.text ?? "")
 					messages.push({
 						ts,
 						type: "say",
@@ -1856,6 +1884,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "notice": {
+			if (event.reason === "provider_error_retry") {
+				// The replacement belongs after the notice, not in the abandoned row.
+				messages.push(...state.interruptResponse())
+			}
 			// Status notices carry structured runtime progress. Compaction ones
 			// become a live divider row that is updated in place from "started" to
 			// its terminal state; the known-internal ones are diagnostics with no

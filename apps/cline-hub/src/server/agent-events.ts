@@ -105,7 +105,11 @@ function forwardAgentEvent(
 		return;
 	}
 	if (event.type === "notice") {
-		ctx.sendToSelectedPeers(sessionId, { type: "status", text: event.message });
+		ctx.sendToSelectedPeers(sessionId, {
+			type: "status",
+			text: event.message,
+			reason: event.reason,
+		});
 		return;
 	}
 	if (event.type === "done") {

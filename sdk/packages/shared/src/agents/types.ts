@@ -182,6 +182,7 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 	message: string;
 	displayRole?: "system" | "status";
 	reason?:
+		| "provider_error_retry"
 		| "api_error"
 		| "invalid_tool_call"
 		| "completion_without_submit"

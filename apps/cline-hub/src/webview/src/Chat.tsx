@@ -846,6 +846,12 @@ export default function Chat({
 
 			switch (message.type) {
 				case "status":
+					if (message.reason === "provider_error_retry") {
+						setMessages((current) => {
+							activeAssistantIdRef.current = undefined;
+							return [...current, createMessage("meta", message.text)];
+						});
+					}
 					setStatus(message.text);
 					return;
 				case "error":

@@ -819,6 +819,91 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it.each([
+		"success",
+		"error",
+		"unknown",
+	] as const)("persists model-tool %s outcomes on stream failure without replaying or executing local calls", async (outcome) => {
+		const execute = vi.fn();
+		const activity = {
+			toolCallId: "remote",
+			toolName: "remote_tool",
+			execution: "provider" as const,
+			input: { action: "write" },
+		};
+		const resultFields =
+			outcome === "unknown"
+				? {}
+				: {
+						output:
+							outcome === "error"
+								? { error: "permission denied" }
+								: { written: true },
+						isError: outcome === "error",
+					};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "tool-call-delta", ...activity },
+				...(outcome === "unknown"
+					? []
+					: [{ type: "tool-result" as const, ...activity, ...resultFields }]),
+				{
+					type: "tool-call-delta",
+					toolCallId: "local",
+					toolName: "echo",
+					input: { text: "do not run" },
+				},
+				{
+					type: "finish",
+					reason: "error",
+					error: "Stream ended without a finish reason",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [{ ...createEchoTool(), execute }],
+		});
+		const saved: AgentMessage[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "message-added" && event.message.role === "assistant")
+				saved.push(event.message);
+		});
+		const result = await runtime.run("Hi");
+		expect(result.status).toBe("failed");
+		expect(model.requests).toHaveLength(1);
+		expect(execute).not.toHaveBeenCalled();
+		expect(saved).toHaveLength(1);
+		expect(result.messages.at(-1)).toEqual(saved[0]);
+		expect(saved[0]?.content).toEqual([]);
+		expect(saved[0]?.metadata).toMatchObject({
+			interrupted: true,
+			modelToolActivities: [{ ...activity, ...resultFields }],
+		});
+		if (outcome === "unknown") {
+			const activities = saved[0]?.metadata?.modelToolActivities as Record<
+				string,
+				unknown
+			>[];
+			expect(activities[0]).not.toHaveProperty("output");
+			expect(activities[0]).not.toHaveProperty("isError");
+		}
+		// Resume from the persisted transcript without turning observed model
+		// activity into executable local tool calls.
+		const resumedModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "resumed" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const resumed = new AgentRuntime({
+			model: resumedModel,
+			initialMessages: result.messages,
+		});
+		await resumed.run("Continue");
+		expect(resumedModel.requests[0]?.messages).toContainEqual(saved[0]);
+	});
+
 	it("does not retry a non-transient provider error (honors errorRetryable=false)", async () => {
 		const model = new ScriptedModel([
 			() => [

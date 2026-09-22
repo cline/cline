@@ -827,12 +827,28 @@ export class AgentRuntime {
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
-				// Never execute or commit local tool calls from an unfinished
-				// transient response, including after the retry budget is exhausted.
+				const modelToolActivities = message.metadata?.modelToolActivities;
+				const hasModelToolActivity =
+					Array.isArray(modelToolActivities) && modelToolActivities.length > 0;
 				if (
 					finishReason === "error" &&
-					this.state.lastErrorRetryable === true
+					(this.state.lastErrorRetryable === true || hasModelToolActivity)
 				) {
+					// Model tools may already have run. Keep exactly the activity and
+					// results received, including errors or calls with no known outcome.
+					// Local tool calls from this unfinished response must never execute.
+					if (hasModelToolActivity) {
+						await this.commitAssistantMessage(
+							{
+								...message,
+								content: message.content.filter(
+									(part) => part.type !== "tool-call",
+								),
+								metadata: { ...message.metadata, interrupted: true },
+							},
+							finishReason,
+						);
+					}
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
 				if (message.content.length === 0) {
@@ -845,10 +861,6 @@ export class AgentRuntime {
 					// activity is not empty: keep the message so the transcript and
 					// display projection retain it. Replay stays safe — the codec
 					// renders empty content as its placeholder text block.
-					const modelToolActivities = message.metadata?.modelToolActivities;
-					const hasModelToolActivity =
-						Array.isArray(modelToolActivities) &&
-						modelToolActivities.length > 0;
 					// A turn that produced no content because it hit the output-token
 					// limit is not a true empty response: fall through so the message is
 					// kept and the max-tokens recovery branch below can nudge and retry.
@@ -862,19 +874,7 @@ export class AgentRuntime {
 				);
 
 				finalAssistantMessage = message;
-				this.state.messages.push(message);
-				await this.emit({
-					type: "message-added",
-					snapshot: this.snapshot(),
-					message,
-				});
-				await this.emit({
-					type: "assistant-message",
-					snapshot: this.snapshot(),
-					iteration: this.state.iteration,
-					message,
-					finishReason,
-				});
+				await this.commitAssistantMessage(message, finishReason);
 
 				if (interrupted) {
 					await this.emit({
@@ -1037,6 +1037,25 @@ export class AgentRuntime {
 		} finally {
 			this.abortController = undefined;
 		}
+	}
+
+	private async commitAssistantMessage(
+		message: AgentMessage,
+		finishReason: AgentModelFinishReason,
+	): Promise<void> {
+		this.state.messages.push(message);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message,
+		});
+		await this.emit({
+			type: "assistant-message",
+			snapshot: this.snapshot(),
+			iteration: this.state.iteration,
+			message,
+			finishReason,
+		});
 	}
 
 	/**
