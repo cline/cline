@@ -501,9 +501,7 @@ describe("ChatInputBar", () => {
 	it("appends enabled plugin commands after skills and workflows", () => {
 		expect(
 			buildUserInstructionSlashCommands({
-				runtimeCommands: [
-					{ id: "skill:goal", name: "goal", kind: "skill" },
-				],
+				runtimeCommands: [{ id: "skill:goal", name: "goal", kind: "skill" }],
 				plugins: [
 					{
 						name: "goal",
