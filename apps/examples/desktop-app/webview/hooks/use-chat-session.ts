@@ -1,7 +1,14 @@
 "use client";
 
 import { formatDisplayUserInput } from "@cline/shared/browser";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	createElement,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	serializeAttachments,
 	toChatMessageImages,
@@ -37,6 +44,7 @@ import type {
 	ToolCallStartEvent,
 	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
+import { toast } from "@/hooks/use-toast";
 import {
 	type ChatMessage,
 	ChatMessageImageSchema,
@@ -1629,6 +1637,31 @@ export function useChatSession(environmentId: string) {
 		});
 	}, [setPromptsInQueue, subscribeToEnvironment]);
 
+	// Replies from plugin slash commands run by the sidecar. They are not part
+	// of the persisted transcript, so surface them as a toast rather than a
+	// message that canonical rehydration would drop.
+	useEffect(() => {
+		return subscribeToEnvironment("chat_command_output", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const record = payload as {
+				sessionId?: string;
+				command?: string;
+				text?: string;
+			};
+			if (record.sessionId !== activeSessionIdRef.current) return;
+			const text = record.text?.trim();
+			if (!text) return;
+			toast({
+				title: record.command ? `/${record.command}` : undefined,
+				description: createElement(
+					"span",
+					{ className: "whitespace-pre-line" },
+					text,
+				),
+			});
+		});
+	}, [subscribeToEnvironment]);
+
 	// ---- Incoming chunk handler ----
 
 	const handleIncomingChunk = useCallback(
@@ -3048,6 +3081,23 @@ export function useChatSession(environmentId: string) {
 			};
 			try {
 				const payload = await sendTask;
+				if (payload.ok && payload.commandHandled) {
+					// A plugin slash command (e.g. `/goal status`) was handled by
+					// the sidecar without a turn: its reply arrives as a
+					// chat_command_output toast, so retract the optimistic
+					// bubble/queue entry and hand status back to the prior turn.
+					if (optimisticQueuedPromptId) {
+						setPromptsInQueue((prev) =>
+							prev.filter((item) => item.id !== optimisticQueuedPromptId),
+						);
+					}
+					withdrawPrompt();
+					if (!shouldQueue && turnEpochRef.current === turnEpochAtDispatch) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus(status);
+					}
+					return true;
+				}
 				// A queued successor clears the abort flag before the old send's
 				// aborted RPC reply can arrive. Its stream now owns the UI.
 				if (

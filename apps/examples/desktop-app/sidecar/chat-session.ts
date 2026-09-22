@@ -56,6 +56,10 @@ import {
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import {
+	type PluginSlashCommandResult,
+	runPluginSlashCommand,
+} from "./plugin-commands";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -231,6 +235,19 @@ async function resolveDesktopRuntimePrompt(
 		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
 		{ mode },
 	);
+}
+
+async function resolveDesktopPluginCommand(
+	ctx: SidecarContext,
+	workspacePath: string,
+	prompt: string,
+): Promise<PluginSlashCommandResult | undefined> {
+	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+		return undefined;
+	}
+	ctx.logger?.debug("Resolving plugin slash command", { name });
+	return await runPluginSlashCommand({ workspacePath, prompt });
 }
 
 function hasActiveWorkspaceTurn(session: LiveSession): boolean {
@@ -1326,16 +1343,39 @@ async function handleSend(
 	}
 	// Dispatch the expanded or rewritten instructions, but keep the raw
 	// `/command` token as the session's display prompt.
-	const runtimePrompt =
+	const workspacePath =
 		binding.kind === "ssh"
-			? prompt
-			: await resolveDesktopRuntimePrompt(
-					ctx,
-					readWorkspacePath(session?.config ?? request.config) ??
-						ctx.localWorkspaceRoot,
-					prompt,
-					request.config?.mode ?? session?.config?.mode,
-				);
+			? undefined
+			: (readWorkspacePath(session?.config ?? request.config) ??
+				ctx.localWorkspaceRoot);
+	let runtimePrompt = workspacePath
+		? await resolveDesktopRuntimePrompt(
+				ctx,
+				workspacePath,
+				prompt,
+				request.config?.mode ?? session?.config?.mode,
+			)
+		: prompt;
+	// Plugin slash commands (`api.registerCommand`) run here in the sidecar.
+	// Built-ins and skills/workflows own their token first; the handler's
+	// reply goes to the webview and only its `submitPrompt` reaches the model.
+	const pluginCommand =
+		workspacePath && runtimePrompt === prompt
+			? await resolveDesktopPluginCommand(ctx, workspacePath, prompt)
+			: undefined;
+	if (pluginCommand?.reply) {
+		sendEvent(ctx, "chat_command_output", {
+			sessionId,
+			command: pluginCommand.name,
+			text: pluginCommand.reply,
+		});
+	}
+	if (pluginCommand) {
+		if (!pluginCommand.submitPrompt) {
+			return { sessionId, ok: true, commandHandled: true };
+		}
+		runtimePrompt = pluginCommand.submitPrompt;
+	}
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";

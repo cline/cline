@@ -101,6 +101,11 @@ type UserInstructionCommand = {
 
 type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
+	plugins?: Array<{
+		name?: string;
+		enabled?: boolean;
+		contributions?: { commands?: string[] };
+	}>;
 };
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
@@ -123,7 +128,7 @@ export function buildUserInstructionSlashCommands(
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
+	const result = commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
 			return [];
@@ -138,6 +143,21 @@ export function buildUserInstructionSlashCommands(
 			},
 		];
 	});
+	// Plugin commands (`api.registerCommand`) are executed by the sidecar; the
+	// hub's contribution inspection only exposes their names.
+	for (const plugin of response.plugins ?? []) {
+		if (plugin.enabled === false) continue;
+		for (const command of plugin.contributions?.commands ?? []) {
+			const name = command.replace(/^\/+/, "").toLowerCase();
+			if (!name || seen.has(name)) continue;
+			seen.add(name);
+			result.push({
+				name,
+				description: `${plugin.name?.trim() || "Plugin"} command`,
+			});
+		}
+	}
+	return result;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
