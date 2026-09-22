@@ -10,6 +10,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	isBunEmbeddedModulePath,
 	isHubDaemonProcess,
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
@@ -71,6 +72,7 @@ export const __test__ = {
 	resetRetireAttempts(): void {
 		retireAttemptsByUrl.clear();
 	},
+	resolveDaemonEntryArgs,
 };
 
 /**
@@ -367,6 +369,30 @@ function resolveDaemonEntryPath(): string {
 	return fileURLToPath(new URL(`./entry.${extension}`, import.meta.url));
 }
 
+/**
+ * How a spawned daemon reaches the daemon entrypoint. Compiled Bun binaries
+ * mount bundled modules at `/$bunfs/` (POSIX) or `B:\~BUN\` (Windows); those
+ * virtual paths cannot be handed to a child as a script argument, so the
+ * child boots its embedded entrypoint and switches personality on the marker
+ * flag. Missing the Windows spelling used to spawn daemons with a dead
+ * `B:\~BUN\root\entry.js` argument (cline/cline#14292) that also hid them
+ * from `cline doctor`'s marker-based process scan.
+ */
+function resolveDaemonEntryArgs(
+	daemonEntryPath: string,
+	isBunRuntime: boolean,
+): string[] {
+	if (isBunEmbeddedModulePath(daemonEntryPath)) {
+		return [COMPILED_BUN_HUB_DAEMON_ARG];
+	}
+	const useDevelopmentConditions =
+		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
+	return [
+		...(useDevelopmentConditions ? ["--conditions=development"] : []),
+		daemonEntryPath,
+	];
+}
+
 function resolveLaunchCommand(
 	workspaceRoot: string,
 	endpoint: DetachedHubOptions,
@@ -382,15 +408,7 @@ function resolveLaunchCommand(
 		throw new Error("unable to resolve runtime executable for hub daemon");
 	}
 	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
-	const isCompiledBunEmbeddedEntry = daemonEntryPath.startsWith("/$bunfs/");
-	const useDevelopmentConditions =
-		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
-	const entryArgs = isCompiledBunEmbeddedEntry
-		? [COMPILED_BUN_HUB_DAEMON_ARG]
-		: [
-				...(useDevelopmentConditions ? ["--conditions=development"] : []),
-				daemonEntryPath,
-			];
+	const entryArgs = resolveDaemonEntryArgs(daemonEntryPath, isBunRuntime);
 	return {
 		launcher: execPath,
 		args: [

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+	ensureLoopbackProxyBypass,
 	type HubCompatibilityResult,
 	type HubProtocolMetadata,
 	isHubProtocolCompatible,
@@ -543,6 +544,12 @@ export async function probeHubServer(
 	url: string,
 	options?: { authToken?: string },
 ): Promise<HubServerProbeRecord | undefined> {
+	// A proxy environment without a localhost exemption makes Bun's fetch send
+	// this loopback probe to the proxy, which cannot reach the client's own
+	// 127.0.0.1 — the hub then looks unreachable while it is healthy
+	// (cline/cline#14265, #14292). Entrypoints call this too; repeating it here
+	// keeps every embedder of the hub client safe, and it is idempotent.
+	ensureLoopbackProxyBypass();
 	try {
 		const response = await fetch(
 			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),

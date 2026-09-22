@@ -1,5 +1,9 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import {
+	ensureLoopbackProxyBypass,
+	initVcr,
+	resolveClineBuildEnv,
+} from "@cline/shared";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -150,6 +154,10 @@ export function isAbortRejection(reason: unknown): boolean {
 }
 
 async function main(): Promise<void> {
+	// The daemon dials its own loopback endpoint (self probes, retire
+	// handovers) and everything it spawns inherits this environment; a proxy
+	// without a localhost exemption must not capture that traffic.
+	ensureLoopbackProxyBypass();
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
 

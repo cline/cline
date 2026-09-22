@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
 	closeSync,
@@ -13,7 +13,58 @@ import { fileURLToPath } from "node:url";
 
 // Exercise the actual compiled entrypoint: source-only tests miss mixed SDK
 // build identities between the desktop client and its embedded Hub daemon.
-test("compiled desktop backend publishes its endpoint with its own Hub", async () => {
+
+let compiledBinaryDir: string | undefined;
+let compiledBinary: string | undefined;
+
+function resolveSidecarBinary(): string {
+	if (process.env.CLINE_TEST_SIDECAR_BIN) {
+		return resolve(process.env.CLINE_TEST_SIDECAR_BIN);
+	}
+	if (compiledBinary) {
+		return compiledBinary;
+	}
+	compiledBinaryDir = mkdtempSync(join(tmpdir(), "cline-desktop-startup-bin-"));
+	const binary = join(
+		compiledBinaryDir,
+		process.platform === "win32" ? "sidecar.exe" : "sidecar",
+	);
+	const build = spawnSync(
+		process.execPath,
+		[
+			"build",
+			fileURLToPath(new URL("../sidecar/index.ts", import.meta.url)),
+			"--compile",
+			"--no-compile-autoload-dotenv",
+			"--no-compile-autoload-bunfig",
+			"--outfile",
+			binary,
+		],
+		{ cwd: compiledBinaryDir, encoding: "utf8", timeout: 60_000 },
+	);
+	expect(build.status, build.stderr || String(build.error)).toBe(0);
+	compiledBinary = binary;
+	return binary;
+}
+
+afterAll(() => {
+	if (compiledBinaryDir) {
+		try {
+			rmSync(compiledBinaryDir, {
+				recursive: true,
+				force: true,
+				maxRetries: 20,
+				retryDelay: 100,
+			});
+		} catch {
+			/* The runner discards its temp directory anyway. */
+		}
+	}
+});
+
+async function runStartupScenario(
+	extraEnv: Record<string, string>,
+): Promise<void> {
 	const root = mkdtempSync(join(tmpdir(), "cline-desktop-startup-"));
 	const discoveryPath = join(root, "hub.json");
 	const stdoutPath = join(root, "stdout.log");
@@ -23,35 +74,20 @@ test("compiled desktop backend publishes its endpoint with its own Hub", async (
 	let child: ReturnType<typeof Bun.spawn> | undefined;
 	let hubPid: number | undefined;
 	try {
-		const binary = process.env.CLINE_TEST_SIDECAR_BIN
-			? resolve(process.env.CLINE_TEST_SIDECAR_BIN)
-			: join(root, process.platform === "win32" ? "sidecar.exe" : "sidecar");
-		if (!process.env.CLINE_TEST_SIDECAR_BIN) {
-			const build = spawnSync(
-				process.execPath,
-				[
-					"build",
-					fileURLToPath(new URL("../sidecar/index.ts", import.meta.url)),
-					"--compile",
-					"--no-compile-autoload-dotenv",
-					"--no-compile-autoload-bunfig",
-					"--outfile",
-					binary,
-				],
-				{ cwd: root, encoding: "utf8", timeout: 60_000 },
-			);
-			expect(build.status, build.stderr || String(build.error)).toBe(0);
-		}
+		const binary = resolveSidecarBinary();
 
 		const env = Object.fromEntries(
 			Object.entries(process.env).filter(
-				([key]) => !/^(CLINE_|OTEL_|TELEMETRY_|ERROR_SERVICE_)/.test(key),
+				([key]) =>
+					!/^(CLINE_|OTEL_|TELEMETRY_|ERROR_SERVICE_)/.test(key) &&
+					!/^(https?_proxy|all_proxy|no_proxy)$/i.test(key),
 			),
 		);
 		Object.assign(env, {
 			CLINE_DIR: root,
 			CLINE_DATA_DIR: join(root, "data"),
 			CLINE_HUB_DISCOVERY_PATH: discoveryPath,
+			...extraEnv,
 		});
 		// Bootstrap on an OS-assigned port using the same executable. Pin the
 		// desktop to that port so this test cannot touch a developer's real Hub,
@@ -143,4 +179,24 @@ test("compiled desktop backend publishes its endpoint with its own Hub", async (
 			/* The runner discards its temp directory anyway. */
 		}
 	}
+}
+
+test("compiled desktop backend publishes its endpoint with its own Hub", async () => {
+	await runStartupScenario({});
+}, 100_000);
+
+// System proxies that export HTTP(S)_PROXY (Clash, v2ray, corporate setups)
+// used to capture Bun's loopback fetches — hub discovery probes went to the
+// proxy instead of 127.0.0.1, the healthy Hub looked unreachable, and the
+// backend died with "No compatible hub runtime is available" while respawned
+// daemons exited with "Hub instance lock is held by a live Hub"
+// (cline/cline#14265, #14292). The backend must come up even when every
+// proxy variable points at a dead proxy.
+test("compiled desktop backend starts behind a dead HTTP(S) proxy", async () => {
+	await runStartupScenario({
+		HTTP_PROXY: "http://127.0.0.1:9",
+		HTTPS_PROXY: "http://127.0.0.1:9",
+		http_proxy: "http://127.0.0.1:9",
+		https_proxy: "http://127.0.0.1:9",
+	});
 }, 100_000);

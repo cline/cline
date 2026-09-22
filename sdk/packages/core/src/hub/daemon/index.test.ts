@@ -116,6 +116,14 @@ vi.mock("@cline/shared", () => ({
 	}),
 	isHubDaemonProcess: (env: NodeJS.ProcessEnv = process.env) =>
 		env[CLINE_RUN_AS_HUB_DAEMON_ENV] === "1",
+	// Mirrors the real helper: POSIX and Windows bunfs spellings.
+	isBunEmbeddedModulePath: (path?: string) => {
+		const trimmed = path?.trim() ?? "";
+		return (
+			trimmed.startsWith("/$bunfs/") ||
+			trimmed.replace(/\\/g, "/").toLowerCase().startsWith("b:/~bun/")
+		);
+	},
 	resolveClineBuildEnv: () => "production",
 	withResolvedClineBuildEnv: (env: NodeJS.ProcessEnv) => env,
 }));
@@ -1198,5 +1206,31 @@ describe("upgradeManagedHub", () => {
 		);
 		expect(clearHubDiscovery).not.toHaveBeenCalled();
 		expect(spawn).not.toHaveBeenCalled();
+	});
+});
+
+describe("resolveDaemonEntryArgs", () => {
+	it.each([
+		"/$bunfs/root/entry.js",
+		// Windows compiled binaries mount bunfs at B:\~BUN; passing that path
+		// as a script argument spawned a daemon with a dead argument
+		// (cline/cline#14292) instead of the personality marker.
+		"B:\\~BUN\\root\\entry.js",
+		"B:/~BUN/root/entry.js",
+	])("uses the --cline-hub-daemon marker for the embedded entry %s", async (entryPath) => {
+		const { __test__ } = await import(".");
+		expect(__test__.resolveDaemonEntryArgs(entryPath, true)).toEqual([
+			"--cline-hub-daemon",
+		]);
+	});
+
+	it("passes a real source entry path through, with development conditions under Bun", async () => {
+		const { __test__ } = await import(".");
+		expect(
+			__test__.resolveDaemonEntryArgs("/repo/sdk/hub/daemon/entry.ts", true),
+		).toEqual(["--conditions=development", "/repo/sdk/hub/daemon/entry.ts"]);
+		expect(
+			__test__.resolveDaemonEntryArgs("/repo/dist/hub/daemon/entry.js", false),
+		).toEqual(["/repo/dist/hub/daemon/entry.js"]);
 	});
 });
