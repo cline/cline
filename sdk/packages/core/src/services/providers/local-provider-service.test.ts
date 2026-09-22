@@ -1919,18 +1919,27 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const modelList =
 			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
-		const stampedIds = modelList
+		const stamped = modelList
 			.filter((model) => model.featured?.tier === "recommended")
-			.map((model) => model.id);
-		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
-			.map((model) => model.id)
-			.filter((id) => modelList.some((model) => model.id === id));
+			.sort((a, b) => a.featured!.rank - b.featured!.rank);
 
 		// A cold boot must still paint tiered sections: the catalog stamps
 		// synchronously from the bundled fallback instead of waiting on (or
 		// triggering) a feed fetch.
-		expect(stampedIds.length).toBeGreaterThan(0);
-		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		// The feed and catalog can use different vendor prefixes. Check every
+		// recommendation, including alias/slug matches, without filtering away
+		// missing models or collapsing duplicate featured rows into a Set.
+		expect(
+			stamped.map((model) => ({
+				slug: model.id.split("/").at(-1),
+				featured: model.featured,
+			})),
+		).toEqual(
+			FALLBACK_CLINE_RECOMMENDED_MODELS.recommended.map((model, rank) => ({
+				slug: model.id.split("/").at(-1),
+				featured: { tier: "recommended", rank, tags: model.tags },
+			})),
+		);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
