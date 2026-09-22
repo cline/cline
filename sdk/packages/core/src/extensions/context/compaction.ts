@@ -1,4 +1,5 @@
 import { estimateRequestInputTokens } from "@cline/shared";
+import { resolveConnectionProviderConfig } from "../../services/llms/handler-factory";
 import {
 	captureCompactionBudgetEmergency,
 	captureCompactionExecuted,
@@ -94,6 +95,8 @@ export interface ContextCompactionPrepareTurnOptions {
 	manualTargetRatio?: number;
 	/** Resolve live connection settings immediately before agentic compaction. */
 	getProviderConfig?: () => ProviderConfig | undefined;
+	/** Overrides layered over `config.compaction`. */
+	compaction?: Partial<CoreCompactionConfig>;
 }
 
 const LONG_CONVERSATION_TARGET_RATIO = 0.5;
@@ -269,6 +272,9 @@ export function createContextCompactionPrepareTurn(
 		| "providerConfig"
 		| "providerId"
 		| "modelId"
+		| "apiKey"
+		| "baseUrl"
+		| "headers"
 		| "compaction"
 		| "logger"
 		| "telemetry"
@@ -280,17 +286,15 @@ export function createContextCompactionPrepareTurn(
 			context: ContextPipelinePrepareTurnInput,
 	  ) => Promise<ContextPipelinePrepareTurnResult | undefined>)
 	| undefined {
-	const userCompaction = config.compaction;
-	if (userCompaction?.enabled !== true) {
+	const userCompaction: CoreCompactionConfig = {
+		...config.compaction,
+		...options.compaction,
+	};
+	if (userCompaction.enabled !== true) {
 		return undefined;
 	}
 
-	const initialProviderConfig =
-		config.providerConfig ??
-		({
-			providerId: config.providerId,
-			modelId: config.modelId,
-		} as ProviderConfig);
+	const initialProviderConfig = resolveConnectionProviderConfig(config);
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "agentic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
@@ -301,7 +305,7 @@ export function createContextCompactionPrepareTurn(
 
 	return async (context) => {
 		const liveProviderConfig =
-			options.getProviderConfig?.() ?? initialProviderConfig;
+			options.getProviderConfig?.() ?? resolveConnectionProviderConfig(config);
 		// Connection edits may carry a model selected for the next turn. The
 		// sidecar must keep this turn's model, including its metadata and limits.
 		const matchingModelConfig = [
@@ -321,20 +325,22 @@ export function createContextCompactionPrepareTurn(
 			liveProviderConfig.providerId === context.model.provider
 				? liveProviderConfig
 				: initialProviderConfig;
-		const providerConfig = {
-			...connectionConfig,
-			providerId: context.model.provider,
-			modelId: context.model.id,
-			modelInfo,
-			knownModels: {
-				...connectionConfig.knownModels,
-				...(modelInfo ? { [context.model.id]: modelInfo } : {}),
-			},
-			maxInputTokens: modelSettings?.maxInputTokens,
-			maxOutputTokens: modelSettings?.maxOutputTokens,
-			temperature: modelSettings?.temperature,
-			capabilities: modelSettings?.capabilities,
-		} as ProviderConfig;
+		const providerConfig = context.model.settings
+			? ({
+					...connectionConfig,
+					providerId: context.model.provider,
+					modelId: context.model.id,
+					modelInfo,
+					knownModels: {
+						...connectionConfig.knownModels,
+						...(modelInfo ? { [context.model.id]: modelInfo } : {}),
+					},
+					maxInputTokens: modelSettings?.maxInputTokens,
+					maxOutputTokens: modelSettings?.maxOutputTokens,
+					temperature: modelSettings?.temperature,
+					capabilities: modelSettings?.capabilities,
+				} as ProviderConfig)
+			: liveProviderConfig;
 		const effectiveMode: CoreCompactionMode = context.overflowRecovery
 			? "overflow_recovery"
 			: mode;
@@ -498,6 +504,8 @@ export function createContextCompactionPrepareTurn(
 
 		const builtinOptions = {
 			context: compactionContext,
+			// Resolve live credentials with main-request precedence while preserving
+			// the active turn model when the runtime supplied a settings snapshot.
 			providerConfig: {
 				...providerConfig,
 				abortSignal: context.abortSignal,
@@ -736,23 +744,12 @@ export function createImportedHistoryCompactionPrepareTurn(input: {
 	importedFrom: string;
 	next?: ContextPipelinePrepareTurn;
 }): ContextPipelinePrepareTurn {
-	const summarize = createContextCompactionPrepareTurn(
-		{
-			...input.config,
-			compaction: {
-				...input.config.compaction,
-				enabled: true,
-				strategy: "agentic",
-				preserveRecentTokens: 0,
-			},
-		},
-		{
-			mode: "manual",
-			// The forced-policy copy above must not freeze connection settings
-			// before the first summary or a retry after cancellation.
-			getProviderConfig: () => input.config.providerConfig,
-		},
-	);
+	// Pass the live config through (not a copy) so the summary uses the
+	// credentials and model current on the resumed turn.
+	const summarize = createContextCompactionPrepareTurn(input.config, {
+		mode: "manual",
+		compaction: { enabled: true, strategy: "agentic", preserveRecentTokens: 0 },
+	});
 	let pending = summarize !== undefined;
 	return async (context) => {
 		if (pending && summarize && findLatestSummaryIndex(context.messages) < 0) {

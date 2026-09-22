@@ -716,9 +716,12 @@ export default function Home() {
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
 	}, [handleNewThread, handleViewChange, showOnboarding]);
-	const handleThreadStarted = useCallback((threadId: string) => {
-		dispatchApp({ type: "thread-started", threadId });
-	}, []);
+	const handleThreadStarted = useCallback(
+		(threadId: string, sessionId?: string) => {
+			dispatchApp({ type: "thread-started", threadId, sessionId });
+		},
+		[],
+	);
 	const handleInitialPromptDraftConsumed = useCallback((threadId: string) => {
 		dispatchApp({ type: "consume-initial-prompt-draft", threadId });
 	}, []);
@@ -1064,7 +1067,7 @@ function ChatThreadPane({
 	onOpenAccountSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
 	remoteEnvironment: RemoteWorkspaceEnvironment | null;
-	onThreadStarted?: (threadId: string) => void;
+	onThreadStarted?: (threadId: string, sessionId?: string) => void;
 }) {
 	const {
 		sessionId,
@@ -1099,6 +1102,13 @@ function ChatThreadPane({
 		abort,
 		hydrateSession,
 	} = useChatSession(environmentId);
+	// Bind the runtime session to the thread so deleting it elsewhere (e.g.
+	// the sidebar) can close this pane even when it was not opened from history.
+	useEffect(() => {
+		if (sessionId) {
+			onThreadStarted?.(threadId, sessionId);
+		}
+	}, [onThreadStarted, sessionId, threadId]);
 	// The live composer text lives inside ChatInputBar so typing does not
 	// re-render this whole pane. The pane mirrors it in a ref (for reads) and
 	// pushes external updates (quick actions, undo, resets) via promptDraft.

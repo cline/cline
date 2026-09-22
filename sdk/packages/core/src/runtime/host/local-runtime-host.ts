@@ -686,9 +686,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		let activeSessionRef: ActiveSession | undefined;
 		const rawInitialCompactionState =
 			explicitInitialCompactionState ?? resumedCompactionState;
-		const autoCompact = createContextCompactionPrepareTurn(configWithProvider, {
-			getProviderConfig: () => configWithProvider.providerConfig,
-		});
+		const autoCompact = createContextCompactionPrepareTurn(configWithProvider);
 		// Resuming an imported session summarizes the foreign transcript before
 		// the model sees it. The summary persists to the compaction sidecar and
 		// the policy stands down once that sidecar projects, so it applies once

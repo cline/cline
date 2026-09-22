@@ -6,8 +6,14 @@ import {
 	resetClineRecommendedModelsCacheForTests,
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getCloudSessionManager } from "./cloud-sessions";
 import { handleCommand } from "./commands";
 import { createSidecarContext } from "./context";
+import { setCloudSessionsEnabled } from "./desktop-settings";
+import {
+	getDesktopFeatureFlagsService,
+	resetDesktopFeatureFlagsForTesting,
+} from "./feature-flags";
 import type { SidecarContext } from "./types";
 
 function createContext(): {
@@ -27,6 +33,7 @@ let dataDir: string;
 beforeEach(() => {
 	dataDir = mkdtempSync(join(tmpdir(), "cline-commands-settings-"));
 	process.env.CLINE_DATA_DIR = dataDir;
+	resetDesktopFeatureFlagsForTesting();
 });
 
 afterEach(() => {
@@ -35,10 +42,70 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
 	delete process.env.CLINE_DATA_DIR;
+	resetDesktopFeatureFlagsForTesting();
 	rmSync(dataDir, { recursive: true, force: true });
 });
 
 describe("desktop settings commands", () => {
+	it.each([
+		"list_chat_sessions",
+		"list_discovered_sessions",
+		"search_sessions",
+	])("hides cloud rows from %s unless rollout and user toggle are enabled", async (command) => {
+		const { ctx } = createContext();
+		for (const target of ["local", "cloud"] as const) {
+			ctx.liveSessions.set(target, {
+				config: { executionTarget: target, provider: "cline", model: "test" },
+				prompt: "match",
+				messages: [],
+				promptsInQueue: [],
+				busy: false,
+				status: "completed",
+				startedAt: Date.now(),
+			});
+		}
+		const cloudRows = [
+			{ sessionId: "cloud", origin: "cloud", prompt: "match" },
+		];
+		const discovery = vi
+			.spyOn(getCloudSessionManager(ctx), "listForDiscovery")
+			.mockResolvedValue(cloudRows);
+		const flags = getDesktopFeatureFlagsService();
+		flags.hydrateCache({
+			userId: null,
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { "code-cloud-agents": true } },
+		});
+		const rows = async () =>
+			(
+				(await handleCommand(ctx, command, { query: "match" })) as Array<{
+					sessionId: string;
+				}>
+			)
+				.map((row) => row.sessionId)
+				.sort();
+
+		expect(await rows()).toEqual(["local"]);
+		expect(discovery).not.toHaveBeenCalled();
+		setCloudSessionsEnabled(true);
+		expect(await rows()).toEqual(["cloud", "local"]);
+		discovery.mockImplementationOnce(async () => {
+			setCloudSessionsEnabled(false);
+			return cloudRows;
+		});
+		expect(await rows()).toEqual(["local"]);
+		setCloudSessionsEnabled(true);
+		discovery.mockClear();
+		flags.hydrateCache({
+			userId: null,
+			updateTime: Date.now(),
+			flagsPayload: { featureFlags: { "code-cloud-agents": false } },
+		});
+		expect(await rows()).toEqual(["local"]);
+		expect(discovery).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.has("cloud")).toBe(true);
+	});
+
 	it("loads cloud-only models only for an enabled cloud picker", async () => {
 		const { ctx } = createContext();
 		const fetchMock = vi.fn(async (input: string | URL | Request) => {
@@ -89,15 +156,19 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([]);
 	});
 
-	it("persists the toggle and broadcasts the new gate immediately", async () => {
+	it.each([
+		true,
+		false,
+	])("persists toggle %s and refreshes cloud history immediately", async (enabled) => {
 		const { ctx, events } = createContext();
 
 		await expect(
 			handleCommand(ctx, "set_cloud_sessions_enabled", {
-				cloud_sessions_enabled: true,
+				cloud_sessions_enabled: enabled,
 			}),
-		).resolves.toEqual({ cloudSessionsEnabled: true });
+		).resolves.toEqual({ cloudSessionsEnabled: enabled });
 		expect(events).toEqual([
+			{ name: "cloud_sessions_changed", payload: { environmentId: "local" } },
 			{
 				name: "feature_flags_changed",
 				payload: {
@@ -112,6 +183,6 @@ describe("desktop settings commands", () => {
 		).resolves.toMatchObject({ cloudAgents: false });
 		await expect(
 			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: true });
+		).resolves.toEqual({ cloudSessionsEnabled: enabled });
 	});
 });

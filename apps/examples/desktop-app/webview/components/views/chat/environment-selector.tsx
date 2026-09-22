@@ -180,7 +180,7 @@ export function EnvironmentSelector({
 					}}
 				>
 					<Cloud className="size-4" />
-					<span>Cloud</span>
+					<span className="uppercase">Cloud</span>
 					{!cloudEnabled ? (
 						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
 							Coming soon

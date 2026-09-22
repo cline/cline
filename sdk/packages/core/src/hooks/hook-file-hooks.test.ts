@@ -7,7 +7,7 @@ import {
 	setClineDir,
 	setHomeDir,
 } from "@cline/shared/storage";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
 	createHookAuditHooks,
 	createHookConfigFileExtension,
@@ -334,6 +334,123 @@ describe("createHookConfigFileHooks", () => {
 			expect(control).toEqual({
 				appendContext: "WORKSPACE_NOTE: the codename is PREM-1188.",
 			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("returns appendContext from a TaskStart hook", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: false, contextModification: "RUN_NOTE: injected at start." }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+				blockingRunStartHooks: true,
+			});
+			expect(hooks?.beforeRun).toBeTypeOf("function");
+			const result = await hooks?.beforeRun?.({
+				snapshot: beforeToolContext().snapshot,
+			});
+			expect(result).toEqual({
+				appendContext: "RUN_NOTE: injected at start.",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("keeps TaskStart fire-and-forget by default, ignoring its control", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`console.log('HOOK_CONTROL\t' + JSON.stringify({ cancel: true, contextModification: "never honored by default" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.beforeRun).toBeTypeOf("function");
+			const result = await hooks?.beforeRun?.({
+				snapshot: beforeToolContext().snapshot,
+			});
+			expect(result).toBeUndefined();
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("reports how long a detached run-start hook ran", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`setTimeout(() => {}, 20)\n`,
+		);
+		const observed: Array<{
+			hookName: string;
+			durationMs: number;
+			exited: boolean;
+		}> = [];
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				// The observer exists for the real fire-and-forget path, which is
+				// what production uses.
+				detachAsyncHooks: true,
+				onHookRuntime: (event) => observed.push(event),
+			});
+			await hooks?.beforeRun?.({ snapshot: beforeToolContext().snapshot });
+			await vi.waitFor(() => expect(observed.length).toBeGreaterThan(0), {
+				timeout: 5000,
+			});
+			expect(observed[0].hookName).toBe("agent_start");
+			expect(observed[0].exited).toBe(true);
+			expect(observed[0].durationMs).toBeGreaterThanOrEqual(0);
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("stops the run when a TaskStart hook cancels", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"TaskStart.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "blocked at start" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+				blockingRunStartHooks: true,
+			});
+			const result = await hooks?.beforeRun?.({
+				snapshot: beforeToolContext().snapshot,
+			});
+			expect(result).toEqual({ stop: true, reason: "blocked at start" });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
