@@ -5,6 +5,7 @@ import { IntentEvent } from "@shared/proto/cline/ui"
 import { useCallback, useRef } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { BUTTON_CONFIGS, getButtonConfigFromState } from "../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
 
 function formatDraftText(text: string, activeQuote: string | null): string {
@@ -370,14 +371,29 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				case "proceed": {
 					const { draft } = invocation
 					const text = formatDraftText(draft.text.trim(), draft.activeQuote)
-					const hasContent = text || draft.images.length > 0 || draft.files.length > 0
+					const isFileEditSave =
+						invocation.type === "approve" &&
+						getButtonConfigFromState(messages, turnState, "act", backgroundCommandRunning) ===
+							BUTTON_CONFIGS.tool_save
+					const submittedImages = isFileEditSave ? [] : draft.images
+					const hasContent = text || submittedImages.length > 0 || draft.files.length > 0
 					const responseType = invocation.type === "reject" ? "noButtonClicked" : "yesButtonClicked"
+
 					await TaskServiceClient.askResponse(
 						AskResponseRequest.create(
-							hasContent ? { responseType, text, images: draft.images, files: draft.files } : { responseType },
+							hasContent
+								? isFileEditSave
+									? { responseType, text, files: draft.files }
+									: { responseType, text, images: draft.images, files: draft.files }
+								: { responseType },
 						),
 					)
-					chatState.consumeDraftSnapshot(draft)
+
+					if (isFileEditSave) {
+						chatState.consumeDraftSnapshot(draft, { preserveImages: true })
+					} else {
+						chatState.consumeDraftSnapshot(draft)
+					}
 					break
 				}
 
@@ -453,6 +469,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		[
 			clineAsk,
 			lastMessage,
+			messages,
+			turnState,
 			clearTask,
 			chatState,
 			backgroundCommandRunning,

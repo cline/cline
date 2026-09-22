@@ -730,7 +730,7 @@ describe("useMessageHandlers — send routing", () => {
 		expect(setSelectedFiles).not.toHaveBeenCalled()
 	})
 
-	it("clears only the draft snapshot submitted with an approval", async () => {
+	it("preserves an unsent image draft when saving a file edit", async () => {
 		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 3 }
 		const approvalConversation: ClineMessage[] = [
 			{ ts: 1, type: "say", say: "task", text: "task" },
@@ -739,10 +739,68 @@ describe("useMessageHandlers — send routing", () => {
 		const consumeDraftSnapshot = vi.fn()
 		const draft = {
 			revision: 11,
+			text: "",
+			activeQuote: null,
+			images: ["image.png"],
+			files: [],
+		}
+		const { result } = renderHook(() =>
+			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { consumeDraftSnapshot })),
+		)
+
+		await act(async () => {
+			await result.current.executeButtonAction({ type: "approve", draft })
+		})
+
+		expect(askResponse).toHaveBeenCalledWith({
+			responseType: "yesButtonClicked",
+		})
+		expect(consumeDraftSnapshot).toHaveBeenCalledWith(draft, { preserveImages: true })
+	})
+
+	it("keeps text and file feedback while preserving images on file edit save", async () => {
+		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 3 }
+		const approvalConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "tool", text: JSON.stringify({ tool: "newFileCreated", path: "notes.md" }) },
+		]
+		const consumeDraftSnapshot = vi.fn()
+		const draft = {
+			revision: 12,
 			text: "submitted feedback",
 			activeQuote: "selected context",
-			images: ["old.png"],
-			files: ["old.md"],
+			images: ["image.png"],
+			files: ["notes.md"],
+		}
+		const { result } = renderHook(() =>
+			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { consumeDraftSnapshot })),
+		)
+
+		await act(async () => {
+			await result.current.executeButtonAction({ type: "approve", draft })
+		})
+
+		expect(askResponse).toHaveBeenCalledWith({
+			responseType: "yesButtonClicked",
+			text: `[context] \n>  ${draft.activeQuote} \n[/context] \n\n ${draft.text}`,
+			files: draft.files,
+		})
+		expect(consumeDraftSnapshot).toHaveBeenCalledWith(draft, { preserveImages: true })
+	})
+
+	it("keeps existing image feedback behavior for non-file approvals", async () => {
+		mockTurnState = { phase: "awaiting_approval", anchorTs: 2, seq: 3 }
+		const approvalConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "ask", ask: "tool", text: JSON.stringify({ tool: "readFile", path: "notes.md" }) },
+		]
+		const consumeDraftSnapshot = vi.fn()
+		const draft = {
+			revision: 13,
+			text: "submitted feedback",
+			activeQuote: "selected context",
+			images: ["image.png"],
+			files: ["notes.md"],
 		}
 		const { result } = renderHook(() =>
 			useMessageHandlers(approvalConversation, makeChatState(approvalConversation, { consumeDraftSnapshot })),
