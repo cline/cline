@@ -14,6 +14,9 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentChangedFile,
+	AgentChangesPanel,
+	AgentPullRequestBar,
 	AgentAskQuestion,
 	AgentApprovalCard,
 	AttachmentDropZone,
@@ -42,6 +45,11 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
+		throw new Error("packed review UI stylesheet is missing: " + name);
+	}
+}
 const heroCss = readFileSync(
 	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
 	"utf8",
@@ -65,6 +73,9 @@ if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
 if (
+	!AgentChangedFile ||
+	!AgentChangesPanel ||
+	!AgentPullRequestBar ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||

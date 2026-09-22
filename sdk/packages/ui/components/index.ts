@@ -11,12 +11,27 @@ export {
 	type AgentAskQuestionProps,
 } from "./agent-ask-question.js";
 export { AgentAurora } from "./agent-aurora.js";
+export {
+	AgentChangedFile,
+	type AgentChangedFileProps,
+	AgentChangesPanel,
+	type AgentChangesPanelProps,
+} from "./agent-changes.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentPromptQueue,
 	type AgentPromptQueueItem,
 	type AgentPromptQueueProps,
 } from "./agent-prompt-queue.js";
+export {
+	AgentPullRequestBar,
+	type AgentPullRequestBarProps,
+	type AgentPullRequestCheck,
+	type AgentPullRequestData,
+	type AgentPullRequestNavigation,
+	getAgentPullRequestMergeStatus,
+	summarizeAgentPullRequestChecks,
+} from "./agent-pull-request-bar.js";
 export {
 	type AgentQuickAction,
 	AgentQuickActions,

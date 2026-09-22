@@ -47,6 +47,10 @@
 	},
 	"files": [
 		"components.css",
+		"components/agent-changes.tsx",
+		"components/agent-changes.css",
+		"components/agent-pull-request-bar.tsx",
+		"components/agent-pull-request-bar.css",
 		"components/attachment-drop-zone.tsx",
 		"components/badge.tsx",
 		"components/button.tsx",

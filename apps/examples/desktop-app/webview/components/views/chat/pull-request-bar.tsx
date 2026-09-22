@@ -1,15 +1,6 @@
 "use client";
 
-import {
-	ChevronDown,
-	ExternalLink,
-	GitMerge,
-	GitPullRequest,
-	GitPullRequestClosed,
-	GitPullRequestDraft,
-	RefreshCw,
-	X,
-} from "lucide-react";
+import { AgentPullRequestBar } from "@cline/ui";
 import { useEffect, useRef, useState } from "react";
 import {
 	Popover,
@@ -17,37 +8,8 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
-import {
-	getMergeStatus,
-	type MergeStatus,
-	type PullRequestStatus,
-	summarizeChecks,
-} from "@/lib/pull-request";
+import type { PullRequestStatus } from "@/lib/pull-request";
 import { trackPullRequestEvent } from "@/lib/pull-request-telemetry";
-import { cn } from "@/lib/utils";
-
-const checkLabels = {
-	none: "No checks",
-	pending: "CI pending",
-	success: "CI passed",
-	failure: "CI failed",
-	skipped: "CI skipped",
-};
-const checkColors = {
-	none: "bg-muted-foreground",
-	pending: "bg-yellow-500",
-	success: "bg-green-500",
-	failure: "bg-red-500",
-	skipped: "bg-muted-foreground",
-};
-
-const mergeStatusColors: Record<MergeStatus["tone"], string> = {
-	merged: "text-purple-400",
-	failure: "text-red-400",
-	warning: "text-yellow-500",
-	neutral: "text-muted-foreground",
-	success: "text-green-500",
-};
 
 export function PullRequestBar({
 	cwd,
@@ -135,190 +97,38 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 		}
 	}
 
-	const pr = data?.pullRequest;
-	if (!error && !pr && !data?.createUrl) return null;
-	const ci = summarizeChecks(pr?.checks ?? []);
-	const Icon =
-		pr?.state === "MERGED"
-			? GitMerge
-			: pr?.state === "CLOSED"
-				? GitPullRequestClosed
-				: pr?.isDraft
-					? GitPullRequestDraft
-					: GitPullRequest;
-	const mergeStatus = pr ? getMergeStatus(pr) : null;
-	const statusColor = mergeStatusColors[mergeStatus?.tone ?? "neutral"];
-
+	if (!error && !data?.pullRequest && !data?.createUrl) return null;
 	return (
-		<section
-			className="border-b border-border px-4 py-2 text-xs"
-			aria-label="Pull request status"
-		>
-			{error && (
-				<div className="mb-1 flex items-start gap-2 text-muted-foreground">
-					<output className="min-w-0 flex-1">{error}</output>
-					<button
-						type="button"
-						aria-label="Dismiss pull request error"
-						className="shrink-0 rounded p-1 hover:bg-muted"
-						onClick={() => {
-							errorDismissed.current = true;
-							setError(null);
-						}}
-					>
-						<X className="size-3" />
-					</button>
-				</div>
-			)}
-			<div className="flex min-w-0 flex-wrap items-center gap-2">
-				{data && (
-					<>
-						<Icon
-							className={cn("size-4 shrink-0", statusColor)}
-							aria-hidden="true"
-						/>
-						{pr ? (
-							<>
-								<button
-									type="button"
-									onClick={() => {
-										trackPullRequestEvent("open_clicked", data);
-										void open(pr.url);
-									}}
-									title={pr.title}
-									className="shrink-0 font-medium hover:underline"
-									aria-label={`Open pull request #${pr.number}: ${pr.title}`}
-								>
-									#{pr.number}
-								</button>
-								<span className={cn("shrink-0", statusColor)}>
-									{mergeStatus?.label}
-								</span>
-							</>
-						) : (
-							<button
-								type="button"
-								className="shrink-0 font-medium hover:underline"
-								title="Open GitHub’s comparison form for this branch. Push your commits before submitting."
-								onClick={() => {
-									if (data.createUrl) {
-										trackPullRequestEvent("create_clicked", data);
-										void open(data.createUrl);
-									}
-								}}
-							>
-								Create PR <ExternalLink className="inline size-3" />
-							</button>
-						)}
-						<span
-							className="min-w-0 flex-1 truncate text-muted-foreground"
-							title={`${data.repository} · ${data.branch}`}
-						>
-							{data.repository.split("/").pop()}{" "}
-							<span className="ml-1">{data.branch}</span>
-						</span>
-						{pr && (
-							<>
-								<span
-									className="shrink-0 tabular-nums"
-									title={`${pr.additions} additions, ${pr.deletions} deletions`}
-								>
-									<span className="text-green-500">
-										+{pr.additions.toLocaleString()}
-									</span>{" "}
-									<span className="text-red-400">
-										−{pr.deletions.toLocaleString()}
-									</span>
-								</span>
-								<Popover
-									onOpenChange={(isOpen) => {
-										if (isOpen) trackPullRequestEvent("checks_expanded", data);
-									}}
-								>
-									<PopoverTrigger asChild>
-										<button
-											type="button"
-											className="flex shrink-0 items-center gap-1.5 rounded-md bg-muted px-2 py-1"
-											aria-label={
-												ci === "none" ? "No CI checks" : checkLabels[ci]
-											}
-										>
-											<span
-												className={cn("size-2 rounded-full", checkColors[ci])}
-											/>
-											{checkLabels[ci]}
-											<ChevronDown className="size-3" />
-										</button>
-									</PopoverTrigger>
-									<PopoverContent align="end" className="w-80 p-3">
-										<p className="mb-2 text-sm font-medium">
-											Checks for #{pr.number}
-										</p>
-										{!pr.checks.length && (
-											<p className="text-xs text-muted-foreground">
-												No checks reported for this pull request.
-											</p>
-										)}
-										<ul className="max-h-64 space-y-2 overflow-y-auto">
-											{pr.checks.map((check, index) => (
-												<li
-													key={`${check.name}:${index}`}
-													className="flex items-center gap-2 text-xs"
-												>
-													<span
-														className={cn(
-															"size-2 shrink-0 rounded-full",
-															checkColors[check.state],
-														)}
-													/>
-													<span className="min-w-0 flex-1 break-words">
-														{check.url ? (
-															<button
-																type="button"
-																onClick={() => {
-																	if (check.url) {
-																		trackPullRequestEvent(
-																			"check_clicked",
-																			data,
-																		);
-																		void open(check.url);
-																	}
-																}}
-																className="text-left hover:underline"
-															>
-																{check.name}{" "}
-																<ExternalLink className="inline size-3" />
-															</button>
-														) : (
-															check.name
-														)}
-													</span>
-													<span className="text-muted-foreground">
-														{check.state}
-													</span>
-												</li>
-											))}
-										</ul>
-									</PopoverContent>
-								</Popover>
-							</>
-						)}
-					</>
-				)}
-				<button
-					type="button"
-					disabled={loading}
-					onClick={() => {
-						trackPullRequestEvent("refresh_clicked", data);
-						refresh.current();
+		<AgentPullRequestBar
+			data={data}
+			error={error}
+			loading={loading}
+			onDismissError={() => {
+				errorDismissed.current = true;
+				setError(null);
+			}}
+			onRefresh={() => {
+				trackPullRequestEvent("refresh_clicked", data);
+				refresh.current();
+			}}
+			onNavigate={(url, action) => {
+				if (action === "open") trackPullRequestEvent("open_clicked", data);
+				if (action === "create") trackPullRequestEvent("create_clicked", data);
+				if (action === "check") trackPullRequestEvent("check_clicked", data);
+				void open(url);
+			}}
+			renderChecks={(trigger, content) => (
+				<Popover
+					onOpenChange={(isOpen) => {
+						if (isOpen) trackPullRequestEvent("checks_expanded", data);
 					}}
-					aria-label="Refresh pull request status"
-					title="Refresh pull request status"
-					className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-50"
 				>
-					<RefreshCw className={cn("size-3", loading && "animate-spin")} />
-				</button>
-			</div>
-		</section>
+					<PopoverTrigger asChild>{trigger}</PopoverTrigger>
+					<PopoverContent align="end" className="w-80 p-0">
+						{content}
+					</PopoverContent>
+				</Popover>
+			)}
+		/>
 	);
 }

@@ -273,7 +273,20 @@ describe("DiffView hunk rendering", () => {
 		await click(toggle as Element);
 		expect(diffContainers()).toHaveLength(0);
 
-		await click(toggle as Element);
+		// A temporarily missing file retains its disclosure state in the host.
+		await act(async () =>
+			root.render(<DiffView fileDiffs={[]} onClose={vi.fn()} />),
+		);
+		await act(async () =>
+			root.render(
+				<DiffView fileDiffs={[MODIFIED_FILE_DIFF]} onClose={vi.fn()} />,
+			),
+		);
+		expect(diffContainers()).toHaveLength(0);
+		expect(
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
+		).not.toBeNull();
+		await click(container.querySelector("button[aria-expanded]") as Element);
 		expect(diffContainers()).toHaveLength(1);
 	});
 
