@@ -1458,6 +1458,72 @@ describe("ChatInputBar", () => {
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
 
+	it("applies the medium default when a reasoning model has no explicit selection", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline"],
+			providerModels: { cline: ["test-model"] },
+			providerReasoningModels: { cline: ["test-model"] },
+		});
+		const onReasoningChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						environmentId="local"
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={onReasoningChange}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort={undefined}
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={undefined}
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		// A reasoning-capable model with nothing selected must not silently open at
+		// the weakest level; the composer applies the documented default instead.
+		await vi.waitFor(() => {
+			expect(onReasoningChange).toHaveBeenCalledWith({
+				thinking: true,
+				reasoningEffort: "medium",
+			});
+		});
+	});
+
 	it("selects High from the supported model thinking menu", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
@@ -1544,6 +1610,13 @@ describe("ChatInputBar", () => {
 			thinking: true,
 			reasoningEffort: "high",
 		});
+
+		// The pick is remembered so the next thread opens at that level.
+		const stored = parseModelSelectionStorage(
+			window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+		);
+		expect(stored.thinking).toBe(true);
+		expect(stored.reasoningEffort).toBe("high");
 	});
 
 	it.each(["local", "cloud"] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
