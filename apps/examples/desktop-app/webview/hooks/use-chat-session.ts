@@ -622,6 +622,7 @@ export function useChatSession(environmentId: string) {
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const providerIdRef = useRef(config.provider);
+	const providerAuthRef = useRef(config.providerAuth);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
 	const lastStreamIndexBySessionRef = useRef<Record<string, number>>({});
 	const lastStreamBootBySessionRef = useRef<Record<string, string>>({});
@@ -695,7 +696,8 @@ export function useChatSession(environmentId: string) {
 	}, [messages]);
 	useEffect(() => {
 		providerIdRef.current = config.provider;
-	}, [config.provider]);
+		providerAuthRef.current = config.providerAuth;
+	}, [config.provider, config.providerAuth]);
 	useEffect(() => {
 		if (
 			persistedTokensIn === undefined ||
@@ -861,9 +863,9 @@ export function useChatSession(environmentId: string) {
 				return;
 			}
 			setErrorState(
-				`${message} ${resolveCredentialFailureHint(providerId)}`,
+				`${message} ${resolveCredentialFailureHint(providerId, providerAuthRef.current)}`,
 				sid,
-				credentialFailureMeta(providerId),
+				credentialFailureMeta(providerId, providerAuthRef.current),
 			);
 		},
 		[setErrorState],
@@ -898,10 +900,16 @@ export function useChatSession(environmentId: string) {
 			const looksCredentialRelated =
 				!description || isCredentialFailure(description);
 			const providerId = ownedProviderId ?? providerIdRef.current;
-			const content = formatRunError(description, providerId);
+			const content = formatRunError(
+				description,
+				providerId,
+				providerAuthRef.current,
+			);
 			const meta = {
 				providerId,
-				...(looksCredentialRelated ? credentialFailureMeta(providerId) : {}),
+				...(looksCredentialRelated
+					? credentialFailureMeta(providerId, providerAuthRef.current)
+					: {}),
 			};
 			const shown = shownTurnFailureRef.current;
 			if (shown && shown.sid === sid && shown.generation === generation) {

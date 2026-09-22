@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import * as LlmsModels from "@cline/llms";
 import type {
 	AddProviderActionRequest,
@@ -10,6 +12,7 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { MODEL_TOOL_NAMES, resolveProviderLocalCli } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
@@ -41,6 +44,8 @@ import {
 	readModelsFile,
 	registerCustomProvider,
 	resolveModelsRegistryPath,
+	type StoredModelsFile,
+	type StoredProviderEntry,
 	toProviderModel,
 	writeModelsFile,
 } from "./local-provider-registry";
@@ -346,26 +351,36 @@ function normalizeHeaders(
 
 function buildProviderModels(
 	modelIds: string[],
-	capabilities: ProviderCapability[] | undefined,
+	existingModels: StoredProviderEntry["models"] = {},
 ) {
-	const supportsVision = capabilities?.includes("vision") ?? false;
-	const supportsReasoning = capabilities?.includes("reasoning") ?? false;
+	// Provider capabilities are inherited at registration. Persist only model
+	// overrides so refreshing defaults cannot overwrite user customizations.
 	return Object.fromEntries(
 		modelIds.map((id) => [
 			id,
 			{
 				id,
 				name: id,
-				supportsVision,
-				supportsAttachments: supportsVision,
-				supportsReasoning,
+				...existingModels[id],
 			},
 		]),
 	);
 }
 
+class ModelDiscoveryError extends Error {
+	constructor(cause: unknown) {
+		super(cause instanceof Error ? cause.message : "Model discovery failed", {
+			cause,
+		});
+		this.name = "ModelDiscoveryError";
+	}
+}
+
 async function resolveModelIds(params: {
 	providerId: string;
+	baseUrl: string;
+	apiKey?: string;
+	headers?: Record<string, string>;
 	explicitModels?: string[];
 	modelsSourceUrl?: string;
 	fallbackModelIds?: string[];
@@ -374,9 +389,18 @@ async function resolveModelIds(params: {
 	if (!params.shouldRecompute) {
 		return params.fallbackModelIds ?? [];
 	}
-	const fetchedModels = params.modelsSourceUrl
-		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId)
-		: [];
+	let fetchedModels: string[] = [];
+	if (params.modelsSourceUrl) {
+		try {
+			fetchedModels = await fetchModelIdsFromSource(
+				params.modelsSourceUrl,
+				params.providerId,
+				params,
+			);
+		} catch (cause) {
+			throw new ModelDiscoveryError(cause);
+		}
+	}
 	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
 }
 
@@ -402,9 +426,85 @@ function removeProviderFromSettingsState(
 	LlmsModels.unregisterProvider(providerId);
 }
 
+// Provider-service mutations share one queue per file, including across manager
+// instances. Locking by provider would still lose other providers' catalog edits.
+const providerMutations = new Map<string, Promise<void>>();
+
+function withProviderMutation<T>(
+	manager: ProviderSettingsManager,
+	mutation: () => Promise<T>,
+): Promise<T> {
+	const key = resolve(resolveModelsRegistryPath(manager));
+	const previous = providerMutations.get(key) ?? Promise.resolve();
+	const result = previous.then(mutation);
+	const settled = result.then(
+		() => {},
+		() => {},
+	);
+	providerMutations.set(key, settled);
+	void settled.then(() => {
+		if (providerMutations.get(key) === settled) providerMutations.delete(key);
+	});
+	return result;
+}
+
+interface PreparedProviderUpdate {
+	providerId: string;
+	modelsPath: string;
+	modelsState: StoredModelsFile;
+	nextSettings: Record<string, unknown>;
+	modelsCount: number;
+}
+
+async function persistProviderUpdate(
+	manager: ProviderSettingsManager,
+	update: PreparedProviderUpdate,
+): Promise<void> {
+	const { providerId, modelsPath, modelsState, nextSettings } = update;
+	const previousEntry = manager.read().providers[providerId];
+	const saved = manager.saveProviderSettings(nextSettings, {
+		setLastUsed: false,
+	});
+	// Compare the JSON representation actually written to disk. Optional
+	// undefined properties exist in parsed settings but are omitted by JSON.
+	const writtenEntry: unknown = JSON.parse(
+		JSON.stringify(saved.providers[providerId]),
+	);
+	try {
+		await writeModelsFile(modelsPath, modelsState);
+	} catch (error) {
+		try {
+			const state = manager.read();
+			// Direct settings writers (e.g. auth) need not use the catalog queue.
+			// Roll back only our own write, never a newer save or a removal.
+			if (isDeepStrictEqual(state.providers[providerId], writtenEntry)) {
+				if (previousEntry) state.providers[providerId] = previousEntry;
+				else delete state.providers[providerId];
+				manager.write(state);
+			}
+		} catch (rollbackError) {
+			throw new AggregateError(
+				[error, rollbackError],
+				"Provider catalog persistence failed and prior settings could not be restored",
+			);
+		}
+		throw error;
+	}
+	registerCustomProvider(providerId, modelsState.providers[providerId]);
+}
+
 // --- Public API ---
 
-export async function addLocalProvider(
+export function addLocalProvider(
+	manager: ProviderSettingsManager,
+	request: Omit<AddProviderActionRequest, "action">,
+): ReturnType<typeof addLocalProviderUnlocked> {
+	return withProviderMutation(manager, () =>
+		addLocalProviderUnlocked(manager, request),
+	);
+}
+
+async function addLocalProviderUnlocked(
 	manager: ProviderSettingsManager,
 	request: Omit<AddProviderActionRequest, "action">,
 ): Promise<{
@@ -423,7 +523,9 @@ export async function addLocalProvider(
 		const modelsPath = resolveModelsRegistryPath(manager);
 		const modelsState = await readModelsFile(modelsPath);
 		if (modelsState.providers[providerId]) {
-			const deleted = await deleteLocalProvider(manager, { providerId });
+			const deleted = await deleteLocalProviderUnlocked(manager, {
+				providerId,
+			});
 			return {
 				providerId,
 				settingsPath: deleted.settingsPath,
@@ -451,10 +553,14 @@ export async function addLocalProvider(
 
 	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
+	const normalizedHeaders = normalizeHeaders(request.headers);
 	const modelIds = await resolveModelIds({
 		providerId,
 		explicitModels: typedModels,
 		modelsSourceUrl: sourceUrl,
+		baseUrl,
+		apiKey,
+		headers: normalizedHeaders,
 		shouldRecompute: true,
 	});
 	if (modelIds.length === 0) {
@@ -472,7 +578,6 @@ export async function addLocalProvider(
 	const capabilities = request.capabilities?.length
 		? [...new Set(request.capabilities)]
 		: undefined;
-	const normalizedHeaders = normalizeHeaders(request.headers);
 
 	manager.saveProviderSettings(
 		{
@@ -501,7 +606,8 @@ export async function addLocalProvider(
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
-		models: buildProviderModels(modelIds, capabilities),
+		models: buildProviderModels(modelIds),
+		discoveredModelIds: modelIds.filter((id) => !typedModels.includes(id)),
 	};
 	await writeModelsFile(modelsPath, modelsState);
 	registerCustomProvider(providerId, modelsState.providers[providerId]);
@@ -514,7 +620,16 @@ export async function addLocalProvider(
 	};
 }
 
-export async function updateLocalProvider(
+export function updateLocalProvider(
+	manager: ProviderSettingsManager,
+	request: UpdateLocalProviderRequest,
+): ReturnType<typeof updateLocalProviderUnlocked> {
+	return withProviderMutation(manager, () =>
+		updateLocalProviderUnlocked(manager, request),
+	);
+}
+
+async function updateLocalProviderUnlocked(
 	manager: ProviderSettingsManager,
 	request: UpdateLocalProviderRequest,
 ): Promise<{
@@ -523,14 +638,28 @@ export async function updateLocalProvider(
 	modelsPath: string;
 	modelsCount: number;
 }> {
-	const providerId = request.providerId.trim().toLowerCase();
+	const prepared = await prepareProviderUpdate(manager, request);
+	await persistProviderUpdate(manager, prepared);
+	return {
+		providerId: prepared.providerId,
+		settingsPath: manager.getFilePath(),
+		modelsPath: prepared.modelsPath,
+		modelsCount: prepared.modelsCount,
+	};
+}
+
+async function prepareProviderUpdate(
+	manager: ProviderSettingsManager,
+	request: UpdateLocalProviderRequest,
+): Promise<PreparedProviderUpdate> {
+	const providerId = request.providerId.trim();
 	if (!providerId) throw new Error("providerId is required");
 
 	const modelsPath = resolveModelsRegistryPath(manager);
 	const modelsState = await readModelsFile(modelsPath);
+	const existingSettings = manager.getProviderSettings(providerId);
 	let existingEntry = modelsState.providers[providerId];
 	if (!existingEntry) {
-		const existingSettings = manager.getProviderSettings(providerId);
 		const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
 			providerId
 		] as LlmsModels.ModelCollection | undefined;
@@ -567,9 +696,14 @@ export async function updateLocalProvider(
 					existingSettings.capabilities ?? registeredProvider?.capabilities,
 				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
-			models: seedModelId
-				? buildProviderModels([seedModelId], existingSettings.capabilities)
-				: {},
+			models: seedModelId ? buildProviderModels([seedModelId]) : {},
+			// A saved selection is not a manual catalog addition. Let source
+			// discovery replace it when initializing a source-backed catalog.
+			discoveredModelIds:
+				seedModelId &&
+				(requestedSourceUrl || registeredProvider?.modelsSourceUrl)
+					? [seedModelId]
+					: [],
 		};
 	}
 	if (!existingEntry.provider) {
@@ -582,7 +716,9 @@ export async function updateLocalProvider(
 	if (!providerName) throw new Error("name is required");
 
 	const baseUrl =
-		request.baseUrl?.trim() ?? existingEntry.provider.baseUrl.trim();
+		request.baseUrl?.trim() ??
+		existingSettings?.baseUrl?.trim() ??
+		existingEntry.provider.baseUrl.trim();
 	if (!baseUrl) throw new Error("baseUrl is required");
 
 	const capabilities =
@@ -600,14 +736,36 @@ export async function updateLocalProvider(
 			? existingEntry.provider.client
 			: (request.client ?? undefined);
 
-	const explicitModels = uniqueTrimmed(request.models);
+	const apiKey =
+		request.apiKey === undefined
+			? existingSettings?.apiKey
+			: request.apiKey?.trim() || undefined;
+	const headers =
+		request.headers === undefined
+			? existingSettings?.headers
+			: normalizeHeaders(request.headers);
+	const previousDiscoveredIds = new Set(existingEntry.discoveredModelIds);
+	const explicitModels =
+		request.models === undefined
+			? Object.keys(existingEntry.models ?? {}).filter(
+					(id) => !previousDiscoveredIds.has(id),
+				)
+			: uniqueTrimmed(request.models);
 	const nextModelsSourceUrl =
 		request.modelsSourceUrl === undefined
-			? existingEntry.provider.modelsSourceUrl
+			? resolveModelsSourceUrl(
+					baseUrl,
+					existingEntry.provider.baseUrl,
+					existingEntry.provider.modelsSourceUrl,
+				)
 			: request.modelsSourceUrl?.trim() || undefined;
 	const shouldRecomputeModels =
 		request.models !== undefined ||
-		(request.modelsSourceUrl !== undefined && !!nextModelsSourceUrl);
+		(!!nextModelsSourceUrl &&
+			(request.modelsSourceUrl !== undefined ||
+				request.apiKey !== undefined ||
+				request.headers !== undefined ||
+				request.baseUrl !== undefined));
 	const existingModelIds = Object.keys(existingEntry.models ?? {})
 		.map((id) => id.trim())
 		.filter(Boolean);
@@ -615,6 +773,9 @@ export async function updateLocalProvider(
 		providerId,
 		explicitModels,
 		modelsSourceUrl: nextModelsSourceUrl,
+		baseUrl,
+		apiKey,
+		headers,
 		fallbackModelIds: existingModelIds,
 		shouldRecompute: shouldRecomputeModels,
 	});
@@ -633,7 +794,6 @@ export async function updateLocalProvider(
 			? defaultModelCandidate
 			: modelIds[0];
 
-	const existingSettings = manager.getProviderSettings(providerId);
 	const nextSettings: Record<string, unknown> = {
 		...(existingSettings ?? {}),
 		provider: providerId,
@@ -645,13 +805,11 @@ export async function updateLocalProvider(
 	if (client) nextSettings.client = client;
 	else delete nextSettings.client;
 	if (request.apiKey !== undefined) {
-		const apiKey = request.apiKey?.trim() ?? "";
 		if (apiKey) nextSettings.apiKey = apiKey;
 		else delete nextSettings.apiKey;
 	}
 	if (request.headers !== undefined) {
-		const normalizedHeaders = normalizeHeaders(request.headers);
-		if (normalizedHeaders) nextSettings.headers = normalizedHeaders;
+		if (headers) nextSettings.headers = headers;
 		else delete nextSettings.headers;
 	}
 	if (request.timeoutMs !== undefined) {
@@ -661,8 +819,6 @@ export async function updateLocalProvider(
 			delete nextSettings.timeout;
 		}
 	}
-
-	manager.saveProviderSettings(nextSettings, { setLastUsed: false });
 
 	modelsState.providers[providerId] = {
 		provider: {
@@ -674,20 +830,32 @@ export async function updateLocalProvider(
 			capabilities,
 			modelsSourceUrl: nextModelsSourceUrl,
 		},
-		models: buildProviderModels(modelIds, capabilities),
+		models: buildProviderModels(modelIds, existingEntry.models),
+		discoveredModelIds: nextModelsSourceUrl
+			? shouldRecomputeModels
+				? modelIds.filter((id) => !explicitModels.includes(id))
+				: existingEntry.discoveredModelIds
+			: undefined,
 	};
-	await writeModelsFile(modelsPath, modelsState);
-	registerCustomProvider(providerId, modelsState.providers[providerId]);
-
 	return {
 		providerId,
-		settingsPath: manager.getFilePath(),
 		modelsPath,
+		modelsState,
+		nextSettings,
 		modelsCount: modelIds.length,
 	};
 }
 
-export async function deleteLocalProvider(
+export function deleteLocalProvider(
+	manager: ProviderSettingsManager,
+	request: DeleteLocalProviderRequest,
+): ReturnType<typeof deleteLocalProviderUnlocked> {
+	return withProviderMutation(manager, () =>
+		deleteLocalProviderUnlocked(manager, request),
+	);
+}
+
+async function deleteLocalProviderUnlocked(
 	manager: ProviderSettingsManager,
 	request: DeleteLocalProviderRequest,
 ): Promise<{
@@ -818,6 +986,14 @@ export async function listLocalProviders(
 						protocol: persistedSettings?.protocol ?? info?.protocol,
 						client: persistedSettings?.client ?? info?.client,
 						capabilities,
+						modelTools: MODEL_TOOL_NAMES.filter((tool) =>
+							LlmsModels.providerOffersModelTool(id, tool),
+						),
+						auth: {
+							providerId: id,
+							capabilities,
+							localCli: resolveProviderLocalCli(info),
+						},
 						authDescription: "This provider uses API keys for authentication.",
 						baseUrlDescription:
 							"The base endpoint to use for provider requests.",
@@ -1055,7 +1231,16 @@ function applySettingsObjectPatch(
 export function saveLocalProviderSettings(
 	manager: ProviderSettingsManager,
 	request: Omit<SaveProviderSettingsActionRequest, "action">,
-): { providerId: string; enabled: boolean; settingsPath: string } {
+): ReturnType<typeof saveLocalProviderSettingsUnlocked> {
+	return withProviderMutation(manager, () =>
+		saveLocalProviderSettingsUnlocked(manager, request),
+	);
+}
+
+async function saveLocalProviderSettingsUnlocked(
+	manager: ProviderSettingsManager,
+	request: Omit<SaveProviderSettingsActionRequest, "action">,
+): Promise<{ providerId: string; enabled: boolean; settingsPath: string }> {
 	const providerId = request.providerId.trim();
 
 	if (request.enabled === false) {
@@ -1116,11 +1301,65 @@ export function saveLocalProviderSettings(
 		}
 	}
 
+	// Credential forms use this path rather than updateLocalProvider. Refresh
+	// source-backed catalogs best-effort: an offline endpoint or invalid key
+	// must not prevent users from saving settings.
+	if (
+		request.apiKey !== undefined ||
+		request.headers !== undefined ||
+		request.baseUrl !== undefined
+	) {
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		const entry = modelsState.providers[providerId];
+		if (entry?.provider?.modelsSourceUrl) {
+			let prepared: PreparedProviderUpdate | undefined;
+			try {
+				prepared = await prepareProviderUpdate(manager, {
+					providerId,
+					baseUrl:
+						typeof next.baseUrl === "string"
+							? next.baseUrl
+							: entry.provider.baseUrl,
+					apiKey: typeof next.apiKey === "string" ? next.apiKey : null,
+					headers: (next.headers as Record<string, string> | undefined) ?? null,
+					defaultModelId:
+						typeof next.model === "string" ? next.model : undefined,
+					protocol: request.protocol,
+					client: request.client,
+					capabilities: request.capabilities,
+				});
+			} catch (error) {
+				if (!(error instanceof ModelDiscoveryError)) throw error;
+				// Discovery is optional; persistence and validation are not.
+			}
+			if (prepared) {
+				prepared.nextSettings = { ...next, model: prepared.nextSettings.model };
+				await persistProviderUpdate(manager, prepared);
+				return {
+					providerId,
+					enabled: true,
+					settingsPath: manager.getFilePath(),
+				};
+			}
+		}
+	}
+
 	manager.saveProviderSettings(next, { setLastUsed: false });
 	return { providerId, enabled: true, settingsPath: manager.getFilePath() };
 }
 
-export async function refreshProviderModelsFromSource(
+export function refreshProviderModelsFromSource(
+	manager: ProviderSettingsManager,
+	providerId: string,
+): ReturnType<typeof refreshProviderModelsFromSourceUnlocked> {
+	return withProviderMutation(manager, () =>
+		refreshProviderModelsFromSourceUnlocked(manager, providerId),
+	);
+}
+
+async function refreshProviderModelsFromSourceUnlocked(
 	manager: ProviderSettingsManager,
 	providerId: string,
 ): Promise<{ providerId: string; refreshed: boolean; modelsCount?: number }> {
@@ -1140,7 +1379,7 @@ export async function refreshProviderModelsFromSource(
 		return { providerId: id, refreshed: false };
 	}
 
-	const result = await updateLocalProvider(manager, {
+	const result = await updateLocalProviderUnlocked(manager, {
 		providerId: id,
 		name: provider.name,
 		baseUrl,

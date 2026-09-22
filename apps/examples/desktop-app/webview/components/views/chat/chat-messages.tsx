@@ -159,7 +159,13 @@ function ChatMessagesImpl({
 			formatRunError(
 				lastErrorMessage.content,
 				lastErrorMessage.meta?.providerId,
-			) !== formatRunError(error ?? "", lastErrorMessage.meta?.providerId));
+				lastErrorMessage.meta?.providerAuth,
+			) !==
+				formatRunError(
+					error ?? "",
+					lastErrorMessage.meta?.providerId,
+					lastErrorMessage.meta?.providerAuth,
+				));
 	const lastToolInProgress = useMemo(
 		() =>
 			lastConversationMessage?.role === "tool" &&

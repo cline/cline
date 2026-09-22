@@ -66,6 +66,16 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
+### Provider authentication metadata for host UIs
+
+`@cline/shared` (including its browser entry point) exports `ProviderAuthInfo`,
+`ProviderLocalCli`, and `resolveProviderLocalCli(provider)`. The resolver accepts
+provider data (`metadata.localCliCommand` and optional `docsUrl`); it performs no
+registry lookup. Hosts resolve providers through `@cline/llms` and then pass that
+data to the shared helper. `listLocalProviders` includes the resulting facts in
+each `ProviderListItem.auth`, allowing browser clients to render authentication
+guidance without importing the LLM catalog. `ProviderListItem.modelTools` likewise
+carries provider-level native tool availability for settings indicators.
 
 ## Concurrent subagent tool calls
 
@@ -95,3 +105,32 @@ Configured agents do not expose a tool approval policy setting. The parent’s
 executes its available tools without inheriting that policy or approval callback.
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
+
+## Saving provider credentials
+
+`saveLocalProviderSettings` is asynchronous; callers must await it before
+reloading provider catalogs or continuing onboarding. When a saved
+provider has a `modelsSourceUrl`, credential, header, and base URL updates refresh
+its model list before saving the new settings. `updateLocalProvider` follows the
+same rule even when the request omits `models` and `modelsSourceUrl`. Endpoint
+changes relocate same-origin model sources; separate catalog origins remain
+unchanged. Model refresh in `saveLocalProviderSettings` is best-effort: if it
+fails during discovery, the new settings are still saved and the last known
+catalog is retained. Settings and catalog persistence errors still reject the save.
+Provider-service mutations are serialized per catalog file within the process,
+including across manager instances and different providers. Discovery prepares
+the update before the complete settings patch is persisted once. If the catalog
+write fails, the prior provider settings are restored only while the failed
+operation still owns the current settings entry; newer saves and removals are
+preserved. A rollback failure is reported alongside the original error.
+Explicit `updateLocalProvider` calls still reject failed model fetches and retain
+the prior settings and catalog.
+
+Catalog refreshes replace discovery-owned model IDs while retaining manually
+added models, their default selection, and overrides on retained model entries.
+`models.json` records discovery-only IDs in `discoveredModelIds`; IDs also supplied
+explicitly are user-managed. An explicit `models` update replaces the manual list.
+An existing model selection in provider settings does not count as a manual
+addition when initializing a source-backed catalog.
+Provider capabilities are inherited when registering models, so stored per-model
+capability overrides continue to take precedence after refreshes.

@@ -5775,6 +5775,11 @@ describe("useChatSession", () => {
 			current.setConfig((previous) => ({
 				...previous,
 				provider: "claude-code",
+				providerAuth: {
+					providerId: "claude-code",
+					capabilities: ["local-auth"],
+					localCli: { command: "claude" },
+				},
 				model: "sonnet",
 			}));
 		});
@@ -5805,6 +5810,10 @@ describe("useChatSession", () => {
 			"Sign in again with the `claude` CLI",
 		);
 		expect(errorMessage?.content).not.toContain("Settings → API Providers");
+		expect(errorMessage?.meta?.providerAuth).toMatchObject({
+			providerId: "claude-code",
+			localCli: { command: "claude" },
+		});
 	});
 
 	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
