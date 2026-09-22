@@ -1,5 +1,12 @@
 # Cline Desktop Changelog
 
+## 0.0.34
+
+- Composio connectors now load all their tools, not just the first 20. Google Calendar, for example, showed only 20 of its 47 tools, and the Installed view wrongly said "20/20." The full list is now fetched and the tool cache refreshes instead of staying stale forever
+- You can now connect to a Mac as an SSH remote from a Mac. Picking a Mac host used to fail with "Remote target darwin/arm64 is unsupported in SSH" even though **Test** passed on the same profile. The app now uses its own signed backend as the helper on both Apple Silicon and Intel Mac hosts. Windows and Linux desktops still can't connect to a Mac out of the box
+- Session errors now stay in the transcript when you leave a session or open it in another client. Before, a failed run's error disappeared once you went away and came back, or opened the session in the CLI. Failures after all retries run out are now recorded too, and these error-only entries are left out of compaction
+- Stopping a run while it waits to retry an empty model response now takes effect right away, instead of after the backoff finishes
+
 ## 0.0.33
 
 - Start a task in its own git worktree. The welcome screen's “Work in” switch (next to the folder and branch chips) now offers Local or Worktree; pick Worktree and the first prompt of a new thread cuts a fresh `cline/<id>` branch off the current one, creates a worktree under `~/.cline/worktrees/`, and runs the task there, so the agent never touches your working tree. The conversation chip shows `<repo> / cline/<id>` with the full path in its tooltip. Deleting the task removes its worktree and branch (discarding uncommitted changes in it), unless another session still lives there. Only new threads are affected — follow-ups and reopened sessions stay where they are
