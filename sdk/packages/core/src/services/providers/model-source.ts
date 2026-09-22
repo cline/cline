@@ -66,7 +66,15 @@ export async function fetchModelIdsFromSource(
 	// A model source may be a third-party public catalog. Only send provider
 	// credentials to its own origin, and do not follow authenticated redirects.
 	const headers = new Headers();
-	if (auth.baseUrl && new URL(url).origin === new URL(auth.baseUrl).origin) {
+	let sameOrigin = false;
+	try {
+		sameOrigin =
+			!!auth.baseUrl && new URL(url).origin === new URL(auth.baseUrl).origin;
+	} catch {
+		// An invalid API endpoint cannot establish trust, but should not prevent
+		// an independent public catalog from loading without credentials.
+	}
+	if (sameOrigin) {
 		if (auth.apiKey?.trim()) {
 			headers.set("Authorization", `Bearer ${auth.apiKey.trim()}`);
 		}

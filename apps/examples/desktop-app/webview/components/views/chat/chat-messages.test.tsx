@@ -2288,14 +2288,24 @@ describe("ChatMessages credential failures", () => {
 		expect(onFixCredentials).toHaveBeenCalledWith("account");
 	});
 
-	it("points other providers at model settings and skips local-auth providers", async () => {
+	it("points known API providers at settings and skips local or unknown auth", async () => {
 		const onFixCredentials = vi.fn();
 		await renderMessages(
 			[
 				{
 					...failure,
 					id: "error-anthropic",
-					meta: { reason: "credentials", providerId: "anthropic" },
+					meta: {
+						reason: "credentials",
+						providerId: "anthropic",
+						providerAuth: { providerId: "anthropic" },
+					},
+				},
+				{
+					...failure,
+					id: "error-restored-claude-code",
+					createdAt: 4,
+					meta: { reason: "credentials", providerId: "claude-code" },
 				},
 				{
 					...failure,

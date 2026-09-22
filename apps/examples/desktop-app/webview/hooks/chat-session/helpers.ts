@@ -198,6 +198,16 @@ export function mapCloudRuntimeStatus(
 	}
 }
 
+function matchingProviderAuth(
+	providerId: string,
+	auth: ProviderAuthInfo | undefined,
+): ProviderAuthInfo | undefined {
+	return auth &&
+		normalizeProviderId(auth.providerId) === normalizeProviderId(providerId)
+		? auth
+		: undefined;
+}
+
 export function resolveCredentialError(
 	config: ChatSessionConfig,
 	options?: { hasActiveSession?: boolean },
@@ -231,10 +241,11 @@ export function resolveCredentialError(
 	}
 	// OAuth and local-auth providers (Claude Code, Codex CLI) keep their
 	// credentials outside the webview config and never read an API key.
-	const capabilities =
-		config.providerAuth?.providerId === config.provider
-			? config.providerAuth.capabilities
-			: undefined;
+	const auth = matchingProviderAuth(config.provider, config.providerAuth);
+	// Missing or stale catalog facts mean auth is unknown. Let the host
+	// validate credentials instead of assuming this provider uses an API key.
+	if (!auth) return null;
+	const capabilities = auth.capabilities;
 	if (capabilities?.includes("oauth") || capabilities?.includes("local-auth")) {
 		return null;
 	}
@@ -255,12 +266,16 @@ export function resolveCredentialFailureHint(
 	providerId: string,
 	auth?: ProviderAuthInfo,
 ): string {
-	const cli = auth?.providerId === providerId ? auth.localCli : undefined;
+	const providerAuth = matchingProviderAuth(providerId, auth);
+	const cli = providerAuth?.localCli;
 	if (cli) {
 		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
 	}
 	if (normalizeProviderId(providerId) === "cline") {
 		return "Sign in to Cline again in Settings → Account, then try again.";
+	}
+	if (!providerAuth) {
+		return "Sign in again using your provider's authentication method, then try again.";
 	}
 	return "Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
 }
@@ -288,12 +303,14 @@ export function resolveCredentialFailureAction(
 	providerId: string,
 	auth?: ProviderAuthInfo,
 ): { label: string; target: "account" | "models" } | null {
-	if (auth?.providerId === providerId && auth.localCli) {
+	if (normalizeProviderId(providerId) === "cline") {
+		return { label: "Sign in to Cline", target: "account" };
+	}
+	const providerAuth = matchingProviderAuth(providerId, auth);
+	if (!providerAuth || providerAuth.localCli) {
 		return null;
 	}
-	return normalizeProviderId(providerId) === "cline"
-		? { label: "Sign in to Cline", target: "account" }
-		: { label: "Open API providers", target: "models" };
+	return { label: "Open API providers", target: "models" };
 }
 
 /** Message meta that makes the chat render the credential fix action. */

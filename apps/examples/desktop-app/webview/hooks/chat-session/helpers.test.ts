@@ -62,6 +62,7 @@ function makeConfig(overrides: Partial<ChatSessionConfig>): ChatSessionConfig {
 		mode: "act",
 		apiKey: "",
 		enableTools: true,
+		providerAuth: { providerId: "anthropic", capabilities: [] },
 		...overrides,
 	};
 }
@@ -73,7 +74,7 @@ describe("resolveCredentialError", () => {
 		);
 	});
 
-	it("ignores stale authentication facts after switching providers", () => {
+	it("defers authentication to the host when facts belong to a different provider", () => {
 		expect(
 			resolveCredentialError(
 				makeConfig({
@@ -84,7 +85,18 @@ describe("resolveCredentialError", () => {
 					},
 				}),
 			),
-		).toMatch(/Missing API key/);
+		).toBeNull();
+	});
+
+	it.each([
+		"claude-code",
+		"custom-oauth",
+		"custom-local",
+		"anthropic",
+	])("defers authentication to the host when %s has no catalog facts", (provider) => {
+		expect(
+			resolveCredentialError(makeConfig({ provider, providerAuth: undefined })),
+		).toBeNull();
 	});
 
 	it("blocks API-key providers without a key", () => {
@@ -177,12 +189,22 @@ describe("resolveCredentialFailureHint", () => {
 		);
 	});
 
-	it("points everything else at Settings → API Providers", () => {
-		for (const providerId of ["anthropic", "openai-codex", ""]) {
-			expect(resolveCredentialFailureHint(providerId)).toMatch(
+	it("points known non-CLI providers at Settings → API Providers", () => {
+		for (const providerId of ["anthropic", "openai-codex"]) {
+			expect(resolveCredentialFailureHint(providerId, { providerId })).toMatch(
 				/Settings → API Providers/,
 			);
 		}
+	});
+
+	it.each([
+		undefined,
+		{ providerId: "unrelated", localCli: { command: "other" } },
+	])("does not invent a credential fix when catalog facts are missing or stale", (auth) => {
+		expect(resolveCredentialFailureHint("claude-code", auth)).toBe(
+			"Sign in again using your provider's authentication method, then try again.",
+		);
+		expect(resolveCredentialFailureAction("claude-code", auth)).toBeNull();
 	});
 });
 
@@ -193,7 +215,7 @@ describe("resolveCredentialFailureAction", () => {
 				providerId: "custom-cli",
 				localCli: { command: "custom" },
 			}),
-		).toEqual({ label: "Open API providers", target: "models" });
+		).toBeNull();
 	});
 	it("handles custom CLI providers from host metadata", () => {
 		expect(
@@ -217,7 +239,9 @@ describe("resolveCredentialFailureAction", () => {
 			label: "Sign in to Cline",
 			target: "account",
 		});
-		expect(resolveCredentialFailureAction("anthropic")).toEqual({
+		expect(
+			resolveCredentialFailureAction("anthropic", { providerId: "anthropic" }),
+		).toEqual({
 			label: "Open API providers",
 			target: "models",
 		});

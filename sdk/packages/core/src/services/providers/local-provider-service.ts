@@ -45,6 +45,7 @@ import {
 	registerCustomProvider,
 	resolveModelsRegistryPath,
 	type StoredModelsFile,
+	type StoredProviderEntry,
 	toProviderModel,
 	writeModelsFile,
 } from "./local-provider-registry";
@@ -350,19 +351,17 @@ function normalizeHeaders(
 
 function buildProviderModels(
 	modelIds: string[],
-	capabilities: ProviderCapability[] | undefined,
+	existingModels: StoredProviderEntry["models"] = {},
 ) {
-	const supportsVision = capabilities?.includes("vision") ?? false;
-	const supportsReasoning = capabilities?.includes("reasoning") ?? false;
+	// Provider capabilities are inherited at registration. Persist only model
+	// overrides so refreshing defaults cannot overwrite user customizations.
 	return Object.fromEntries(
 		modelIds.map((id) => [
 			id,
 			{
 				id,
 				name: id,
-				supportsVision,
-				supportsAttachments: supportsVision,
-				supportsReasoning,
+				...existingModels[id],
 			},
 		]),
 	);
@@ -607,7 +606,8 @@ async function addLocalProviderUnlocked(
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
-		models: buildProviderModels(modelIds, capabilities),
+		models: buildProviderModels(modelIds),
+		discoveredModelIds: modelIds.filter((id) => !typedModels.includes(id)),
 	};
 	await writeModelsFile(modelsPath, modelsState);
 	registerCustomProvider(providerId, modelsState.providers[providerId]);
@@ -652,7 +652,7 @@ async function prepareProviderUpdate(
 	manager: ProviderSettingsManager,
 	request: UpdateLocalProviderRequest,
 ): Promise<PreparedProviderUpdate> {
-	const providerId = request.providerId.trim().toLowerCase();
+	const providerId = request.providerId.trim();
 	if (!providerId) throw new Error("providerId is required");
 
 	const modelsPath = resolveModelsRegistryPath(manager);
@@ -696,9 +696,7 @@ async function prepareProviderUpdate(
 					existingSettings.capabilities ?? registeredProvider?.capabilities,
 				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
-			models: seedModelId
-				? buildProviderModels([seedModelId], existingSettings.capabilities)
-				: {},
+			models: seedModelId ? buildProviderModels([seedModelId]) : {},
 		};
 	}
 	if (!existingEntry.provider) {
@@ -739,7 +737,13 @@ async function prepareProviderUpdate(
 		request.headers === undefined
 			? existingSettings?.headers
 			: normalizeHeaders(request.headers);
-	const explicitModels = uniqueTrimmed(request.models);
+	const previousDiscoveredIds = new Set(existingEntry.discoveredModelIds);
+	const explicitModels =
+		request.models === undefined
+			? Object.keys(existingEntry.models ?? {}).filter(
+					(id) => !previousDiscoveredIds.has(id),
+				)
+			: uniqueTrimmed(request.models);
 	const nextModelsSourceUrl =
 		request.modelsSourceUrl === undefined
 			? resolveModelsSourceUrl(
@@ -819,7 +823,12 @@ async function prepareProviderUpdate(
 			capabilities,
 			modelsSourceUrl: nextModelsSourceUrl,
 		},
-		models: buildProviderModels(modelIds, capabilities),
+		models: buildProviderModels(modelIds, existingEntry.models),
+		discoveredModelIds: nextModelsSourceUrl
+			? shouldRecomputeModels
+				? modelIds.filter((id) => !explicitModels.includes(id))
+				: existingEntry.discoveredModelIds
+			: undefined,
 	};
 	return {
 		providerId,
@@ -1225,7 +1234,7 @@ async function saveLocalProviderSettingsUnlocked(
 	manager: ProviderSettingsManager,
 	request: Omit<SaveProviderSettingsActionRequest, "action">,
 ): Promise<{ providerId: string; enabled: boolean; settingsPath: string }> {
-	const providerId = request.providerId.trim().toLowerCase();
+	const providerId = request.providerId.trim();
 
 	if (request.enabled === false) {
 		const state = manager.read();

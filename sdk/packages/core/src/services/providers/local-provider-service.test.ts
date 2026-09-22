@@ -574,6 +574,78 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		await expectCatalog("second.example:null:new-tenant");
 	});
 
+	it.each([
+		"update",
+		"settings",
+		"refresh",
+	] as const)("preserves manual models, the default, and model overrides through %s discovery", async (operation) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json(["shared", "old-tenant", "manual-and-discovered"]),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const providerId = "customized-source";
+		await addLocalProvider(manager, {
+			providerId,
+			name: "Customized Source",
+			baseUrl: "https://provider.example/v1",
+			modelsSourceUrl: "https://provider.example/v1/models",
+			models: ["manual", "manual-and-discovered"],
+			defaultModelId: "manual",
+			capabilities: ["vision", "reasoning"],
+		});
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const state = await readModelsFile(modelsPath);
+		const overrides = {
+			name: "Customized model",
+			contextWindow: 32000,
+			maxTokens: 2048,
+			inputPrice: 0.5,
+			supportsVision: false,
+			supportsReasoning: false,
+		};
+		state.providers[providerId].models = {
+			...state.providers[providerId].models,
+			shared: overrides,
+			"file-added": { contextWindow: 64000 },
+		};
+		await LocalProviderRegistry.writeModelsFile(modelsPath, state);
+		fetchMock.mockImplementation(async () =>
+			Response.json(["shared", "new-tenant"]),
+		);
+		if (operation === "settings") {
+			await saveLocalProviderSettings(manager, {
+				providerId,
+				apiKey: "new-key",
+			});
+		} else if (operation === "update") {
+			await updateLocalProvider(manager, { providerId, apiKey: "new-key" });
+		} else {
+			await refreshProviderModelsFromSource(manager, providerId);
+		}
+		const refreshed = (await readModelsFile(modelsPath)).providers[providerId];
+		expect(Object.keys(refreshed.models ?? {}).sort()).toEqual([
+			"file-added",
+			"manual",
+			"manual-and-discovered",
+			"new-tenant",
+			"shared",
+		]);
+		expect(refreshed.models?.shared).toMatchObject(overrides);
+		expect(refreshed.models?.["file-added"]).toMatchObject({
+			contextWindow: 64000,
+		});
+		expect(refreshed.provider?.defaultModelId).toBe("manual");
+		expect(manager.getProviderSettings(providerId)?.model).toBe("manual");
+		expect(refreshed.discoveredModelIds).toEqual(["shared", "new-tenant"]);
+		const models = await LlmsModels.getModelsForProvider(providerId);
+		expect(Object.keys(models).sort()).toEqual(
+			Object.keys(refreshed.models ?? {}).sort(),
+		);
+		expect(models.shared.contextWindow).toBe(32000);
+		expect(models.shared.capabilities ?? []).not.toContain("images");
+		expect(models.shared.capabilities ?? []).not.toContain("reasoning");
+	});
+
 	it("saves credentials and endpoints while model discovery is offline", async () => {
 		const fetchMock = vi
 			.fn()
@@ -2018,6 +2090,27 @@ describe("saveLocalProviderSettings", () => {
 
 	afterEach(() => cleanup());
 
+	it("saves and disables the canonical mixed-case built-in provider ID", async () => {
+		const providerId = "nousResearch";
+		expect(await LlmsModels.getProvider(providerId)).toBeDefined();
+		const result = await saveLocalProviderSettings(manager, {
+			providerId: ` ${providerId} `,
+			apiKey: "test-key",
+		});
+		expect(result.providerId).toBe(providerId);
+		expect(manager.getProviderSettings(providerId)?.apiKey).toBe("test-key");
+		expect(manager.read().providers.nousresearch).toBeUndefined();
+		manager.saveProviderSettings(
+			{ provider: providerId, model: "test-model" },
+			{ setLastUsed: true },
+		);
+		manager.setVoiceInputSettings({ providerId, modelId: "test-model" });
+		await saveLocalProviderSettings(manager, { providerId, enabled: false });
+		expect(manager.getProviderSettings(providerId)).toBeUndefined();
+		expect(manager.read().lastUsedProvider).toBeUndefined();
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
 	it("disabling a provider removes it from settings", async () => {
 		manager.setVoiceInputSettings({
 			providerId: "test-provider",
@@ -2184,6 +2277,23 @@ describe("updateLocalProvider", () => {
 		expect(
 			models.find((model) => model.id === "model-c")?.supportsReasoning,
 		).toBe(true);
+	});
+
+	it("inherits changed provider capabilities while preserving model overrides", async () => {
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const state = await readModelsFile(modelsPath);
+		state.providers["editable-provider"].models = {
+			...state.providers["editable-provider"].models,
+			"model-a": { supportsVision: false },
+		};
+		await LocalProviderRegistry.writeModelsFile(modelsPath, state);
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			capabilities: ["vision"],
+		});
+		const models = await LlmsModels.getModelsForProvider("editable-provider");
+		expect(models["model-a"].capabilities).not.toContain("images");
+		expect(models["model-b"].capabilities).toContain("images");
 	});
 
 	it("updates provider settings and can clear optional fields", async () => {

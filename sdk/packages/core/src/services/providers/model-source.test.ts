@@ -3,6 +3,28 @@ import { fetchModelIdsFromSource } from "./model-source";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it.each([
+	undefined,
+	"catalog.example/v1",
+	"localhost:1234",
+	"/v1",
+	"https://",
+])("fetches public catalogs without credentials when the base URL is %s", async (baseUrl) => {
+	const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+		Response.json(["public-model"]),
+	);
+	vi.stubGlobal("fetch", fetchMock);
+	await expect(
+		fetchModelIdsFromSource("https://catalog.example/models", "custom", {
+			baseUrl,
+			apiKey: "secret",
+			headers: { "X-Secret": "secret" },
+		}),
+	).resolves.toEqual(["public-model"]);
+	expect(fetchMock).toHaveBeenCalledOnce();
+	expect([...new Headers(fetchMock.mock.calls[0][1].headers)]).toEqual([]);
+});
+
 it("honors explicit authorization headers without duplicating bearer auth", async () => {
 	const fetchMock = vi.fn(
 		async (_url: string, _init: RequestInit) => new Response('["agent_test"]'),
