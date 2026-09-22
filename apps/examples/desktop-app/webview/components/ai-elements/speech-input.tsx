@@ -89,7 +89,7 @@ export type SpeechInputProps = Omit<
 		source: SpeechTranscriptionSource,
 	) => void;
 	onAudioRecorded?: (audioBlob: Blob) => Promise<string>;
-	onStartStreaming?: () => Promise<StreamingSpeechSession>;
+	onStartStreaming?: (language: string) => Promise<StreamingSpeechSession>;
 	onStreamingStart?: () => void;
 	onStreamingEnd?: () => void;
 	onActiveChange?: (active: boolean) => void;
@@ -262,7 +262,7 @@ export function SpeechInput({
 		setIsProcessing(true);
 		try {
 			onStreamingStartRef.current?.();
-			const session = await onStartStreamingRef.current();
+			const session = await onStartStreamingRef.current(lang);
 			if (!mountedRef.current || operationId !== operationIdRef.current) {
 				session.cancel();
 				return;
@@ -300,7 +300,7 @@ export function SpeechInput({
 			onStreamingEndRef.current?.();
 			onErrorRef.current?.(error);
 		}
-	}, []);
+	}, [lang]);
 
 	const startMediaRecorder = useCallback(async () => {
 		if (!onAudioRecordedRef.current) return;

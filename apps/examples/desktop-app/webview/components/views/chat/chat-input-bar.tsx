@@ -812,16 +812,20 @@ function ChatInputBarImpl({
 		streamingTranscriptRangeRef.current = null;
 	}, []);
 
-	const handleStartStreamingTranscription = useCallback(() => {
-		const generation = transcriptionGenerationRef.current;
-		return startStreamingTranscription({
-			onTranscript: (transcript) => {
-				if (generation === transcriptionGenerationRef.current) {
-					handleStreamingTranscriptionChange(transcript);
-				}
-			},
-		});
-	}, [handleStreamingTranscriptionChange]);
+	const handleStartStreamingTranscription = useCallback(
+		(language: string) => {
+			const generation = transcriptionGenerationRef.current;
+			return startStreamingTranscription({
+				language,
+				onTranscript: (transcript) => {
+					if (generation === transcriptionGenerationRef.current) {
+						handleStreamingTranscriptionChange(transcript);
+					}
+				},
+			});
+		},
+		[handleStreamingTranscriptionChange],
+	);
 
 	const handleAudioRecorded = useCallback(
 		async (audioBlob: Blob): Promise<string> => {

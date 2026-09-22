@@ -172,7 +172,11 @@ describe("streaming transcription", () => {
 		await expect(session.done).resolves.toBeUndefined();
 		expect(stopTrack).toHaveBeenCalled();
 	});
-	it("shows ElevenLabs partials before Stop and waits for the committed transcript", async () => {
+	it.each([
+		["en-US", "en"],
+		["fr-CA", "fr"],
+		[undefined, null],
+	])("passes language %s to ElevenLabs and waits for the committed transcript after Stop", async (language, expectedLanguage) => {
 		invokeMock.mockResolvedValue({
 			transport: "elevenlabs",
 			sampleRate: 24_000,
@@ -180,12 +184,15 @@ describe("streaming transcription", () => {
 			url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime",
 		});
 		const onTranscript = vi.fn();
-		const starting = startStreamingTranscription({ onTranscript });
+		const starting = startStreamingTranscription({ onTranscript, language });
 		const socket = await vi.waitFor(() => {
 			expect(FakeWebSocket.instances).toHaveLength(1);
 			return FakeWebSocket.instances[0] as FakeWebSocket;
 		});
 		expect(new URL(socket.url).searchParams.get("token")).toBe("single-use");
+		expect(new URL(socket.url).searchParams.get("language_code")).toBe(
+			expectedLanguage,
+		);
 		expect(socket.protocols).toEqual([]);
 		socket.open();
 		const session = await starting;
@@ -217,6 +224,62 @@ describe("streaming transcription", () => {
 		await session.done;
 		expect(onTranscript).toHaveBeenLastCalledWith("Hello there.");
 		expect(socket.close).toHaveBeenCalled();
+	});
+
+	it.each([
+		"Last sentence.",
+		"",
+	])("keeps recording across ElevenLabs automatic commits and preserves earlier text when Stop commits %j", async (lastSegment) => {
+		invokeMock.mockResolvedValue({
+			transport: "elevenlabs",
+			sampleRate: 24_000,
+			token: "single-use",
+			url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&commit_strategy=manual",
+		});
+		const onTranscript = vi.fn();
+		const onDone = vi.fn();
+		const starting = startStreamingTranscription({ onTranscript });
+		const socket = await vi.waitFor(() => {
+			expect(FakeWebSocket.instances).toHaveLength(1);
+			return FakeWebSocket.instances[0] as FakeWebSocket;
+		});
+		socket.open();
+		const session = await starting;
+		void session.done.then(onDone);
+		const audioContext = FakeAudioContext.instances[0] as FakeAudioContext;
+
+		for (const text of ["First sentence.", "Second sentence."]) {
+			socket.message({ message_type: "partial_transcript", text });
+			socket.message({ message_type: "committed_transcript", text });
+			await Promise.resolve();
+			expect(onDone).not.toHaveBeenCalled();
+			expect(socket.close).not.toHaveBeenCalled();
+			expect(stopTrack).not.toHaveBeenCalled();
+			const sent = socket.send.mock.calls.length;
+			audioContext.processor.onaudioprocess?.({
+				inputBuffer: { getChannelData: () => new Float32Array(480) },
+			});
+			expect(socket.send.mock.calls.length).toBe(sent + 1);
+		}
+		socket.message({ message_type: "partial_transcript", text: "last" });
+		expect(onTranscript).toHaveBeenLastCalledWith(
+			"First sentence. Second sentence. last",
+		);
+		session.stop();
+		expect(stopTrack).toHaveBeenCalled();
+		expect(socket.close).not.toHaveBeenCalled();
+		socket.message({
+			message_type: "committed_transcript",
+			text: lastSegment,
+		});
+		await session.done;
+		expect(onTranscript).toHaveBeenLastCalledWith(
+			["First sentence.", "Second sentence.", lastSegment]
+				.filter(Boolean)
+				.join(" "),
+		);
+		expect(socket.close).toHaveBeenCalledOnce();
+		expect(onDone).toHaveBeenCalledOnce();
 	});
 
 	it("uses the session sample rate for both capture and the Gateway start frame", async () => {

@@ -50,7 +50,7 @@ type MockSpeechInputProps = {
 	onActiveChange?: (active: boolean) => void;
 	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 	onProcessingChange?: (processing: boolean) => void;
-	onStartStreaming?: () => Promise<unknown>;
+	onStartStreaming?: (language: string) => Promise<unknown>;
 	onStreamingEnd?: () => void;
 	onStreamingStart?: () => void;
 	onTranscriptionChange?: (transcript: string) => void;
@@ -836,7 +836,11 @@ describe("ChatInputBar", () => {
 		expect(textarea?.readOnly).toBe(true);
 		expect(sendButton?.disabled).toBe(true);
 		await act(async () => {
-			await speechInputMockState.current?.onStartStreaming?.();
+			await speechInputMockState.current?.onStartStreaming?.("en-US");
+		});
+		expect(startStreamingTranscriptionMock).toHaveBeenCalledWith({
+			language: "en-US",
+			onTranscript: expect.any(Function),
 		});
 		const onTranscript = (
 			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
@@ -914,7 +918,7 @@ describe("ChatInputBar", () => {
 		await act(async () => {
 			speechInputMockState.current?.onStreamingStart?.();
 			speechInputMockState.current?.onActiveChange?.(true);
-			await speechInputMockState.current?.onStartStreaming?.();
+			await speechInputMockState.current?.onStartStreaming?.("en-US");
 		});
 		const onTranscript = (
 			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
@@ -955,7 +959,7 @@ describe("ChatInputBar", () => {
 		await act(async () => {
 			speechInputMockState.current?.onStreamingStart?.();
 			speechInputMockState.current?.onActiveChange?.(true);
-			await speechInputMockState.current?.onStartStreaming?.();
+			await speechInputMockState.current?.onStartStreaming?.("en-US");
 		});
 		const onTranscript = (
 			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
@@ -1244,7 +1248,7 @@ describe("ChatInputBar", () => {
 		await act(async () => {
 			speechInputMockState.current?.onStreamingStart?.();
 			speechInputMockState.current?.onActiveChange?.(true);
-			await speechInputMockState.current?.onStartStreaming?.();
+			await speechInputMockState.current?.onStartStreaming?.("en-US");
 		});
 		const oldSessionTranscript = (
 			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as

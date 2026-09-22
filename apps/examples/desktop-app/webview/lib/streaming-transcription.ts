@@ -40,7 +40,7 @@ function errorMessage(error: unknown): string {
 	return typeof error === "string" ? error : "Streaming transcription failed";
 }
 
-function floatsToPcm16(samples: Float32Array): Uint8Array {
+function floatsToPcm16(samples: Float32Array): Uint8Array<ArrayBuffer> {
 	const bytes = new Uint8Array(samples.length * 2);
 	const view = new DataView(bytes.buffer);
 	for (let index = 0; index < samples.length; index += 1) {
@@ -83,7 +83,7 @@ function createResampler(inputRate: number, outputRate: number) {
 async function startPcmCapture(
 	stream: MediaStream,
 	sampleRate: number,
-	onAudio: (bytes: Uint8Array) => void,
+	onAudio: (bytes: Uint8Array<ArrayBuffer>) => void,
 ): Promise<AudioCapture> {
 	const context = new AudioContext();
 	try {
@@ -141,12 +141,14 @@ function parseElevenLabsPart(value: unknown): TranscriptionStreamPart | null {
 	if (part.message_type === "partial_transcript")
 		return { type: "transcript-partial", text: part.text };
 	if (part.message_type === "committed_transcript")
-		return { type: "finish", text: part.text };
+		return { type: "transcript-final", text: part.text };
 	return null;
 }
 
 export async function startStreamingTranscription(options: {
 	onTranscript: (text: string) => void;
+	/** Spoken language in BCP 47 format; omitted to let the provider detect it. */
+	language?: string;
 }): Promise<StreamingSpeechSession> {
 	writeDesktopDebugLog({
 		scope: "voice-input",
@@ -235,7 +237,15 @@ export async function startStreamingTranscription(options: {
 	try {
 		const url = new URL(credentials.url);
 		const isElevenLabs = credentials.transport === "elevenlabs";
-		if (isElevenLabs) url.searchParams.set("token", credentials.token);
+		if (isElevenLabs) {
+			url.searchParams.set("token", credentials.token);
+			if (options.language) {
+				url.searchParams.set(
+					"language_code",
+					new Intl.Locale(options.language).language,
+				);
+			}
+		}
 		socket = new WebSocket(
 			url.toString(),
 			isElevenLabs
@@ -302,6 +312,9 @@ export async function startStreamingTranscription(options: {
 						if (part.text.trim()) finalSegments.push(part.text.trim());
 					}
 					emitSegmentTranscript();
+					// ElevenLabs also commits automatically during manual sessions.
+					// A commit finishes a segment; only Stop requests session finalization.
+					if (isElevenLabs && stopped) complete("");
 					break;
 				case "finish":
 					complete(typeof part.text === "string" ? part.text : "");

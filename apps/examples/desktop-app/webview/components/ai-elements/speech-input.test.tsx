@@ -338,7 +338,7 @@ describe("SpeechInput", () => {
 			await Promise.resolve();
 		});
 		expect(onStreamingStart).toHaveBeenCalledOnce();
-		expect(onStartStreaming).toHaveBeenCalledOnce();
+		expect(onStartStreaming).toHaveBeenCalledExactlyOnceWith("en-US");
 		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
 
 		await act(async () => {
