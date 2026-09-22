@@ -1626,46 +1626,7 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 	});
 
-	it("summarizes with the session's current credentials and model, not the ones at construction", async () => {
-		createHandlerMock.mockReturnValue({
-			createMessage: vi.fn(() =>
-				streamChunks([
-					{ type: "text", id: "summary-1", text: "## Goal\nShip it" },
-					{ type: "done", id: "summary-1", success: true },
-				]),
-			),
-		});
-		// Mirrors the live session config: the host refreshes the OAuth token by
-		// mutating `apiKey`, and swaps `providerConfig` on a model switch.
-		const config: Parameters<typeof createContextCompactionPrepareTurn>[0] = {
-			providerId: "cline",
-			modelId: "cline-free/model",
-			apiKey: "workos:initial",
-			providerConfig: {
-				providerId: "cline",
-				modelId: "cline-free/model",
-				apiKey: "workos:initial",
-			} as LlmsProviders.ProviderConfig,
-			compaction: {
-				enabled: true,
-				strategy: "agentic",
-				preserveRecentTokens: 1,
-			},
-			logger: undefined,
-		};
-		const prepareTurn = createContextCompactionPrepareTurn(config);
-		const importedPrepareTurn = createImportedHistoryCompactionPrepareTurn({
-			config,
-			importedFrom: "claude-code",
-		});
-		config.apiKey = "workos:refreshed";
-		config.modelId = "anthropic/claude-sonnet-4.5";
-		config.providerConfig = {
-			providerId: "cline",
-			modelId: "anthropic/claude-sonnet-4.5",
-			apiKey: "workos:refreshed",
-		} as LlmsProviders.ProviderConfig;
-
+	describe("summarizer connection resolution", () => {
 		const messages: LlmsProviders.Message[] = [
 			{ role: "user", content: "Old turn to compact" },
 			{ role: "assistant", content: "Old answer" },
@@ -1688,17 +1649,86 @@ describe("createContextCompactionPrepareTurn", () => {
 				info: { id: "mock-model", maxInputTokens: 10 },
 			},
 		};
-		await prepareTurn?.(context);
-		await importedPrepareTurn(context);
-
-		expect(createHandlerMock).toHaveBeenCalledTimes(2);
-		for (const [summarizerConfig] of createHandlerMock.mock.calls) {
-			expect(summarizerConfig).toMatchObject({
+		// Mirrors bootstrap.config: the nested providerConfig is a snapshot of
+		// the connection resolved at session start.
+		const liveConfig = (): Parameters<
+			typeof createContextCompactionPrepareTurn
+		>[0] => ({
+			providerId: "cline",
+			modelId: "cline-free/model",
+			apiKey: "workos:initial",
+			providerConfig: {
 				providerId: "cline",
-				modelId: "anthropic/claude-sonnet-4.5",
-				apiKey: "workos:refreshed",
+				modelId: "cline-free/model",
+				apiKey: "workos:initial",
+				baseUrl: "https://api.cline.bot",
+				headers: { "X-CLIENT-TYPE": "cline-desktop" },
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				strategy: "agentic",
+				preserveRecentTokens: 1,
+			},
+			logger: undefined,
+		});
+
+		beforeEach(() => {
+			createHandlerMock.mockReturnValue({
+				createMessage: vi.fn(() =>
+					streamChunks([
+						{ type: "text", id: "summary-1", text: "## Goal\nShip it" },
+						{ type: "done", id: "summary-1", success: true },
+					]),
+				),
 			});
-		}
+		});
+
+		it("uses a refreshed top-level token while the nested snapshot is stale", async () => {
+			const config = liveConfig();
+			const prepareTurn = createContextCompactionPrepareTurn(config);
+			const importedPrepareTurn = createImportedHistoryCompactionPrepareTurn({
+				config,
+				importedFrom: "claude-code",
+			});
+			// syncOAuthCredentials only writes the top-level apiKey.
+			config.apiKey = "workos:refreshed";
+
+			await prepareTurn?.(context);
+			await importedPrepareTurn(context);
+
+			expect(createHandlerMock).toHaveBeenCalledTimes(2);
+			for (const [summarizerConfig] of createHandlerMock.mock.calls) {
+				expect(summarizerConfig).toMatchObject({
+					providerId: "cline",
+					modelId: "cline-free/model",
+					apiKey: "workos:refreshed",
+					baseUrl: "https://api.cline.bot",
+					headers: { "X-CLIENT-TYPE": "cline-desktop" },
+				});
+			}
+		});
+
+		it("drops the nested snapshot when the provider changes without replacing it", async () => {
+			const config = liveConfig();
+			const prepareTurn = createContextCompactionPrepareTurn(config);
+			// updateConnection({ providerId, modelId, apiKey }) with no new
+			// providerConfig leaves the old provider's snapshot in place.
+			config.providerId = "anthropic";
+			config.modelId = "claude-sonnet-4.5";
+			config.apiKey = "sk-ant-key";
+
+			await prepareTurn?.(context);
+
+			expect(createHandlerMock).toHaveBeenCalledTimes(1);
+			const [summarizerConfig] = createHandlerMock.mock.calls[0] ?? [];
+			expect(summarizerConfig).toMatchObject({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4.5",
+				apiKey: "sk-ant-key",
+			});
+			expect(summarizerConfig.baseUrl).toBeUndefined();
+			expect(summarizerConfig.headers).toBeUndefined();
+		});
 	});
 
 	it("falls back to basic compaction when the agentic request fails", async () => {
