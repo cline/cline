@@ -53,6 +53,47 @@ describe("ensureLoopbackProxyBypass", () => {
 		expect(env.NO_PROXY).toBe(env.no_proxy);
 	});
 
+	// NO_PROXY and no_proxy can be populated independently (launcher vs shell
+	// profile) and different tools read different casings; synchronizing both
+	// to one casing's value would drop the other's exemptions and route
+	// previously exempt traffic through the proxy.
+	it("merges the union when both casings carry different exemptions", () => {
+		const env: Record<string, string | undefined> = {
+			HTTP_PROXY: "http://proxy.corp:8080",
+			NO_PROXY: ".corp.example.com",
+			no_proxy: "internal.db, 10.0.0.5",
+		};
+		ensureLoopbackProxyBypass(env);
+		expect(env.NO_PROXY).toBe(
+			".corp.example.com,internal.db,10.0.0.5,localhost,127.0.0.1,::1,[::1]",
+		);
+		expect(env.no_proxy).toBe(env.NO_PROXY);
+	});
+
+	it("dedupes entries across casings case-insensitively, first spelling wins", () => {
+		const env: Record<string, string | undefined> = {
+			HTTP_PROXY: "http://proxy.corp:8080",
+			NO_PROXY: "Corp.Example.COM,localhost",
+			no_proxy: "corp.example.com,LOCALHOST,extra.host",
+		};
+		ensureLoopbackProxyBypass(env);
+		expect(env.NO_PROXY).toBe(
+			"Corp.Example.COM,localhost,extra.host,127.0.0.1,::1,[::1]",
+		);
+		expect(env.no_proxy).toBe(env.NO_PROXY);
+	});
+
+	it("leaves both casings alone when either contains a wildcard", () => {
+		const env: Record<string, string | undefined> = {
+			HTTP_PROXY: "http://proxy.corp:8080",
+			NO_PROXY: ".corp.example.com",
+			no_proxy: "*",
+		};
+		ensureLoopbackProxyBypass(env);
+		expect(env.NO_PROXY).toBe(".corp.example.com");
+		expect(env.no_proxy).toBe("*");
+	});
+
 	it("is idempotent", () => {
 		const env: Record<string, string | undefined> = {
 			HTTP_PROXY: "http://127.0.0.1:7890",

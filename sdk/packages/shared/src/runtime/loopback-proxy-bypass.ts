@@ -32,23 +32,43 @@ function readProxyValue(
 	return undefined;
 }
 
-function mergeNoProxyValue(existing: string | undefined): string | undefined {
-	const entries = (existing ?? "")
+function splitNoProxyEntries(value: string | undefined): string[] {
+	return (value ?? "")
 		.split(",")
 		.map((entry) => entry.trim())
 		.filter((entry) => entry.length > 0);
-	if (entries.includes("*")) {
-		return undefined;
-	}
-	const present = new Set(entries.map((entry) => entry.toLowerCase()));
-	let changed = false;
-	for (const host of LOOPBACK_NO_PROXY_HOSTS) {
-		if (!present.has(host)) {
-			entries.push(host);
-			changed = true;
+}
+
+/**
+ * The union of both casings' exemptions plus the loopback hosts, first
+ * spelling wins on duplicates. `NO_PROXY` and `no_proxy` can be populated
+ * independently (by a launcher and a shell profile, say) and different tools
+ * read different casings, so synchronizing both to one casing's value would
+ * silently drop the other's exemptions and route previously exempt traffic
+ * through the proxy. Undefined when either casing opts out of proxying
+ * entirely with `*`.
+ */
+function mergeNoProxyValue(
+	upper: string | undefined,
+	lower: string | undefined,
+): string | undefined {
+	const merged: string[] = [];
+	const seen = new Set<string>();
+	for (const entry of [
+		...splitNoProxyEntries(upper),
+		...splitNoProxyEntries(lower),
+		...LOOPBACK_NO_PROXY_HOSTS,
+	]) {
+		if (entry === "*") {
+			return undefined;
+		}
+		const key = entry.toLowerCase();
+		if (!seen.has(key)) {
+			seen.add(key);
+			merged.push(entry);
 		}
 	}
-	return changed ? entries.join(",") : undefined;
+	return merged.join(",");
 }
 
 /**
@@ -78,13 +98,14 @@ export function ensureLoopbackProxyBypass(
 	if (!readProxyValue(env)) {
 		return;
 	}
-	const existing = env.NO_PROXY?.trim() || env.no_proxy?.trim() || undefined;
-	const merged = mergeNoProxyValue(existing);
+	const merged = mergeNoProxyValue(env.NO_PROXY, env.no_proxy);
 	if (merged === undefined) {
 		return;
 	}
-	// Set both casings: Bun and curl read either, and consumers the agent
-	// spawns may only read one.
+	// Set both casings to the merged union: Bun and curl read either, and
+	// consumers the agent spawns may only read one. Merging (rather than
+	// copying one casing over the other) means no pre-existing exemption is
+	// ever dropped — entries are only added.
 	env.NO_PROXY = merged;
 	env.no_proxy = merged;
 }
