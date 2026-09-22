@@ -630,6 +630,31 @@ accessible label, and event cancellation. `onSelect` handles row activation.
 Root DOM props and refs pass through to the existing wrapper so host-owned
 hover-card/context-menu triggers can use `asChild` without another DOM node.
 
+By default, the navigation control is the same native `button` used by desktop.
+For URL-addressable navigation, use `renderControl` to render the supplied
+class and row content through the host's link component. The optional action
+stays a sibling:
+
+```tsx
+<AgentSessionRow
+  label={session.title}
+  timestamp={session.updatedLabel}
+  action={<DeleteSessionButton session={session} />}
+  renderControl={({ className, children }) => (
+    <Link
+      className={className}
+      href={`/sessions/${session.id}`}
+      target="_blank"
+    >
+      {children}
+    </Link>
+  )}
+/>
+```
+
+The host link owns `href`, click, accessibility, disabled, and router behavior.
+`disabled` and `onSelect` apply only to the default desktop button.
+
 `AgentSessionRowEditor` provides the matching edit frame; the host still owns
 the input, focus, Enter/Escape/blur handling, and saving indicator.
 `AgentSessionOverview` presents a title and `[label, value, fullValue?]` metadata

@@ -84,6 +84,37 @@ describe("AgentSessionRow host integration", () => {
 		expect(onWrapperClick).not.toHaveBeenCalled();
 	});
 
+	it("renders host link semantics without nesting the sibling action", async () => {
+		await act(async () =>
+			root.render(
+				<AgentSessionRow
+					action={<button type="button">Delete</button>}
+					label="Task"
+					renderControl={({ className, children }) => (
+						<a
+							aria-label="Open Task"
+							className={className}
+							href="/sessions/task"
+							rel="noreferrer"
+							target="_blank"
+						>
+							{children}
+						</a>
+					)}
+					timestamp="2m"
+				/>,
+			),
+		);
+		const link = container.querySelector<HTMLAnchorElement>("a");
+		const action = container.querySelector<HTMLButtonElement>("button");
+		expect(link?.getAttribute("href")).toBe("/sessions/task");
+		expect(link?.getAttribute("target")).toBe("_blank");
+		expect(link?.getAttribute("aria-label")).toBe("Open Task");
+		expect(link?.textContent).toBe("Task2m");
+		expect(link?.querySelector("button")).toBeNull();
+		expect(link?.parentElement).toBe(action?.parentElement);
+	});
+
 	it("keeps timestamps visible when the host does not provide an overlaid action", async () => {
 		await act(async () =>
 			root.render(<AgentSessionRow label="Task" timestamp="2m" />),
