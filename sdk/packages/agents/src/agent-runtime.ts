@@ -1360,7 +1360,10 @@ export class AgentRuntime {
 	 * lost to the recovery attempt.
 	 *
 	 * A retry that does come back is handed to the loop unjudged: the run loop
-	 * remains the only place that decides whether a turn is acceptable.
+	 * remains the only place that decides whether a turn is acceptable. When
+	 * compaction cannot help — nothing to remove, the retry truncated again, or
+	 * the turn was never eligible — the loop's own nudge-and-retry recovery
+	 * takes over, so this runs first and at most once per run.
 	 * Telemetry here is purely
 	 * observational — `started`, then `retried` with the retry's finish reason
 	 * when the attempt ran, or `failed` when it could not — so it never claims
@@ -1374,9 +1377,11 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 	}> {
 		this.maxTokensRecoveryAttempted = true;
+		// Distinct from the loop's nudge-and-retry notices (`max_tokens_recovery`)
+		// so the two strategies stay tellable apart downstream.
 		const noticeMetadata = {
-			kind: "max_tokens_recovery",
-			reason: "max_tokens_recovery",
+			kind: "max_tokens_compaction",
+			reason: "max_tokens_compaction",
 			iteration: this.state.iteration,
 		};
 		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {

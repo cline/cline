@@ -559,7 +559,7 @@ describe("AgentRuntime", () => {
 				message:
 					"response hit the output token limit — compacting and retrying",
 				metadata: expect.objectContaining({
-					kind: "max_tokens_recovery",
+					kind: "max_tokens_compaction",
 					phase: "started",
 				}),
 			}),
@@ -577,7 +577,7 @@ describe("AgentRuntime", () => {
 		);
 	});
 
-	it("surfaces the max-tokens error when the retried turn is truncated again", async () => {
+	it("hands a re-truncated compacted retry to the nudge recovery", async () => {
 		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
 		const model = new ScriptedModel([
 			() => [
@@ -587,6 +587,11 @@ describe("AgentRuntime", () => {
 			() => [
 				{ type: "text-delta", text: "truncated twice..." },
 				{ type: "finish", reason: "max-tokens" },
+			],
+			// After the nudge: the concise answer.
+			() => [
+				{ type: "text-delta", text: "concise answer" },
+				{ type: "finish", reason: "stop" },
 			],
 		]);
 		const compactedMessages: AgentMessage[] = [
@@ -598,22 +603,41 @@ describe("AgentRuntime", () => {
 		);
 		const { capture, telemetry } = createTelemetryMock();
 		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		const noticeKinds: string[] = [];
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				typeof event.metadata?.kind === "string"
+			) {
+				noticeKinds.push(`${event.metadata.kind}:${event.metadata.phase}`);
+			}
+		});
 
 		const result = await runtime.run(longPrompt);
 
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toContain("maximum output token limit");
-		// Exactly one recovery attempt: two model requests, no third.
-		expect(model.requests).toHaveLength(2);
-		// The retried turn's partial content is preserved.
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "text", text: "truncated twice..." }],
-		});
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("concise answer");
+		// One compaction attempt, then one nudge retry: three requests.
+		expect(model.requests).toHaveLength(3);
+		// Compaction runs first; only when its retry is truncated again does the
+		// loop's nudge take over.
+		expect(noticeKinds).toEqual([
+			"max_tokens_compaction:started",
+			"max_tokens_recovery:started",
+		]);
+		// The re-truncated partial and the nudge stay in the transcript.
+		expect(
+			result.messages.some(
+				(m) =>
+					m.role === "assistant" &&
+					m.content.some(
+						(c) => c.type === "text" && c.text === "truncated twice...",
+					),
+			),
+		).toBe(true);
 		const recoveryEvents = capture.mock.calls
 			.map(([input]) => input)
 			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
-		// The recovery itself completed; the loop is what fails the run.
 		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
 			"started",
 			"retried",
@@ -623,29 +647,52 @@ describe("AgentRuntime", () => {
 		);
 	});
 
-	it("surfaces the max-tokens error when compaction has nothing to remove", async () => {
+	it("hands off to the nudge recovery when compaction has nothing to remove", async () => {
 		const model = new ScriptedModel([
 			() => [
 				{ type: "text-delta", text: "truncated..." },
 				{ type: "finish", reason: "max-tokens" },
 			],
+			// After the nudge: the concise answer.
+			() => [
+				{ type: "text-delta", text: "concise answer" },
+				{ type: "finish", reason: "stop" },
+			],
 		]);
-		// prepareTurn never shrinks the transcript, so the forced compaction
-		// retry is rejected and the original truncated turn is surfaced.
+		// prepareTurn never shrinks the transcript, so the forced compaction is
+		// rejected: the truncated turn is kept and the loop's nudge takes over.
 		const prepareTurn = vi.fn(async () => undefined);
 		const { capture, telemetry } = createTelemetryMock();
 		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		const noticeKinds: string[] = [];
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				typeof event.metadata?.kind === "string"
+			) {
+				noticeKinds.push(`${event.metadata.kind}:${event.metadata.phase}`);
+			}
+		});
 
 		const result = await runtime.run("Hi");
 
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toContain("maximum output token limit");
-		expect(model.requests).toHaveLength(1);
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("concise answer");
+		// No compaction retry request; one nudge retry.
+		expect(model.requests).toHaveLength(2);
+		expect(noticeKinds).toEqual([
+			"max_tokens_compaction:started",
+			"max_tokens_compaction:failed",
+			"max_tokens_recovery:started",
+		]);
 		// The truncated turn's partial content is preserved.
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "text", text: "truncated..." }],
-		});
+		expect(
+			result.messages.some(
+				(m) =>
+					m.role === "assistant" &&
+					m.content.some((c) => c.type === "text" && c.text === "truncated..."),
+			),
+		).toBe(true);
 		const recoveryEvents = capture.mock.calls
 			.map(([input]) => input)
 			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
@@ -653,6 +700,9 @@ describe("AgentRuntime", () => {
 			"started",
 			"failed",
 		]);
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "nothing_to_compact" }),
+		);
 	});
 
 	it("closes recovery telemetry as failed when the compacted retry throws", async () => {
@@ -700,7 +750,7 @@ describe("AgentRuntime", () => {
 		});
 	});
 
-	it("does not retry a truncated turn that already performed provider-executed tool activity", async () => {
+	it("does not compact-and-replay a truncated turn that already performed provider-executed tool activity", async () => {
 		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
 		const model = new ScriptedModel([
 			() => [
@@ -721,6 +771,11 @@ describe("AgentRuntime", () => {
 				{ type: "text-delta", text: "The weather is" },
 				{ type: "finish", reason: "max-tokens" },
 			],
+			// After the nudge, with the tool activity still in context.
+			() => [
+				{ type: "text-delta", text: "The weather is sunny." },
+				{ type: "finish", reason: "stop" },
+			],
 		]);
 		const compactedMessages: AgentMessage[] = [
 			{ role: "user", content: [{ type: "text", text: "compacted" }] },
@@ -731,17 +786,33 @@ describe("AgentRuntime", () => {
 		);
 		const { capture, telemetry } = createTelemetryMock();
 		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		const noticeKinds: string[] = [];
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				typeof event.metadata?.kind === "string"
+			) {
+				noticeKinds.push(`${event.metadata.kind}:${event.metadata.phase}`);
+			}
+		});
 
 		const result = await runtime.run(longPrompt);
 
-		// Replaying the turn would re-run the provider-executed tool, so the
-		// truncation surfaces as before instead of being retried.
-		expect(model.requests).toHaveLength(1);
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toContain("maximum output token limit");
-		expect(result.messages.at(-1)?.metadata?.modelToolActivities).toHaveLength(
-			1,
+		// Compacting and replaying would discard the executed tool activity, so
+		// compaction stands down; the loop's nudge retries with that activity
+		// still in the transcript.
+		expect(prepareTurn.mock.calls.some(([c]) => c.overflowRecovery)).toBe(
+			false,
 		);
+		expect(noticeKinds).toEqual(["max_tokens_recovery:started"]);
+		expect(result.status).toBe("completed");
+		expect(model.requests).toHaveLength(2);
+		const truncated = result.messages.find(
+			(m) =>
+				m.role === "assistant" &&
+				(m.metadata?.modelToolActivities?.length ?? 0) > 0,
+		);
+		expect(truncated?.metadata?.modelToolActivities).toHaveLength(1);
 		const recoveryEvents = capture.mock.calls
 			.map(([input]) => input)
 			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
@@ -812,7 +883,7 @@ describe("AgentRuntime", () => {
 	it.each([
 		"stop",
 		"max-tokens",
-	] as const)("keeps the truncated turn when the compacted retry comes back empty (%s)", async (retryFinish) => {
+	] as const)("keeps the truncated turn and hands off to the nudge when the compacted retry comes back empty (%s)", async (retryFinish) => {
 		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
 		const model = new ScriptedModel([
 			() => [
@@ -822,6 +893,11 @@ describe("AgentRuntime", () => {
 			// Finishes without content or provider-executed activity: nothing
 			// the loop can use, so it is not a replacement turn.
 			() => [{ type: "finish", reason: retryFinish }],
+			// After the nudge: the concise answer.
+			() => [
+				{ type: "text-delta", text: "concise answer" },
+				{ type: "finish", reason: "stop" },
+			],
 		]);
 		const compactedMessages: AgentMessage[] = [
 			{ role: "user", content: [{ type: "text", text: "compacted" }] },
@@ -831,18 +907,34 @@ describe("AgentRuntime", () => {
 				context.overflowRecovery ? { messages: compactedMessages } : undefined,
 		);
 		const runtime = new AgentRuntime({ model, prepareTurn });
+		const noticeKinds: string[] = [];
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				typeof event.metadata?.kind === "string"
+			) {
+				noticeKinds.push(`${event.metadata.kind}:${event.metadata.phase}`);
+			}
+		});
 
 		const result = await runtime.run(longPrompt);
 
-		expect(result.status).toBe("failed");
-		// The original problem surfaces, not a misleading empty-response error.
-		expect(result.error?.message).toContain("maximum output token limit");
+		// Never the misleading empty-response failure; the nudge gets its turn.
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("concise answer");
+		expect(noticeKinds).toEqual([
+			"max_tokens_compaction:started",
+			"max_tokens_recovery:started",
+		]);
 		// The truncated answer survives in the transcript.
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "text", text: "truncated..." }],
-		});
-		expect(model.requests).toHaveLength(2);
+		expect(
+			result.messages.some(
+				(m) =>
+					m.role === "assistant" &&
+					m.content.some((c) => c.type === "text" && c.text === "truncated..."),
+			),
+		).toBe(true);
+		expect(model.requests).toHaveLength(3);
 	});
 
 	// Every way a compacted retry can come back, crossed with everything it can
