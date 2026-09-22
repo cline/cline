@@ -140,8 +140,10 @@ function parseElevenLabsPart(value: unknown): TranscriptionStreamPart | null {
 	if (typeof part.text !== "string") return null;
 	if (part.message_type === "partial_transcript")
 		return { type: "transcript-partial", text: part.text };
+	// Segments are committed by Stop, but also automatically after ~36 s of
+	// audio, so a committed transcript alone does not end the session.
 	if (part.message_type === "committed_transcript")
-		return { type: "finish", text: part.text };
+		return { type: "transcript-final", text: part.text };
 	return null;
 }
 
@@ -222,13 +224,15 @@ export async function startStreamingTranscription(options: {
 		cleanup();
 		resolveDone();
 	};
-	const emitSegmentTranscript = () => {
-		const text = [
+	const segmentTranscript = () =>
+		[
 			...finalSegments,
 			...Array.from(segments.values(), (segment) => segment.text),
 		]
 			.join(" ")
 			.trim();
+	const emitSegmentTranscript = () => {
+		const text = segmentTranscript();
 		if (text) options.onTranscript(text);
 	};
 
@@ -301,7 +305,10 @@ export async function startStreamingTranscription(options: {
 						segments.delete("active");
 						if (part.text.trim()) finalSegments.push(part.text.trim());
 					}
-					emitSegmentTranscript();
+					// ElevenLabs has no finish event: the commit sent by Stop yields
+					// the last committed segment.
+					if (isElevenLabs && stopped) complete(segmentTranscript());
+					else emitSegmentTranscript();
 					break;
 				case "finish":
 					complete(typeof part.text === "string" ? part.text : "");

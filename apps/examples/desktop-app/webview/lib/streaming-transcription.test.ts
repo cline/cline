@@ -172,7 +172,7 @@ describe("streaming transcription", () => {
 		await expect(session.done).resolves.toBeUndefined();
 		expect(stopTrack).toHaveBeenCalled();
 	});
-	it("shows ElevenLabs partials before Stop and waits for the committed transcript", async () => {
+	it("keeps ElevenLabs auto-committed segments and finishes on the Stop commit", async () => {
 		invokeMock.mockResolvedValue({
 			transport: "elevenlabs",
 			sampleRate: 24_000,
@@ -204,6 +204,16 @@ describe("streaming transcription", () => {
 		socket.message({ message_type: "partial_transcript", text: "hello" });
 		socket.message({ message_type: "partial_transcript", text: "hello there" });
 		expect(onTranscript).toHaveBeenLastCalledWith("hello there");
+		// The server commits on its own after ~36 s of audio while still recording.
+		socket.message({
+			message_type: "committed_transcript",
+			text: "Hello there.",
+		});
+		expect(onTranscript).toHaveBeenLastCalledWith("Hello there.");
+		expect(socket.close).not.toHaveBeenCalled();
+		expect(stopTrack).not.toHaveBeenCalled();
+		socket.message({ message_type: "partial_transcript", text: "how are" });
+		expect(onTranscript).toHaveBeenLastCalledWith("Hello there. how are");
 		session.stop();
 		expect(JSON.parse(String(socket.send.mock.lastCall?.[0]))).toMatchObject({
 			message_type: "input_audio_chunk",
@@ -212,10 +222,10 @@ describe("streaming transcription", () => {
 		});
 		socket.message({
 			message_type: "committed_transcript",
-			text: "Hello there.",
+			text: "How are you?",
 		});
 		await session.done;
-		expect(onTranscript).toHaveBeenLastCalledWith("Hello there.");
+		expect(onTranscript).toHaveBeenLastCalledWith("Hello there. How are you?");
 		expect(socket.close).toHaveBeenCalled();
 	});
 
