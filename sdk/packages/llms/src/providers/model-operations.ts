@@ -34,7 +34,8 @@ export const BUILTIN_TRANSCRIPTION_TRANSPORTS = {
 		transport: "vercel-ai-gateway",
 		modes: ["batch", "streaming"],
 	},
-	elevenlabs: { transport: "elevenlabs", modes: ["batch", "streaming"] },
+	// Realtime transcription is deferred until its configuration is supported.
+	elevenlabs: { transport: "elevenlabs", modes: ["batch"] },
 	evroc: { transport: "openai-compatible", modes: ["batch"] },
 	groq: { transport: "openai-compatible", modes: ["batch"] },
 	mistral: { transport: "openai-compatible", modes: ["batch"] },

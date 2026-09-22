@@ -1377,19 +1377,30 @@ describe("audio transcription", () => {
 		);
 	});
 
-	it("rejects streaming models on a batch-only transcription transport", async () => {
-		LlmsModels.registerModel("groq", "realtime-whisper", {
-			id: "realtime-whisper",
+	it.each([
+		["groq", "realtime-whisper"],
+		["elevenlabs", "scribe_v2_realtime"],
+	])("rejects streaming models on the batch-only %s transport", async (providerId, modelId) => {
+		manager.saveProviderSettings(
+			{ provider: providerId, apiKey: "audio-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel(providerId, modelId, {
+			id: modelId,
 			operation: "transcription",
 			operationModes: ["streaming"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
 		await expect(
 			saveVoiceInputSettings(manager, {
-				providerId: "groq",
-				modelId: "realtime-whisper",
+				providerId,
+				modelId,
 			}),
 		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		manager.setVoiceInputSettings({ providerId, modelId });
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).rejects.toThrow("does not support streaming transcription");
 	});
 
 	it("rejects a voice input selection that is not an audio-to-text model", async () => {
