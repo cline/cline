@@ -3,6 +3,7 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
+	AgentRuntimeEvent,
 	AgentRuntimePlugin,
 	AgentTool,
 	ITelemetryService,
@@ -437,48 +438,76 @@ describe("AgentRuntime", () => {
 		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
 	});
 
-	it("fails a turn that hits the model output token limit before completion", async () => {
-		const logger = {
-			debug: vi.fn(),
-			log: vi.fn(),
-			error: vi.fn(),
-		};
+	it.each<{ content: string; events: AgentModelEvent[] }>([
+		{
+			content: "reasoning",
+			events: [{ type: "reasoning-delta", text: "thinking..." }],
+		},
+		{
+			content: "text",
+			events: [{ type: "text-delta", text: "unfinished response..." }],
+		},
+		{ content: "empty", events: [] },
+	])("recovers from an output-token-limit cut-off with $content content by nudging for concision", async ({
+		events,
+	}) => {
 		const model = new ScriptedModel([
+			() => [...events, { type: "finish", reason: "max-tokens" }],
 			() => [
-				{ type: "reasoning-delta", text: "thinking..." },
-				{ type: "finish", reason: "max-tokens" },
+				{ type: "text-delta", text: "done concisely" },
+				{ type: "finish", reason: "stop" },
 			],
 		]);
-		const runtime = new AgentRuntime({ model, logger });
+		const runtime = new AgentRuntime({ model });
+		const turns: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "turn-started" || event.type === "turn-finished") {
+				turns.push(event);
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done concisely");
+		expect(model.requests).toHaveLength(2);
+		expect(turns).toMatchObject([
+			{ type: "turn-started", iteration: 1, snapshot: { iteration: 1 } },
+			{
+				type: "turn-finished",
+				iteration: 1,
+				toolCallCount: 0,
+				snapshot: { iteration: 1 },
+			},
+			{ type: "turn-started", iteration: 2, snapshot: { iteration: 2 } },
+			{
+				type: "turn-finished",
+				iteration: 2,
+				toolCallCount: 0,
+				snapshot: { iteration: 2 },
+			},
+		]);
+		// The retried request carries a user nudge about the output limit.
+		const secondRequest = model.requests[1];
+		const nudge = secondRequest?.messages.at(-1);
+		expect(nudge).toMatchObject({ role: "user" });
+		expect(JSON.stringify(nudge)).toContain("output-token limit");
+	});
+
+	it("fails once repeated output-token-limit cut-offs exhaust recovery", async () => {
+		const cutoff = () => [
+			{ type: "reasoning-delta" as const, text: "thinking..." },
+			{ type: "finish" as const, reason: "max-tokens" as const },
+		];
+		// Initial attempt + 3 recovery retries all cut off = 4 requests, then fail.
+		const model = new ScriptedModel([cutoff, cutoff, cutoff, cutoff]);
+		const runtime = new AgentRuntime({ model });
 
 		const result = await runtime.run("Hi");
 
 		expect(result.status).toBe("failed");
 		expect(result.error?.message).toContain("maximum output token limit");
-		expect(model.requests).toHaveLength(1);
-		expect(result.messages).toHaveLength(2);
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "reasoning", text: "thinking..." }],
-		});
-		expect(logger.log).toHaveBeenCalledWith(
-			"Agent loop caught error",
-			expect.objectContaining({
-				severity: "error",
-				status: "failed",
-				errorMessage: expect.stringContaining("maximum output token limit"),
-				iteration: 1,
-				assistantContentPartCount: 1,
-			}),
-		);
-		expect(logger.error).toHaveBeenCalledWith(
-			"Agent run failed",
-			expect.objectContaining({
-				error: expect.objectContaining({
-					message: expect.stringContaining("maximum output token limit"),
-				}),
-			}),
-		);
+		expect(model.requests).toHaveLength(4);
 	});
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {
