@@ -130,5 +130,7 @@ Catalog refreshes replace discovery-owned model IDs while retaining manually
 added models, their default selection, and overrides on retained model entries.
 `models.json` records discovery-only IDs in `discoveredModelIds`; IDs also supplied
 explicitly are user-managed. An explicit `models` update replaces the manual list.
+An existing model selection in provider settings does not count as a manual
+addition when initializing a source-backed catalog.
 Provider capabilities are inherited when registering models, so stored per-model
 capability overrides continue to take precedence after refreshes.

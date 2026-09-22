@@ -697,6 +697,13 @@ async function prepareProviderUpdate(
 				modelsSourceUrl: registeredProvider?.modelsSourceUrl,
 			},
 			models: seedModelId ? buildProviderModels([seedModelId]) : {},
+			// A saved selection is not a manual catalog addition. Let source
+			// discovery replace it when initializing a source-backed catalog.
+			discoveredModelIds:
+				seedModelId &&
+				(requestedSourceUrl || registeredProvider?.modelsSourceUrl)
+					? [seedModelId]
+					: [],
 		};
 	}
 	if (!existingEntry.provider) {

@@ -2980,6 +2980,35 @@ describe("refreshProviderModelsFromSource", () => {
 
 	afterEach(() => cleanup());
 
+	it.each([
+		"old-model",
+		"missing-model",
+	])("does not treat the initial selection %s as a manual catalog addition", async (selectedModel) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ models: [{ name: "old-model" }] }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		await saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://localhost:11434/v1",
+			model: selectedModel,
+		});
+		await refreshProviderModelsFromSource(manager, "ollama");
+		const modelsPath = resolveModelsRegistryPath(manager);
+		expect(
+			(await readModelsFile(modelsPath)).providers.ollama?.discoveredModelIds,
+		).toEqual(["old-model"]);
+
+		fetchMock.mockImplementation(async () =>
+			Response.json({ models: [{ name: "new-model" }] }),
+		);
+		await refreshProviderModelsFromSource(manager, "ollama");
+		const entry = (await readModelsFile(modelsPath)).providers.ollama;
+		expect(Object.keys(entry.models ?? {})).toEqual(["new-model"]);
+		expect(entry.discoveredModelIds).toEqual(["new-model"]);
+		expect(manager.getProviderSettings("ollama")?.model).toBe("new-model");
+	});
+
 	it("refreshes built-in Ollama models through modelsSourceUrl using the saved base URL", async () => {
 		const fetchMock = vi.fn().mockResolvedValue({
 			ok: true,
