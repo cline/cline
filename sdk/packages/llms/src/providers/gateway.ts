@@ -28,11 +28,13 @@ export type * from "@cline/shared";
 export const DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS = 32_000;
 /**
  * When a model advertises an output budget and the caller sets no explicit
- * max-tokens, the synthesized default is this fraction of the model's budget
- * instead of the flat DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS. This scales the
- * per-request cap up for large-budget models (so a reasoning turn can finish
- * before the limit) and down for models whose budget is below the flat default
- * (so we never request more than the model can emit).
+ * max-tokens, the synthesized default is raised to this fraction of the
+ * model's budget when that exceeds DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS — so a
+ * large-budget model's reasoning turn has room to finish before hitting the
+ * limit. It never lowers the default: a model whose budget is smaller than
+ * the flat default still gets the flat default here, and the separate
+ * model-output-budget cap already prevents requesting more than a small
+ * model can actually emit.
  */
 export const DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION = 0.3;
 const GATEWAY_OUTPUT_RESERVE_TOKENS = 1_024;
@@ -211,18 +213,25 @@ export function resolveGatewayRequestMaxTokens(input: {
 			? Math.floor(input.reasoningBudgetTokens) +
 				(input.outputReserveTokens ?? GATEWAY_OUTPUT_RESERVE_TOKENS)
 			: 0;
-		// Synthesized default cap: an explicit caller default wins; otherwise a
-		// fraction of the model's advertised output budget (see
-		// DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION); otherwise the flat default. A
-		// reasoning budget still lifts it, and the model/context caps below still
-		// clamp it.
+		// Synthesized default cap: an explicit caller default wins. Otherwise,
+		// the flat default (DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS) is a floor, not a
+		// ceiling: a fraction of the model's advertised output budget (see
+		// DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION) only ever raises it, for models
+		// whose budget is large enough that the fraction exceeds the flat
+		// default. A model whose budget is smaller than the flat default still
+		// gets the flat default here — the model cap pushed below is what clamps
+		// it back down to what that model can actually emit. A reasoning budget
+		// still lifts the result too.
 		const baseDefault =
 			input.defaultMaxOutputTokens ?? DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS;
 		const catalogDefault =
 			input.defaultMaxOutputTokens === undefined &&
 			isPositiveFiniteNumber(input.model.maxOutputTokens)
-				? Math.floor(
-						input.model.maxOutputTokens * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
+				? Math.max(
+						baseDefault,
+						Math.floor(
+							input.model.maxOutputTokens * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION,
+						),
 					)
 				: baseDefault;
 		const defaultMaxOutputTokens = Math.max(catalogDefault, reasoningFloor);

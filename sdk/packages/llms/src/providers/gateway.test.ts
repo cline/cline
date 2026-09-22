@@ -430,14 +430,19 @@ describe("sdk-gateway", () => {
 		).toBe(Math.floor(202_800 * DEFAULT_GATEWAY_MAX_OUTPUT_FRACTION));
 	});
 
-	it("defaults below the flat cap for a model with a small output budget", () => {
+	it("never lowers the default below the flat cap for a model with a small output budget", () => {
+		// The catalog fraction (30% of 8,000 = 2,400) is smaller than the flat
+		// default, so the flat default applies here instead — the model's own
+		// output-budget cap (pushed separately below) is what then clamps the
+		// result down to what this model can actually emit (8,000), not the
+		// fraction shrinking the default further on top of that.
 		expect(
 			resolveGatewayRequestMaxTokens({
 				requestedMaxTokens: undefined,
 				model: { maxOutputTokens: 8_000, contextWindow: 200_000 },
 				estimatedInputTokens: 1_000,
 			}),
-		).toBe(2_400);
+		).toBe(8_000);
 	});
 
 	it("falls back to the flat default when the model advertises no output budget", () => {
