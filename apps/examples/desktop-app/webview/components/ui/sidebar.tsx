@@ -22,6 +22,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -251,6 +252,7 @@ function Sidebar({
 	collapsible?: "offcanvas" | "icon" | "none";
 }) {
 	const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+	const { t } = useTranslation();
 
 	if (collapsible === "none") {
 		return (
@@ -283,8 +285,10 @@ function Sidebar({
 					side={side}
 				>
 					<SheetHeader className="sr-only">
-						<SheetTitle>Sidebar</SheetTitle>
-						<SheetDescription>Displays the mobile sidebar.</SheetDescription>
+						<SheetTitle>{t("common.sidebar.title")}</SheetTitle>
+						<SheetDescription>
+							{t("common.sidebar.mobileDescription")}
+						</SheetDescription>
 					</SheetHeader>
 					<div className="flex h-full w-full flex-col">{children}</div>
 				</SheetContent>
@@ -346,6 +350,7 @@ function SidebarTrigger({
 	...props
 }: React.ComponentProps<typeof Button>) {
 	const { toggleSidebar } = useSidebar();
+	const { t } = useTranslation();
 
 	return (
 		<Button
@@ -361,13 +366,14 @@ function SidebarTrigger({
 			{...props}
 		>
 			<PanelLeftIcon className="size-3.5" />
-			<span className="sr-only">Toggle Sidebar</span>
+			<span className="sr-only">{t("common.sidebar.toggleAria")}</span>
 		</Button>
 	);
 }
 
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 	const { setOpen, setDesktopWidth, desktopWidth } = useSidebar();
+	const { t } = useTranslation();
 	const didDragRef = React.useRef(false);
 
 	const handlePointerDown = React.useCallback(
@@ -426,11 +432,11 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 		<button
 			data-sidebar="rail"
 			data-slot="sidebar-rail"
-			aria-label="Toggle Sidebar"
+			aria-label={t("common.sidebar.toggleAria")}
 			tabIndex={-1}
 			onClick={handleClick}
 			onPointerDown={handlePointerDown}
-			title="Drag to resize or click to toggle sidebar"
+			title={t("common.sidebar.railTooltip")}
 			className={cn(
 				"hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 sm:flex",
 				"in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",

@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { openExternalUrl } from "@/lib/desktop-client";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
@@ -65,15 +66,18 @@ const FEATURED_PROVIDER_IDS = new Set(["cline", "cline-pass"]);
 
 /** Tier + feed tags rendered as small pills next to the model name. */
 function featuredBadges(model: ProviderModel): string[] {
+	// Module-level helper (no hooks): read the live translator snapshot; the
+	// rendering component re-renders on locale switches, so pills stay current.
+	const t = getTranslator().t;
 	const featured = model.featured;
 	if (!featured) {
 		return [];
 	}
 	const badges: string[] = [];
 	if (featured.tier === "recommended") {
-		badges.push("Recommended");
+		badges.push(t("settings.providers.modelBadge.recommended"));
 	} else if (featured.tier === "free") {
-		badges.push("Free");
+		badges.push(t("settings.providers.modelBadge.free"));
 	}
 	for (const tag of featured.tags) {
 		if (!badges.some((badge) => badge.toLowerCase() === tag.toLowerCase())) {
@@ -115,19 +119,20 @@ function writeFavoriteModels(value: Record<string, string[]>): void {
 // Shared bits
 // -----------------------------------------------------------
 
-const AUTH_KIND_LABEL: Record<ProviderAuthKind, string> = {
-	oauth: "Sign in",
-	local: "Local CLI",
-	"api-key": "API key",
+const AUTH_KIND_LABEL_KEY: Record<ProviderAuthKind, string> = {
+	oauth: "settings.providers.authKind.oauth",
+	local: "settings.providers.authKind.local",
+	"api-key": "settings.providers.authKind.apiKey",
 };
 
 function AuthKindHint({ kind }: { kind: ProviderAuthKind }) {
+	const { t } = useTranslation();
 	const Icon =
 		kind === "oauth" ? Globe : kind === "local" ? MonitorSmartphone : KeyRound;
 	return (
 		<span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
 			<Icon aria-hidden="true" className="size-3" />
-			{AUTH_KIND_LABEL[kind]}
+			{t(AUTH_KIND_LABEL_KEY[kind])}
 		</span>
 	);
 }
@@ -197,6 +202,7 @@ function ProviderRow({
 	onConfigure: (id: string) => void;
 	selected: boolean;
 }) {
+	const { t } = useTranslation();
 	const connected = isProviderConnected(provider);
 	const authKind = getProviderAuthKind(provider);
 	return (
@@ -213,7 +219,7 @@ function ProviderRow({
 			</p>
 			{connected ? (
 				<span className="shrink-0 text-xs font-medium text-muted-foreground">
-					Configured
+					{t("settings.providers.configured")}
 				</span>
 			) : (
 				<AuthKindHint kind={authKind} />
@@ -255,6 +261,7 @@ export function ProviderListContent({
 	selectedProviderId?: string | null;
 	variant?: "page" | "panel";
 }) {
+	const { t } = useTranslation();
 	const [providerSearch, setProviderSearch] = useState("");
 	const isPanel = variant === "panel";
 
@@ -315,12 +322,15 @@ export function ProviderListContent({
 								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
-							Model Providers
+							{t("settings.providers.title")}
 						</h1>
 						<p className="mt-3 text-base leading-6 text-muted-foreground">
 							{connectedCount === 0
-								? "Connect a provider to start using models."
-								: `${connectedCount} configured · ${providers.length} available`}
+								? t("settings.providers.emptyHint")
+								: t("settings.providers.countsSummary", {
+										connectedCount,
+										totalCount: providers.length,
+									})}
 						</p>
 					</div>
 					<Button
@@ -329,7 +339,7 @@ export function ProviderListContent({
 						type="button"
 					>
 						<PlusCircle className="size-4" />
-						Add provider
+						{t("settings.providers.addAction")}
 					</Button>
 				</div>
 
@@ -337,15 +347,15 @@ export function ProviderListContent({
 					<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
 						<Search className="size-4 shrink-0 text-muted-foreground" />
 						<Input
-							aria-label="Search model providers"
+							aria-label={t("settings.providers.searchAria")}
 							className={EMBEDDED_INPUT_CLASS}
 							onChange={(event) => setProviderSearch(event.target.value)}
-							placeholder="Search providers"
+							placeholder={t("settings.providers.searchPlaceholder")}
 							value={providerSearch}
 						/>
 						{providerSearch ? (
 							<button
-								aria-label="Clear provider search"
+								aria-label={t("settings.providers.clearSearchAria")}
 								className="grid size-5 place-items-center rounded text-muted-foreground hover:text-foreground"
 								onClick={() => setProviderSearch("")}
 								type="button"
@@ -359,13 +369,17 @@ export function ProviderListContent({
 				<div className={cn(isPanel ? "max-w-none" : "max-w-2xl")}>
 					{filteredProviders.length === 0 ? (
 						<div className="border-y px-2 py-6 text-base text-muted-foreground">
-							No providers match "{providerSearch.trim()}".
+							{t("settings.providers.noMatch", {
+								query: providerSearch.trim(),
+							})}
 						</div>
 					) : null}
 
 					{connectedProviders.length > 0 ? (
 						<>
-							<ProviderSectionHeading title="Configured" />
+							<ProviderSectionHeading
+								title={t("settings.providers.configured")}
+							/>
 							{renderRows(connectedProviders)}
 						</>
 					) : null}
@@ -375,10 +389,10 @@ export function ProviderListContent({
 							<ProviderSectionHeading
 								description={
 									connectedProviders.length === 0 && !providerSearchQuery
-										? "Sign in or add an API key to connect."
+										? t("settings.providers.popularHint")
 										: undefined
 								}
-								title="Popular"
+								title={t("settings.providers.popularTitle")}
 							/>
 							{renderRows(popularProviders)}
 						</>
@@ -386,7 +400,9 @@ export function ProviderListContent({
 
 					{otherProviders.length > 0 ? (
 						<>
-							<ProviderSectionHeading title="All providers" />
+							<ProviderSectionHeading
+								title={t("settings.providers.allTitle")}
+							/>
 							{renderRows(otherProviders)}
 						</>
 					) : null}
@@ -417,6 +433,7 @@ function ConfigFieldRow({
 	onDraftChange: (value: string) => void;
 	onCommit: (value: string | boolean) => void;
 }) {
+	const { t } = useTranslation();
 	const valueText = fieldValueToString(value);
 	const isSecret = field.type === "password" || field.secret;
 	const providerKeyUrl = getProviderApiKeyUrl(provider);
@@ -435,7 +452,10 @@ function ConfigFieldRow({
 						onClick={() => void openExternalUrl(providerKeyUrl)}
 						type="button"
 					>
-						{provider.docLabel || `Get a ${provider.name} API key`}
+						{provider.docLabel ||
+							t("settings.providers.getFieldApiKey", {
+								providerName: provider.name,
+							})}
 						<ExternalLink className="size-3.5" />
 					</button>
 				) : null}
@@ -455,7 +475,7 @@ function ConfigFieldRow({
 					onChange={(event) => onCommit(event.target.value)}
 					value={valueText}
 				>
-					<option value="">Not set</option>
+					<option value="">{t("settings.providers.notSet")}</option>
 					{field.options?.map((option) => (
 						<option key={String(option.value)} value={String(option.value)}>
 							{option.label}
@@ -487,7 +507,11 @@ function ConfigFieldRow({
 					{isSecret ? (
 						<>
 							<Button
-								aria-label={shown ? "Hide secret" : "Show secret"}
+								aria-label={
+									shown
+										? t("settings.providers.hideSecretAria")
+										: t("settings.providers.showSecretAria")
+								}
 								className="rounded-md p-1 text-muted-foreground hover:text-foreground "
 								onClick={onToggleShown}
 								variant="ghost"
@@ -499,7 +523,9 @@ function ConfigFieldRow({
 								)}
 							</Button>
 							<Button
-								aria-label={`Copy ${field.label}`}
+								aria-label={t("settings.providers.copyFieldAria", {
+									fieldName: field.label,
+								})}
 								className="rounded-md p-1 text-muted-foreground hover:text-foreground "
 								onClick={() => navigator.clipboard.writeText(valueText)}
 								variant="ghost"
@@ -541,6 +567,7 @@ export function ProviderDetailContent({
 	onDisconnect?: () => void;
 	variant?: "page" | "panel";
 }) {
+	const { t } = useTranslation();
 	const deviceUserCode = useOAuthUserCode(oauthLoginPending);
 	const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
 	const [localConfigValues, setLocalConfigValues] = useState<
@@ -759,11 +786,10 @@ export function ProviderDetailContent({
 					<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
 						<div className="min-w-0">
 							<p className="text-sm font-medium text-foreground">
-								Signed in via browser
+								{t("settings.providers.signedInTitle")}
 							</p>
 							<p className="text-xs text-muted-foreground">
-								This provider authenticates with your account — no API key
-								needed.
+								{t("settings.providers.signedInDescription")}
 							</p>
 						</div>
 						{onDisconnect ? (
@@ -774,7 +800,7 @@ export function ProviderDetailContent({
 								type="button"
 								variant="outline"
 							>
-								Sign out
+								{t("settings.providers.signOutAction")}
 							</Button>
 						) : null}
 					</div>
@@ -782,7 +808,7 @@ export function ProviderDetailContent({
 					<div className="flex flex-col">
 						<div className="mb-2 flex items-center justify-between gap-4">
 							<p className="text-sm text-muted-foreground">
-								Configured with an API key.
+								{t("settings.providers.configuredWithApiKey")}
 							</p>
 							{onDisconnect ? (
 								<Button
@@ -792,7 +818,7 @@ export function ProviderDetailContent({
 									type="button"
 									variant="outline"
 								>
-									Disconnect
+									{t("settings.providers.disconnectAction")}
 								</Button>
 							) : null}
 						</div>
@@ -801,10 +827,12 @@ export function ProviderDetailContent({
 				) : (
 					<div className="rounded-lg border px-4 py-4">
 						<p className="text-sm font-medium text-foreground">
-							Sign in to {provider.name}
+							{t("settings.providers.signInToTitle", {
+								providerName: provider.name,
+							})}
 						</p>
 						<p className="mt-1 text-xs text-muted-foreground">
-							Connects through your browser. No API key needed.
+							{t("settings.providers.signInDescription")}
 						</p>
 						{onOAuthLogin ? (
 							<Button
@@ -819,14 +847,14 @@ export function ProviderDetailContent({
 								) : null}
 								<span>
 									{oauthLoginPending
-										? "Waiting for browser..."
-										: "Sign in with browser"}
+										? t("settings.providers.waitingForBrowser")
+										: t("settings.providers.signInWithBrowserAction")}
 								</span>
 							</Button>
 						) : null}
 						{oauthLoginPending && deviceUserCode ? (
 							<p className="mt-3 text-xs text-muted-foreground">
-								Confirm this code in your browser:{" "}
+								{t("settings.providers.confirmCodePrefix")}{" "}
 								<span className="font-mono font-medium text-foreground">
 									{deviceUserCode}
 								</span>
@@ -842,7 +870,7 @@ export function ProviderDetailContent({
 									type="button"
 									variant="ghost"
 								>
-									Use an API key instead
+									{t("settings.providers.useApiKeyInsteadAction")}
 									<ChevronDown
 										aria-hidden="true"
 										className={cn(
@@ -866,11 +894,10 @@ export function ProviderDetailContent({
 				<div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
 					<div className="min-w-0">
 						<p className="text-sm font-medium text-foreground">
-							Uses your local CLI sign-in
+							{t("settings.providers.localCliTitle")}
 						</p>
 						<p className="text-xs text-muted-foreground">
-							Credentials come from the provider's own CLI on this machine — no
-							API key needed.
+							{t("settings.providers.localCliDescription")}
 						</p>
 					</div>
 					{connected
@@ -882,7 +909,7 @@ export function ProviderDetailContent({
 									type="button"
 									variant="outline"
 								>
-									Disconnect
+									{t("settings.providers.disconnectAction")}
 								</Button>
 							)
 						: onConnect && (
@@ -892,7 +919,7 @@ export function ProviderDetailContent({
 									size="sm"
 									type="button"
 								>
-									Connect
+									{t("settings.providers.connectAction")}
 								</Button>
 							)}
 				</div>
@@ -908,7 +935,7 @@ export function ProviderDetailContent({
 					{connected ? (
 						<>
 							<p className="text-xs text-muted-foreground">
-								Changes to the fields above are saved automatically.
+								{t("settings.providers.autoSaveHint")}
 							</p>
 							{onDisconnect ? (
 								<Button
@@ -918,16 +945,14 @@ export function ProviderDetailContent({
 									type="button"
 									variant="outline"
 								>
-									Disconnect
+									{t("settings.providers.disconnectAction")}
 								</Button>
 							) : null}
 						</>
 					) : (
 						<>
 							<p className="text-xs text-muted-foreground">
-								Saving an API key configures this provider automatically. Use
-								Connect if it reads credentials from your environment or a local
-								endpoint.
+								{t("settings.providers.apiKeyConnectHint")}
 							</p>
 							{onConnect ? (
 								<Button
@@ -937,7 +962,7 @@ export function ProviderDetailContent({
 									type="button"
 									variant="outline"
 								>
-									Connect
+									{t("settings.providers.connectAction")}
 								</Button>
 							) : null}
 						</>
@@ -958,7 +983,7 @@ export function ProviderDetailContent({
 				<div className="mb-8 flex items-center gap-3">
 					{isPanel ? null : (
 						<Button
-							aria-label="Back to providers"
+							aria-label={t("settings.providers.backAria")}
 							className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 							onClick={onBack}
 							variant="ghost"
@@ -975,7 +1000,9 @@ export function ProviderDetailContent({
 						{provider.name}
 					</h1>
 					<span className="inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-						{connected ? "Configured" : "Not configured"}
+						{connected
+							? t("settings.providers.configured")
+							: t("settings.providers.notConfigured")}
 					</span>
 				</div>
 
@@ -991,10 +1018,10 @@ export function ProviderDetailContent({
 					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
 						<div className="flex items-center gap-1">
 							<h2 className="mr-1 text-lg font-medium text-muted-foreground">
-								Models
+								{t("settings.providers.modelsTitle")}
 							</h2>
 							<Button
-								aria-label="Refresh models"
+								aria-label={t("settings.providers.refreshModelsAria")}
 								className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
 								disabled={modelsLoading}
 								onClick={onLoadModels}
@@ -1007,7 +1034,7 @@ export function ProviderDetailContent({
 						</div>
 						{onUpdateModels ? (
 							<Button
-								aria-label="Add model"
+								aria-label={t("settings.providers.addModelAria")}
 								className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
 								disabled={modelsLoading}
 								onClick={() =>
@@ -1022,7 +1049,7 @@ export function ProviderDetailContent({
 					{isAddingModel ? (
 						<div className="flex items-center gap-2 border-t px-4 py-3">
 							<Input
-								aria-label="New model ID"
+								aria-label={t("settings.providers.newModelIdAria")}
 								autoFocus
 								className="h-9 flex-1 font-mono"
 								onChange={(event) =>
@@ -1035,7 +1062,7 @@ export function ProviderDetailContent({
 									if (event.key === "Enter") addModel();
 									if (event.key === "Escape") setAddModelState(null);
 								}}
-								placeholder="Model ID"
+								placeholder={t("settings.providers.modelIdPlaceholder")}
 								value={newModelId}
 							/>
 							<Button
@@ -1043,14 +1070,14 @@ export function ProviderDetailContent({
 								onClick={addModel}
 								size="sm"
 							>
-								Add
+								{t("settings.providers.addModelAction")}
 							</Button>
 							<Button
 								onClick={() => setAddModelState(null)}
 								size="sm"
 								variant="ghost"
 							>
-								Cancel
+								{t("common.action.cancel")}
 							</Button>
 						</div>
 					) : null}
@@ -1065,7 +1092,7 @@ export function ProviderDetailContent({
 							<div className="mx-4 mt-4 flex h-9 items-center gap-2 rounded border bg-background px-3">
 								<Search className="size-4 shrink-0 text-muted-foreground" />
 								<Input
-									aria-label="Search models"
+									aria-label={t("settings.providers.searchModelsAria")}
 									className={EMBEDDED_INPUT_CLASS}
 									onChange={(event) =>
 										setModelSearchState({
@@ -1073,7 +1100,7 @@ export function ProviderDetailContent({
 											value: event.target.value,
 										})
 									}
-									placeholder="Search models by name or ID"
+									placeholder={t("settings.providers.searchModelsPlaceholder")}
 									spellCheck={false}
 									value={modelSearch}
 								/>
@@ -1099,9 +1126,11 @@ export function ProviderDetailContent({
 													{/* Capability icons */}
 													{model.supportsAttachments && (
 														<span
-															aria-label="File support"
+															aria-label={t(
+																"settings.providers.fileSupportLabel",
+															)}
 															role="img"
-															title="File support"
+															title={t("settings.providers.fileSupportLabel")}
 														>
 															<FileIcon
 																aria-hidden="true"
@@ -1111,9 +1140,11 @@ export function ProviderDetailContent({
 													)}
 													{model.supportsVision && (
 														<span
-															aria-label="Image support"
+															aria-label={t(
+																"settings.providers.imageSupportLabel",
+															)}
 															role="img"
-															title="Image support"
+															title={t("settings.providers.imageSupportLabel")}
 														>
 															<ImageIcon
 																aria-hidden="true"
@@ -1123,9 +1154,11 @@ export function ProviderDetailContent({
 													)}
 													{supportsAudio(model) && (
 														<span
-															aria-label="Audio support"
+															aria-label={t(
+																"settings.providers.audioSupportLabel",
+															)}
 															role="img"
-															title="Audio support"
+															title={t("settings.providers.audioSupportLabel")}
 														>
 															<Mic
 																aria-hidden="true"
@@ -1135,9 +1168,13 @@ export function ProviderDetailContent({
 													)}
 													{model.supportsReasoning && (
 														<span
-															aria-label="Reasoning support"
+															aria-label={t(
+																"settings.providers.reasoningSupportLabel",
+															)}
 															role="img"
-															title="Reasoning support"
+															title={t(
+																"settings.providers.reasoningSupportLabel",
+															)}
 														>
 															<Brain
 																aria-hidden="true"
@@ -1152,17 +1189,19 @@ export function ProviderDetailContent({
 													</p>
 												) : null}
 												<button
-													aria-label={`Copy model ID ${model.id}`}
+													aria-label={t("settings.providers.copyModelIdAria", {
+														modelId: model.id,
+													})}
 													className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground  hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 													onClick={() => copyModelId(model.id)}
-													title="Copy model ID"
+													title={t("settings.providers.copyModelIdTitle")}
 													type="button"
 												>
 													<span className="min-w-0 truncate">{model.id}</span>
 													<Copy className="size-3 shrink-0" />
 													{copiedModelId === model.id ? (
 														<span className="shrink-0 text-foreground">
-															Copied
+															{t("settings.providers.copied")}
 														</span>
 													) : null}
 												</button>
@@ -1171,8 +1210,12 @@ export function ProviderDetailContent({
 											<Button
 												aria-label={
 													favoriteModelIds.has(model.id)
-														? `Unfavorite ${model.name}`
-														: `Favorite ${model.name}`
+														? t("settings.providers.unfavoriteAria", {
+																modelName: model.name,
+															})
+														: t("settings.providers.favoriteAria", {
+																modelName: model.name,
+															})
 												}
 												className={cn(
 													"ml-auto shrink-0 rounded-md p-1.5 transition-colors hover:bg-surface-hover hover:text-foreground",
@@ -1196,7 +1239,9 @@ export function ProviderDetailContent({
 							) : (
 								<div className="rounded-lg border border-border px-4 py-8 text-center">
 									<p className="text-sm text-muted-foreground">
-										No models match "{modelSearch.trim()}".
+										{t("settings.providers.noModelsMatch", {
+											query: modelSearch.trim(),
+										})}
 									</p>
 								</div>
 							)}
@@ -1205,8 +1250,8 @@ export function ProviderDetailContent({
 						<div className="rounded-lg border border-border px-4 py-8 text-center">
 							<p className="text-sm text-muted-foreground">
 								{modelsLoading
-									? "Loading models..."
-									: "No models available. Click refresh to load models."}
+									? t("settings.providers.loadingModels")
+									: t("settings.providers.noModelsAvailable")}
 							</p>
 						</div>
 					)}

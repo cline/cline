@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { desktopClient } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -52,6 +53,7 @@ export function VoiceInputContent({
 }: {
 	onOpenModelProviders: () => void;
 }) {
+	const { t } = useTranslation();
 	const [providers, setProviders] = useState<Provider[] | null>(null);
 	const [voiceInput, setVoiceInput] = useState<VoiceInputSelection | undefined>(
 		undefined,
@@ -144,8 +146,8 @@ export function VoiceInputContent({
 
 	const header = (
 		<PageHeader
-			description="Speak instead of typing: the microphone in chat transcribes your voice with the model chosen here. Live models show text as you speak; others transcribe when the recording stops."
-			title="Voice input"
+			description={t("settings.voice.description")}
+			title={t("settings.voice.title")}
 		/>
 	);
 
@@ -153,7 +155,9 @@ export function VoiceInputContent({
 		return (
 			<PageFrame>
 				{header}
-				<p className="text-sm text-muted-foreground">Loading providers...</p>
+				<p className="text-sm text-muted-foreground">
+					{t("settings.voice.loadingProviders")}
+				</p>
 			</PageFrame>
 		);
 	}
@@ -163,7 +167,7 @@ export function VoiceInputContent({
 			<PageFrame>
 				{header}
 				<p className="text-sm text-destructive">
-					Failed to load providers: {loadError}
+					{t("settings.voice.loadError", { error: loadError })}
 				</p>
 			</PageFrame>
 		);
@@ -178,18 +182,18 @@ export function VoiceInputContent({
 					<Mic aria-hidden="true" className="size-6 text-muted-foreground" />
 					<p className="text-base font-medium text-foreground">
 						{hasConnected
-							? "None of your configured providers offer speech-to-text models"
-							: "Voice input needs a configured model provider"}
+							? t("settings.voice.noModelsConnected")
+							: t("settings.voice.needsProvider")}
 					</p>
 					<p className="text-sm text-muted-foreground">
 						{voiceCapableProviderNames.length > 0
-							? `Connect a provider with transcription models — for example ${voiceCapableProviderNames
-									.slice(0, 4)
-									.join(", ")} — and this page unlocks automatically.`
-							: "Connect a provider with transcription models and this page unlocks automatically."}
+							? t("settings.voice.connectProviderExamples", {
+									providers: voiceCapableProviderNames.slice(0, 4).join(", "),
+								})
+							: t("settings.voice.connectProvider")}
 					</p>
 					<Button onClick={onOpenModelProviders} size="sm" type="button">
-						Open Model Providers
+						{t("settings.voice.openModelProviders")}
 					</Button>
 				</div>
 			</PageFrame>
@@ -205,15 +209,14 @@ export function VoiceInputContent({
 				<div className="flex items-center justify-between gap-5 border-y py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Enable voice input
+							{t("settings.voice.enableTitle")}
 						</p>
 						<p className="text-sm text-muted-foreground">
-							Turns on the microphone button in chat. A default model is
-							preselected — adjust it below.
+							{t("settings.voice.enableDescription")}
 						</p>
 					</div>
 					<Switch
-						aria-label="Enable voice input"
+						aria-label={t("settings.voice.enableAria")}
 						checked={enabled}
 						disabled={saving}
 						onCheckedChange={(checked) => {
@@ -225,7 +228,7 @@ export function VoiceInputContent({
 
 				{saveError ? (
 					<p className="mt-3 text-xs text-destructive" role="alert">
-						Failed to save voice input settings: {saveError}
+						{t("settings.voice.saveError", { error: saveError })}
 					</p>
 				) : null}
 
@@ -233,7 +236,7 @@ export function VoiceInputContent({
 					<>
 						<div className="mt-6">
 							<p className="mb-2 text-sm font-semibold text-foreground">
-								Provider
+								{t("settings.voice.providerLabel")}
 							</p>
 							<div className="flex flex-wrap gap-2">
 								{voiceProviders.map(({ provider }) => {
@@ -262,10 +265,10 @@ export function VoiceInputContent({
 						{selectedEntry ? (
 							<div className="mt-6">
 								<p className="mb-2 text-sm font-semibold text-foreground">
-									Model
+									{t("settings.voice.modelLabel")}
 								</p>
 								<div
-									aria-label="Voice input model"
+									aria-label={t("settings.voice.modelAria")}
 									className="overflow-hidden rounded-lg border"
 									role="radiogroup"
 								>
@@ -320,7 +323,7 @@ export function VoiceInputContent({
 																				aria-hidden="true"
 																				className="size-3"
 																			/>
-																			Live
+																			{t("settings.voice.liveBadge")}
 																		</>
 																	) : (
 																		<>
@@ -328,20 +331,20 @@ export function VoiceInputContent({
 																				aria-hidden="true"
 																				className="size-3"
 																			/>
-																			After recording
+																			{t("settings.voice.afterRecordingBadge")}
 																		</>
 																	)}
 																</span>
 															</TooltipTrigger>
 															<TooltipContent>
 																{isStreamingModel(model)
-																	? "Streaming transcription: text appears in the chat box while you speak."
-																	: "Transcribes in one pass after you stop the recording."}
+																	? t("settings.voice.liveTooltip")
+																	: t("settings.voice.afterRecordingTooltip")}
 															</TooltipContent>
 														</Tooltip>
 														{isDefault ? (
 															<span className="shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
-																Default
+																{t("settings.voice.defaultBadge")}
 															</span>
 														) : null}
 													</div>

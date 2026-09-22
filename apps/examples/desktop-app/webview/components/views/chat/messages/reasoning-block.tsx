@@ -1,6 +1,7 @@
 "use client";
 
 import { ThinkingBlock } from "@cline/ui/components/agent-chat";
+import { useTranslation } from "@/lib/i18n";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 
 /** The shared ThinkingBlock with the app's Markdown pipeline as its body. */
@@ -15,7 +16,9 @@ export function ReasoningBlock({
 	redacted: boolean;
 	streaming?: boolean;
 }) {
-	const displayContent = content || (redacted ? "[redacted]" : "");
+	const { t } = useTranslation();
+	const displayContent =
+		content || (redacted ? t("chat.messages.reasoningRedacted") : "");
 	if (!displayContent) {
 		return null;
 	}

@@ -5,6 +5,7 @@ import {
 	requestPermission,
 } from "@tauri-apps/plugin-notification";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import { getTranslator } from "@/lib/i18n";
 import { eventEnvironmentId, sessionKey } from "./session-identity";
 
 const DESKTOP_NOTIFICATION_SETTINGS_STORAGE_KEY =
@@ -315,6 +316,7 @@ export function watchDesktopNotifications(): () => void {
 		kind: TerminalKind,
 		detail = "",
 	) => {
+		const t = getTranslator().t;
 		const key = sessionKey({ sessionId, environmentId });
 		if (!sessionId || terminalBySession.get(key) === kind) {
 			return;
@@ -330,16 +332,16 @@ export function watchDesktopNotifications(): () => void {
 			void notify({
 				eventType: "taskCompletion",
 				sessionId,
-				title: "Task completed",
-				body: "Cline finished working and the result is ready.",
+				title: t("notifications.task.finished.title"),
+				body: t("notifications.task.finished.body"),
 			});
 			return;
 		}
 		void notify({
 			eventType: "sessionError",
 			sessionId,
-			title: "Task failed",
-			body: detail || "Cline encountered an error while running this task.",
+			title: t("notifications.task.error.title"),
+			body: detail || t("notifications.task.error.body"),
 		});
 	};
 
@@ -403,6 +405,7 @@ export function watchDesktopNotifications(): () => void {
 		}),
 		desktopClient.subscribe("tool_approval_state", (payload) => {
 			if (!payload || typeof payload !== "object") return;
+			const t = getTranslator().t;
 			const record = payload as { sessionId?: unknown; items?: unknown };
 			const sessionId = asNonEmptyString(record.sessionId);
 			if (!sessionId || !Array.isArray(record.items)) return;
@@ -420,17 +423,20 @@ export function watchDesktopNotifications(): () => void {
 				) {
 					continue;
 				}
-				const toolName = asNonEmptyString(item.toolName) || "A tool";
+				const toolName =
+					asNonEmptyString(item.toolName) ||
+					t("notifications.approval.fallbackToolName");
 				void notify({
 					eventType: "approvalNeeded",
 					sessionId,
-					title: "Approval needed",
-					body: `${toolName} is waiting for your approval.`,
+					title: t("notifications.approval.title"),
+					body: t("notifications.approval.body", { toolName }),
 				});
 			}
 		}),
 		desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
+			const t = getTranslator().t;
 			const item = payload as AskQuestionItem;
 			const requestId = asNonEmptyString(item.requestId);
 			const sessionId = asNonEmptyString(item.sessionId);
@@ -450,10 +456,10 @@ export function watchDesktopNotifications(): () => void {
 			void notify({
 				eventType: "questionAsked",
 				sessionId,
-				title: "Cline has a question",
+				title: t("notifications.task.question.title"),
 				body:
 					asNonEmptyString(item.question) ||
-					"Open this task to answer Cline's question.",
+					t("notifications.task.question.body"),
 			});
 		}),
 	];

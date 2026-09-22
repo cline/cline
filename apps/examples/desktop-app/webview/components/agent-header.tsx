@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { useTranslation } from "@/lib/i18n";
 import {
 	agentEntryState,
 	describeAgentActivity,
@@ -84,6 +85,7 @@ function AgentHeaderImpl({
 	parentSession,
 	onOpenParentSession,
 }: AgentHeaderProps) {
+	const { t } = useTranslation();
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
 	const [titleEditorWidth, setTitleEditorWidth] = useState<number>();
@@ -93,8 +95,8 @@ function AgentHeaderImpl({
 	const statusTone = sessionStatusTone(status);
 	const statusColor = sessionStatusColor(status);
 	const threadTitle = useMemo(
-		() => normalizeTitle(title?.trim()) || "New Session",
-		[title],
+		() => normalizeTitle(title?.trim()) || t("header.defaultTitle"),
+		[title, t],
 	);
 
 	useEffect(() => {
@@ -128,7 +130,7 @@ function AgentHeaderImpl({
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				<SessionStatus
 					className="shrink-0 font-mono"
-					label={`Session status: ${status}`}
+					label={t("header.sessionStatusAria", { status })}
 					showLabel={false}
 					style={
 						{
@@ -198,7 +200,7 @@ function AgentHeaderImpl({
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
-							aria-label="Session actions"
+							aria-label={t("header.actionsAria")}
 							className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
 							id="show-more-btn"
 							variant="ghost"
@@ -215,7 +217,11 @@ function AgentHeaderImpl({
 							onClick={triggerDeleteSession}
 						>
 							<Trash2 className="size-4" />
-							<span>{deletingSession ? "Deleting..." : "Delete session"}</span>
+							<span>
+								{deletingSession
+									? t("header.deleting")
+									: t("header.deleteSession")}
+							</span>
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -233,7 +239,7 @@ function AgentHeaderImpl({
 					/>
 					{additions !== 0 && (
 						<Button
-							aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
+							aria-label={t("header.openDiffAria", { additions, deletions })}
 							className={cn(
 								"flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-mono transition-colors",
 								hasChanges
@@ -261,7 +267,7 @@ function AgentHeaderImpl({
 						/>
 					) : (
 						<Button
-							aria-label="New session"
+							aria-label={t("header.newSessionAria")}
 							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 							onClick={() => onNewThread?.()}
 							size="icon-sm"
@@ -297,11 +303,12 @@ function SubagentSessionBadge({
 	parentSession: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
 }) {
+	const { t } = useTranslation();
 	const parentTitle = parentSession.title?.trim();
-	const label = "Main Agent Session";
+	const label = t("header.mainAgentSession");
 	const hint = parentTitle
-		? `Back to the main agent session: ${parentTitle}`
-		: "Back to the main agent session";
+		? t("header.backToParentWithTitle", { title: parentTitle })
+		: t("header.backToParent");
 
 	return (
 		<Button
@@ -346,6 +353,7 @@ function AgentActivityStatus({
 	// Controlled so selecting an agent can dismiss the popover as the session view
 	// takes over; an uncontrolled one would linger over the newly opened session.
 	const [open, setOpen] = useState(false);
+	const { t } = useTranslation();
 
 	if (!activity || activity.total === 0) {
 		return null;
@@ -404,7 +412,9 @@ function AgentActivityStatus({
 				id="agent-activity-panel"
 			>
 				<div className="border-b border-border/70 px-3 py-2">
-					<div className="text-sm font-medium text-foreground">Agents</div>
+					<div className="text-sm font-medium text-foreground">
+						{t("header.agentsTitle")}
+					</div>
 					<div className="mt-0.5 text-[11px] text-muted-foreground">
 						{label}
 					</div>
@@ -437,11 +447,12 @@ function AgentRoster({
 	error: string | null;
 	onSelect: (agentSessionId: string) => void;
 }) {
+	const { t } = useTranslation();
 	if (loading && agents.length === 0) {
 		return (
 			<div className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground">
 				<Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-				Loading agents...
+				{t("header.agentsLoading")}
 			</div>
 		);
 	}
@@ -452,8 +463,8 @@ function AgentRoster({
 		return (
 			<div className="px-3 py-4 text-xs text-muted-foreground">
 				{activity.running > 0
-					? "Waiting for the first agent to report in..."
-					: "No agent details were recorded for this session."}
+					? t("header.agentsWaitingFirst")
+					: t("header.agentsEmpty")}
 				{error ? (
 					<div className="mt-1 text-[11px] text-muted-foreground/80">
 						{error}
@@ -486,7 +497,7 @@ function AgentRoster({
 					className="border-t border-border/70 px-3 py-2 text-[11px] text-muted-foreground"
 					id="agent-roster-stale"
 				>
-					Could not refresh — showing the last known agents. {error}
+					{t("header.agentsStale", { error })}
 				</div>
 			) : null}
 		</>
@@ -522,6 +533,7 @@ function AgentRosterRow({
 	agent: SessionAgentEntry;
 	onSelect: () => void;
 }) {
+	const { t } = useTranslation();
 	const state = agentEntryState(agent.status);
 	const StateIcon = AGENT_STATE_ICON[state];
 	const isRunning = state === "running";

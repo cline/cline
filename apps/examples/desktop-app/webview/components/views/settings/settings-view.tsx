@@ -12,6 +12,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { toast } from "@/hooks/use-toast";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
@@ -32,6 +33,13 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import { applyAppLocale, useTranslation } from "@/lib/i18n";
+import {
+	APP_LOCALES,
+	type AppLocalePreference,
+	readStoredLocalePreference,
+	resolveAppLocale,
+} from "@/lib/locale";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
@@ -99,6 +107,22 @@ let providerCatalogCache: {
 	fetchedAt: number;
 } | null = null;
 
+// Section ids double as navigation state, so only the display label is
+// localized (mirrors the private map in agent-sidebar.tsx; the ids live in
+// ./sections).
+const SECTION_LABEL_KEYS: Record<SettingsSection, string> = {
+	General: "settings.section.general",
+	"API Providers": "settings.section.apiProviders",
+	Voice: "settings.section.voice",
+	Channels: "settings.section.channels",
+	Schedules: "settings.section.schedules",
+	Import: "settings.section.import",
+	Remote: "settings.section.remote",
+	Account: "settings.section.account",
+	Customize: "settings.section.customize.installed",
+	Marketplace: "settings.section.customize.marketplace",
+};
+
 // -----------------------------------------------------------
 // Component
 // -----------------------------------------------------------
@@ -112,6 +136,7 @@ export function SettingsView({
 	onNavigateSection: (section: SettingsSection) => void;
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
+	const { t } = useTranslation();
 	const activeNav = section;
 	const [providers, setProviders] = useState<Provider[]>(
 		() => providerCatalogCache?.providers ?? [],
@@ -272,7 +297,12 @@ export function SettingsView({
 				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				window.alert(
+					t("settings.dialogs.saveProviderSettings.error", {
+						message,
+						provider: id,
+					}),
+				);
 				// The optimistic list update no longer matches disk: resync from
 				// the authoritative catalog. Retry when a concurrent edit
 				// superseded the in-flight response (that edit performs no
@@ -293,7 +323,7 @@ export function SettingsView({
 				invalidateProviderCatalogCache();
 			}
 		},
-		[loadProviderCatalog, resyncProviderCatalog],
+		[loadProviderCatalog, resyncProviderCatalog, t],
 	);
 
 	const connectProvider = useCallback(
@@ -468,7 +498,9 @@ export function SettingsView({
 			setSelectedProviderId(id);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			window.alert(`Failed to sign in to ${id}: ${message}`);
+			window.alert(
+				t("settings.dialogs.oauthSignIn.error", { provider: id, message }),
+			);
 		} finally {
 			setOauthSigningProviderId(null);
 		}
@@ -533,9 +565,9 @@ export function SettingsView({
 		>
 			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
 				<DialogHeader>
-					<DialogTitle>Add Provider</DialogTitle>
+					<DialogTitle>{t("settings.dialogs.addProvider.title")}</DialogTitle>
 					<DialogDescription>
-						Add an OpenAI-compatible provider and choose its available models.
+						{t("settings.dialogs.addProvider.description")}
 					</DialogDescription>
 				</DialogHeader>
 				<AddProviderContent
@@ -550,12 +582,14 @@ export function SettingsView({
 
 	const providerContent = providersLoading ? (
 		<div className="flex h-full items-center justify-center">
-			<p className="text-sm text-muted-foreground">Loading providers...</p>
+			<p className="text-sm text-muted-foreground">
+				{t("settings.providers.loading")}
+			</p>
 		</div>
 	) : providerCatalogError ? (
 		<div className="flex h-full items-center justify-center">
 			<p className="max-w-xl px-4 text-center text-sm text-destructive">
-				Failed to load providers: {providerCatalogError}
+				{t("settings.providers.loadError", { message: providerCatalogError })}
 			</p>
 		</div>
 	) : selectedProvider ? (
@@ -637,7 +671,9 @@ export function SettingsView({
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
-					{activeNav} settings coming soon.
+					{t("settings.settingsComingSoon", {
+						section: t(SECTION_LABEL_KEYS[activeNav]),
+					})}
 				</p>
 			</div>
 		);
@@ -653,21 +689,72 @@ export function SettingsView({
  * Swatches shown in the accent picker. The swatch color is the accent's
  * light-mode primary (see the [data-cline-accent] blocks in globals.css);
  * violet reads the live brand token so it always matches the default theme.
+ * Display names live in ACCENT_LABEL_KEYS and are localized at render time.
  */
-const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
-	{ id: "violet", label: "Violet", swatch: "var(--brand-violet)" },
-	{ id: "graphite", label: "Graphite", swatch: "oklch(0.27 0.012 248)" },
-	{ id: "cyan", label: "Cyan", swatch: "oklch(0.6 0.12 222)" },
-	{ id: "pink", label: "Pink", swatch: "oklch(0.75 0.1 354)" },
-	{ id: "espresso", label: "Espresso", swatch: "oklch(0.36 0.035 35)" },
-	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
+const ACCENT_OPTIONS: { id: HubAccent; swatch: string }[] = [
+	{ id: "violet", swatch: "var(--brand-violet)" },
+	{ id: "graphite", swatch: "oklch(0.27 0.012 248)" },
+	{ id: "cyan", swatch: "oklch(0.6 0.12 222)" },
+	{ id: "pink", swatch: "oklch(0.75 0.1 354)" },
+	{ id: "espresso", swatch: "oklch(0.36 0.035 35)" },
+	{ id: "ember", swatch: "oklch(0.6 0.19 33)" },
 ];
+
+const ACCENT_LABEL_KEYS: Record<HubAccent, string> = {
+	violet: "settings.general.accentColor.violet",
+	graphite: "settings.general.accentColor.graphite",
+	cyan: "settings.general.accentColor.cyan",
+	pink: "settings.general.accentColor.pink",
+	espresso: "settings.general.accentColor.espresso",
+	ember: "settings.general.accentColor.ember",
+};
+
+// Icon names live in lib/app-icon (shared data), so their display labels are
+// localized here at render time.
+const APP_ICON_LABEL_KEYS: Record<AppIconId, string> = {
+	classic: "settings.general.appIcon.classic",
+	midnight: "settings.general.appIcon.midnight",
+	hologram: "settings.general.appIcon.hologram",
+	chip: "settings.general.appIcon.chip",
+};
+
+// Where the app icon shows up per platform; keys mirror the appIconSurface()
+// return union.
+const APP_ICON_SURFACE_KEYS: Record<"Dock" | "Taskbar" | "desktop", string> = {
+	Dock: "settings.general.appIcon.surface.dock",
+	Taskbar: "settings.general.appIcon.surface.taskbar",
+	desktop: "settings.general.appIcon.surface.desktop",
+};
 
 function GeneralSettingsContent({
 	onOpenModelProviders,
 }: {
 	onOpenModelProviders: () => void;
 }) {
+	const translator = useTranslation();
+	const { t } = translator;
+	// Self-describing option labels (each language names itself) are shown
+	// verbatim in every UI language so users can always find their own.
+	const LANGUAGE_OPTIONS = APP_LOCALES.map((locale) => ({
+		value: locale,
+		label: translator.localeDisplayName(locale),
+	}));
+	const [localePref, setLocalePref] = useState<AppLocalePreference>(() =>
+		readStoredLocalePreference(),
+	);
+	const resolvedLocaleName = translator.localeDisplayName(
+		resolveAppLocale(localePref, navigator.languages ?? []),
+	);
+	const updateLocalePreference = (next: AppLocalePreference) => {
+		setLocalePref(next);
+		applyAppLocale(next);
+		void desktopClient.invoke("set_language", { language: next }).catch(() => {
+			toast({
+				title: t("settings.general.language.saveError"),
+				variant: "destructive",
+			});
+		});
+	};
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
@@ -975,34 +1062,76 @@ function GeneralSettingsContent({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Manage desktop preferences for this browser and CLI environment."
-				title="Settings"
+				description={t("settings.general.description")}
+				title={t("settings.general.title")}
 			/>
 			<section className="max-w-344">
 				<NotificationSettings />
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							{t("settings.general.language.title")}
+						</p>
+						<p className="text-sm text-muted-foreground">
+							{t("settings.general.language.description")}
+						</p>
+						{localePref === "system" ? (
+							<p className="text-xs text-muted-foreground">
+								{t("settings.general.language.systemHint", {
+									languageName: resolvedLocaleName,
+								})}
+							</p>
+						) : null}
+					</div>
+					<div className="w-64 shrink-0 max-[720px]:w-full">
+						<select
+							aria-label={t("settings.general.language.title")}
+							className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+							onChange={(event) =>
+								updateLocalePreference(
+									event.target.value as AppLocalePreference,
+								)
+							}
+							value={localePref}
+						>
+							<option value="system">
+								{t("settings.general.language.system")}
+							</option>
+							{LANGUAGE_OPTIONS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
+					</div>
+				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Dark mode</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("settings.general.darkMode.title")}
+						</p>
 						<p className="text-sm text-muted-foreground">
-							Keep the desktop interface in dark mode on this browser.
+							{t("settings.general.darkMode.description")}
 						</p>
 					</div>
 					<Switch
-						aria-label="Dark mode"
+						aria-label={t("settings.general.darkMode.aria")}
 						checked={theme === "dark"}
 						onCheckedChange={updateTheme}
 					/>
 				</div>
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Font size</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("settings.general.fontSize.title")}
+						</p>
 						<p className="text-sm text-muted-foreground">
-							Adjust the size of text and interface elements throughout the app.
+							{t("settings.general.fontSize.description")}
 						</p>
 					</div>
 					<div className="flex w-64 shrink-0 items-center gap-3 max-[720px]:w-full">
 						<Button
-							aria-label="Decrease font size"
+							aria-label={t("settings.general.fontSize.decreaseAria")}
 							className="size-7"
 							disabled={fontSize === MIN_APP_FONT_SIZE}
 							onClick={() => updateFontSizePreference(fontSize - 1)}
@@ -1013,8 +1142,10 @@ function GeneralSettingsContent({
 							<Minus />
 						</Button>
 						<Slider
-							aria-label="Font size"
-							aria-valuetext={`${fontSize} pixels`}
+							aria-label={t("settings.general.fontSize.sliderAria")}
+							aria-valuetext={t("settings.general.fontSize.pixelValue", {
+								count: fontSize,
+							})}
 							max={MAX_APP_FONT_SIZE}
 							min={MIN_APP_FONT_SIZE}
 							onValueChange={updateFontSize}
@@ -1022,7 +1153,7 @@ function GeneralSettingsContent({
 							value={[fontSize]}
 						/>
 						<Button
-							aria-label="Increase font size"
+							aria-label={t("settings.general.fontSize.increaseAria")}
 							className="size-7"
 							disabled={fontSize === MAX_APP_FONT_SIZE}
 							onClick={() => updateFontSizePreference(fontSize + 1)}
@@ -1033,7 +1164,7 @@ function GeneralSettingsContent({
 							<Plus />
 						</Button>
 						<output
-							aria-label="Selected font size"
+							aria-label={t("settings.general.fontSize.selectedAria")}
 							className="w-10 shrink-0 text-right font-mono text-sm tabular-nums text-foreground"
 						>
 							{fontSize}px
@@ -1043,16 +1174,16 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Accent color
+							{t("settings.general.accentColor.title")}
 						</p>
 						<p className="text-sm text-muted-foreground">
-							Tint buttons, links, and highlights across the app.
+							{t("settings.general.accentColor.description")}
 						</p>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
 						{ACCENT_OPTIONS.map((option) => (
 							<button
-								aria-label={option.label}
+								aria-label={t(ACCENT_LABEL_KEYS[option.id])}
 								aria-pressed={accent === option.id}
 								className={cn(
 									"size-7 rounded-full border border-foreground/10 transition-transform hover:scale-110",
@@ -1062,7 +1193,7 @@ function GeneralSettingsContent({
 								key={option.id}
 								onClick={() => updateAccent(option.id)}
 								style={{ backgroundColor: option.swatch }}
-								title={option.label}
+								title={t(ACCENT_LABEL_KEYS[option.id])}
 								type="button"
 							/>
 						))}
@@ -1070,20 +1201,26 @@ function GeneralSettingsContent({
 				</div>
 				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">App icon</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("settings.general.appIcon.title")}
+						</p>
 						<p className="text-sm text-muted-foreground">
-							Pick the icon Cline shows in the {appIconLocation}.
+							{t("settings.general.appIcon.description", {
+								location: t(APP_ICON_SURFACE_KEYS[appIconLocation]),
+							})}
 						</p>
 						{appIconError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to change app icon: {appIconError}
+								{t("settings.general.appIcon.changeError", {
+									message: appIconError,
+								})}
 							</p>
 						) : null}
 					</div>
 					<div className="flex shrink-0 items-start gap-2.5">
 						{APP_ICONS.map((icon) => (
 							<button
-								aria-label={icon.label}
+								aria-label={t(APP_ICON_LABEL_KEYS[icon.id])}
 								aria-pressed={appIcon === icon.id}
 								className="group flex flex-col items-center gap-2"
 								key={icon.id}
@@ -1110,7 +1247,7 @@ function GeneralSettingsContent({
 											: "text-muted-foreground",
 									)}
 								>
-									{icon.label}
+									{t(APP_ICON_LABEL_KEYS[icon.id])}
 								</span>
 							</button>
 						))}
@@ -1119,42 +1256,41 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Web search
+							{t("settings.general.webSearch.title")}
 						</p>
 						<p className="text-sm text-muted-foreground">
-							Let the model search the web during a task. Only providers with
-							built-in web search honor this setting; other providers ignore it.
-							Applies to new sessions.
+							{t("settings.general.webSearch.description")}
 						</p>
 						{webSearchReadyProviders ===
 						null ? null : webSearchReadyProviders.length > 0 ? (
 							<p className="text-xs text-muted-foreground">
-								Ready to use with {webSearchReadyProviders.join(", ")} on models
-								that support it — no extra setup needed.
+								{t("settings.general.webSearch.readyWith", {
+									providers: webSearchReadyProviders.join(", "),
+								})}
 							</p>
 						) : (
 							<p className="text-xs text-amber-700 dark:text-amber-300">
-								None of your connected providers include built-in web search, so
-								this setting has no effect yet.{" "}
+								{t("settings.general.webSearch.noneIntro")}{" "}
 								<button
 									className="underline underline-offset-2 hover:text-foreground"
 									onClick={onOpenModelProviders}
 									type="button"
 								>
-									Connect a provider
+									{t("settings.general.webSearch.connectAction")}
 								</button>{" "}
-								that supports it, such as Anthropic, OpenAI, Google Gemini, or
-								Cline.
+								{t("settings.general.webSearch.noneSuffix")}
 							</p>
 						)}
 						{webSearchError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update web search setting: {webSearchError}
+								{t("settings.general.webSearch.updateError", {
+									message: webSearchError,
+								})}
 							</p>
 						) : null}
 					</div>
 					<Switch
-						aria-label="Web search"
+						aria-label={t("settings.general.webSearch.aria")}
 						checked={webSearchEnabled}
 						disabled={webSearchLoading || webSearchSaving}
 						onCheckedChange={(checked) => void updateWebSearchEnabled(checked)}
@@ -1163,21 +1299,21 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							Keep CLI up to date
+							{t("settings.general.autoUpdate.title")}
 						</p>
 						<p className="text-sm text-muted-foreground">
-							Automatically update the cline terminal command, which shares your
-							sessions and settings with this app. The app itself updates
-							separately.
+							{t("settings.general.autoUpdate.description")}
 						</p>
 						{autoUpdateError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update CLI auto-update setting: {autoUpdateError}
+								{t("settings.general.autoUpdate.updateError", {
+									message: autoUpdateError,
+								})}
 							</p>
 						) : null}
 					</div>
 					<Switch
-						aria-label="Keep CLI up to date"
+						aria-label={t("settings.general.autoUpdate.aria")}
 						checked={autoUpdateEnabled}
 						disabled={autoUpdateLoading || autoUpdateSaving}
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
@@ -1187,34 +1323,35 @@ function GeneralSettingsContent({
 					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 						<div className="flex flex-col gap-1">
 							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
-								Cloud sessions
+								{t("settings.general.cloudSessions.title")}
 								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
-									Preview
+									{t("settings.general.cloudSessions.preview")}
 								</span>
 							</p>
 							<p className="text-sm text-muted-foreground">
-								Run Cline on your GitHub repositories in secure cloud sandboxes.
-								Adds a Cloud option to the new-session composer. Requires a
-								Cline account with GitHub connected.
+								{t("settings.general.cloudSessions.description")}
 							</p>
 							{cloudSessionsError ? (
 								<p className="mt-2 text-xs text-destructive" role="alert">
-									Failed to update cloud sessions setting: {cloudSessionsError}
+									{t("settings.general.cloudSessions.updateError", {
+										message: cloudSessionsError,
+									})}
 								</p>
 							) : null}
 							{cloudSessionsEffective !== null &&
 							!cloudSessionsLoading &&
 							cloudSessionsEffective !== cloudSessionsEnabled ? (
 								<p className="mt-2 text-xs text-muted-foreground">
-									Cloud sessions are currently{" "}
-									{cloudSessionsEffective ? "enabled" : "disabled"} by the
-									CLINE_CODE_CLOUD_AGENTS environment override, which takes
-									precedence over this setting.
+									{t("settings.general.cloudSessions.envOverride", {
+										state: cloudSessionsEffective
+											? t("settings.general.cloudSessions.stateEnabled")
+											: t("settings.general.cloudSessions.stateDisabled"),
+									})}
 								</p>
 							) : null}
 						</div>
 						<Switch
-							aria-label="Cloud sessions"
+							aria-label={t("settings.general.cloudSessions.aria")}
 							checked={cloudSessionsEnabled}
 							disabled={cloudSessionsLoading || cloudSessionsSaving}
 							onCheckedChange={(checked) =>
@@ -1225,18 +1362,22 @@ function GeneralSettingsContent({
 				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">Telemetry</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("settings.general.telemetry.title")}
+						</p>
 						<p className="text-sm text-muted-foreground">
-							Enable error and usage reports to help improve Cline.
+							{t("settings.general.telemetry.description")}
 						</p>
 						{telemetryError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update telemetry setting: {telemetryError}
+								{t("settings.general.telemetry.updateError", {
+									message: telemetryError,
+								})}
 							</p>
 						) : null}
 					</div>
 					<Switch
-						aria-label="Telemetry"
+						aria-label={t("settings.general.telemetry.aria")}
 						checked={!telemetryOptOut}
 						disabled={telemetryLoading || telemetrySaving}
 						onCheckedChange={(checked) => void updateTelemetryOptOut(!checked)}
@@ -1245,11 +1386,10 @@ function GeneralSettingsContent({
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
-							New user experience
+							{t("settings.general.replayOnboarding.title")}
 						</p>
 						<p className="text-sm text-muted-foreground">
-							Replay the first-run experience new users see when they open Cline
-							for the first time.
+							{t("settings.general.replayOnboarding.description")}
 						</p>
 					</div>
 					<Button
@@ -1260,17 +1400,19 @@ function GeneralSettingsContent({
 						variant="outline"
 					>
 						<RotateCcw className="size-3" />
-						Replay
+						{t("settings.general.replayOnboarding.action")}
 					</Button>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
-						<p className="text-base font-semibold text-foreground">About</p>
+						<p className="text-base font-semibold text-foreground">
+							{t("settings.general.about.title")}
+						</p>
 						<p className="text-sm text-muted-foreground">
 							{productNameForVersion(appVersion)}
 							{appVersion ? ` v${appVersion}` : ""}
 							{isBetaVersion(appVersion)
-								? " — beta builds install side by side with the stable app and update from the beta channel."
+								? t("settings.general.about.betaNote")
 								: ""}
 						</p>
 					</div>

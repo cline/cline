@@ -3,6 +3,8 @@
 #[cfg(target_os = "macos")]
 mod macos_notification;
 
+mod i18n;
+
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
@@ -83,6 +85,14 @@ struct TrayMenuState {
     // Shared by the tray menu and (on macOS) the application menu; None when
     // this build cannot update itself. Its label follows the updater state.
     check_for_updates: Option<MenuItem<tauri::Wry>>,
+    // Retained handles so `set_app_language` can relabel the tray in place.
+    open_app: MenuItem<tauri::Wry>,
+    new_session: MenuItem<tauri::Wry>,
+    settings: MenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+    // Last known running-session count (reported by the webview); relabeling
+    // needs it because the count itself arrives via `set_tray_status`.
+    running_sessions_count: Mutex<u32>,
 }
 
 #[derive(Clone)]
@@ -155,14 +165,14 @@ impl UpdateState {
     }
 }
 
-fn tray_status_text(update_status: &UpdateStatus, hub_healthy: bool) -> &'static str {
+fn tray_status_text(update_status: &UpdateStatus, hub_healthy: bool) -> String {
     match update_status.state.as_str() {
-        "checking" => "Status: Checking for Updates",
-        "downloading" => "Status: Downloading Update",
-        "ready" => "Status: Update Available",
-        "error" => "Status: Update Check Failed",
-        _ if hub_healthy => "Status: Healthy",
-        _ => "Status: Hub Disconnected",
+        "checking" => i18n::text("native.tray.statusCheckingUpdates"),
+        "downloading" => i18n::text("native.tray.statusDownloadingUpdate"),
+        "ready" => i18n::text("native.tray.statusReady"),
+        "error" => i18n::text("native.tray.statusUpdateFailed"),
+        _ if hub_healthy => i18n::text("native.tray.statusHealthy"),
+        _ => i18n::text("native.tray.statusDisconnected"),
     }
 }
 
@@ -174,12 +184,18 @@ fn update_menu_item_text(update_status: &UpdateStatus) -> String {
         update_status.state.as_str(),
         update_status.version.as_deref(),
     ) {
-        ("checking", _) => "Checking for Updates...".to_string(),
-        ("downloading", Some(version)) => format!("Downloading Update v{version}..."),
-        ("downloading", None) => "Downloading Update...".to_string(),
-        ("ready", Some(version)) => format!("Restart to Update to v{version}"),
-        ("ready", None) => "Restart to Update".to_string(),
-        _ => "Check for Updates...".to_string(),
+        ("checking", _) => i18n::text("native.update.checking"),
+        ("downloading", Some(version)) => i18n::format(
+            &i18n::text("native.update.downloading"),
+            &[("version", version.to_string())],
+        ),
+        ("downloading", None) => i18n::text("native.update.downloadingNoVersion"),
+        ("ready", Some(version)) => i18n::format(
+            &i18n::text("native.update.ready"),
+            &[("version", version.to_string())],
+        ),
+        ("ready", None) => i18n::text("native.update.readyNoVersion"),
+        _ => i18n::text("native.update.check"),
     }
 }
 
@@ -188,10 +204,7 @@ fn update_menu_item_enabled(update_status: &UpdateStatus) -> bool {
 }
 
 fn running_sessions_text(running_sessions: u32) -> String {
-    match running_sessions {
-        1 => "1 session running".to_string(),
-        count => format!("{count} sessions running"),
-    }
+    i18n::sessions_running_text(running_sessions)
 }
 
 // app_name is package_info().name (the configured productName), so beta
@@ -1153,10 +1166,22 @@ fn setup_application_menu(
 
     if let Some(view_menu) = view_menu {
         view_menu.prepend_items(&[&zoom_in, &zoom_out, &zoom_reset, &separator])?;
+        app.manage(MacosMenuLabels {
+            zoom_in: zoom_in.clone(),
+            zoom_out: zoom_out.clone(),
+            zoom_reset: zoom_reset.clone(),
+            view_submenu: view_menu.clone(),
+        });
     } else {
         let view_menu =
             Submenu::with_items(app, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
         menu.append(&view_menu)?;
+        app.manage(MacosMenuLabels {
+            zoom_in: zoom_in.clone(),
+            zoom_out: zoom_out.clone(),
+            zoom_reset: zoom_reset.clone(),
+            view_submenu: view_menu.clone(),
+        });
     }
 
     app.set_menu(menu)?;
@@ -1212,31 +1237,62 @@ fn setup_tray_icon(
     app: &tauri::App,
     check_for_updates: Option<MenuItem<tauri::Wry>>,
 ) -> tauri::Result<()> {
-    let status = MenuItem::new(app, "Status: Healthy", false, None::<&str>)?;
-    let running_sessions = MenuItem::new(app, running_sessions_text(0), false, None::<&str>)?;
-    let mut menu = MenuBuilder::new(app)
-        .text(
-            TRAY_OPEN_MENU_ID,
-            // package_info().name is the configured productName, so beta
-            // builds ("Cline Beta") identify themselves in the tray too.
-            format!(
-                "{} v{}",
-                app.package_info().name,
-                app.package_info().version
-            ),
-        )
-        .item(&status);
+    let status = MenuItem::new(
+        app,
+        i18n::text("native.tray.statusHealthy"),
+        false,
+        None::<&str>,
+    )?;
+    let running_sessions =
+        MenuItem::new(app, running_sessions_text(0), false, None::<&str>)?;
+    // package_info().name is the configured productName, so beta builds
+    // ("Cline Beta") identify themselves in the tray too.
+    let open_app = MenuItem::with_id(
+        app,
+        TRAY_OPEN_MENU_ID,
+        i18n::format(
+            &i18n::text("native.tray.openApp"),
+            &[
+                ("productName", app.package_info().name.to_string()),
+                ("version", app.package_info().version.to_string()),
+            ],
+        ),
+        true,
+        None::<&str>,
+    )?;
+    let new_session = MenuItem::with_id(
+        app,
+        TRAY_NEW_SESSION_MENU_ID,
+        i18n::text("native.tray.newSession"),
+        true,
+        None::<&str>,
+    )?;
+    let settings = MenuItem::with_id(
+        app,
+        TRAY_SETTINGS_MENU_ID,
+        i18n::text("native.tray.settings"),
+        true,
+        None::<&str>,
+    )?;
+    let quit = MenuItem::with_id(
+        app,
+        TRAY_QUIT_MENU_ID,
+        i18n::text("native.tray.quit"),
+        true,
+        None::<&str>,
+    )?;
+    let mut menu = MenuBuilder::new(app).item(&open_app).item(&status);
     if let Some(item) = &check_for_updates {
         menu = menu.item(item);
     }
     let menu = menu
         .separator()
-        .text(TRAY_NEW_SESSION_MENU_ID, "New Session")
+        .item(&new_session)
         .item(&running_sessions)
         .separator()
-        .text(TRAY_SETTINGS_MENU_ID, "Settings")
+        .item(&settings)
         .separator()
-        .text(TRAY_QUIT_MENU_ID, "Quit")
+        .item(&quit)
         .build()?;
 
     // This is the same glyph used by webview/components/cline-logo.tsx,
@@ -1271,6 +1327,11 @@ fn setup_tray_icon(
         hub_healthy: Mutex::new(true),
         running_sessions,
         check_for_updates,
+        open_app,
+        new_session,
+        settings,
+        quit,
+        running_sessions_count: Mutex::new(0),
     });
     Ok(())
 }
@@ -1290,6 +1351,9 @@ fn set_tray_status(
 ) -> Result<(), String> {
     if let Ok(mut healthy) = tray_menu.hub_healthy.lock() {
         *healthy = hub_healthy;
+    }
+    if let Ok(mut count) = tray_menu.running_sessions_count.lock() {
+        *count = running_sessions;
     }
     tray_menu
         .status
@@ -1311,12 +1375,111 @@ fn set_tray_status(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+struct MacosMenuLabels {
+    zoom_in: MenuItem<tauri::Wry>,
+    zoom_out: MenuItem<tauri::Wry>,
+    zoom_reset: MenuItem<tauri::Wry>,
+    view_submenu: Submenu<tauri::Wry>,
+}
+
+#[cfg(target_os = "macos")]
+fn relabel_macos_application_menu(app: &tauri::AppHandle) {
+    let labels = app.state::<MacosMenuLabels>();
+    let _ = labels.zoom_in.set_text(i18n::text("native.menu.zoomIn"));
+    let _ = labels.zoom_out.set_text(i18n::text("native.menu.zoomOut"));
+    let _ = labels.zoom_reset.set_text(i18n::text("native.menu.zoomReset"));
+    let _ = labels.view_submenu.set_text(i18n::text("native.menu.view"));
+}
+
+/// Switch the native locale and relabel every retained menu handle. The
+/// webview persists the preference via the sidecar (`set_language`); this
+/// command only mirrors it into the native shell.
+#[tauri::command]
+fn set_app_language(
+    app: tauri::AppHandle,
+    tray_menu: State<'_, TrayMenuState>,
+    update_state: State<'_, Arc<UpdateState>>,
+    locale: String,
+) -> Result<(), String> {
+    i18n::set_locale(&locale);
+    let snapshot = update_state.snapshot();
+    let hub_healthy = tray_menu
+        .hub_healthy
+        .lock()
+        .map(|healthy| *healthy)
+        .unwrap_or(true);
+    let running_sessions = tray_menu
+        .running_sessions_count
+        .lock()
+        .map(|count| *count)
+        .unwrap_or(0);
+    let open_label = i18n::format(
+        &i18n::text("native.tray.openApp"),
+        &[
+            ("productName", app.package_info().name.to_string()),
+            ("version", app.package_info().version.to_string()),
+        ],
+    );
+    let mut failures: Vec<String> = Vec::new();
+    {
+        let mut relabel = |item: &MenuItem<tauri::Wry>, text: String, what: &str| {
+            if let Err(error) = item.set_text(text) {
+                failures.push(format!("{what}: {error}"));
+            }
+        };
+        relabel(&tray_menu.open_app, open_label, "open_app");
+        relabel(
+            &tray_menu.new_session,
+            i18n::text("native.tray.newSession"),
+            "new_session",
+        );
+        relabel(
+            &tray_menu.settings,
+            i18n::text("native.tray.settings"),
+            "settings",
+        );
+        relabel(&tray_menu.quit, i18n::text("native.tray.quit"), "quit");
+        relabel(
+            &tray_menu.status,
+            tray_status_text(&snapshot, hub_healthy),
+            "status",
+        );
+        relabel(
+            &tray_menu.running_sessions,
+            running_sessions_text(running_sessions),
+            "running_sessions",
+        );
+        if let Some(item) = &tray_menu.check_for_updates {
+            relabel(item, update_menu_item_text(&snapshot), "check_for_updates");
+        }
+    }
+    if let Some(tray) = app.tray_by_id(TRAY_ICON_ID) {
+        let _ = tray.set_tooltip(Some(tray_tooltip_text(
+            app.package_info().name.as_str(),
+            running_sessions,
+        )));
+    }
+    #[cfg(target_os = "macos")]
+    relabel_macos_application_menu(&app);
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    }
+}
+
 fn main() {
     let desktop_backend = Arc::new(DesktopBackendState::default());
     let launch_cwd = std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| ".".to_string());
     let workspace_root = resolve_workspace_root(&launch_cwd);
+    // Native surfaces (tray/macOS menus) localize from the persisted
+    // preference before any window or menu is built.
+    if let Some(language) = i18n::persisted_language() {
+        i18n::set_locale(&language);
+    }
     let app_context = AppContext {
         launch_cwd,
         workspace_root,
@@ -1407,6 +1570,7 @@ fn main() {
             show_session_notification,
             drain_desktop_actions,
             set_tray_status,
+            set_app_language,
             relaunch_app,
             quit_app
         ])
@@ -1432,6 +1596,10 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex as TestMutex;
+
+    /// Serializes tests that flip the process-wide native locale.
+    static LOCALE_LOCK: TestMutex<()> = TestMutex::new(());
 
     #[test]
     fn macos_bundle_declares_voice_input_permissions() {
@@ -1510,6 +1678,7 @@ mod tests {
 
     #[test]
     fn tray_status_prioritizes_update_progress_over_hub_health() {
+        let _locale_guard = LOCALE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let status = |state: &str| UpdateStatus {
             state: state.to_string(),
             version: None,
@@ -1541,6 +1710,7 @@ mod tests {
 
     #[test]
     fn check_for_updates_menu_item_follows_updater_state() {
+        let _locale_guard = LOCALE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let status = |state: &str, version: Option<&str>| UpdateStatus {
             state: state.to_string(),
             version: version.map(str::to_string),
@@ -1567,6 +1737,33 @@ mod tests {
         let ready = status("ready", Some("1.2.3"));
         assert_eq!(update_menu_item_text(&ready), "Restart to Update to v1.2.3");
         assert!(update_menu_item_enabled(&ready));
+    }
+
+    #[test]
+    fn native_labels_localize_for_zh_hans() {
+        let _locale_guard = LOCALE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let idle = UpdateStatus::default();
+
+        i18n::set_locale("zh-Hans");
+        assert_eq!(update_menu_item_text(&idle), "检查更新…");
+        assert_eq!(tray_status_text(&idle, true), "状态：正常");
+        assert_eq!(running_sessions_text(3), "3 个会话正在运行");
+        assert_eq!(
+            i18n::format(
+                &i18n::text("native.tray.openApp"),
+                &[
+                    ("productName", "Cline".to_string()),
+                    ("version", "0.0.32".to_string()),
+                ],
+            ),
+            "Cline v0.0.32"
+        );
+
+        i18n::set_locale("en");
+        assert_eq!(update_menu_item_text(&idle), "Check for Updates...");
+        assert_eq!(tray_status_text(&idle, true), "Status: Healthy");
+        assert_eq!(running_sessions_text(1), "1 session running");
+        assert_eq!(i18n::text("native.menu.zoomIn"), "Zoom In");
     }
 
     #[test]

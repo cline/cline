@@ -23,6 +23,7 @@ import {
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { AGENDA_UI_ENABLED } from "@/lib/feature-flags";
+import { useTranslation } from "@/lib/i18n";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import type { WorkIn } from "@/lib/work-in-selection";
@@ -94,6 +95,7 @@ export function WelcomeScreen({
 }) {
 	const { user, activeOrganization, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
+	const { t } = useTranslation();
 	const [signInError, setSignInError] = useState<string | null>(null);
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
@@ -267,10 +269,18 @@ export function WelcomeScreen({
 				label: task.title,
 				description:
 					task.description ||
-					`${task.type === "follow-up" ? "Follow-up" : task.type === "reminder" ? "Reminder" : "Suggestion"} · P${task.priority}`,
+					t("chat.welcome.quickAction.meta", {
+						kind:
+							task.type === "follow-up"
+								? t("chat.welcome.quickAction.followUp")
+								: task.type === "reminder"
+									? t("chat.welcome.quickAction.reminder")
+									: t("chat.welcome.quickAction.suggestion"),
+						priority: task.priority,
+					}),
 				value: task.instructions,
 			})),
-		[quickActionTasks],
+		[quickActionTasks, t],
 	);
 
 	const handleTaskAction = useCallback(
@@ -382,7 +392,7 @@ export function WelcomeScreen({
 				>
 					{active ? (
 						<div className="cline-view-enter">
-							<h1 className="sr-only">What would you like to build?</h1>
+							<h1 className="sr-only">{t("chat.welcome.title")}</h1>
 							<AgentWelcomeHero />
 
 							<div className="mt-11 flex min-w-0 items-center gap-2">
@@ -415,7 +425,7 @@ export function WelcomeScreen({
 								/>
 								{signInError ? (
 									<p className="mt-2 text-xs text-destructive">
-										Sign in failed: {signInError}
+										{t("chat.welcome.signInFailed", { error: signInError })}
 									</p>
 								) : null}
 							</div>
@@ -481,7 +491,7 @@ export function WelcomeScreen({
 								}}
 							/>
 							<AgendaTaskReviewDialog
-								confirmLabel="Approve and start"
+								confirmLabel={t("chat.welcome.approveAndStart")}
 								onConfirm={async (task) => {
 									await handleTaskAction(task);
 									setReviewTask(null);
@@ -503,8 +513,7 @@ export function WelcomeScreen({
 					{active && cloudModeActive && !showCloudOnboarding ? (
 						<p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
 							<Cloud aria-hidden="true" className="size-3 shrink-0" />
-							Cloud sessions run on a secure sandbox, work on a branch, and keep
-							going even when you close the app.
+							{t("chat.welcome.cloudNote")}
 						</p>
 					) : null}
 				</div>

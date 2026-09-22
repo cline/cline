@@ -60,8 +60,8 @@ async function render(cwd = "/repo", branch = "feature") {
 async function click(label: string) {
 	await act(async () =>
 		container
-			.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
-			.click(),
+			.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+			?.click(),
 	);
 }
 
@@ -71,7 +71,7 @@ it("opens the PR, shows conflicts and expands CI details", async () => {
 	expect(container.textContent).toContain("+1,234");
 	expect(container.textContent).toContain("CI failed");
 	await click("Open pull request #42: Feature");
-	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest!.url);
+	expect(openExternalUrl).toHaveBeenCalledWith(data.pullRequest?.url);
 	await click("CI failed");
 	expect(document.body.textContent).toContain("Tests");
 });
@@ -161,8 +161,8 @@ it("offers the compare form when no PR exists", async () => {
 	await render();
 	await act(async () =>
 		[...container.querySelectorAll("button")]
-			.find((button) => button.textContent?.includes("Create PR"))!
-			.click(),
+			.find((button) => button.textContent?.includes("Create PR"))
+			?.click(),
 	);
 	expect(openExternalUrl).toHaveBeenCalledWith(data.createUrl);
 });

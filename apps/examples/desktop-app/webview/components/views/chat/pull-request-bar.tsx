@@ -17,6 +17,7 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n";
 import {
 	getMergeStatus,
 	type MergeStatus,
@@ -27,11 +28,11 @@ import { trackPullRequestEvent } from "@/lib/pull-request-telemetry";
 import { cn } from "@/lib/utils";
 
 const checkLabels = {
-	none: "No checks",
-	pending: "CI pending",
-	success: "CI passed",
-	failure: "CI failed",
-	skipped: "CI skipped",
+	none: "chat.environment.pr.checks.none",
+	pending: "chat.environment.pr.checks.pending",
+	success: "chat.environment.pr.checks.success",
+	failure: "chat.environment.pr.checks.failure",
+	skipped: "chat.environment.pr.checks.skipped",
 };
 const checkColors = {
 	none: "bg-muted-foreground",
@@ -62,6 +63,7 @@ export function PullRequestBar({
 }
 
 function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
+	const { t } = useTranslation();
 	const [data, setData] = useState<PullRequestStatus | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const refresh = useRef<() => void>(() => {});
@@ -104,7 +106,7 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 						setError(
 							cause instanceof Error
 								? cause.message
-								: "Could not load pull request status.",
+								: t("chat.environment.pr.loadError"),
 						);
 					}
 				}
@@ -125,13 +127,13 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 			window.removeEventListener("focus", onFocus);
 			document.removeEventListener("visibilitychange", onFocus);
 		};
-	}, [cwd]);
+	}, [cwd, t]);
 
 	async function open(url: string) {
 		try {
 			await openExternalUrl(url);
 		} catch {
-			setError("Could not open GitHub in your browser. Try again.");
+			setError(t("chat.environment.pr.browserError"));
 		}
 	}
 
@@ -152,14 +154,14 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 	return (
 		<section
 			className="border-b border-border px-4 py-2 text-xs"
-			aria-label="Pull request status"
+			aria-label={t("chat.environment.pr.statusAria")}
 		>
 			{error && (
 				<div className="mb-1 flex items-start gap-2 text-muted-foreground">
 					<output className="min-w-0 flex-1">{error}</output>
 					<button
 						type="button"
-						aria-label="Dismiss pull request error"
+						aria-label={t("chat.environment.pr.dismissErrorAria")}
 						className="shrink-0 rounded p-1 hover:bg-muted"
 						onClick={() => {
 							errorDismissed.current = true;
@@ -187,7 +189,10 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 									}}
 									title={pr.title}
 									className="shrink-0 font-medium hover:underline"
-									aria-label={`Open pull request #${pr.number}: ${pr.title}`}
+									aria-label={t("chat.environment.pr.openAria", {
+										number: pr.number,
+										title: pr.title,
+									})}
 								>
 									#{pr.number}
 								</button>
@@ -199,7 +204,7 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 							<button
 								type="button"
 								className="shrink-0 font-medium hover:underline"
-								title="Open GitHub’s comparison form for this branch. Push your commits before submitting."
+								title={t("chat.environment.pr.createTooltip")}
 								onClick={() => {
 									if (data.createUrl) {
 										trackPullRequestEvent("create_clicked", data);
@@ -207,7 +212,8 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 									}
 								}}
 							>
-								Create PR <ExternalLink className="inline size-3" />
+								{t("chat.environment.pr.createAction")}{" "}
+								<ExternalLink className="inline size-3" />
 							</button>
 						)}
 						<span
@@ -221,7 +227,10 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 							<>
 								<span
 									className="shrink-0 tabular-nums"
-									title={`${pr.additions} additions, ${pr.deletions} deletions`}
+									title={t("chat.environment.pr.diffStat", {
+										additions: pr.additions,
+										deletions: pr.deletions,
+									})}
 								>
 									<span className="text-green-500">
 										+{pr.additions.toLocaleString()}
@@ -240,23 +249,27 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 											type="button"
 											className="flex shrink-0 items-center gap-1.5 rounded-md bg-muted px-2 py-1"
 											aria-label={
-												ci === "none" ? "No CI checks" : checkLabels[ci]
+												ci === "none"
+													? t("chat.environment.pr.noChecksAria")
+													: t(checkLabels[ci])
 											}
 										>
 											<span
 												className={cn("size-2 rounded-full", checkColors[ci])}
 											/>
-											{checkLabels[ci]}
+											{t(checkLabels[ci])}
 											<ChevronDown className="size-3" />
 										</button>
 									</PopoverTrigger>
 									<PopoverContent align="end" className="w-80 p-3">
 										<p className="mb-2 text-sm font-medium">
-											Checks for #{pr.number}
+											{t("chat.environment.pr.checksHeading", {
+												number: pr.number,
+											})}
 										</p>
 										{!pr.checks.length && (
 											<p className="text-xs text-muted-foreground">
-												No checks reported for this pull request.
+												{t("chat.environment.pr.noChecksReported")}
 											</p>
 										)}
 										<ul className="max-h-64 space-y-2 overflow-y-auto">
@@ -312,8 +325,8 @@ function WorkspacePullRequestBar({ cwd }: { cwd: string }) {
 						trackPullRequestEvent("refresh_clicked", data);
 						refresh.current();
 					}}
-					aria-label="Refresh pull request status"
-					title="Refresh pull request status"
+					aria-label={t("chat.environment.pr.refreshAria")}
+					title={t("chat.environment.pr.refreshAria")}
 					className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted disabled:opacity-50"
 				>
 					<RefreshCw className={cn("size-3", loading && "animate-spin")} />

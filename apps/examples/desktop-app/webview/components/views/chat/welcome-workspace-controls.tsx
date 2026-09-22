@@ -40,6 +40,7 @@ import {
 	normalizeCloudRepositoryUrl,
 	preferredCloudBranch,
 } from "@/lib/cloud-repositories";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
 import { cn } from "@/lib/utils";
 import type { WorkIn } from "@/lib/work-in-selection";
@@ -62,10 +63,11 @@ function formatWorkspacePath(path: string): string {
 }
 
 function workspaceName(path: string): string {
+	const t = getTranslator().t;
 	const trimmed = path.trim().replace(/[\\/]+$/, "");
-	if (!trimmed) return "workspace";
+	if (!trimmed) return t("chat.welcome.workspaceFallback");
 	const parts = trimmed.split(/[\\/]/);
-	return parts[parts.length - 1] || "workspace";
+	return parts[parts.length - 1] || t("chat.welcome.workspaceFallback");
 }
 
 const TRIGGER_CLASS =
@@ -92,6 +94,7 @@ function CloudRepositoryPicker({
 	onListRepositories: () => Promise<CloudRepositoryListResult>;
 	onOpenExternalUrl: (url: string) => Promise<void>;
 }) {
+	const { t } = useTranslation();
 	const [query, setQuery] = useState("");
 	const [reloadKey, setReloadKey] = useState(0);
 	const [result, setResult] = useState<CloudRepositoryListResult>();
@@ -132,7 +135,7 @@ function CloudRepositoryPicker({
 				aria-haspopup="dialog"
 				className={cn(TRIGGER_CLASS, "min-w-0 max-w-full")}
 				onClick={onToggle}
-				title={repoUrl || "Select a connected GitHub repository"}
+				title={repoUrl || t("chat.welcome.repoPicker.selectTitle")}
 				type="button"
 			>
 				<Github
@@ -141,8 +144,11 @@ function CloudRepositoryPicker({
 				/>
 				<span className="max-w-56 truncate">
 					{repoUrl
-						? cloudRepositoryLabel(repoUrl, "Cloud repo")
-						: "Select repository…"}
+						? cloudRepositoryLabel(
+								repoUrl,
+								t("chat.welcome.repoPicker.cloudRepoLabel"),
+							)
+						: t("chat.welcome.repoPicker.select")}
 				</span>
 			</button>
 
@@ -150,45 +156,50 @@ function CloudRepositoryPicker({
 				<div
 					className={PANEL_CLASS}
 					role="dialog"
-					aria-label="Cloud repository"
+					aria-label={t("chat.welcome.repoPicker.aria")}
 				>
 					{result?.connected !== false ? (
 						<SearchInput
 							onChange={setQuery}
-							placeholder="Search repositories…"
+							placeholder={t("chat.welcome.repoPicker.searchPlaceholder")}
 							value={query}
 						/>
 					) : null}
 					<div className="max-h-72 overflow-y-auto p-1.5">
 						{status === "loading" ? (
-							<PickerStatus icon="loading" message="Loading repositories…" />
+							<PickerStatus
+								icon="loading"
+								message={t("chat.welcome.repoPicker.loading")}
+							/>
 						) : status === "error" ? (
-							<PickerStatus message="Could not load repositories.">
+							<PickerStatus message={t("chat.welcome.repoPicker.loadError")}>
 								<Button
 									onClick={() => setReloadKey((current) => current + 1)}
 									size="sm"
 									variant="ghost"
 								>
 									<RefreshCcw aria-hidden="true" className="size-3" />
-									Retry
+									{t("common.action.retry")}
 								</Button>
 							</PickerStatus>
 						) : result?.connected === false ? (
-							<PickerStatus message="Connect GitHub to select a repository.">
+							<PickerStatus
+								message={t("chat.welcome.repoPicker.connectPrompt")}
+							>
 								<Button
 									onClick={() => void onOpenExternalUrl(result.connectUrl)}
 									size="sm"
 									variant="ghost"
 								>
-									Connect GitHub
+									{t("chat.welcome.connectGitHub")}
 								</Button>
 							</PickerStatus>
 						) : filteredRepositories.length === 0 ? (
 							<PickerStatus
 								message={
 									repositories.length === 0
-										? "No connected repositories."
-										: "No repositories found."
+										? t("chat.welcome.repoPicker.emptyAll")
+										: t("chat.welcome.repoPicker.emptyFiltered")
 								}
 							/>
 						) : (
@@ -241,6 +252,7 @@ function CloudBranchPicker({
 		options?: CloudBranchListOptions,
 	) => Promise<CloudBranchListResult>;
 }) {
+	const { t } = useTranslation();
 	const [query, setQuery] = useState("");
 	const [debouncedQuery, setDebouncedQuery] = useState("");
 	const [reloadKey, setReloadKey] = useState(0);
@@ -407,8 +419,12 @@ function CloudBranchPicker({
 				onClick={onToggle}
 				title={
 					status === "unavailable"
-						? `Using the repository default branch${branch ? `: ${branch}` : ""}`
-						: branch || "Select a branch"
+						? branch
+							? t("chat.welcome.branchPicker.defaultTitleWithBranch", {
+									branch,
+								})
+							: t("chat.welcome.branchPicker.defaultTitle")
+						: branch || t("chat.welcome.branchPicker.select")
 				}
 				type="button"
 			>
@@ -419,17 +435,21 @@ function CloudBranchPicker({
 				<span className="max-w-48 truncate">
 					{status === "unavailable"
 						? branch
-							? `${branch} (default)`
-							: "Default branch"
-						: branch || "Select branch…"}
+							? t("chat.welcome.branchPicker.defaultSuffix", { branch })
+							: t("chat.welcome.branchPicker.default")
+						: branch || t("chat.welcome.branchPicker.selectShort")}
 				</span>
 			</button>
 
 			{open && repositoryId && status !== "unavailable" ? (
-				<div className={PANEL_CLASS} role="dialog" aria-label="Cloud branch">
+				<div
+					className={PANEL_CLASS}
+					role="dialog"
+					aria-label={t("chat.welcome.branchPicker.aria")}
+				>
 					<SearchInput
 						onChange={setQuery}
-						placeholder="Search branches…"
+						placeholder={t("chat.welcome.branchPicker.searchPlaceholder")}
 						value={query}
 					/>
 					<div
@@ -439,21 +459,25 @@ function CloudBranchPicker({
 						{status === "loading" || searchPending ? (
 							<PickerStatus
 								icon="loading"
-								message={query.trim() ? "Searching…" : "Loading branches…"}
+								message={
+									query.trim()
+										? t("chat.welcome.branchPicker.searching")
+										: t("chat.welcome.branchPicker.loading")
+								}
 							/>
 						) : status === "error" ? (
-							<PickerStatus message="Could not load branches.">
+							<PickerStatus message={t("chat.welcome.branchPicker.loadError")}>
 								<Button
 									onClick={() => setReloadKey((current) => current + 1)}
 									size="sm"
 									variant="ghost"
 								>
 									<RefreshCcw aria-hidden="true" className="size-3" />
-									Retry
+									{t("common.action.retry")}
 								</Button>
 							</PickerStatus>
 						) : branches.length === 0 ? (
-							<PickerStatus message="No branches found." />
+							<PickerStatus message={t("chat.welcome.branchPicker.empty")} />
 						) : (
 							branches.map((item) => (
 								<Button
@@ -479,7 +503,9 @@ function CloudBranchPicker({
 								className="px-3 py-2 text-center text-xs text-muted-foreground"
 								ref={loadMoreRef}
 							>
-								{loadingMore ? "Loading more branches…" : null}
+								{loadingMore
+									? t("chat.welcome.branchPicker.loadingMore")
+									: null}
 							</div>
 						) : null}
 						{loadMoreError ? (
@@ -489,7 +515,7 @@ function CloudBranchPicker({
 								onClick={() => void loadMore()}
 								variant="ghost"
 							>
-								Could not load more branches — Retry
+								{t("chat.welcome.branchPicker.loadMoreError")}
 							</Button>
 						) : null}
 					</div>
@@ -577,6 +603,7 @@ function WorkspacePicker({
 	onPickWorkspaceDirectory: (initialPath?: string) => Promise<string | null>;
 	onSelectChat: () => Promise<boolean>;
 }) {
+	const { t } = useTranslation();
 	const [search, setSearch] = useState("");
 	const [switching, setSwitching] = useState(false);
 	const [picking, setPicking] = useState(false);
@@ -645,9 +672,7 @@ function WorkspacePicker({
 			onClose();
 			return;
 		}
-		setError(
-			`Couldn't open "${next}". Check that the folder exists and try again.`,
-		);
+		setError(t("chat.welcome.workspacePicker.openError", { path: next }));
 	};
 
 	const handleAddWorkspace = async () => {
@@ -663,7 +688,7 @@ function WorkspacePicker({
 			setError(
 				pickError instanceof Error && pickError.message.trim()
 					? pickError.message
-					: "The folder picker could not be opened. Type a folder path above instead.",
+					: t("chat.welcome.workspacePicker.pickerError"),
 			);
 		} finally {
 			setPicking(false);
@@ -681,7 +706,7 @@ function WorkspacePicker({
 	};
 
 	const workspaceLabel = isChatWorkspace
-		? "Chat"
+		? t("chat.welcome.workspacePicker.chatLabel")
 		: workspaceName(workspaceRoot);
 
 	return (
@@ -705,7 +730,7 @@ function WorkspacePicker({
 							setSearch(value);
 							setError(null);
 						}}
-						placeholder="Search workspaces, or type a folder path"
+						placeholder={t("chat.welcome.workspacePicker.searchPlaceholder")}
 						value={search}
 					/>
 					<div className="p-1.5">
@@ -718,7 +743,9 @@ function WorkspacePicker({
 							>
 								<Folder className="size-3 shrink-0 text-muted-foreground" />
 								<span className="truncate text-xs text-foreground">
-									Open folder “{search.trim()}”
+									{t("chat.welcome.workspacePicker.openFolder", {
+										path: search.trim(),
+									})}
 								</span>
 							</Button>
 						)}
@@ -729,8 +756,8 @@ function WorkspacePicker({
 							{filteredWorkspaces.length === 0 ? (
 								<div className="px-2 py-2 text-xs text-muted-foreground">
 									{looksLikeFolderPath(search)
-										? "Press the option above to open this folder"
-										: "No workspaces found — type a full folder path to add one"}
+										? t("chat.welcome.workspacePicker.openFolderHint")
+										: t("chat.welcome.workspacePicker.empty")}
 								</div>
 							) : (
 								filteredWorkspaces.map((path) => {
@@ -772,7 +799,9 @@ function WorkspacePicker({
 							variant="ghost"
 						>
 							<Plus className="size-3" />
-							{picking ? "Opening folder picker..." : "Open folder..."}
+							{picking
+								? t("chat.welcome.workspacePicker.openingPicker")
+								: t("chat.welcome.workspacePicker.openFolderAction")}
 						</Button>
 						<Button
 							className="w-full justify-start text-xs text-muted-foreground"
@@ -782,7 +811,9 @@ function WorkspacePicker({
 							variant="ghost"
 						>
 							<FilePlus2 className="size-3" />
-							{selectingChat ? "Switching to chat..." : "Just chat"}
+							{selectingChat
+								? t("chat.welcome.workspacePicker.switchingToChat")
+								: t("chat.welcome.workspacePicker.justChat")}
 						</Button>
 						{error && (
 							<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
@@ -812,6 +843,7 @@ function BranchPicker({
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
+	const { t } = useTranslation();
 	const [search, setSearch] = useState("");
 	const [branches, setBranches] = useState<string[]>([]);
 	const [loading, setLoading] = useState(false);
@@ -877,13 +909,13 @@ function BranchPicker({
 				<div className={PANEL_CLASS}>
 					<SearchInput
 						onChange={setSearch}
-						placeholder="Search branches"
+						placeholder={t("chat.welcome.gitBranchPicker.searchPlaceholder")}
 						value={search}
 					/>
 					<div className="p-1.5">
 						{loading ? (
 							<div className="px-2 py-4 text-xs text-muted-foreground">
-								Loading...
+								{t("chat.welcome.gitBranchPicker.loading")}
 							</div>
 						) : (
 							<div
@@ -892,7 +924,7 @@ function BranchPicker({
 							>
 								{filteredBranches.length === 0 ? (
 									<div className="px-2 py-2 text-xs text-muted-foreground">
-										No branches found
+										{t("chat.welcome.gitBranchPicker.empty")}
 									</div>
 								) : (
 									filteredBranches.map((branch) => (
@@ -935,6 +967,7 @@ function WorktreeToggle({
 	value: WorkIn;
 	onChange: (next: WorkIn) => void;
 }) {
+	const { t } = useTranslation();
 	const switchId = useId();
 	return (
 		<span className="inline-flex shrink-0 items-center gap-1.5 pl-1">
@@ -949,12 +982,12 @@ function WorktreeToggle({
 						onChange(checked ? "worktree" : "local")
 					}
 				/>
-				Worktree
+				{t("chat.welcome.worktree.label")}
 			</label>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<button
-						aria-label="About worktrees"
+						aria-label={t("chat.welcome.worktree.aboutAria")}
 						className="inline-flex rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						type="button"
 					>
@@ -962,8 +995,7 @@ function WorktreeToggle({
 					</button>
 				</TooltipTrigger>
 				<TooltipContent className="max-w-64" side="top" sideOffset={6}>
-					Runs the task on a separate copy of this folder on its own branch, so
-					your files stay untouched until you merge.
+					{t("chat.welcome.worktree.aboutTooltip")}
 				</TooltipContent>
 			</Tooltip>
 		</span>
@@ -1029,6 +1061,7 @@ export function WelcomeWorkspaceControls({
 	const [openMenu, setOpenMenu] = useState<
 		"workspace" | "branch" | "cloud-repository" | "cloud-branch" | null
 	>(null);
+	const { t } = useTranslation();
 	const [cloudRepositoryId, setCloudRepositoryId] = useState<number>();
 	const [cloudDefaultBranch, setCloudDefaultBranch] = useState("");
 	const isChatWorkspace =
@@ -1144,7 +1177,9 @@ export function WelcomeWorkspaceControls({
 						variant="outline"
 					>
 						<LogIn className="size-3.5" />
-						{signingIn ? "Waiting for browser..." : "Sign in to use Cloud"}
+						{signingIn
+							? t("chat.welcome.waitingForBrowserDots")
+							: t("chat.welcome.signInToUseCloud")}
 					</Button>
 				)
 			) : (

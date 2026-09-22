@@ -128,6 +128,7 @@ import {
 import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
+	setLanguage,
 } from "./desktop-settings";
 import {
 	identifyDesktopFeatureFlagsAccount,
@@ -3160,6 +3161,13 @@ export async function handleCommand(
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
 		return settings;
+	}
+	if (command === "set_language") {
+		const language = args?.language;
+		if (typeof language !== "string" || language.trim() === "") {
+			throw new Error("language must be a non-empty string");
+		}
+		return setLanguage(language);
 	}
 	if (command === "set_web_search_enabled") {
 		if (typeof args?.web_search_enabled !== "boolean") {

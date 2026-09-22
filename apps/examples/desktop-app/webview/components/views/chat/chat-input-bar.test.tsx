@@ -102,6 +102,19 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+	class ResizeObserverStub {
+		disconnect() {}
+		observe() {}
+		unobserve() {}
+	}
+	// @pierre/diffs observes element resizes while rendering diffs; jsdom
+	// does not implement ResizeObserver.
+	Object.assign(globalThis, {
+		IS_REACT_ACT_ENVIRONMENT: true,
+		ResizeObserver: ResizeObserverStub,
+	});
+	window.ResizeObserver = ResizeObserverStub;
+
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	if (typeof window.localStorage.clear !== "function") {
 		Object.defineProperty(window, "localStorage", {
@@ -1546,7 +1559,10 @@ describe("ChatInputBar", () => {
 		});
 	});
 
-	it.each(["local", "cloud"] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
+	it.each([
+		"local",
+		"cloud",
+	] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
 		const onSteerPromptInQueue = vi
 			.fn()
 			.mockRejectedValue(new Error("steer failed"));

@@ -49,17 +49,20 @@ import {
 	SESSION_IMPORT_TOOL_ORDER,
 	type SessionImportTool,
 } from "@/lib/session-import";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 const CLINE_PASS_SUBSCRIBE_URL =
 	"https://app.cline.bot/onboarding/individual-plan";
 
-const CLINE_SIGN_IN_BENEFITS = [
-	"Regular free model promotions",
-	"Subscribe to ClinePass for generous usage across the best open weights models like DeepSeek, Kimi, and GLM",
-	"No API key needed",
-];
+function getClineSignInBenefits(t: (key: string) => string): string[] {
+	return [
+		t("onboarding.cline.benefit1"),
+		t("onboarding.cline.benefit2"),
+		t("onboarding.cline.benefit3"),
+	];
+}
 
 type ClineRecommendedModelsResponse = {
 	free?: { id: string; name?: string; description?: string }[];
@@ -294,6 +297,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function WelcomeStep({ onContinue }: { onContinue: () => void }) {
+	const { t } = useTranslation();
 	return (
 		<OnboardingContent surface="transparent">
 			<div className="flex flex-col items-center py-4 text-center">
@@ -301,11 +305,9 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 					<AgentWelcomeHero variant="bot-only" />
 				</div>
 				<h1 className="mt-5 text-4xl font-semibold text-foreground">Cline</h1>
-				<p className="mt-2 text-lg text-foreground">Build software your way</p>
+				<p className="mt-2 text-lg text-foreground">{t("onboarding.welcome.subtitle")}</p>
 				<p className="mt-6 text-md text-muted-foreground">
-					Cline is an AI coding agent. It reads your code, edits files, runs
-					commands, and works through tasks with you — in any project on your
-					machine.
+					{t("onboarding.welcome.description")}
 				</p>
 				<Button
 					className="mt-8 w-full max-w-64"
@@ -315,10 +317,10 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 					type="button"
 					variant="fill"
 				>
-					Get started
+					{t("onboarding.welcome.getStarted")}
 				</Button>
 				<p className="mt-8 text-xs text-muted-foreground">
-					Takes less than a minute. Everything can be changed later in Settings.
+					{t("onboarding.welcome.hint")}
 				</p>
 			</div>
 		</OnboardingContent>
@@ -334,6 +336,7 @@ function ConnectStep({
 	onConnected: (connection: OnboardingConnection) => void;
 	onSkip: () => void;
 }) {
+	const { t } = useTranslation();
 	const { user, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
 	const deviceUserCode = useOAuthUserCode(signingIn);
@@ -538,7 +541,7 @@ function ConnectStep({
 		<OnboardingContent surface="panel">
 			<div className="flex flex-col">
 				<IconButton
-					aria-label="Back"
+					aria-label={t("common.action.back")}
 					className="-ml-2"
 					onClick={onBack}
 					size="md"
@@ -552,8 +555,8 @@ function ConnectStep({
 					Set up Cline
 				</h1>
 				<p className="mt-4 text-sm text-muted-foreground">
-					Choose how Cline connects to models. You can add more providers
-					anytime in Settings.
+					{t("onboarding.connect.description")}
+					
 				</p>
 			</div>
 
@@ -561,7 +564,7 @@ function ConnectStep({
 				<SetupOptionCard
 					id="cline"
 					onSelect={() => setSelectedMethod("cline")}
-					selectLabel="Sign in with Cline"
+					selectLabel={t("onboarding.cline.title")}
 					selected={selectedMethod === "cline"}
 				>
 					<SetupOptionHeader
@@ -575,7 +578,7 @@ function ConnectStep({
 						}
 						description={
 							<ul className="flex flex-col gap-1">
-								{CLINE_SIGN_IN_BENEFITS.map((benefit) => (
+								{getClineSignInBenefits(t).map((benefit) => (
 									<li className="flex gap-2" key={benefit}>
 										<Check
 											aria-hidden="true"
@@ -587,7 +590,7 @@ function ConnectStep({
 							</ul>
 						}
 						icon={<ClineLogo className="size-5" />}
-						title="Sign in with Cline"
+						title={t("onboarding.cline.title")}
 					/>
 					{user ? (
 						<div className="mt-6 flex flex-wrap items-center justify-end gap-6">
@@ -688,7 +691,7 @@ function ConnectStep({
 								<div className="flex flex-col gap-2 pt-3 ml-2 max-[720px]:ml-0">
 									<div className="flex flex-wrap items-center gap-2">
 										<Input
-											aria-label="Cline API key"
+											aria-label={t("onboarding.apiKey.clineKeyLabel")}
 											autoComplete="off"
 											className="min-w-52 flex-1 bg-background"
 											disabled={clineKeySaving}
@@ -755,9 +758,9 @@ function ConnectStep({
 					selected={selectedMethod === "api-key"}
 				>
 					<SetupOptionHeader
-						description="Anthropic, OpenAI, OpenRouter, and more."
+						description={t("onboarding.apiKey.description")}
 						icon={<KeyRound className="size-4" />}
-						title="Use your own API key"
+						title={t("onboarding.apiKey.title")}
 					/>
 					<ExpandablePanel
 						data-onboarding-api-key-form
@@ -778,7 +781,7 @@ function ConnectStep({
 									value={selectedProviderId || undefined}
 								>
 									<SelectTrigger
-										aria-label="Provider"
+										aria-label={t("onboarding.apiKey.providerLabel")}
 										className="w-full bg-background"
 									>
 										<SelectValue
@@ -799,7 +802,7 @@ function ConnectStep({
 								</Select>
 							)}
 							<Input
-								aria-label="API key"
+								aria-label={t("onboarding.apiKey.keyLabel")}
 								autoComplete="off"
 								className="bg-background"
 								disabled={saving}

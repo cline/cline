@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { desktopClient } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
 import {
@@ -49,14 +50,24 @@ export type CustomizationSection =
 	| "Plugins"
 	| "Tools";
 
-const sectionDescriptions: Record<CustomizationSection, string> = {
-	Rules: "Review project and global rule files that shape Cline behavior.",
-	Hooks: "Inspect hook configuration and recent execution status.",
-	MCP: "Manage installed MCP servers and add new servers from the marketplace.",
-	Skills: "Manage installed skills and add new skills from the marketplace.",
-	Agents: "Review configured agents discovered from local settings.",
-	Plugins: "Manage installed plugins and add new plugins from the marketplace.",
-	Tools: "Inspect built-in tools and tools contributed by plugins.",
+const sectionTitleKeys: Record<CustomizationSection, string> = {
+	Rules: "settings.extensions.section.rules",
+	Hooks: "settings.extensions.section.hooks",
+	MCP: "settings.extensions.section.mcp",
+	Skills: "settings.extensions.section.skills",
+	Agents: "settings.extensions.section.agents",
+	Plugins: "settings.extensions.section.plugins",
+	Tools: "settings.extensions.section.tools",
+};
+
+const sectionDescriptionKeys: Record<CustomizationSection, string> = {
+	Rules: "settings.extensions.description.rules",
+	Hooks: "settings.extensions.description.hooks",
+	MCP: "settings.extensions.description.mcp",
+	Skills: "settings.extensions.description.skills",
+	Agents: "settings.extensions.description.agents",
+	Plugins: "settings.extensions.description.plugins",
+	Tools: "settings.extensions.description.tools",
 };
 
 const sectionCommands: Record<CustomizationSection, string> = {
@@ -340,9 +351,12 @@ function getPathScope(path: string, workspaceRoot: string): ItemScope {
 }
 
 function ScopeBadge({ scope }: { scope: ItemScope }) {
+	const { t } = useTranslation();
 	return (
 		<Badge variant="outline" className="shrink-0 text-muted-foreground">
-			{scope}
+			{scope === "Global"
+				? t("settings.extensions.scope.global")
+				: t("settings.extensions.scope.project")}
 		</Badge>
 	);
 }
@@ -393,6 +407,7 @@ export function CustomizationSectionView({
 	section?: CustomizationSection;
 	showTabs?: boolean;
 }) {
+	const { t } = useTranslation();
 	const [activeTab, setActiveTab] = useState<CustomizationSection>(section);
 	const [isLoading, setIsLoading] = useState(
 		() => !hasFreshExtensionsListsCache(extensionListsCache, Date.now()),
@@ -614,7 +629,7 @@ export function CustomizationSectionView({
 					Boolean,
 				);
 				if (names.length === 0) {
-					throw new Error("tool name is required");
+					throw new Error(t("settings.extensions.toolNameRequired"));
 				}
 				const response =
 					await desktopClient.invoke<UserInstructionListsResponse>(
@@ -633,7 +648,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[applyResponse, t],
 	);
 
 	const setAllToolsEnabled = useCallback(
@@ -656,7 +671,7 @@ export function CustomizationSectionView({
 					[tool.name, ...(tool.headlessToolNames ?? [])].filter(Boolean),
 				);
 				if (names.length === 0) {
-					throw new Error("tool name is required");
+					throw new Error(t("settings.extensions.toolNameRequired"));
 				}
 				const response =
 					await desktopClient.invoke<UserInstructionListsResponse>(
@@ -677,7 +692,7 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[applyResponse],
+		[applyResponse, t],
 	);
 
 	const setPluginEnabled = useCallback(
@@ -764,7 +779,9 @@ export function CustomizationSectionView({
 						status: "success",
 						message:
 							result.message ??
-							`Uninstalled ${target.name ?? target.id ?? target.path}.`,
+							t("settings.extensions.uninstalledMessage", {
+								name: target.name ?? target.id ?? target.path,
+							}),
 					});
 					return next;
 				});
@@ -785,22 +802,25 @@ export function CustomizationSectionView({
 				});
 			}
 		},
-		[localUninstallingKeys, refresh],
+		[localUninstallingKeys, refresh, t],
 	);
 
-	const formatExecutionTs = useCallback((value: string | null): string => {
-		if (!value) {
-			return "never";
-		}
-		const asNumber = Number(value);
-		const date = Number.isFinite(asNumber)
-			? new Date(asNumber)
-			: new Date(value);
-		if (Number.isNaN(date.getTime())) {
-			return value;
-		}
-		return date.toLocaleString();
-	}, []);
+	const formatExecutionTs = useCallback(
+		(value: string | null): string => {
+			if (!value) {
+				return t("settings.extensions.never");
+			}
+			const asNumber = Number(value);
+			const date = Number.isFinite(asNumber)
+				? new Date(asNumber)
+				: new Date(value);
+			if (Number.isNaN(date.getTime())) {
+				return value;
+			}
+			return date.toLocaleString();
+		},
+		[t],
+	);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -1056,7 +1076,9 @@ export function CustomizationSectionView({
 				variant="destructive"
 			>
 				{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
-				{uninstalling ? "Uninstalling..." : "Uninstall"}
+				{uninstalling
+					? t("settings.extensions.uninstalling")
+					: t("settings.extensions.uninstall")}
 			</Button>
 		);
 	};
@@ -1071,7 +1093,9 @@ export function CustomizationSectionView({
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
-						aria-label={`More actions for ${target.name ?? "plugin"}`}
+						aria-label={t("settings.extensions.moreActionsAria", {
+							name: target.name ?? t("settings.extensions.fallbackName"),
+						})}
 						className="m-0 size-auto shrink-0 p-0 text-muted-foreground"
 						onClick={(event) => event.stopPropagation()}
 						size="icon"
@@ -1088,7 +1112,7 @@ export function CustomizationSectionView({
 						}
 					>
 						<Copy className="size-4" />
-						Copy path
+						{t("settings.extensions.copyPath")}
 					</DropdownMenuItem>
 					{showDelete ? (
 						<DropdownMenuItem
@@ -1097,7 +1121,9 @@ export function CustomizationSectionView({
 							onClick={() => void uninstallLocalPrimitive(target)}
 						>
 							{uninstalling ? <Spinner /> : <Trash2 className="size-4" />}
-							{uninstalling ? "Uninstalling..." : "Uninstall"}
+							{uninstalling
+								? t("settings.extensions.uninstalling")
+								: t("settings.extensions.uninstall")}
 						</DropdownMenuItem>
 					) : null}
 				</DropdownMenuContent>
@@ -1126,16 +1152,18 @@ export function CustomizationSectionView({
 					</h3>
 					<ScopeBadge scope={item.scope} />
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
-						{item.type}
+						{item.type === "workflow"
+							? t("settings.extensions.type.workflow")
+							: t("settings.extensions.type.skill")}
 					</Badge>
 					{item.agentPlugin === true ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							Agent Plugin
+							{t("settings.extensions.agentPlugin")}
 						</Badge>
 					) : null}
 					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							Marketplace
+							{t("settings.section.customize.marketplace")}
 						</Badge>
 					) : null}
 					<Switch
@@ -1150,10 +1178,12 @@ export function CustomizationSectionView({
 						}
 						title={
 							item.type === "workflow"
-								? "Toggling workflows isn't supported yet"
+								? t("settings.extensions.toggleWorkflowUnsupported")
 								: undefined
 						}
-						aria-label={`Toggle ${item.name}`}
+						aria-label={t("settings.extensions.toggleAria", {
+							name: item.name,
+						})}
 					/>
 					{item.agentPlugin !== true
 						? renderLocalItemMenu({
@@ -1192,21 +1222,39 @@ export function CustomizationSectionView({
 		const key = plugin.path;
 		const contributionGroups = [
 			{
-				label: "Tools",
+				labelKey: "settings.extensions.contributions.tools",
 				items:
 					plugin.contributions?.tools ??
 					(pluginToolsByPluginKey.get(plugin.path) ?? []).map(
 						(tool) => tool.name,
 					),
 			},
-			{ label: "Skills", items: plugin.contributions?.skills ?? [] },
-			{ label: "Rules", items: plugin.contributions?.rules ?? [] },
-			{ label: "Hooks", items: plugin.contributions?.hooks ?? [] },
-			{ label: "Commands", items: plugin.contributions?.commands ?? [] },
-			{ label: "MCP servers", items: plugin.contributions?.mcpServers ?? [] },
-			{ label: "Providers", items: plugin.contributions?.providers ?? [] },
 			{
-				label: "Capabilities",
+				labelKey: "settings.extensions.contributions.skills",
+				items: plugin.contributions?.skills ?? [],
+			},
+			{
+				labelKey: "settings.extensions.contributions.rules",
+				items: plugin.contributions?.rules ?? [],
+			},
+			{
+				labelKey: "settings.extensions.contributions.hooks",
+				items: plugin.contributions?.hooks ?? [],
+			},
+			{
+				labelKey: "settings.extensions.contributions.commands",
+				items: plugin.contributions?.commands ?? [],
+			},
+			{
+				labelKey: "settings.extensions.contributions.mcpServers",
+				items: plugin.contributions?.mcpServers ?? [],
+			},
+			{
+				labelKey: "settings.extensions.contributions.providers",
+				items: plugin.contributions?.providers ?? [],
+			},
+			{
+				labelKey: "settings.extensions.contributions.capabilities",
 				items: plugin.contributions?.capabilities ?? [],
 			},
 		].filter((group) => group.items.length > 0);
@@ -1219,11 +1267,13 @@ export function CustomizationSectionView({
 					</h3>
 					<ScopeBadge scope={scope} />
 					<Badge variant="outline" className="shrink-0 text-muted-foreground">
-						{plugin.agentPlugin === true ? "Agent Plugin" : "Cline Plugin"}
+						{plugin.agentPlugin === true
+							? t("settings.extensions.agentPlugin")
+							: t("settings.extensions.clinePlugin")}
 					</Badge>
 					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							Marketplace
+							{t("settings.section.customize.marketplace")}
 						</Badge>
 					) : null}
 					<Switch
@@ -1236,7 +1286,9 @@ export function CustomizationSectionView({
 							plugin.toggleable === false ||
 							togglingPluginPaths.has(plugin.path)
 						}
-						aria-label={`Toggle ${plugin.name}`}
+						aria-label={t("settings.extensions.toggleAria", {
+							name: plugin.name,
+						})}
 					/>
 					{plugin.agentPlugin !== true
 						? renderLocalItemMenu({
@@ -1261,24 +1313,26 @@ export function CustomizationSectionView({
 					) : null}
 					{plugin.contributions?.inspectionStatus === "disabled" ? (
 						<p className="mb-2 text-xs text-muted-foreground">
-							Enable this plugin to inspect its dynamic contributions.
+							{t("settings.extensions.enableToInspect")}
 						</p>
 					) : null}
 					{contributionGroups.length > 0 ? (
 						<div>
 							<div className="flex flex-wrap items-center gap-2 py-2 text-xs font-medium text-foreground">
-								<span className="mr-1">Contributions</span>
+								<span className="mr-1">
+									{t("settings.extensions.contributionsTitle")}
+								</span>
 								{contributionGroups.map((group) => (
-									<Badge key={group.label} variant="outline">
-										{group.label} {group.items.length}
+									<Badge key={group.labelKey} variant="outline">
+										{t(group.labelKey)} {group.items.length}
 									</Badge>
 								))}
 							</div>
 							<div className="grid max-h-56 gap-3 overflow-y-auto pt-2 sm:grid-cols-2">
 								{contributionGroups.map((group) => (
-									<div key={group.label} className="min-w-0">
+									<div key={group.labelKey} className="min-w-0">
 										<p className="mb-1 text-xs font-medium text-muted-foreground">
-											{group.label}
+											{t(group.labelKey)}
 										</p>
 										<div className="flex flex-wrap gap-1">
 											{group.items.map((item) => (
@@ -1293,7 +1347,7 @@ export function CustomizationSectionView({
 						</div>
 					) : (
 						<p className="text-xs text-muted-foreground">
-							No plugin contributions found.
+							{t("settings.extensions.noContributions")}
 						</p>
 					)}
 				</div>
@@ -1338,12 +1392,12 @@ export function CustomizationSectionView({
 					</Badge>
 					{context?.matchedEntries?.length ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							Marketplace
+							{t("settings.section.customize.marketplace")}
 						</Badge>
 					) : null}
 					{server.disabled ? (
 						<Badge variant="outline" className="shrink-0 text-muted-foreground">
-							Disabled
+							{t("settings.extensions.disabled")}
 						</Badge>
 					) : null}
 				</div>
@@ -1352,7 +1406,7 @@ export function CustomizationSectionView({
 						([server.command, ...(server.args ?? [])]
 							.filter(Boolean)
 							.join(" ") ||
-							"No launch command configured.")}
+							t("settings.extensions.noLaunchCommand"))}
 				</p>
 				{mcp.settingsPath ? (
 					<p className="truncate text-xs font-mono text-muted-foreground">
@@ -1420,15 +1474,15 @@ export function CustomizationSectionView({
 		<>
 			{chrome === "page" ? (
 				<PageHeader
-					description={sectionDescriptions[activeTab]}
-					title={activeTab}
+					description={t(sectionDescriptionKeys[activeTab])}
+					title={t(sectionTitleKeys[activeTab])}
 					meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
 					actions={refreshButton}
 				/>
 			) : (
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<p className="text-sm text-muted-foreground">
-						{sectionDescriptions[activeTab]}
+						{t(sectionDescriptionKeys[activeTab])}
 					</p>
 					{refreshButton}
 				</div>
@@ -1448,7 +1502,7 @@ export function CustomizationSectionView({
 									: "text-muted-foreground hover:text-foreground",
 							)}
 						>
-							{tab}
+							{t(sectionTitleKeys[tab])}
 							{activeTab === tab && (
 								<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
 							)}
@@ -1459,7 +1513,7 @@ export function CustomizationSectionView({
 
 			{errorMessage && (
 				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-					Failed to load configuration lists: {errorMessage}
+					{t("settings.extensions.loadError", { error: errorMessage })}
 				</div>
 			)}
 
@@ -1467,7 +1521,7 @@ export function CustomizationSectionView({
 				<div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300">
 					<div className="mb-2 flex items-center gap-2 font-medium">
 						<TriangleAlert className="h-4 w-4" />
-						Partial results
+						{t("settings.extensions.partialResults")}
 					</div>
 					<ul className="list-disc space-y-1 pl-5">
 						{warnings.map((warning) => (
@@ -1492,7 +1546,7 @@ export function CustomizationSectionView({
 					<div className="grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
-								Installed
+								{t("settings.section.customize.installed")}
 							</h3>
 							<span className="text-sm text-muted-foreground">
 								{scopedRules.length}
@@ -1514,8 +1568,10 @@ export function CustomizationSectionView({
 											checked
 											onCheckedChange={() => {}}
 											disabled
-											title="Toggling rules isn't supported yet"
-											aria-label={`Toggle ${rule.name}`}
+											title={t("settings.extensions.toggleRulesUnsupported")}
+											aria-label={t("settings.extensions.toggleAria", {
+												name: rule.name,
+											})}
 										/>
 										{renderLocalItemMenu(
 											{
@@ -1535,7 +1591,7 @@ export function CustomizationSectionView({
 							))}
 							{scopedRules.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No rules found.
+									{t("settings.extensions.noRules")}
 								</p>
 							)}
 						</div>
@@ -1547,15 +1603,16 @@ export function CustomizationSectionView({
 				<div>
 					{hookExecutionLoading && hookExecutionSessionId && (
 						<p className="mb-4 text-xs text-muted-foreground">
-							Execution status is based on hook events in session{" "}
-							<span className="font-mono">{hookExecutionSessionId}</span>.
+							{t("settings.extensions.hookExecutionBasisPrefix")}{" "}
+							<span className="font-mono">{hookExecutionSessionId}</span>
+							{t("settings.extensions.hookExecutionBasisSuffix")}
 						</p>
 					)}
 
 					<div className="grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
-								Installed
+								{t("settings.section.customize.installed")}
 							</h3>
 							<span className="text-sm text-muted-foreground">
 								{scopedHooks.length}
@@ -1596,8 +1653,10 @@ export function CustomizationSectionView({
 															)}
 														>
 															{executed
-																? `${stats?.count ?? 0} executed`
-																: "never executed"}
+																? t("settings.extensions.executedCount", {
+																		count: stats?.count ?? 0,
+																	})
+																: t("settings.extensions.neverExecuted")}
 														</Badge>
 													);
 												})()}
@@ -1606,7 +1665,7 @@ export function CustomizationSectionView({
 									</div>
 									{hook.hookEventName ? (
 										<p className="text-xs leading-5 text-muted-foreground">
-											Last run:{" "}
+											{t("settings.extensions.labelLastRun")}{" "}
 											{formatExecutionTs(
 												hookExecutionByEvent[hook.hookEventName]?.lastTs ??
 													null,
@@ -1620,7 +1679,7 @@ export function CustomizationSectionView({
 							))}
 							{scopedHooks.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No hooks found.
+									{t("settings.extensions.noHooks")}
 								</p>
 							)}
 						</div>
@@ -1631,11 +1690,11 @@ export function CustomizationSectionView({
 			{activeTab === "Skills" && !catalogPrimitive && (
 				<div>
 					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Skills can be invoked in chat with{" "}
+						{t("settings.extensions.skillsHintPrefix")}{" "}
 						<code className="rounded bg-secondary px-1.5 py-0.5 text-xs font-mono text-foreground">
 							/SKILL
 						</code>
-						.
+						{t("settings.extensions.skillsHintSuffix")}
 					</p>
 
 					<div className="flex flex-col gap-3">
@@ -1667,7 +1726,7 @@ export function CustomizationSectionView({
 						))}
 						{commandItems.length === 0 && (
 							<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-								No enabled skills or workflows found.
+								{t("settings.extensions.noSkills")}
 							</p>
 						)}
 					</div>
@@ -1677,8 +1736,7 @@ export function CustomizationSectionView({
 			{activeTab === "Agents" && (
 				<div>
 					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Configured agents discovered from Documents and settings
-						directories.
+						{t("settings.extensions.agentsHint")}
 					</p>
 
 					<div className="flex flex-col gap-3">
@@ -1700,7 +1758,7 @@ export function CustomizationSectionView({
 						))}
 						{agents.length === 0 && (
 							<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-								No configured agents found.
+								{t("settings.extensions.noAgents")}
 							</p>
 						)}
 					</div>
@@ -1710,19 +1768,20 @@ export function CustomizationSectionView({
 			{activeTab === "Plugins" && !catalogPrimitive && (
 				<div>
 					<p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-						Cline and portable Agent Plugins discovered by the shared Hub.
-						Changes apply when a session is rebuilt or started.
+						{t("settings.extensions.pluginsHint")}
 					</p>
 
 					<div className="mb-6">
 						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Cline Plugins ({clinePlugins.length})
+							{t("settings.extensions.clinePlugins", {
+								count: clinePlugins.length,
+							})}
 						</h3>
 						<div className="flex flex-col gap-3">
 							{clinePlugins.map((plugin) => renderPluginCard(plugin))}
 							{clinePlugins.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No Cline Plugins found.
+									{t("settings.extensions.noClinePlugins")}
 								</p>
 							)}
 						</div>
@@ -1730,13 +1789,15 @@ export function CustomizationSectionView({
 
 					<div>
 						<h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-							Agent Plugins ({agentPlugins.length})
+							{t("settings.extensions.agentPlugins", {
+								count: agentPlugins.length,
+							})}
 						</h3>
 						<div className="flex flex-col gap-3">
 							{agentPlugins.map((plugin) => renderPluginCard(plugin))}
 							{agentPlugins.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-									No Agent Plugins found.
+									{t("settings.extensions.noAgentPlugins")}
 								</p>
 							)}
 						</div>
@@ -1749,10 +1810,10 @@ export function CustomizationSectionView({
 					<div className="relative mb-6 block">
 						<Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
-							aria-label="Search tools"
+							aria-label={t("settings.extensions.searchToolsAria")}
 							className="h-10 pl-8"
 							onChange={(event) => setToolsSearchQuery(event.target.value)}
-							placeholder="Search tools"
+							placeholder={t("settings.extensions.searchToolsPlaceholder")}
 							value={toolsSearchQuery}
 						/>
 					</div>
@@ -1760,7 +1821,7 @@ export function CustomizationSectionView({
 					<div className="mb-6 grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
-								BuiltIn Tools{" "}
+								{t("settings.extensions.builtinTools")}{" "}
 								<span className="text-muted-foreground">
 									{filteredBuiltinTools.length}
 								</span>
@@ -1783,15 +1844,17 @@ export function CustomizationSectionView({
 									id="builtin-tools-toggle-all"
 									aria-label={
 										allBuiltinToolsEnabled
-											? "Disable all builtin tools"
-											: "Enable all builtin tools"
+											? t("settings.extensions.disableAllBuiltin")
+											: t("settings.extensions.enableAllBuiltin")
 									}
 								/>
 								<label
 									className="cursor-pointer"
 									htmlFor="builtin-tools-toggle-all"
 								>
-									{allBuiltinToolsEnabled ? "Disable all" : "Enable all"}
+									{allBuiltinToolsEnabled
+										? t("settings.extensions.disableAll")
+										: t("settings.extensions.enableAll")}
 								</label>
 							</div>
 						</div>
@@ -1820,7 +1883,7 @@ export function CustomizationSectionView({
 											</div>
 											<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 												{tool.description?.trim() ||
-													"No description available."}
+													t("settings.extensions.noDescription")}
 											</p>
 											{!!tool.headlessToolNames?.length &&
 												tool.headlessToolNames?.length > 1 && (
@@ -1835,8 +1898,8 @@ export function CustomizationSectionView({
 							{filteredBuiltinTools.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
 									{builtinTools.length === 0
-										? "No builtin tools found."
-										: "No tools match your search."}
+										? t("settings.extensions.noBuiltinTools")
+										: t("settings.extensions.noToolsMatch")}
 								</p>
 							)}
 						</div>
@@ -1845,7 +1908,7 @@ export function CustomizationSectionView({
 					<div className="grid gap-3">
 						<div className="flex items-center justify-between gap-3">
 							<h3 className="text-base font-semibold text-foreground">
-								Plugin Tools{" "}
+								{t("settings.extensions.pluginTools")}{" "}
 								<span className="text-muted-foreground">
 									{filteredPluginTools.length}
 								</span>
@@ -1868,15 +1931,17 @@ export function CustomizationSectionView({
 									id="plugin-tools-toggle-all"
 									aria-label={
 										allPluginToolsEnabled
-											? "Disable all plugin tools"
-											: "Enable all plugin tools"
+											? t("settings.extensions.disableAllPluginTools")
+											: t("settings.extensions.enableAllPluginTools")
 									}
 								/>
 								<label
 									className="cursor-pointer"
 									htmlFor="plugin-tools-toggle-all"
 								>
-									{allPluginToolsEnabled ? "Disable all" : "Enable all"}
+									{allPluginToolsEnabled
+										? t("settings.extensions.disableAll")
+										: t("settings.extensions.enableAll")}
 								</label>
 							</div>
 						</div>
@@ -1914,7 +1979,7 @@ export function CustomizationSectionView({
 											</div>
 											<p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
 												{tool.description?.trim() ||
-													"No description available."}
+													t("settings.extensions.noDescription")}
 											</p>
 										</div>
 									);
@@ -1923,8 +1988,8 @@ export function CustomizationSectionView({
 							{filteredPluginTools.length === 0 && (
 								<p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
 									{pluginTools.length === 0
-										? "No plugin tools found."
-										: "No tools match your search."}
+										? t("settings.extensions.noPluginTools")
+										: t("settings.extensions.noToolsMatch")}
 								</p>
 							)}
 						</div>

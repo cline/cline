@@ -11,6 +11,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 import type { RemoteEnvironmentProfile } from "@/lib/remote-environments";
 import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "@/lib/workspace-paths";
 
@@ -44,6 +45,7 @@ export function buildEnvironmentSelectorModel(
 	activeEnvironmentId: string,
 	profiles: RemoteEnvironmentProfile[],
 ): EnvironmentSelectorModel {
+	const t = getTranslator().t;
 	const remoteById = new Map<string, EnvironmentSelectorOption>();
 	for (const profile of profiles) {
 		const id = profile.id?.trim();
@@ -51,7 +53,10 @@ export function buildEnvironmentSelectorModel(
 		const selected = id === activeEnvironmentId;
 		remoteById.set(id, {
 			id,
-			label: profile.name.trim() || profile.host.trim() || "SSH host",
+			label:
+				profile.name.trim() ||
+				profile.host.trim() ||
+				t("chat.environment.sshHostFallback"),
 			kind: "remote",
 			selected,
 		});
@@ -65,10 +70,14 @@ export function buildEnvironmentSelectorModel(
 
 	return {
 		activeKind: localSelected ? "local" : "remote",
-		activeLabel: activeRemote?.label ?? (localSelected ? "Local" : "Remote"),
+		activeLabel:
+			activeRemote?.label ??
+			(localSelected
+				? t("chat.environment.localLabel")
+				: t("chat.environment.remoteLabel")),
 		local: {
 			id: LOCAL_WORKSPACE_ENVIRONMENT_ID,
-			label: "Local",
+			label: t("chat.environment.localLabel"),
 			kind: "local",
 			selected: localSelected,
 		},
@@ -87,6 +96,7 @@ export function EnvironmentSelector({
 	onSelectEnvironment,
 	onAddSshHost,
 }: EnvironmentSelectorProps) {
+	const { t } = useTranslation();
 	const model = useMemo(
 		() => buildEnvironmentSelectorModel(activeEnvironmentId, profiles),
 		[activeEnvironmentId, profiles],
@@ -98,7 +108,9 @@ export function EnvironmentSelector({
 	const pendingEnvironmentId = switchingEnvironmentId ?? internalSwitchingId;
 	const busy = loading || pendingEnvironmentId !== null;
 	const cloudSelected = executionTarget === "cloud";
-	const activeLabel = cloudSelected ? "Cloud" : model.activeLabel;
+	const activeLabel = cloudSelected
+		? t("chat.environment.cloudLabel")
+		: model.activeLabel;
 	const ActiveIcon = cloudSelected
 		? Cloud
 		: model.activeKind === "remote"
@@ -128,7 +140,7 @@ export function EnvironmentSelector({
 			return (
 				<span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
 					<Loader2 className="size-3 animate-spin" />
-					Connecting
+					{t("chat.environment.connecting")}
 				</span>
 			);
 		}
@@ -139,11 +151,13 @@ export function EnvironmentSelector({
 		<DropdownMenu onOpenChange={setOpen} open={open}>
 			<DropdownMenuTrigger asChild>
 				<Button
-					aria-label={`Environment: ${activeLabel}`}
+					aria-label={t("chat.environment.ariaTemplate", {
+						label: activeLabel,
+					})}
 					className="size-9 shrink-0 rounded-md border border-border/70 bg-background/80 p-0 text-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground"
 					disabled={busy}
 					id="environment-selector-btn"
-					title={`Environment: ${activeLabel}`}
+					title={t("chat.environment.ariaTemplate", { label: activeLabel })}
 					variant="ghost"
 				>
 					{busy ? (
@@ -180,10 +194,10 @@ export function EnvironmentSelector({
 					}}
 				>
 					<Cloud className="size-4" />
-					<span className="uppercase">Cloud</span>
+					<span className="uppercase">{t("chat.environment.cloudLabel")}</span>
 					{!cloudEnabled ? (
 						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
-							Coming soon
+							{t("chat.environment.comingSoon")}
 						</span>
 					) : cloudSelected ? (
 						<Check className="ml-auto" />
@@ -194,11 +208,11 @@ export function EnvironmentSelector({
 				<div className="flex items-center justify-between">
 					<DropdownMenuLabel className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 						<Server className="size-4" />
-						Remote
+						{t("chat.environment.remoteLabel")}
 					</DropdownMenuLabel>
 					<DropdownMenuItem
-						aria-label="Add SSH Host"
-						title="Add SSH Host"
+						aria-label={t("chat.environment.addSshHost")}
+						title={t("chat.environment.addSshHost")}
 						className="mr-1 size-6 justify-center p-0"
 						disabled={busy}
 						onSelect={onAddSshHost}
@@ -226,7 +240,9 @@ export function EnvironmentSelector({
 					))
 				) : (
 					<DropdownMenuItem disabled>
-						<span className="text-muted-foreground">No SSH hosts saved</span>
+						<span className="text-muted-foreground">
+							{t("chat.environment.noSshHosts")}
+						</span>
 					</DropdownMenuItem>
 				)}
 			</DropdownMenuContent>

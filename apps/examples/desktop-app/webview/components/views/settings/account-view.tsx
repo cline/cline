@@ -28,6 +28,7 @@ import { useAccount } from "@/contexts/account-context";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
@@ -41,12 +42,18 @@ const ORGANIZATION_CREDITS_URL =
 const CREATE_ORGANIZATION_URL = "https://app.cline.bot/onboarding?step=1";
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
+// Tab ids double as route/state identifiers; labels resolve via these keys at
+// the render site.
+const TAB_LABEL_KEY: Record<"overview" | "usage" | "billing", string> = {
+	overview: "settings.account.tab.overview",
+	usage: "settings.account.tab.usage",
+	billing: "settings.account.tab.billing",
+};
+
 function normalizeAccountViewError(error: unknown): Error {
 	const message = error instanceof Error ? error.message : String(error);
 	if (message.includes("unsupported desktop command: cline_account")) {
-		return new Error(
-			"The desktop sidecar is running an older build that does not support account commands. Restart the sidecar or reload the app, then try again.",
-		);
+		return new Error(getTranslator()("settings.account.legacySidecarError"));
 	}
 	return error instanceof Error ? error : new Error(message);
 }
@@ -164,6 +171,7 @@ export function AccountView() {
 		"overview",
 	);
 	const { refreshAccount } = useAccount();
+	const { t } = useTranslation();
 
 	// Overview data
 	const [user, setUser] = useState<ClineAccountUser | null>(null);
@@ -461,7 +469,7 @@ export function AccountView() {
 				className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 			>
 				<RefreshCw className="h-4 w-4" />
-				Retry
+				{t("common.action.retry")}
 			</button>
 		</div>
 	);
@@ -474,11 +482,10 @@ export function AccountView() {
 				</div>
 				<div>
 					<h3 className="text-lg font-semibold text-foreground">
-						Sign in to Cline
+						{t("settings.account.signInTitle")}
 					</h3>
 					<p className="mt-2 text-sm text-muted-foreground">
-						Connect your Cline account to review credits, usage, billing, and
-						organization details.
+						{t("settings.account.signInDescription")}
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center justify-center gap-2">
@@ -493,20 +500,22 @@ export function AccountView() {
 						) : (
 							<LogIn className="h-4 w-4" />
 						)}
-						{accountActionPending === "sign-in" ? "Signing in" : "Sign in"}
+						{accountActionPending === "sign-in"
+							? t("settings.account.signingInAction")
+							: t("settings.account.signInAction")}
 					</button>
 					<button
 						type="button"
 						onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
 						className="flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 					>
-						Create account
+						{t("settings.account.createAccountAction")}
 						<ExternalLink className="h-4 w-4" />
 					</button>
 				</div>
 				{accountActionPending === "sign-in" && deviceUserCode ? (
 					<p className="text-sm text-muted-foreground">
-						Confirm this code in your browser:{" "}
+						{t("settings.account.confirmCodePrefix")}{" "}
 						<span className="font-mono font-medium text-foreground">
 							{deviceUserCode}
 						</span>
@@ -555,10 +564,12 @@ export function AccountView() {
 				<Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
 			) : input.active ? (
 				<span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-					Active
+					{t("settings.account.activeBadge")}
 				</span>
 			) : (
-				<span className="text-xs text-muted-foreground">Switch</span>
+				<span className="text-xs text-muted-foreground">
+					{t("settings.account.switchAction")}
+				</span>
 			)}
 		</button>
 	);
@@ -566,7 +577,7 @@ export function AccountView() {
 	return (
 		<PageFrame contentClassName="max-w-3xl">
 			<PageHeader
-				title="Account"
+				title={t("settings.section.account")}
 				actions={
 					user ? (
 						<button
@@ -580,7 +591,9 @@ export function AccountView() {
 							) : (
 								<LogOut className="size-4" />
 							)}
-							{accountActionPending === "sign-out" ? "Signing Out" : "Sign Out"}
+							{accountActionPending === "sign-out"
+								? t("settings.account.signingOutAction")
+								: t("settings.account.signOutAction")}
 						</button>
 					) : undefined
 				}
@@ -605,7 +618,7 @@ export function AccountView() {
 									"cursor-not-allowed opacity-45 hover:text-muted-foreground",
 							)}
 						>
-							{tab}
+							{t(TAB_LABEL_KEY[tab])}
 							{activeTab === tab && (
 								<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
 							)}
@@ -638,12 +651,14 @@ export function AccountView() {
 											{user.email}
 										</p>
 										<p className="mt-2 text-xs text-muted-foreground">
-											Member since {formatDate(user.createdAt)}
+											{t("settings.account.memberSince", {
+												date: formatDate(user.createdAt),
+											})}
 										</p>
 									</div>
 									<button
 										type="button"
-										title="Open dashboard"
+										title={t("settings.account.openDashboardTooltip")}
 										onClick={() => void openExternalUrl(DASHBOARD_URL)}
 										className="rounded-md p-1.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 									>
@@ -660,8 +675,10 @@ export function AccountView() {
 											<CreditCard className="h-5 w-5 text-primary" />
 											<h3 className="text-sm font-semibold text-foreground">
 												{activeOrganization
-													? `${activeOrganization.name} Balance`
-													: "Credits Balance"}
+													? t("settings.account.orgBalanceTitle", {
+															organizationName: activeOrganization.name,
+														})
+													: t("settings.account.creditsBalanceTitle")}
 											</h3>
 										</div>
 										<button
@@ -676,7 +693,7 @@ export function AccountView() {
 											className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 										>
 											<Plus className="h-3.5 w-3.5" />
-											Credit
+											{t("settings.account.creditAction")}
 										</button>
 									</div>
 									<div className="flex items-baseline gap-2">
@@ -686,8 +703,9 @@ export function AccountView() {
 									</div>
 									{activeOrganization && balance && (
 										<p className="mt-2 text-xs text-muted-foreground">
-											Personal account: {formatCreditBalance(balance.balance)}{" "}
-											credits
+											{t("settings.account.personalBalance", {
+												balance: formatCreditBalance(balance.balance),
+											})}
 										</p>
 									)}
 								</div>
@@ -699,7 +717,7 @@ export function AccountView() {
 									<div className="flex items-center gap-3">
 										<Building className="h-5 w-5 text-muted-foreground" />
 										<h3 className="text-sm font-semibold text-foreground">
-											Organizations
+											{t("settings.account.organizationsTitle")}
 										</h3>
 									</div>
 									<button
@@ -710,14 +728,16 @@ export function AccountView() {
 										className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground "
 									>
 										<Plus className="h-3.5 w-3.5" />
-										Create
+										{t("settings.account.createOrgAction")}
 									</button>
 								</div>
 								<div className="flex flex-col gap-2">
 									{renderAccountRow({
 										key: "personal",
-										name: "Personal",
-										subtitle: user.email ?? "Personal account",
+										name: t("settings.account.personalName"),
+										subtitle:
+											user.email ??
+											t("settings.account.personalAccountSubtitle"),
 										icon: <User className="h-4 w-4" />,
 										active: !activeOrganization,
 										switching: switchTargetId === "",
@@ -746,22 +766,30 @@ export function AccountView() {
 				<div>
 					<p className="mb-6 text-sm text-muted-foreground">
 						{activeOrganization
-							? `Recent API usage and token consumption for ${activeOrganization.name}.`
-							: "Recent API usage and token consumption across all providers."}
+							? t("settings.account.orgUsageDescription", {
+									organizationName: activeOrganization.name,
+								})
+							: t("settings.account.usageDescription")}
 					</p>
 					{usageLoading && renderLoading()}
 					{usageError && renderError(usageError, loadUsage)}
 					{!usageLoading && !usageError && usageLoaded && (
 						<div className="overflow-hidden rounded-lg border border-border">
 							<div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-								<span>Model</span>
-								<span className="text-right">Tokens</span>
-								<span className="text-right">Credits</span>
-								<span className="text-right">Time</span>
+								<span>{t("settings.account.usageTable.model")}</span>
+								<span className="text-right">
+									{t("settings.account.usageTable.tokens")}
+								</span>
+								<span className="text-right">
+									{t("settings.account.usageTable.credits")}
+								</span>
+								<span className="text-right">
+									{t("settings.account.usageTable.time")}
+								</span>
 							</div>
 							{usageTransactions.length === 0 ? (
 								<p className="px-4 py-8 text-center text-sm text-muted-foreground">
-									No usage transactions yet.
+									{t("settings.account.noUsage")}
 								</p>
 							) : (
 								<div className="divide-y divide-border">
@@ -798,7 +826,7 @@ export function AccountView() {
 									onClick={() => void openExternalUrl(USAGE_DASHBOARD_URL)}
 									className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 								>
-									See More
+									{t("settings.account.seeMoreAction")}
 									<ExternalLink className="h-3.5 w-3.5" />
 								</button>
 							</div>
@@ -811,7 +839,7 @@ export function AccountView() {
 			{activeTab === "billing" && (
 				<div>
 					<p className="mb-6 text-sm text-muted-foreground">
-						Payment history and credit purchases.
+						{t("settings.account.billingDescription")}
 					</p>
 					{billingLoading && renderLoading()}
 					{billingError && renderError(billingError, loadBilling)}
@@ -820,14 +848,18 @@ export function AccountView() {
 						billingLoaded &&
 						(paymentTransactions.length === 0 ? (
 							<p className="py-8 text-center text-sm text-muted-foreground">
-								No payment transactions yet.
+								{t("settings.account.noPayments")}
 							</p>
 						) : (
 							<div className="rounded-lg border border-border overflow-hidden">
 								<div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-									<span>Date</span>
-									<span className="text-right">Amount</span>
-									<span className="text-right">Credits</span>
+									<span>{t("settings.account.billingTable.date")}</span>
+									<span className="text-right">
+										{t("settings.account.billingTable.amount")}
+									</span>
+									<span className="text-right">
+										{t("settings.account.billingTable.credits")}
+									</span>
 								</div>
 								<div className="divide-y divide-border">
 									{paymentTransactions.map((tx) => (

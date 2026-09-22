@@ -3,8 +3,10 @@ import type { ComponentType } from "react";
 
 export interface RoutineTemplate {
 	id: string;
-	title: string;
-	description: string;
+	/** Catalog key of the user-facing display title. */
+	titleKey: string;
+	/** Catalog key of the user-facing display description. */
+	descriptionKey: string;
 	icon: ComponentType<{ className?: string }>;
 	name: string;
 	prompt: string;
@@ -132,9 +134,8 @@ If everything is already accurate, reply with a single line saying so, optionall
 export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
 	{
 		id: "find-critical-bugs",
-		title: "Find critical bugs",
-		description:
-			"Sweep recent commits for high-severity bugs that slipped past review, and fix the ones with a concrete trigger.",
+		titleKey: "settings.routines.templates.findCriticalBugs.title",
+		descriptionKey: "settings.routines.templates.findCriticalBugs.description",
 		icon: Bug,
 		name: "Find critical bugs",
 		prompt: FIND_CRITICAL_BUGS_PROMPT,
@@ -145,9 +146,8 @@ export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
 	},
 	{
 		id: "security-scan",
-		title: "Scan for vulnerabilities",
-		description:
-			"Audit the codebase for exploitable security issues with a validated end-to-end attack path.",
+		titleKey: "settings.routines.templates.securityScan.title",
+		descriptionKey: "settings.routines.templates.securityScan.description",
 		icon: ShieldAlert,
 		name: "Security scan",
 		prompt: SECURITY_SCAN_PROMPT,
@@ -158,9 +158,8 @@ export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
 	},
 	{
 		id: "daily-digest",
-		title: "Summarize changes daily",
-		description:
-			"Get a skimmable digest of everything that landed in the last 24 hours, plus risks worth watching.",
+		titleKey: "settings.routines.templates.dailyDigest.title",
+		descriptionKey: "settings.routines.templates.dailyDigest.description",
 		icon: Newspaper,
 		name: "Daily change digest",
 		prompt: DAILY_DIGEST_PROMPT,
@@ -171,9 +170,8 @@ export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
 	},
 	{
 		id: "update-docs",
-		title: "Keep docs updated",
-		description:
-			"Refresh documentation whenever the code drifts away from it, verified against the source.",
+		titleKey: "settings.routines.templates.updateDocs.title",
+		descriptionKey: "settings.routines.templates.updateDocs.description",
 		icon: BookOpen,
 		name: "Update docs",
 		prompt: UPDATE_DOCS_PROMPT,

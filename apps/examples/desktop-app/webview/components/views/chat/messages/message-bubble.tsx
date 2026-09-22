@@ -24,6 +24,7 @@ import type {
 	ChatMessageImage,
 	ChatMessageMedia,
 } from "@/lib/chat-schema";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
@@ -40,6 +41,7 @@ function MessageImages({
 	isUser: boolean;
 	onExpandImage?: (image: ChatMessageImage) => void;
 }) {
+	const { t } = useTranslation();
 	if (!isUser) {
 		return (
 			<MessageImageCarousel images={images} onExpandImage={onExpandImage} />
@@ -50,7 +52,7 @@ function MessageImages({
 		<div className="grid max-w-2xl gap-2">
 			{images.map((image, index) => (
 				<button
-					aria-label={`Expand attachment ${index + 1}`}
+					aria-label={t("chat.attachments.expandAria", { index: index + 1 })}
 					className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					key={image.id}
 					onClick={() => onExpandImage?.(image)}
@@ -58,7 +60,7 @@ function MessageImages({
 				>
 					{/* biome-ignore lint/performance/noImgElement: In-memory data URLs do not have dimensions and cannot use Next's optimizer. */}
 					<img
-						alt={`Attachment ${index + 1}`}
+						alt={t("chat.attachments.alt", { index: index + 1 })}
 						className="max-h-56.25 max-w-56.25 object-contain"
 						src={`data:${image.mediaType};base64,${image.data}`}
 					/>
@@ -157,6 +159,7 @@ export const MessageBubble = memo(function MessageBubble({
 	thoughtDurationMilliseconds?: number;
 }) {
 	const isUser = message.role === "user";
+	const { t } = useTranslation();
 	const isError = message.role === "error";
 	const checkpoint = message.meta?.checkpoint;
 	// Runtime steering notes (completion nudges in scheduled/automation runs,
@@ -278,9 +281,17 @@ export const MessageBubble = memo(function MessageBubble({
 					<MessageActions side="end" visible={keepUserActionsVisible}>
 						{onCopyMessage ? (
 							<MessageAction
-								label={wasCopied ? "Copied user message" : "Copy user message"}
+								label={
+									wasCopied
+										? t("chat.messages.copiedUserAria")
+										: t("chat.messages.copyUserAria")
+								}
 								onClick={() => void onCopyMessage(message.id, displayContent)}
-								title={wasCopied ? "Copied" : "Copy message"}
+								title={
+									wasCopied
+										? t("chat.messages.copiedTitle")
+										: t("chat.messages.copyTitle")
+								}
 							>
 								{wasCopied ? (
 									<Check className="h-3.5 w-3.5" />
@@ -292,11 +303,11 @@ export const MessageBubble = memo(function MessageBubble({
 						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
 								disabled={editDisabled || editPending}
-								label="Edit user message"
+								label={t("chat.messages.editUserAria")}
 								onClick={() =>
 									void onEditMessage(message.id, displayContent, runCount)
 								}
-								title="Edit message and restart from this point"
+								title={t("chat.messages.editUserTooltip")}
 							>
 								{editPending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -308,11 +319,11 @@ export const MessageBubble = memo(function MessageBubble({
 						{checkpoint ? (
 							<MessageAction
 								disabled={restoreDisabled || restorePending}
-								label="Restore checkpoint"
+								label={t("chat.messages.restoreCheckpoint")}
 								onClick={() =>
 									void onRestoreCheckpoint?.(message.id, checkpoint.runCount)
 								}
-								title="Restore checkpoint"
+								title={t("chat.messages.restoreCheckpoint")}
 							>
 								{restorePending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -342,11 +353,15 @@ export const MessageBubble = memo(function MessageBubble({
 						<MessageAction
 							label={
 								wasCopied
-									? "Copied assistant message"
-									: "Copy assistant message"
+									? t("chat.messages.copiedAssistantAria")
+									: t("chat.messages.copyAssistantAria")
 							}
 							onClick={() => void onCopyMessage(message.id, message.content)}
-							title={wasCopied ? "Copied" : "Copy raw assistant output"}
+							title={
+								wasCopied
+									? t("chat.messages.copiedTitle")
+									: t("chat.messages.copyAssistantTitle")
+							}
 						>
 							{wasCopied ? (
 								<Check className="h-3 w-3" />
@@ -358,9 +373,9 @@ export const MessageBubble = memo(function MessageBubble({
 					{onForkSession ? (
 						<MessageAction
 							disabled={forkDisabled || forkPending}
-							label="Fork session"
+							label={t("chat.messages.forkAria")}
 							onClick={() => void onForkSession(message.id)}
-							title="Fork session - copy full message history into a new session"
+							title={t("chat.messages.forkTooltip")}
 						>
 							{forkPending ? (
 								<Loader2 className="h-3 w-3 animate-spin" />

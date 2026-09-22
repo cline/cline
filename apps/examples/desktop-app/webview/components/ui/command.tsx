@@ -10,6 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 function Command({
@@ -29,8 +30,8 @@ function Command({
 }
 
 function CommandDialog({
-	title = "Command Palette",
-	description = "Search for a command to run...",
+	title,
+	description,
 	children,
 	className,
 	showCloseButton = true,
@@ -44,11 +45,15 @@ function CommandDialog({
 	/** Pass false when results are already filtered/ranked by the caller (e.g. server-side search). */
 	shouldFilter?: boolean;
 }) {
+	const { t } = useTranslation();
+	const resolvedTitle = title ?? t("dialogs.commandPalette.title");
+	const resolvedDescription =
+		description ?? t("dialogs.commandPalette.description");
 	return (
 		<Dialog {...props}>
 			<DialogHeader className="sr-only">
-				<DialogTitle>{title}</DialogTitle>
-				<DialogDescription>{description}</DialogDescription>
+				<DialogTitle>{resolvedTitle}</DialogTitle>
+				<DialogDescription>{resolvedDescription}</DialogDescription>
 			</DialogHeader>
 			<DialogContent
 				className={cn("overflow-hidden p-0", className)}

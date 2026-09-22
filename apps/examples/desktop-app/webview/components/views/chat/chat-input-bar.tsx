@@ -46,6 +46,7 @@ import {
 	buildModelPickerData,
 	type ModelPickerData,
 } from "@/lib/featured-models";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 import {
 	imageAttachmentMediaType,
 	isSupportedImageAttachment,
@@ -103,13 +104,16 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
-const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
-	{
-		name: "fork",
-		description: "Create a copy of the current session into a new session",
-	},
-	{ name: "team", description: "Start the task with an agent team" },
-];
+const getBuiltinSlashCommands = (): SlashCommand[] => {
+	const t = getTranslator().t;
+	return [
+		{
+			name: "fork",
+			description: t("chat.composer.slash.fork.description"),
+		},
+		{ name: "team", description: t("chat.composer.slash.team.description") },
+	];
+};
 
 // Last known user commands, kept across composer instances so reopening the
 // slash menu paints instantly (stale-while-revalidate); the fetch that
@@ -119,10 +123,13 @@ let cachedSlashCommands: SlashCommand[] | null = null;
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
 ): SlashCommand[] {
+	const t = getTranslator().t;
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
-	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+	const seen = new Set(
+		getBuiltinSlashCommands().map((command) => command.name),
+	);
 	return commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
@@ -134,7 +141,11 @@ export function buildUserInstructionSlashCommands(
 				name,
 				description:
 					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
+					t(
+						command.kind === "skill"
+							? "chat.composer.slash.skillFallback"
+							: "chat.composer.slash.workflowFallback",
+					),
 			},
 		];
 	});
@@ -175,6 +186,13 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
 ];
+const EFFORT_LEVEL_KEYS: Record<string, string> = {
+	none: "chat.composer.effort.none",
+	low: "chat.composer.effort.low",
+	medium: "chat.composer.effort.medium",
+	high: "chat.composer.effort.high",
+	extra: "chat.composer.effort.extra",
+};
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
@@ -388,6 +406,7 @@ function ChatInputBarImpl({
 	onOpenModelSettings,
 	summary,
 }: ChatInputBarProps) {
+	const { t } = useTranslation();
 	const {
 		workspaceRoot,
 		workspaces,
@@ -493,10 +512,13 @@ function ChatInputBarImpl({
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const cloudContextLabel = useMemo(
 		() =>
-			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
+			[
+				cloudRepositoryLabel(repoUrl ?? "", t("chat.environment.cloudLabel")),
+				cloudBranch?.trim(),
+			]
 				.filter(Boolean)
 				.join(" / "),
-		[cloudBranch, repoUrl],
+		[cloudBranch, repoUrl, t],
 	);
 	const [imageCapability, setImageCapability] = useState<{
 		provider: string;
@@ -515,14 +537,13 @@ function ChatInputBarImpl({
 	);
 	const reportUnsupportedImages = useCallback(() => {
 		toast({
-			title: "This model doesn’t support image input",
+			title: t("chat.composer.imageModelUnsupportedTitle"),
 			description:
-				"Choose a model that supports images or remove the images before sending." +
-				(executionTarget === "cloud"
-					? ""
-					: " Other files can still be attached."),
+				executionTarget === "cloud"
+					? t("chat.composer.imageModelUnsupportedDescriptionCloud")
+					: t("chat.composer.imageModelUnsupportedDescriptionLocal"),
 		});
-	}, [executionTarget]);
+	}, [executionTarget, t]);
 	const handleAttachFiles = useCallback(
 		(files: File[]) => {
 			const supportedFiles =
@@ -531,9 +552,8 @@ function ChatInputBarImpl({
 					: files;
 			if (supportedFiles.length !== files.length) {
 				toast({
-					title: "Unsupported cloud attachment",
-					description:
-						"Choose PNG, JPEG, GIF, or WebP images, or switch to Local to attach other files.",
+					title: t("chat.composer.cloudAttachmentUnsupportedTitle"),
+					description: t("chat.composer.cloudAttachmentUnsupportedDescription"),
 				});
 			}
 			const allowed = imagesUnsupported
@@ -547,6 +567,7 @@ function ChatInputBarImpl({
 			imagesUnsupported,
 			onAttachFiles,
 			reportUnsupportedImages,
+			t,
 		],
 	);
 	const unsupportedDraftImageCount = imagesUnsupported
@@ -568,7 +589,7 @@ function ChatInputBarImpl({
 		} catch (error) {
 			toast({
 				variant: "destructive",
-				title: "Could not steer queued message",
+				title: t("chat.composer.steerFailedTitle"),
 				description: error instanceof Error ? error.message : String(error),
 			});
 		} finally {
@@ -585,9 +606,8 @@ function ChatInputBarImpl({
 		const prompt = promptInput.trim();
 		if (!prompt) {
 			toast({
-				title: "Add a message to go with your attachments",
-				description:
-					"Describe what you want Cline to do with the attached files before sending.",
+				title: t("chat.composer.attachmentsNeedMessageTitle"),
+				description: t("chat.composer.attachmentsNeedMessageDescription"),
 			});
 			return;
 		}
@@ -602,6 +622,7 @@ function ChatInputBarImpl({
 		speechInputActive,
 		unsupportedDraftImageCount,
 		reportUnsupportedImages,
+		t,
 	]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
@@ -667,7 +688,7 @@ function ChatInputBarImpl({
 		slashKey !== null &&
 		dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
+		() => cachedSlashCommands ?? getBuiltinSlashCommands(),
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
@@ -870,12 +891,10 @@ function ChatInputBarImpl({
 	const handleAudioRecorded = useCallback(
 		async (audioBlob: Blob): Promise<string> => {
 			if (!transcriptionTarget) {
-				throw new Error(
-					"Configure an audio-to-text provider before using speech input",
-				);
+				throw new Error(t("chat.composer.speech.providerMissing"));
 			}
 			if (audioBlob.size > MAX_RECORDED_AUDIO_BYTES) {
-				throw new Error("Recorded audio exceeds the 25 MiB upload limit");
+				throw new Error(t("chat.composer.speech.tooLarge"));
 			}
 			writeDesktopDebugLog({
 				scope: "voice-input",
@@ -899,37 +918,40 @@ function ChatInputBarImpl({
 			);
 			const text = result.text?.trim();
 			if (!text) {
-				throw new Error("The transcription provider returned no text");
+				throw new Error(t("chat.composer.speech.emptyResult"));
 			}
 			return text;
 		},
-		[transcriptionTarget],
+		[transcriptionTarget, t],
 	);
 
-	const handleSpeechInputError = useCallback((error: unknown) => {
-		// Keep recording and provider failures in chat so the user can see
-		// the actual error and retry with their configured voice model.
-		const isMicrophoneError =
-			error instanceof DOMException || error instanceof Event;
-		const message =
-			error instanceof Error
-				? error.message
-				: "Check microphone permission and audio provider settings.";
-		writeDesktopDebugLog({
-			scope: "voice-input",
-			level: "error",
-			message: "Speech input failed in the webview",
-			timestamp: new Date().toISOString(),
-			metadata: { failure: message },
-		});
-		toast({
-			variant: "destructive",
-			title: "Speech input failed",
-			description: isMicrophoneError
-				? "Check the microphone permission for Cline and try again."
-				: message,
-		});
-	}, []);
+	const handleSpeechInputError = useCallback(
+		(error: unknown) => {
+			// Keep recording and provider failures in chat so the user can see
+			// the actual error and retry with their configured voice model.
+			const isMicrophoneError =
+				error instanceof DOMException || error instanceof Event;
+			const message =
+				error instanceof Error
+					? error.message
+					: t("chat.composer.speech.permissionHint");
+			writeDesktopDebugLog({
+				scope: "voice-input",
+				level: "error",
+				message: "Speech input failed in the webview",
+				timestamp: new Date().toISOString(),
+				metadata: { failure: message },
+			});
+			toast({
+				variant: "destructive",
+				title: t("chat.composer.speech.failedTitle"),
+				description: isMicrophoneError
+					? t("chat.composer.speech.permissionDescription")
+					: message,
+			});
+		},
+		[t],
+	);
 
 	const effortIndex = useMemo(
 		() => resolveEffortIndex(thinking, reasoningEffort),
@@ -947,10 +969,10 @@ function ChatInputBarImpl({
 		thinking !== undefined || reasoningEffort !== undefined;
 	const effortLabel =
 		!hasExplicitReasoningSelection && modelSupportsReasoning === null
-			? "Reasoning"
+			? t("chat.composer.effort.reasoning")
 			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
-				? "None"
-				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
+				? t("chat.composer.effort.none")
+				: t(EFFORT_LEVEL_KEYS[EFFORT_LEVELS[effortIndex]?.value ?? "low"]);
 	const promptInputRows =
 		variant === "welcome" || promptInputFocused
 			? PROMPT_INPUT_EXPANDED_ROWS
@@ -1117,12 +1139,9 @@ function ChatInputBarImpl({
 		setSlashLoading(cachedSlashCommands === null);
 		desktopClient
 			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+			.then((_response) => {
 				if (cancelled) return;
-				const next = [
-					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
-				];
+				const next = [...getBuiltinSlashCommands()];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
 			})
@@ -1224,8 +1243,8 @@ function ChatInputBarImpl({
 							{filteredSlashCommands.length === 0 ? (
 								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
-										? "Loading commands..."
-										: "No matching commands"}
+										? t("chat.composer.slash.loading")
+										: t("chat.composer.slash.empty")}
 								</div>
 							) : (
 								<>
@@ -1254,7 +1273,7 @@ function ChatInputBarImpl({
 									))}
 									{slashLoading && (
 										<div className="px-3 py-1 text-[10px] text-muted-foreground">
-											Loading...
+											{t("chat.composer.slash.loadingMore")}
 										</div>
 									)}
 								</>
@@ -1269,7 +1288,9 @@ function ChatInputBarImpl({
 						>
 							{mentionFiles.length === 0 ? (
 								<div className="px-3 py-2 text-sm text-muted-foreground">
-									{mentionLoading ? "Searching files..." : "No matching files"}
+									{mentionLoading
+										? t("chat.composer.mention.searching")
+										: t("chat.composer.mention.empty")}
 								</div>
 							) : (
 								<>
@@ -1326,7 +1347,9 @@ function ChatInputBarImpl({
 								className="flex shrink-0 items-center gap-1.5 self-center text-xs text-muted-foreground"
 							>
 								<Spinner className="size-3.5" />
-								<span className="sr-only">Transcribing voice input</span>
+								<span className="sr-only">
+									{t("chat.composer.transcribingAria")}
+								</span>
 							</output>
 						)}
 						<textarea
@@ -1468,18 +1491,18 @@ function ChatInputBarImpl({
 							}
 							placeholder={
 								speechInputProcessing
-									? "Transcribing voice input…"
+									? t("chat.composer.placeholder.transcribing")
 									: needsCloudRepository
-										? "Choose a repository"
+										? t("chat.composer.placeholder.chooseRepository")
 										: isBusy && variant !== "welcome"
 											? promptsInQueue.length > 0
-												? "Agent is working... submit to queue another message, or Enter to send the first message from the queue"
-												: "Agent is working... submit to queue another message"
+												? t("chat.composer.placeholder.queuedFirst")
+												: t("chat.composer.placeholder.queued")
 											: executionTarget === "cloud"
-												? "Describe what Cline should do in this repository."
+												? t("chat.composer.placeholder.cloud")
 												: variant === "welcome"
-													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-													: "Enter your question or type / for commands or @ for context"
+													? t("chat.composer.placeholder.welcome")
+													: t("chat.composer.placeholder.default")
 							}
 							readOnly={speechInputActive || readOnly}
 							ref={promptInputRef}
@@ -1502,18 +1525,18 @@ function ChatInputBarImpl({
 									aria-live="polite"
 									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
 								>
-									Repository required
+									{t("chat.composer.repositoryRequired")}
 								</span>
 							) : null}
 							{canAbort && (
 								<button
-									aria-label="Stop agent"
+									aria-label={t("chat.composer.stopAria")}
 									className={cn(
 										"bg-foreground p-1.5 text-background hover:bg-destructive",
 										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									onClick={onAbort}
-									title="Stop the agent (Esc)"
+									title={t("chat.composer.stopTooltip")}
 									type="button"
 								>
 									<CircleStop className="size-3" />
@@ -1544,12 +1567,22 @@ function ChatInputBarImpl({
 									recordingMode={
 										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
 									}
-									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+									title={
+										transcriptionTarget.supportsStreaming
+											? t("chat.composer.speech.recordTooltipLive", {
+													provider: transcriptionTarget.providerName,
+													model: transcriptionTarget.modelName,
+												})
+											: t("chat.composer.speech.recordTooltip", {
+													provider: transcriptionTarget.providerName,
+													model: transcriptionTarget.modelName,
+												})
+									}
 								/>
 							) : null}
 							{(!isBusy || canSend) && (
 								<button
-									aria-label="Send message"
+									aria-label={t("chat.composer.sendAria")}
 									className={cn(
 										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
 										variant === "welcome"
@@ -1560,8 +1593,8 @@ function ChatInputBarImpl({
 									onClick={handleSend}
 									title={
 										needsCloudRepository
-											? "Choose a repository"
-											: "Send (Enter)"
+											? t("chat.composer.sendTooltipChooseRepo")
+											: t("chat.composer.sendTooltip")
 									}
 									type="button"
 								>
@@ -1573,8 +1606,7 @@ function ChatInputBarImpl({
 				</div>
 				{unsupportedDraftImageCount > 0 && (
 					<output className="block px-2 text-sm text-destructive">
-						This model doesn’t support the attached images. Remove them or
-						choose a model that supports images before sending.
+						{t("chat.composer.unsupportedDraftImages")}
 					</output>
 				)}
 				{attachments.length > 0 && (
@@ -1584,9 +1616,14 @@ function ChatInputBarImpl({
 								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
 								key={attachment.id}
 							>
-								{attachment.isImage ? "image:" : "file:"} {attachment.name}
+								{attachment.isImage
+									? t("chat.attachments.imagePrefix")
+									: t("chat.attachments.filePrefix")}{" "}
+								{attachment.name}
 								<button
-									aria-label={`Remove ${attachment.name}`}
+									aria-label={t("chat.attachments.removeAria", {
+										name: attachment.name,
+									})}
 									className="rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 									onClick={() => onRemoveAttachment(attachment.id)}
 									type="button"
@@ -1604,14 +1641,16 @@ function ChatInputBarImpl({
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label={
-							executionTarget === "cloud" ? "Attach images" : "Attach files"
+							executionTarget === "cloud"
+								? t("chat.attachments.imagesAria")
+								: t("chat.attachments.filesAria")
 						}
 						title={
 							executionTarget === "cloud"
-								? "Attach images"
+								? t("chat.attachments.imagesAria")
 								: imagesUnsupported
-									? "Attach files (this model doesn’t support images)"
-									: "Attach files"
+									? t("chat.attachments.filesNoImageSupport")
+									: t("chat.attachments.filesAria")
 						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
@@ -1645,7 +1684,7 @@ function ChatInputBarImpl({
 							}}
 							type="button"
 						>
-							Plan
+							{t("chat.composer.mode.plan")}
 						</button>
 						<button
 							aria-pressed={mode === "act"}
@@ -1660,7 +1699,7 @@ function ChatInputBarImpl({
 							}}
 							type="button"
 						>
-							Act
+							{t("chat.composer.mode.act")}
 						</button>
 					</div>
 					<div className="min-w-0 shrink-0">
@@ -1691,14 +1730,14 @@ function ChatInputBarImpl({
 						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 					>
 						<SelectTrigger
-							aria-label="Thinking level"
+							aria-label={t("chat.composer.effort.aria")}
 							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
 								cloudSettingsLocked
-									? "Thinking level is fixed when a cloud session starts"
+									? t("chat.composer.effort.disabledCloud")
 									: modelSupportsReasoning === false
-										? "The selected model does not report reasoning support"
+										? t("chat.composer.effort.disabledModel")
 										: undefined
 							}
 						>
@@ -1710,7 +1749,7 @@ function ChatInputBarImpl({
 						<SelectContent align="start">
 							{EFFORT_LEVELS.map((option) => (
 								<SelectItem key={option.value} value={option.value}>
-									{option.label}
+									{t(EFFORT_LEVEL_KEYS[option.value])}
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -1798,6 +1837,7 @@ const ModelSelector = memo(function ModelSelector({
 	/** Opens Settings → API Providers; adds a "set up another provider" row when set. */
 	onOpenModelSettings?: () => void;
 }) {
+	const { t } = useTranslation();
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
@@ -2000,7 +2040,10 @@ const ModelSelector = memo(function ModelSelector({
 				? {
 						sections: [
 							...(modelPicker.sections ?? []),
-							{ id: "current", label: "Current model" },
+							{
+								id: "current",
+								label: t("chat.composer.modelPicker.currentModel"),
+							},
 						],
 					}
 				: {}),
@@ -2011,6 +2054,7 @@ const ModelSelector = memo(function ModelSelector({
 		pickerModelIds,
 		resolvedModel,
 		resolvedProvider,
+		t,
 	]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: catalogRevision is a reload signal.
@@ -2241,28 +2285,28 @@ const ModelSelector = memo(function ModelSelector({
 				? [
 						{
 							icon: <Plus className="size-3 shrink-0 text-muted-foreground" />,
-							label: "Set up another provider",
+							label: t("chat.composer.modelPicker.addProvider"),
 							value: ADD_PROVIDER_OPTION_VALUE,
 						},
 					]
 				: []),
 		],
-		[onOpenModelSettings, providerNames, providers],
+		[onOpenModelSettings, providerNames, providers, t],
 	);
 	const selectedModelLabel =
 		visibleModelPicker.options.find((option) => option.value === resolvedModel)
 			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
-			ariaLabel="Provider"
+			ariaLabel={t("chat.composer.modelPicker.providerPlaceholder")}
 			className={triggerClassName}
 			disabled={isBusy || providers.length === 0}
-			emptyText="No providers found."
+			emptyText={t("chat.composer.modelPicker.emptyProviders")}
 			onValueChange={handleProviderSelect}
 			options={providerOptions}
-			placeholder="Provider"
+			placeholder={t("chat.composer.modelPicker.providerPlaceholder")}
 			placement="top"
-			searchPlaceholder="Search providers"
+			searchPlaceholder={t("chat.composer.modelPicker.searchProviders")}
 			value={resolvedProvider}
 		/>
 	);
@@ -2271,10 +2315,10 @@ const ModelSelector = memo(function ModelSelector({
 		closeMobileMenu = false,
 	) => (
 		<SearchCombobox
-			ariaLabel="Model"
+			ariaLabel={t("chat.composer.modelPicker.modelPlaceholder")}
 			className={triggerClassName}
 			disabled={isBusy || visibleModelPicker.options.length === 0}
-			emptyText="No models found."
+			emptyText={t("chat.composer.modelPicker.emptyModels")}
 			onOpen={refreshActiveProviderModels}
 			onValueChange={(value) => {
 				handleModelSelect(value);
@@ -2282,9 +2326,9 @@ const ModelSelector = memo(function ModelSelector({
 			}}
 			options={visibleModelPicker.options}
 			panelWidth="20rem"
-			placeholder="Model"
+			placeholder={t("chat.composer.modelPicker.modelPlaceholder")}
 			placement="top"
-			searchPlaceholder="Search models"
+			searchPlaceholder={t("chat.composer.modelPicker.searchModels")}
 			sections={visibleModelPicker.sections}
 			value={resolvedModel}
 		/>
@@ -2295,11 +2339,11 @@ const ModelSelector = memo(function ModelSelector({
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
-				aria-label="Model and provider"
+				aria-label={t("chat.composer.modelPicker.aria")}
 				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
-				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
+				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || t("chat.composer.modelPicker.providerFallback")} / ${selectedModelLabel || t("chat.composer.modelPicker.modelFallback")}`}
 				type="button"
 			>
 				<Cpu className="size-3.5" />
@@ -2308,7 +2352,7 @@ const ModelSelector = memo(function ModelSelector({
 			{mobileOpen ? (
 				<>
 					<button
-						aria-label="Close model selector"
+						aria-label={t("chat.composer.modelPicker.closeAria")}
 						className="fixed inset-0 z-40 hidden cursor-default opacity-0 max-[560px]:block"
 						onClick={() => setMobileOpen(false)}
 						type="button"
@@ -2316,7 +2360,7 @@ const ModelSelector = memo(function ModelSelector({
 					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
 						<div className="space-y-1">
 							<div className="text-xs font-medium text-muted-foreground">
-								Provider
+								{t("chat.composer.modelPicker.providerLabel")}
 							</div>
 							{renderProviderSelect(
 								"w-full max-w-none justify-between text-sm",
@@ -2324,7 +2368,7 @@ const ModelSelector = memo(function ModelSelector({
 						</div>
 						<div className="space-y-1">
 							<div className="text-xs font-medium text-muted-foreground">
-								Model
+								{t("chat.composer.modelPicker.modelLabel")}
 							</div>
 							{renderModelSelect(
 								"w-full max-w-none justify-between text-sm",
@@ -2356,6 +2400,7 @@ type TokenUsage = {
 
 /** Current model context relative to the selected model's context window. */
 function TokenUsageRing({ usage }: { usage: TokenUsage }) {
+	const { t } = useTranslation();
 	const contextWindow = usage.contextWindow;
 	const totalTokens = usage.tokensIn + usage.tokensOut;
 	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
@@ -2388,7 +2433,11 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 		<Popover>
 			<PopoverTrigger asChild>
 				<Button
-					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
+					aria-label={t("chat.composer.usage.ringAria", {
+						used: totalTokens.toLocaleString(),
+						total: contextWindow.toLocaleString(),
+						percent,
+					})}
 					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
@@ -2433,7 +2482,9 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 			>
 				<div className="px-3 py-3">
 					<div className="flex items-center justify-between gap-4 text-sm">
-						<span className="text-muted-foreground">Context window</span>
+						<span className="text-muted-foreground">
+							{t("chat.composer.usage.contextWindow")}
+						</span>
 						<span className="font-mono text-sm text-foreground">
 							{contextUsageLabel}
 						</span>
@@ -2468,26 +2519,34 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 					</div>
 					<div className="mt-3 space-y-2 text-sm">
 						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Input tokens</span>
+							<span className="text-muted-foreground">
+								{t("chat.composer.usage.inputTokens")}
+							</span>
 							<span className="font-mono text-foreground">
 								{usage.tokensIn.toLocaleString()}
 							</span>
 						</div>
 						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Output tokens</span>
+							<span className="text-muted-foreground">
+								{t("chat.composer.usage.outputTokens")}
+							</span>
 							<span className="font-mono text-foreground">
 								{usage.tokensOut.toLocaleString()}
 							</span>
 						</div>
 						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Cached tokens</span>
+							<span className="text-muted-foreground">
+								{t("chat.composer.usage.cachedTokens")}
+							</span>
 							<span className="font-mono text-foreground">
 								{usage.cacheReadTokens.toLocaleString()}
 							</span>
 						</div>
 						{cost ? (
 							<div className="flex items-center justify-between gap-4">
-								<span className="text-muted-foreground">Cost</span>
+								<span className="text-muted-foreground">
+									{t("chat.composer.usage.cost")}
+								</span>
 								<span className="font-mono text-foreground">{cost}</span>
 							</div>
 						) : null}

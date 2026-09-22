@@ -1,5 +1,6 @@
 "use client";
 
+import type { Translator } from "@cline/i18n";
 import {
 	type ActiveConnectorRecord,
 	type ConnectorChannel,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 
@@ -64,11 +66,11 @@ const CHANNEL_COLORS: Record<string, string> = {
 	whatsapp: "#25D366",
 };
 
-function channelColor(channel: ConnectorChannel): string {
+function _channelColor(channel: ConnectorChannel): string {
 	return CHANNEL_COLORS[channel.id] ?? "#64748B";
 }
 
-function channelLetter(channel: ConnectorChannel): string {
+function _channelLetter(channel: ConnectorChannel): string {
 	return channel.name.trim().charAt(0).toUpperCase() || "?";
 }
 
@@ -165,11 +167,12 @@ function visibleFieldsForChannel(
 function validateDraft(
 	channel: ConnectorChannel,
 	draft: ConnectorDraft,
+	t: Translator,
 ): string | undefined {
 	const values = resolvedFieldValues(channel, draft);
 	for (const field of visibleFieldsForChannel(channel, draft)) {
 		if (field.required && !values[field.flag]?.trim()) {
-			return `${field.label} is required`;
+			return t("settings.channels.fieldRequired", { label: field.label });
 		}
 	}
 	if (draft.securityEnabled && channel.security) {
@@ -184,6 +187,7 @@ function validateDraft(
 
 function fieldDescription(
 	field: ConnectorField | ConnectorSecurityField,
+	t: Translator,
 ): string {
 	if (field.help?.length) {
 		return field.help.join(" ");
@@ -192,8 +196,8 @@ function fieldDescription(
 		return field.requiredMessage;
 	}
 	return field.required
-		? "Required to connect this channel."
-		: "Optional channel setting.";
+		? t("settings.channels.fieldRequiredDescription")
+		: t("settings.channels.fieldOptionalDescription");
 }
 
 function fieldDomId(
@@ -231,6 +235,7 @@ function CredentialField({
 	value: string;
 }) {
 	const [revealed, setRevealed] = useState(false);
+	const { t } = useTranslation();
 	const descriptionId = `${id}-description`;
 
 	useEffect(() => {
@@ -242,7 +247,11 @@ function CredentialField({
 	const revealButton = (className: string) =>
 		secret ? (
 			<button
-				aria-label={`${revealed ? "Hide" : "Show"} ${label}`}
+				aria-label={
+					revealed
+						? t("settings.channels.hideValue", { label })
+						: t("settings.channels.showValue", { label })
+				}
 				className={cn(
 					"absolute right-2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
 					className,
@@ -356,6 +365,7 @@ export function ChannelsContent({
 	/** Invoked whenever the connector list is (re)loaded or mutated. */
 	onInventoryChanged?: () => void;
 } = {}) {
+	const { t } = useTranslation();
 	const [channels, setChannels] = useState<ConnectorChannel[]>([]);
 	const [activeConnectors, setActiveConnectors] = useState<
 		ActiveConnectorRecord[]
@@ -483,7 +493,7 @@ export function ChannelsContent({
 			return;
 		}
 		const draft = draftForChannel(channel);
-		const validationError = validateDraft(channel, draft);
+		const validationError = validateDraft(channel, draft, t);
 		if (validationError) {
 			setExpandedId(channel.id);
 			updateChannelError(channel.id, validationError);
@@ -583,11 +593,11 @@ export function ChannelsContent({
 
 	const refreshButton = (
 		<Button
-			aria-label="Refresh channels"
+			aria-label={t("settings.channels.refreshAria")}
 			disabled={isBusy}
 			onClick={() => void refreshChannels()}
 			size="sm"
-			title="Refresh channels"
+			title={t("settings.channels.refreshAria")}
 			variant="outline"
 		>
 			<RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
@@ -599,19 +609,18 @@ export function ChannelsContent({
 			{chrome === "page" ? (
 				<PageHeader
 					actions={refreshButton}
-					description="Connect messaging platforms so you can chat with Cline anywhere. Click on a channel name to view or edit its configuration."
+					description={t("settings.channels.description")}
 					meta={
 						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
 							cline connect
 						</span>
 					}
-					title="Channels"
+					title={t("settings.section.channels")}
 				/>
 			) : (
 				<div className="mb-4 flex items-center justify-between gap-3">
 					<p className="text-sm text-muted-foreground">
-						Connect messaging platforms so you can chat with Cline anywhere.
-						Click on a channel name to view or edit its configuration.
+						{t("settings.channels.description")}
 					</p>
 					{refreshButton}
 				</div>
@@ -622,21 +631,21 @@ export function ChannelsContent({
 					className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
 					role="alert"
 				>
-					Failed to load channels: {catalogError}
+					{t("settings.channels.loadError", { error: catalogError })}
 				</div>
 			) : null}
 
 			<div className="mb-5 flex items-center gap-2 rounded-lg border border-border bg-input px-3 py-2">
 				<Search aria-hidden="true" className="size-4 text-muted-foreground" />
 				<label className="sr-only" htmlFor="channel-search">
-					Search channels
+					{t("settings.channels.searchAria")}
 				</label>
 				<input
 					autoComplete="off"
 					className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
 					id="channel-search"
 					onChange={(event) => setQuery(event.target.value)}
-					placeholder="Search channels..."
+					placeholder={t("settings.channels.searchPlaceholder")}
 					type="search"
 					value={query}
 				/>
@@ -645,14 +654,16 @@ export function ChannelsContent({
 			<div className="flex flex-col gap-2">
 				{isLoading && channels.length === 0 ? (
 					<div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
-						<p className="text-sm text-muted-foreground">Loading channels...</p>
+						<p className="text-sm text-muted-foreground">
+							{t("settings.channels.loading")}
+						</p>
 					</div>
 				) : null}
 
 				{!isLoading && channels.length === 0 && !catalogError ? (
 					<div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
 						<p className="text-sm text-muted-foreground">
-							No connector channels are available.
+							{t("settings.channels.empty")}
 						</p>
 					</div>
 				) : null}
@@ -715,7 +726,9 @@ export function ChannelsContent({
 								</button>
 								<Switch
 									aria-busy={pendingType !== undefined}
-									aria-label={`${channel.name} connection`}
+									aria-label={t("settings.channels.connectionAria", {
+										name: channel.name,
+									})}
 									checked={isConnected}
 									className="mr-4"
 									disabled={isBusy}
@@ -752,11 +765,11 @@ export function ChannelsContent({
 									{activeForChannel.length > 0 ? (
 										<div className="mb-4 rounded-lg border border-border bg-background px-4 py-3">
 											<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-												Active{" "}
 												{activeForChannel.length === 1
-													? "connection"
-													: "connections"}
+													? t("settings.channels.activeConnectionOne")
+													: t("settings.channels.activeConnectionOther")}
 											</p>
+
 											<div className="flex flex-col gap-2">
 												{activeForChannel.map((connector) => (
 													<div
@@ -768,7 +781,9 @@ export function ChannelsContent({
 																{connectorIdentity(connector)}
 															</span>
 															<span className="rounded border border-border px-1.5 py-0.5">
-																pid {connector.pid}
+																{t("settings.channels.pidLabel", {
+																	pid: connector.pid,
+																})}
 															</span>
 															{connector.connectionMode ? (
 																<span className="rounded border border-border px-1.5 py-0.5">
@@ -799,7 +814,7 @@ export function ChannelsContent({
 										</p>
 										{visibleFields.map((field) => (
 											<CredentialField
-												description={fieldDescription(field)}
+												description={fieldDescription(field, t)}
 												disabled={isBusy}
 												id={fieldDomId(channel.id, field.flag)}
 												key={field.flag}
@@ -825,7 +840,7 @@ export function ChannelsContent({
 														className="text-sm font-medium text-foreground"
 														htmlFor={`channel-${channel.id}-security-toggle`}
 													>
-														Restrict access
+														{t("settings.channels.restrictAccess")}
 													</label>
 													<p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
 														{channel.security.prompt}
@@ -844,7 +859,7 @@ export function ChannelsContent({
 												<div className="mt-4 flex flex-col gap-4 border-t border-border pt-4">
 													{channel.security.fields.map((field) => (
 														<CredentialField
-															description={fieldDescription(field)}
+															description={fieldDescription(field, t)}
 															disabled={isBusy}
 															id={fieldDomId(channel.id, field.key, "security")}
 															key={field.key}
@@ -885,14 +900,18 @@ export function ChannelsContent({
 												}}
 												type="button"
 											>
-												{isConnected ? "Reset" : "Close"}
+												{isConnected
+													? t("settings.channels.reset")
+													: t("common.action.close")}
 											</button>
 											<button
 												className="rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
 												disabled={isBusy}
 												type="submit"
 											>
-												{pendingType === "connecting" ? "Saving..." : "Save"}
+												{pendingType === "connecting"
+													? t("settings.channels.saving")
+													: t("common.action.save")}
 											</button>
 										</div>
 									</div>
@@ -905,7 +924,7 @@ export function ChannelsContent({
 				{!isLoading && channels.length > 0 && filteredChannels.length === 0 ? (
 					<div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
 						<p className="text-sm text-muted-foreground">
-							No channels match &ldquo;{query}&rdquo;.
+							{t("settings.channels.searchEmpty", { query })}
 						</p>
 					</div>
 				) : null}
@@ -922,19 +941,26 @@ export function ChannelsContent({
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
-							Reset {disconnectTarget?.name ?? "channel"}?
+							{t("settings.channels.resetConfirmTitle", {
+								name: disconnectTarget?.name ?? t("settings.channels.channel"),
+							})}
 						</AlertDialogTitle>
 						<AlertDialogDescription>
-							This stops{" "}
 							{disconnectTargetConnectors.length === 1
-								? `the active ${disconnectTarget?.name ?? "channel"} connector`
-								: `all ${disconnectTargetConnectors.length} active ${disconnectTarget?.name ?? "channel"} connectors`}
-							. You will need to save its credentials to connect it again.
+								? t("settings.channels.resetDescriptionOne", {
+										name:
+											disconnectTarget?.name ?? t("settings.channels.channel"),
+									})
+								: t("settings.channels.resetDescriptionOther", {
+										count: disconnectTargetConnectors.length,
+										name:
+											disconnectTarget?.name ?? t("settings.channels.channel"),
+									})}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel disabled={pendingAction !== null}>
-							Cancel
+							{t("common.action.cancel")}
 						</AlertDialogCancel>
 						<AlertDialogAction
 							className={buttonVariants({ variant: "destructive" })}
@@ -945,7 +971,7 @@ export function ChannelsContent({
 								}
 							}}
 						>
-							Reset
+							{t("settings.channels.reset")}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

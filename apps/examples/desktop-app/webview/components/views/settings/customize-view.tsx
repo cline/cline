@@ -9,6 +9,7 @@ import {
 	subscribeComposioAvailability,
 } from "@/lib/composio";
 import { desktopClient } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { ComposioConnectorsView } from "./composio-connectors-view";
@@ -34,14 +35,14 @@ type CustomizeTab =
 	| "hooks"
 	| "tools";
 
-const CUSTOMIZE_TABS: { id: CustomizeTab; label: string }[] = [
-	{ id: "tools", label: "Tools" },
-	{ id: "plugins", label: "Plugins" },
-	{ id: "skills", label: "Skills" },
-	{ id: "rules", label: "Rules" },
-	{ id: "mcp", label: "MCP" },
-	{ id: "hooks", label: "Hooks" },
-	{ id: "integrations", label: "Connectors" },
+const CUSTOMIZE_TABS: { id: CustomizeTab; labelKey: string }[] = [
+	{ id: "tools", labelKey: "settings.customize.tab.tools" },
+	{ id: "plugins", labelKey: "settings.customize.tab.plugins" },
+	{ id: "skills", labelKey: "settings.customize.tab.skills" },
+	{ id: "rules", labelKey: "settings.customize.tab.rules" },
+	{ id: "mcp", labelKey: "settings.customize.tab.mcp" },
+	{ id: "hooks", labelKey: "settings.customize.tab.hooks" },
+	{ id: "integrations", labelKey: "settings.customize.tab.connectors" },
 ];
 
 type TabCounts = Partial<Record<CustomizeTab, number>>;
@@ -65,6 +66,7 @@ export function CustomizeView({
 }: {
 	onOpenMarketplace?: () => void;
 }) {
+	const { t } = useTranslation();
 	const [tab, setTab] = useState<CustomizeTab>("tools");
 	const [counts, setCounts] = useState<TabCounts>({});
 	// Connectors are an org-provisioned feature: the tab only exists when the
@@ -140,12 +142,12 @@ export function CustomizeView({
 							variant="outline"
 						>
 							<Store className="size-4" />
-							Marketplace
+							{t("settings.section.customize.marketplace")}
 						</Button>
 					) : undefined
 				}
-				description="Extend what Cline can do and how it works. Explore the marketplace for more options."
-				title="Customize"
+				description={t("settings.customize.description")}
+				title={t("settings.section.customize")}
 			/>
 
 			<div className="mb-6 flex items-center gap-0 border-b border-border">
@@ -169,7 +171,7 @@ export function CustomizeView({
 							type="button"
 							variant="ghost"
 						>
-							{customizeTab.label}
+							{t(customizeTab.labelKey)}
 							{typeof count === "number" ? (
 								<span
 									className={cn(

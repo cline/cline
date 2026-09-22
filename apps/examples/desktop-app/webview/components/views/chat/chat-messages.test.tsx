@@ -16,6 +16,14 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+	class ResizeObserverStub {
+		disconnect() {}
+		observe() {}
+		unobserve() {}
+	}
+	Object.assign(globalThis, { ResizeObserver: ResizeObserverStub });
+	window.ResizeObserver = ResizeObserverStub;
+
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	HTMLElement.prototype.scrollTo = vi.fn();
 	container = document.createElement("div");

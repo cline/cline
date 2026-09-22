@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
@@ -178,13 +179,13 @@ const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 const WEEKDAY_OPTIONS = [
-	{ label: "Mon", value: "MON" },
-	{ label: "Tue", value: "TUE" },
-	{ label: "Wed", value: "WED" },
-	{ label: "Thu", value: "THU" },
-	{ label: "Fri", value: "FRI" },
-	{ label: "Sat", value: "SAT" },
-	{ label: "Sun", value: "SUN" },
+	{ labelKey: "settings.routines.weekday.mon", value: "MON" },
+	{ labelKey: "settings.routines.weekday.tue", value: "TUE" },
+	{ labelKey: "settings.routines.weekday.wed", value: "WED" },
+	{ labelKey: "settings.routines.weekday.thu", value: "THU" },
+	{ labelKey: "settings.routines.weekday.fri", value: "FRI" },
+	{ labelKey: "settings.routines.weekday.sat", value: "SAT" },
+	{ labelKey: "settings.routines.weekday.sun", value: "SUN" },
 ] as const;
 
 interface RoutineFormState {
@@ -254,14 +255,18 @@ function getScheduleProviderModel(schedule: RoutineSchedule): {
 }
 
 function formatExecutionResult(execution?: RoutineExecution): string {
+	const t = getTranslator().t;
 	if (!execution) {
 		return "-";
 	}
-	const status = execution.status?.trim() || "unknown";
+	const status =
+		execution.status?.trim() || t("settings.routines.statusUnknown");
 	const timestamp =
 		execution.endedAt ?? execution.startedAt ?? execution.triggeredAt;
 	const when = formatDateTime(timestamp);
-	return when === "-" ? status : `${status} at ${when}`;
+	return when === "-"
+		? status
+		: t("settings.routines.resultAt", { status, when });
 }
 
 function asTrimmedFormString(value: unknown): string {
@@ -299,19 +304,21 @@ function normalizeScheduleDays(days: string[]): string[] {
 }
 
 function formatScheduleDays(days: string[]): string {
+	const t = getTranslator().t;
 	const normalized = normalizeScheduleDays(days);
 	if (normalized.length === WEEKDAY_OPTIONS.length) {
-		return "Every day";
+		return t("settings.routines.everyDay");
 	}
 	if (normalized.join(",") === ["MON", "TUE", "WED", "THU", "FRI"].join(",")) {
-		return "Weekdays";
+		return t("settings.routines.weekdays");
 	}
 	return normalized
 		.map(
 			(value) =>
-				WEEKDAY_OPTIONS.find((option) => option.value === value)?.label ??
+				WEEKDAY_OPTIONS.find((option) => option.value === value)?.labelKey ??
 				value,
 		)
+		.map((key) => (key.startsWith("settings.routines.") ? t(key) : key))
 		.join(", ");
 }
 
@@ -374,14 +381,21 @@ function formatExecutionTimestamp(execution: RoutineExecution): string {
 }
 
 function formatScheduleTrigger(schedule: RoutineSchedule): string {
+	const t = getTranslator().t;
 	if (schedule.cronPattern === ONE_TIME_SCHEDULE_CRON_PATTERN) {
-		return `Once · ${formatDateTime(getOneTimeScheduleRunAt(schedule))}`;
+		return t("settings.routines.triggerOnce", {
+			time: formatDateTime(getOneTimeScheduleRunAt(schedule)),
+		});
 	}
 	const parsed = parseCronPattern(schedule.cronPattern);
+	const time = formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute);
 	const label =
 		parsed.scheduleType === "daily"
-			? `Daily · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`
-			: `${formatScheduleDays(parsed.scheduleDays)} · ${formatScheduleTime(parsed.scheduleHour, parsed.scheduleMinute)}`;
+			? t("settings.routines.triggerDaily", { time })
+			: t("settings.routines.triggerDays", {
+					days: formatScheduleDays(parsed.scheduleDays),
+					time,
+				});
 	return schedule.timezone ? `${label} · ${schedule.timezone}` : label;
 }
 
@@ -503,6 +517,8 @@ export function RoutineSchedulesContent({
 }: {
 	onOpenSession?: (sessionId: string) => void | Promise<void>;
 }) {
+	const translator = useTranslation();
+	const { t } = translator;
 	const [schedules, setSchedules] = useState<RoutineSchedule[]>(
 		() => routineOverviewCache?.schedules ?? [],
 	);
@@ -847,16 +863,20 @@ export function RoutineSchedulesContent({
 			// loaded) — say so instead of confirming a start.
 			if (!reply?.execution) {
 				toast({
-					title: "Run not started",
-					description: `"${schedule.name}" did not queue a run — the schedule may be disabled or deleted.`,
+					title: t("settings.routines.runNotStarted"),
+					description: t("settings.routines.runNotStartedBody", {
+						name: schedule.name,
+					}),
 					variant: "destructive",
 				});
 				await refreshSchedules({ force: true, showLoading: false });
 				return;
 			}
 			toast({
-				title: "Run started",
-				description: `"${schedule.name}" was queued to run now.`,
+				title: t("settings.routines.runStarted"),
+				description: t("settings.routines.runStartedBody", {
+					name: schedule.name,
+				}),
 			});
 			// The trigger queues the run and returns before the runner starts
 			// the agent session, so the session id usually is not attached
@@ -897,7 +917,7 @@ export function RoutineSchedulesContent({
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
 			toast({
-				title: "Failed to start run",
+				title: t("settings.routines.runFailed"),
 				description: message,
 				variant: "destructive",
 			});
@@ -1014,13 +1034,13 @@ export function RoutineSchedulesContent({
 	const submitCreateForm = async () => {
 		const name = asTrimmedFormString(createForm.name);
 		if (!name) {
-			setCreateFormError("Routine name is required.");
+			setCreateFormError(t("settings.routines.errorNameRequired"));
 			return;
 		}
 		const runAt =
 			createForm.scheduleType === "once" ? buildRunAt(createForm) : undefined;
 		if (createForm.scheduleType === "once" && (!runAt || runAt <= Date.now())) {
-			setCreateFormError("Choose a one-time date and time in the future.");
+			setCreateFormError(t("settings.routines.errorFutureDate"));
 			return;
 		}
 		const editedCronPattern =
@@ -1048,17 +1068,17 @@ export function RoutineSchedulesContent({
 					)
 				: editedCronPattern;
 		if (createForm.scheduleType === "weekly" && !cronPattern) {
-			setCreateFormError("Select at least one weekday.");
+			setCreateFormError(t("settings.routines.errorWeekdayRequired"));
 			return;
 		}
 		const prompt = asTrimmedFormString(createForm.prompt);
 		if (!prompt) {
-			setCreateFormError("Prompt is required.");
+			setCreateFormError(t("settings.routines.errorPromptRequired"));
 			return;
 		}
 		const workspaceRoot = asTrimmedFormString(createForm.workspaceRoot);
 		if (!workspaceRoot) {
-			setCreateFormError("Workspace is required.");
+			setCreateFormError(t("settings.routines.errorWorkspaceRequired"));
 			return;
 		}
 		setCreateFormError(null);
@@ -1193,8 +1213,8 @@ export function RoutineSchedulesContent({
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Run agents on cron schedules for recurring automations like daily summaries and code reviews."
-				title="Schedule"
+				description={t("settings.routines.description")}
+				title={t("settings.routines.title")}
 				meta={<CommandBadge>cline schedule</CommandBadge>}
 				actions={
 					<>
@@ -1210,7 +1230,7 @@ export function RoutineSchedulesContent({
 						</Button>
 						<Button size="sm" onClick={() => void openCreateDialog()}>
 							<Plus className="h-4 w-4" />
-							New Schedule
+							{t("settings.routines.newSchedule")}
 						</Button>
 					</>
 				}
@@ -1223,12 +1243,9 @@ export function RoutineSchedulesContent({
 			)}
 
 			{isLoading ? (
-				<PageEmptyState>Loading schedules...</PageEmptyState>
+				<PageEmptyState>{t("settings.routines.loading")}</PageEmptyState>
 			) : sortedSchedules.length === 0 ? (
-				<PageEmptyState>
-					No schedules yet. Start from a suggestion below, or create your own
-					with New Schedule.
-				</PageEmptyState>
+				<PageEmptyState>{t("settings.routines.empty")}</PageEmptyState>
 			) : (
 				<div className="flex flex-col gap-3">
 					{sortedSchedules.map((schedule) => {
@@ -1298,14 +1315,18 @@ export function RoutineSchedulesContent({
 													variant="ghost"
 													size="icon"
 													className="size-7"
-													aria-label={`Edit ${schedule.name}`}
+													aria-label={t("settings.routines.editAria", {
+														name: schedule.name,
+													})}
 													onClick={() => openEditDialog(schedule)}
 													disabled={isBusy}
 												>
 													<Pencil className="size-4" />
 												</Button>
 											</TooltipTrigger>
-											<TooltipContent>Edit schedule</TooltipContent>
+											<TooltipContent>
+												{t("settings.routines.editTooltip")}
+											</TooltipContent>
 										</Tooltip>
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -1313,7 +1334,9 @@ export function RoutineSchedulesContent({
 													variant="ghost"
 													size="icon"
 													className="size-7"
-													aria-label={`Run ${schedule.name} now`}
+													aria-label={t("settings.routines.runNowAria", {
+														name: schedule.name,
+													})}
 													onClick={() => void triggerSchedule(schedule)}
 													disabled={isBusy}
 												>
@@ -1324,7 +1347,9 @@ export function RoutineSchedulesContent({
 													)}
 												</Button>
 											</TooltipTrigger>
-											<TooltipContent>Run now</TooltipContent>
+											<TooltipContent>
+												{t("settings.routines.runNowTooltip")}
+											</TooltipContent>
 										</Tooltip>
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -1334,8 +1359,12 @@ export function RoutineSchedulesContent({
 													className="size-7"
 													aria-label={
 														schedule.enabled
-															? `Pause ${schedule.name}`
-															: `Resume ${schedule.name}`
+															? t("settings.routines.pauseAria", {
+																	name: schedule.name,
+																})
+															: t("settings.routines.resumeAria", {
+																	name: schedule.name,
+																})
 													}
 													onClick={() =>
 														void upsertScheduleEnabled(
@@ -1354,8 +1383,8 @@ export function RoutineSchedulesContent({
 											</TooltipTrigger>
 											<TooltipContent>
 												{schedule.enabled
-													? "Pause schedule"
-													: "Resume schedule"}
+													? t("settings.routines.pauseTooltip")
+													: t("settings.routines.resumeTooltip")}
 											</TooltipContent>
 										</Tooltip>
 										<Tooltip>
@@ -1364,14 +1393,18 @@ export function RoutineSchedulesContent({
 													variant="ghost"
 													size="icon"
 													className="size-7"
-													aria-label={`Delete ${schedule.name}`}
+													aria-label={t("settings.routines.deleteAria", {
+														name: schedule.name,
+													})}
 													onClick={() => setSchedulePendingDelete(schedule)}
 													disabled={isBusy}
 												>
 													<Trash2 className="size-4" />
 												</Button>
 											</TooltipTrigger>
-											<TooltipContent>Delete schedule</TooltipContent>
+											<TooltipContent>
+												{t("settings.routines.deleteTooltip")}
+											</TooltipContent>
 										</Tooltip>
 										<Tooltip>
 											<TooltipTrigger asChild>
@@ -1381,13 +1414,15 @@ export function RoutineSchedulesContent({
 														void upsertScheduleEnabled(schedule, checked)
 													}
 													disabled={isBusy}
-													aria-label={`Enable ${schedule.name}`}
+													aria-label={t("settings.routines.enableAria", {
+														name: schedule.name,
+													})}
 												/>
 											</TooltipTrigger>
 											<TooltipContent>
 												{schedule.enabled
-													? "Enabled — click to disable"
-													: "Disabled — click to enable"}
+													? t("settings.routines.enabledTooltip")
+													: t("settings.routines.disabledTooltip")}
 											</TooltipContent>
 										</Tooltip>
 									</div>
@@ -1395,31 +1430,39 @@ export function RoutineSchedulesContent({
 
 								<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
 									<p>
-										<span className="text-muted-foreground/70">ID:</span>{" "}
+										<span className="text-muted-foreground/70">
+											{t("settings.routines.labelId")}
+										</span>{" "}
 										{schedule.scheduleId}
 									</p>
 									<p>
-										<span className="text-muted-foreground/70">Prompt:</span>{" "}
+										<span className="text-muted-foreground/70">
+											{t("settings.routines.labelPrompt")}
+										</span>{" "}
 										{schedule.prompt}
 									</p>
 									<p>
-										<span className="text-muted-foreground/70">Model:</span>{" "}
+										<span className="text-muted-foreground/70">
+											{t("settings.routines.labelModel")}
+										</span>{" "}
 										{formatScheduleModel(schedule)}
 									</p>
 									<p>
-										<span className="text-muted-foreground/70">Last run:</span>{" "}
+										<span className="text-muted-foreground/70">
+											{t("settings.routines.labelLastRun")}
+										</span>{" "}
 										{formatDateTime(schedule.lastRunAt)}
 									</p>
 									<p>
 										<span className="text-muted-foreground/70">
-											Last result:
+											{t("settings.routines.labelLastResult")}
 										</span>{" "}
 										{formatExecutionResult(lastExecution)}
 									</p>
 									{lastExecution?.sessionId && (
 										<p>
 											<span className="text-muted-foreground/70">
-												Last session:
+												{t("settings.routines.labelLastSession")}
 											</span>{" "}
 											{lastExecution.sessionId}
 										</p>
@@ -1427,25 +1470,33 @@ export function RoutineSchedulesContent({
 									{lastExecution?.errorMessage && (
 										<p className="text-destructive">
 											<span className="text-muted-foreground/70">
-												Last error:
+												{t("settings.routines.labelLastError")}
 											</span>{" "}
 											{lastExecution.errorMessage}
 										</p>
 									)}
 									<p>
-										<span className="text-muted-foreground/70">Next run:</span>{" "}
+										<span className="text-muted-foreground/70">
+											{t("settings.routines.labelNextRun")}
+										</span>{" "}
 										{formatDateTime(schedule.nextRunAt || upcoming?.nextRunAt)}
 									</p>
 									{activeExecution && (
 										<p>
-											<span className="text-muted-foreground/70">Active:</span>{" "}
-											{activeExecution.executionId} since{" "}
-											{formatDateTime(activeExecution.startedAt)}
+											<span className="text-muted-foreground/70">
+												{t("settings.routines.labelActive")}
+											</span>{" "}
+											{t("settings.routines.activeSince", {
+												id: activeExecution.executionId,
+												time: formatDateTime(activeExecution.startedAt),
+											})}
 										</p>
 									)}
 									{schedule.tags && schedule.tags.length > 0 && (
 										<p>
-											<span className="text-muted-foreground/70">Tags:</span>{" "}
+											<span className="text-muted-foreground/70">
+												{t("settings.routines.labelTags")}
+											</span>{" "}
 											{schedule.tags.join(", ")}
 										</p>
 									)}
@@ -1459,7 +1510,7 @@ export function RoutineSchedulesContent({
 			{!isLoading && visibleTemplates.length > 0 && (
 				<section className="mt-10">
 					<h2 className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-						Suggested
+						{t("settings.routines.suggested")}
 					</h2>
 					<div className="mt-3 grid gap-3 sm:grid-cols-2">
 						{visibleTemplates.map((template) => {
@@ -1477,14 +1528,16 @@ export function RoutineSchedulesContent({
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
 											<h3 className="truncate text-sm font-semibold text-foreground">
-												{template.title}
+												{t(template.titleKey)}
 											</h3>
 											<span className="shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
-												{template.scheduleType === "daily" ? "Daily" : "Weekly"}
+												{template.scheduleType === "daily"
+													? t("settings.routines.frequencyDaily")
+													: t("settings.routines.frequencyWeekly")}
 											</span>
 										</div>
 										<p className="mt-1 text-xs leading-5 text-muted-foreground">
-											{template.description}
+											{t(template.descriptionKey)}
 										</p>
 									</div>
 									<Plus className="mt-0.5 size-4 shrink-0 text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100" />
@@ -1507,33 +1560,49 @@ export function RoutineSchedulesContent({
 					className="flex max-h-[85vh] flex-col sm:max-w-2xl"
 				>
 					<DialogHeader>
-						<DialogTitle>{viewingSchedule?.name ?? "Schedule"}</DialogTitle>
+						<DialogTitle>
+							{viewingSchedule?.name ?? t("settings.routines.title")}
+						</DialogTitle>
 					</DialogHeader>
 					{viewingSchedule && (
 						<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
 							<div className="grid grid-cols-1 gap-1.5 text-xs sm:grid-cols-2">
 								<p>
-									<span className="text-muted-foreground/70">Schedule:</span>{" "}
+									<span className="text-muted-foreground/70">
+										{t("settings.routines.scheduleLabelView")}
+									</span>{" "}
 									{formatScheduleTrigger(viewingSchedule)}
 								</p>
 								<p>
-									<span className="text-muted-foreground/70">Mode:</span>{" "}
+									<span className="text-muted-foreground/70">
+										{t("settings.routines.labelMode")}
+									</span>{" "}
 									{viewingSchedule.mode}
 								</p>
 								<p>
-									<span className="text-muted-foreground/70">Model:</span>{" "}
+									<span className="text-muted-foreground/70">
+										{t("settings.routines.labelModel")}
+									</span>{" "}
 									{formatScheduleModel(viewingSchedule)}
 								</p>
 								<p>
-									<span className="text-muted-foreground/70">Enabled:</span>{" "}
-									{viewingSchedule.enabled ? "yes" : "no"}
+									<span className="text-muted-foreground/70">
+										{t("settings.routines.labelEnabled")}
+									</span>{" "}
+									{viewingSchedule.enabled
+										? t("settings.routines.yes")
+										: t("settings.routines.no")}
 								</p>
 								<p>
-									<span className="text-muted-foreground/70">Last run:</span>{" "}
+									<span className="text-muted-foreground/70">
+										{t("settings.routines.labelLastRun")}
+									</span>{" "}
 									{formatDateTime(viewingSchedule.lastRunAt)}
 								</p>
 								<p>
-									<span className="text-muted-foreground/70">Next run:</span>{" "}
+									<span className="text-muted-foreground/70">
+										{t("settings.routines.labelNextRun")}
+									</span>{" "}
 									{formatDateTime(viewingSchedule.nextRunAt)}
 								</p>
 							</div>
@@ -1543,15 +1612,20 @@ export function RoutineSchedulesContent({
 								{JSON.stringify(viewingSchedule, null, 2)}
 							</pre>
 							<div className="mt-1 flex items-center justify-between">
-								<h3 className="text-sm font-semibold">Runs</h3>
+								<h3 className="text-sm font-semibold">
+									{t("settings.routines.runsHeading")}
+								</h3>
 								<span className="text-xs text-muted-foreground">
-									{viewingExecutions.length} result
+									{translator.plural(
+										"settings.routines.resultCount",
+										viewingExecutions.length,
+									)}
 									{viewingExecutions.length === 1 ? "" : "s"}
 								</span>
 							</div>
 							{viewingExecutions.length === 0 ? (
 								<div className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">
-									No runs yet.
+									{t("settings.routines.noRuns")}
 								</div>
 							) : (
 								<div className="overflow-hidden rounded-lg border border-border">
@@ -1585,7 +1659,8 @@ export function RoutineSchedulesContent({
 												)}
 												<span className="min-w-0 flex-1">
 													<span className="block truncate font-medium capitalize">
-														{execution.status || "Unknown result"}
+														{execution.status ||
+															t("settings.routines.unknownResult")}
 													</span>
 													{execution.errorMessage && (
 														<span className="block truncate text-xs text-destructive">
@@ -1612,7 +1687,9 @@ export function RoutineSchedulesContent({
 									type="button"
 									variant="ghost"
 								>
-									Show all {viewingExecutions.length} runs
+									{t("settings.routines.showAllRuns", {
+										count: viewingExecutions.length,
+									})}
 									<ChevronDown className="size-3.5" />
 								</Button>
 							) : null}
@@ -1630,10 +1707,15 @@ export function RoutineSchedulesContent({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Routine</AlertDialogTitle>
+						<AlertDialogTitle>
+							{t("settings.routines.deleteTitle")}
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							This will delete "{schedulePendingDelete?.name ?? "this routine"}"
-							and remove future scheduled runs.
+							{t("settings.routines.deleteConfirmNamed", {
+								name:
+									schedulePendingDelete?.name ??
+									t("settings.routines.thisRoutine"),
+							})}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1644,7 +1726,7 @@ export function RoutineSchedulesContent({
 									: false
 							}
 						>
-							Cancel
+							{t("common.action.cancel")}
 						</AlertDialogCancel>
 						<AlertDialogAction
 							disabled={
@@ -1658,7 +1740,7 @@ export function RoutineSchedulesContent({
 							}}
 							className={buttonVariants({ variant: "destructive" })}
 						>
-							Delete
+							{t("common.action.delete")}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
@@ -1675,17 +1757,19 @@ export function RoutineSchedulesContent({
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>Schedule</DialogTitle>
+						<DialogTitle>{t("settings.routines.title")}</DialogTitle>
 						<DialogDescription>
 							{editingSchedule
-								? "Update this scheduler routine."
-								: "Create a scheduler routine."}
+								? t("settings.routines.editDescription")
+								: t("settings.routines.createDescription")}
 						</DialogDescription>
 					</DialogHeader>
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="sm:col-span-2 space-y-2">
-							<Label htmlFor="routine-name">Name</Label>
+							<Label htmlFor="routine-name">
+								{t("settings.routines.nameLabel")}
+							</Label>
 							<Input
 								id="routine-name"
 								value={createForm.name}
@@ -1700,19 +1784,21 @@ export function RoutineSchedulesContent({
 						</div>
 
 						<div className="sm:col-span-2 space-y-3">
-							<Label>Schedule</Label>
+							<Label>{t("settings.routines.scheduleLabel")}</Label>
 							{editingSchedule &&
 								editingSchedule.cronPattern !==
 									ONE_TIME_SCHEDULE_CRON_PATTERN && (
 									<p className="text-xs text-muted-foreground">
-										Current cron expression:{" "}
-										<code>{editingSchedule.cronPattern}</code>. Changing the
-										timing controls replaces this expression.
+										{t("settings.routines.cronPrefix")}{" "}
+										<code>{editingSchedule.cronPattern}</code>
+										{t("settings.routines.cronSuffix")}
 									</p>
 								)}
 							<div className="flex flex-wrap items-end gap-3 rounded-xl border border-border p-3">
 								<div className="min-w-32 flex-1 space-y-2">
-									<Label htmlFor="routine-schedule-type">Frequency</Label>
+									<Label htmlFor="routine-schedule-type">
+										{t("settings.routines.frequency")}
+									</Label>
 									<Select
 										onValueChange={(value) =>
 											setCreateForm((prev) => ({
@@ -1732,15 +1818,23 @@ export function RoutineSchedulesContent({
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="daily">Daily</SelectItem>
-											<SelectItem value="weekly">Weekly</SelectItem>
-											<SelectItem value="once">Once</SelectItem>
+											<SelectItem value="daily">
+												{t("settings.routines.frequencyDaily")}
+											</SelectItem>
+											<SelectItem value="weekly">
+												{t("settings.routines.frequencyWeekly")}
+											</SelectItem>
+											<SelectItem value="once">
+												{t("settings.routines.frequencyOnce")}
+											</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
 								{createForm.scheduleType === "once" && (
 									<div className="min-w-40 flex-1 space-y-2">
-										<Label htmlFor="routine-date">Date</Label>
+										<Label htmlFor="routine-date">
+											{t("settings.routines.dateLabel")}
+										</Label>
 										<Input
 											id="routine-date"
 											min={minimumOnce.date}
@@ -1776,7 +1870,7 @@ export function RoutineSchedulesContent({
 								)}
 								{createForm.scheduleType === "weekly" && (
 									<div className="min-w-44 flex-[1.4] space-y-2">
-										<Label>Days</Label>
+										<Label>{t("settings.routines.daysLabel")}</Label>
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<Button
@@ -1785,7 +1879,7 @@ export function RoutineSchedulesContent({
 												>
 													<span className="truncate">
 														{formatScheduleDays(createForm.scheduleDays) ||
-															"Choose days"}
+															t("settings.routines.chooseDays")}
 													</span>
 												</Button>
 											</DropdownMenuTrigger>
@@ -1811,7 +1905,7 @@ export function RoutineSchedulesContent({
 														}
 														onSelect={(event) => event.preventDefault()}
 													>
-														{day.label}
+														{t(day.labelKey)}
 													</DropdownMenuCheckboxItem>
 												))}
 											</DropdownMenuContent>
@@ -1819,7 +1913,9 @@ export function RoutineSchedulesContent({
 									</div>
 								)}
 								<div className="min-w-32 flex-1 space-y-2">
-									<Label htmlFor="routine-time">Time</Label>
+									<Label htmlFor="routine-time">
+										{t("settings.routines.timeLabel")}
+									</Label>
 									<Input
 										id="routine-time"
 										min={
@@ -1852,7 +1948,9 @@ export function RoutineSchedulesContent({
 						</div>
 
 						<div className="sm:col-span-2 space-y-2">
-							<Label htmlFor="routine-prompt">Prompt</Label>
+							<Label htmlFor="routine-prompt">
+								{t("settings.routines.promptLabel")}
+							</Label>
 							<Textarea
 								id="routine-prompt"
 								value={createForm.prompt}
@@ -1867,7 +1965,7 @@ export function RoutineSchedulesContent({
 						</div>
 
 						<div className="space-y-2">
-							<Label>Provider</Label>
+							<Label>{t("settings.routines.providerLabel")}</Label>
 							<Combobox
 								items={availableProviders}
 								onValueChange={(value) => {
@@ -1898,7 +1996,9 @@ export function RoutineSchedulesContent({
 									showTrigger
 								/>
 								<ComboboxContent>
-									<ComboboxEmpty>No providers found.</ComboboxEmpty>
+									<ComboboxEmpty>
+										{t("settings.routines.noProviders")}
+									</ComboboxEmpty>
 									<ComboboxList>
 										{(item) => (
 											<ComboboxItem key={item} value={item}>
@@ -1911,7 +2011,7 @@ export function RoutineSchedulesContent({
 						</div>
 
 						<div className="space-y-2">
-							<Label>Model</Label>
+							<Label>{t("settings.routines.modelLabel")}</Label>
 							<Combobox
 								items={availableModelsForProvider}
 								onValueChange={(value) => {
@@ -1929,7 +2029,9 @@ export function RoutineSchedulesContent({
 									showTrigger
 								/>
 								<ComboboxContent>
-									<ComboboxEmpty>No models found.</ComboboxEmpty>
+									<ComboboxEmpty>
+										{t("settings.routines.noModels")}
+									</ComboboxEmpty>
 									<ComboboxList>
 										{(item) => (
 											<ComboboxItem key={item} value={item}>
@@ -1942,7 +2044,9 @@ export function RoutineSchedulesContent({
 						</div>
 
 						<div className="sm:col-span-2 space-y-2">
-							<Label htmlFor="routine-workspace">Workspace</Label>
+							<Label htmlFor="routine-workspace">
+								{t("settings.routines.workspaceLabel")}
+							</Label>
 							<Input
 								id="routine-workspace"
 								value={createForm.workspaceRoot}
@@ -1957,7 +2061,7 @@ export function RoutineSchedulesContent({
 
 						<div className="sm:col-span-2 space-y-2">
 							<Label htmlFor="routine-system-prompt">
-								System prompt (optional)
+								{t("settings.routines.systemPromptLabel")}
 							</Label>
 							<Textarea
 								id="routine-system-prompt"
@@ -1974,7 +2078,7 @@ export function RoutineSchedulesContent({
 
 						<div className="space-y-2">
 							<Label htmlFor="routine-timeout">
-								Timeout seconds (optional)
+								{t("settings.routines.timeoutLabel")}
 							</Label>
 							<Input
 								id="routine-timeout"
@@ -1991,7 +2095,7 @@ export function RoutineSchedulesContent({
 
 						<div className="space-y-2">
 							<Label htmlFor="routine-tags">
-								Tags (comma-separated, optional)
+								{t("settings.routines.tagsLabel")}
 							</Label>
 							<Input
 								id="routine-tags"
@@ -2019,7 +2123,7 @@ export function RoutineSchedulesContent({
 							onClick={() => setIsCreateOpen(false)}
 							disabled={isCreating}
 						>
-							Cancel
+							{t("common.action.cancel")}
 						</Button>
 						<Button
 							onClick={() => void submitCreateForm()}
@@ -2027,11 +2131,11 @@ export function RoutineSchedulesContent({
 						>
 							{isCreating
 								? editingSchedule
-									? "Saving..."
-									: "Creating..."
+									? t("settings.routines.saving")
+									: t("settings.routines.creating")
 								: editingSchedule
-									? "Save Changes"
-									: "Create Schedule"}
+									? t("settings.routines.saveChanges")
+									: t("settings.routines.createAction")}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

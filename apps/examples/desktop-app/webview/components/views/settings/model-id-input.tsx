@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/lib/i18n";
 
 export function ModelIdInput({
 	models,
@@ -13,6 +14,7 @@ export function ModelIdInput({
 	onChange: (models: string[]) => void;
 	disabled?: boolean;
 }) {
+	const { t } = useTranslation();
 	const [modelInput, setModelInput] = useState("");
 
 	const addPendingModel = () => {
@@ -32,7 +34,9 @@ export function ModelIdInput({
 				>
 					<span className="font-mono">{model}</span>
 					<Button
-						aria-label={`Remove ${model}`}
+						aria-label={t("settings.providers.removeModelAria", {
+							modelId: model,
+						})}
 						className="text-foreground hover:text-foreground"
 						disabled={disabled}
 						onClick={() => onChange(models.filter((entry) => entry !== model))}
@@ -62,7 +66,11 @@ export function ModelIdInput({
 						onChange(models.slice(0, -1));
 					}
 				}}
-				placeholder={models.length === 0 ? "Type model ID and press Enter" : ""}
+				placeholder={
+					models.length === 0
+						? t("settings.providers.modelIdInputPlaceholder")
+						: ""
+				}
 				type="text"
 				value={modelInput}
 			/>

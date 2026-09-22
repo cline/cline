@@ -11,30 +11,36 @@ import {
 	requestDesktopNotificationPermission,
 	writeDesktopNotificationSettings,
 } from "@/lib/desktop-notifications";
+import { useTranslation } from "@/lib/i18n";
 
 const EVENT_COPY: Record<
 	DesktopNotificationEventType,
-	{ label: string; description: string }
+	{ labelKey: string; descriptionKey: string }
 > = {
 	taskCompletion: {
-		label: "Task completed",
-		description: "When Cline finishes a task or turn.",
+		labelKey: "settings.general.notifications.event.taskCompletion.label",
+		descriptionKey:
+			"settings.general.notifications.event.taskCompletion.description",
 	},
 	approvalNeeded: {
-		label: "Approval needed",
-		description: "When a tool is waiting for your approval.",
+		labelKey: "settings.general.notifications.event.approvalNeeded.label",
+		descriptionKey:
+			"settings.general.notifications.event.approvalNeeded.description",
 	},
 	questionAsked: {
-		label: "Question asked",
-		description: "When Cline needs an answer before continuing.",
+		labelKey: "settings.general.notifications.event.questionAsked.label",
+		descriptionKey:
+			"settings.general.notifications.event.questionAsked.description",
 	},
 	sessionError: {
-		label: "Session error",
-		description: "When a task stops because of an error.",
+		labelKey: "settings.general.notifications.event.sessionError.label",
+		descriptionKey:
+			"settings.general.notifications.event.sessionError.description",
 	},
 };
 
 export function NotificationSettings() {
+	const { t } = useTranslation();
 	const [settings, setSettings] = useState<DesktopNotificationSettings>(
 		readDesktopNotificationSettings,
 	);
@@ -81,10 +87,12 @@ export function NotificationSettings() {
 	const permissionControl =
 		permission === "granted" ? (
 			<span className="shrink-0 text-xs font-medium text-muted-foreground">
-				Allowed by system
+				{t("settings.general.notifications.allowedBySystem")}
 			</span>
 		) : permission === "unsupported" ? null : permission === null ? (
-			<span className="shrink-0 text-xs text-muted-foreground">Checking…</span>
+			<span className="shrink-0 text-xs text-muted-foreground">
+				{t("settings.general.notifications.checking")}
+			</span>
 		) : (
 			<Button
 				disabled={requestingPermission}
@@ -93,7 +101,9 @@ export function NotificationSettings() {
 				type="button"
 				variant="outline"
 			>
-				{permission === "denied" ? "Check permission" : "Allow notifications"}
+				{permission === "denied"
+					? t("settings.general.notifications.checkPermission")
+					: t("settings.general.notifications.allowNotifications")}
 			</Button>
 		);
 
@@ -106,15 +116,14 @@ export function NotificationSettings() {
 			<div className="flex items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch">
 				<div className="flex flex-col gap-1">
 					<p className="text-base font-semibold text-foreground">
-						Desktop notifications
+						{t("settings.general.notifications.title")}
 					</p>
 					<p className="text-sm text-muted-foreground">
-						Notify only while the Cline window is in the background. Clicking a
-						notification opens its session.
+						{t("settings.general.notifications.description")}
 					</p>
 					{permission === "denied" ? (
 						<p className="mt-1 text-xs text-destructive">
-							Notifications are blocked in system settings.
+							{t("settings.general.notifications.blocked")}
 						</p>
 					) : null}
 				</div>
@@ -122,9 +131,13 @@ export function NotificationSettings() {
 			</div>
 			<div className="mt-4 rounded-lg border bg-card px-4">
 				<div className="grid grid-cols-[minmax(0,1fr)_5rem_4rem] items-center gap-3 border-b py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-					<span>Event</span>
-					<span className="text-center">Notify</span>
-					<span className="text-center">Sound</span>
+					<span>{t("settings.general.notifications.column.event")}</span>
+					<span className="text-center">
+						{t("settings.general.notifications.column.notify")}
+					</span>
+					<span className="text-center">
+						{t("settings.general.notifications.column.sound")}
+					</span>
 				</div>
 				{DESKTOP_NOTIFICATION_EVENT_TYPES.map((eventType) => {
 					const copy = EVENT_COPY[eventType];
@@ -136,15 +149,17 @@ export function NotificationSettings() {
 						>
 							<div className="min-w-0">
 								<p className="text-sm font-medium text-foreground">
-									{copy.label}
+									{t(copy.labelKey)}
 								</p>
 								<p className="text-xs text-muted-foreground">
-									{copy.description}
+									{t(copy.descriptionKey)}
 								</p>
 							</div>
 							<div className="flex justify-center">
 								<Switch
-									aria-label={`${copy.label} notifications`}
+									aria-label={t("settings.general.notifications.aria.notify", {
+										event: t(copy.labelKey),
+									})}
 									checked={preference.enabled}
 									onCheckedChange={(checked) =>
 										updatePreference(eventType, "enabled", checked)
@@ -153,7 +168,9 @@ export function NotificationSettings() {
 							</div>
 							<div className="flex justify-center">
 								<Switch
-									aria-label={`${copy.label} sound`}
+									aria-label={t("settings.general.notifications.aria.sound", {
+										event: t(copy.labelKey),
+									})}
 									checked={preference.sound}
 									disabled={!preference.enabled}
 									onCheckedChange={(checked) =>

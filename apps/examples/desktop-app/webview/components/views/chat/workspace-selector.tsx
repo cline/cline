@@ -17,6 +17,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTranslation } from "@/lib/i18n";
 import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
 import { cn } from "@/lib/utils";
 import {
@@ -61,6 +62,7 @@ export function WorkspaceSelector({
 	onCreateGitBranch?: (branchName: string) => Promise<boolean>;
 	disabled?: boolean;
 }) {
+	const { t } = useTranslation();
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const [branches, setBranches] = useState<string[]>([]);
@@ -85,15 +87,18 @@ export function WorkspaceSelector({
 
 	const workspaceName = useMemo(() => {
 		if (isChatWorkspacePath(workspaceRoot)) {
-			return "Chat";
+			return t("chat.environment.selector.chatLabel");
 		}
 		const trimmed = workspaceRoot.trim().replace(/[\\/]+$/, "");
 		if (!trimmed) {
-			return "Chat";
+			return t("chat.environment.selector.chatLabel");
 		}
 		const parts = trimmed.split(/[\\/]/);
-		return parts[parts.length - 1] || "workspace";
-	}, [workspaceRoot]);
+		return (
+			parts[parts.length - 1] ||
+			t("chat.environment.selector.workspaceFallback")
+		);
+	}, [workspaceRoot, t]);
 	const normalizedWorkspaceRoot = useMemo(
 		() => normalizeWorkspacePath(workspaceRoot),
 		[workspaceRoot],
@@ -161,9 +166,7 @@ export function WorkspaceSelector({
 			setSearch("");
 			return;
 		}
-		setWorkspaceError(
-			`Couldn't open "${next}". Check that the folder exists and try again.`,
-		);
+		setWorkspaceError(t("chat.environment.selector.openError", { path: next }));
 	};
 
 	const handleSwitchWorkspacePath = async () => {
@@ -184,7 +187,7 @@ export function WorkspaceSelector({
 				setWorkspaceError(
 					pickError instanceof Error && pickError.message.trim()
 						? pickError.message
-						: "The folder picker could not be opened. Type a folder path instead.",
+						: t("chat.environment.selector.pickerError"),
 				);
 			} finally {
 				setPickingWorkspace(false);
@@ -257,8 +260,13 @@ export function WorkspaceSelector({
 							variant="ghost"
 							aria-label={
 								hasGit
-									? `Workspace ${workspaceName}, branch ${currentBranch}`
-									: `Folder ${workspaceName}`
+									? t("chat.environment.selector.workspaceBranchAria", {
+											workspace: workspaceName,
+											branch: currentBranch,
+										})
+									: t("chat.environment.selector.folderAria", {
+											workspace: workspaceName,
+										})
 							}
 							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 text-sm"
 							disabled={disabled || switching}
@@ -305,7 +313,7 @@ export function WorkspaceSelector({
 				<>
 					<Button
 						variant="ghost"
-						aria-label="Close menu"
+						aria-label={t("chat.environment.selector.closeMenuAria")}
 						className="fixed inset-0 z-40 cursor-default h-auto rounded-none opacity-0"
 						data-cursor="default"
 						onClick={() => {
@@ -326,7 +334,9 @@ export function WorkspaceSelector({
 								value={search}
 								onChange={(e) => setSearch(e.target.value)}
 								placeholder={
-									hasGit ? "Search workspaces & branches" : "Search workspaces"
+									hasGit
+										? t("chat.environment.selector.searchPlaceholder")
+										: t("chat.environment.selector.searchWorkspacesPlaceholder")
 								}
 								className="h-8 flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
 							/>
@@ -334,14 +344,14 @@ export function WorkspaceSelector({
 
 						{loadingBranches ? (
 							<div className="px-3 py-4 text-xs text-muted-foreground">
-								Loading...
+								{t("chat.environment.selector.loading")}
 							</div>
 						) : (
 							<>
 								{/* Workspaces section */}
 								<div className="p-1.5 border-b border-border">
 									<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-										Workspaces
+										{t("chat.environment.selector.workspacesHeading")}
 									</div>
 									{looksLikeFolderPath(search) && (
 										<Button
@@ -354,7 +364,9 @@ export function WorkspaceSelector({
 										>
 											<FolderCode className="size-3 shrink-0 text-muted-foreground" />
 											<span className="truncate text-xs text-foreground">
-												Open folder “{search.trim()}”
+												{t("chat.environment.selector.openFolder", {
+													path: search.trim(),
+												})}
 											</span>
 										</Button>
 									)}
@@ -365,8 +377,8 @@ export function WorkspaceSelector({
 										{filteredWorkspaces.length === 0 ? (
 											<div className="px-2 py-2 text-xs text-muted-foreground">
 												{looksLikeFolderPath(search)
-													? "Press the option above to open this folder"
-													: "No workspaces found — type a full folder path to add one"}
+													? t("chat.environment.selector.openFolderHint")
+													: t("chat.environment.selector.empty")}
 											</div>
 										) : (
 											filteredWorkspaces.map((wp) => {
@@ -413,8 +425,8 @@ export function WorkspaceSelector({
 										className="justify-start w-full mt-0.5 text-xs text-muted-foreground"
 									>
 										{pickingWorkspace
-											? "Opening folder picker..."
-											: "Open folder..."}
+											? t("chat.environment.selector.openingPicker")
+											: t("chat.environment.selector.openFolderAction")}
 									</Button>
 									{showWorkspacePathInput ? (
 										<div className="mt-1 flex items-center gap-1">
@@ -445,7 +457,7 @@ export function WorkspaceSelector({
 												disabled={switchingWorkspace}
 												className="h-7 px-2 text-xs"
 											>
-												Go
+												{t("chat.environment.selector.go")}
 											</Button>
 										</div>
 									) : null}
@@ -460,7 +472,7 @@ export function WorkspaceSelector({
 								{hasGit ? (
 									<div className="p-1.5">
 										<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-											Branches
+											{t("chat.environment.selector.branchesHeading")}
 										</div>
 										<div
 											ref={branchListRef}
@@ -468,7 +480,7 @@ export function WorkspaceSelector({
 										>
 											{filteredBranches.length === 0 ? (
 												<div className="px-2 py-2 text-xs text-muted-foreground">
-													No branches found
+													{t("chat.environment.selector.noBranches")}
 												</div>
 											) : (
 												filteredBranches.map((branch) => (
@@ -522,7 +534,9 @@ export function WorkspaceSelector({
 															setNewBranchName("");
 														}
 													}}
-													placeholder="Branch name"
+													placeholder={t(
+														"chat.environment.selector.branchNamePlaceholder",
+													)}
 													className="h-8 text-xs"
 												/>
 												<div className="flex items-center gap-2">
@@ -532,7 +546,7 @@ export function WorkspaceSelector({
 														size="sm"
 														className="flex-1 text-xs"
 													>
-														Create
+														{t("chat.environment.selector.create")}
 													</Button>
 													<Button
 														variant="outline"
@@ -543,7 +557,7 @@ export function WorkspaceSelector({
 														}}
 														className="flex-1 text-xs text-muted-foreground"
 													>
-														Cancel
+														{t("common.action.cancel")}
 													</Button>
 												</div>
 											</div>
@@ -555,7 +569,7 @@ export function WorkspaceSelector({
 												className="justify-start w-full text-xs text-muted-foreground"
 											>
 												<Plus className="size-3" />
-												Create and checkout new branch...
+												{t("chat.environment.selector.createBranchAction")}
 											</Button>
 										)}
 									</div>

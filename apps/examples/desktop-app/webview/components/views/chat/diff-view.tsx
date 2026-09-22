@@ -22,6 +22,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
+import { useTranslation } from "@/lib/i18n";
 import type { SessionDiffHunk, SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
@@ -47,6 +48,7 @@ export function DiffView({
 }: DiffViewProps) {
 	const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
 	const [editors, setEditors] = useState<EditorOption[]>([]);
+	const { t } = useTranslation();
 
 	useEffect(() => {
 		let cancelled = false;
@@ -94,17 +96,17 @@ export function DiffView({
 			<div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-card px-4">
 				<div className="flex items-center gap-3">
 					<span className="text-xs font-medium text-foreground">
-						Uncommitted changes
+						{t("chat.diff.title")}
 					</span>
 					<span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-						Files: {fileDiffs.length}
+						{t("chat.diff.filesCount", { count: fileDiffs.length })}
 					</span>
 				</div>
 
 				<div className="flex items-center gap-2 text-xs font-mono">
 					{" "}
 					<button
-						aria-label="Close diff view"
+						aria-label={t("chat.diff.closeAria")}
 						className="rounded-md p-1 text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 						onClick={onClose}
 						type="button"
@@ -117,7 +119,7 @@ export function DiffView({
 			<ScrollArea className="min-h-0 flex-1">
 				{fileDiffs.length === 0 ? (
 					<div className="flex h-full items-center justify-center px-4 py-16 text-sm text-muted-foreground">
-						No file changes in this session yet.
+						{t("chat.diff.empty")}
 					</div>
 				) : (
 					<div className="flex flex-col">
@@ -154,6 +156,7 @@ function DiffFileSection({
 	environmentId: string;
 	onToggle: () => void;
 }) {
+	const { t } = useTranslation();
 	const [copied, setCopied] = useState(false);
 	const [opening, setOpening] = useState(false);
 	const copyResetTimerRef = useRef<number | null>(null);
@@ -173,11 +176,11 @@ function DiffFileSection({
 		} catch {
 			toast({
 				variant: "destructive",
-				title: "Copy failed",
-				description: "The file path could not be copied to the clipboard.",
+				title: t("chat.diff.copyFailedTitle"),
+				description: t("chat.diff.copyFailedDescription"),
 			});
 		}
-	}, [resolvedPath]);
+	}, [resolvedPath, t]);
 
 	const handleOpenInEditor = useCallback(
 		async (editor?: string) => {
@@ -192,17 +195,17 @@ function DiffFileSection({
 			} catch (error) {
 				toast({
 					variant: "destructive",
-					title: "Could not open file",
+					title: t("chat.diff.openErrorTitle"),
 					description:
 						error instanceof Error
 							? error.message
-							: "The file could not be opened in an editor.",
+							: t("chat.diff.openErrorFallback"),
 				});
 			} finally {
 				setOpening(false);
 			}
 		},
-		[cwd, environmentId, file.path],
+		[cwd, environmentId, file.path, t],
 	);
 
 	return (
@@ -223,13 +226,13 @@ function DiffFileSection({
 					</span>
 				</button>
 				<button
-					aria-label={`Copy file path for ${file.path}`}
+					aria-label={t("chat.diff.copyPathAria", { path: file.path })}
 					className={cn(
 						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
 						copied ? "opacity-100 text-primary" : "opacity-0",
 					)}
 					onClick={() => void handleCopyPath()}
-					title="Copy file path"
+					title={t("chat.diff.copyPathTitle")}
 					type="button"
 				>
 					{copied ? (
@@ -250,17 +253,17 @@ function DiffFileSection({
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<button
-							aria-label={`Open ${file.path} in editor`}
+							aria-label={t("chat.diff.openInEditorAria", { path: file.path })}
 							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
 							disabled={opening}
-							title="Open in editor"
+							title={t("chat.diff.openInEditorTitle")}
 							type="button"
 						>
 							<ExternalLink className="h-3.5 w-3.5" />
 						</button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end" className="w-52">
-						<DropdownMenuLabel>Open in</DropdownMenuLabel>
+						<DropdownMenuLabel>{t("chat.diff.openIn")}</DropdownMenuLabel>
 						{editors.map((editor) => (
 							<DropdownMenuItem
 								key={editor.id}
@@ -275,7 +278,7 @@ function DiffFileSection({
 							onSelect={() => void handleOpenInEditor("default")}
 						>
 							<AppWindow aria-hidden />
-							System default
+							{t("chat.diff.systemDefault")}
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -291,7 +294,7 @@ function DiffFileSection({
 				<div className="space-y-2 border-t border-border bg-card/40 px-4 py-3">
 					{file.hunks.length === 0 ? (
 						<p className="text-xs text-muted-foreground">
-							No hunk details available.
+							{t("chat.diff.noHunks")}
 						</p>
 					) : (
 						// The index disambiguates repeated same-shaped hunks (e.g.

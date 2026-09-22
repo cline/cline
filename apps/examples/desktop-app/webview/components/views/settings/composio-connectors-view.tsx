@@ -21,6 +21,7 @@ import type {
 	ComposioIntegrationSummary,
 	ComposioToolkitSlug,
 } from "@/lib/composio-types";
+import { useTranslation } from "@/lib/i18n";
 import { useComposioConnections } from "@/lib/use-composio-connections";
 
 /** Shared connector browser for Customize and Marketplace. */
@@ -115,6 +116,7 @@ export function ConnectorActionButton({
 	/** Opens the detail dialog; used by the View state in list rows. */
 	onView?: () => void;
 }) {
+	const { t } = useTranslation();
 	if (status === "connected") {
 		if (!showUninstall) {
 			return (
@@ -127,7 +129,7 @@ export function ConnectorActionButton({
 					type="button"
 					variant="default"
 				>
-					View
+					{t("settings.composio.view")}
 				</Button>
 			);
 		}
@@ -143,7 +145,7 @@ export function ConnectorActionButton({
 				variant="destructive"
 			>
 				{busy ? <Loader2 className="size-4 animate-spin" /> : null}
-				Uninstall
+				{t("settings.composio.uninstall")}
 			</Button>
 		);
 	}
@@ -159,7 +161,7 @@ export function ConnectorActionButton({
 				variant="ghost"
 			>
 				<Loader2 className="size-4 animate-spin" />
-				Cancel
+				{t("common.action.cancel")}
 			</Button>
 		);
 	}
@@ -175,7 +177,7 @@ export function ConnectorActionButton({
 			variant="outline"
 		>
 			{busy ? <Loader2 className="size-4 animate-spin" /> : null}
-			Install
+			{t("settings.composio.install")}
 		</Button>
 	);
 }
@@ -203,6 +205,7 @@ export function ComposioConnectorsView({
 		onOpenDetails: () => void;
 	}) => ReactNode;
 }) {
+	const { t } = useTranslation();
 	const {
 		status,
 		statusBySlug,
@@ -333,7 +336,7 @@ export function ComposioConnectorsView({
 	if (loadError) {
 		return (
 			<p className="select-text text-sm text-destructive" role="alert">
-				Failed to load connectors: {loadError}
+				{t("settings.composio.loadError", { error: loadError })}
 			</p>
 		);
 	}
@@ -341,7 +344,7 @@ export function ComposioConnectorsView({
 	if (!status) {
 		return (
 			<output
-				aria-label="Loading connectors"
+				aria-label={t("settings.composio.loadingAria")}
 				className="flex items-center justify-center py-16"
 			>
 				<Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -353,7 +356,7 @@ export function ComposioConnectorsView({
 		// The parent hides this tab when the account has no beta access.
 		return (
 			<p className="text-sm text-muted-foreground">
-				Connectors aren&apos;t available.
+				{t("settings.composio.unavailable")}
 			</p>
 		);
 	}
@@ -366,7 +369,7 @@ export function ComposioConnectorsView({
 			variant="outline"
 		>
 			<Store className="size-4" />
-			Browse all connectors in the Marketplace
+			{t("settings.composio.browseAll")}
 		</Button>
 	) : null;
 	if (variant === "installed" && entries.length === 0) {
@@ -382,8 +385,7 @@ export function ComposioConnectorsView({
 			{!renderItem ? (
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<p className="text-sm text-muted-foreground">
-						Connect your accounts to give Cline tools for your favorite apps.
-						Tools will become available in new sessions.
+						{t("settings.composio.connectHint")}
 					</p>
 					{searchQuery === undefined ? (
 						<div className="relative">
@@ -391,8 +393,8 @@ export function ComposioConnectorsView({
 							<Input
 								className="h-8 w-64 pl-8"
 								onChange={(event) => setQuery(event.target.value)}
-								aria-label="Search connectors"
-								placeholder="Search connectors"
+								aria-label={t("settings.composio.searchAria")}
+								placeholder={t("settings.composio.searchPlaceholder")}
 								value={query}
 							/>
 						</div>
@@ -402,7 +404,7 @@ export function ComposioConnectorsView({
 
 			{variant === "catalog" && catalogLoading && !catalog ? (
 				<output
-					aria-label="Loading connector catalog"
+					aria-label={t("settings.composio.loadingCatalogAria")}
 					className="flex items-center justify-center py-10"
 				>
 					<Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -418,7 +420,7 @@ export function ComposioConnectorsView({
 						type="button"
 						variant="outline"
 					>
-						Retry
+						{t("common.action.retry")}
 					</Button>
 				</div>
 			) : (
@@ -471,8 +473,10 @@ export function ComposioConnectorsView({
 						{visibleCatalog.length === 0 ? (
 							<p className="py-4 text-sm text-muted-foreground">
 								{trimmedQuery
-									? `No connectors match "${query.trim()}".`
-									: "No connectors are available for your account yet."}
+									? t("settings.composio.searchEmpty", {
+											query: query.trim(),
+										})
+									: t("settings.composio.empty")}
 							</p>
 						) : null}
 					</div>
@@ -481,8 +485,10 @@ export function ComposioConnectorsView({
 					) : null}
 					{!appendOnScroll && hiddenCount > 0 ? (
 						<p className="text-xs text-muted-foreground">
-							Showing the {CATALOG_PREVIEW_COUNT} most-used connectors — search
-							to find {hiddenCount} more.
+							{t("settings.composio.previewHint", {
+								count: hiddenCount,
+								previewCount: CATALOG_PREVIEW_COUNT,
+							})}
 						</p>
 					) : null}
 				</>
@@ -605,6 +611,7 @@ function ConnectorDetailDialog({
 }) {
 	const status = summary?.status ?? "not_connected";
 	const toolNames = summary?.toolNames ?? [];
+	const { t } = useTranslation();
 	return (
 		<Dialog onOpenChange={onOpenChange} open={entry !== null}>
 			{/* Fixed dimensions so every connector opens the same-sized window;
@@ -638,7 +645,9 @@ function ConnectorDetailDialog({
 							<dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
 								{entry.categories && entry.categories.length > 0 ? (
 									<>
-										<dt className="text-muted-foreground">Category</dt>
+										<dt className="text-muted-foreground">
+											{t("settings.composio.category")}
+										</dt>
 										<dd className="flex flex-wrap gap-1">
 											{entry.categories.map((category) => (
 												<Badge
@@ -654,27 +663,33 @@ function ConnectorDetailDialog({
 								) : null}
 								{summary?.connectedAt ? (
 									<>
-										<dt className="text-muted-foreground">Connected</dt>
+										<dt className="text-muted-foreground">
+											{t("settings.composio.connected")}
+										</dt>
 										<dd className="text-foreground">
 											{new Date(summary.connectedAt).toLocaleString()}
 										</dd>
 									</>
 								) : null}
-								<dt className="text-muted-foreground">Slug</dt>
+								<dt className="text-muted-foreground">
+									{t("settings.composio.slug")}
+								</dt>
 								<dd className="font-mono text-xs leading-5 text-foreground">
 									{entry.slug}
 								</dd>
 								{typeof entry.toolsCount === "number" ||
 								(status === "connected" && toolNames.length > 0) ? (
 									<>
-										<dt className="text-muted-foreground">Tools</dt>
+										<dt className="text-muted-foreground">
+											{t("settings.composio.tools")}
+										</dt>
 										<dd className="text-foreground">
 											{status === "connected" && toolNames.length > 0 ? (
 												<>
 													{toolNames.length}/
 													{entry.toolsCount ?? toolNames.length}{" "}
 													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-														available in new sessions
+														{t("settings.composio.availableInNewSessions")}
 													</span>
 												</>
 											) : (
@@ -701,7 +716,7 @@ function ConnectorDetailDialog({
 							{status === "pending" ? (
 								<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
 									<Loader2 className="size-4 animate-spin" />
-									Finish authorizing {entry.name} in your browser…
+									{t("settings.composio.finishAuth", { name: entry.name })}
 								</p>
 							) : null}
 

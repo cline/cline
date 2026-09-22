@@ -20,6 +20,7 @@ import {
 	ChatMessageImageSchema,
 } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
+import { useTranslation } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
@@ -70,6 +71,7 @@ const ToolCallRow = memo(function ToolCallRow({
 	onExpandImage?: (image: ChatMessageImage) => void;
 	onProceedWhileRunning?: ProceedWhileRunningHandler;
 }) {
+	const { t } = useTranslation();
 	const { payload, toolName, inProgress, summary } =
 		buildToolPresentation(message);
 	// A missing result can outlive its run. Only gate the running display;
@@ -89,10 +91,10 @@ const ToolCallRow = memo(function ToolCallRow({
 		? [
 				{
 					text: inProgress
-						? "Completing scheduled task"
+						? t("chat.messages.tool.completingScheduled")
 						: payload?.isError
-							? "Scheduled task failed"
-							: "Scheduled task completed",
+							? t("chat.messages.tool.scheduledFailed")
+							: t("chat.messages.tool.scheduledCompleted"),
 				},
 			]
 		: summary.labelParts;
@@ -179,12 +181,12 @@ const ToolCallRow = memo(function ToolCallRow({
 			setProceedError(
 				error instanceof Error
 					? error.message
-					: "Could not detach the running command.",
+					: t("chat.messages.tool.detachFailed"),
 			);
 		} finally {
 			setIsProceeding(false);
 		}
-	}, [isProceeding, onProceedWhileRunning, toolCallId, toolSessionId]);
+	}, [isProceeding, onProceedWhileRunning, toolCallId, toolSessionId, t]);
 
 	const hasError = Boolean(payload?.isError);
 	const Icon = getToolNameIcon(toolName);
@@ -304,7 +306,7 @@ const ToolCallRow = memo(function ToolCallRow({
 				{inputPreview ? (
 					<div className="space-y-1">
 						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-							Input
+							{t("chat.messages.tool.input")}
 						</div>
 						<ToolActivityCode className="text-sm">
 							{inputPreview}
@@ -328,7 +330,7 @@ const ToolCallRow = memo(function ToolCallRow({
 							{isProceeding ? (
 								<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
 							) : null}
-							Proceed while running
+							{t("chat.messages.tool.proceedWhileRunning")}
 						</Button>
 						{proceedError ? (
 							<div className="text-xs text-destructive">{proceedError}</div>
@@ -347,6 +349,7 @@ function CommandOutputTerminal({
 	output: string;
 	isRunning: boolean;
 }) {
+	const { t } = useTranslation();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const shouldAutoScrollRef = useRef(true);
 	useEffect(() => {
@@ -359,10 +362,10 @@ function CommandOutputTerminal({
 	return (
 		<div className="mt-2 space-y-1">
 			<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-				Output
+				{t("chat.messages.tool.output")}
 			</div>
 			<div
-				aria-label="Command output"
+				aria-label={t("chat.messages.tool.commandOutputAria")}
 				aria-live="off"
 				className="max-h-64 overflow-auto rounded-md border border-border/70 bg-black/90 p-3 font-mono text-xs leading-relaxed text-zinc-100"
 				onScroll={(event) => {

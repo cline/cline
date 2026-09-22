@@ -77,6 +77,7 @@ import {
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
+import { I18nRoot } from "@/lib/i18n";
 import {
 	cloudImageAttachmentError,
 	imageAttachmentMediaType,
@@ -838,167 +839,171 @@ export default function Home() {
 	]);
 
 	return (
-		<AccountProvider>
-			<SidebarProvider>
-				<WindowTitleBarProvider
-					contentEnabled={!showOnboarding && view === "chat"}
-				>
-					<div
-						aria-hidden={showOnboarding ? true : undefined}
-						className="flex h-screen w-full overflow-hidden bg-background text-foreground"
-						// The onboarding overlay is opaque and sits on top of the whole
-						// shell; hiding the shell keeps its aurora + animations from
-						// being composited every frame underneath while it still mounts
-						// and loads (providers, history, transport) in the background.
-						// `inert` additionally keeps the covered controls out of the
-						// keyboard tab order and assistive tech while it is hidden.
-						inert={showOnboarding ? true : undefined}
-						style={showOnboarding ? { visibility: "hidden" } : undefined}
+		<I18nRoot>
+			<AccountProvider>
+				<SidebarProvider>
+					<WindowTitleBarProvider
+						contentEnabled={!showOnboarding && view === "chat"}
 					>
-						<Sidebar
-							className="border-r border-sidebar-border"
-							collapsible="icon"
+						<div
+							aria-hidden={showOnboarding ? true : undefined}
+							className="flex h-screen w-full overflow-hidden bg-background text-foreground"
+							// The onboarding overlay is opaque and sits on top of the whole
+							// shell; hiding the shell keeps its aurora + animations from
+							// being composited every frame underneath while it still mounts
+							// and loads (providers, history, transport) in the background.
+							// `inert` additionally keeps the covered controls out of the
+							// keyboard tab order and assistive tech while it is hidden.
+							inert={showOnboarding ? true : undefined}
+							style={showOnboarding ? { visibility: "hidden" } : undefined}
 						>
-							<AgentSidebar
-								activeSessionId={activeHistorySessionId}
-								newTaskActive={newTaskActive}
-								onHome={handleHome}
-								onNavigateBack={handleNavigateBack}
-								onNavigateForward={handleNavigateForward}
-								onOpenSearch={handleOpenCommandBar}
-								onSettingsSectionChange={handleSettingsSectionChange}
-								sessionHistory={sessionHistory}
-								setView={handleViewChange}
-								settingsSection={settingsSection}
-								view={view}
-								canNavigateBack={navigation.back.length > 0}
-								canNavigateForward={navigation.forward.length > 0}
-							/>
-							<SidebarRail />
-						</Sidebar>
-						<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
-							<WindowTitleBar />
-							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{view === "sessions" ? (
-									<SessionsView
-										activeSessionId={activeHistorySessionId}
-										history={sessionHistory}
-									/>
-								) : activeThread ? (
-									<div
-										aria-hidden={view === "settings" ? true : undefined}
-										className="flex min-h-0 flex-1 flex-col"
-										inert={view === "settings" ? true : undefined}
-									>
-										<ChatThreadPane
-											key={`${activeThread.id}:${activeThread.environmentId}`}
-											environmentId={activeThread.environmentId}
-											environmentProfiles={remoteEnvironmentProfiles}
-											environmentProfilesLoading={
-												remoteEnvironmentProfilesLoading
-											}
-											onAddSshHost={() => handleSettingsSectionChange("Remote")}
-											onPickRemoteWorkspaceDirectory={
-												pickRemoteWorkspaceDirectory
-											}
-											onSelectEnvironment={handleSelectEnvironment}
-											remoteEnvironment={
-												activeRemoteEnvironment?.id ===
-												activeThread.environmentId
-													? activeRemoteEnvironment
-													: null
-											}
-											historySession={activeThread.historySession}
-											liveHistoryStatus={
-												sessionHistory.sessions.find(
-													(session) =>
-														session.sessionId ===
-															activeThread.historySession?.sessionId &&
-														(session.environmentId ??
-															LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
-															activeThread.environmentId,
-												)?.status ?? activeThread.historySession?.status
-											}
-											initialPromptDraft={activeThread.initialPromptDraft}
-											knownWorkspacePaths={historyWorkspacePaths}
-											onInitialPromptDraftConsumed={
-												handleInitialPromptDraftConsumed
-											}
-											onUpdateSessionMetadata={(sessionId, metadata) =>
-												handleUpdateSessionMetadata(
-													sessionId,
-													metadata,
-													activeThread.environmentId,
-												)
-											}
-											threadId={activeThread.id}
-											onDeleteSession={(sessionId, threadId) =>
-												handleDeleteSession(
-													sessionId,
-													threadId,
-													activeThread.environmentId,
-												)
-											}
-											onNewThread={handleNewThread}
-											onOpenSession={handleOpenSession}
-											onOpenSessionById={handleOpenSessionById}
-											onOpenSetup={handleOpenSetup}
-											onOpenModelSettings={() =>
-												handleSettingsSectionChange("API Providers")
-											}
-											onOpenAccountSettings={() =>
-												handleSettingsSectionChange("Account")
-											}
-											parentSession={activeParentSession}
-											onThreadStarted={handleThreadStarted}
-										/>
-									</div>
-								) : null}
-								{view === "settings" ? (
-									<div className="absolute inset-0 z-30 bg-background text-foreground">
-										<SettingsView
-											onNavigateSection={handleSettingsSectionChange}
-											onOpenSession={handleOpenSessionById}
-											section={settingsSection}
-										/>
-									</div>
-								) : null}
-							</div>
-						</SidebarInset>
-					</div>
-					{showOnboarding ? (
-						<div className="fixed inset-0 z-50 bg-background">
-							<WindowTitleBar
-								className="absolute inset-x-0 top-0 z-10"
-								hostContent={false}
-							/>
-							<div className="h-full">
-								<OnboardingView
-									initialStep={onboardingInitialStep}
-									onComplete={completeOnboarding}
+							<Sidebar
+								className="border-r border-sidebar-border"
+								collapsible="icon"
+							>
+								<AgentSidebar
+									activeSessionId={activeHistorySessionId}
+									newTaskActive={newTaskActive}
+									onHome={handleHome}
+									onNavigateBack={handleNavigateBack}
+									onNavigateForward={handleNavigateForward}
+									onOpenSearch={handleOpenCommandBar}
+									onSettingsSectionChange={handleSettingsSectionChange}
+									sessionHistory={sessionHistory}
+									setView={handleViewChange}
+									settingsSection={settingsSection}
+									view={view}
+									canNavigateBack={navigation.back.length > 0}
+									canNavigateForward={navigation.forward.length > 0}
 								/>
-							</div>
+								<SidebarRail />
+							</Sidebar>
+							<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
+								<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
+								<WindowTitleBar />
+								<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+									{view === "sessions" ? (
+										<SessionsView
+											activeSessionId={activeHistorySessionId}
+											history={sessionHistory}
+										/>
+									) : activeThread ? (
+										<div
+											aria-hidden={view === "settings" ? true : undefined}
+											className="flex min-h-0 flex-1 flex-col"
+											inert={view === "settings" ? true : undefined}
+										>
+											<ChatThreadPane
+												key={`${activeThread.id}:${activeThread.environmentId}`}
+												environmentId={activeThread.environmentId}
+												environmentProfiles={remoteEnvironmentProfiles}
+												environmentProfilesLoading={
+													remoteEnvironmentProfilesLoading
+												}
+												onAddSshHost={() =>
+													handleSettingsSectionChange("Remote")
+												}
+												onPickRemoteWorkspaceDirectory={
+													pickRemoteWorkspaceDirectory
+												}
+												onSelectEnvironment={handleSelectEnvironment}
+												remoteEnvironment={
+													activeRemoteEnvironment?.id ===
+													activeThread.environmentId
+														? activeRemoteEnvironment
+														: null
+												}
+												historySession={activeThread.historySession}
+												liveHistoryStatus={
+													sessionHistory.sessions.find(
+														(session) =>
+															session.sessionId ===
+																activeThread.historySession?.sessionId &&
+															(session.environmentId ??
+																LOCAL_WORKSPACE_ENVIRONMENT_ID) ===
+																activeThread.environmentId,
+													)?.status ?? activeThread.historySession?.status
+												}
+												initialPromptDraft={activeThread.initialPromptDraft}
+												knownWorkspacePaths={historyWorkspacePaths}
+												onInitialPromptDraftConsumed={
+													handleInitialPromptDraftConsumed
+												}
+												onUpdateSessionMetadata={(sessionId, metadata) =>
+													handleUpdateSessionMetadata(
+														sessionId,
+														metadata,
+														activeThread.environmentId,
+													)
+												}
+												threadId={activeThread.id}
+												onDeleteSession={(sessionId, threadId) =>
+													handleDeleteSession(
+														sessionId,
+														threadId,
+														activeThread.environmentId,
+													)
+												}
+												onNewThread={handleNewThread}
+												onOpenSession={handleOpenSession}
+												onOpenSessionById={handleOpenSessionById}
+												onOpenSetup={handleOpenSetup}
+												onOpenModelSettings={() =>
+													handleSettingsSectionChange("API Providers")
+												}
+												onOpenAccountSettings={() =>
+													handleSettingsSectionChange("Account")
+												}
+												parentSession={activeParentSession}
+												onThreadStarted={handleThreadStarted}
+											/>
+										</div>
+									) : null}
+									{view === "settings" ? (
+										<div className="absolute inset-0 z-30 bg-background text-foreground">
+											<SettingsView
+												onNavigateSection={handleSettingsSectionChange}
+												onOpenSession={handleOpenSessionById}
+												section={settingsSection}
+											/>
+										</div>
+									) : null}
+								</div>
+							</SidebarInset>
 						</div>
-					) : null}
-				</WindowTitleBarProvider>
-			</SidebarProvider>
-			<HubUpdateRequiredDialog />
-			<SessionCommandBar
-				onOpenChange={setCommandBarOpen}
-				onOpenSession={handleOpenSessionById}
-				open={commandBarOpen && !showOnboarding}
-			/>
-			{remoteDirectoryPicker ? (
-				<RemoteDirectoryPicker
-					environmentId={remoteDirectoryPicker.id}
-					homeDir={remoteDirectoryPicker.homeDir}
-					onCancel={() => completeRemoteDirectoryPicker(null)}
-					onSelect={completeRemoteDirectoryPicker}
-					open
+						{showOnboarding ? (
+							<div className="fixed inset-0 z-50 bg-background">
+								<WindowTitleBar
+									className="absolute inset-x-0 top-0 z-10"
+									hostContent={false}
+								/>
+								<div className="h-full">
+									<OnboardingView
+										initialStep={onboardingInitialStep}
+										onComplete={completeOnboarding}
+									/>
+								</div>
+							</div>
+						) : null}
+					</WindowTitleBarProvider>
+				</SidebarProvider>
+				<HubUpdateRequiredDialog />
+				<SessionCommandBar
+					onOpenChange={setCommandBarOpen}
+					onOpenSession={handleOpenSessionById}
+					open={commandBarOpen && !showOnboarding}
 				/>
-			) : null}
-		</AccountProvider>
+				{remoteDirectoryPicker ? (
+					<RemoteDirectoryPicker
+						environmentId={remoteDirectoryPicker.id}
+						homeDir={remoteDirectoryPicker.homeDir}
+						onCancel={() => completeRemoteDirectoryPicker(null)}
+						onSelect={completeRemoteDirectoryPicker}
+						open
+					/>
+				) : null}
+			</AccountProvider>
+		</I18nRoot>
 	);
 }
 

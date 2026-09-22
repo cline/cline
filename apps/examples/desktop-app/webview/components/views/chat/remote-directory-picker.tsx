@@ -19,6 +19,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { desktopClient } from "@/lib/desktop-client";
+import { getTranslator, useTranslation } from "@/lib/i18n";
 
 type WorkspaceDirectoryListResult = {
 	environmentId: string;
@@ -70,6 +71,7 @@ export function RemoteDirectoryPicker({
 
 	useEffect(() => {
 		if (!open) return;
+		const t = getTranslator().t;
 		const request = {
 			environmentId,
 			path: requestedPath,
@@ -87,12 +89,15 @@ export function RemoteDirectoryPicker({
 				if (cancelled) return;
 				if (result.environmentId !== request.environmentId) {
 					throw new Error(
-						`Directory response belongs to ${result.environmentId}, not ${request.environmentId}.`,
+						t("chat.environment.picker.mismatchError", {
+							received: result.environmentId,
+							expected: request.environmentId,
+						}),
 					);
 				}
 				const canonicalPath = normalizeRemotePath(result.currentPath);
 				if (!canonicalPath) {
-					throw new Error("Remote host returned an empty directory path.");
+					throw new Error(t("chat.environment.picker.emptyPathError"));
 				}
 				setCurrentPath(canonicalPath);
 				setParentPath(
@@ -122,21 +127,21 @@ export function RemoteDirectoryPicker({
 	}, [environmentId, open, reloadVersion, requestedPath]);
 
 	const canGoUp = Boolean(parentPath && parentPath !== currentPath);
+	const { t } = useTranslation();
 
 	return (
 		<Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
 			<DialogContent className="gap-4 sm:max-w-xl">
 				<DialogHeader>
-					<DialogTitle>Choose remote workspace</DialogTitle>
+					<DialogTitle>{t("chat.environment.picker.title")}</DialogTitle>
 					<DialogDescription>
-						Browse directories on the connected SSH host. No local folders are
-						shown here.
+						{t("chat.environment.picker.description")}
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="flex min-w-0 items-center gap-2">
 					<Button
-						aria-label="Remote home directory"
+						aria-label={t("chat.environment.picker.homeAria")}
 						disabled={loading || currentPath === normalizedHome}
 						onClick={() => setRequestedPath(normalizedHome)}
 						size="icon"
@@ -145,7 +150,7 @@ export function RemoteDirectoryPicker({
 						<Home />
 					</Button>
 					<Button
-						aria-label="Parent remote directory"
+						aria-label={t("chat.environment.picker.parentAria")}
 						disabled={loading || !canGoUp}
 						onClick={() => parentPath && setRequestedPath(parentPath)}
 						size="icon"
@@ -160,7 +165,7 @@ export function RemoteDirectoryPicker({
 						{currentPath}
 					</p>
 					<Button
-						aria-label="Refresh remote directories"
+						aria-label={t("chat.environment.picker.refreshAria")}
 						disabled={loading}
 						onClick={() => setReloadVersion((version) => version + 1)}
 						size="icon"
@@ -174,7 +179,7 @@ export function RemoteDirectoryPicker({
 					{loading ? (
 						<div className="flex h-52 items-center justify-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="size-4 animate-spin" />
-							Loading remote directories…
+							{t("chat.environment.picker.loading")}
 						</div>
 					) : error ? (
 						<div className="flex h-52 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-destructive">
@@ -183,7 +188,7 @@ export function RemoteDirectoryPicker({
 						</div>
 					) : directories.length === 0 ? (
 						<div className="flex h-52 items-center justify-center text-sm text-muted-foreground">
-							No subdirectories
+							{t("chat.environment.picker.empty")}
 						</div>
 					) : (
 						<div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
@@ -207,20 +212,19 @@ export function RemoteDirectoryPicker({
 				</div>
 				{truncated && !loading && !error ? (
 					<p className="text-xs text-muted-foreground">
-						Only the first directories are shown. Open a folder to continue
-						browsing.
+						{t("chat.environment.picker.truncated")}
 					</p>
 				) : null}
 
 				<DialogFooter>
 					<Button onClick={onCancel} variant="outline">
-						Cancel
+						{t("common.action.cancel")}
 					</Button>
 					<Button
 						disabled={loading || Boolean(error)}
 						onClick={() => onSelect(currentPath)}
 					>
-						Use this folder
+						{t("chat.environment.picker.useThisFolder")}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

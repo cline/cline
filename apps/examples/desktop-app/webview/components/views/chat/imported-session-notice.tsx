@@ -1,6 +1,7 @@
 "use client";
 
 import { Import } from "lucide-react";
+import { useTranslation } from "@/lib/i18n";
 import {
 	SESSION_IMPORT_TOOL_LABELS,
 	type SessionImportTool,
@@ -13,6 +14,7 @@ import {
  * continuing it may go differently.
  */
 export function ImportedSessionNotice({ tool }: { tool: SessionImportTool }) {
+	const { t } = useTranslation();
 	const label = SESSION_IMPORT_TOOL_LABELS[tool];
 	return (
 		<output className="flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-500/5 px-4 py-3">
@@ -21,13 +23,10 @@ export function ImportedSessionNotice({ tool }: { tool: SessionImportTool }) {
 			</span>
 			<div className="min-w-0">
 				<p className="text-sm font-semibold text-foreground">
-					Imported from {label}
+					{t("chat.messages.imported.title", { tool: label })}
 				</p>
 				<p className="mt-0.5 text-[13px] text-muted-foreground">
-					The earlier turns were recorded by {label}, whose tools and workflow
-					differ from Cline&apos;s. When you continue, the model works from a
-					summary of them rather than the original tool calls, so results may
-					not be as reliable as in a session started with Cline.
+					{t("chat.messages.imported.description", { tool: label })}
 				</p>
 			</div>
 		</output>
