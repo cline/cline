@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
 	AttachmentDropZone,
 	AgentAurora,
@@ -68,6 +69,7 @@ if (
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentWelcomeHero ||

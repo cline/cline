@@ -614,3 +614,38 @@ current product contracts should be compared before standardizing them.
 - [Complete theme](./theme/index.css)
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
+
+## Context usage
+
+`AgentContextUsage` extracts the desktop context ring and detail body without
+changing the host's button, popover, positioning, focus, or dismissal behavior.
+It does not insert a wrapper. Import `components.css` and the appropriate theme
+tokens as usual. When the context limit or token usage is unavailable, it renders
+nothing and does not invoke the child callback.
+
+```tsx
+import { AgentContextUsage } from "@cline/ui";
+
+<AgentContextUsage
+  usage={{ tokensIn: 1200, tokensOut: 300, cacheReadTokens: 400, contextWindow: 200000 }}
+  costLabel="$0.014"
+>
+  {({ triggerLabel, ring, details }) => (
+    <HostPopover>
+      <HostPopoverTrigger asChild>
+        <HostButton aria-label={triggerLabel}>{ring}</HostButton>
+      </HostPopoverTrigger>
+      <HostPopoverContent>{details}</HostPopoverContent>
+    </HostPopover>
+  )}
+</AgentContextUsage>;
+```
+
+The `Host*` names above are host controls, not package exports. Desktop retains
+its existing trigger classes, IDs, top/end placement, eight-pixel offset, and
+Radix interaction. The shared body uses namespaced utilities mapped to the same
+desktop tokens. Current request input/output drives context pressure and the
+existing 50%/75% warnings; lifetime token traffic must not be passed as context
+usage. `costLabel` is a separate optional, host-formatted cumulative cost.
+Fetching metrics, choosing the model limit, and computing cumulative cost remain
+host responsibilities.
