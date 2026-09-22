@@ -68,6 +68,10 @@ products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
 
+`AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
+Pass ANSI-rendered or normalized output as children; transport and output limits
+stay in the host. Import it from `@cline/ui` with `@cline/ui/components.css`.
+
 ## Current status
 
 `@cline/ui` is configured for public npm publication with its own version and

@@ -14,6 +14,7 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentCommandOutput,
 	AgentAskQuestion,
 	AgentApprovalCard,
 	AttachmentDropZone,
@@ -65,6 +66,7 @@ if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
 if (
+	!AgentCommandOutput ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
