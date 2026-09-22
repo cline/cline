@@ -449,6 +449,26 @@ describe("isRetryableProviderError", () => {
 		});
 	});
 
+	it.each([
+		new Error("Stream ended without a finish reason"),
+		"Stream ended without a finish reason",
+		new Error("provider failed", {
+			cause: new Error("Stream ended without a finish reason"),
+		}),
+	])("retries a statusless incomplete stream: %s", (error) => {
+		expect(isRetryableProviderError(error)).toBe(true);
+	});
+
+	it.each([
+		400, 401, 403, 404,
+	])("does not override HTTP %s for incomplete streams", (statusCode) => {
+		const message = "Stream ended without a finish reason";
+		expect(isRetryableProviderError({ statusCode, message })).toBe(false);
+		expect(isRetryableProviderError(apiCallError(statusCode, message))).toBe(
+			false,
+		);
+	});
+
 	describe("not retryable", () => {
 		it("does not retry a credential rejection (401)", () => {
 			expect(
