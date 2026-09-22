@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
 	inferHydratedChatStatus,
+	resolveAttachedReasoningSelection,
 	resolveCredentialError,
 	resolveCredentialFailureAction,
 	resolveCredentialFailureHint,
@@ -16,6 +17,34 @@ const CLOUD_CONFIG: ChatSessionConfig = {
 	cwd: "",
 	repoUrl: "https://github.com/cline/cline",
 } as ChatSessionConfig;
+
+describe("resolveAttachedReasoningSelection", () => {
+	it("restores the selection an attach response carried", () => {
+		expect(resolveAttachedReasoningSelection(true, "high")).toEqual({
+			thinking: true,
+			reasoningEffort: "high",
+		});
+	});
+
+	it("omits everything when the response carried nothing", () => {
+		expect(resolveAttachedReasoningSelection(undefined, undefined)).toEqual({});
+		expect(resolveAttachedReasoningSelection(undefined, "extreme")).toEqual({});
+	});
+
+	it("keeps thinking off for a session that had it off", () => {
+		expect(resolveAttachedReasoningSelection(false, "high")).toEqual({
+			thinking: false,
+			reasoningEffort: undefined,
+		});
+	});
+
+	it("enables thinking for a bare level", () => {
+		expect(resolveAttachedReasoningSelection(undefined, "medium")).toEqual({
+			thinking: true,
+			reasoningEffort: "medium",
+		});
+	});
+});
 
 describe("resolveCredentialError (cloud)", () => {
 	it("accepts a valid HTTPS GitHub URL for a new session", () => {

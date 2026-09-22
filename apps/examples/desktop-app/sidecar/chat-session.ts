@@ -428,6 +428,40 @@ function readPositiveInteger(value: unknown): number | undefined {
 	return undefined;
 }
 
+/**
+ * The reasoning selection an attach should restore for a session: the live
+ * config while the session is still running, otherwise what the session
+ * recorded when it last ran. A stored level never resurrects reasoning the user
+ * turned off, so `thinking: false` wins over any recorded effort.
+ */
+export function resolveAttachedReasoningSelection(
+	liveConfig: JsonRecord | undefined,
+	persistedMetadata: JsonRecord | undefined,
+): {
+	thinking?: boolean;
+	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+} {
+	const thinking =
+		typeof liveConfig?.thinking === "boolean"
+			? liveConfig.thinking
+			: typeof persistedMetadata?.thinking === "boolean"
+				? persistedMetadata.thinking
+				: undefined;
+	const reasoningEffort =
+		readReasoningEffort(liveConfig?.reasoningEffort) ??
+		readReasoningEffort(persistedMetadata?.reasoningEffort);
+	if (thinking === false) {
+		return { thinking: false };
+	}
+	if (thinking === undefined && reasoningEffort === undefined) {
+		return {};
+	}
+	return {
+		...(thinking === undefined ? {} : { thinking }),
+		...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+	};
+}
+
 type MistakeLimitDecider = (
 	context: ConsecutiveMistakeLimitContext,
 ) => Promise<ConsecutiveMistakeLimitDecision>;
@@ -1160,6 +1194,9 @@ async function handleAttach(
 		workspaceRoot: session.workspaceRoot,
 		prompt: session.prompt,
 		metadata,
+		// Restore the level this session last ran with so reopening a
+		// conversation keeps that conversation's own reasoning setting.
+		...resolveAttachedReasoningSelection(existing?.config, metadata),
 	};
 }
 

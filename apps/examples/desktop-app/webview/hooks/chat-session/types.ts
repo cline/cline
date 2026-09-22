@@ -1,3 +1,4 @@
+import type { ChatSessionConfig } from "@/lib/chat-schema";
 import type { SessionHookEvent } from "@/lib/session-diff";
 
 export type ProcessContext = {
@@ -130,6 +131,12 @@ export type ChatSessionCommandResponse = {
 	sessionId?: string;
 	cwd?: string;
 	workspaceRoot?: string;
+	/**
+	 * Reasoning selection the session last ran with, so re-attaching a
+	 * conversation restores that conversation's own level.
+	 */
+	thinking?: boolean;
+	reasoningEffort?: ChatSessionConfig["reasoningEffort"];
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
