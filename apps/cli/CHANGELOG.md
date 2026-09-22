@@ -2,6 +2,7 @@
 
 ## 3.0.63
 
+- Startup no longer waits on a feature-flag network round trip. The CLI awaited a PostHog poll before the session was ready; flags now refresh in the background, and a concurrent poll no longer reads a stale default while the first request is still in flight
 - Context injected by a hook is no longer mistaken for something you typed. The `prompt_submit` dispatch and the audit logger both fired on injected hook-context messages, which carry the user role but a system display role. Run-start hook control (`cancel` and context injection from `agent_start`/`agent_resume` scripts) remains inert in the CLI pending a deliberate opt-in
 - Compaction now fires on your provider's actual token usage instead of a character estimate. Dense content — disassembly, image dumps, minified sources — tokenizes far denser than the estimate assumed, so a long session could hit the real context ceiling without ever compacting and then get squeezed down to a handful of output tokens per turn. The summarizer also gets a larger output budget, since a model that reasons by default could spend a tight one thinking and return no summary at all
 - Subagents now run their tool calls concurrently, instead of the first child finishing before the next starts. Approvals and hooks still run in order, and the parent still waits for every result before its next turn
