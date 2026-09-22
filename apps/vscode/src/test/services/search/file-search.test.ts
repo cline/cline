@@ -214,6 +214,42 @@ describe("File Search", () => {
 			should(err.stderr).match(/No such file or directory/)
 		})
 
+		it("normalizes Windows separators in ripgrep results to forward slashes", async () => {
+			// On Windows `path.relative` yields `cline\evals\README.md`; the webview,
+			// the open-tabs dedupe and stored mentions all assume `/` (CLINE-731).
+			const mockStdout = new Readable({
+				read() {
+					this.push("/workspace/cline\\evals\\README.md\n")
+					this.push(null)
+				},
+			})
+			const mockStderr = new Readable({
+				read() {
+					this.push(null)
+				},
+			})
+			spawnStub.returns({
+				stdout: mockStdout,
+				stderr: mockStderr,
+				on: function (event: string, callback: Function) {
+					if (event === "exit") {
+						setImmediate(() => callback(0))
+					}
+					return this
+				},
+				kill: () => {},
+			} as unknown as actualChildProcess.ChildProcess)
+
+			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
+
+			const paths = result.map((item) => item.path)
+			should(paths.some((p) => p.includes("\\"))).be.false()
+			should(paths).containEql("cline/evals/README.md")
+			should(paths).containEql("cline/evals")
+			should(paths).containEql("cline")
+			should(result.find((item) => item.path === "cline/evals/README.md")).have.property("label", "README.md")
+		})
+
 		it("falls back to a system ripgrep when the bundled binary path is missing", async () => {
 			setVscodeHostProviderMock({
 				getBinaryLocation: async () => "/missing/rg",
@@ -248,7 +284,8 @@ describe("File Search", () => {
 			} as unknown as actualChildProcess.ChildProcess)
 
 			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
-			const expectedPath = process.platform === "win32" ? "src\\main.ts" : "src/main.ts"
+			// Separators are normalized to "/" on every platform, Windows included.
+			const expectedPath = "src/main.ts"
 
 			should(spawnStub.firstCall.args[0]).equal(process.platform === "win32" ? "rg.exe" : "/usr/bin/rg")
 			should(result).containDeep([{ path: expectedPath, type: "file", label: "main.ts" }])
@@ -301,6 +338,36 @@ describe("File Search", () => {
 			should(srcEntries[0]).have.properties({ path: "src", type: "folder" })
 		})
 
+		it("normalizes Windows separators in host-index results and dedupes them against open tabs", async () => {
+			// The JetBrains host relativizes with java.nio Path, so on Windows every
+			// nested item arrives as `cline\sdk\README.md`. The webview then shows
+			// only the label for such paths (every README rendered as "/README.md"),
+			// and the open-tabs dedupe, which already normalizes to `/`, misses them.
+			const hostResponse = SearchWorkspaceItemsResponse.create({
+				items: [
+					{ path: "cline\\sdk\\README.md", type: SearchWorkspaceItemsRequest_SearchItemType.FILE, label: "README.md" },
+					{
+						path: "cline\\evals\\README.md",
+						type: SearchWorkspaceItemsRequest_SearchItemType.FILE,
+						label: "README.md",
+					},
+					{ path: "cline\\evals", type: SearchWorkspaceItemsRequest_SearchItemType.FOLDER, label: "evals" },
+				],
+			})
+			sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").resolves(hostResponse)
+			sandbox.stub(HostProvider.window, "getOpenTabs").resolves({ paths: ["/workspace/cline/sdk/README.md"] } as any)
+
+			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
+
+			should(result.source).equal("host_index")
+			const paths = result.items.map((item) => item.path)
+			should(paths.some((p) => p.includes("\\"))).be.false()
+			should(paths.filter((p) => p === "cline/sdk/README.md")).have.length(1)
+			should(paths).containEql("cline/evals/README.md")
+			should(paths.filter((p) => p === "cline/evals")).have.length(1)
+			should(paths).containEql("cline")
+		})
+
 		it("continues search when the host cannot return open tabs", async () => {
 			sandbox.stub(HostProvider.window, "getOpenTabs").rejects(new Error("getOpenTabs unavailable"))
 			sandbox.stub(HostProvider.workspace, "searchWorkspaceItems").rejects({ code: 12, message: "not implemented" })
@@ -330,7 +397,8 @@ describe("File Search", () => {
 			} as unknown as actualChildProcess.ChildProcess)
 
 			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 20)
-			const expectedPath = process.platform === "win32" ? "src\\main.ts" : "src/main.ts"
+			// Separators are normalized to "/" on every platform, Windows included.
+			const expectedPath = "src/main.ts"
 
 			should(result.source).equal("ripgrep")
 			should(result.items).containDeep([{ path: expectedPath, type: "file", label: "main.ts" }])
