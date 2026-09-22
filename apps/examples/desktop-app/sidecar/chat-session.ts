@@ -10,6 +10,7 @@ import {
 	createUserInstructionConfigService,
 	findCheckpointForRun,
 	getCoreBuiltinToolCatalog,
+	isSessionNotFoundError,
 	isSkillsToolAvailable,
 	ProviderSettingsManager,
 	projectSessionCompactionState,
@@ -640,6 +641,9 @@ function buildCoreSessionConfig(
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
 		checkpoint: { enabled: true },
+		// Core auto-compaction is opt-in; without this the 90% trigger never
+		// runs and long desktop sessions overflow the context window.
+		compaction: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 		extensionContext: createDesktopExtensionContext(telemetryUser),
@@ -990,7 +994,14 @@ async function handleStart(
 			? config.initialMessages
 			: requestedSessionId
 				? binding.kind === "ssh"
-					? await manager.readMessages(requestedSessionId)
+					? await manager
+							.readMessages(requestedSessionId)
+							.catch((error: unknown) => {
+								// The desktop supplies an ID before a new remote session exists.
+								// Only this startup read may treat missing history as empty.
+								if (isSessionNotFoundError(error)) return undefined;
+								throw error;
+							})
 					: (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	// Resolved once start() returns; the mistake-limit prompt reads it lazily.

@@ -71,6 +71,33 @@ Owns model/provider runtime concerns:
 Design rule:
 
 - provider-specific behavior should be isolated here, not spread across `core` or apps.
+- AI SDK response `X-Request-ID` metadata travels on the existing model `finish`
+  event into `afterModel.requestId`. It identifies the final surfaced step, not
+  every hidden HTTP retry. Hosts can use existing model hooks for observations
+  without wrapping transports or adding a request callback API.
+  VS Code Git observations belong to the open conversation, not the SDK runtime:
+  an `ended` event may leave the chat open after a failure. Startup cleanup handles
+  unopened observers; explicit host stop/disposal closes both normal and restored
+  observation windows. The observer binds to the actual ID returned by Core's
+  start/restore result. VS Code starts interactively without a prompt and sends
+  prompts only after that result. Start and restore explicitly prepare their own
+  input and observer, so overlapping starts need no async-context bridge.
+  Telemetry never supplies or changes `config.sessionId`: doing so would turn a
+  new session into a restart. `afterModel` starts a bounded background Git read
+  and emits with the triggering response's request ID when available, without
+  waiting before tools execute. Each observer skips captures while a read is
+  already in flight, avoiding queues and out-of-order emissions.
+  Tools may change files during the read: this is state observed after response R,
+  not an atomic pre-tool snapshot or proof of changes caused by R.
+  Each window
+  emits its first snapshot, then only changes to Git fields or workspace-root count.
+  There are no opening, yield, or idle emissions or Git-extension watchers. Changes
+  after the final model call require a later call to be observed. Consumers must
+  carry observations forward within that window rather than expect an event per
+  request. Repeated edits while already dirty need not change the recorded flags.
+  Status limits preserve cheap identity reads as `partial`, without dirty flags.
+  The field-level contract is `GitSnapshotProperties` in
+  `packages/core/src/services/telemetry/core-events.ts`.
 
 ### `@cline/agents`
 
@@ -981,6 +1008,8 @@ Workspace and session reads route by environment identity. System-prompt
 bootstrap happens on the remote host when the caller omits a prompt, so local
 filesystem metadata is not embedded in remote sessions. Login-shell PATH
 resolution also lives in core and is reused by the helper and desktop startup.
+The primary shell probe allows 5 seconds for slow profiles; a fallback shell
+gets half that budget, bounding the combined wait to 7.5 seconds.
 
 ### Configured subagent approvals
 

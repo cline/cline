@@ -68,6 +68,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		CREATED: "task.created",
 		RESTARTED: "task.restarted",
 		COMPLETED: "task.completed",
+		GIT_SNAPSHOT: "task.git_snapshot",
 		CONVERSATION_TURN: "task.conversation_turn",
 		TOKEN_USAGE: "task.tokens",
 		MODE_SWITCH: "task.mode",
@@ -94,6 +95,7 @@ export const CORE_TELEMETRY_EVENTS = {
 	},
 	HOOKS: {
 		DISCOVERY_COMPLETED: "hooks.discovery_completed",
+		DETACHED_RUNTIME: "hooks.detached_runtime",
 	},
 	WORKSPACE: {
 		INITIALIZED: "workspace.initialized",
@@ -133,6 +135,53 @@ export {
 	type CaptureAgentUnexpectedReasoningTokensInput,
 	type CaptureTaskLifecycleEventInput,
 };
+
+export interface GitSnapshotProperties {
+	schema_version: 1;
+	/** Actual Core session ID; ulid duplicates it for existing export consumers. */
+	sessionId: string;
+	ulid: string;
+	providerId: string;
+	workspace_id: string;
+	/** VS Code workspace-folder count at observation start, not Git repo count; 0 with no folders, even outside Git. */
+	workspace_root_count: number;
+	observation_window_id: string;
+	observation_sequence: number;
+	/** ISO observation-start time, after the model response. Git reads are not atomic. */
+	observed_at: string;
+	/** Background observation triggered by this response; tools may execute during the read. */
+	boundary: "model_call";
+	runId?: string;
+	iteration?: number;
+	agentId?: string;
+	/** Surfaced response's backend ID, when available; never synthesized or inherited from an earlier request. */
+	request_id?: string;
+	request_id_status: "present" | "missing";
+	git: {
+		/** partial: status hit its timeout/output cap but separate reads recovered HEAD and/or branch. */
+		state: "ok" | "unborn" | "non_git" | "unavailable" | "partial";
+		head_sha?: string;
+		branch?: string;
+		/** Any staged/unstaged/untracked changes. All four flags are absent for partial/non_git/unavailable, not false. */
+		dirty?: boolean;
+		/** Index changes, including unmerged entries; does not imply commit readiness. */
+		staged?: boolean;
+		/** Worktree changes, including unmerged entries. */
+		unstaged?: boolean;
+		/** Non-ignored untracked files. */
+		untracked?: boolean;
+		remote_url?: string;
+		remote_state?: "ok" | "none" | "unsupported" | "unavailable";
+	};
+}
+
+/** Ordinary telemetry: use a consent-aware service, never captureRequired. */
+export function captureGitSnapshot(
+	telemetry: ITelemetryService | undefined,
+	properties: GitSnapshotProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT, { ...properties });
+}
 
 export interface WorkspaceInitializedProperties {
 	root_count: number;
@@ -751,6 +800,32 @@ export function captureSubagentExecution(
 			timestamp: new Date().toISOString(),
 		},
 	);
+}
+
+/**
+ * Records how long a fire-and-forget hook ran. Detached hooks are never
+ * awaited, so their runtime is otherwise invisible — this is the evidence for
+ * whether any of them could safely be made blocking. `exited: false` marks a
+ * censored observation: the hook was still running when the observation
+ * window closed, so treat `durationMs` as a lower bound and count these
+ * separately rather than averaging them in.
+ */
+export function captureDetachedHookRuntime(
+	telemetry: ITelemetryService | undefined,
+	event: {
+		hookName: string;
+		durationMs: number;
+		exitCode: number | null;
+		exited: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.HOOKS.DETACHED_RUNTIME, {
+		hookName: event.hookName,
+		durationMs: event.durationMs,
+		exitCode: event.exitCode ?? undefined,
+		exited: event.exited,
+		timestamp: new Date().toISOString(),
+	});
 }
 
 export function captureHookDiscovery(

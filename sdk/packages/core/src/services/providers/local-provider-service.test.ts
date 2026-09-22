@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	getCachedClineRecommendedModels,
+	idSlug,
 	resetClineRecommendedModelsCacheForTests,
 } from "../llms/cline-recommended-models";
 import {
@@ -1919,18 +1920,22 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const modelList =
 			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
-		const stampedIds = modelList
+		// Compare by slug: the bundled feed can spell a vendor differently from
+		// the catalog ("spacexai/grok-4.7" vs "x-ai/grok-4.7"), in which case the
+		// matcher stamps the catalog's id through its slug fallback.
+		const stampedSlugs = modelList
 			.filter((model) => model.featured?.tier === "recommended")
-			.map((model) => model.id);
-		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
-			.map((model) => model.id)
-			.filter((id) => modelList.some((model) => model.id === id));
+			.map((model) => idSlug(model.id));
+		const modelSlugs = new Set(modelList.map((model) => idSlug(model.id)));
+		const expectedSlugs = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => idSlug(model.id))
+			.filter((slug) => modelSlugs.has(slug));
 
 		// A cold boot must still paint tiered sections: the catalog stamps
 		// synchronously from the bundled fallback instead of waiting on (or
 		// triggering) a feed fetch.
-		expect(stampedIds.length).toBeGreaterThan(0);
-		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(stampedSlugs.length).toBeGreaterThan(0);
+		expect(new Set(stampedSlugs)).toEqual(new Set(expectedSlugs));
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
