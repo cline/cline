@@ -1,4 +1,18 @@
 
+## Cloud sessions (experimental)
+
+`CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.
+The API handles REST requests; the controller handles remote Hub connections,
+session lifecycle, transcript reconciliation, and approvals. Hosts provide API
+URLs and a fresh-token callback; feature gating and account selection stay in the
+host. Importing this subpath does not start a local agent.
+
+Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
+to open a session, and `send` for a follow-up. Attaching a provisioning or failed
+session returns its receipt without connecting. `detach` closes this viewer, not
+the remote task. Call `dispose` when the host shuts down. This foundation does
+not include local-to-cloud handoff.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH
