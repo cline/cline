@@ -17,6 +17,10 @@ export {
 } from "./agent-command-output.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
+	AgentImageLightboxContent,
+	type AgentImageLightboxContentProps,
+} from "./agent-image-lightbox.js";
+export {
 	AgentPromptQueue,
 	type AgentPromptQueueItem,
 	type AgentPromptQueueProps,

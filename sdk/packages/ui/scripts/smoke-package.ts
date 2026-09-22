@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
 	AgentCommandOutput,
+	AgentImageLightboxContent,
 	AgentAskQuestion,
 	AgentApprovalCard,
 	AttachmentDropZone,
@@ -67,6 +68,7 @@ if (typeof ToolFileDiff !== "function") {
 }
 if (
 	!AgentCommandOutput ||
+	!AgentImageLightboxContent ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||

@@ -70,7 +70,9 @@ whether it belongs here instead.
 
 `AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
 Pass ANSI-rendered or normalized output as children; transport and output limits
-stay in the host. Import it from `@cline/ui` with `@cline/ui/components.css`.
+stay in the host. `AgentImageLightboxContent` shares the expanded image, backdrop
+close action, and close control; hosts retain their dialog, focus, keyboard, and
+image navigation. Import both from `@cline/ui` with `@cline/ui/components.css`.
 
 ## Current status
 
