@@ -155,9 +155,10 @@ content-addressed, branch-matched, self-contained Hub helper under
 `~/.cline/remote/`, binds the Hub to remote loopback, and forwards it to a
 random local loopback port. Linux x64 and arm64 helpers are bundled by
 `bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
-supported. macOS SSH targets need a locally built helper passed through
-`CLINE_REMOTE_HELPER_BINARY` until the bundled helpers are codesigned for
-notarization. The helper includes its own runtime and is UPX-compressed at
+supported. A macOS desktop reaches macOS SSH hosts with its own signed
+universal sidecar, which runs the same helper entrypoint; Windows and Linux
+desktops need a locally built darwin helper passed through
+`CLINE_REMOTE_HELPER_BINARY`. The helper includes its own runtime and is UPX-compressed at
 build time (about 27 MB instead of 115 MB per helper; install `upx` locally to
 match the packaged size). It is copied once per matching desktop build and cached, with no
 `apt`, `npm`, root access,

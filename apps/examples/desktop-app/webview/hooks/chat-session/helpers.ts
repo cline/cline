@@ -15,6 +15,7 @@ import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
 type RpcMessageLike = {
+	metadata?: { displayOnly?: boolean };
 	role?: string;
 	content?: unknown;
 };
@@ -79,7 +80,10 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
-		if (message?.role !== "assistant") {
+		if (
+			message?.role !== "assistant" ||
+			message.metadata?.displayOnly === true
+		) {
 			continue;
 		}
 		const reasoningParts: string[] = [];
@@ -313,14 +317,16 @@ export function resolveCredentialFailureAction(
 	return { label: "Open API providers", target: "models" };
 }
 
-/** Message meta that makes the chat render the credential fix action. */
+/** Keep auth facts for error rendering even when there is no in-app fix action. */
 export function credentialFailureMeta(
 	providerId: string,
 	auth?: ProviderAuthInfo,
 ): ChatMessage["meta"] | undefined {
-	return resolveCredentialFailureAction(providerId, auth)
-		? { reason: "credentials", providerId, providerAuth: auth }
-		: undefined;
+	return {
+		reason: "credentials",
+		providerId,
+		providerAuth: matchingProviderAuth(providerId, auth),
+	};
 }
 
 function mapHistoryStatusToChatStatus(

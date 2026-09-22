@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { SessionNotFoundError } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
@@ -25,6 +26,7 @@ import {
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import {
+	getEnvironmentContext,
 	handleCoreSessionEvent,
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
@@ -120,6 +122,100 @@ function localSessionManager(ctx: SidecarContext): Record<string, unknown> {
 		unknown
 	>;
 }
+
+describe("starting SSH sessions", () => {
+	const sessionId = "session-new-ssh";
+	const environmentId = "ssh-test";
+	const transcript = [{ role: "user" as const, content: "earlier prompt" }];
+
+	function setup() {
+		const readMessages = vi.fn(async () => transcript);
+		const start = vi.fn(async (_input: unknown) => ({
+			sessionId,
+			manifest: { cwd: "/remote/project", workspace_root: "/remote/project" },
+		}));
+		const ctx = {
+			liveSessions: new Map(),
+			sessionEnvironmentIds: new Map(),
+			runtimeBindings: new Map([
+				[
+					environmentId,
+					{
+						environmentId,
+						kind: "ssh",
+						sessionManager: { readMessages, start },
+					},
+				],
+			]),
+		} as unknown as SidecarContext;
+		const config = { sessionId, environmentId };
+		return {
+			ctx: getEnvironmentContext(ctx, environmentId),
+			config,
+			readMessages,
+			start,
+		};
+	}
+
+	it.each([
+		new SessionNotFoundError(sessionId),
+		Object.assign(new Error(`Unknown session: ${sessionId}`), {
+			code: "session_not_found",
+		}),
+	])("creates a fresh remote session when history is missing (%s)", async (error) => {
+		const { ctx, config, readMessages, start } = setup();
+		readMessages.mockRejectedValueOnce(error);
+
+		await expect(
+			handleChatSessionCommand(ctx, { action: "start", config }),
+		).resolves.toMatchObject({ sessionId, environmentId });
+
+		expect(readMessages).toHaveBeenCalledWith(sessionId);
+		expect(start).toHaveBeenCalledOnce();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({ sessionId }),
+			}),
+		);
+		expect(start.mock.calls[0]?.[0]).not.toHaveProperty("initialMessages");
+		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual([]);
+		expect(ctx.sessionEnvironmentIds.get(sessionId)).toBe(environmentId);
+	});
+
+	it("preserves existing remote history when starting a session", async () => {
+		const { ctx, config, start } = setup();
+		await handleChatSessionCommand(ctx, { action: "start", config });
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: transcript }),
+		);
+		expect(ctx.liveSessions.get(sessionId)?.messages).toEqual(transcript);
+	});
+
+	it("propagates other read failures without creating a session", async () => {
+		const { ctx, config, readMessages, start } = setup();
+		const error = Object.assign(new Error("Hub disconnected"), {
+			code: "hub_command_timeout",
+		});
+		readMessages.mockRejectedValueOnce(error);
+		await expect(
+			handleChatSessionCommand(ctx, { action: "start", config }),
+		).rejects.toBe(error);
+		expect(start).not.toHaveBeenCalled();
+		expect(ctx.liveSessions.size).toBe(0);
+	});
+
+	it("uses explicit initial messages without reading remote history", async () => {
+		const { ctx, config, readMessages, start } = setup();
+		await handleChatSessionCommand(ctx, {
+			action: "start",
+			config: { ...config, initialMessages: transcript },
+		});
+		expect(readMessages).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: transcript }),
+		);
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -251,6 +347,10 @@ describe("pathless session starts", () => {
 				expect(input.config).not.toHaveProperty("workspaceRoot");
 				expect(input.config).not.toHaveProperty("enableSpawnAgent");
 				expect(input.config).not.toHaveProperty("enableAgentTeams");
+				expect(input.config).toMatchObject({
+					checkpoint: { enabled: true },
+					compaction: { enabled: true },
+				});
 				expect(input.localRuntime?.extensionContext?.client).toMatchObject({
 					name: "cline-desktop",
 					platform: "Cline Desktop",
