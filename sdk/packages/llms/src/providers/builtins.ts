@@ -848,6 +848,23 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.cerebras.ai/v1" },
 	},
 	{
+		// yolo-auto is a flat-rate OpenAI-compatible gateway whose model catalog
+		// rotates server-side. Deliberately no curated catalog: the model list is
+		// discovered live from `modelsSourceUrl` (GET /v1/models). The only
+		// hardcoded id is the stable `yolo` alias (defaultModelId), which survives
+		// model swaps; everything else, including `yolo-small`, is discovered.
+		id: "yolo-auto",
+		name: "Yolo-Auto",
+		description: "Flat-rate OpenAI-compatible gateway for coding agents",
+		family: "openai-compatible",
+		capabilities: ["reasoning", "tools"],
+		defaultModelId: "yolo",
+		apiKeyEnv: ["YOLO_AUTO_API_KEY"],
+		modelsSourceUrl: "https://yolo-auto.com/v1/models",
+		docsUrl: "https://yolo-auto.com/docs",
+		defaults: { baseUrl: "https://yolo-auto.com/v1" },
+	},
+	{
 		id: "sambanova",
 		name: "SambaNova",
 		description: "High-performance AI inference",

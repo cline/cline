@@ -80,6 +80,7 @@ const providerConfigStateKeys: Record<ProviderSettingsPatchKey, Partial<Record<s
 		wandb: "wandbApiKey",
 		oca: "ocaApiKey",
 		cline: "clineApiKey",
+		"yolo-auto": "yoloAutoApiKey",
 	},
 	baseUrl: {
 		anthropic: "anthropicBaseUrl",
