@@ -2,8 +2,10 @@
 ## Shared agent review UI
 
 `@cline/ui` exports presentation-only components for showing a session's changed
-files and pull-request status. Import `@cline/ui/components.css` with the root
-components entry point:
+files and pull-request status. Configure Tailwind v4 and a token entry point before
+importing `@cline/ui/components.css`, following the
+[complete styling setup](./packages/ui/ADOPTION.md#option-2-tailwind-mappings-without-base-styles).
+Then import the components from the package root:
 
 ```tsx
 import {
@@ -11,7 +13,6 @@ import {
   AgentChangesPanel,
   AgentPullRequestBar,
 } from "@cline/ui";
-import "@cline/ui/components.css";
 ```
 
 `AgentChangesPanel` owns the Changes header, count, close action, empty state,
