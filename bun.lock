@@ -165,7 +165,7 @@
     },
     "apps/examples/desktop-app": {
       "name": "@cline/code",
-      "version": "0.0.28",
+      "version": "0.0.33",
       "dependencies": {
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
@@ -359,7 +359,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "4.1.19",
+      "version": "4.1.20",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@bufbuild/protobuf": "^2.2.5",
@@ -752,7 +752,7 @@
     },
     "sdk/packages/ui": {
       "name": "@cline/ui",
-      "version": "0.2.0-next.8",
+      "version": "0.2.0-next.10",
       "dependencies": {
         "@cline/shared": "workspace:*",
         "@radix-ui/react-slot": "1.2.4",
@@ -811,6 +811,7 @@
   "patchedDependencies": {
     "@opentui-ui/dialog@0.1.2": "patches/@opentui-ui%2Fdialog@0.1.2.patch",
     "ollama-ai-provider-v2@4.0.1": "patches/ollama-ai-provider-v2@4.0.1.patch",
+    "@opencode-ai/sdk@1.18.23": "patches/@opencode-ai%2Fsdk@1.18.23.patch",
   },
   "overrides": {
     "@opentui/core": "0.4.3",
