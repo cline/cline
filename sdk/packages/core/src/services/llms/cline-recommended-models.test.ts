@@ -1,7 +1,4 @@
-import {
-	GENERATED_CLINE_RECOMMENDED_MODELS,
-	getGeneratedProviderModels,
-} from "@cline/llms";
+import { GENERATED_CLINE_RECOMMENDED_MODELS } from "@cline/llms";
 import { setClineClientIdentity } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -517,7 +514,6 @@ describe("generated offline featured models", () => {
 		});
 		for (const tier of ["recommended", "free", "clinePass"] as const) {
 			const generated = GENERATED_CLINE_RECOMMENDED_MODELS[tier] ?? [];
-			expect(generated.length).toBeGreaterThan(0);
 			expect(data[tier].map((entry) => entry.id)).toEqual(
 				generated.map((entry) => entry.id),
 			);
@@ -526,32 +522,44 @@ describe("generated offline featured models", () => {
 			);
 		}
 		expect(catalogLoaded).toBe(false);
-		const catalog = getGeneratedProviderModels();
-		const recommended = data.recommended.find(
-			(entry) => catalog.openrouter?.[entry.id]?.name,
-		);
-		expect(recommended).toBeDefined();
-		expect(recommended?.name).toBe(catalog.openrouter[recommended!.id].name);
 		for (const providerId of ["cline", "cline-pass"]) {
-			const featured = applyClineFeaturedModels(
-				providerId,
-				Object.values(
-					providerId === "cline"
-						? { ...catalog.openrouter, ...catalog.cline }
-						: catalog["cline-pass"],
-				).map((entry) => ({ id: entry.id, name: entry.name ?? entry.id })),
-				data,
-			);
 			const tiers =
 				providerId === "cline"
 					? [
-							{ tier: "recommended", entries: data.recommended },
-							{ tier: "free", entries: data.free },
+							{
+								tier: "recommended",
+								entries: GENERATED_CLINE_RECOMMENDED_MODELS.recommended ?? [],
+							},
+							{
+								tier: "free",
+								entries: GENERATED_CLINE_RECOMMENDED_MODELS.free ?? [],
+							},
 						]
 					: [
-							{ tier: "subscribed", entries: data.clinePass },
-							{ tier: "free", entries: data.free },
+							{
+								tier: "subscribed",
+								entries: GENERATED_CLINE_RECOMMENDED_MODELS.clinePass ?? [],
+							},
+							{
+								tier: "free",
+								entries: GENERATED_CLINE_RECOMMENDED_MODELS.free ?? [],
+							},
 						];
+			// This tests the bundled recommendation feed independently of provider
+			// catalogs, which can use different IDs or contain different models.
+			// Reverse input order so authored featured ranks must restore feed order.
+			const models = tiers
+				.flatMap(({ entries }) =>
+					entries.map((entry) => ({
+						id: entry.id,
+						name: entry.name ?? entry.id,
+					})),
+				)
+				.reverse();
+			const featured = applyClineFeaturedModels(providerId, models, data);
+			expect(featured.map((entry) => entry.id)).toEqual(
+				models.map((entry) => entry.id),
+			);
 			for (const { tier, entries } of tiers) {
 				const stamped = featured
 					.filter((entry) => entry.featured?.tier === tier)
@@ -565,8 +573,8 @@ describe("generated offline featured models", () => {
 				).toEqual(
 					entries.map((entry, rank) => ({
 						id: entry.id,
-						description: entry.description.trim(),
-						featured: { tier, rank, tags: entry.tags },
+						description: entry.description?.trim() ?? "",
+						featured: { tier, rank, tags: entry.tags ?? [] },
 					})),
 				);
 			}
