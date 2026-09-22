@@ -101,7 +101,8 @@ const compressRemoteHelper = async (outfile: string): Promise<void> => {
 // command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
 // macOS helpers are deliberately not bundled: they are Mach-O files under
 // Contents/Resources, which Tauri does not codesign, and any unsigned Mach-O
-// in the bundle fails notarization. Shipping them needs a signing step first.
+// in the bundle fails notarization. Mac remotes are served from a macOS
+// desktop by its own signed sidecar instead (sidecar/remote-helper.ts).
 //
 // On a Windows host, Bun fails to extract the downloaded Linux runtime these
 // cross-compiles need ("Failed to extract executable for 'bun-linux-x64-…'").

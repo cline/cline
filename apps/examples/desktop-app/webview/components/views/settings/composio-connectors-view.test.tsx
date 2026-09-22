@@ -19,16 +19,12 @@ vi.mock("@/lib/use-composio-connections", () => ({
 	useComposioConnections: () => ({
 		configured: true,
 		status: { integrations: mocks.integrations },
-		statusBySlug: new Map([
-			[
-				"gmail",
-				{
-					toolkit: "gmail",
-					status: "connected",
-					toolNames: ["GMAIL_SEND_EMAIL"],
-				},
-			],
-		]),
+		statusBySlug: new Map(
+			mocks.integrations.map((integration) => [
+				integration.toolkit,
+				integration,
+			]),
+		),
 		connect: mocks.connect,
 		disconnect: mocks.disconnect,
 		cancelConnect: mocks.cancel,
@@ -42,7 +38,16 @@ let container: HTMLDivElement;
 beforeEach(() => {
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
 	vi.clearAllMocks();
-	mocks.integrations = [];
+	mocks.integrations = [
+		{
+			toolkit: "gmail",
+			name: "Gmail",
+			description: "Email",
+			recommended: true,
+			status: "connected",
+			toolNames: ["GMAIL_SEND_EMAIL"],
+		},
+	];
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -133,6 +138,48 @@ describe("Customize connector catalog", () => {
 });
 
 describe("installed connectors", () => {
+	it("shows all 47 installed tools without inventing an unknown catalog total", async () => {
+		const toolNames = Array.from(
+			{ length: 47 },
+			(_, i) => `Calendar tool ${i}`,
+		);
+		mocks.integrations = [
+			{
+				toolkit: "googlecalendar",
+				name: "Google Calendar",
+				description: "Events",
+				recommended: true,
+				status: "connected",
+				toolNames,
+			},
+		];
+		await act(async () =>
+			root.render(<ComposioConnectorsView variant="installed" />),
+		);
+		await act(async () => button("View")?.click());
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog?.textContent).toContain("47 available in new sessions");
+		expect(dialog?.textContent).not.toContain("47/47");
+		expect(
+			[...(dialog?.querySelectorAll("li") ?? [])].map(
+				(item) => item.textContent,
+			),
+		).toEqual(toolNames);
+		expect(mocks.catalog).not.toHaveBeenCalled();
+	});
+
+	it("uses the real catalog total when it is available", async () => {
+		mocks.catalog.mockResolvedValue({
+			configured: true,
+			toolkits: [{ slug: "gmail", name: "Gmail", toolsCount: 47 }],
+		});
+		await render();
+		await act(async () => button("View")?.click());
+		expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+			"1/47 available in new sessions",
+		);
+	});
+
 	it("shows only the Marketplace button when no connectors are installed", async () => {
 		mocks.integrations = [
 			{
