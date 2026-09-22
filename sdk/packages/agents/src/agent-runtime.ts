@@ -880,6 +880,12 @@ export class AgentRuntime {
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
 					if (await this.recoverFromIncompleteMaxTokensTurn()) {
+						await this.emit({
+							type: "turn-finished",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCallCount: 0,
+						});
 						continue;
 					}
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);

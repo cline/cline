@@ -3,6 +3,7 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
+	AgentRuntimeEvent,
 	AgentRuntimePlugin,
 	AgentTool,
 	ITelemetryService,
@@ -437,24 +438,55 @@ describe("AgentRuntime", () => {
 		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
 	});
 
-	it("recovers from an output-token-limit cut-off by nudging for concision", async () => {
+	it.each<{ content: string; events: AgentModelEvent[] }>([
+		{
+			content: "reasoning",
+			events: [{ type: "reasoning-delta", text: "thinking..." }],
+		},
+		{
+			content: "text",
+			events: [{ type: "text-delta", text: "unfinished response..." }],
+		},
+		{ content: "empty", events: [] },
+	])("recovers from an output-token-limit cut-off with $content content by nudging for concision", async ({
+		events,
+	}) => {
 		const model = new ScriptedModel([
-			() => [
-				{ type: "reasoning-delta", text: "thinking..." },
-				{ type: "finish", reason: "max-tokens" },
-			],
+			() => [...events, { type: "finish", reason: "max-tokens" }],
 			() => [
 				{ type: "text-delta", text: "done concisely" },
 				{ type: "finish", reason: "stop" },
 			],
 		]);
 		const runtime = new AgentRuntime({ model });
+		const turns: AgentRuntimeEvent[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "turn-started" || event.type === "turn-finished") {
+				turns.push(event);
+			}
+		});
 
 		const result = await runtime.run("Hi");
 
 		expect(result.status).toBe("completed");
 		expect(result.outputText).toBe("done concisely");
 		expect(model.requests).toHaveLength(2);
+		expect(turns).toMatchObject([
+			{ type: "turn-started", iteration: 1, snapshot: { iteration: 1 } },
+			{
+				type: "turn-finished",
+				iteration: 1,
+				toolCallCount: 0,
+				snapshot: { iteration: 1 },
+			},
+			{ type: "turn-started", iteration: 2, snapshot: { iteration: 2 } },
+			{
+				type: "turn-finished",
+				iteration: 2,
+				toolCallCount: 0,
+				snapshot: { iteration: 2 },
+			},
+		]);
 		// The retried request carries a user nudge about the output limit.
 		const secondRequest = model.requests[1];
 		const nudge = secondRequest?.messages.at(-1);
