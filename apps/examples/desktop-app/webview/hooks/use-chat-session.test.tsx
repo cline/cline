@@ -5238,7 +5238,10 @@ describe("useChatSession", () => {
 		expect(errorMessage?.content).not.toContain("Unauthorized");
 	});
 
-	it("keeps the failure message when post-send hydration replaces the transcript", async () => {
+	it.each([
+		false,
+		true,
+	])("keeps one failure after hydration (persisted: %s)", async (persistedError) => {
 		// Real race: the runtime queues the first prompt of a fresh session, the
 		// turn fails fast (chat_done error appends the failure bubble), and only
 		// then the send RPC resolves — whose canonical-history hydration used to
@@ -5258,6 +5261,17 @@ describe("useChatSession", () => {
 							content: "First prompt",
 							createdAt: Date.now(),
 						},
+						...(persistedError
+							? [
+									{
+										id: "hist_error_1",
+										sessionId: args?.sessionId,
+										role: "error",
+										content: "API key expired.",
+										createdAt: Date.now() + 1,
+									},
+								]
+							: []),
 					];
 				}
 				if (command === "chat_session_command") {
@@ -5310,7 +5324,7 @@ describe("useChatSession", () => {
 		});
 
 		// Canonical hydration replaced the transcript with persisted messages,
-		// which never contain UI-only error bubbles — the failure explanation
+		// which may already contain the saved error — the failure explanation
 		// must survive.
 		const userMessages = current.messages.filter(
 			(message) => message.role === "user",
@@ -5320,7 +5334,35 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		expect(errorMessages).toHaveLength(1);
-		expect(errorMessages[0]?.content).toContain("The run failed");
+		expect(errorMessages[0]?.content).toContain(
+			persistedError ? "API key expired" : "The run failed",
+		);
+		if (persistedError) {
+			const failedSessionId = current.sessionId!;
+			const history = (sessionId: string) => ({
+				sessionId,
+				status: "idle" as const,
+				provider: "openrouter",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-09-10T00:00:00.000Z",
+			});
+			await act(async () => {
+				await current.hydrateSession(history("another-session"));
+			});
+			await act(async () => {
+				await current.hydrateSession(history(failedSessionId));
+			});
+			expect(
+				current.messages.filter((message) => message.role === "error"),
+			).toEqual([
+				expect.objectContaining({
+					content: "API key expired.",
+					sessionId: failedSessionId,
+				}),
+			]);
+		}
 	});
 
 	it("shows one failure bubble when chat_done lands without detail before the send RPC reports the error", async () => {
