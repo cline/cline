@@ -54,6 +54,19 @@ const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
 /**
+ * How many times a turn that ends at the model's output-token limit without a
+ * usable tool call is retried before the run fails. Each retry nudges the model
+ * to be more concise (see MAX_TOKENS_RECOVERY_NUDGE). The counter resets on any
+ * turn that makes progress (produces a tool call), so this bounds only a *run*
+ * of consecutive cut-off turns — a single over-long response recovers, while a
+ * model that keeps overflowing still ends rather than looping forever.
+ */
+const MAX_TOKENS_RECOVERY_LIMIT = 3;
+/** Nudge appended after an output-limit cut-off, asking for more concise output. */
+const MAX_TOKENS_RECOVERY_NUDGE =
+	"Your previous response was cut off because it reached the model's output-token limit before finishing. Keep responses concise: take one small step at a time, avoid long explanations, and write large files or command output in smaller chunks across multiple tool calls.";
+
+/**
  * How many times to retry a model turn that failed with a transient,
  * provider-side error (rate limits, 5xx, network hiccups, OpenRouter's
  * generic "Provider returned error"). The initial attempt is not counted, so
@@ -553,6 +566,8 @@ export class AgentRuntime {
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
+	/** Consecutive output-limit cut-offs recovered this run; see MAX_TOKENS_RECOVERY_LIMIT. */
+	private maxTokensRecoveryCount = 0;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private modelSteerController?: AbortController;
@@ -756,6 +771,7 @@ export class AgentRuntime {
 		this.overflowRecoveryAttempted = false;
 		this.state.lastRequestInputTokens = 0;
 		this.pendingHookContexts = [];
+		this.maxTokensRecoveryCount = 0;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -825,7 +841,10 @@ export class AgentRuntime {
 					const hasModelToolActivity =
 						Array.isArray(modelToolActivities) &&
 						modelToolActivities.length > 0;
-					if (!hasModelToolActivity) {
+					// A turn that produced no content because it hit the output-token
+					// limit is not a true empty response: fall through so the message is
+					// kept and the max-tokens recovery branch below can nudge and retry.
+					if (!hasModelToolActivity && finishReason !== "max-tokens") {
 						throw new Error("Model returned empty response");
 					}
 				}
@@ -860,10 +879,23 @@ export class AgentRuntime {
 				}
 
 				if (finishReason === "max-tokens" && toolCalls.length === 0) {
+					if (await this.recoverFromIncompleteMaxTokensTurn()) {
+						await this.emit({
+							type: "turn-finished",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							toolCallCount: 0,
+						});
+						continue;
+					}
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
 					throw new Error(this.state.lastError ?? "Model stream failed");
+				}
+				// A turn that yields tool calls is progress: reset the cut-off streak.
+				if (toolCalls.length > 0) {
+					this.maxTokensRecoveryCount = 0;
 				}
 				this.state.pendingToolCalls = toolCalls.map((part) => part.toolCallId);
 
@@ -1059,6 +1091,34 @@ export class AgentRuntime {
 		for (const hook of this.hooks.afterRun) {
 			await hook({ snapshot: this.snapshot(), result });
 		}
+	}
+
+	/**
+	 * Recover from a turn that ended at the model's output-token limit without a
+	 * usable tool call: nudge the model to be concise and let the caller retry,
+	 * up to MAX_TOKENS_RECOVERY_LIMIT consecutive times. Returns false once the
+	 * limit is exhausted so the run fails instead of looping.
+	 */
+	private async recoverFromIncompleteMaxTokensTurn(): Promise<boolean> {
+		if (this.maxTokensRecoveryCount >= MAX_TOKENS_RECOVERY_LIMIT) {
+			return false;
+		}
+		this.maxTokensRecoveryCount += 1;
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: `output-token limit reached before a tool call — nudging for a more concise response (attempt ${this.maxTokensRecoveryCount}/${MAX_TOKENS_RECOVERY_LIMIT})`,
+			metadata: {
+				kind: "max_tokens_recovery",
+				reason: "max_tokens_recovery",
+				phase: "started",
+				iteration: this.state.iteration,
+				attempt: this.maxTokensRecoveryCount,
+				maxRetries: MAX_TOKENS_RECOVERY_LIMIT,
+			},
+		});
+		await this.addUserReminderMessage(MAX_TOKENS_RECOVERY_NUDGE);
+		return true;
 	}
 
 	/**
