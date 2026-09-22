@@ -42,6 +42,10 @@
 		"./remote/helper": {
 			"types": "./dist/remote/remote-helper.d.ts",
 			"import": "./dist/remote/remote-helper.js"
+		},
+		"./cloud": {
+			"types": "./dist/cloud/index.d.ts",
+			"import": "./dist/cloud/index.js"
 		}
 	},
 	"scripts": {

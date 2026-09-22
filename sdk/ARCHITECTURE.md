@@ -180,6 +180,51 @@ field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+### Cloud execution clients
+
+The experimental `@cline/core/cloud` entrypoint owns REST provisioning and discovery,
+authenticated cloud Hub connections, transcript reconciliation, queues, and server-owned
+approvals. It does not initialize a local runtime or import desktop code. Desktop keeps
+its notification and session-data projection in its sidecar adapter; the CLI keeps its
+feature gate, private creation ledger, text-only input and terminal controls in the CLI.
+
+`CloudSessionController` publishes immutable snapshots and reconciled Hub envelopes.
+Desktop retains first-task creation IDs in its sidecar context across controller resets; resolving or creating the inner task removes the ID, so an established missing task is never recreated by this recovery path.
+Reconnect replaces the transcript baseline before replaying buffered live events; each
+connection has a generation so a detached connection cannot update a later attachment.
+Other-viewer turns refresh the canonical transcript at first progress and completion.
+Prompt acceptance is correlated to the sending request and client, independently of
+the eventual run result; saving a recovery draft never depends on a long run finishing.
+`createHubEventProjector` is the shared envelope-to-`CoreSessionEvent` mapper used by
+`HubRuntimeHost`. Its per-session terminal-event deduplication resets when a snapshot
+replaces the baseline. Capability execution and approval decisions stay with the host.
+
+Cloud REST creation and the first prompt are separate operations. The CLI writes a
+scope-bound recovery record before POST and marks uncertain delivery before send.
+Leaving the terminal retires unsent starts and detaches; Stop explicitly aborts a run.
+Recovery never retries POST or resends a prompt automatically. Authenticated account,
+organization and environment generations invalidate stale continuations. The CLI rollout
+flag must evaluate to true before cloud clients are constructed. Missing or false flags
+leave `/cloud` unavailable; there is no separate local opt-in or environment bypass.
+
+`CloudHandoffCoordinator` shares the desktop stack's Git preflight, source
+fingerprints, model selection, metadata, and transcript verification contracts.
+Hosts provide a local source adapter (read, mutation lock, durable metadata update),
+account-scoped cloud clients, and their existing rollout gate. Prepare and execute
+both check the source; Git and conversation state are checked again around seeding.
+The CLI exposes this through `/cloud` and derives the repository and branch from
+the local conversation. A completed source remains readable but cannot accept
+new turns; a local fork clears handoff metadata.
+
+The controller seeds the remote Hub with `initialMessages`, source mode, relative
+working directory, and approval settings. Completion requires transcript read-back.
+The coordinator persists the outer-create intent before POST, the outer ID before
+seeding, and the seed-dispatch marker before `session.create`. Restart recovery
+uses request identity and source-session identity; an unconfirmed seed may adopt
+an existing matching conversation, but never creates another if discovery is empty.
+Transient failures retain recovery state. Account/environment changes invalidate
+in-flight continuations, and recovery metadata includes the original account scope.
+
 Hub `session.send_input` accepts a nonblank prompt or at least one nonblank image/file
 attachment; requests with neither are rejected before starting a turn.
 NodeHubClient commands may supply a synchronous, local `beforeDispatch` guard.
