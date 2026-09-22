@@ -649,6 +649,67 @@ describe("createInteractiveSessionRuntime", () => {
 		});
 	});
 
+	it("does not force the interactive approval policy on delegated agents", async () => {
+		const manager = makeManager();
+		createRuntimeHooksMock.mockReturnValueOnce({
+			hooks: {},
+			shutdown: vi.fn(async () => {}),
+		});
+		const runtime = await makeRuntime(manager, {
+			resolveToolPolicy: () => ({ autoApprove: false }),
+		});
+
+		await runtime.ensureReady();
+
+		const startInput = manager.start.mock.calls[0]?.[0] as
+			| { config?: Config }
+			| undefined;
+		const beforeTool = startInput?.config?.hooks?.beforeTool;
+		expect(beforeTool).toBeTypeOf("function");
+
+		const snapshot = {
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			status: "running" as const,
+			iteration: 1,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		};
+		const tool = {
+			name: "run_commands",
+			description: "",
+			inputSchema: {},
+			execute: async () => "ok",
+		};
+		const toolCall = {
+			type: "tool-call" as const,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: {},
+		};
+
+		// The root agent has an approval callback, so its policy is enforced.
+		await expect(
+			beforeTool?.({ snapshot, tool, toolCall, input: {} }),
+		).resolves.toEqual({ policy: { autoApprove: false } });
+
+		// A subagent has no approval callback; the parent approved the delegation.
+		await expect(
+			beforeTool?.({
+				snapshot: { ...snapshot, agentId: "child-1", parentAgentId: "agent-1" },
+				tool,
+				toolCall,
+				input: {},
+			}),
+		).resolves.toBeUndefined();
+	});
+
 	it("starts fresh after resetting an initially resumed session", async () => {
 		let startCount = 0;
 		const manager = {

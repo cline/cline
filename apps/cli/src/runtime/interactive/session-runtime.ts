@@ -81,6 +81,12 @@ function withInteractiveApprovalPolicyHook(
 			if (result?.stop || result?.skip) {
 				return result;
 			}
+			// Delegated agents (subagents, teammates) inherit these hooks but have
+			// no approval callback: the parent already approved the delegation, so
+			// forcing autoApprove=false on them rejects every child tool call.
+			if (ctx.snapshot.parentAgentId) {
+				return result;
+			}
 			const policy = resolveToolPolicy(ctx.toolCall.toolName);
 			return {
 				...result,
