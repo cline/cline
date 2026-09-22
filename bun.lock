@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.63",
+      "version": "3.0.64",
       "bin": {
         "cline": "src/index.ts",
       },
