@@ -344,6 +344,55 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(list).toHaveBeenCalledOnce();
 	});
 
+	it("hides hub sessions that never received a prompt from discovery", async () => {
+		const { handleCommand } = await import("./commands");
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const list = vi.fn(async () => [
+			{
+				// Bare `cline` opened and exited without typing: idle in the hub,
+				// no prompt, never persisted.
+				sessionId: "empty-idle",
+				status: "completed",
+				startedAt: "2026-09-23T12:00:00.000Z",
+				workspaceRoot: "/workspace/project",
+			},
+			{
+				sessionId: "running-without-prompt-yet",
+				status: "running",
+				startedAt: "2026-09-23T12:00:01.000Z",
+				workspaceRoot: "/workspace/project",
+			},
+			{
+				sessionId: "persisted",
+				status: "completed",
+				startedAt: "2026-09-23T12:00:02.000Z",
+				workspaceRoot: "/workspace/project",
+				messagesPath: "/tmp/sessions/persisted/persisted.messages.json",
+			},
+		]);
+		ctx.runtimeBindings.set("local", {
+			environmentId: "local",
+			kind: "local",
+			workspaceRoot: "/workspace/project",
+			hubClient: { command: vi.fn() } as never,
+			sessionManager: { list } as never,
+			unsubscribeSessionEvents: () => {},
+		});
+
+		const sessions = (await handleCommand(
+			ctx,
+			"list_cli_sessions",
+			{},
+		)) as Array<{
+			sessionId: string;
+		}>;
+		expect(sessions.map((session) => session.sessionId).sort()).toEqual([
+			"persisted",
+			"running-without-prompt-yet",
+		]);
+	});
+
 	it("falls back to session metadata when the hub search call rejects", async () => {
 		const { handleCommand } = await import("./commands");
 		const { createSidecarContext } = await import("./context");

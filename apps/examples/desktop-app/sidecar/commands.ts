@@ -643,6 +643,24 @@ async function getSessionFromSidecarManager(
 		: undefined;
 }
 
+/**
+ * A session that never received a prompt has no transcript to open and would
+ * render as a bare "Session _xxxxx" row (opening `cline` and exiting without
+ * typing leaves one in the shared hub). Same rule discoverChatSessions applies
+ * to live sessions; `messagesPath` stands in for messages since hub rows are
+ * not hydrated here.
+ */
+function isEmptyIdleSessionRecord(record: JsonRecord): boolean {
+	const status = String(record.status ?? "").toLowerCase();
+	return (
+		!record.prompt &&
+		!record.messagesPath &&
+		status !== "running" &&
+		status !== "starting" &&
+		status !== "pending"
+	);
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -734,6 +752,7 @@ async function listSessionsFromSidecarManager(
 		}
 	}
 	return Array.from(byId.values())
+		.filter((record) => !isEmptyIdleSessionRecord(record))
 		.sort((left, right) => {
 			const leftTime = Date.parse(
 				String(left.updatedAt ?? left.startedAt ?? ""),

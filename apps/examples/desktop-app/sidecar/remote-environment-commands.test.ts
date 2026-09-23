@@ -835,6 +835,7 @@ describe("remote environment command routing", () => {
 				id: "same-id",
 				sessionId: "same-id",
 				status: "idle",
+				prompt: "same prompt on two hosts",
 				createdAt: "2026-09-14T00:00:00Z",
 			};
 			ctx.runtimeBindings.set(environmentId, {
