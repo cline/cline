@@ -1,5 +1,16 @@
 "use client";
 
+import {
+	ChevronDown,
+	ExternalLink,
+	GitBranch,
+	GitMerge,
+	GitPullRequest,
+	GitPullRequestClosed,
+	GitPullRequestDraft,
+	RefreshCw,
+	X,
+} from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
 export type AgentPullRequestCheck = {
@@ -95,119 +106,6 @@ const checkColors = {
 	failure: "bg-red-500",
 	skipped: "bg-cline-ui-muted-foreground",
 };
-function Icon({
-	kind,
-	className,
-}: {
-	kind:
-		| "pr"
-		| "draft"
-		| "closed"
-		| "merged"
-		| "branch"
-		| "refresh"
-		| "close"
-		| "chevron"
-		| "external";
-	className?: string;
-}) {
-	return (
-		<svg
-			aria-hidden="true"
-			className={className}
-			width="16"
-			height="16"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			{(() => {
-				switch (kind) {
-					case "pr":
-						return (
-							<>
-								<circle cx="18" cy="18" r="3" />
-								<circle cx="6" cy="6" r="3" />
-								<path d="M13 6h3a2 2 0 0 1 2 2v7" />
-								<line x1="6" x2="6" y1="9" y2="21" />
-							</>
-						);
-					case "draft":
-						return (
-							<>
-								<circle cx="18" cy="18" r="3" />
-								<circle cx="6" cy="6" r="3" />
-								<path d="M18 6V5" />
-								<path d="M18 11v-1" />
-								<line x1="6" x2="6" y1="9" y2="21" />
-							</>
-						);
-					case "closed":
-						return (
-							<>
-								<circle cx="6" cy="6" r="3" />
-								<path d="M6 9v12" />
-								<path d="m21 3-6 6" />
-								<path d="m21 9-6-6" />
-								<path d="M18 11.5V15" />
-								<circle cx="18" cy="18" r="3" />
-							</>
-						);
-					case "merged":
-						return (
-							<>
-								<circle cx="18" cy="18" r="3" />
-								<circle cx="6" cy="6" r="3" />
-								<path d="M6 21V9a9 9 0 0 0 9 9" />
-							</>
-						);
-					case "branch":
-						return (
-							<>
-								<path d="M15 6a9 9 0 0 0-9 9V3" />
-								<circle cx="18" cy="6" r="3" />
-								<circle cx="6" cy="18" r="3" />
-							</>
-						);
-					case "refresh":
-						return (
-							<>
-								<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-								<path d="M21 3v5h-5" />
-								<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-								<path d="M8 16H3v5" />
-							</>
-						);
-					case "close":
-						return (
-							<>
-								<path d="M18 6 6 18" />
-								<path d="m6 6 12 12" />
-							</>
-						);
-					case "external":
-						return (
-							<>
-								<path d="M15 3h6v6" />
-								<path d="M10 14 21 3" />
-								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-							</>
-						);
-					case "chevron":
-						return (
-							<>
-								<path d="m6 9 6 6 6-6" />
-							</>
-						);
-				}
-			})()}
-		</svg>
-	);
-}
-
 export function AgentPullRequestBar({
 	data,
 	error,
@@ -218,6 +116,16 @@ export function AgentPullRequestBar({
 	renderChecks,
 }: AgentPullRequestBarProps) {
 	const pr = data?.pullRequest;
+	const PullRequestIcon =
+		pr?.state === "MERGED"
+			? GitMerge
+			: pr?.state === "CLOSED"
+				? GitPullRequestClosed
+				: pr?.isDraft
+					? GitPullRequestDraft
+					: pr || data?.createUrl
+						? GitPullRequest
+						: GitBranch;
 	if (!error && !data?.branch && !pr) return null;
 	const status = pr ? getAgentPullRequestMergeStatus(pr) : null;
 	const ci =
@@ -243,7 +151,7 @@ export function AgentPullRequestBar({
 				{(action === "create" || action === "check") && (
 					<>
 						{" "}
-						<Icon kind="external" className="inline size-3" />
+						<ExternalLink className="inline size-3" />
 					</>
 				)}
 			</button>
@@ -260,7 +168,7 @@ export function AgentPullRequestBar({
 				{(action === "create" || action === "check") && (
 					<>
 						{" "}
-						<Icon kind="external" className="inline size-3" />
+						<ExternalLink className="inline size-3" />
 					</>
 				)}
 			</a>
@@ -322,7 +230,7 @@ export function AgentPullRequestBar({
 							className="shrink-0 rounded p-1 hover:bg-cline-ui-muted"
 							onClick={onDismissError}
 						>
-							<Icon kind="close" className="size-3" />
+							<X className="size-3" />
 						</button>
 					)}
 				</div>
@@ -331,18 +239,7 @@ export function AgentPullRequestBar({
 				{data &&
 					(data.branch ? (
 						<>
-							<Icon
-								kind={
-									pr?.state === "MERGED"
-										? "merged"
-										: pr?.state === "CLOSED"
-											? "closed"
-											: pr?.isDraft
-												? "draft"
-												: pr || data.createUrl
-													? "pr"
-													: "branch"
-								}
+							<PullRequestIcon
 								className={`cline-ui-pr-bar__icon size-4 shrink-0 cline-ui-pr-bar__tone--${status?.tone ?? "neutral"} ${statusColors[status?.tone ?? "neutral"]}`}
 							/>
 							{pr ? (
@@ -421,7 +318,7 @@ export function AgentPullRequestBar({
 												data-state={ci}
 											/>
 											{checkLabels[ci]}
-											<Icon kind="chevron" className="size-3" />
+											<ChevronDown className="size-3" />
 										</button>,
 										checksContent,
 									)}
@@ -439,8 +336,7 @@ export function AgentPullRequestBar({
 					title="Refresh pull request status"
 					className="cline-ui-pr-bar__refresh shrink-0 rounded p-1 text-cline-ui-muted-foreground hover:bg-cline-ui-muted disabled:opacity-50"
 				>
-					<Icon
-						kind="refresh"
+					<RefreshCw
 						className={`size-3 ${loading ? `animate-spin ${onNavigate ? "" : "motion-reduce:animate-none"}` : ""}`}
 					/>
 				</button>

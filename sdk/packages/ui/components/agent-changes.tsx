@@ -1,45 +1,7 @@
 "use client";
 
+import { Check, ChevronDown, ChevronRight, Copy, X } from "lucide-react";
 import { type HTMLAttributes, type ReactNode, type Ref, useState } from "react";
-
-function Icon({
-	name,
-}: {
-	name: "close" | "copy" | "check" | "down" | "right";
-}) {
-	return (
-		<svg
-			aria-hidden="true"
-			className={`${name === "close" ? "h-4 w-4" : "h-3.5 w-3.5"} ${name === "down" || name === "right" ? "shrink-0 text-cline-ui-muted-foreground" : ""}`}
-			width={name === "close" ? 16 : 14}
-			height={name === "close" ? 16 : 14}
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="2"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			{name === "close" ? (
-				<>
-					<path d="M18 6 6 18" />
-					<path d="m6 6 12 12" />
-				</>
-			) : name === "check" ? (
-				<path d="M20 6 9 17l-5-5" />
-			) : name === "down" ? (
-				<path d="m6 9 6 6 6-6" />
-			) : name === "right" ? (
-				<path d="m9 6 6 6-6 6" />
-			) : (
-				<>
-					<rect x="8" y="8" width="14" height="14" rx="2" ry="2" />
-					<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-				</>
-			)}
-		</svg>
-	);
-}
 
 export interface AgentChangesPanelProps extends HTMLAttributes<HTMLDivElement> {
 	title: string;
@@ -102,7 +64,7 @@ export function AgentChangesPanel({
 						type="button"
 						onClick={onClose}
 					>
-						<Icon name="close" />
+						<X className="h-4 w-4" />
 					</button>
 				</div>
 			</div>
@@ -156,7 +118,11 @@ export function AgentChangedFile({
 					onClick={toggle}
 					type="button"
 				>
-					<Icon name={expanded ? "down" : "right"} />
+					{expanded ? (
+						<ChevronDown className="h-3.5 w-3.5 shrink-0 text-cline-ui-muted-foreground" />
+					) : (
+						<ChevronRight className="h-3.5 w-3.5 shrink-0 text-cline-ui-muted-foreground" />
+					)}
 					<span className="min-w-0 truncate font-cline-ui-mono text-cline-ui-xs text-cline-ui-foreground">
 						{path}
 					</span>
@@ -169,7 +135,11 @@ export function AgentChangedFile({
 					type="button"
 					onClick={onCopyPath}
 				>
-					<Icon name={copied ? "check" : "copy"} />
+					{copied ? (
+						<Check className="h-3.5 w-3.5" />
+					) : (
+						<Copy className="h-3.5 w-3.5" />
+					)}
 				</button>
 				<button
 					aria-hidden
