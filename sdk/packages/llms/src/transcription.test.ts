@@ -216,10 +216,72 @@ describe("transcribeAudio", () => {
 				expiresAfterSeconds: 120,
 			}),
 		).resolves.toEqual({
+			transport: "vercel-ai-gateway",
+			sampleRate: 24_000,
 			token: "vcst_short_lived",
 			url: "wss://ai-gateway.vercel.sh/v4/ai/transcription-model?ai-model-id=openai%2Fgpt-realtime-whisper",
 			expiresAt: 1_800_000_000,
 		});
+	});
+
+	it("selects 16 kHz PCM for Google live transcription", async () => {
+		const session = await createStreamingAudioTranscriptionSession({
+			providerConfig: {
+				providerId: "vercel-ai-gateway",
+				modelId: "",
+				apiKey: "secret",
+				fetch: vi.fn(async () => Response.json({ token: "short-lived" })),
+			},
+			modelId: "google/gemini-3.5-transcribe-live",
+		});
+		expect(session.sampleRate).toBe(16_000);
+	});
+
+	it("mints a single-use ElevenLabs credential for live transcription", async () => {
+		const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+			expect(input).toBe(
+				"https://api.elevenlabs.test/v1/single-use-token/realtime_scribe",
+			);
+			expect(init?.method).toBe("POST");
+			expect(new Headers(init?.headers).get("xi-api-key")).toBe(
+				"eleven-secret",
+			);
+			return Response.json({ token: "single-use" });
+		});
+		const session = await createStreamingAudioTranscriptionSession({
+			providerConfig: {
+				providerId: "elevenlabs",
+				modelId: "",
+				apiKey: "eleven-secret",
+				baseUrl: "https://api.elevenlabs.test/v1",
+				fetch: fetchImpl,
+			},
+			modelId: "scribe_v2_realtime",
+		});
+		expect(session).toEqual({
+			transport: "elevenlabs",
+			sampleRate: 24_000,
+			token: "single-use",
+			url: "wss://api.elevenlabs.test/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&audio_format=pcm_24000&commit_strategy=manual",
+		});
+		expect(JSON.stringify(session)).not.toContain("eleven-secret");
+	});
+
+	it.each([
+		[401, { detail: { message: "Invalid key" } }, "Invalid key"],
+		[200, {}, "returned no token"],
+	])("rejects ElevenLabs session setup failures (%s)", async (status, body, message) => {
+		await expect(
+			createStreamingAudioTranscriptionSession({
+				providerConfig: {
+					providerId: "elevenlabs",
+					modelId: "",
+					apiKey: "secret",
+					fetch: vi.fn(async () => Response.json(body, { status })),
+				},
+				modelId: "scribe_v2_realtime",
+			}),
+		).rejects.toThrow(message);
 	});
 
 	it("uses ElevenLabs' native speech-to-text endpoint", async () => {
