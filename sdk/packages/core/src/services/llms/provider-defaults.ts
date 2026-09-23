@@ -579,7 +579,12 @@ async function fetchLiteLlmPrivateModels(
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
 	const baseUrl = normalizeLiteLlmBaseUrl(config.baseUrl);
-	const failures: string[] = [];
+	// Keyed by failure text so four attempts hitting the same 401 read as one
+	// line in the UI instead of the same body repeated four times.
+	const failures = new Map<string, string[]>();
+	const recordFailure = (attempt: string, message: string) => {
+		failures.set(message, [...(failures.get(message) ?? []), attempt]);
+	};
 	const authHeaders = [
 		["x-litellm-api-key", { "x-litellm-api-key": token }],
 		["Authorization", { Authorization: `Bearer ${token}` }],
@@ -630,21 +635,23 @@ async function fetchLiteLlmPrivateModels(
 					return models;
 				}
 
-				failures.push(
-					`${new URL(endpoint).pathname} (${authLabel}): ${await describeLiteLlmHttpFailure(response)}`,
+				recordFailure(
+					`${new URL(endpoint).pathname} (${authLabel})`,
+					await describeLiteLlmHttpFailure(response),
 				);
 			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				failures.push(
-					`${new URL(endpoint).pathname} (${authLabel}): ${message}`,
+				recordFailure(
+					`${new URL(endpoint).pathname} (${authLabel})`,
+					error instanceof Error ? error.message : String(error),
 				);
 			}
 		}
 	}
 
-	throw new Error(
-		`LiteLLM model refresh failed. Attempts: ${failures.join("; ")}`,
-	);
+	const attempts = [...failures]
+		.map(([message, labels]) => `${labels.join(", ")}: ${message}`)
+		.join("; ");
+	throw new Error(`LiteLLM model refresh failed. Attempts: ${attempts}`);
 }
 
 type PrivateProviderModelFetcher = (
