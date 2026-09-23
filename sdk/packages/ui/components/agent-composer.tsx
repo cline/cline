@@ -1,11 +1,24 @@
 "use client";
 
 import { clsx } from "clsx";
-import { type ComponentPropsWithoutRef, forwardRef } from "react";
+import {
+	type ComponentPropsWithoutRef,
+	createContext,
+	forwardRef,
+	useContext,
+} from "react";
 
 /** Presentation only. Hosts retain drafts, input events, menus, and runtime actions. */
 export type AgentComposerVariant = "welcome" | "conversation";
 type VariantProps = { variant?: AgentComposerVariant };
+
+const AgentComposerVariantContext =
+	createContext<AgentComposerVariant>("conversation");
+
+function useAgentComposerVariant(variant?: AgentComposerVariant) {
+	const inheritedVariant = useContext(AgentComposerVariantContext);
+	return variant ?? inheritedVariant;
+}
 
 export type AgentComposerProps = ComponentPropsWithoutRef<"div"> & VariantProps;
 
@@ -15,16 +28,18 @@ export const AgentComposer = forwardRef<HTMLDivElement, AgentComposerProps>(
 		ref,
 	) {
 		return (
-			<div
-				{...props}
-				ref={ref}
-				className={clsx(
-					variant === "welcome"
-						? "overflow-visible rounded-cline-ui-xl border border-cline-ui-border/90 bg-cline-ui-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-						: "overflow-visible rounded-cline-ui-xl border border-cline-ui-border bg-cline-ui-surface-2 backdrop-blur-sm focus-within:border-cline-ui-primary/50 focus-within:ring-1 focus-within:ring-cline-ui-primary/20",
-					className,
-				)}
-			/>
+			<AgentComposerVariantContext.Provider value={variant}>
+				<div
+					{...props}
+					ref={ref}
+					className={clsx(
+						variant === "welcome"
+							? "overflow-visible rounded-cline-ui-xl border border-cline-ui-border/90 bg-cline-ui-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
+							: "overflow-visible rounded-cline-ui-xl border border-cline-ui-border bg-cline-ui-surface-2 backdrop-blur-sm focus-within:border-cline-ui-primary/50 focus-within:ring-1 focus-within:ring-cline-ui-primary/20",
+						className,
+					)}
+				/>
+			</AgentComposerVariantContext.Provider>
 		);
 	},
 );
@@ -36,9 +51,10 @@ export const AgentComposerBody = forwardRef<
 	HTMLDivElement,
 	AgentComposerBodyProps
 >(function AgentComposerBody(
-	{ variant = "conversation", hasQueue = false, className, ...props },
+	{ variant: variantProp, hasQueue = false, className, ...props },
 	ref,
 ) {
+	const variant = useAgentComposerVariant(variantProp);
 	return (
 		<div
 			{...props}
@@ -62,9 +78,10 @@ export const AgentComposerField = forwardRef<
 	HTMLDivElement,
 	AgentComposerFieldProps
 >(function AgentComposerField(
-	{ variant = "conversation", className, ...props },
+	{ variant: variantProp, className, ...props },
 	ref,
 ) {
+	const variant = useAgentComposerVariant(variantProp);
 	return (
 		<div
 			{...props}
@@ -86,9 +103,10 @@ export const AgentComposerTextarea = forwardRef<
 	HTMLTextAreaElement,
 	AgentComposerTextareaProps
 >(function AgentComposerTextarea(
-	{ variant = "conversation", className, ...props },
+	{ variant: variantProp, className, ...props },
 	ref,
 ) {
+	const variant = useAgentComposerVariant(variantProp);
 	return (
 		<textarea
 			{...props}
@@ -110,9 +128,10 @@ export const AgentComposerActions = forwardRef<
 	HTMLDivElement,
 	AgentComposerActionsProps
 >(function AgentComposerActions(
-	{ variant = "conversation", className, ...props },
+	{ variant: variantProp, className, ...props },
 	ref,
 ) {
+	const variant = useAgentComposerVariant(variantProp);
 	return (
 		<div
 			{...props}
@@ -134,9 +153,10 @@ export const AgentComposerStopButton = forwardRef<
 	HTMLButtonElement,
 	AgentComposerStopButtonProps
 >(function AgentComposerStopButton(
-	{ variant = "conversation", className, ...props },
+	{ variant: variantProp, className, ...props },
 	ref,
 ) {
+	const variant = useAgentComposerVariant(variantProp);
 	return (
 		<button
 			{...props}
@@ -158,9 +178,10 @@ export const AgentComposerSendButton = forwardRef<
 	HTMLButtonElement,
 	AgentComposerSendButtonProps
 >(function AgentComposerSendButton(
-	{ variant = "conversation", className, ...props },
+	{ variant: variantProp, className, ...props },
 	ref,
 ) {
+	const variant = useAgentComposerVariant(variantProp);
 	return (
 		<button
 			{...props}

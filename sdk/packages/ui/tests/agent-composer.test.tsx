@@ -139,4 +139,40 @@ describe("AgentComposer", () => {
 		expect(container.firstElementChild?.className).toBe(expected);
 		expect(container.firstElementChild?.children).toHaveLength(1);
 	});
+
+	it("inherits the parent variant while keeping explicit child overrides", async () => {
+		await act(async () =>
+			root.render(
+				<AgentComposer variant="welcome">
+					<AgentComposerBody data-part="body">
+						<AgentComposerField data-part="field">
+							<AgentComposerTextarea aria-label="Prompt" />
+							<AgentComposerActions data-part="actions">
+								<AgentComposerStopButton type="button">
+									Stop
+								</AgentComposerStopButton>
+								<AgentComposerSendButton variant="conversation" type="button">
+									Send
+								</AgentComposerSendButton>
+							</AgentComposerActions>
+						</AgentComposerField>
+					</AgentComposerBody>
+				</AgentComposer>,
+			),
+		);
+
+		const body = container.querySelector<HTMLElement>('[data-part="body"]');
+		const field = container.querySelector<HTMLElement>('[data-part="field"]');
+		const actions = container.querySelector<HTMLElement>(
+			'[data-part="actions"]',
+		);
+		const textarea = container.querySelector("textarea");
+		const [stop, send] = container.querySelectorAll("button");
+		expect(body?.className).toBe("px-4 py-3 pb-2 pt-4");
+		expect(field?.classList.contains("items-end")).toBe(true);
+		expect(textarea?.classList.contains("self-start")).toBe(true);
+		expect(actions?.classList.contains("self-end")).toBe(false);
+		expect(stop.classList.contains("rounded-cline-ui-md")).toBe(true);
+		expect(send.classList.contains("rounded-full")).toBe(true);
+	});
 });

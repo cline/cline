@@ -626,9 +626,10 @@ refs and native event/ARIA props forward to those elements. Import
 Compose the host's PR bar before `AgentComposerBody`. Inside the body, render
 `AgentPromptQueue`, the host's suggestion positioning wrapper and
 `AgentComposerField` (textarea and actions), feedback, and optional
-`AgentComposerAttachments`, in that order. Pass the same `variant` to all
-variant-aware primitives and `hasQueue` to the body. Render model/settings
-controls in `AgentComposerSettingsGroup`, with workspace/usage controls in
+`AgentComposerAttachments`, in that order. Nested variant-aware primitives
+inherit the `AgentComposer` variant unless they set an explicit override. Pass
+`hasQueue` to the body. Render model/settings controls in
+`AgentComposerSettingsGroup`, with workspace/usage controls in
 `AgentComposerSettingsEnd`, both inside `AgentComposerSettings`.
 
 The host owns draft state, textarea sizing, IME/keyboard/paste behavior, focus
