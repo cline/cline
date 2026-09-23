@@ -10,7 +10,7 @@ import {
 	CloudSessionController,
 	type CloudSessionControllerOptions,
 } from "./controller";
-import type { CloudSessionEvent } from "./types";
+import type { CloudCreationOptions, CloudSessionEvent } from "./types";
 
 const record: CloudSessionRecord = {
 	id: "ses-outer",
@@ -651,6 +651,46 @@ describe("CloudSessionController neutral host contract", () => {
 		f.emit("approval.resolved", { approvalId: "a" });
 		expect(f.controller.getSnapshot(record.id)?.approvals).toEqual([]);
 		await f.controller.dispose();
+	});
+	it.each([
+		"create",
+		"discover",
+		"delete",
+	] as const)("clears retained first-task policy after %s", async (action) => {
+		const pendingInitialTasks = new Map<string, CloudCreationOptions>();
+		const f = fixture({ pendingInitialTasks });
+		const options = { autoApproveTools: false, thinking: false };
+		try {
+			await f.controller.create({
+				modelId: "model",
+				repoUrl: record.repoContext.repoUrl!,
+				...options,
+			});
+			expect(pendingInitialTasks.get(record.id)).toMatchObject(options);
+			if (action === "create") {
+				f.setHasInner(false);
+				await f.controller.send(record.id, "First prompt");
+			} else if (action === "discover") {
+				await f.controller.attach(record.id);
+			} else {
+				await f.controller.delete(record.id);
+			}
+			expect(pendingInitialTasks.has(record.id)).toBe(false);
+		} finally {
+			await f.controller.dispose();
+		}
+		const replacement = fixture({ pendingInitialTasks });
+		replacement.setHasInner(false);
+		try {
+			await expect(
+				replacement.controller.attach(record.id, options),
+			).rejects.toThrow("task is unavailable");
+			expect(
+				replacement.commands.some((c) => c.command === "session.create"),
+			).toBe(false);
+		} finally {
+			await replacement.controller.dispose();
+		}
 	});
 	it("does not recreate a missing established session with manual creation options", async () => {
 		const f = fixture();

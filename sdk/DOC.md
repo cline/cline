@@ -15,6 +15,14 @@ not include local-to-cloud handoff.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
+Hosts replacing controllers during credential refresh can share the
+`pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.
+It retains first-task approval/thinking/reasoning preferences, including updates
+through `restoreCreationOptions`, until the inner task is found or created (or
+the outer session is deleted). `dispose` preserves an injected map; without one,
+the controller owns and clears its pending state. Restoring options alone never
+authorizes recreation of a missing established task.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH
