@@ -1,6 +1,6 @@
 {
 	"name": "@cline/ui",
-	"version": "0.2.0-next.8",
+	"version": "0.2.0-next.10",
 	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
@@ -47,6 +47,12 @@
 	},
 	"files": [
 		"components.css",
+		"components/agent-changes.tsx",
+		"components/agent-changes.css",
+		"components/agent-pull-request-bar.tsx",
+		"components/agent-pull-request-bar.css",
+		"components/agent-command-output.tsx",
+		"components/agent-image-lightbox.tsx",
 		"components/attachment-drop-zone.tsx",
 		"components/badge.tsx",
 		"components/button.tsx",
@@ -70,6 +76,7 @@
 		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",
 		"components/agent-quick-actions.tsx",
+		"components/agent-session-row.tsx",
 		"components/github-icon.tsx",
 		"components/markdown.css",
 		"components/markdown.ts",
@@ -78,6 +85,8 @@
 		"components/search-combobox.tsx",
 		"components/session-status.css",
 		"components/session-status.tsx",
+		"components/switch.css",
+		"components/switch.tsx",
 		"dist",
 		"theme",
 		"ADOPTION.md",
@@ -170,6 +179,7 @@
 		"@cline/shared": "workspace:*",
 		"@radix-ui/react-slot": "1.2.4",
 		"class-variance-authority": "^0.7.1",
-		"clsx": "^2.1.1"
+		"clsx": "^2.1.1",
+		"lucide-react": "^0.564.0"
 	}
 }

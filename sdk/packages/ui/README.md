@@ -72,6 +72,12 @@ import { Button, IconButton } from "@cline/ui";
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
+`Switch` is a medium-size native checkbox styled as a switch. It supports
+`checked`, `defaultChecked`, `onCheckedChange`, and native input/form props.
+Provide an accessible name with a label or `aria-label`. Its ref targets the
+input; `className` and `style` customize the wrapper. See [switch usage and
+implementation rationale](./ADOPTION.md#switch) for examples and design decisions.
+
 `AgentHeroHeading` renders the shared cycling “What would you like to …?”
 welcome heading and respects reduced-motion preferences.
 
@@ -82,9 +88,10 @@ static when reduced motion is requested.
 `AgentApprovalCard` is controlled presentation; the host owns approval state
 and submits its callbacks.
 
-`AgentAskQuestion` keeps option selection locally and submits explicitly. The
-host owns pending answers, errors, and response transport. Multiple-choice
-items set `multiple: true` and provide `onAnswers` for array submission.
+`AgentAskQuestion` answers single-choice items as soon as an option is picked
+and also accepts a typed custom answer. The host owns pending answers, errors,
+and response transport. Multiple-choice items set `multiple: true` and provide
+`onAnswers` for explicit array submission.
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
@@ -227,6 +234,14 @@ These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
 
+## Session-row presentation
+
+The root entry exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`. Desktop uses these for its existing session row, rename
+frame, and hover metadata. Hosts retain their icons, actions, rename input,
+menus, data formatting, and session behavior. See the session-row section in
+[ADOPTION.md](./ADOPTION.md) for the slot and trigger/ref contract.
+
 ## Storybook
 
 Run the interactive component catalog from the repository root:
@@ -275,8 +290,59 @@ only after a manual dispatch from `main`. Production releases use the npm
 `latest` tag; deliberate previews use `next`. UI releases do not trigger the
 SDK release, GitHub releases, or Slack announcements.
 
-Maintainers use the repository's `publish-ui` skill for the initial bootstrap
-and later releases.
+### 0.2.0-next.10 compatibility notes
+
+This preview packages the already-merged desktop UI updates for external
+consumers:
+
+- `SearchCombobox.onOpen` is an optional callback for refreshing a catalog when
+  its picker opens. Hosts still own fetching, selection, and error handling.
+- A single queued prompt is visible immediately with its existing edit/remove/
+  steer controls. Multiple prompts retain the collapsible list. This does not
+  add a runtime queue operation or an Enter-to-steer shortcut to consumers.
+- `ToolFileDiff` derives its options from the peer component, allowing the
+  published declarations to work with both `@pierre/diffs` 1.3 and 1.4.
+
+Consumers on `0.2.0-next.9` can retain existing props. Adopt the callback
+explicitly to enable catalog refresh. The version change prepares a package;
+publication still requires the separate manual workflow below.
+
+### Publish a preview
+
+Prepare an unused `0.2.0-next.N` version in this package's `package.json`,
+regenerate the workspace lockfile with Bun if needed, and merge the release
+commit to `main`. Keep `internal: true`: the UI package has its own release
+workflow and is excluded from SDK-wide version bumps.
+
+After merging the version change, dispatch:
+
+```sh
+gh workflow run ui-publish.yml \
+  --repo cline/cline \
+  --ref main \
+  -f npm_tag=next \
+  -f confirm_publish=publish
+```
+
+The workflow builds dependencies, runs UI and integration checks, builds
+Storybook, tests the packed artifact, and publishes that artifact with
+provenance. It rejects a version that already exists. Recheck registry versions
+before release preparation; if the version was taken, commit the next unused
+prerelease before dispatching. Publishing does not happen when the PR merges.
+
+After the run succeeds, verify that the registry's `next` tag points to the
+prepared version and that `latest` is unchanged. Install the exact preview in
+an external consumer and verify its build, styles, keyboard interaction, and
+disabled states:
+
+```sh
+bun add --exact '@cline/ui@<prepared-version>'
+```
+
+Commit the consumer's manifest and lockfile. Monorepo consumers retain
+`workspace:*`; rebuild with `bun -F @cline/ui build` and restart the consuming
+app. If a preview regresses, pin the previous version and publish a corrected
+prerelease instead of replacing an existing version.
 
 The install command above pins the resolved release. Commit the consumer
 lockfile and update deliberately. The package is ESM and its React components

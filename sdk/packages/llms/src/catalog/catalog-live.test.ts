@@ -14,6 +14,57 @@ import {
 } from "./catalog-live";
 
 describe("models-dev-catalog", () => {
+	it("preserves model adapters and narrowly fills missing Go Qwen declarations", () => {
+		const models = {
+			muse: { tool_call: true, provider: { npm: "@ai-sdk/openai" } },
+			minimax: { tool_call: true, provider: { npm: "@ai-sdk/anthropic" } },
+			google: { tool_call: true, provider: { npm: "@ai-sdk/google" } },
+			qwen: { tool_call: true, family: "qwen3.7-plus" },
+			explicitQwen: {
+				tool_call: true,
+				family: "qwen",
+				provider: { npm: "@ai-sdk/openai-compatible" },
+			},
+			unknownQwen: {
+				tool_call: true,
+				family: "qwen",
+				provider: { npm: "unknown-sdk" },
+			},
+			glm: { tool_call: true, family: "glm" },
+		};
+		const result = normalizeModelsDevProviderModels({
+			"opencode-go": { npm: "@ai-sdk/openai-compatible", models },
+			"other-gateway": { npm: "@ai-sdk/openai-compatible", models },
+		});
+		expect(result["opencode-go"].muse.metadata?.apiProtocol).toBe(
+			"openai-responses",
+		);
+		expect(result["opencode-go"].minimax.metadata?.apiProtocol).toBe(
+			"anthropic",
+		);
+		expect(result["opencode-go"].google.metadata?.apiProtocol).toBe("gemini");
+		expect(result["opencode-go"].qwen.metadata?.apiProtocol).toBe("anthropic");
+		expect(result["opencode-go"].explicitQwen.metadata?.apiProtocol).toBe(
+			"openai-chat",
+		);
+		expect(result["opencode-go"].unknownQwen.metadata).toBeUndefined();
+		expect(result["opencode-go"].glm.metadata).toBeUndefined();
+		expect(result["other-gateway"].qwen.metadata).toBeUndefined();
+	});
+
+	it("bundles zero prices for every Cline Pass model without a live refresh", () => {
+		const models = Object.values(getGeneratedModelsForProvider("cline-pass"));
+		expect(models.length).toBeGreaterThan(0);
+		for (const model of models) {
+			expect(model.pricing, model.id).toEqual({
+				input: 0,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			});
+		}
+	});
+
 	it("normalizes current built-ins and providers using supported AI SDK packages", () => {
 		const payload: ModelsDevPayload = {
 			openai: {
@@ -385,6 +436,31 @@ describe("models-dev-catalog", () => {
 		});
 	});
 
+	it("excludes multimodal realtime sessions from executable catalog models", () => {
+		const models = normalizeModelsDevProviderModels({
+			vercel: {
+				id: "vercel",
+				name: "Vercel",
+				models: {
+					"openai/gpt-realtime-2.1": {
+						tool_call: true,
+						modalities: { input: ["audio", "text", "image"], output: ["text"] },
+					},
+					"openai/gpt-realtime-whisper": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+		});
+		expect(models["vercel-ai-gateway"]).not.toHaveProperty(
+			"openai/gpt-realtime-2.1",
+		);
+		expect(
+			models["vercel-ai-gateway"]?.["openai/gpt-realtime-whisper"]?.operation,
+		).toBe("transcription");
+	});
+
 	it("admits transcription only through an explicit provider operation", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			groq: {
@@ -465,7 +541,7 @@ describe("models-dev-catalog", () => {
 				reasoningOptions: [
 					{ type: "effort", values: ["low", "medium", "high"] },
 				],
-				pricing: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				releaseDate: "2026-01-01",
 				family: "base-family",
 			},
@@ -510,7 +586,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 
@@ -561,6 +637,38 @@ describe("models-dev-catalog", () => {
 		});
 		expect(models["cline-free/kat-coder-pro"]).not.toBe(
 			result.cline?.["cline-free/kat-coder-pro"],
+		);
+	});
+
+	it("includes Cline Cloud models only when explicitly requested", () => {
+		const payload = {
+			clinePass: [{ id: "cline-pass/glm-5.2", name: "glm-5.2" }],
+			clineCloud: [
+				{
+					id: "cline-cloud/claude-sonnet-4.6",
+					name: "Claude Sonnet 4.6",
+				},
+			],
+		};
+		expect(
+			normalizeClineRecommendedProviderModels(payload, {}).cline ?? {},
+		).not.toHaveProperty("cline-cloud/claude-sonnet-4.6");
+
+		const result = normalizeClineRecommendedProviderModels(
+			payload,
+			{},
+			{
+				includeClineCloudModels: true,
+			},
+		);
+
+		expect(result.cline?.["cline-cloud/claude-sonnet-4.6"]).toMatchObject({
+			id: "cline-cloud/claude-sonnet-4.6",
+			name: "Claude Sonnet 4.6",
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		});
+		expect(result["cline-pass"]).not.toHaveProperty(
+			"cline-cloud/claude-sonnet-4.6",
 		);
 	});
 
@@ -1060,6 +1168,9 @@ describe("models-dev-catalog", () => {
 		expect(fetcher).toHaveBeenCalledWith("https://models.dev/api.json");
 		expect(fetcher).toHaveBeenCalledWith(
 			"https://api.cline.bot/api/v1/ai/cline/recommended-models",
+			expect.objectContaining({
+				headers: expect.objectContaining({ "X-CLIENT-TYPE": "cline-sdk" }),
+			}),
 		);
 		expect(result.openrouter).toHaveProperty("vendor/live-base-model");
 		expect(result["cline-pass"]?.["cline-pass/live-base-model"]).toMatchObject({
@@ -1068,7 +1179,7 @@ describe("models-dev-catalog", () => {
 			contextWindow: 256_000,
 			maxInputTokens: 200_000,
 			maxTokens: 32_000,
-			pricing: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 },
+			pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		});
 	});
 

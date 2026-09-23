@@ -10,6 +10,7 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { isTranscriptionModel } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import {
 	getProviderAuthHandler,
@@ -22,7 +23,11 @@ import {
 	getCachedClineRecommendedModels,
 	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
-import { resolveProviderConfig } from "../../services/llms/provider-defaults";
+import {
+	getLiveModelsCatalog,
+	isPrivateModelCatalogProvider,
+	resolveProviderConfig,
+} from "../../services/llms/provider-defaults";
 import {
 	type ModelInfo,
 	type ProviderClient,
@@ -140,9 +145,17 @@ function stableColor(id: string): string {
 }
 
 export function isDedicatedTranscriptionModel(
-	model: Pick<ProviderModel, "operation">,
+	model: Pick<
+		ProviderModel,
+		"operation" | "inputModalities" | "outputModalities"
+	>,
 ): boolean {
-	return model.operation === "transcription";
+	return isTranscriptionModel({
+		modalities: {
+			input: model.inputModalities,
+			output: model.outputModalities,
+		},
+	});
 }
 
 function toSortedProviderModels(
@@ -156,22 +169,26 @@ function toSortedProviderModels(
 async function resolveProviderModelMap(
 	providerId: string,
 	config?: ProviderConfig,
+	options: { loadLatest?: boolean } = {},
 ): Promise<Record<string, ModelInfo>> {
 	const [registeredModels, registeredModelOverrides] = await Promise.all([
 		LlmsModels.getModelsForProvider(providerId),
 		LlmsModels.getModelOverridesForProvider(providerId),
 	]);
+	// All shared-catalog providers refresh when their model list is loaded.
+	// The catalog cache deduplicates concurrent loads across providers; the
+	// initial listLocalProviders snapshot remains entirely network-free.
+	// Endpoint-owned lists do not use the shared catalog.
+	const provider = await LlmsModels.getProvider(providerId);
 	const shouldLoadLiveCatalog =
-		providerId === CLINE_PROVIDER_ID || providerId === CLINE_PASS_PROVIDER_ID;
+		!isPrivateModelCatalogProvider(providerId) && !provider?.modelsSourceUrl;
 	const isClinePass = providerId === CLINE_PASS_PROVIDER_ID;
-	if (!config && !shouldLoadLiveCatalog) {
-		return registeredModels;
-	}
 
 	const resolved = await resolveProviderConfig(
 		providerId,
 		{
-			loadLatestOnInit: shouldLoadLiveCatalog,
+			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
+			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
 			failOnError: false,
 		},
@@ -760,6 +777,15 @@ export async function listLocalProviders(
 					featuredData,
 				);
 				const directSettings = state.providers[id]?.settings;
+				// Providers that store their credentials under another provider
+				// (ClinePass signs in as "cline") are enabled whenever that
+				// provider is: one Cline sign-in configures both, so both must
+				// show wherever `enabled` gates a picker.
+				const storageProviderId = getProviderAuthHandler(id)?.storageProviderId;
+				const sharedSettings =
+					storageProviderId && storageProviderId !== id
+						? state.providers[storageProviderId]?.settings
+						: undefined;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
 				const capabilities = resolveProviderCapabilities(
@@ -776,7 +802,7 @@ export async function listLocalProviders(
 						models: modelList.length,
 						color: stableColor(id),
 						letter: createLetter(name),
-						enabled: Boolean(directSettings),
+						enabled: Boolean(directSettings ?? sharedSettings),
 						// Distinct from `enabled` (any persisted entry, which
 						// migrations and empty saves can create): true only when
 						// the saved settings hold real credentials or a usable
@@ -838,13 +864,10 @@ export async function listLocalProviders(
 					provider.id === configuredVoiceInput.providerId && provider.enabled,
 			)
 		: undefined;
-	const voiceModel = voiceProvider?.modelList?.find(
-		(model) =>
-			model.id === configuredVoiceInput?.modelId &&
-			isDedicatedTranscriptionModel(model),
-	);
-	const voiceInput =
-		configuredVoiceInput && voiceModel ? configuredVoiceInput : undefined;
+	// This network-free snapshot carries the saved selection, not proof of
+	// support. Voice consumers and requests validate against the voice catalog,
+	// which can contain current models absent from the bundled chat catalog.
+	const voiceInput = voiceProvider ? configuredVoiceInput : undefined;
 
 	return { providers, settingsPath: manager.getFilePath(), voiceInput };
 }
@@ -852,22 +875,71 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
+	options?: { loadLatest?: boolean },
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await resolveProviderModelMap(id, config);
+	const modelMap = await resolveProviderModelMap(id, config, options);
 	let models = toSortedProviderModels(modelMap);
 	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
 		// Stamp the recommended-feed tiers onto the list so every client's
 		// picker gets Recommended/Free/Subscribed data without fetching and
-		// joining the feed itself. Cached; falls back to a bundled list, so
-		// a failure only means models without tier decoration.
+		// joining the feed itself. A miss only means models without tier
+		// decoration.
 		models = applyClineFeaturedModels(
 			id,
 			models,
-			await getCachedClineRecommendedModels(),
+			await getCachedClineRecommendedModels(
+				options?.loadLatest
+					? {
+							catalogLoader: () =>
+								getLiveModelsCatalog({ includeClineCloudModels: true }),
+						}
+					: undefined,
+			),
 		);
 	}
 	return { providerId: id, models };
+}
+
+/** The same executable voice catalog is used by pickers, saves, and requests. */
+export async function getLocalTranscriptionModels(
+	providerId: string,
+	config?: ProviderConfig,
+): Promise<{ providerId: string; models: ProviderModel[] }> {
+	const id = providerId.trim();
+	const providerConfig = config ?? { providerId: id, modelId: "" };
+	let route: LlmsModels.AudioTranscriptionRoute;
+	try {
+		route = LlmsModels.resolveAudioTranscriptionRoute(providerConfig);
+	} catch {
+		return { providerId: id, models: [] };
+	}
+	if (route.transport === "vercel-ai-gateway") {
+		return {
+			providerId: id,
+			models: toSortedProviderModels(
+				await LlmsModels.fetchVercelTranscriptionModels(providerConfig),
+			),
+		};
+	}
+	const { models } = await getLocalProviderModels(id, config);
+	return {
+		providerId: id,
+		models: models.filter(
+			(model) =>
+				isDedicatedTranscriptionModel(model) &&
+				LlmsModels.builtinProviderSupportsModelOperation({
+					providerId: providerConfig.routingProviderId ?? id,
+					modelId: model.id,
+					operation: "transcription",
+					operationModes: model.operationModes,
+					modalities: {
+						input: model.inputModalities ?? [],
+						output: model.outputModalities ?? [],
+					},
+				}),
+		),
+	};
 }
 
 export async function transcribeLocalAudio(
@@ -885,7 +957,7 @@ export async function transcribeLocalAudio(
 		);
 	}
 
-	const { models } = await getLocalProviderModels(providerId, config);
+	const { models } = await getLocalTranscriptionModels(providerId, config);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -930,7 +1002,7 @@ export async function saveVoiceInputSettings(
 	const config = manager.getProviderConfig(providerId, {
 		includeKnownModels: false,
 	});
-	const { models } = await getLocalProviderModels(providerId, config);
+	const { models } = await getLocalTranscriptionModels(providerId, config);
 	const model = models.find((candidate) => candidate.id === modelId);
 	if (!model || !isDedicatedTranscriptionModel(model)) {
 		throw new Error(
@@ -975,7 +1047,10 @@ export async function createConfiguredStreamingTranscriptionSession(
 			`Transcription provider "${selection.providerId}" is not configured in providers.json`,
 		);
 	}
-	const { models } = await getLocalProviderModels(selection.providerId, config);
+	const { models } = await getLocalTranscriptionModels(
+		selection.providerId,
+		config,
+	);
 	const model = models.find((candidate) => candidate.id === selection.modelId);
 	if (
 		!model ||

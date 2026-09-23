@@ -5,6 +5,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 	{
 		recommended: [
 			{
+				id: "spacexai/grok-4.7",
+				name: "grok-4.7",
+				description: "",
+				tags: ["NEW"],
+			},
+			{
 				id: "openai/gpt-6-astra",
 				name: "gpt-6-astra",
 				description: "",
@@ -23,26 +29,19 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				description: "",
 				tags: ["NEW"],
 			},
-			{
-				id: "x-ai/grok-4.5",
-				name: "grok-4.5",
-				description:
-					"SpaceXAI's smartest model with frontier performance on coding",
-				tags: ["NEW"],
-			},
 		],
 		free: [
+			{
+				id: "cline-free/deepseek-v4.1-flash",
+				name: "Deepseek-v4.1-Flash",
+				description: "Fast and efficient with 1M context window ",
+				tags: [],
+			},
 			{
 				id: "cline-free/muse-spark-1.3-contributor",
 				name: "Muse Spark 1.3 Contributor",
 				description:
 					"Meta’s multimodal reasoning model for experimentation, learning, and early-stage agentic, multi-agent, and coding workflows.",
-				tags: [],
-			},
-			{
-				id: "deepseek/deepseek-v4-flash",
-				name: "deepseek-v4-flash",
-				description: "Fast and efficient with 1M context window ",
 				tags: [],
 			},
 			{
@@ -59,13 +58,6 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-free/longcat-2.0",
-				name: "LongCat-2.0",
-				description:
-					"A next-generation trillion-parameter model built for agentic coding",
-				tags: [],
-			},
-			{
 				id: "poolside/laguna-s-2.1:free",
 				name: "laguna-s-2.1:free",
 				description: "Latest coding agent model from Poolside",
@@ -74,15 +66,21 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		clinePass: [
 			{
-				id: "cline-pass/glm-5.2",
-				name: "cline-pass/glm-5.2",
-				description: "Top open weights model",
+				id: "cline-pass/mimo-v2.6-flash",
+				name: "cline-pass/mimo-v2.6-flash",
+				description: "",
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.8-max",
-				name: "cline-pass/qwen3.8-max",
-				description: "Qwen's New SOTA coding model",
+				id: "cline-pass/mimo-v2.6-pro",
+				name: "cline-pass/mimo-v2.6-pro",
+				description: "",
+				tags: [],
+			},
+			{
+				id: "cline-pass/glm-5.3",
+				name: "cline-pass/glm-5.3",
+				description: "Z-AI's new top open-weights model",
 				tags: [],
 			},
 			{
@@ -92,9 +90,21 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/glm-5.3-flash",
-				name: "cline-pass/glm-5.3-flash",
-				description: "Latest natively multimodal model in the GLM-5 series",
+				id: "cline-pass/qwen3.8-max",
+				name: "cline-pass/qwen3.8-max",
+				description: "Qwen's New SOTA coding model",
+				tags: [],
+			},
+			{
+				id: "cline-pass/deepseek-v4.1-flash",
+				name: "cline-pass/deepseek-v4.1-flash",
+				description: "Smarter and more efficient, with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/muse-spark-1.3-contributor",
+				name: "cline-pass/muse-spark-1.3-contributor",
+				description: "",
 				tags: [],
 			},
 			{
@@ -105,9 +115,9 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/deepseek-v4-flash",
-				name: "cline-pass/deepseek-v4-flash",
-				description: "Fast and efficient with 1M context window",
+				id: "cline-pass/glm-5.3-flash",
+				name: "cline-pass/glm-5.3-flash",
+				description: "Latest natively multimodal model in the GLM-5 series",
 				tags: [],
 			},
 			{
@@ -117,33 +127,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/minimax-m3",
-				name: "cline-pass/minimax-m3",
-				description: "Frontier coding and agent model with 1M context window",
-				tags: [],
-			},
-			{
-				id: "cline-pass/kimi-k2.7-code",
-				name: "cline-pass/kimi-k2.7-code",
-				description: "Latest Kimi model specialized for agentic coding",
-				tags: [],
-			},
-			{
-				id: "cline-pass/kimi-k2.6",
-				name: "cline-pass/kimi-k2.6",
-				description: "Strong multimodal model for long-horizon agent tasks",
-				tags: [],
-			},
-			{
-				id: "cline-pass/glm-5.3",
-				name: "cline-pass/glm-5.3",
-				description: "Z-AI's new top open-weights model",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/minimax-m3",
+				name: "cline-pass/minimax-m3",
+				description: "Frontier coding and agent model with 1M context window",
 				tags: [],
 			},
 			{

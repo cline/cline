@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	getLiveModelsCatalog,
 	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
@@ -29,6 +30,47 @@ describe("isPrivateModelCatalogProvider", () => {
 		"anthropic",
 	])("does not classify %s as endpoint-specific", (providerId) => {
 		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
+});
+
+describe("live catalog request bounds", () => {
+	it("aborts stalled sources and returns a fallback catalog", async () => {
+		const controllers: AbortController[] = [];
+		const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+			const controller = new AbortController();
+			controllers.push(controller);
+			return controller.signal;
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				(_input, init: RequestInit) =>
+					new Promise((_resolve, reject) => {
+						init.signal?.addEventListener(
+							"abort",
+							() => reject(init.signal?.reason),
+							{ once: true },
+						);
+					}),
+			),
+		);
+		const pending = getLiveModelsCatalog();
+		expect(controllers.length).toBeGreaterThan(0);
+		expect(timeout).toHaveBeenCalledWith(5_000);
+		for (const controller of controllers) controller.abort();
+		await expect(pending).resolves.toEqual({});
+	});
+
+	it("refreshes the shared feed after its cache expires", async () => {
+		const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+		const fetchMock = vi.fn(async () => Response.json({}));
+		vi.stubGlobal("fetch", fetchMock);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		now.mockReturnValue(1_101);
+		await getLiveModelsCatalog({ cacheTtlMs: 100 });
+		expect(fetchMock).toHaveBeenCalledTimes(4);
 	});
 });
 
@@ -76,6 +118,41 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["vendor/live-only-model"]?.name).toBe(
 			"Live Only Model",
 		);
+	});
+
+	it("includes Cline Cloud models only for explicit cloud callers", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: string | URL | Request) => {
+				if (String(input) === "https://models.dev/api.json") {
+					return new Response(JSON.stringify({}), { status: 200 });
+				}
+				return new Response(
+					JSON.stringify({
+						clineCloud: [
+							{
+								id: "cline-cloud/cloud-only",
+								name: "Cloud Only",
+							},
+						],
+					}),
+					{ status: 200 },
+				);
+			}),
+		);
+
+		const local = await resolveProviderConfig("cline", {
+			loadLatestOnInit: true,
+			failOnError: false,
+		});
+		const cloud = await resolveProviderConfig("cline", {
+			loadLatestOnInit: true,
+			includeClineCloudModels: true,
+			failOnError: false,
+		});
+
+		expect(local?.knownModels).not.toHaveProperty("cline-cloud/cloud-only");
+		expect(cloud?.knownModels).toHaveProperty("cline-cloud/cloud-only");
 	});
 
 	it("filters image-output models from the merged Cline catalog", async () => {
@@ -522,7 +599,7 @@ describe("resolveProviderConfig", () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			"http://tailscale-host:11434/api/tags",
-			{ method: "GET" },
+			{ method: "GET", signal: expect.any(AbortSignal) },
 		);
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
 	});

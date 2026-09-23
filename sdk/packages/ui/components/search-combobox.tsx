@@ -15,8 +15,6 @@ export interface SearchComboboxOption {
 	badge?: string;
 	description?: string;
 	icon?: ReactNode;
-	/** Small status node after the label, shown in list rows but not the trigger. */
-	indicator?: ReactNode;
 	label: string;
 	/** Id of the section this option belongs to (see `sections`). */
 	section?: string;
@@ -37,6 +35,8 @@ export interface SearchComboboxProps {
 	emptyText?: string;
 	loading?: boolean;
 	loadingText?: string;
+	/** Called when the panel opens, so callers can refresh stale options. */
+	onOpen?: () => void;
 	onValueChange: (value: string) => void;
 	options: SearchComboboxOption[];
 	/** Panel width as a CSS length (default "16rem"). */
@@ -88,6 +88,7 @@ export function SearchCombobox({
 	emptyText = "No results",
 	loading = false,
 	loadingText = "Loading…",
+	onOpen,
 	onValueChange,
 	options,
 	panelWidth = "16rem",
@@ -262,7 +263,6 @@ export function SearchCombobox({
 								{option.badge}
 							</span>
 						) : null}
-						{option.indicator}
 					</span>
 					{option.description ? (
 						<small className="truncate text-[0.625rem] text-cline-ui-muted-foreground">
@@ -336,7 +336,10 @@ export function SearchCombobox({
 					.filter(Boolean)
 					.join(" ")}
 				disabled={disabled}
-				onClick={() => setOpen((current) => !current)}
+				onClick={() => {
+					if (!open) onOpen?.();
+					setOpen(!open);
+				}}
 				ref={triggerRef}
 				title={displayedValue}
 				type="button"

@@ -15,9 +15,11 @@ import {
 	captureCompactionExecuted,
 	captureCompactionSkipped,
 	captureExtensionActivated,
+	captureGitSnapshot,
 	captureMistakeLimitReached,
 	captureProviderConfigured,
 	captureRunCommandsTimeout,
+	captureScheduleRun,
 	captureTaskCompleted,
 	captureTaskCreated,
 	captureTaskLifecycleEvent,
@@ -27,10 +29,34 @@ import {
 	captureWorkspaceInitialized,
 	captureWorkspacePathResolved,
 	clearAccountTelemetryIdentity,
+	type GitSnapshotProperties,
 	identifyAccount,
 } from "./core-events";
 import type { ITelemetryAdapter } from "./ITelemetryAdapter";
 import { TelemetryService } from "./TelemetryService";
+
+const gitSnapshot: GitSnapshotProperties = {
+	schema_version: 1,
+	sessionId: "session-1",
+	ulid: "session-1",
+	providerId: "cline",
+	workspace_id: "opaque-workspace",
+	workspace_root_count: 2,
+	observation_window_id: "window-1",
+	observation_sequence: 1,
+	observed_at: "2026-01-01T00:00:00.000Z",
+	boundary: "model_call",
+	request_id: "backend-request",
+	request_id_status: "present",
+	git: {
+		state: "ok",
+		head_sha: "a".repeat(40),
+		dirty: false,
+		staged: false,
+		unstaged: false,
+		untracked: false,
+	},
+};
 
 interface TelemetryStub {
 	telemetry: ITelemetryService;
@@ -78,6 +104,23 @@ describe("captureExtensionActivated", () => {
 
 	test("no-ops when telemetry is undefined", () => {
 		expect(() => captureExtensionActivated(undefined)).not.toThrow();
+	});
+});
+
+describe("captureGitSnapshot", () => {
+	test("uses the catalog event and preserves the typed payload as ordinary telemetry", () => {
+		const stub = createTelemetryStub();
+		captureGitSnapshot(stub.telemetry, gitSnapshot);
+		expect(CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT).toBe("task.git_snapshot");
+		expect(captureCallAt(stub, 0)).toEqual({
+			event: CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT,
+			properties: gitSnapshot,
+		});
+		expect(stub.captureRequired).not.toHaveBeenCalled();
+	});
+
+	test("no-ops when telemetry is undefined", () => {
+		expect(() => captureGitSnapshot(undefined, gitSnapshot)).not.toThrow();
 	});
 });
 
@@ -653,6 +696,18 @@ describe("telemetry policy: helpers respect telemetry opt-out", () => {
 		expect(emitRequired).not.toHaveBeenCalled();
 	});
 
+	test("captureGitSnapshot respects the ordinary opt-out path", () => {
+		const { adapter, emit, emitRequired } = createDisabledAdapter();
+		const service = new TelemetryService({ adapters: [adapter] });
+		expect(service.isEnabled()).toBe(false);
+		captureGitSnapshot(service, gitSnapshot);
+		expect(emit).toHaveBeenCalledWith(
+			CORE_TELEMETRY_EVENTS.TASK.GIT_SNAPSHOT,
+			expect.objectContaining(gitSnapshot),
+		);
+		expect(emitRequired).not.toHaveBeenCalled();
+	});
+
 	test("captureWorkspaceInitialized never invokes captureRequired", () => {
 		const { adapter, emitRequired } = createDisabledAdapter();
 		const service = new TelemetryService({
@@ -981,4 +1036,35 @@ describe("clearAccountTelemetryIdentity", () => {
 			clearAccountTelemetryIdentity(undefined, "machine-123"),
 		).not.toThrow();
 	});
+});
+
+test("scheduler telemetry allowlists diagnostics and tolerates capture failures", () => {
+	const { telemetry, capture } = createTelemetryStub();
+	const input = {
+		phase: "finished" as const,
+		triggerKind: "schedule" as const,
+		attemptCount: 2,
+		startDelayMs: 60_000,
+		durationMs: 30_000,
+		outcome: "timeout" as const,
+		prompt: "private prompt",
+		workspaceRoot: "/private/workspace",
+		error: "secret",
+	};
+	captureScheduleRun(telemetry, input);
+	expect(capture).toHaveBeenCalledWith({
+		event: "schedule.run_finished",
+		properties: {
+			triggerKind: "schedule",
+			attemptCount: 2,
+			startDelayMs: 60_000,
+			durationMs: 30_000,
+			outcome: "timeout",
+		},
+	});
+	capture.mockImplementation(() => {
+		throw new Error("telemetry unavailable");
+	});
+	expect(() => captureScheduleRun(telemetry, input)).not.toThrow();
+	expect(() => captureScheduleRun(undefined, input)).not.toThrow();
 });

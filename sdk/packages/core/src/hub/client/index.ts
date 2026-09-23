@@ -34,6 +34,15 @@ type PendingReply = {
 	reject: (error: unknown) => void;
 };
 
+type HubCommandOptions = {
+	timeoutMs?: number | null;
+	/** Synchronous local guard, checked after connection before each dispatch. */
+	beforeDispatch?: () => void;
+	/** Observes this attempt's correlation id after the local guard, before sending.
+	 * Dispatch alone does not confirm that the server accepted the command. */
+	onDispatch?: (requestId: string) => void;
+};
+
 type SubscriptionEntry = {
 	listener: (event: HubEventEnvelope) => void;
 	sessionId?: string;
@@ -463,9 +472,9 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				if (!this.closedByClient && this.hasActiveSubscriptions()) {
-					this.scheduleReconnect();
-				}
+			}
+			if (!this.closedByClient && this.hasActiveSubscriptions()) {
+				this.scheduleReconnect();
 			}
 			throw error;
 		}
@@ -658,7 +667,7 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 	): Promise<HubReplyEnvelope> {
 		let attempt = 0;
 		const canRecoverTransport =
@@ -683,13 +692,15 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
-		options?: { timeoutMs?: number | null },
+		options?: HubCommandOptions,
 		ensureConnected = true,
 	): Promise<HubReplyEnvelope> {
 		if (ensureConnected) {
 			await this.connect();
 		}
+		options?.beforeDispatch?.();
 		const requestId = createSessionId("hubreq_");
+		options?.onDispatch?.(requestId);
 		const effectiveTimeoutMs = resolveHubCommandTimeoutMs(
 			command,
 			options?.timeoutMs,

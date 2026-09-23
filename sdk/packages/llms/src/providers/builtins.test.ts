@@ -248,6 +248,16 @@ describe("cline-pass builtin spec", () => {
 			expect(model.pricing).toBeDefined();
 		}
 	});
+
+	it("defaults to a subscribed-tier model, not a free one", async () => {
+		const models = await getModelsForProvider("cline-pass");
+		const provider = await getProvider("cline-pass");
+
+		expect(provider?.defaultModelId).toMatch(/^cline-pass\//);
+		expect(
+			Object.keys(models).some((id) => !id.startsWith("cline-pass/")),
+		).toBe(true);
+	});
 });
 
 describe("built-in provider metadata", () => {
@@ -349,7 +359,7 @@ describe("built-in provider metadata", () => {
 	it("uses generated specs directly when no runtime override is required", () => {
 		// moonshot is intentionally absent: it carries a Cline-specific
 		// regional routing override (apiLineBaseUrls) on top of its generated
-		// spec.
+		// spec. wandb is absent because it carries a CoreWeave branding override.
 		const generatedOnlyProviderIds = [
 			"fireworks",
 			"poolside",
@@ -357,7 +367,6 @@ describe("built-in provider metadata", () => {
 			"baseten",
 			"requesty",
 			"huggingface",
-			"wandb",
 			"xiaomi",
 			"tencent-tokenhub",
 		] as const;
@@ -367,6 +376,21 @@ describe("built-in provider metadata", () => {
 				GENERATED_PROVIDER_SPECS.find((spec) => spec.id === providerId),
 			);
 		}
+	});
+
+	it("preserves W&B connection settings under the CoreWeave display name", () => {
+		const generated = GENERATED_PROVIDER_SPECS.find(
+			(spec) => spec.id === "wandb",
+		);
+		const builtin = BUILTIN_SPECS.find((spec) => spec.id === "wandb");
+
+		expect(generated).toBeDefined();
+		expect(builtin).toEqual({
+			...generated,
+			name: "CoreWeave",
+			description: "CoreWeave Serverless Inference",
+			docsUrl: "https://docs.wandb.ai/inference/",
+		});
 	});
 
 	it("marks popular providers with a provider capability and rank", async () => {
@@ -384,6 +408,19 @@ describe("built-in provider metadata", () => {
 		await expect(getProvider("huggingface")).resolves.toMatchObject({
 			baseUrl: "https://router.huggingface.co/v1",
 		});
+	});
+
+	it("serves the ai& default model from the catalog instead of the stub fallback", async () => {
+		const provider = await getProvider("aiand");
+		const models = await getModelsForProvider("aiand");
+		const defaultModel = models[provider?.defaultModelId ?? ""];
+
+		expect(provider?.defaultModelId).toBe("zai-org/glm-5.3");
+		// Carries the catalog record rather than the 128k stub fallbackModelInfo
+		// synthesizes for a default missing from the catalog. Bounds instead of
+		// exact values: the numbers rotate with models.dev.
+		expect(defaultModel?.contextWindow).toBeGreaterThan(128_000);
+		expect(defaultModel?.pricing).toBeDefined();
 	});
 
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {

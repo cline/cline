@@ -1,0 +1,13 @@
+/* Dashboard touch targets; desktop retains its existing compact controls. */
+@media (pointer: coarse) {
+	.cline-ui-agent-changes--touch .cline-ui-agent-changes__action {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+	}
+	.cline-ui-agent-changes--touch .cline-ui-agent-changes__toggle {
+		min-height: 2.75rem;
+	}
+	.cline-ui-agent-changes--touch .cline-ui-agent-changes__copy {
+		opacity: 1;
+	}
+}

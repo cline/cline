@@ -172,6 +172,7 @@ export class ClineCore {
 					}),
 					dbPath: automationOptions.dbPath,
 					logger: automationOptions.logger,
+					telemetry: this.telemetry,
 					pollIntervalMs: automationOptions.pollIntervalMs,
 					claimLeaseSeconds: automationOptions.claimLeaseSeconds,
 					globalMaxConcurrency: automationOptions.globalMaxConcurrency,

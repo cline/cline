@@ -9,10 +9,18 @@ import {
 	VoiceInputContent,
 } from "./voice-input-view";
 
-const { fetchProviderCatalogMock, invokeMock, notifyMock } = vi.hoisted(() => ({
+const {
+	fetchProviderCatalogMock,
+	loadTranscriptionModelsMock,
+	invokeMock,
+	notifyMock,
+	readVoiceInputCatalogMock,
+} = vi.hoisted(() => ({
+	loadTranscriptionModelsMock: vi.fn(),
 	fetchProviderCatalogMock: vi.fn(),
 	invokeMock: vi.fn(),
 	notifyMock: vi.fn(),
+	readVoiceInputCatalogMock: vi.fn(),
 }));
 
 vi.mock("@/lib/provider-model-catalog", async (importOriginal) => {
@@ -21,7 +29,9 @@ vi.mock("@/lib/provider-model-catalog", async (importOriginal) => {
 	return {
 		...actual,
 		fetchProviderCatalog: fetchProviderCatalogMock,
+		loadTranscriptionModels: loadTranscriptionModelsMock,
 		notifyVoiceInputSettingsChanged: notifyMock,
+		readVoiceInputCatalog: readVoiceInputCatalogMock,
 	};
 });
 
@@ -72,7 +82,13 @@ describe("defaultTranscriptionModel", () => {
 		).toBe("scribe_v2_realtime");
 		expect(
 			defaultTranscriptionModel([
-				{ id: "batch-only", name: "Batch", operation: "transcription" },
+				{
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+					id: "batch-only",
+					name: "Batch",
+					operation: "transcription",
+				},
 			])?.id,
 		).toBe("batch-only");
 	});
@@ -88,8 +104,14 @@ describe("VoiceInputContent", () => {
 		document.body.appendChild(container);
 		root = createRoot(container);
 		fetchProviderCatalogMock.mockReset();
+		loadTranscriptionModelsMock
+			.mockReset()
+			.mockImplementation(async (id: string) =>
+				id === "elevenlabs" ? transcriptionProvider.modelList : [],
+			);
 		invokeMock.mockReset();
 		notifyMock.mockReset();
+		readVoiceInputCatalogMock.mockReset().mockReturnValue(null);
 	});
 
 	afterEach(async () => {
@@ -106,6 +128,21 @@ describe("VoiceInputContent", () => {
 		return onOpenModelProviders;
 	};
 
+	it("renders the verified snapshot immediately while refreshing after navigation", async () => {
+		readVoiceInputCatalogMock.mockReturnValue({
+			providers: [transcriptionProvider],
+			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v2_realtime" },
+		});
+		fetchProviderCatalogMock.mockReturnValue(new Promise(() => {}));
+		await render();
+		expect(container.textContent).not.toContain("Loading providers");
+		expect(container.textContent).toContain("Scribe v2 Realtime");
+		expect(
+			container.querySelector('[role="radio"][aria-checked="true"]')
+				?.textContent,
+		).toContain("Scribe v2 Realtime");
+	});
+
 	it("locks the page until a voice-capable provider is connected", async () => {
 		fetchProviderCatalogMock.mockResolvedValue({
 			providers: [unconnectedProvider],
@@ -121,6 +158,74 @@ describe("VoiceInputContent", () => {
 		);
 		await act(async () => openProviders?.click());
 		expect(onOpenModelProviders).toHaveBeenCalledOnce();
+	});
+
+	it("renders only verified transcription models and uses their current execution modes", async () => {
+		fetchProviderCatalogMock.mockResolvedValue({
+			providers: [
+				{
+					...transcriptionProvider,
+					id: "vercel-ai-gateway",
+					name: "Vercel AI Gateway",
+					modelList: [
+						{
+							inputModalities: ["audio"],
+							outputModalities: ["text"],
+							id: "stale",
+							name: "Removed model",
+							operation: "transcription",
+						},
+					],
+				},
+			],
+			voiceInput: { providerId: "vercel-ai-gateway", modelId: "live" },
+		});
+		loadTranscriptionModelsMock.mockResolvedValue([
+			{
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+				id: "live",
+				name: "Verified live model",
+				operation: "transcription",
+				operationModes: ["streaming"],
+			},
+			{ id: "chat-transcribe", name: "Chat transcribe", operation: "language" },
+		]);
+		await render();
+		expect(container.textContent).toContain("Verified live model");
+		expect(container.textContent).not.toContain("Removed model");
+		expect(container.textContent).not.toContain("Chat transcribe");
+		expect(container.querySelector('[role="radio"]')?.textContent).toContain(
+			"Streaming",
+		);
+	});
+
+	it("hides unverified models on discovery failure and keeps other providers usable", async () => {
+		fetchProviderCatalogMock.mockResolvedValue({
+			providers: [
+				transcriptionProvider,
+				{
+					...transcriptionProvider,
+					id: "vercel-ai-gateway",
+					name: "Vercel AI Gateway",
+				},
+			],
+			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v1" },
+		});
+		loadTranscriptionModelsMock.mockImplementation(async (id: string) => {
+			if (id === "vercel-ai-gateway") throw new Error("offline");
+			return transcriptionProvider.modelList;
+		});
+		await render();
+		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+			"Could not verify voice models for Vercel AI Gateway",
+		);
+		expect(container.querySelectorAll('[role="radio"]').length).toBe(2);
+		expect(
+			Array.from(container.querySelectorAll("button")).some(
+				(button) => button.textContent === "Vercel AI Gateway",
+			),
+		).toBe(false);
 	});
 
 	it("explains when connected providers offer no transcription models", async () => {
@@ -157,10 +262,10 @@ describe("VoiceInputContent", () => {
 		});
 		await render();
 
-		const toggle = container.querySelector<HTMLButtonElement>(
+		const toggle = container.querySelector<HTMLInputElement>(
 			'[aria-label="Enable voice input"]',
 		);
-		expect(toggle?.getAttribute("aria-checked")).toBe("false");
+		expect(toggle?.checked).toBe(false);
 		await act(async () => toggle?.click());
 
 		expect(invokeMock).toHaveBeenCalledWith("save_voice_input_settings", {
@@ -196,7 +301,7 @@ describe("VoiceInputContent", () => {
 		});
 
 		invokeMock.mockResolvedValue({});
-		const toggle = container.querySelector<HTMLButtonElement>(
+		const toggle = container.querySelector<HTMLInputElement>(
 			'[aria-label="Enable voice input"]',
 		);
 		await act(async () => toggle?.click());

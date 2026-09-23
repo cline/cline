@@ -68,6 +68,23 @@ products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
 
+`AgentChangesPanel` and `AgentChangedFile` share the Changes pane header,
+scrolling, file disclosure, path, copy feedback, and diff counts. Pass rendered
+diff children and clipboard/native-editor callbacks; each host retains its
+change collector, workspace paths, and conversation focus restoration.
+
+`AgentPullRequestBar` shares PR state, merge readiness, diff counts, and check
+presentation. Hosts provide normalized data, refresh/navigation callbacks,
+and their accessible checks popover through `renderChecks`. Fetching, polling,
+authentication, and telemetry stay in the host. Import these components from
+`@cline/ui` and their styles through the existing `@cline/ui/components.css`.
+
+`AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
+Pass ANSI-rendered or normalized output as children; transport and output limits
+stay in the host. `AgentImageLightboxContent` shares the expanded image, backdrop
+close action, and close control; hosts retain their dialog, focus, keyboard, and
+image navigation. Import both from `@cline/ui` with `@cline/ui/components.css`.
+
 ## Current status
 
 `@cline/ui` is configured for public npm publication with its own version and
@@ -242,6 +259,64 @@ For native controls that should follow the selected theme:
   color-scheme: dark;
 }
 ```
+
+## Switch
+
+Import `Switch` from `@cline/ui` after setting up the theme and
+`@cline/ui/components.css`.
+
+```tsx
+import { Switch } from "@cline/ui";
+
+<div className="flex items-center gap-2">
+  <Switch id="notifications" name="notifications" defaultChecked />
+  <label htmlFor="notifications">Enable notifications</label>
+</div>;
+
+// For application-owned state:
+<Switch
+  aria-label="Enable notifications"
+  checked={notificationsEnabled}
+  onCheckedChange={setNotificationsEnabled}
+/>;
+```
+
+Provide a visible label or an accessible name with `aria-label`. Keep the name
+stable when toggling; the native checked state communicates whether the switch
+is on. The control supports Space activation and label clicks.
+
+Native input props, including `disabled`, `required`, `form`, `name`, `value`,
+`onChange`, and accessible naming attributes, apply to the checkbox. Refs target
+`HTMLInputElement`. `className`, `style`, and `hidden` apply to the outer wrapper;
+`dir` applies to both the input and wrapper and supports RTL placement. Wrapper
+layout defaults use the CSS components layer, so Tailwind utilities such as
+`hidden`, `w-20`, and `h-10` can override them. Changing the wrapper dimensions
+changes the hit area; the visual track keeps its own size.
+
+Use `defaultChecked` for browser-owned state or `checked` with
+`onCheckedChange` for controlled state. If both callbacks are supplied,
+`onChange` runs first, then `onCheckedChange` receives the new boolean value.
+Uncontrolled switches follow native form reset behavior; controlled switches
+must be reset by their owner. Disabled switches, including those in disabled
+fieldsets, are excluded from form submission.
+
+The switch scales with the root font size and reserves a minimum 24px hit area
+on each axis by default.
+
+Checked tracks blend 80% `--primary` with 20% `--accent-8` and use
+`--primary-emphasis` on hover; keyboard focus uses `--ring`. Enabled thumbs
+remain white. The switch supports light/dark themes, system colors in
+forced-colors mode, and reduced motion.
+
+When migrating from the desktop's Radix wrapper, update button refs to
+`HTMLInputElement` and read the native `checked` property in tests instead of
+`aria-checked`. Continue using `checked` and `onCheckedChange` for controlled
+state. Radix's `asChild`, children, and `data-state`/`data-disabled` hooks are not
+provided. State selectors belong on the native input (`:checked`, `:disabled`,
+`:focus-visible`); wrapper classes cannot use input-only pseudo-classes or act
+as a checked `peer` for sibling labels. Use a visible label's `htmlFor` and the
+input's `id` for association. Space toggles the switch; Enter follows native
+checkbox behavior.
 
 ## Add the agent-chat components
 
@@ -449,6 +524,14 @@ Use the small `--brand-*` palette only for branded artwork. Normal controls
 should prefer visual/status roles or shadcn semantic tokens so they continue to
 work across light, dark, and future theme layers.
 
+## Radius utilities
+
+Use `rounded-cline-ui-lg` and other `rounded-cline-ui-*` theme sizes in
+shared components. They use Cline's radius tokens without taking over the
+host application's `rounded-lg` utility. Desktop's equivalent utilities
+resolve to the same radius values. Keep structural shapes such as
+`rounded-full` unchanged; there is no `rounded-cline-ui-full` token.
+
 ## Product overrides
 
 Import the package first, then override standard semantic values:
@@ -556,3 +639,50 @@ current product contracts should be compared before standardizing them.
 - [Complete theme](./theme/index.css)
 - [Package manifest](./package.json)
 - [Desktop theme integration test (monorepo)](https://github.com/cline/cline/blob/main/apps/examples/desktop-app/webview/styles/theme-integration.test.ts)
+
+## Session rows
+
+`AgentSessionRow`, `AgentSessionRowEditor`, and `AgentSessionOverview` are
+exported from `@cline/ui`. Import `components.css` with the shared theme (or
+scoped tokens inside `.cline-ui-theme`) as for the other root components.
+
+The row owns the desktop row geometry, selected/hover appearance, timestamp
+placement, and pending/provisioning/running/unread dot precedence. Pass
+already-formatted `label` and `timestamp`, optional `leading` icons, a
+`pinnedIndicator`, and an `action` element. The action remains a sibling of the
+navigation button; the host supplies its hover/focus styles, disabled state,
+accessible label, and event cancellation. `onSelect` handles row activation.
+Root DOM props and refs pass through to the existing wrapper so host-owned
+hover-card/context-menu triggers can use `asChild` without another DOM node.
+
+By default, the navigation control is the same native `button` used by desktop.
+For URL-addressable navigation, use `renderControl` to render the supplied
+class and row content through the host's link component. The optional action
+stays a sibling:
+
+```tsx
+<AgentSessionRow
+  label={session.title}
+  timestamp={session.updatedLabel}
+  action={<DeleteSessionButton session={session} />}
+  renderControl={({ className, children }) => (
+    <Link
+      className={className}
+      href={`/sessions/${session.id}`}
+      target="_blank"
+    >
+      {children}
+    </Link>
+  )}
+/>
+```
+
+The host link owns `href`, click, accessibility, disabled, and router behavior.
+`disabled` and `onSelect` apply only to the default desktop button.
+
+`AgentSessionRowEditor` provides the matching edit frame; the host still owns
+the input, focus, Enter/Escape/blur handling, and saving indicator.
+`AgentSessionOverview` presents a title and `[label, value, fullValue?]` metadata
+rows inside the host's hover card. Formatting, open state, positioning, context
+menus, pin/fork/delete permissions, routing, grouping, and persistence stay in
+the application. These primitives do not add new statuses or cloud actions.

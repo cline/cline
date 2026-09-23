@@ -52,6 +52,37 @@ async function renderMessages(
 	});
 }
 
+describe("ChatMessages error action", () => {
+	it("keeps the recovery action when the error is already in the transcript", async () => {
+		const onClick = vi.fn();
+		await renderMessages(
+			[
+				{
+					id: "github-error",
+					sessionId: "session-1",
+					role: "error",
+					content: "GitHub access expired",
+					createdAt: Date.now(),
+				},
+			],
+			{
+				error: "GitHub access expired",
+				errorAction: { label: "Connect GitHub", onClick },
+			},
+		);
+
+		const button = [...container.querySelectorAll("button")].find((candidate) =>
+			candidate.textContent?.includes("Connect GitHub"),
+		);
+		expect(button).toBeDefined();
+		expect(container.textContent?.match(/GitHub access expired/g)).toHaveLength(
+			1,
+		);
+		await act(async () => button?.click());
+		expect(onClick).toHaveBeenCalledOnce();
+	});
+});
+
 describe("ChatMessages tool disclosures", () => {
 	it.each([
 		["run_commands", "lucide-terminal"],
@@ -1460,12 +1491,6 @@ describe("ChatMessages follow-up questions", () => {
 			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
-		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
-
-		const submit = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Submit",
-		);
-		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});
@@ -2224,5 +2249,101 @@ describe("ChatMessages tool approvals", () => {
 
 		await renderMessages(messages);
 		expect(container.querySelector("output")).toBeNull();
+	});
+});
+
+describe("persisted run errors", () => {
+	it.each([
+		"openrouter",
+		"claude-code",
+	])("renders one complete %s failure before and after reopening", async (providerId) => {
+		const messages: ChatMessage[] = [
+			{
+				id: "expired-key",
+				sessionId: "session-1",
+				role: "error",
+				content: "API key expired.",
+				createdAt: 1,
+				meta: { providerId },
+			},
+		];
+		const fullError =
+			providerId === "claude-code"
+				? "The run failed: API key expired. Sign in again with the `claude` CLI in a terminal, then try again."
+				: "The run failed: API key expired. Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
+		await renderMessages(messages, { error: fullError, status: "failed" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+		await renderMessages(messages, { error: null, status: "idle" });
+		expect(container.textContent?.split("API key expired.")).toHaveLength(2);
+		expect(container.textContent).toContain(fullError.replaceAll("`", ""));
+	});
+});
+
+describe("ChatMessages credential failures", () => {
+	const failure: ChatMessage = {
+		id: "error-1",
+		sessionId: "session-1",
+		role: "error",
+		content:
+			"The run failed: cline requires re-authentication. Sign in to Cline again in Settings → Account, then try again.",
+		createdAt: 2,
+		meta: { reason: "credentials", providerId: "cline" },
+	};
+
+	it("offers a sign-in action inside the failure bubble and shows the failure once", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages([failure], {
+			error: failure.content,
+			onFixCredentials,
+			status: "failed",
+		});
+
+		const bubble = container.querySelector(
+			'.cline-chat-message[data-role="error"]',
+		);
+		expect(bubble?.textContent).toContain("cline requires re-authentication");
+		// The hook's error state mirrors the bubble, so no second banner.
+		expect(
+			container.textContent?.split("requires re-authentication"),
+		).toHaveLength(2);
+
+		const action = [...(bubble?.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Sign in to Cline",
+		);
+		expect(action).toBeDefined();
+		await act(async () => action?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("account");
+	});
+
+	it("points other providers at model settings and skips local-auth providers", async () => {
+		const onFixCredentials = vi.fn();
+		await renderMessages(
+			[
+				{
+					...failure,
+					id: "error-anthropic",
+					meta: { reason: "credentials", providerId: "anthropic" },
+				},
+				{
+					...failure,
+					id: "error-claude-code",
+					createdAt: 3,
+					meta: { reason: "credentials", providerId: "claude-code" },
+				},
+			],
+			{ onFixCredentials, status: "failed" },
+		);
+
+		const buttons = [...container.querySelectorAll("button")].filter(
+			(button) =>
+				button.textContent === "Open API providers" ||
+				button.textContent === "Sign in to Cline",
+		);
+		expect(buttons.map((button) => button.textContent)).toEqual([
+			"Open API providers",
+		]);
+		await act(async () => buttons[0]?.click());
+		expect(onFixCredentials).toHaveBeenCalledWith("models");
 	});
 });

@@ -184,7 +184,10 @@ export function persistUsageInMessages(
 		if (!item || typeof item !== "object") {
 			continue;
 		}
-		if ((item as JsonRecord).role === "assistant") {
+		if (
+			(item as JsonRecord).role === "assistant" &&
+			readMessageMetadata(item as JsonRecord)?.displayOnly !== true
+		) {
 			assistantIndex = i;
 			break;
 		}
@@ -329,21 +332,27 @@ function readCheckpointEntriesByRunCount(
 	return entries;
 }
 
-export async function readSessionMessages(
+export function readSessionMessagesSync(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
-): Promise<unknown[]> {
-	const persisted =
-		readPersistedChatMessages(sessionId) ??
-		// A child agent's transcript is not stored under its own session
-		// directory — it lives beside the root session's artifacts — so opening a
-		// subagent session has to resolve the path recorded on its row.
-		readChildSessionMessages(sessionId);
+	/** Explicit authoritative source for remote sessions; bypasses local disk. */
+	sourceMessages?: unknown[],
+): unknown[] {
+	const isRemoteRead = sourceMessages !== undefined;
+	const persisted = isRemoteRead
+		? (sourceMessages as MessageWithMetadata[])
+		: (readPersistedChatMessages(sessionId) ??
+			// A child agent's transcript is not stored under its own session
+			// directory — it lives beside the root session's artifacts — so opening a
+			// subagent session has to resolve the path recorded on its row.
+			readChildSessionMessages(sessionId));
 	const messages =
 		persisted && persisted.length > 0
 			? persisted
-			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
+			: isRemoteRead
+				? []
+				: (ctx.liveSessions.get(sessionId)?.messages ?? []);
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(
@@ -354,7 +363,11 @@ export async function readSessionMessages(
 	}));
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
-	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
+	// Remote artifacts belong to the SSH host. Never decorate them with a
+	// same-id local session's live transcript or checkpoint metadata.
+	const checkpointsByRunCount = isRemoteRead
+		? new Map<number, StoredCheckpointEntry>()
+		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
@@ -714,4 +727,14 @@ export function persistSessionMessages(
 			2,
 		),
 	);
+}
+
+/** Async compatibility for existing sidecar callers. */
+export async function readSessionMessages(
+	ctx: Pick<SidecarContext, "liveSessions">,
+	sessionId: string,
+	maxMessages = 800,
+	sourceMessages?: unknown[],
+): Promise<unknown[]> {
+	return readSessionMessagesSync(ctx, sessionId, maxMessages, sourceMessages);
 }

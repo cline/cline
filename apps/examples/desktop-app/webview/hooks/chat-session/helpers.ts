@@ -1,4 +1,7 @@
-import { getProviderCollectionSync } from "@cline/llms/browser";
+import {
+	getProviderCollectionSync,
+	resolveProviderLocalCli,
+} from "@cline/llms/browser";
 import {
 	createSessionId,
 	type GeneratedMedia,
@@ -9,11 +12,13 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { isGitHubRepositoryUrl } from "@/lib/cloud-repositories";
 import { normalizeProviderId } from "@/lib/provider-id";
 import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
 type RpcMessageLike = {
+	metadata?: { displayOnly?: boolean };
 	role?: string;
 	content?: unknown;
 };
@@ -78,7 +83,10 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
-		if (message?.role !== "assistant") {
+		if (
+			message?.role !== "assistant" ||
+			message.metadata?.displayOnly === true
+		) {
 			continue;
 		}
 		const reasoningParts: string[] = [];
@@ -153,9 +161,15 @@ export function normalizeRuntimeConfig(
 ): ChatSessionConfig {
 	const normalizedWorkspaceRoot = config.workspaceRoot.trim();
 	const normalizedCwd = (config.cwd?.trim() || normalizedWorkspaceRoot).trim();
+	const executionTarget = config.executionTarget ?? "local";
+	const repoUrl = config.repoUrl?.trim();
+	const branch = config.branch?.trim();
 	const thinking = config.reasoningEffort ? true : config.thinking;
 	return {
 		...config,
+		executionTarget,
+		repoUrl: executionTarget === "cloud" ? repoUrl : undefined,
+		branch: executionTarget === "cloud" ? branch || undefined : undefined,
 		workspaceRoot: normalizedWorkspaceRoot,
 		cwd: normalizedCwd || normalizedWorkspaceRoot,
 		thinking,
@@ -163,9 +177,58 @@ export function normalizeRuntimeConfig(
 	};
 }
 
+/** Maps cloud runtime statuses to chat UI statuses without guessing unknowns. */
+export function mapCloudRuntimeStatus(
+	status: string | undefined,
+): ChatSessionStatus | null {
+	switch (status) {
+		case "provisioning":
+			return "starting";
+		case "failed":
+		case "error":
+			return "failed";
+		case "aborted":
+		case "cancelled":
+			return "cancelled";
+		case "running":
+		case "pending":
+			return "running";
+		case "idle":
+		case "ready":
+		case "active":
+			return "idle";
+		case "completed":
+		case "expired":
+			return "completed";
+		default:
+			return null;
+	}
+}
+
 export function resolveCredentialError(
 	config: ChatSessionConfig,
+	options?: { hasActiveSession?: boolean },
 ): string | null {
+	if (config.executionTarget === "cloud") {
+		if (config.provider.trim().toLowerCase() !== "cline") {
+			return "Cloud sessions require the Cline provider.";
+		}
+		// Sends into an existing cloud session need no repo URL — the sandbox
+		// was already provisioned with one.
+		if (options?.hasActiveSession) {
+			return null;
+		}
+		const repoUrl = config.repoUrl?.trim() ?? "";
+		if (!repoUrl) {
+			return "Select a GitHub repository before starting a cloud session.";
+		}
+		// The picker validates as-you-type, but config accepts any keystroke —
+		// re-validate here so a half-typed URL can't reach the create call.
+		if (!isGitHubRepositoryUrl(repoUrl)) {
+			return "Enter a valid HTTPS GitHub repository URL (https://github.com/owner/repo).";
+		}
+		return null;
+	}
 	const providerId = config.provider.trim().toLowerCase();
 	if (!providerId) {
 		return "Provider is required before starting a chat session.";
@@ -185,6 +248,63 @@ export function resolveCredentialError(
 		return null;
 	}
 	return `Missing API key for provider "${config.provider}". Add credentials in Settings, or switch providers.`;
+}
+
+/**
+ * Where to send the user after a credential-looking turn failure. Local-auth
+ * providers (Claude Code, Codex CLI, OpenCode) borrow their login from a CLI
+ * on this machine, so Settings → API Providers has nothing to fix — e.g. Claude
+ * Code's "OAuth session expired and could not be refreshed" needs a fresh
+ * sign-in in the `claude` CLI itself.
+ */
+export function resolveCredentialFailureHint(providerId: string): string {
+	const cli = resolveProviderLocalCli(providerId);
+	if (cli) {
+		return `Sign in again with the \`${cli.command}\` CLI in a terminal, then try again.`;
+	}
+	if (normalizeProviderId(providerId) === "cline") {
+		return "Sign in to Cline again in Settings → Account, then try again.";
+	}
+	return "Check your model connection in Settings → API Providers (or sign in with Cline), then try again.";
+}
+
+/**
+ * Whether a failure message describes a credential problem. Deliberately
+ * avoids matching a bare "token": provider failures like "maximum context
+ * tokens exceeded" or rate-limit messages are not credential problems and
+ * must not point users at their provider settings.
+ */
+export function isCredentialFailure(description: string): boolean {
+	return /unauthorized|401|403|forbidden|api key|credential|authenticat|sign in|auth token|access token|invalid token|expired token|token expired|session expired|not logged in|\/login/i.test(
+		description,
+	);
+}
+
+/**
+ * The in-app action that fixes a credential failure for `providerId`, or null
+ * when there is none to offer (local-auth providers are fixed in their CLI).
+ * Cline goes to the Account page: Settings → API Providers keeps reporting a
+ * stale OAuth token as "signed in", while the Account page verifies it against
+ * the API and offers to sign in again.
+ */
+export function resolveCredentialFailureAction(
+	providerId: string,
+): { label: string; target: "account" | "models" } | null {
+	if (resolveProviderLocalCli(providerId)) {
+		return null;
+	}
+	return normalizeProviderId(providerId) === "cline"
+		? { label: "Sign in to Cline", target: "account" }
+		: { label: "Open API providers", target: "models" };
+}
+
+/** Message meta that makes the chat render the credential fix action. */
+export function credentialFailureMeta(
+	providerId: string,
+): ChatMessage["meta"] | undefined {
+	return resolveCredentialFailureAction(providerId)
+		? { reason: "credentials", providerId }
+		: undefined;
 }
 
 function mapHistoryStatusToChatStatus(

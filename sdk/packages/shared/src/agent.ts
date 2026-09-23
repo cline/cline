@@ -201,6 +201,8 @@ export interface AgentToolContext {
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>
 	extends AgentToolDefinition {
+	/** Override the runtime execution mode. Adjacent parallel calls may overlap; sequential calls form ordering boundaries. */
+	executionMode?: "sequential" | "parallel";
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
@@ -244,6 +246,13 @@ export interface AgentRuntimePrepareTurnContext {
 	 * compaction rather than trust its token estimates.
 	 */
 	overflowRecovery?: boolean;
+	/**
+	 * Input tokens the provider actually counted for the previous request this
+	 * run, when available. Compaction uses it as a floor on its char-based
+	 * estimate, which under-counts dense content (disassembly, image dumps) and
+	 * can otherwise let the real context grow past the window without triggering.
+	 */
+	previousRequestInputTokens?: number;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -313,8 +322,18 @@ export type AgentModelEvent =
 	| {
 			type: "finish";
 			reason: AgentModelFinishReason;
+			/** HTTP X-Request-ID of the surfaced response, not the provider's generation ID. */
+			requestId?: string;
 			error?: string;
 			errorClass?: ProviderErrorClass;
+			/**
+			 * Whether the underlying provider error was transient and worth
+			 * retrying, decided at the model boundary from the AI SDK's typed
+			 * `isRetryable` flag while the structured error is still in hand
+			 * (`error` is a flattened string, so the agent loop cannot re-derive
+			 * this). When absent, the agent loop classifies from the message.
+			 */
+			errorRetryable?: boolean;
 			/**
 			 * The model layer already recorded `sdk.error` telemetry for this
 			 * failure at its own error boundary. `error` is a flattened string,
@@ -346,6 +365,18 @@ export interface AgentStopControl {
 	reason?: string;
 }
 
+export interface AgentRunStartResult {
+	stop?: boolean;
+	reason?: string;
+	/**
+	 * Text to inject into the conversation as hook context (e.g. a hook's
+	 * `contextModification`). Collected across hooks and appended after the
+	 * run's input messages as a `<hook_context>` user message, so the model
+	 * sees it on the run's first request.
+	 */
+	appendContext?: string;
+}
+
 export interface AgentBeforeModelResult {
 	stop?: boolean;
 	reason?: string;
@@ -358,6 +389,8 @@ export interface AgentAfterModelContext {
 	snapshot: AgentRuntimeStateSnapshot;
 	assistantMessage: AgentMessage;
 	finishReason: AgentModelFinishReason;
+	/** HTTP X-Request-ID when exposed by the model adapter; hidden retry IDs are not included. */
+	requestId?: string;
 }
 
 export interface AgentBeforeToolContext {
@@ -420,7 +453,10 @@ export interface AgentRunLifecycleContext {
 export interface AgentRuntimeHooks {
 	beforeRun?: (
 		context: AgentRunLifecycleContext,
-	) => AgentStopControl | undefined | Promise<AgentStopControl | undefined>;
+	) =>
+		| AgentRunStartResult
+		| undefined
+		| Promise<AgentRunStartResult | undefined>;
 	afterRun?: (
 		context: AgentRunLifecycleContext & { result: AgentRunResult },
 	) => void | Promise<void>;

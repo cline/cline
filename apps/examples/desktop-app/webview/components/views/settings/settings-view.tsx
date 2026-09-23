@@ -1,4 +1,5 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
+import { Switch } from "@cline/ui";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +12,6 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
@@ -36,6 +36,7 @@ import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
+	OAUTH_LOGIN_TIMEOUT_MS,
 } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
@@ -72,6 +73,7 @@ import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
+import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
@@ -144,7 +146,7 @@ export function SettingsView({
 	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
-		if (section !== "Models") {
+		if (section !== "API Providers") {
 			setSelectedProviderId(null);
 			setAddingProvider(false);
 		}
@@ -210,7 +212,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Models") {
+		if (activeNav !== "API Providers") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -441,9 +443,13 @@ export function SettingsView({
 			const result = await desktopClient.invoke<{
 				provider: string;
 				accessToken: string;
-			}>("run_provider_oauth_login", {
-				provider: id,
-			});
+			}>(
+				"run_provider_oauth_login",
+				{ provider: id },
+				// The browser round-trip routinely outlives the default command
+				// deadline; the sidecar bounds the flow by device-code expiry.
+				{ timeoutMs: OAUTH_LOGIN_TIMEOUT_MS },
+			);
 			setProvidersWithCache((prev) =>
 				prev.map((provider) =>
 					provider.id === id
@@ -474,7 +480,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		onNavigateSection("Models");
+		onNavigateSection("API Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -489,7 +495,7 @@ export function SettingsView({
 	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection("Models");
+		onNavigateSection("API Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -517,7 +523,7 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection("Models");
+		onNavigateSection("API Providers");
 		setAddingProvider(true);
 	};
 
@@ -604,14 +610,14 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "Models" ? (
+		activeNav === "API Providers" ? (
 			<>
 				{providerContent}
 				{addProviderDialog}
 			</>
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
-				onOpenModelProviders={() => onNavigateSection("Models")}
+				onOpenModelProviders={() => onNavigateSection("API Providers")}
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
@@ -625,11 +631,13 @@ export function SettingsView({
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Import" ? (
 			<ImportContent />
+		) : activeNav === "Remote" ? (
+			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent
-				onOpenModelProviders={() => onNavigateSection("Models")}
+				onOpenModelProviders={() => onNavigateSection("API Providers")}
 			/>
 		) : (
 			<div className="flex h-full items-center justify-center">
@@ -640,7 +648,7 @@ export function SettingsView({
 		);
 
 	return (
-		<div className="h-full overflow-hidden bg-background">
+		<div className="cline-settings-content h-full overflow-hidden bg-background">
 			<div className="h-full min-h-0 overflow-hidden">{content}</div>
 		</div>
 	);
@@ -694,6 +702,32 @@ function GeneralSettingsContent({
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const [cloudSessionsEnabled, setCloudSessionsEnabled] = useState(false);
+	const [cloudSessionsLoading, setCloudSessionsLoading] = useState(true);
+	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
+	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
+		null,
+	);
+	// The environment override can differ from the stored opt-in.
+	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
+		boolean | null
+	>(null);
+	// Keep the preview hidden until the rollout service explicitly enables it.
+	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(false);
+
+	const refreshCloudSessionsEffective = useCallback(async () => {
+		try {
+			const flags = await desktopClient.invoke<{
+				cloudAgents?: boolean;
+				cloudAgentsAvailable?: boolean;
+			}>("get_feature_flags");
+			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+			setCloudSessionsAvailable(flags.cloudAgentsAvailable === true);
+		} catch {
+			setCloudSessionsEffective(null);
+			setCloudSessionsAvailable(false);
+		}
+	}, []);
 	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 	const [webSearchLoading, setWebSearchLoading] = useState(true);
 	const [webSearchSaving, setWebSearchSaving] = useState(false);
@@ -770,24 +804,48 @@ function GeneralSettingsContent({
 		setAutoUpdateError(null);
 		setWebSearchLoading(true);
 		setWebSearchError(null);
-		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"get_global_settings",
-			);
-			setTelemetryOptOut(settings.telemetryOptOut);
-			setAutoUpdateEnabled(settings.autoUpdateEnabled);
-			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setTelemetryError(message);
-			setAutoUpdateError(message);
-			setWebSearchError(message);
-		} finally {
-			setTelemetryLoading(false);
-			setAutoUpdateLoading(false);
-			setWebSearchLoading(false);
-		}
-	}, []);
+		setCloudSessionsLoading(true);
+		setCloudSessionsError(null);
+		await Promise.all([
+			(async () => {
+				try {
+					const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+						"get_global_settings",
+					);
+					setTelemetryOptOut(settings.telemetryOptOut);
+					setAutoUpdateEnabled(settings.autoUpdateEnabled);
+					setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					setTelemetryError(message);
+					setAutoUpdateError(message);
+					setWebSearchError(message);
+				} finally {
+					setTelemetryLoading(false);
+					setAutoUpdateLoading(false);
+					setWebSearchLoading(false);
+				}
+			})(),
+			(async () => {
+				try {
+					const desktopSettings = await desktopClient.invoke<{
+						cloudSessionsEnabled: boolean;
+					}>("get_desktop_settings");
+					setCloudSessionsEnabled(
+						Boolean(desktopSettings.cloudSessionsEnabled),
+					);
+				} catch (error) {
+					setCloudSessionsError(
+						error instanceof Error ? error.message : String(error),
+					);
+				} finally {
+					setCloudSessionsLoading(false);
+				}
+			})(),
+			refreshCloudSessionsEffective(),
+		]);
+	}, [refreshCloudSessionsEffective]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -833,6 +891,26 @@ function GeneralSettingsContent({
 			setAutoUpdateError(message);
 		} finally {
 			setAutoUpdateSaving(false);
+		}
+	};
+
+	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
+		const previousValue = cloudSessionsEnabled;
+		setCloudSessionsEnabled(nextValue);
+		setCloudSessionsSaving(true);
+		setCloudSessionsError(null);
+		try {
+			const settings = await desktopClient.invoke<{
+				cloudSessionsEnabled: boolean;
+			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
+			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
+			await refreshCloudSessionsEffective();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setCloudSessionsEnabled(previousValue);
+			setCloudSessionsError(message);
+		} finally {
+			setCloudSessionsSaving(false);
 		}
 	};
 
@@ -1110,6 +1188,46 @@ function GeneralSettingsContent({
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
+				{cloudSessionsAvailable ? (
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
+								Cloud sessions
+								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+									Preview
+								</span>
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Run Cline on your GitHub repositories in secure cloud sandboxes.
+								Adds a Cloud option to the new-session composer. Requires a
+								Cline account with GitHub connected.
+							</p>
+							{cloudSessionsError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update cloud sessions setting: {cloudSessionsError}
+								</p>
+							) : null}
+							{cloudSessionsEffective !== null &&
+							!cloudSessionsLoading &&
+							cloudSessionsEffective !== cloudSessionsEnabled ? (
+								<p className="mt-2 text-xs text-muted-foreground">
+									Cloud sessions are currently{" "}
+									{cloudSessionsEffective ? "enabled" : "disabled"} by the
+									CLINE_CODE_CLOUD_AGENTS environment override, which takes
+									precedence over this setting.
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Cloud sessions"
+							checked={cloudSessionsEnabled}
+							disabled={cloudSessionsLoading || cloudSessionsSaving}
+							onCheckedChange={(checked) =>
+								void updateCloudSessionsEnabled(checked)
+							}
+						/>
+					</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>

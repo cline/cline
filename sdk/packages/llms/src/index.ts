@@ -15,6 +15,7 @@ export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	fetchVercelTranscriptionModels,
 	filterImageOutputModels,
 	filterOpenAICodexModels,
 	GENERATED_CLINE_RECOMMENDED_MODELS,
@@ -93,6 +94,7 @@ export {
 	isClinePassLimitMessage,
 	isProviderApiLine,
 	isRegisteredHandlerAsync,
+	isRetryableProviderError,
 	normalizeProviderId,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 	type ProviderApiLine,
@@ -105,6 +107,7 @@ export {
 	resolveProviderUsageCostDisplay,
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
+export { buildClineClientHeaders } from "./providers/cline-client-headers";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export {
@@ -140,7 +143,12 @@ export {
 	type ClineWebSearchResult,
 	createCline,
 } from "./providers/vendors/cline";
-export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export { LangfuseAttributesSpanProcessor } from "./services/LangfuseAttributesSpanProcessor";
+export {
+	disposeLangfuseTelemetry,
+	type LangfuseTraceAttributes,
+	withLangfuseTraceAttributes,
+} from "./services/langfuse-telemetry";
 export {
 	type AudioTranscriptionRequest,
 	type AudioTranscriptionResult,

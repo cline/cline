@@ -7,9 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	getCachedClineRecommendedModels,
+	idSlug,
 	resetClineRecommendedModelsCacheForTests,
 } from "../llms/cline-recommended-models";
-import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
+import {
+	clearLiveModelsCatalogCache,
+	clearPrivateModelsCatalogCache,
+} from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	parseModelsFile,
@@ -23,6 +27,7 @@ import {
 	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
@@ -62,10 +67,118 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	clearPrivateModelsCatalogCache();
 	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+});
+
+describe("live provider model loading", () => {
+	it.each([
+		["baseten", "https://inference.baseten.co/v1/models"],
+		["hicap", "https://api.hicap.ai/v2/openai/models"],
+		["poolside", "https://private.example/v1/models"],
+	])("uses only endpoint discovery for %s", async (providerId, endpoint) => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ data: [{ id: "deployment-model" }] }),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const result = await getLocalProviderModels(providerId, {
+			providerId,
+			modelId: "deployment-model",
+			apiKey: "private-key",
+			baseUrl: "https://private.example/v1",
+		});
+		expect(result.models.some((model) => model.id === "deployment-model")).toBe(
+			true,
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledWith(endpoint, expect.any(Object));
+	});
+
+	it.each([
+		"baseten",
+		"hicap",
+		"poolside",
+		"litellm",
+	])("does not fetch public models for unconfigured %s", async (providerId) => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		await getLocalProviderModels(providerId);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("shares one live fetch across providers and reuses it on subsequent loads", async () => {
+		const providerIds = ["opencode", "opencode-go", "anthropic", "openai"];
+		const fetchMock = vi.fn(async (url: string) =>
+			Response.json(
+				url.includes("models.dev")
+					? Object.fromEntries(
+							providerIds.map((id) => [
+								id,
+								{
+									npm: "@ai-sdk/openai-compatible",
+									models: {
+										"live-only-model": { name: "Live model", tool_call: true },
+									},
+								},
+							]),
+						)
+					: {},
+			),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const results = await Promise.all(
+			providerIds.map((id) =>
+				getLocalProviderModels(id === "openai" ? "openai-native" : id),
+			),
+		);
+		for (const result of results) {
+			expect(result.models).toContainEqual(
+				expect.objectContaining({ id: "live-only-model", name: "Live model" }),
+			);
+			expect(result.models.length).toBeGreaterThan(1);
+		}
+		await getLocalProviderModels("opencode");
+		expect(
+			fetchMock.mock.calls.filter(([url]) => url.includes("models.dev")),
+		).toHaveLength(1);
+		// One shared models.dev request plus the Cline recommendation feed.
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps explicit model overrides above live metadata", async () => {
+		LlmsModels.registerModel("opencode", "live-model", {
+			id: "live-model",
+			name: "Custom name",
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					opencode: {
+						models: {
+							"live-model": { name: "Live name", tool_call: true },
+						},
+					},
+				}),
+			),
+		);
+		const result = await getLocalProviderModels("opencode");
+		expect(result.models.find((model) => model.id === "live-model")?.name).toBe(
+			"Custom name",
+		);
+	});
+
+	it("keeps the bundled catalog available when offline", async () => {
+		vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+		const bundled = await LlmsModels.getModelsForProvider("opencode");
+		const result = await getLocalProviderModels("opencode");
+		expect(result.models.map((model) => model.id)).toEqual(
+			Object.keys(bundled).sort(),
+		);
+	});
 });
 
 describe("models registry parsing", () => {
@@ -554,6 +667,51 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			name: "Live Free Model (free)",
 			supportsReasoning: true,
 		});
+	});
+
+	it("adds live Cline Cloud models to the Cline provider", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(JSON.stringify({}), { status: 200 });
+			}
+
+			return new Response(
+				JSON.stringify({
+					free: [
+						{
+							id: "cline-free/live-free-model",
+							name: "Live Free Model",
+						},
+					],
+					clineCloud: [
+						{
+							id: "cline-cloud/claude-sonnet-4.6",
+							name: "Claude Sonnet 4.6",
+						},
+					],
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline", undefined, {
+			loadLatest: true,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-cloud/claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+			}),
+		);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-free/live-free-model",
+				featured: expect.objectContaining({ tier: "free" }),
+			}),
+		);
 	});
 
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
@@ -1106,15 +1264,20 @@ describe("audio transcription", () => {
 	let cleanup: () => void;
 
 	beforeEach(async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({})),
+		);
 		({ manager, cleanup } = makeTempManager());
-		await addLocalProvider(manager, {
-			providerId: "audio-provider",
-			name: "Audio Provider",
-			baseUrl: "https://audio.example.invalid/v1",
-			apiKey: "audio-key",
-			models: ["whisper-large-v3"],
-		});
-		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
+		manager.saveProviderSettings(
+			{
+				provider: "groq",
+				model: "whisper-large-v3",
+				apiKey: "audio-key",
+			},
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel("groq", "whisper-large-v3", {
 			id: "whisper-large-v3",
 			name: "Whisper Large v3",
 			operation: "transcription",
@@ -1125,12 +1288,25 @@ describe("audio transcription", () => {
 
 	afterEach(() => cleanup());
 
-	it("recognizes only the explicit transcription operation", () => {
+	it("requires exact audio-to-text modalities instead of trusting operation labels", () => {
+		expect(
+			isDedicatedTranscriptionModel({
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			}),
+		).toBe(true);
 		expect(
 			isDedicatedTranscriptionModel({
 				operation: "transcription",
 			}),
-		).toBe(true);
+		).toBe(false);
+		expect(
+			isDedicatedTranscriptionModel({
+				operation: "transcription",
+				inputModalities: ["audio", "text", "image"],
+				outputModalities: ["text"],
+			}),
+		).toBe(false);
 		expect(
 			isDedicatedTranscriptionModel({
 				operation: "speech-generation",
@@ -1150,7 +1326,7 @@ describe("audio transcription", () => {
 
 		await expect(
 			transcribeLocalAudio(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
 				mediaType: "audio/webm",
@@ -1162,7 +1338,7 @@ describe("audio transcription", () => {
 				audio: new Uint8Array([1, 2, 3]),
 				mediaType: "audio/webm",
 				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
+					providerId: "groq",
 					apiKey: "audio-key",
 				}),
 			}),
@@ -1172,12 +1348,12 @@ describe("audio transcription", () => {
 	it("persists and uses the configured voice input model", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 			}),
 		).resolves.toMatchObject({
 			voiceInput: {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "whisper-large-v3",
 			},
 		});
@@ -1195,48 +1371,42 @@ describe("audio transcription", () => {
 			expect.objectContaining({
 				modelId: "whisper-large-v3",
 				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
+					providerId: "groq",
 				}),
 			}),
 		);
 	});
 
-	it("creates a streaming session only for a streaming transcription model", async () => {
-		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
-			id: "realtime-whisper",
-			name: "Realtime Whisper",
+	it.each([
+		["groq", "realtime-whisper"],
+		["elevenlabs", "scribe_v2_realtime"],
+	])("rejects streaming models on the batch-only %s transport", async (providerId, modelId) => {
+		manager.saveProviderSettings(
+			{ provider: providerId, apiKey: "audio-key" },
+			{ setLastUsed: false },
+		);
+		LlmsModels.registerModel(providerId, modelId, {
+			id: modelId,
 			operation: "transcription",
 			operationModes: ["streaming"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
-		await saveVoiceInputSettings(manager, {
-			providerId: "audio-provider",
-			modelId: "realtime-whisper",
-		});
-		const createSessionSpy = vi
-			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
-			.mockResolvedValue({
-				token: "short-lived-token",
-				url: "wss://audio.example.invalid/transcription",
-			});
-
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId,
+				modelId,
+			}),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		manager.setVoiceInputSettings({ providerId, modelId });
 		await expect(
 			createConfiguredStreamingTranscriptionSession(manager),
-		).resolves.toMatchObject({ token: "short-lived-token" });
-		expect(createSessionSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				modelId: "realtime-whisper",
-				providerConfig: expect.objectContaining({
-					providerId: "audio-provider",
-				}),
-			}),
-		);
+		).rejects.toThrow("does not support streaming transcription");
 	});
 
 	it("rejects a voice input selection that is not an audio-to-text model", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
-				providerId: "audio-provider",
+				providerId: "groq",
 				modelId: "missing-model",
 			}),
 		).rejects.toThrow(
@@ -1282,6 +1452,153 @@ describe("audio transcription", () => {
 // ===========================================================================
 // models.json – built-in provider model overlays
 // ===========================================================================
+
+describe("authoritative voice model validation", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+	let catalog: Array<Record<string, unknown>>;
+
+	beforeEach(() => {
+		({ manager, cleanup } = makeTempManager());
+		manager.saveProviderSettings(
+			{ provider: "vercel-ai-gateway", apiKey: "gateway-key" },
+			{ setLastUsed: false },
+		);
+		catalog = [
+			{
+				id: "multimodal-live",
+				type: "transcription",
+				tags: ["websocket-transcription"],
+				supported_specifications: ["v4"],
+				modalities: { input: ["audio", "text", "image"], output: ["text"] },
+			},
+			{
+				modalities: { input: ["audio"], output: ["text"] },
+				id: "new/voice-model",
+				type: "transcription",
+				supported_specifications: ["v4"],
+			},
+			{
+				modalities: { input: ["audio"], output: ["text"] },
+				id: "google/gemini-3.5-transcribe-live",
+				type: "transcription",
+				supported_specifications: ["v4"],
+				tags: ["websocket-transcription"],
+			},
+			{
+				id: "transcribe-chat",
+				type: "language",
+				supported_specifications: ["v4"],
+			},
+		];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json({ data: catalog })),
+		);
+	});
+	afterEach(() => cleanup());
+
+	it("uses current transcription models without merging removed bundled entries", async () => {
+		const { models } = await getLocalTranscriptionModels("vercel-ai-gateway");
+		expect(models.map((model) => model.id)).toEqual([
+			"google/gemini-3.5-transcribe-live",
+			"new/voice-model",
+		]);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId: "new/voice-model",
+			}),
+		).resolves.toMatchObject({ voiceInput: { modelId: "new/voice-model" } });
+	});
+
+	it.each([
+		"transcribe-chat",
+		"multimodal-live",
+		"fish-audio/transcribe-1-free",
+	])("rejects invalid or removed model %s on save and execution", async (modelId) => {
+		const transcribe = vi.spyOn(LlmsModels, "transcribeAudio");
+		const stream = vi.spyOn(
+			LlmsModels,
+			"createStreamingAudioTranscriptionSession",
+		);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId,
+			}),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		manager.setVoiceInputSettings({ providerId: "vercel-ai-gateway", modelId });
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).rejects.toThrow("does not support streaming transcription");
+		expect(transcribe).not.toHaveBeenCalled();
+		expect(stream).not.toHaveBeenCalled();
+	});
+
+	it("revalidates a saved model when the upstream catalog changes", async () => {
+		await saveVoiceInputSettings(manager, {
+			providerId: "vercel-ai-gateway",
+			modelId: "new/voice-model",
+		});
+		catalog = [];
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("not a dedicated audio-to-text transcription model");
+	});
+
+	it("routes live models using gateway tags and rejects them on the batch path", async () => {
+		const stream = vi
+			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
+			.mockResolvedValue({
+				transport: "vercel-ai-gateway",
+				sampleRate: 24_000,
+				token: "short-lived",
+				url: "wss://gateway.test",
+			});
+		await saveVoiceInputSettings(manager, {
+			providerId: "vercel-ai-gateway",
+			modelId: "google/gemini-3.5-transcribe-live",
+		});
+		await expect(
+			createConfiguredStreamingTranscriptionSession(manager),
+		).resolves.toMatchObject({ token: "short-lived" });
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "google/gemini-3.5-transcribe-live" }),
+		);
+		await expect(
+			transcribeConfiguredVoiceInput(manager, { audio: new Uint8Array([1]) }),
+		).rejects.toThrow("requires streaming transcription");
+	});
+
+	it("does not use stale models when the gateway cannot be verified", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("unavailable", { status: 503 })),
+		);
+		await expect(
+			saveVoiceInputSettings(manager, {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+			}),
+		).rejects.toThrow("Unable to verify");
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
+	});
+
+	it("does not advertise voice models for providers without a transcription transport", async () => {
+		LlmsModels.registerModel("anthropic", "transcribe", {
+			id: "transcribe",
+			operation: "transcription",
+		});
+		await expect(getLocalTranscriptionModels("anthropic")).resolves.toEqual({
+			providerId: "anthropic",
+			models: [],
+		});
+	});
+});
 
 describe("models.json model overlays", () => {
 	it("loads model-only entries for built-in providers", async () => {
@@ -1763,18 +2080,22 @@ describe("listLocalProviders", () => {
 		const { providers } = await listLocalProviders(manager);
 		const modelList =
 			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
-		const stampedIds = modelList
+		// Compare by slug: the bundled feed can spell a vendor differently from
+		// the catalog ("spacexai/grok-4.7" vs "x-ai/grok-4.7"), in which case the
+		// matcher stamps the catalog's id through its slug fallback.
+		const stampedSlugs = modelList
 			.filter((model) => model.featured?.tier === "recommended")
-			.map((model) => model.id);
-		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
-			.map((model) => model.id)
-			.filter((id) => modelList.some((model) => model.id === id));
+			.map((model) => idSlug(model.id));
+		const modelSlugs = new Set(modelList.map((model) => idSlug(model.id)));
+		const expectedSlugs = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => idSlug(model.id))
+			.filter((slug) => modelSlugs.has(slug));
 
 		// A cold boot must still paint tiered sections: the catalog stamps
 		// synchronously from the bundled fallback instead of waiting on (or
 		// triggering) a feed fetch.
-		expect(stampedIds.length).toBeGreaterThan(0);
-		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(stampedSlugs.length).toBeGreaterThan(0);
+		expect(new Set(stampedSlugs)).toEqual(new Set(expectedSlugs));
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
@@ -1831,29 +2152,19 @@ describe("listLocalProviders", () => {
 		expect(p?.enabled).toBe(true);
 	});
 
-	it("returns the configured voice input selection", async () => {
-		await addLocalProvider(manager, {
-			providerId: "voice-list-provider",
-			name: "Voice List Provider",
-			baseUrl: "https://example.invalid/v1",
-			models: ["whisper"],
+	it("returns the saved voice selection even when it is absent from the bundled catalog", async () => {
+		manager.saveProviderSettings(
+			{ provider: "vercel-ai-gateway", apiKey: "key" },
+			{ setLastUsed: false },
+		);
+		manager.setVoiceInputSettings({
+			providerId: "vercel-ai-gateway",
+			modelId: "new-transcription-model",
 		});
-		LlmsModels.registerModel("voice-list-provider", "whisper", {
-			id: "whisper",
-			name: "Whisper",
-			operation: "transcription",
-			operationModes: ["batch"],
-			modalities: { input: ["audio"], output: ["text"] },
-		});
-		await saveVoiceInputSettings(manager, {
-			providerId: "voice-list-provider",
-			modelId: "whisper",
-		});
-
 		const catalog = await listLocalProviders(manager);
 		expect(catalog.voiceInput).toEqual({
-			providerId: "voice-list-provider",
-			modelId: "whisper",
+			providerId: "vercel-ai-gateway",
+			modelId: "new-transcription-model",
 		});
 	});
 
@@ -1902,6 +2213,47 @@ describe("listLocalProviders", () => {
 			enabled: true,
 			oauthAccessTokenPresent: true,
 		});
+	});
+
+	it("enables ClinePass from a Cline sign-in that never wrote a ClinePass entry", async () => {
+		// Desktop onboarding signs in as "cline" only; the shared credentials
+		// make ClinePass usable, so it must surface as enabled without its own
+		// providers.json entry.
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				auth: {
+					accessToken: "shared-token",
+					refreshToken: "shared-refresh",
+				},
+			},
+			{ setLastUsed: false, tokenSource: "oauth" },
+		);
+
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(manager.read().providers["cline-pass"]).toBeUndefined();
+		expect(clinePass).toMatchObject({
+			enabled: true,
+			configured: true,
+			oauthAccessTokenPresent: true,
+		});
+	});
+
+	it("keeps ClinePass disabled when Cline has no entry", async () => {
+		const { providers } = await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+		});
+		const clinePass = providers.find(
+			(provider) => provider.id === "cline-pass",
+		);
+
+		expect(clinePass?.enabled).toBe(false);
 	});
 
 	it("exposes model count", async () => {
@@ -2152,6 +2504,7 @@ describe("refreshProviderModelsFromSource", () => {
 			"http://tailscale-host:11434/api/tags",
 			{
 				method: "GET",
+				signal: expect.any(AbortSignal),
 			},
 		);
 		const modelsState = await readModelsFile(

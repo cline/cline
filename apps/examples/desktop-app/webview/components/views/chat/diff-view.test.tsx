@@ -143,6 +143,7 @@ describe("DiffView file actions", () => {
 			root.render(
 				<DiffView
 					cwd="/Users/renee/cline"
+					environmentId="local"
 					fileDiffs={[FILE_DIFF]}
 					onClose={vi.fn()}
 				/>,
@@ -159,6 +160,7 @@ describe("DiffView file actions", () => {
 			root.render(
 				<DiffView
 					cwd="/Users/renee/cline"
+					environmentId="local"
 					fileDiffs={[FILE_DIFF]}
 					onClose={vi.fn()}
 				/>,
@@ -176,6 +178,7 @@ describe("DiffView file actions", () => {
 		await click(vscodeItem as Element);
 
 		expect(invokeMock).toHaveBeenCalledWith("open_file_in_editor", {
+			environmentId: "local",
 			path: "docs/a.mdx",
 			cwd: "/Users/renee/cline",
 			editor: "vscode",
@@ -191,7 +194,13 @@ describe("DiffView file actions", () => {
 		});
 
 		await act(async () => {
-			root.render(<DiffView fileDiffs={[FILE_DIFF]} onClose={vi.fn()} />);
+			root.render(
+				<DiffView
+					environmentId="local"
+					fileDiffs={[FILE_DIFF]}
+					onClose={vi.fn()}
+				/>,
+			);
 		});
 
 		await pointerDown(buttonWithLabel("Open docs/a.mdx in editor"));
@@ -202,6 +211,7 @@ describe("DiffView file actions", () => {
 		await click(menuItems()[0] as Element);
 
 		expect(invokeMock).toHaveBeenCalledWith("open_file_in_editor", {
+			environmentId: "local",
 			path: "docs/a.mdx",
 			editor: "default",
 		});
@@ -209,7 +219,13 @@ describe("DiffView file actions", () => {
 
 	it("copies the path as-is when no cwd is available", async () => {
 		await act(async () => {
-			root.render(<DiffView fileDiffs={[FILE_DIFF]} onClose={vi.fn()} />);
+			root.render(
+				<DiffView
+					environmentId="local"
+					fileDiffs={[FILE_DIFF]}
+					onClose={vi.fn()}
+				/>,
+			);
 		});
 
 		await click(buttonWithLabel("Copy file path for docs/a.mdx"));
@@ -257,7 +273,22 @@ describe("DiffView hunk rendering", () => {
 		await click(toggle as Element);
 		expect(diffContainers()).toHaveLength(0);
 
-		await click(toggle as Element);
+		// A temporarily missing file retains its disclosure state in the host.
+		await act(async () =>
+			root.render(<DiffView fileDiffs={[]} onClose={vi.fn()} />),
+		);
+		await act(async () =>
+			root.render(
+				<DiffView fileDiffs={[MODIFIED_FILE_DIFF]} onClose={vi.fn()} />,
+			),
+		);
+		expect(diffContainers()).toHaveLength(0);
+		expect(
+			container.querySelector('[data-slot="scroll-area-viewport"]'),
+		).not.toBeNull();
+		await click(
+			container.querySelector(".cline-ui-agent-changes__toggle") as Element,
+		);
 		expect(diffContainers()).toHaveLength(1);
 	});
 

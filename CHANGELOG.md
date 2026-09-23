@@ -1,5 +1,66 @@
 # Changelog
 
+## [4.1.20]
+
+### Changed
+
+- Sub-agents spawned in the same step now run their tool calls at the same time rather than one after another. Tools that must run in order still do, and the parent still waits for every result before its next turn.
+- Models that advertise a large output limit now get a bigger default output budget — 30% of the limit rather than a flat 32,000 tokens, whichever is larger. Nothing changes for models under roughly 107k output tokens; longer responses can mean higher per-turn cost and latency.
+- Refreshed the model catalog: 203 to 209 providers and 6,079 to 6,237 models. Kimi For Coding splits into separate kimi.com and kimi.ai providers, and AI21 Labs, ainetcafe, Inco, OCI Generative AI, Tempr, and Vispark are new. The resolved default model changes for 36 providers that do not pin one — most landing on DeepSeek V4.1 Flash, GLM 5.3 Flash, or MiMo V2.6 Flash. If you use one of those providers without pinning a model, expect a different default.
+
+### Fixed
+
+- UserPromptSubmit and TaskStart hooks can inject context again. What those hooks returned as `contextModification` was being dropped — only `cancel` survived — so a hook meant to add repository facts or house rules to a task silently did nothing. The context is now delivered as a `<hook_context>` block on the run's first request, the same as before the regression, and the raw block never renders in the transcript. A hook also no longer receives its own previously injected text back as the next turn's prompt.
+- Unsent text in the composer survives Retry. Retry sent no composer content but still ran the same cleanup as approval actions, deleting the only copy of anything typed while a request was in flight. Text, quote context, images, and files are now tracked as one draft that only submitting actions consume.
+- Output from background commands now streams into the command row while the command runs, instead of appearing only when it finishes.
+- The Azure API version configured for a provider is now honored in tasks and mirrored to `providers.json`.
+- Rules are found and shown consistently. The Rules panel listed only `.clinerules` and the Documents global folder, so rules loaded from `.cline/rules`, `~/.cline/rules`, or `~/Cline/Rules` were applied to the model but missing from the panel — and on Windows with a OneDrive-redirected Documents folder, global rules were not found at all.
+- Deleting a task from history now actually removes it. A task whose index entry was missing but whose file on disk survived was reported as deleted and then reappeared on the next refresh.
+- Sub-agents you configure yourself no longer ask you to approve their individual tool calls after you have already approved the delegation.
+- Compaction no longer silently falls back to truncation partway through a long task. The summarizer kept the credentials captured when the task started, so once they refreshed its request failed with an authorization error that was swallowed; it now follows the task's current credentials and model.
+- A model turn that hits its output-token limit before making a tool call no longer ends the task. It is retried up to three times with a reminder to respond concisely and split large work across tool calls.
+
+## [4.1.19]
+
+### Added
+
+- Images attached to a model that cannot read them are now flagged instead of silently discarded. Thumbnails get a warning badge and the composer explains that the images will be ignored, with a button to switch to an image-capable model. Previously the thumbnail looked normal and the image was replaced with a text placeholder just before the request, so there was no way to tell it had been dropped. Model info and the attachment picker also report image support accurately for models that declare text-only input without listing capabilities.
+
+### Changed
+
+- Cline's logo and icons have been refreshed throughout the extension, including the activity bar and panel icons.
+- The W&B Inference provider is now listed as CoreWeave, with its sign-up and API-key links updated to match CoreWeave's current documentation.
+
+### Fixed
+
+- Long tasks now compact when they actually need to rather than running out of room. The trigger compared a character-based estimate of the conversation (~3 characters per token) against the model's context limit, so content that tokenizes far denser than that — disassembly, image dumps, minified sources — could fill the real context window while the estimate stayed under the threshold and compaction never fired; the turn was then squeezed down to a handful of output tokens. The trigger now also uses the token count the provider itself reports, and how much history is kept is scaled by how far off the estimate turned out to be. The summarizer's output budget also doubled, so a model that reasons before answering can no longer spend the whole budget thinking and return no summary at all.
+- On Windows, opening a repository that contains a file named `rg.exe`, `git.exe`, or `powershell.exe` no longer runs that file in place of the real program. Bare program names were resolved through the workspace directory before PATH, so a planted executable ran with your privileges as soon as the workspace was indexed. Cline now sets Windows' `NoDefaultCurrentDirectoryInExePath` opt-out at startup, in both the VS Code extension and the JetBrains core. Processes Cline launches inherit it, so inside a Command Prompt shell a program in the current directory now needs `.\` as it already does in PowerShell.
+- A model turn that fails mid-stream with a transient provider error is now retried up to three times with backoff instead of ending the task. A single rate-limit response forwarded by a gateway previously surfaced as a failed task. A turn that has already streamed output is never retried, so nothing is duplicated.
+- Terminal commands that succeed without printing anything (`git add -A` on a clean tree, for example) are now reported as empty output. They were treated as a shell-integration failure, which fed the model a snapshot of unrelated terminal scrollback prefixed with a warning that the output could not be captured, so silent commands intermittently looked like failures.
+- Checkpoints no longer re-hash every untracked file on each message. In workspaces holding large untracked directories this delayed every message by seconds to minutes; a persistent per-task index now lets git skip files it has already seen.
+- `run_commands` no longer hangs until its timeout after a command that backgrounds a child process. The command had finished, but the backgrounded process held the output pipes open.
+- `apply_patch` no longer silently overwrites an existing file when the model uses "Add File" on a path that already exists. The file's contents were replaced with no error and no record of what was lost.
+- PowerShell commands the model wrapped in another `powershell -Command "..."` are no longer parsed twice. The outer shell consumed `$_` before the inner command ran, so pipelines using it emitted an error for every item processed while still reporting success.
+- Opening your home directory as a workspace no longer drives the extension host to exhaustion. Typing an `@` mention indexed every file beneath it and re-ranked the whole index on each keystroke.
+- The "Supports Images" checkbox in OpenAI Compatible model settings now stays where you put it. The checkbox rendered the last committed value, and the re-sync that arrived during the save round-trip was re-emitted as a change event that wrote the old value back over your edit.
+- The error shown to the model when an `editor` call omits the text to replace now names the file and explains how to recover. The previous message was terse enough that some models re-sent the identical call until the task stopped.
+- Credentials are now stripped of invisible characters when saved, not only when pasted, and the cleanup covers AWS, GCP, and SAP fields and custom header values in addition to API keys.
+- Cline Pass now defaults to a model from your subscription rather than a free one. Its model list contains both tiers and the default was whichever model was published most recently, so a subscriber who never picked a model could be left on the free tier.
+- Cline Pass and free models now show no cost rather than the underlying market price, which is not what you are billed for.
+- Model pickers now fall back to the full Recommended, Free, and Subscribed lists when the models endpoint cannot be reached. The offline fallback was a short hardcoded list with no subscription tier at all.
+- Model lists for providers sharing the built-in catalog now refresh from the live catalog, so newly published models appear without an extension update, with timeouts so an unresponsive provider endpoint cannot stall the list.
+- Claude Code and OpenCode no longer ask for an API key they never read. Both authenticate from their own local CLI's credentials, but they were treated as key-based providers; the workaround was storing a dummy key. A missing CLI on `PATH` now warns rather than blocking, since a configured path or bundled binary also works.
+- The OpenAI Codex (ChatGPT subscription) model list no longer offers models the backend rejects, and Codex context limits are applied to every Codex model instead of being inherited from the OpenAI API catalog, which inflated both the context budget and the usage figures derived from it.
+- Models served by OpenCode Go are now sent over the wire protocol each one actually speaks. Every model was sent over the OpenAI chat-completions adapter, so models on that endpoint speaking other protocols failed or misbehaved.
+- Task history no longer goes blank when a task spawns many subagents. Subagent rows crowded out the tasks that created them, hiding the parent task and everything older.
+- Langfuse tracing, when configured, is now limited to the Cline and Cline Pass providers. The provider was ignored, so prompts and responses sent to third-party and bring-your-own-key providers were exported too.
+
+### Changed
+
+- Web search is now enabled by default on models that support it, outside YOLO mode. It can still be turned off in settings, and a settings file that cannot be read leaves it disabled rather than silently on.
+- The `run_commands` tool description now names the PowerShell edition in use — `Windows PowerShell (powershell.exe)` versus `PowerShell (pwsh.exe)` — quotes its guidance against that executable, and tells the model to run commands directly rather than wrapping them in another shell invocation. It also no longer describes the environment as Windows when `pwsh` is the configured shell on macOS or Linux.
+- Refreshed the built-in model catalog. Adds four providers (Infer by Flow7, Melious, NaN, and Wallaby) and takes the catalog from 5,788 to 6,079 models. This is a wide refresh: the resolved default model changes for 44 providers, most of them landing on DeepSeek V4.1 Flash — among them Hugging Face, Fireworks, Requesty, Nebius, Cortecs, CrossModel, DigitalOcean, Eden AI, and OpenCode Go. Gemini and Vertex now resolve to Gemini 3.8 Flash, GitHub Copilot and Vivgrid to GPT-6 Astra, and NVIDIA to GLM 5.3 Flash. If you use a provider without pinning a model, expect a different default.
+
 ## [4.1.17]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle.
