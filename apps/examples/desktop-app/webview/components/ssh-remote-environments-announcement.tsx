@@ -27,19 +27,10 @@ export type SshRemoteEnvironmentsAnnouncementProps = {
 	onSetUpHost: () => void;
 };
 
-const STEPS: Array<{ title: string; body: string }> = [
-	{
-		title: "Add a host in Settings → Remote",
-		body: "Hostname, user, and key. Test it first.",
-	},
-	{
-		title: "Pick it from the environment selector",
-		body: "The laptop button beside the workspace picker.",
-	},
-	{
-		title: "Open a project on that machine",
-		body: "Open folder… browses the host's folders.",
-	},
+const STEPS = [
+	"Add a host in Settings → Remote",
+	"Pick it from the environment selector",
+	"Open a project on that machine",
 ];
 
 /**
@@ -119,18 +110,11 @@ export function SshRemoteEnvironmentsAnnouncement({
 					<EnvironmentSelectorPreview />
 					<ol className="flex flex-col gap-5">
 						{STEPS.map((step, index) => (
-							<li className="flex items-start gap-3" key={step.title}>
-								<span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground">
+							<li className="flex items-center gap-3" key={step}>
+								<span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground">
 									{index + 1}
 								</span>
-								<span className="flex min-w-0 flex-col gap-1">
-									<span className="text-sm font-medium leading-tight">
-										{step.title}
-									</span>
-									<span className="text-xs leading-snug text-muted-foreground">
-										{step.body}
-									</span>
-								</span>
+								<span className="text-sm font-medium">{step}</span>
 							</li>
 						))}
 					</ol>
