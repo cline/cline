@@ -3,6 +3,7 @@ import type { CoreSessionEvent } from "@cline/core";
 import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
+	type CloudCreationOptions,
 	CloudHandoffCoordinator,
 	type CloudHandoffProgress,
 	type CloudHandoffSource,
@@ -65,7 +66,11 @@ export type CloudTranscriptEvent =
 			target: NonNullable<CloudRuntimeState["target"]>;
 			event: CoreSessionEvent;
 	  };
-type Clients = { api: CloudSessionApi; controller: CloudSessionController };
+type Clients = {
+	api: CloudSessionApi;
+	controller: CloudSessionController;
+	pendingInitialTasks: Map<string, CloudCreationOptions>;
+};
 
 function isDefinitelyRejectedCreate(error: unknown): boolean {
 	if (!(error instanceof CloudSessionError)) return false;
@@ -92,7 +97,8 @@ export type CliCloudRuntimeOptions = {
 	createClients?: (input: {
 		scope: CloudScope;
 		getAuthToken: () => Promise<string | undefined>;
-	}) => Promise<Clients>;
+		pendingInitialTasks: Map<string, CloudCreationOptions>;
+	}) => Promise<Omit<Clients, "pendingInitialTasks">>;
 };
 
 /** Cloud commands never enter the local session runtime or prompt expansion pipeline. */
@@ -313,10 +319,12 @@ export class CliCloudRuntime {
 			return token;
 		};
 		const pending = (async () => {
-			const clients = this.options.createClients
+			const pendingInitialTasks = new Map<string, CloudCreationOptions>();
+			const createdClients = this.options.createClients
 				? await this.options.createClients({
 						scope: identity.scope,
 						getAuthToken,
+						pendingInitialTasks,
 					})
 				: (() => {
 						const api = new CloudSessionApi({
@@ -328,6 +336,7 @@ export class CliCloudRuntime {
 							api,
 							controller: new CloudSessionController({
 								api,
+								pendingInitialTasks,
 								apiBaseUrl: identity.scope.apiBaseUrl,
 								getAuthToken,
 								getActiveOrganizationId: async () => {
@@ -344,6 +353,7 @@ export class CliCloudRuntime {
 							}),
 						};
 					})();
+			const clients: Clients = { ...createdClients, pendingInitialTasks };
 			try {
 				this.assertCurrent(epoch);
 			} catch (error) {
@@ -564,6 +574,7 @@ export class CliCloudRuntime {
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 			intent: "start_pending",
+			initialTaskPending: true,
 			...input,
 			autoApproveTools: input.autoApproveTools === true,
 		};
@@ -658,6 +669,15 @@ export class CliCloudRuntime {
 			session: undefined,
 		});
 		try {
+			// Only an unsent creation recorded by this host may create its first task.
+			if (
+				row?.initialTaskPending === true &&
+				(row.intent === "start_pending" || row.intent === "detached")
+			) {
+				clients.pendingInitialTasks.set(id, {
+					autoApproveTools: row.autoApproveTools,
+				});
+			}
 			const attachment = await clients.controller.attach(id, {
 				autoApproveTools: row?.autoApproveTools === true,
 			});
@@ -683,6 +703,10 @@ export class CliCloudRuntime {
 			await clients.controller.readMessages(id);
 			this.assertCurrent(epoch);
 			if (navigation !== this.navigation) return;
+			if (row?.initialTaskPending && !clients.pendingInitialTasks.has(id)) {
+				// The controller found an existing task; never recreate it if it disappears.
+				this.save({ ...this.row(row.requestId), initialTaskPending: false });
+			}
 			this.publish({ session: clients.controller.getSnapshot(id) });
 		} catch (error) {
 			if (epoch === this.epoch && navigation === this.navigation)
@@ -699,7 +723,7 @@ export class CliCloudRuntime {
 		if (navigation !== this.navigation || !row.outerSessionId || !row.prompt)
 			return;
 		// Record uncertain delivery BEFORE dispatch: a crash after acceptance must never auto-resend.
-		row = { ...row, intent: "delivery_unknown" };
+		row = { ...row, intent: "delivery_unknown", initialTaskPending: false };
 		this.save(row);
 		await clients.controller.send(row.outerSessionId!, row.prompt!);
 		const current = this.store
@@ -726,6 +750,10 @@ export class CliCloudRuntime {
 		if (!text.trim()) return;
 		const { clients, id } = await this.active();
 		try {
+			for (const row of this.state.pendingCreations) {
+				if (row.outerSessionId === id && row.initialTaskPending)
+					this.save({ ...row, initialTaskPending: false });
+			}
 			await clients.controller.send(id, text, delivery);
 		} catch (error) {
 			this.fail(error);
@@ -902,6 +930,7 @@ export class CliCloudRuntime {
 					const clients = await this.options.createClients({
 						scope: row.scope,
 						getAuthToken,
+						pendingInitialTasks: new Map(),
 					});
 					api = clients.api;
 					await clients.controller.dispose();

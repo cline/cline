@@ -35,6 +35,7 @@ it("stores only whitelisted private atomic records, scoped to account/org/enviro
 		createdAt: 100,
 		updatedAt: 100,
 		intent: "detached",
+		initialTaskPending: true,
 		prompt: "private prompt",
 		repoUrl: "https://github.com/a/b",
 		modelId: "m",

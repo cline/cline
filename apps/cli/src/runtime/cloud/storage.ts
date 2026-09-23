@@ -58,6 +58,8 @@ export type CloudCreationRecord = {
 	updatedAt: number;
 	intent: CreationIntent;
 	outerSessionId?: string;
+	/** Consumed before the first send, or when attachment finds an existing task. */
+	initialTaskPending?: boolean;
 	prompt?: string;
 	repoUrl: string;
 	branch?: string;
@@ -89,6 +91,7 @@ export class CloudCreationStore {
 			createdAt,
 			intent,
 			outerSessionId,
+			initialTaskPending,
 			prompt,
 			repoUrl,
 			branch,
@@ -107,6 +110,7 @@ export class CloudCreationStore {
 			updatedAt: this.now(),
 			intent,
 			outerSessionId,
+			initialTaskPending,
 			prompt,
 			repoUrl,
 			branch,

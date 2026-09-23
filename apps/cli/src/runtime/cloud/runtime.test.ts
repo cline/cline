@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	type CloudCreationOptions,
 	CloudSessionError,
 	type CloudSessionEvent,
 	type CloudSessionSnapshot,
@@ -83,7 +84,13 @@ async function fixture(
 		create: vi.fn(async () => ({ sessionId: "ses-one" })),
 		recoverCreation: vi.fn(async () => ({ id: "ses-one" })),
 	};
-	const factory = vi.fn(async () => ({ api, controller }));
+	let pendingInitialTasks = new Map<string, CloudCreationOptions>();
+	const factory = vi.fn(
+		async (options: { pendingInitialTasks: typeof pendingInitialTasks }) => {
+			pendingInitialTasks = options.pendingInitialTasks;
+			return { api, controller };
+		},
+	);
 	const resolveIdentity = vi.fn(async () =>
 		token
 			? {
@@ -112,6 +119,7 @@ async function fixture(
 		api,
 		controller,
 		factory,
+		getPendingInitialTasks: () => pendingInitialTasks,
 		store,
 		resolveIdentity,
 		emit: (event: CloudSessionEvent) => receive?.(event),
@@ -146,6 +154,76 @@ async function until(condition: () => boolean) {
 	expect(condition()).toBe(true);
 }
 describe("CLI cloud isolation and creation lifecycle", () => {
+	it("authorizes only the first task and persists consumption before sending", async () => {
+		const f = await fixture();
+		f.controller.attach.mockImplementation(async () => {
+			expect(f.getPendingInitialTasks().get("ses-one")).toEqual({
+				autoApproveTools: false,
+			});
+			return {};
+		});
+		f.controller.send.mockImplementation(async () => {
+			expect(f.runtime.getSnapshot().pendingCreations[0]).toMatchObject({
+				intent: "delivery_unknown",
+				initialTaskPending: false,
+			});
+			return {};
+		});
+		await f.runtime.create(input);
+	});
+
+	it("restores an unsent first-task intent after client replacement without sending", async () => {
+		const f = await fixture();
+		f.api.create.mockRejectedValueOnce(new Error("lost POST"));
+		await expect(f.runtime.create(input)).rejects.toThrow("lost POST");
+		const row = f.runtime.getSnapshot().pendingCreations[0];
+		expect(row.initialTaskPending).toBe(true);
+		f.setAccount("b");
+		await f.runtime.refreshIdentity();
+		f.setAccount("a");
+		await f.runtime.refreshIdentity();
+		f.controller.attach.mockImplementation(async () => {
+			expect(f.getPendingInitialTasks().get("ses-one")).toEqual({
+				autoApproveTools: false,
+			});
+			return {};
+		});
+		await f.runtime.recover(row.requestId);
+		expect(f.controller.send).not.toHaveBeenCalled();
+		expect(f.api.create).toHaveBeenCalledOnce();
+	});
+
+	it("never restores first-task authority after observing an existing task", async () => {
+		const f = await fixture();
+		f.api.create.mockRejectedValueOnce(new Error("lost POST"));
+		await expect(f.runtime.create(input)).rejects.toThrow();
+		const row = f.runtime.getSnapshot().pendingCreations[0];
+		f.controller.attach.mockImplementationOnce(async () => {
+			f.getPendingInitialTasks().delete("ses-one");
+			return {};
+		});
+		await f.runtime.recover(row.requestId);
+		expect(f.runtime.getSnapshot().pendingCreations[0].initialTaskPending).toBe(
+			false,
+		);
+		await f.runtime.recover(row.requestId);
+		expect(f.getPendingInitialTasks().has("ses-one")).toBe(false);
+	});
+
+	it("does not restore first-task authority after an uncertain send", async () => {
+		const f = await fixture();
+		f.controller.send.mockRejectedValueOnce(new Error("lost send"));
+		await expect(f.runtime.create(input)).rejects.toThrow();
+		const row = f.runtime.getSnapshot().pendingCreations[0];
+		f.setAccount("b");
+		await f.runtime.refreshIdentity();
+		f.setAccount("a");
+		await f.runtime.refreshIdentity();
+		await f.runtime.recover(row.requestId);
+		expect(f.getPendingInitialTasks().size).toBe(0);
+		expect(f.controller.send).toHaveBeenCalledOnce();
+	});
+
 	it("waits for a provisioning receipt and reattaches before reading messages", async () => {
 		const f = await fixture();
 		const ready = deferred<void>();
