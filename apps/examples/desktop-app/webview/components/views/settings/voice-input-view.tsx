@@ -1,7 +1,7 @@
 "use client";
 
 import { Switch } from "@cline/ui";
-import { AudioLines, Mic, Radio } from "lucide-react";
+import { Mic, Radio } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
-	isDedicatedTranscriptionModel,
+	isStreamingTranscriptionModel,
 	loadTranscriptionModels,
 	notifyVoiceInputSettingsChanged,
 	readVoiceInputCatalog,
@@ -31,25 +31,11 @@ type VoiceProviderEntry = {
 	models: ProviderModel[];
 };
 
-/**
- * The model preselected when the user enables voice input or switches
- * provider: streaming transcription when available, else the first
- * transcription model the provider offers.
- */
+/** Voice input only offers models that return text while the user speaks. */
 export function defaultTranscriptionModel(
 	models: ProviderModel[],
 ): ProviderModel | undefined {
-	return (
-		models.find(
-			(model) =>
-				isDedicatedTranscriptionModel(model) &&
-				model.operationModes?.includes("streaming"),
-		) ?? models.find(isDedicatedTranscriptionModel)
-	);
-}
-
-function isStreamingModel(model: ProviderModel): boolean {
-	return model.operationModes?.includes("streaming") === true;
+	return models.find(isStreamingTranscriptionModel);
 }
 
 export function VoiceInputContent({
@@ -113,14 +99,14 @@ export function VoiceInputContent({
 	const voiceProviders: VoiceProviderEntry[] = connectedProviders
 		.map((provider) => ({
 			provider,
-			models: (provider.modelList ?? []).filter(isDedicatedTranscriptionModel),
+			models: (provider.modelList ?? []).filter(isStreamingTranscriptionModel),
 		}))
 		.filter((entry) => entry.models.length > 0);
 	// Providers that would qualify once connected, so the empty states can
 	// point the user at something actionable.
 	const voiceCapableProviderNames = (providers ?? [])
 		.filter((provider) =>
-			(provider.modelList ?? []).some(isDedicatedTranscriptionModel),
+			(provider.modelList ?? []).some(isStreamingTranscriptionModel),
 		)
 		.map((provider) => provider.name);
 
@@ -176,9 +162,18 @@ export function VoiceInputContent({
 	const header = (
 		<>
 			<PageHeader
-				description="Speak instead of typing: the microphone in chat transcribes your voice with the model chosen here. Streaming models show text as you speak; others transcribe when the recording stops."
+				description="Speak instead of typing: the microphone in chat transcribes your voice with the model chosen here. Text appears as you speak; Stop ends the live session."
 				title="Voice input"
 			/>
+			{providers !== null &&
+			voiceInput &&
+			!selectedEntry?.models.some(
+				(model) => model.id === voiceInput.modelId,
+			) ? (
+				<p className="mb-4 text-sm text-destructive" role="alert">
+					Choose a streaming transcription model to use live voice input.
+				</p>
+			) : null}
 			{modelErrors.length > 0 ? (
 				<p className="mb-4 text-sm text-destructive" role="alert">
 					{modelErrors.join(" ")} Reopen Voice settings to retry.
@@ -216,15 +211,15 @@ export function VoiceInputContent({
 					<Mic aria-hidden="true" className="size-6 text-muted-foreground" />
 					<p className="text-base font-medium text-foreground">
 						{hasConnected
-							? "None of your configured providers offer speech-to-text models"
+							? "None of your configured providers offer streaming speech-to-text models"
 							: "Voice input needs a configured model provider"}
 					</p>
 					<p className="text-sm text-muted-foreground">
 						{voiceCapableProviderNames.length > 0
-							? `Connect a provider with transcription models — for example ${voiceCapableProviderNames
+							? `Connect a provider with streaming transcription models — for example ${voiceCapableProviderNames
 									.slice(0, 4)
 									.join(", ")} — and this page unlocks automatically.`
-							: "Connect a provider with transcription models and this page unlocks automatically."}
+							: "Connect a provider with streaming transcription models and this page unlocks automatically."}
 					</p>
 					<Button onClick={onOpenModelProviders} size="sm" type="button">
 						Open Model Providers
@@ -352,29 +347,15 @@ export function VoiceInputContent({
 														<Tooltip>
 															<TooltipTrigger asChild>
 																<span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-hover px-1.5 py-px text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
-																	{isStreamingModel(model) ? (
-																		<>
-																			<Radio
-																				aria-hidden="true"
-																				className="size-3"
-																			/>
-																			Streaming
-																		</>
-																	) : (
-																		<>
-																			<AudioLines
-																				aria-hidden="true"
-																				className="size-3"
-																			/>
-																			After recording
-																		</>
-																	)}
+																	<Radio
+																		aria-hidden="true"
+																		className="size-3"
+																	/>{" "}
+																	Streaming
 																</span>
 															</TooltipTrigger>
 															<TooltipContent>
-																{isStreamingModel(model)
-																	? "Streaming transcription: text appears in the chat box while you speak."
-																	: "Transcribes in one pass after you stop the recording."}
+																Text appears in the chat box while you speak.
 															</TooltipContent>
 														</Tooltip>
 														{isDefault ? (

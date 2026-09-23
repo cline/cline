@@ -19,7 +19,7 @@ vi.mock("@ai-sdk/openai", () => ({
 	createOpenAI: createOpenAIMock,
 }));
 vi.mock("ai", () => ({
-	experimental_transcribe: transcribeMock,
+	transcribe: transcribeMock,
 }));
 
 import {
@@ -128,6 +128,9 @@ describe("transcribeAudio", () => {
 	});
 
 	it("uses Vercel AI Gateway's native transcription model transport", async () => {
+		transcribeMock.mockImplementationOnce(
+			(await vi.importActual<typeof import("ai")>("ai")).transcribe,
+		);
 		const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
 			expect(input).toBe(
 				"https://ai-gateway.vercel.sh/v4/ai/transcription-model",
@@ -142,8 +145,9 @@ describe("transcribeAudio", () => {
 			expect(headers.get("ai-model-id")).toBe("openai/whisper-1");
 			expect(headers.get("content-type")).toBe("application/json");
 			expect(JSON.parse(String(init?.body))).toEqual({
-				audio: "AQID",
-				mediaType: "audio/mp4",
+				audio: Buffer.from("RIFF0000WAVE").toString("base64"),
+				mediaType: "audio/wav",
+				providerOptions: {},
 			});
 			return new Response(
 				JSON.stringify({
@@ -165,18 +169,18 @@ describe("transcribeAudio", () => {
 					fetch: fetchImpl,
 				},
 				modelId: "openai/whisper-1",
-				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/mp4; codecs=mp4a.40.2",
+				audio: Buffer.from("RIFF0000WAVE"),
 				maxRetries: 0,
 			}),
 		).resolves.toEqual({
 			text: "gateway transcript",
+			segments: [],
+			warnings: [],
 			language: "en",
 			durationInSeconds: 1.5,
 		});
 
 		expect(fetchImpl).toHaveBeenCalledOnce();
-		expect(transcribeMock).not.toHaveBeenCalled();
 		expect(createOpenAIMock).not.toHaveBeenCalled();
 	});
 
@@ -322,8 +326,7 @@ describe("transcribeAudio", () => {
 					fetch: fetchImpl,
 				},
 				modelId: "scribe_v2",
-				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm;codecs=opus",
+				audio: new Uint8Array([0x1a, 0x45, 0xdf, 0xa3]),
 			}),
 		).resolves.toEqual({
 			text: "native ElevenLabs transcript",

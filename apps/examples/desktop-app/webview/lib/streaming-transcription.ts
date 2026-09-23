@@ -247,6 +247,7 @@ export async function startStreamingTranscription(options: {
 		);
 		socket.binaryType = "arraybuffer";
 		const activeSocket = socket;
+		let connectionOpened = false;
 		// Install all handlers before opening or sending audio: upstream errors
 		// can arrive while AudioContext.resume is still pending.
 		const connected = new Promise<void>((resolve, reject) => {
@@ -256,6 +257,7 @@ export async function startStreamingTranscription(options: {
 				15_000,
 			);
 			activeSocket.onopen = () => {
+				connectionOpened = true;
 				if (connectionTimeout) clearTimeout(connectionTimeout);
 				connectionTimeout = null;
 				resolve();
@@ -322,14 +324,23 @@ export async function startStreamingTranscription(options: {
 			}
 		};
 		socket.onerror = () => {
-			fail(new Error("Streaming transcription connection failed"));
+			fail(
+				new Error(
+					providerError ??
+						(connectionOpened || navigator.onLine === false
+							? "Streaming transcription network connection was lost"
+							: "Streaming transcription connection failed"),
+				),
+			);
 		};
 		socket.onclose = (event) => {
 			if (!finished) {
 				fail(
 					new Error(
 						providerError ??
-							`Streaming transcription ended before a final transcript was received (code ${event.code})`,
+							(connectionOpened && event.code === 1006
+								? "Streaming transcription network connection was lost"
+								: `Streaming transcription ended before a final transcript was received (code ${event.code})`),
 					),
 				);
 			}

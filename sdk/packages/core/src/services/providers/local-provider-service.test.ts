@@ -1329,14 +1329,12 @@ describe("audio transcription", () => {
 				providerId: "groq",
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 			}),
 		).resolves.toEqual({ text: "transcribed text" });
 		expect(transcribeSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				modelId: "whisper-large-v3",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 				providerConfig: expect.objectContaining({
 					providerId: "groq",
 					apiKey: "audio-key",
@@ -1345,36 +1343,14 @@ describe("audio transcription", () => {
 		);
 	});
 
-	it("persists and uses the configured voice input model", async () => {
+	it("rejects batch-only models for voice input", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
 				providerId: "groq",
 				modelId: "whisper-large-v3",
 			}),
-		).resolves.toMatchObject({
-			voiceInput: {
-				providerId: "groq",
-				modelId: "whisper-large-v3",
-			},
-		});
-
-		const transcribeSpy = vi
-			.spyOn(LlmsModels, "transcribeAudio")
-			.mockResolvedValue({ text: "configured transcript" });
-		await expect(
-			transcribeConfiguredVoiceInput(manager, {
-				audio: new Uint8Array([4, 5, 6]),
-				mediaType: "audio/webm",
-			}),
-		).resolves.toEqual({ text: "configured transcript" });
-		expect(transcribeSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				modelId: "whisper-large-v3",
-				providerConfig: expect.objectContaining({
-					providerId: "groq",
-				}),
-			}),
-		);
+		).rejects.toThrow("does not support streaming transcription");
+		expect(manager.getVoiceInputSettings()).toBeUndefined();
 	});
 
 	it.each([
@@ -1433,7 +1409,6 @@ describe("audio transcription", () => {
 				providerId: "elevenlabs",
 				modelId: "scribe_v2",
 				audio: new Uint8Array([1, 2, 3]),
-				mediaType: "audio/webm",
 			}),
 		).resolves.toEqual({ text: "ElevenLabs transcript" });
 		expect(transcribeSpy).toHaveBeenCalledWith(
@@ -1476,6 +1451,7 @@ describe("authoritative voice model validation", () => {
 				modalities: { input: ["audio"], output: ["text"] },
 				id: "new/voice-model",
 				type: "transcription",
+				tags: ["websocket-transcription"],
 				supported_specifications: ["v4"],
 			},
 			{

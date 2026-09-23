@@ -91,6 +91,12 @@ const result = await transcribeAudio({
 });
 ```
 
+Audio must be an encoded recording (such as WAV, MP3, M4A, or WebM); its
+format is detected from the bytes rather than a caller-supplied MIME type.
+Gateway and OpenAI-compatible requests use AI SDK transcription, including
+`maxRetries`, cancellation, and `providerOptions`. Their results preserve
+`segments` and `warnings` alongside text, language, and duration.
+
 Transcription is fail-closed at the provider boundary. Built-in providers
 declare their concrete transport in their manifest; a custom provider must set
 `routingProviderId` to a provider whose transcription transport it explicitly
@@ -110,7 +116,9 @@ const session = await createStreamingAudioTranscriptionSession({
 });
 ```
 
-Vercel AI Gateway is the first built-in streaming transcription transport.
+Vercel AI Gateway and ElevenLabs support streaming transcription. Gateway
+tokens default to 60 seconds for connection establishment (maximum 300);
+this is not the duration limit of an established recording session.
 Batch models continue to use `transcribeAudio`.
 
 ## Entry Points

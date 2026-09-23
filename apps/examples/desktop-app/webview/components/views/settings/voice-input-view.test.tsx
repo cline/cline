@@ -76,7 +76,7 @@ const unconnectedProvider: Provider = {
 };
 
 describe("defaultTranscriptionModel", () => {
-	it("prefers streaming models, then the first transcription model", () => {
+	it("only selects streaming transcription models", () => {
 		expect(
 			defaultTranscriptionModel(transcriptionProvider.modelList ?? [])?.id,
 		).toBe("scribe_v2_realtime");
@@ -90,7 +90,7 @@ describe("defaultTranscriptionModel", () => {
 					operation: "transcription",
 				},
 			])?.id,
-		).toBe("batch-only");
+		).toBeUndefined();
 	});
 });
 
@@ -210,7 +210,7 @@ describe("VoiceInputContent", () => {
 					name: "Vercel AI Gateway",
 				},
 			],
-			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v1" },
+			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v2_realtime" },
 		});
 		loadTranscriptionModelsMock.mockImplementation(async (id: string) => {
 			if (id === "vercel-ai-gateway") throw new Error("offline");
@@ -220,7 +220,7 @@ describe("VoiceInputContent", () => {
 		expect(container.querySelector('[role="alert"]')?.textContent).toContain(
 			"Could not verify voice models for Vercel AI Gateway",
 		);
-		expect(container.querySelectorAll('[role="radio"]').length).toBe(2);
+		expect(container.querySelectorAll('[role="radio"]').length).toBe(1);
 		expect(
 			Array.from(container.querySelectorAll("button")).some(
 				(button) => button.textContent === "Vercel AI Gateway",
@@ -244,7 +244,7 @@ describe("VoiceInputContent", () => {
 		await render();
 
 		expect(container.textContent).toContain(
-			"None of your configured providers offer speech-to-text models",
+			"None of your configured providers offer streaming speech-to-text models",
 		);
 		expect(container.textContent).toContain("Groq");
 	});
@@ -280,25 +280,18 @@ describe("VoiceInputContent", () => {
 		expect(selected?.textContent).toContain("Default");
 	});
 
-	it("saves model changes and clears the selection when disabled", async () => {
+	it("excludes batch models and clears the selection when disabled", async () => {
 		fetchProviderCatalogMock.mockResolvedValue({
 			providers: [transcriptionProvider],
 			settingsPath: "/tmp/providers.json",
 			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v2_realtime" },
 		});
 		invokeMock.mockResolvedValue({
-			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v1" },
+			voiceInput: { providerId: "elevenlabs", modelId: "scribe_v2_realtime" },
 		});
 		await render();
 
-		const batchModel = Array.from(
-			container.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
-		).find((button) => button.textContent?.includes("Scribe v1"));
-		await act(async () => batchModel?.click());
-		expect(invokeMock).toHaveBeenLastCalledWith("save_voice_input_settings", {
-			provider: "elevenlabs",
-			model: "scribe_v1",
-		});
+		expect(container.textContent).not.toContain("Scribe v1");
 
 		invokeMock.mockResolvedValue({});
 		const toggle = container.querySelector<HTMLInputElement>(

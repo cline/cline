@@ -74,7 +74,7 @@ class FakeSpeechRecognition extends EventTarget {
 		this.dispatchEvent(new Event("end"));
 	}
 
-	emitFinal(transcript: string): void {
+	emitTranscript(transcript: string, isFinal = true): void {
 		const event = new Event("result");
 		Object.defineProperties(event, {
 			resultIndex: { value: 0 },
@@ -82,7 +82,7 @@ class FakeSpeechRecognition extends EventTarget {
 				value: [
 					{
 						0: { confidence: 1, transcript },
-						isFinal: true,
+						isFinal,
 						length: 1,
 					},
 				],
@@ -166,6 +166,139 @@ afterEach(async () => {
 });
 
 describe("SpeechInput", () => {
+	it("falls back after an upload network failure and retries the provider after reconnecting", async () => {
+		const onAudioRecorded = vi
+			.fn()
+			.mockRejectedValue(new TypeError("fetch failed"));
+		const onNetworkFallback = vi.fn();
+		const onError = vi.fn();
+		const onTranscriptionChange = vi.fn();
+		const onStreamingStart = vi.fn();
+		await act(async () =>
+			root.render(
+				<SpeechInput
+					fallbackOnNetworkError
+					onAudioRecorded={onAudioRecorded}
+					onNetworkFallback={onNetworkFallback}
+					onError={onError}
+					onTranscriptionChange={onTranscriptionChange}
+					onStreamingStart={onStreamingStart}
+					recordingMode="media-recorder"
+				/>,
+			),
+		);
+		const button = container.querySelector("button");
+		await act(async () => button?.click());
+		await act(async () => button?.click());
+		expect(stopTrack).toHaveBeenCalledOnce();
+		expect(onNetworkFallback).toHaveBeenCalledOnce();
+		expect(onError).not.toHaveBeenCalled();
+		expect(button?.title).toBe("Record with browser speech recognition");
+		await act(async () => button?.click());
+		expect(onStreamingStart).toHaveBeenCalledOnce();
+		await act(async () =>
+			FakeSpeechRecognition.instances[0]?.emitTranscript(
+				"browser transcript",
+				false,
+			),
+		);
+		expect(onTranscriptionChange).toHaveBeenLastCalledWith(
+			"browser transcript",
+			"speech-recognition",
+		);
+		await act(async () => button?.click());
+		await act(async () => window.dispatchEvent(new Event("online")));
+		await act(async () => button?.click());
+		expect(FakeMediaRecorder.instances).toHaveLength(2);
+	});
+
+	it.each([
+		"Unauthorized",
+		"Model not found",
+		"Permission denied",
+	])("keeps %s visible instead of falling back", async (message) => {
+		const onError = vi.fn();
+		const onNetworkFallback = vi.fn();
+		await act(async () =>
+			root.render(
+				<SpeechInput
+					fallbackOnNetworkError
+					onAudioRecorded={async () => {
+						throw new Error(message);
+					}}
+					onError={onError}
+					onNetworkFallback={onNetworkFallback}
+					recordingMode="media-recorder"
+				/>,
+			),
+		);
+		const button = container.querySelector("button");
+		await act(async () => button?.click());
+		await act(async () => button?.click());
+		expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message }));
+		expect(onNetworkFallback).not.toHaveBeenCalled();
+		expect(FakeSpeechRecognition.instances).toHaveLength(0);
+	});
+
+	it("reports the original network error when browser recognition is unavailable", async () => {
+		Object.defineProperty(window, "SpeechRecognition", {
+			configurable: true,
+			value: undefined,
+		});
+		const onError = vi.fn();
+		await act(async () =>
+			root.render(
+				<SpeechInput
+					fallbackOnNetworkError
+					onAudioRecorded={async () => {
+						throw new Error("fetch failed");
+					}}
+					onError={onError}
+					recordingMode="media-recorder"
+				/>,
+			),
+		);
+		const button = container.querySelector("button");
+		await act(async () => button?.click());
+		await act(async () => button?.click());
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({ message: "fetch failed" }),
+		);
+	});
+
+	it("falls back when an established transcription stream loses its connection", async () => {
+		let rejectDone: (error: Error) => void = () => {};
+		const done = new Promise<void>((_resolve, reject) => {
+			rejectDone = reject;
+		});
+		const onNetworkFallback = vi.fn();
+		const onStreamingEnd = vi.fn();
+		await act(async () =>
+			root.render(
+				<SpeechInput
+					fallbackOnNetworkError
+					recordingMode="streaming"
+					onStartStreaming={async () => ({
+						done,
+						stop: vi.fn(),
+						cancel: vi.fn(),
+					})}
+					onNetworkFallback={onNetworkFallback}
+					onStreamingEnd={onStreamingEnd}
+				/>,
+			),
+		);
+		await act(async () => container.querySelector("button")?.click());
+		await act(async () =>
+			rejectDone(
+				new Error("Streaming transcription network connection was lost"),
+			),
+		);
+		expect(onStreamingEnd).toHaveBeenCalledOnce();
+		expect(onNetworkFallback).toHaveBeenCalledOnce();
+		expect(container.querySelector("button")?.disabled).toBe(false);
+	});
+
 	it("emits browser speech-recognition text before recording stops", async () => {
 		const onAudioRecorded = vi.fn(async () => "batch transcript");
 		const onTranscriptionChange = vi.fn();
@@ -187,7 +320,7 @@ describe("SpeechInput", () => {
 		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
 
 		await act(async () => {
-			FakeSpeechRecognition.instances[0]?.emitFinal("live transcript");
+			FakeSpeechRecognition.instances[0]?.emitTranscript("live transcript");
 		});
 
 		expect(onTranscriptionChange).toHaveBeenCalledWith(

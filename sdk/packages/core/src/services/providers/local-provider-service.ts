@@ -83,13 +83,11 @@ export interface TranscribeLocalAudioRequest {
 	providerId: string;
 	modelId: string;
 	audio: Uint8Array;
-	mediaType?: string;
 	abortSignal?: AbortSignal;
 }
 
 export interface TranscribeConfiguredVoiceInputRequest {
 	audio: Uint8Array;
-	mediaType?: string;
 	abortSignal?: AbortSignal;
 }
 
@@ -974,7 +972,6 @@ export async function transcribeLocalAudio(
 		providerConfig: config,
 		modelId,
 		audio: request.audio,
-		mediaType: request.mediaType,
 		abortSignal: request.abortSignal,
 	});
 }
@@ -1010,6 +1007,12 @@ export async function saveVoiceInputSettings(
 		);
 	}
 
+	if (!model.operationModes?.includes("streaming")) {
+		throw new Error(
+			`Model "${modelId}" does not support streaming transcription. Choose a streaming model for voice input.`,
+		);
+	}
+
 	const voiceInput = { providerId, modelId };
 	manager.setVoiceInputSettings(voiceInput);
 	return { settingsPath: manager.getFilePath(), voiceInput };
@@ -1026,7 +1029,6 @@ export async function transcribeConfiguredVoiceInput(
 	return transcribeLocalAudio(manager, {
 		...selection,
 		audio: request.audio,
-		mediaType: request.mediaType,
 		abortSignal: request.abortSignal,
 	});
 }
