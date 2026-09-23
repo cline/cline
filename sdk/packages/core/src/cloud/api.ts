@@ -792,31 +792,6 @@ export class CloudSessionApi {
 		}
 	}
 
-	async recoverCreation(
-		input: CreateCloudSessionInput & { requestId: string },
-	): Promise<CloudSessionRecord | undefined> {
-		const marker = createRequestTitle(input.requestId);
-		const rows = await this.listWithToken(
-			input.organizationId ?? undefined,
-			undefined,
-			true,
-		);
-		const matches = rows.filter(
-			(row) =>
-				row.title === marker &&
-				row.repoContext.repoUrl === input.repoUrl &&
-				row.metadata.modelId === input.modelId &&
-				(!input.branch?.trim() ||
-					row.repoContext.branch === input.branch.trim()),
-		);
-		if (matches.length > 1)
-			throw new CloudSessionError(
-				"request_failed",
-				"Cloud creation is ambiguous. Inspect the cloud session list before continuing.",
-			);
-		return matches[0];
-	}
-
 	async waitUntilReady(
 		sessionId: string,
 		signal: AbortSignal,

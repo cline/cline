@@ -2091,10 +2091,6 @@ function ChatThreadPane({
 		sourceSessionId,
 	]);
 
-	const handoffUiRef = useRef(handoffUi);
-	useEffect(() => {
-		handoffUiRef.current = handoffUi;
-	}, [handoffUi]);
 	const runHandoff = useCallback(
 		async (
 			preflight: HandoffPreflight,
@@ -2138,17 +2134,11 @@ function ChatThreadPane({
 					isThreadActive,
 				});
 			} catch (error) {
-				// The reducer-fed ref lags a render behind the completion event;
-				// the coordinator's own registry wins the same-tick race, and this
-				// entry covers completions that landed a render earlier.
-				const reducerEntry = handoffUiRef.current;
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
 					handoffAttemptId,
 					error,
 					nextCommand,
 					sourceAttachments,
-					reducerEntryIsComplete:
-						reducerEntry?.status === "complete" ? reducerEntry : undefined,
 					isThreadActive,
 				});
 			}
@@ -2283,14 +2273,11 @@ function ChatThreadPane({
 					pendingPrompt,
 				);
 			} catch (error) {
-				const reducerEntry = handoffUiRef.current;
 				await handoffLifecycle.onRpcRejected(sourceSessionId, {
 					handoffAttemptId,
 					error,
 					nextCommand,
 					sourceAttachments,
-					reducerEntryIsComplete:
-						reducerEntry?.status === "complete" ? reducerEntry : undefined,
 					isThreadActive,
 				});
 			} finally {

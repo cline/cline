@@ -2267,8 +2267,6 @@ function readCloudHandoffMode(value: unknown): AgentMode {
 		: "act";
 }
 
-export { combineCloudHandoffModels } from "@cline/core/cloud";
-
 async function assertHandoffIdle(
 	ctx: SidecarContext,
 	manager: ClineCore,

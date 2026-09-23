@@ -780,13 +780,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			initialPromptDraft: "run the suite",
 			initialAttachments: [attachment],
 		});
-		expect(h.dispatched.at(-1)).toEqual({
-			type: "target_open_failed",
-			sourceSessionId: SOURCE,
-			dashboardUrl: DASHBOARD_URL,
-			retryDraft: "run the suite",
-			retryAttachments: [attachment],
-		});
 		expect(h.getState()[SOURCE]).toEqual({
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
@@ -828,58 +821,50 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 	});
 
-	it("ref-lag fallback: a reducer-fed complete entry drives restoration when the registry is empty", async () => {
+	it.each([
+		"false",
+		"reject",
+	])("does not overwrite a newer retry when an older target open returns %s", async (outcome) => {
 		const h = makeHarness();
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			error: new Error("socket closed"),
-			nextCommand: "run the suite",
-			sourceAttachments: [],
-			reducerEntryIsComplete: {
-				receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
-				externalPresentation: false,
-				warningKind: "unqueued",
-			},
-			isThreadActive: () => true,
-		});
-		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
-			silent: true,
-			initialPromptDraft: "run the suite",
-		});
-		expect(h.toast).toHaveBeenCalledExactlyOnceWith(
-			expect.objectContaining({ title: "Handoff completed" }),
+		const firstAttempt = h.lifecycle.onRpcStarted(SOURCE);
+		let finishOpen!: () => void;
+		h.openSession.mockImplementationOnce(
+			() =>
+				new Promise<boolean>((resolve, reject) => {
+					finishOpen = () =>
+						outcome === "reject"
+							? reject(new Error("discovery failed"))
+							: resolve(false);
+				}),
 		);
-		expect(h.dispatched).toEqual([
-			expect.objectContaining({
-				type: "complete",
-				retryDraft: "run the suite",
+		await h.lifecycle.onEvent(
+			completeEvent({
+				handoffAttemptId: firstAttempt,
+				warningKind: "unqueued",
 			}),
-			{ type: "retry_delivered", sourceSessionId: SOURCE },
-		]);
-	});
-
-	it("registry completion wins over a conflicting reducer entry", async () => {
-		const h = makeHarness();
-		h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			error: new Error("socket closed"),
-			nextCommand: "run the suite",
-			sourceAttachments: [],
-			// A stale reducer entry pointing elsewhere must lose to the
-			// synchronously recorded completion.
-			reducerEntryIsComplete: {
-				receipt: {
-					targetSessionId: "stale-target",
-					dashboardUrl: "https://app.cline.bot/agents/stale",
-				},
-				externalPresentation: false,
-				warningKind: "unqueued",
-			},
-			isThreadActive: () => true,
-		});
-		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(
-			TARGET,
-			expect.objectContaining({ initialPromptDraft: "run the suite" }),
 		);
+		const firstRejection = h.lifecycle.onRpcRejected(SOURCE, {
+			handoffAttemptId: firstAttempt,
+			error: new Error("socket closed"),
+			nextCommand: "first command",
+			sourceAttachments: [makeAttachment()],
+		});
+		await vi.waitFor(() => expect(h.openSession).toHaveBeenCalledOnce());
+		const retryAttempt = h.lifecycle.onRpcStarted(SOURCE);
+		h.dispatch({ type: "start", sourceSessionId: SOURCE });
+		await h.lifecycle.onEvent({
+			sourceSessionId: SOURCE,
+			handoffAttemptId: retryAttempt,
+			phase: "creating",
+		});
+		const retryState = h.getState();
+		expect(retryState[SOURCE]).toMatchObject({
+			status: "progress",
+			phase: "creating",
+		});
+		finishOpen();
+		await firstRejection;
+		expect(h.getState()).toBe(retryState);
 	});
 
 	it("completed externally: no restoration open, benign toast still shown", async () => {
@@ -947,7 +932,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			{
 				type: "failed",
 				sourceSessionId: SOURCE,
-				exposeRecovery: true,
 				retryDraft: "/cloud fix flaky test",
 				retryAttachments: [attachment],
 			},
@@ -1115,7 +1099,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			{
 				type: "failed",
 				sourceSessionId: SOURCE,
-				exposeRecovery: true,
 				retryDraft: "/cloud",
 				retryAttachments: [],
 			},
@@ -1315,7 +1298,6 @@ describe("cloud handoff lifecycle: RPC rejected with no completion", () => {
 			{
 				type: "failed",
 				sourceSessionId: SOURCE,
-				exposeRecovery: true,
 				retryDraft: "/cloud open a PR",
 				retryAttachments: [attachment],
 			},
@@ -1359,8 +1341,6 @@ describe("cloud handoff lifecycle: RPC rejected with no completion", () => {
 			nextCommand: "retry me",
 			sourceAttachments: [],
 		});
-		// Reducer interplay: exposeRecovery + a known dashboardUrl produces a
-		// recovery entry carrying the retry draft.
 		expect(h.getState()[SOURCE]).toEqual({
 			status: "recovery",
 			dashboardUrl: DASHBOARD_URL,

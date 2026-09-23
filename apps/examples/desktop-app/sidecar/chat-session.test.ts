@@ -13,7 +13,6 @@ import {
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
 	SessionNotFoundError,
-	selectCloudHandoffModel,
 } from "@cline/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
@@ -22,7 +21,6 @@ import {
 	beginSessionMetadataUpdate,
 	buildSessionConnectionUpdate,
 	cloudHandoffGitStateMatchesFingerprint,
-	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
 	createDesktopMistakeLimitPrompt,
 	createDesktopMistakeRecovery,
@@ -96,30 +94,6 @@ describe("resolveDesktopSessionMode", () => {
 	it("preserves explicit Plan and Yolo modes", () => {
 		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
 		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
-	});
-});
-
-describe("cloud handoff model catalog", () => {
-	it("retains a catalog model duplicated in Cline Pass for organization use", () => {
-		const models = combineCloudHandoffModels({
-			catalog: [{ id: "shared/model", name: "Shared", catalogId: "cline" }],
-			clinePass: [
-				{ id: "shared/model", name: "Shared Pass", catalogId: "cline-pass" },
-			],
-			clineCloud: [],
-		});
-
-		expect(
-			selectCloudHandoffModel({
-				localModelId: "shared/model",
-				models,
-				isOrganizationSession: true,
-			}),
-		).toMatchObject({
-			modelId: "shared/model",
-			catalogId: "cline",
-			usedFallback: false,
-		});
 	});
 });
 
@@ -2879,7 +2853,7 @@ describe("cloud handoff transaction", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("completes a fresh handoff end to end", async () => {
+	function createHandoffFixture() {
 		const sourceSessionId = "local-handoff-source";
 		const modelId = "anthropic/claude-sonnet-4.6";
 		const headSha = "a".repeat(40);
@@ -3011,6 +2985,38 @@ describe("cloud handoff transaction", () => {
 		});
 		ctx.cloudSessionManager = cloud;
 
+		return {
+			ctx,
+			sourceSessionId,
+			modelId,
+			headSha,
+			messages,
+			order,
+			events,
+			metadataUpdates,
+			getPersistedMetadata: () => persistedMetadata,
+			verifyHandoffTranscript,
+			cloudSend,
+			create,
+		};
+	}
+
+	it("completes a fresh handoff end to end", async () => {
+		const {
+			ctx,
+			sourceSessionId,
+			modelId,
+			headSha,
+			messages,
+			order,
+			events,
+			metadataUpdates,
+			getPersistedMetadata,
+			verifyHandoffTranscript,
+			cloudSend,
+			create,
+		} = createHandoffFixture();
+
 		const running = handleChatSessionCommand(ctx, {
 			action: "handoff",
 			sessionId: sourceSessionId,
@@ -3052,7 +3058,7 @@ describe("cloud handoff transaction", () => {
 			dashboardUrl: expect.stringContaining("ses-cloud"),
 		});
 		expect(metadataUpdates).toHaveLength(2);
-		expect(readCloudHandoffMetadata(persistedMetadata)).toMatchObject({
+		expect(readCloudHandoffMetadata(getPersistedMetadata())).toMatchObject({
 			status: "complete",
 			toCloudSessionId: "ses-cloud",
 			innerSessionId: "inner-cloud",
@@ -3102,127 +3108,14 @@ describe("cloud handoff transaction", () => {
 		expect(result).not.toHaveProperty("warning");
 	});
 
-	// Mirrors the fresh end-to-end handoff above, but with a follow-up command
-	// whose queueing fails with the given error.
 	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{
 		cloudSend: ReturnType<typeof vi.fn>;
 		result: { sessionId: string; warning?: string; warningKind?: string };
 		completeEvent: Record<string, unknown> | undefined;
 	}> {
-		const sourceSessionId = "local-handoff-source";
-		const modelId = "anthropic/claude-sonnet-4.6";
-		const headSha = "a".repeat(40);
-		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
-			repoUrl: "https://github.com/cline/test",
-			branch: "main",
-			remoteName: "origin",
-			headSha,
-		});
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async (input: unknown) =>
-				String(input).endsWith("/api/v1/ai/cline/models")
-					? new Response(
-							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
-							{ status: 200, headers: { "content-type": "application/json" } },
-						)
-					: new Response("not found", { status: 404 }),
-			),
-		);
-
-		const messages = [
-			{ role: "user" as const, content: "continue this work" },
-			{ role: "assistant" as const, content: "done locally" },
-		];
-		const events: Array<{ name: string; payload: Record<string, unknown> }> =
-			[];
-		let persistedMetadata: Record<string, unknown> = {};
-		const ctx = {
-			liveSessions: new Map([
-				[
-					sourceSessionId,
-					{
-						config: {
-							cwd: "/workspace/project",
-							provider: "cline",
-							model: modelId,
-						},
-						messages,
-						promptsInQueue: [],
-						busy: false,
-						startedAt: Date.now(),
-						status: "idle",
-					},
-				],
-			]),
-			restoringWorkspacePaths: new Set(),
-			streamIndices: new Map(),
-			pendingApprovals: new Map(),
-			pendingQuestions: new Map(),
-			wsClients: new Set([
-				{
-					data: { canApproveTools: true },
-					send(message: string) {
-						const parsed = JSON.parse(message) as {
-							event: { name: string; payload: Record<string, unknown> };
-						};
-						events.push(parsed.event);
-					},
-				},
-			]),
-			...localRuntimeContext(
-				{
-					get: vi.fn(async () => ({
-						sessionId: sourceSessionId,
-						status: "completed",
-						cwd: "/workspace/project",
-						model: modelId,
-						metadata: persistedMetadata,
-					})),
-					readLiveMessages: vi.fn(async () => messages),
-					update: vi.fn(
-						async (
-							_id: string,
-							input: { metadata: Record<string, unknown> },
-						) => {
-							persistedMetadata = input.metadata;
-							return { updated: true };
-						},
-					),
-					pendingPrompts: { list: vi.fn(async () => []) },
-				},
-				{ sessionIds: [sourceSessionId] },
-			),
-		} as unknown as SidecarContext;
-
-		const cloudSend = vi.fn(async () => {
-			throw sendError;
-		});
-		const cloud = new CloudSessionManager(ctx, {
-			api: {} as unknown as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-		});
-		Object.assign(cloud, {
-			prepareHandoffRepository: vi.fn(async () => ({})),
-			create: vi.fn(
-				async (input: {
-					handoff?: {
-						onOuterSessionCreated?: (id: string) => Promise<void>;
-						resolveMessages: () => Promise<unknown>;
-						onSeeding?: () => void;
-					};
-				}) => {
-					await input.handoff?.onOuterSessionCreated?.("ses-cloud");
-					await input.handoff?.resolveMessages();
-					input.handoff?.onSeeding?.();
-					return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
-				},
-			),
-			verifyHandoffTranscript: vi.fn(async () => undefined),
-			send: cloudSend,
-		});
-		ctx.cloudSessionManager = cloud;
+		const { ctx, sourceSessionId, modelId, headSha, events, cloudSend } =
+			createHandoffFixture();
+		cloudSend.mockRejectedValueOnce(sendError);
 
 		const result = (await handleChatSessionCommand(ctx, {
 			action: "handoff",

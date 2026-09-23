@@ -2,7 +2,6 @@ import {
 	buildHandoffWarningToast,
 	claimHandoffWarningSurface,
 	type HandoffProgressPhase,
-	type HandoffReceipt,
 	type HandoffResult,
 	shouldOpenHandoffInApp,
 } from "./cloud-handoff";
@@ -94,17 +93,6 @@ export type HandoffRpcRejectedContext = {
 	error: unknown;
 	nextCommand: string;
 	sourceAttachments: File[];
-	/**
-	 * The reducer entry for the source session IF it already shows a completed
-	 * handoff, read by the caller at rejection time. The coordinator's own
-	 * registry wins the same-tick race; this reducer-fed fallback covers
-	 * completions that landed a render earlier.
-	 */
-	reducerEntryIsComplete?: {
-		receipt: HandoffReceipt;
-		externalPresentation: boolean;
-		warningKind?: "unqueued" | "unconfirmed";
-	};
 	isThreadActive?: () => boolean;
 };
 
@@ -263,12 +251,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 							}
 						}
 					}
-				}
-				if (
-					acceptedAttempt &&
-					acceptedAttempts.get(sourceSessionId) !== acceptedAttempt
-				) {
-					return;
 				}
 			}
 			effects.dispatch({
@@ -443,8 +425,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			// The authoritative completion event may have landed while the
 			// RPC transport failed; the handoff succeeded, so a destructive
 			// "failed" toast would contradict the visible receipt.
-			// The reducer-fed entry lags a render; this registry is written
-			// synchronously at event arrival and wins the same-tick race.
 			const syncCompletion = completions.get(key);
 			const completedEntry = syncCompletion
 				? {
@@ -455,9 +435,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 						externalPresentation: syncCompletion.externalPresentation,
 						warningKind: syncCompletion.warningKind,
 					}
-				: ctx.handoffAttemptId
-					? undefined
-					: ctx.reducerEntryIsComplete;
+				: undefined;
 			if (completedEntry) {
 				// The event told the user their command was kept; honor that
 				// even though the RPC (the usual restoration driver) is gone.
@@ -508,15 +486,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 							}),
 						)
 						.catch(() => false);
-					if (!opened) {
-						effects.dispatch({
-							type: "target_open_failed",
-							sourceSessionId,
-							dashboardUrl: completedEntry.receipt.dashboardUrl,
-							retryDraft: restoreCommand,
-							retryAttachments: sourceAttachments,
-						});
-					} else {
+					if (opened) {
 						effects.dispatch({ type: "retry_delivered", sourceSessionId });
 					}
 				}
@@ -546,7 +516,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 			effects.dispatch({
 				type: "failed",
 				sourceSessionId,
-				exposeRecovery: true,
 				retryDraft: nextCommand ? `/cloud ${nextCommand}` : "/cloud",
 				retryAttachments: sourceAttachments,
 			});

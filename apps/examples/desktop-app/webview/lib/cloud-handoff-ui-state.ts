@@ -47,7 +47,6 @@ export type CloudHandoffUiEntry =
 			warningKind?: "unqueued" | "unconfirmed";
 			retryDraft?: string;
 			retryAttachments?: File[];
-			retainRetry?: boolean;
 	  };
 
 export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
@@ -92,7 +91,6 @@ export type CloudHandoffUiAction =
 	| {
 			type: "failed";
 			sourceSessionId: string;
-			exposeRecovery: boolean;
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  }
@@ -103,13 +101,6 @@ export type CloudHandoffUiAction =
 			externalPresentation: boolean;
 			pendingPrompt?: PendingHandoffPrompt;
 			warningKind?: "unqueued" | "unconfirmed";
-			retryDraft?: string;
-			retryAttachments?: File[];
-	  }
-	| {
-			type: "target_open_failed";
-			sourceSessionId: string;
-			dashboardUrl: string;
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  }
@@ -265,7 +256,7 @@ export function cloudHandoffUiReducer(
 			}
 			const dashboardUrl =
 				current?.status === "progress" ? current.dashboardUrl : undefined;
-			if (action.exposeRecovery && dashboardUrl) {
+			if (dashboardUrl) {
 				return {
 					...state,
 					[action.sourceSessionId]: {
@@ -296,26 +287,6 @@ export function cloudHandoffUiReducer(
 				action.retryDraft,
 				action.retryAttachments,
 			);
-		case "target_open_failed":
-			if (current?.status === "complete") {
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						...current,
-						retryDraft: action.retryDraft,
-						retryAttachments: action.retryAttachments,
-					},
-				};
-			}
-			return {
-				...state,
-				[action.sourceSessionId]: {
-					status: "recovery",
-					dashboardUrl: action.dashboardUrl,
-					retryDraft: action.retryDraft,
-					retryAttachments: action.retryAttachments,
-				},
-			};
 		case "external": {
 			if (current?.status !== "complete") return state;
 			const next = {
