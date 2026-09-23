@@ -138,3 +138,20 @@ Configured agents do not expose a tool approval policy setting. The parent’s
 executes its available tools without inheriting that policy or approval callback.
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
+
+## Shared command output and image presentation (`@cline/ui`)
+
+`AgentCommandOutput` renders `output` with a running cursor controlled by
+`isRunning`. Optional `children` let the host retain ANSI rendering or normalize
+control characters. It follows new output initially, pauses when the user
+scrolls away, and resumes within 24px of the bottom. Hosts own output collection,
+limits, and session identity; remount it when switching commands. `tabIndex` and
+`classNames.viewport` / `classNames.cursor` allow host-specific accessibility styling.
+
+`AgentImageLightboxContent` renders an image and two close controls calling
+`onClose`. The host owns the dialog, positioning, Escape handling, focus management,
+and image navigation. `backdropTabIndex` can exclude the backdrop from a managed
+dialog's tab order. Image source validation and resolution remain host-owned;
+provider-generated URLs must go through an explicit host trust policy before
+rendering. This presentation primitive does not replace `GeneratedMediaContent`
+or its inline-byte validation.

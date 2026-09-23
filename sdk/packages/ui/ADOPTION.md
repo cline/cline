@@ -68,6 +68,12 @@ products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
 
+`AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
+Pass ANSI-rendered or normalized output as children; transport and output limits
+stay in the host. `AgentImageLightboxContent` shares the expanded image, backdrop
+close action, and close control; hosts retain their dialog, focus, keyboard, and
+image navigation. Import both from `@cline/ui` with `@cline/ui/components.css`.
+
 ## Current status
 
 `@cline/ui` is configured for public npm publication with its own version and
@@ -506,6 +512,14 @@ semantics:
 Use the small `--brand-*` palette only for branded artwork. Normal controls
 should prefer visual/status roles or shadcn semantic tokens so they continue to
 work across light, dark, and future theme layers.
+
+## Radius utilities
+
+Use `rounded-cline-ui-lg` and other `rounded-cline-ui-*` theme sizes in
+shared components. They use Cline's radius tokens without taking over the
+host application's `rounded-lg` utility. Desktop's equivalent utilities
+resolve to the same radius values. Keep structural shapes such as
+`rounded-full` unchanged; there is no `rounded-cline-ui-full` token.
 
 ## Product overrides
 
