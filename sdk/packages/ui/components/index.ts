@@ -17,7 +17,15 @@ export {
 	AgentChangesPanel,
 	type AgentChangesPanelProps,
 } from "./agent-changes.js";
+export {
+	AgentCommandOutput,
+	type AgentCommandOutputProps,
+} from "./agent-command-output.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
+export {
+	AgentImageLightboxContent,
+	type AgentImageLightboxContentProps,
+} from "./agent-image-lightbox.js";
 export {
 	AgentPromptQueue,
 	type AgentPromptQueueItem,
