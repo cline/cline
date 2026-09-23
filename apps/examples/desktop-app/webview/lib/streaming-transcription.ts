@@ -209,7 +209,7 @@ export async function startStreamingTranscription(options: {
 			!providerError &&
 			((error instanceof Error &&
 				error.name === "AI_NoTranscriptGeneratedError") ||
-				/^(Connection error on AI Gateway transcription stream|AI Gateway transcription stream closed before a finish part was received|OpenAI realtime transcription error)$/.test(
+				/(Connection error on AI Gateway transcription stream|AI Gateway transcription stream closed before a finish part was received|OpenAI realtime transcription error)$/.test(
 					errorMessage(error),
 				))
 				? new Error("Streaming transcription network connection was lost", {
