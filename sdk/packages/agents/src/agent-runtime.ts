@@ -1450,6 +1450,17 @@ export class AgentRuntime {
 			!retry.message.content.some((part) => part.type === "tool-call")
 		) {
 			await this.recordAssistantMessage(first.message, first.finishReason);
+			// An errored retry that still produced output — text, or a
+			// provider-executed tool that has already run — is observable work,
+			// not a discardable draft: keep it alongside the truncated turn so the
+			// transcript shows what happened (the loop records such a turn before
+			// failing, too). Only a retry that produced nothing is dropped.
+			if (
+				retry.message.content.length > 0 ||
+				this.hasModelToolActivity(retry.message)
+			) {
+				await this.recordAssistantMessage(retry.message, retry.finishReason);
+			}
 			throw new Error(this.state.lastError ?? "Model stream failed");
 		}
 		// A retry that came back with nothing is no replacement either: handing it

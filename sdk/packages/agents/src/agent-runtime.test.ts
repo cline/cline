@@ -1052,6 +1052,65 @@ describe("AgentRuntime", () => {
 		expect(renderable).toBe(true);
 	});
 
+	it("keeps the errored compacted retry's completed provider-tool activity alongside the truncated turn", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			// The compacted retry runs a provider-executed tool (a side effect
+			// that has happened), emits text, then the stream errors.
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					output: { results: [{ url: "https://example.com" }] },
+				},
+				{ type: "text-delta", text: "The weather is" },
+				{ type: "finish", reason: "error", error: "stream dropped" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("stream dropped");
+		const assistant = result.messages.filter((m) => m.role === "assistant");
+		// The truncated turn survives...
+		expect(
+			assistant.some((m) =>
+				m.content.some((c) => c.type === "text" && c.text === "truncated..."),
+			),
+		).toBe(true);
+		// ...and so does the retry that performed the tool: its completed
+		// activity is history the model must see on resume, not a discardable
+		// draft.
+		const retry = assistant.find(
+			(m) => (m.metadata?.modelToolActivities?.length ?? 0) > 0,
+		);
+		expect(retry).toBeDefined();
+		expect(retry?.metadata?.modelToolActivities).toHaveLength(1);
+		expect(retry?.content).toEqual([{ type: "text", text: "The weather is" }]);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
