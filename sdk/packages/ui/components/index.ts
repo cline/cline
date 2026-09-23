@@ -12,6 +12,12 @@ export {
 } from "./agent-ask-question.js";
 export { AgentAurora } from "./agent-aurora.js";
 export {
+	AgentChangedFile,
+	type AgentChangedFileProps,
+	AgentChangesPanel,
+	type AgentChangesPanelProps,
+} from "./agent-changes.js";
+export {
 	AgentCommandOutput,
 	type AgentCommandOutputProps,
 } from "./agent-command-output.js";
@@ -40,6 +46,12 @@ export {
 	type AgentComposerTextareaProps,
 	type AgentComposerVariant,
 } from "./agent-composer.js";
+export {
+	AgentContextUsage,
+	type AgentContextUsageData,
+	type AgentContextUsagePresentation,
+	type AgentContextUsageProps,
+} from "./agent-context-usage.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentImageLightboxContent,
@@ -51,10 +63,27 @@ export {
 	type AgentPromptQueueProps,
 } from "./agent-prompt-queue.js";
 export {
+	AgentPullRequestBar,
+	type AgentPullRequestBarProps,
+	type AgentPullRequestCheck,
+	type AgentPullRequestData,
+	type AgentPullRequestNavigation,
+	getAgentPullRequestMergeStatus,
+	summarizeAgentPullRequestChecks,
+} from "./agent-pull-request-bar.js";
+export {
 	type AgentQuickAction,
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
+export {
+	AgentSessionOverview,
+	type AgentSessionOverviewProps,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	type AgentSessionRowEditorProps,
+	type AgentSessionRowProps,
+} from "./agent-session-row.js";
 export {
 	AgentWelcomeHero,
 	type AgentWelcomeHeroLayout,

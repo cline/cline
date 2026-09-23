@@ -3,7 +3,7 @@ import {
 	CloudSessionApi,
 	CloudSessionError,
 	type CloudSessionRecord,
-} from "./cloud-sessions";
+} from "./api";
 
 const REMOTE_SESSION: CloudSessionRecord = {
 	id: "ses-outer",
@@ -35,6 +35,28 @@ function jwtFor(subject: string, nonce: string): string {
 }
 
 describe("CloudSessionApi", () => {
+	it.each([
+		["https://api.example", "https://api.example"],
+		["https://api.example///", "https://api.example"],
+		[
+			`https://api.example/${"/".repeat(100_000)}base///`,
+			`https://api.example/${"/".repeat(100_000)}base`,
+		],
+	])("trims only trailing base-URL slashes (%#)", async (baseUrl, expected) => {
+		const requests: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: baseUrl,
+			appBaseUrl: "https://app.example///",
+			getAuthToken: async () => "token",
+			fetch: async (input) => {
+				requests.push(String(input));
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+		await api.list();
+		expect(requests).toEqual([`${expected}/api/v1/session`]);
+	});
+
 	it("resolves a fresh bearer token for every REST request", async () => {
 		const tokens = ["workos:first", "workos:second"];
 		const authorizations: string[] = [];

@@ -2819,7 +2819,9 @@ describe("ChatInputBar token ring", () => {
 			{ toolCalls: 0, tokensIn: 499, tokensOut: 0 },
 			1000,
 		);
-		expect(belowWarning?.querySelector("circle.stroke-primary")).not.toBeNull();
+		expect(
+			belowWarning?.querySelector("circle.stroke-cline-ui-primary"),
+		).not.toBeNull();
 
 		const warning = await renderTokenUsage(
 			{ toolCalls: 0, tokensIn: 500, tokensOut: 0 },
@@ -2864,9 +2866,13 @@ describe("ChatInputBar token ring", () => {
 		const outputSegment = panel?.querySelector<HTMLElement>(
 			'[data-token-kind="output"]',
 		);
-		expect(uncachedSegment?.classList.contains("bg-primary")).toBe(true);
+		expect(uncachedSegment?.classList.contains("bg-cline-ui-primary")).toBe(
+			true,
+		);
 		expect(uncachedSegment?.style.width).toBe("37.5%");
-		expect(cachedSegment?.classList.contains("bg-primary/60")).toBe(true);
+		expect(cachedSegment?.classList.contains("bg-cline-ui-primary/60")).toBe(
+			true,
+		);
 		expect(cachedSegment?.style.backgroundImage).toContain("linear-gradient");
 		expect(cachedSegment?.style.width).toBe("12.5%");
 		expect(outputSegment?.classList.contains("bg-blue-500")).toBe(true);
