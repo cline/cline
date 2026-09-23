@@ -1134,18 +1134,18 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
  * Build the StartSessionInput for a new task.
  *
  * IMPORTANT: We pass `interactive: true` but NO `prompt`. This allocates the
- * session in memory and returns immediately; no persisted session row or
- * artifacts are created yet. The caller then uses
- * `core.send({ sessionId, prompt })` for the first user turn, which persists
- * that same session ID before inference. This keeps initialization responsive
- * without leaving empty history entries when the user never sends a message.
+ * idle session without running a turn. Seed its display title in metadata so
+ * history can show the task while the caller prepares the separate first
+ * `core.send({ sessionId, prompt })` call.
  */
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
+	const title = input.historyItem?.task || input.prompt
 	return {
 		config,
 		// Do NOT pass prompt here — start() should return immediately.
 		// The prompt is sent separately via core.send() after session creation.
 		prompt: undefined,
+		...(title?.trim() ? { sessionMetadata: { title } } : {}),
 		interactive: true, // VSCode extension always uses interactive mode
 		userImages: input.images,
 		userFiles: input.files,
