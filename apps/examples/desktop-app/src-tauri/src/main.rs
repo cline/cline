@@ -12,7 +12,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 #[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{
@@ -724,32 +724,42 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
     Err("opening files is not supported on this platform".to_string())
 }
 
-#[tauri::command]
-async fn get_desktop_backend_endpoint(
-    backend_state: State<'_, Arc<DesktopBackendState>>,
-    context: State<'_, AppContext>,
-) -> Result<String, String> {
-    let backend_state = backend_state.inner().clone();
-    let context = context.inner().clone();
-    let state_for_start = backend_state.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        ensure_desktop_backend_started(&state_for_start, &context)
-    })
-    .await
-    .map_err(|error| format!("desktop backend startup task failed: {error}"))??;
+/// How long one `get_desktop_backend_endpoint` call waits for the sidecar's
+/// ready line. Sidecar startup includes login-shell PATH resolution (bounded
+/// at ~7.5s worst case, see sdk/packages/core/src/remote/shell-path.ts) plus session-manager init,
+/// and a first spawn that dies (e.g. no compatible hub runtime yet, see
+/// cline/cline#14129) is respawned inside the wait — the window must cover a
+/// failed first start plus a full second startup. The wait returns as soon as
+/// the ready line arrives, so only failure waits long, and the webview keeps
+/// re-requesting the endpoint after a failure anyway.
+const ENDPOINT_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+const ENDPOINT_WAIT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+/// Minimum spacing between respawn attempts inside one endpoint wait, so a
+/// crash-looping sidecar is not relaunched on every poll tick.
+const ENDPOINT_RESPAWN_BACKOFF: Duration = Duration::from_secs(2);
 
-    // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
-    // see sidecar/shell-path.ts) plus session-manager init, whose duration
-    // varies by machine. Poll well past that combined worst case; the loop
-    // returns as soon as the ready line arrives, so only failure waits long.
-    // While pending this only waits — respawning is ensure's job, and it
-    // refuses to start a second sidecar while the first one is still alive.
-    // A child that dies mid-poll makes this return an error rather than
-    // respawn: the next ensure call — the health-check loop within 5 seconds,
-    // or this command when the webview reconnects — replaces the dead child.
-    // Async sleeps keep Tauri's window event loop responsive while pending.
-    for _ in 0..150 {
-        if let Some(endpoint) = backend_state
+/// Wait until the tracked sidecar publishes its WebSocket endpoint.
+///
+/// A live child owns startup — this only waits on it. A child that dies
+/// before publishing is respawned here (paced by `respawn_backoff`) instead
+/// of failing the wait: recovery used to be left to the 5s health-check loop
+/// plus a webview retry, which made the first sign-in fail whenever the
+/// sidecar's first spawn lost a startup race (cline/cline#14201, #14129).
+/// Runs on the blocking pool; `respawn` may take the process lock and spawn.
+fn wait_for_desktop_backend_endpoint(
+    state: &Arc<DesktopBackendState>,
+    total_wait: Duration,
+    poll_interval: Duration,
+    respawn_backoff: Duration,
+    mut respawn: impl FnMut() -> Result<(), String>,
+) -> Result<String, String> {
+    let deadline = Instant::now() + total_wait;
+    let mut last_respawn: Option<Instant> = None;
+    loop {
+        if state.is_shutting_down() {
+            return Err("desktop backend is shutting down".to_string());
+        }
+        if let Some(endpoint) = state
             .ws_endpoint
             .lock()
             .ok()
@@ -758,7 +768,7 @@ async fn get_desktop_backend_endpoint(
         {
             return Ok(endpoint);
         }
-        let child_exited = backend_state
+        let child_exited = state
             .process
             .lock()
             .ok()
@@ -767,12 +777,45 @@ async fn get_desktop_backend_endpoint(
                 None => true,
             })
             .unwrap_or(false);
-        if child_exited {
-            return Err("desktop backend exited before publishing its endpoint".to_string());
+        if child_exited
+            && last_respawn
+                .map(|at| at.elapsed() >= respawn_backoff)
+                .unwrap_or(true)
+        {
+            last_respawn = Some(Instant::now());
+            // A spawn error (sidecar binary missing) is permanent for this
+            // wait; report it instead of burning the rest of the window.
+            respawn()?;
         }
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        if Instant::now() >= deadline {
+            return Err("desktop backend endpoint not ready".to_string());
+        }
+        thread::sleep(poll_interval);
     }
-    Err("desktop backend endpoint not ready".to_string())
+}
+
+#[tauri::command]
+async fn get_desktop_backend_endpoint(
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+    context: State<'_, AppContext>,
+) -> Result<String, String> {
+    let backend_state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    // The whole wait runs on the blocking pool: it sleeps, takes the process
+    // lock, and may spawn a replacement sidecar, and Tauri's async runtime
+    // (window events, other commands) must stay responsive meanwhile.
+    tauri::async_runtime::spawn_blocking(move || {
+        ensure_desktop_backend_started(&backend_state, &context)?;
+        wait_for_desktop_backend_endpoint(
+            &backend_state,
+            ENDPOINT_WAIT_TIMEOUT,
+            ENDPOINT_WAIT_POLL_INTERVAL,
+            ENDPOINT_RESPAWN_BACKOFF,
+            || ensure_desktop_backend_started(&backend_state, &context),
+        )
+    })
+    .await
+    .map_err(|error| format!("desktop backend startup task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -918,17 +961,14 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             use objc2_foundation::NSString;
 
             let result: Result<(), String> = (|| {
-                let mtm = MainThreadMarker::new().ok_or_else(|| {
-                    "app icon update did not run on the main thread".to_string()
-                })?;
+                let mtm = MainThreadMarker::new()
+                    .ok_or_else(|| "app icon update did not run on the main thread".to_string())?;
                 let ns_app = NSApplication::sharedApplication(mtm);
                 let image = NSImage::initWithContentsOfFile(
                     NSImage::alloc(),
                     &NSString::from_str(&icon_path.to_string_lossy()),
                 )
-                .ok_or_else(|| {
-                    format!("failed loading app icon image: {}", icon_path.display())
-                })?;
+                .ok_or_else(|| format!("failed loading app icon image: {}", icon_path.display()))?;
                 // SAFETY: called on the main thread with a valid, non-nil image.
                 unsafe { ns_app.setApplicationIconImage(Some(&image)) };
                 Ok(())
@@ -1304,7 +1344,7 @@ fn set_tray_status(
             app.package_info().name.as_str(),
             running_sessions,
         )))
-            .map_err(|error| format!("failed updating tray tooltip: {error}"))?;
+        .map_err(|error| format!("failed updating tray tooltip: {error}"))?;
         tray.set_title(tray_badge_text(running_sessions))
             .map_err(|error| format!("failed updating tray badge: {error}"))?;
     }
@@ -1323,6 +1363,14 @@ fn main() {
     };
 
     tauri::Builder::default()
+        // Closing the window only hides it, so on Windows a second launch from
+        // Start used to start another full copy (tray icon, sidecar) instead
+        // of showing this one. Must be the first plugin so the duplicate exits
+        // before setup creates the tray icon or spawns the sidecar. Keyed on
+        // the bundle identifier, so Cline and Cline Beta still run side by side.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            show_main_window(app);
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
@@ -1676,6 +1724,207 @@ mod tests {
         .expect("shutdown should make startup a no-op");
 
         assert_eq!(spawn_count.load(Ordering::SeqCst), 0);
+    }
+
+    /// A stand-in sidecar that publishes a ready line like the real one and
+    /// then stays alive.
+    fn spawn_ready_sidecar(endpoint: &str) -> Result<Child, String> {
+        Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "printf '%s\\n' '{{\"type\":\"ready\",\"wsEndpoint\":\"{endpoint}\"}}'; sleep 30"
+            ))
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())
+    }
+
+    /// A stand-in sidecar that exits immediately without publishing —
+    /// the "first spawn lost a startup race" failure from issue #14129.
+    fn spawn_exiting_sidecar() -> Result<Child, String> {
+        Command::new("true")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())
+    }
+
+    fn wait_until_tracked_child_exits(state: &Arc<DesktopBackendState>) {
+        for _ in 0..200 {
+            let exited = state
+                .process
+                .lock()
+                .ok()
+                .map(|mut guard| match guard.as_mut() {
+                    Some(child) => !matches!(child.try_wait(), Ok(None)),
+                    None => true,
+                })
+                .unwrap_or(false);
+            if exited {
+                return;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        panic!("tracked child did not exit in time");
+    }
+
+    #[test]
+    fn endpoint_wait_returns_the_endpoint_published_by_a_live_child() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, || {
+            spawn_ready_sidecar("ws://127.0.0.1:3126/transport?approval_token=t")
+        })
+        .expect("startup should succeed");
+
+        let endpoint = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+            || panic!("a live child must not be respawned"),
+        )
+        .expect("endpoint should become ready");
+        assert_eq!(endpoint, "ws://127.0.0.1:3126/transport?approval_token=t");
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    /// The launch race from issues #14201/#14129: the first sidecar exits
+    /// before publishing its endpoint. The wait must respawn it and keep
+    /// waiting for the replacement's ready line instead of failing the
+    /// webview's endpoint request.
+    #[test]
+    fn endpoint_wait_respawns_a_dead_child_and_returns_its_successor_endpoint() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            .expect("startup should succeed");
+        wait_until_tracked_child_exits(&state);
+
+        let respawn_count = AtomicUsize::new(0);
+        let endpoint = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+            || {
+                respawn_count.fetch_add(1, Ordering::SeqCst);
+                ensure_desktop_backend_started_with(&state, || {
+                    spawn_ready_sidecar("ws://127.0.0.1:3126/transport?approval_token=respawned")
+                })
+            },
+        )
+        .expect("endpoint should become ready after the respawn");
+        assert_eq!(
+            endpoint,
+            "ws://127.0.0.1:3126/transport?approval_token=respawned"
+        );
+        assert!(respawn_count.load(Ordering::SeqCst) >= 1);
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn endpoint_wait_paces_respawns_of_a_crash_looping_child() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            .expect("startup should succeed");
+        wait_until_tracked_child_exits(&state);
+
+        let respawn_count = AtomicUsize::new(0);
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_millis(400),
+            Duration::from_millis(10),
+            Duration::from_millis(150),
+            || {
+                respawn_count.fetch_add(1, Ordering::SeqCst);
+                ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            },
+        );
+        assert_eq!(
+            result,
+            Err("desktop backend endpoint not ready".to_string())
+        );
+        // 400ms window with a 150ms backoff allows the initial respawn plus
+        // at most a few paced ones — not one per 10ms poll tick.
+        let respawns = respawn_count.load(Ordering::SeqCst);
+        assert!(
+            (1..=4).contains(&respawns),
+            "expected paced respawns, got {respawns}"
+        );
+        state.stop();
+    }
+
+    #[test]
+    fn endpoint_wait_times_out_while_the_child_stays_pending() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_pending_sidecar)
+            .expect("startup should succeed");
+
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_millis(200),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+            || panic!("a live child must not be respawned"),
+        );
+        assert_eq!(
+            result,
+            Err("desktop backend endpoint not ready".to_string())
+        );
+
+        if let Ok(mut guard) = state.process.lock() {
+            if let Some(child) = guard.as_mut() {
+                let _ = child.kill();
+            }
+        }
+        state.stop();
+    }
+
+    #[test]
+    fn endpoint_wait_stops_when_shutdown_begins() {
+        let state = Arc::new(DesktopBackendState::default());
+        state.shutting_down.store(true, AtomicOrdering::Release);
+
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(100),
+            || panic!("shutdown must not respawn"),
+        );
+        assert_eq!(result, Err("desktop backend is shutting down".to_string()));
+    }
+
+    #[test]
+    fn endpoint_wait_surfaces_a_permanent_respawn_failure() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
+            .expect("startup should succeed");
+        wait_until_tracked_child_exits(&state);
+
+        let result = wait_for_desktop_backend_endpoint(
+            &state,
+            Duration::from_secs(10),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+            || Err("desktop backend sidecar not found".to_string()),
+        );
+        assert_eq!(result, Err("desktop backend sidecar not found".to_string()));
+        state.stop();
     }
 
     #[test]

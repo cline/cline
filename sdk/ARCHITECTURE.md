@@ -71,6 +71,33 @@ Owns model/provider runtime concerns:
 Design rule:
 
 - provider-specific behavior should be isolated here, not spread across `core` or apps.
+- AI SDK response `X-Request-ID` metadata travels on the existing model `finish`
+  event into `afterModel.requestId`. It identifies the final surfaced step, not
+  every hidden HTTP retry. Hosts can use existing model hooks for observations
+  without wrapping transports or adding a request callback API.
+  VS Code Git observations belong to the open conversation, not the SDK runtime:
+  an `ended` event may leave the chat open after a failure. Startup cleanup handles
+  unopened observers; explicit host stop/disposal closes both normal and restored
+  observation windows. The observer binds to the actual ID returned by Core's
+  start/restore result. VS Code starts interactively without a prompt and sends
+  prompts only after that result. Start and restore explicitly prepare their own
+  input and observer, so overlapping starts need no async-context bridge.
+  Telemetry never supplies or changes `config.sessionId`: doing so would turn a
+  new session into a restart. `afterModel` starts a bounded background Git read
+  and emits with the triggering response's request ID when available, without
+  waiting before tools execute. Each observer skips captures while a read is
+  already in flight, avoiding queues and out-of-order emissions.
+  Tools may change files during the read: this is state observed after response R,
+  not an atomic pre-tool snapshot or proof of changes caused by R.
+  Each window
+  emits its first snapshot, then only changes to Git fields or workspace-root count.
+  There are no opening, yield, or idle emissions or Git-extension watchers. Changes
+  after the final model call require a later call to be observed. Consumers must
+  carry observations forward within that window rather than expect an event per
+  request. Repeated edits while already dirty need not change the recorded flags.
+  Status limits preserve cheap identity reads as `partial`, without dirty flags.
+  The field-level contract is `GitSnapshotProperties` in
+  `packages/core/src/services/telemetry/core-events.ts`.
 
 ### `@cline/agents`
 
@@ -912,6 +939,21 @@ The following workspace apps are internal and not published as SDK packages:
 - `apps/webview` — VS Code webview
 - `apps/examples` — example plugins and integrations
 
+### Display-only session errors
+
+Terminal run errors are persisted in session message history with
+`metadata.displayOnly: true` and `metadata.displayRole: "error"`. Desktop and CLI
+render these entries on history reload. The core message codec excludes them
+from agent state (including model requests and compaction); the conversation
+store retains their transcript positions when replacing agent snapshots.
+
+Display-only failures are recorded once after automatic authentication retries
+settle; recovered attempts do not emit a terminal error. The
+`session.error_recorded` telemetry event reports session ID, provider, model, and
+whether the terminal failure returned or threw, without error/transcript text.
+Desktop reconciliation retains the full live failed turn until a saved terminal
+error reaches its user-run count and is not a previously displayed error ID.
+
 ### Composio beta access
 
 Composio management in the desktop sidecar and tool registration/execution in
@@ -927,12 +969,16 @@ API proxy must enforce the same flag server-side for authenticated requests.
 
 The connector client uses `/api/v1/connectors` with the Cline `{ success, data }`
 envelope. The toolkit catalog contains `items` and `nextToken`; connections and
-tool pages additionally carry `total`. The sidecar fetches every catalog and
-connection page, including empty pages with continuation tokens, and rejects
-failed, malformed, or cyclic pagination before caching or reconciliation.
-Disabled accounts (`is_disabled`) are excluded. It requests the first 20 tools
-per toolkit and persists `input_parameters` and the pinned version for the core
-extension. Tool execution sends arguments and the optional version to
+tool pages additionally carry `total`. The sidecar fetches every catalog,
+connection, and tool page, including empty pages with continuation tokens, and
+rejects failed, malformed, or cyclic pagination before caching or reconciliation.
+Disabled accounts (`is_disabled`) are excluded. It persists every tool's
+`input_parameters` and pinned version for the core extension. A status refresh
+re-fetches schemas for active connections, including existing nonempty caches;
+ordinary status polling reads local state. New sessions pick up the refreshed
+schemas, while running sessions retain their tool set. The connector dialog
+shows the loaded count and includes a catalog total only when it is known.
+Tool execution sends arguments and the optional version to
 `/tools/{slug}/execute` and retains the provider response body.
 
 Customize > Connectors displays the usage-ranked catalog, with search across
@@ -981,6 +1027,8 @@ Workspace and session reads route by environment identity. System-prompt
 bootstrap happens on the remote host when the caller omits a prompt, so local
 filesystem metadata is not embedded in remote sessions. Login-shell PATH
 resolution also lives in core and is reused by the helper and desktop startup.
+The primary shell probe allows 5 seconds for slow profiles; a fallback shell
+gets half that budget, bounding the combined wait to 7.5 seconds.
 
 ### Configured subagent approvals
 

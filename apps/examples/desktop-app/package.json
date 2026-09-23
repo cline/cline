@@ -1,6 +1,6 @@
 {
 	"name": "@cline/code",
-	"version": "0.0.32",
+	"version": "0.0.34",
 	"private": true,
 	"scripts": {
 		"build:ui": "bun -F @cline/ui build",
@@ -19,6 +19,7 @@
 		"build:binary": "tauri build",
 		"dmg:background": "bun run scripts/dmg-background.ts",
 		"test:dmg-background": "bun test scripts/dmg-background.test.ts",
+		"test:windows-installer": "bun test scripts/windows-installer.test.ts",
 		"package": "bun run package:desktop",
 		"package:desktop": "bun run scripts/package-desktop.ts",
 		"package:desktop:mac": "bun run scripts/package-desktop.ts --platform mac",
@@ -33,6 +34,7 @@
 		"test:settings-ui": "vitest run webview/components/views/settings webview/components/ui/switch-integration.test.tsx --config vitest.config.ts",
 		"test:sidecar": "vitest run sidecar scripts/telemetry-define-args.test.ts webview/hooks/chat-session/helpers.test.ts webview/hooks/use-chat-session.test.tsx webview/hooks/use-session-history.test.tsx webview/lib/cloud-repositories.test.ts webview/lib/cloud-session-error.test.ts webview/lib/image-attachments.test.ts webview/lib/session-status.test.ts webview/lib/workspace-paths.test.ts webview/components/agent-sidebar.test.tsx webview/components/views/chat/chat-input-bar.test.tsx webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/environment-selector.test.tsx webview/components/views/chat/welcome-chat.test.tsx webview/components/views/chat/welcome-workspace-controls.test.tsx webview/components/views/sessions/sessions-view.test.tsx webview/components/views/settings/settings-view.test.tsx --config vitest.config.ts",
 		"test:sidecar-startup": "bun test scripts/desktop-startup.test.ts",
+		"test:desktop-client": "vitest run webview/lib/desktop-client.test.ts --config vitest.config.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {

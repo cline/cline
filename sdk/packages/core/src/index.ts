@@ -5,6 +5,7 @@
  */
 
 export * as Llms from "@cline/llms";
+export { toClineCoreStartInput } from "./cline-core/start-input";
 export {
 	buildClineClientHeaders,
 	ClineFreeModelLimitError,
@@ -738,6 +739,7 @@ export type {
 	CaptureAgentUnexpectedReasoningTokensInput,
 	CaptureCompactionExecutedProperties,
 	CaptureCompactionSkippedProperties,
+	GitSnapshotProperties,
 	TelemetryAgentIdentityProperties,
 	TelemetryAgentKind,
 	TelemetryCompactionMode,
@@ -761,6 +763,7 @@ export {
 	captureConversationTurnEvent,
 	captureDiffEditFailure,
 	captureExtensionActivated,
+	captureGitSnapshot,
 	captureHookDiscovery,
 	captureMentionFailed,
 	captureMentionSearchResults,
