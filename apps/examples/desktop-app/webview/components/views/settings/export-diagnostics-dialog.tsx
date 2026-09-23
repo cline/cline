@@ -18,8 +18,6 @@ import {
 	type SessionHistoryItem,
 } from "@/lib/session-history";
 
-const SESSION_LIMIT = 50;
-
 interface ExportDiagnosticsDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -49,9 +47,7 @@ export function ExportDiagnosticsDialog({
 		setLoading(true);
 		setError(null);
 		desktopClient
-			.invoke<SessionHistoryItem[]>("list_discovered_sessions", {
-				limit: SESSION_LIMIT,
-			})
+			.invoke<SessionHistoryItem[]>("list_discovered_sessions")
 			.then((items) => {
 				if (cancelled) return;
 				// Cloud sessions have no local files to include.

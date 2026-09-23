@@ -21,8 +21,9 @@ const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 // providers.json / secrets.json are never read, but blank anything
 // credential-shaped that shows up in logs or settings as cheap insurance.
+// Matching the bare suffix also covers access_token, client_secret, etc.
 const SECRET_FIELD_PATTERN =
-	/("?(?:api[_-]?key|[a-z_-]*token|[a-z_-]*secret|password|authorization)"?\s*[:=]\s*"?)([^",}\s]+)/gi;
+	/((?:api[_-]?key|token|secret|password|authorization)"?\s*[:=]\s*"?)([^",}\s]+)/gi;
 
 export function redactDiagnosticsText(text: string): string {
 	const home = homedir();
