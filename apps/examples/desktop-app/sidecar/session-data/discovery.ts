@@ -52,10 +52,13 @@ export function discoverChatSessions(
 		if (session.config.executionTarget === "cloud") {
 			continue;
 		}
-		if (!session.busy && !session.prompt && session.messages.length === 0) {
+		const prompt = session.prompt ?? derivePromptFromMessages(session.messages);
+		// Keep an active first turn discoverable even before its transcript is
+		// projected, but do not list completed promptless sessions just because
+		// they contain initialization/recovery messages.
+		if (!session.busy && !prompt) {
 			continue;
 		}
-		const prompt = session.prompt ?? derivePromptFromMessages(session.messages);
 		const resolvedTitle = resolveSessionListTitle({
 			sessionId,
 			metadata: session.title ? { title: session.title } : undefined,
