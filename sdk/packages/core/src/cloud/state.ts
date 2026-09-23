@@ -304,10 +304,12 @@ export function reduceCloudEvent(
 				!state.busy
 			)
 				return;
+			const alreadyRunning = state.busy;
 			state.status = status;
 			state.busy = status === "running";
 			if (event.event === "run.started") {
-				streams.delete(sessionId);
+				// Queue/steer acknowledgements are not a new assistant turn.
+				if (!alreadyRunning) streams.delete(sessionId);
 				state.endedAt = undefined;
 			}
 			return;
