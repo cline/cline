@@ -99,17 +99,17 @@ it.each<{
 	{
 		status: { mergeable: "UNKNOWN", mergeStateStatus: "UNKNOWN" },
 		label: "Merge status pending",
-		color: "text-muted-foreground",
+		color: "text-cline-ui-muted-foreground",
 	},
 	{
 		status: { mergeable: "UNKNOWN" },
 		label: "Merge status pending",
-		color: "text-muted-foreground",
+		color: "text-cline-ui-muted-foreground",
 	},
 	{
 		status: { mergeStateStatus: "UNKNOWN" },
 		label: "No conflicts",
-		color: "text-muted-foreground",
+		color: "text-cline-ui-muted-foreground",
 	},
 	{
 		status: { mergeStateStatus: "DIRTY" },
@@ -124,15 +124,23 @@ it.each<{
 	{
 		status: { isDraft: true, mergeable: "CONFLICTING" },
 		label: "Draft",
-		color: "text-muted-foreground",
+		color: "text-cline-ui-muted-foreground",
 	},
 	{
 		status: { state: "MERGED", mergeable: "CONFLICTING" },
 		label: "Merged",
 		color: "text-purple-400",
 	},
-	{ status: { state: "CLOSED" }, label: "Closed", color: "text-red-400" },
-	{ status: {}, label: "Ready to merge", color: "text-green-500" },
+	{
+		status: { state: "CLOSED" },
+		label: "Closed",
+		color: "text-red-400",
+	},
+	{
+		status: {},
+		label: "Ready to merge",
+		color: "text-green-500",
+	},
 ])("uses $color for the $label label and PR icon", async ({
 	status,
 	label,
