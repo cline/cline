@@ -1,4 +1,34 @@
 
+## Shared agent review UI
+
+`@cline/ui` exports presentation-only components for showing a session's changed
+files and pull-request status. Configure Tailwind v4 and a token entry point before
+importing `@cline/ui/components.css`, following the
+[complete styling setup](./packages/ui/ADOPTION.md#option-2-tailwind-mappings-without-base-styles).
+Then import the components from the package root:
+
+```tsx
+import {
+  AgentChangedFile,
+  AgentChangesPanel,
+  AgentPullRequestBar,
+} from "@cline/ui";
+```
+
+`AgentChangesPanel` owns the Changes header, count, close action, empty state,
+and scroll region. Compose `AgentChangedFile` children to show collapsible paths,
+copy feedback, additions/deletions, host-provided actions, and rendered diff
+content. The host retains change collection, clipboard and editor integration,
+and conversation focus.
+
+`AgentPullRequestBar` accepts normalized `AgentPullRequestData` plus loading and
+error state. The host owns refresh, polling, navigation, and telemetry, and
+provides its accessible checks popover through `renderChecks`. Native hosts can
+intercept links with `onNavigate`; web hosts can omit it to render external
+anchors. `getAgentPullRequestMergeStatus` and
+`summarizeAgentPullRequestChecks` expose the same status normalization for other
+host presentation.
+
 ## Cloud sessions (experimental)
 
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.

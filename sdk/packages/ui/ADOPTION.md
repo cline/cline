@@ -68,6 +68,17 @@ products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
 
+`AgentChangesPanel` and `AgentChangedFile` share the Changes pane header,
+scrolling, file disclosure, path, copy feedback, and diff counts. Pass rendered
+diff children and clipboard/native-editor callbacks; each host retains its
+change collector, workspace paths, and conversation focus restoration.
+
+`AgentPullRequestBar` shares PR state, merge readiness, diff counts, and check
+presentation. Hosts provide normalized data, refresh/navigation callbacks,
+and their accessible checks popover through `renderChecks`. Fetching, polling,
+authentication, and telemetry stay in the host. Import these components from
+`@cline/ui` and their styles through the existing `@cline/ui/components.css`.
+
 `AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
 Pass ANSI-rendered or normalized output as children; transport and output limits
 stay in the host. `AgentImageLightboxContent` shares the expanded image, backdrop
