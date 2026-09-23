@@ -4,18 +4,15 @@ import {
 	BookOpen,
 	Check,
 	Folder,
-	FolderOpen,
 	GitBranch,
 	Laptop,
 	Server,
 	Settings,
 } from "lucide-react";
-import type { ComponentType } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -30,23 +27,16 @@ export type SshRemoteEnvironmentsAnnouncementProps = {
 	onSetUpHost: () => void;
 };
 
-const STEPS: Array<{
-	icon: ComponentType<{ className?: string }>;
-	title: string;
-	body: string;
-}> = [
+const STEPS: Array<{ title: string; body: string }> = [
 	{
-		icon: Settings,
 		title: "Add a host in Settings → Remote",
 		body: "Hostname, user, and key. Test it first.",
 	},
 	{
-		icon: Laptop,
 		title: "Pick it from the environment selector",
 		body: "The laptop button beside the workspace picker.",
 	},
 	{
-		icon: FolderOpen,
 		title: "Open a project on that machine",
 		body: "Open folder… browses the host's folders.",
 	},
@@ -108,7 +98,8 @@ export function SshRemoteEnvironmentsAnnouncement({
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogContent
-				className="outline-none sm:max-w-2xl"
+				aria-describedby={undefined}
+				className="gap-6 outline-none sm:max-w-2xl"
 				onOpenAutoFocus={(event) => {
 					// Keep focus on the dialog itself rather than lighting up "Maybe
 					// later" with a focus ring the moment the spotlight appears.
@@ -116,31 +107,23 @@ export function SshRemoteEnvironmentsAnnouncement({
 					(event.currentTarget as HTMLElement | null)?.focus();
 				}}
 			>
-				<DialogHeader>
-					<span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-						<span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300">
-							New
-						</span>
-						Remote environments
+				<DialogHeader className="gap-3">
+					<span className="w-fit rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+						New
 					</span>
-					<DialogTitle>Run Cline on any machine over SSH</DialogTitle>
-					<DialogDescription>
-						Point Cline at a server or dev box. Tools and Git run there;
-						approvals stay here.
-					</DialogDescription>
+					<DialogTitle className="text-xl">
+						Run Cline on any machine over SSH
+					</DialogTitle>
 				</DialogHeader>
-				<div className="grid items-start gap-4 sm:grid-cols-[minmax(0,16rem)_1fr]">
+				<div className="grid items-center gap-6 sm:grid-cols-[minmax(0,16rem)_1fr]">
 					<EnvironmentSelectorPreview />
-					<ol className="flex flex-col gap-3">
+					<ol className="flex flex-col gap-5">
 						{STEPS.map((step, index) => (
-							<li className="flex gap-3" key={step.title}>
-								<span className="relative mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 text-foreground">
-									<step.icon className="size-3.5" />
-									<span className="absolute -top-1.5 -left-1.5 flex size-4 items-center justify-center rounded-full bg-purple-500 text-[10px] font-semibold leading-none text-white">
-										{index + 1}
-									</span>
+							<li className="flex items-start gap-3" key={step.title}>
+								<span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground">
+									{index + 1}
 								</span>
-								<span className="flex min-w-0 flex-col gap-0.5">
+								<span className="flex min-w-0 flex-col gap-1">
 									<span className="text-sm font-medium leading-tight">
 										{step.title}
 									</span>
