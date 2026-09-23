@@ -165,6 +165,7 @@ import {
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
+import { getPluginCommandService } from "./plugin-commands";
 import { getPullRequestStatus } from "./pull-request";
 import { capturePullRequestEvent } from "./pull-request-telemetry";
 import { resolveDesktopRemoteHelper } from "./remote-helper";
@@ -3498,6 +3499,11 @@ export async function handleCommand(
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
 		return await listUserInstructionConfigs(ctx);
+	}
+	if (command === "list_plugin_commands") {
+		return await getPluginCommandService(
+			ctx.localWorkspaceRoot,
+		).listCommands();
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

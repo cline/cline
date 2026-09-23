@@ -1,0 +1,142 @@
+import { statSync } from "node:fs";
+import {
+	type AgentExtensionCommand,
+	type AgentExtensionCommandResult,
+	type AgentTool,
+	createContributionRegistry,
+	type Message,
+} from "@cline/shared";
+import {
+	resolveAgentPluginPaths,
+	resolveAndLoadAgentPlugins,
+} from "../extensions/plugin/plugin-config-loader";
+
+export interface PluginSlashCommand {
+	/** Normalized token: lowercase, no leading slash. */
+	name: string;
+	description?: string;
+}
+
+export interface PluginCommandResult {
+	reply?: string;
+	submitPrompt?: string;
+}
+
+/**
+ * Executes plugin-registered slash commands (`api.registerCommand`) for one
+ * workspace. Plugins are loaded on first use and kept alive so repeated
+ * commands answer instantly; the loaded set is refreshed when plugin module
+ * paths or mtimes change (installs, updates, toggles).
+ */
+export interface PluginCommandService {
+	listCommands(): Promise<PluginSlashCommand[]>;
+	/** Runs `/name input`. Resolves undefined when no plugin declares `name`. */
+	run(name: string, input: string): Promise<PluginCommandResult | undefined>;
+	shutdown(): Promise<void>;
+}
+
+type LoadedHost = {
+	key: string;
+	commands: AgentExtensionCommand[];
+	shutdown?: () => Promise<void>;
+};
+
+export function normalizePluginCommandName(name: string): string {
+	return name.trim().replace(/^\/+/, "").toLowerCase();
+}
+
+function normalizePluginCommandResult(
+	result: AgentExtensionCommandResult | undefined,
+): PluginCommandResult {
+	const { reply, submitPrompt }: PluginCommandResult =
+		typeof result === "string" ? { reply: result } : (result ?? {});
+	return {
+		reply: reply?.trim() || undefined,
+		submitPrompt: submitPrompt?.trim() || undefined,
+	};
+}
+
+async function loadHost(
+	options: { cwd: string; workspacePath?: string },
+	key: string,
+): Promise<LoadedHost> {
+	const loaded = await resolveAndLoadAgentPlugins(options);
+	try {
+		const registry = createContributionRegistry<
+			(typeof loaded.extensions)[number],
+			AgentTool,
+			Message[]
+		>({ extensions: loaded.extensions });
+		await registry.initialize();
+		return {
+			key,
+			commands: registry
+				.getRegistrySnapshot()
+				.commands.filter((command) => typeof command.handler === "function"),
+			shutdown: loaded.shutdown,
+		};
+	} catch (error) {
+		await loaded.shutdown?.().catch(() => {});
+		throw error;
+	}
+}
+
+export function createPluginCommandService(options: {
+	cwd: string;
+	workspacePath?: string;
+}): PluginCommandService {
+	const loadOptions = {
+		cwd: options.cwd,
+		workspacePath: options.workspacePath ?? options.cwd,
+	};
+	let current: Promise<LoadedHost | undefined> = Promise.resolve(undefined);
+
+	const ensureHost = (): Promise<LoadedHost | undefined> => {
+		const pluginPaths = resolveAgentPluginPaths(loadOptions);
+		const key = pluginPaths
+			.map((path) => {
+				try {
+					return `${path}:${statSync(path).mtimeMs}`;
+				} catch {
+					return path;
+				}
+			})
+			.join("\n");
+		// Chain onto the previous host promise so concurrent callers serialize:
+		// a stale host is shut down and replaced exactly once.
+		current = current
+			.catch(() => undefined)
+			.then(async (host) => {
+				if (host?.key === key) return host;
+				await host?.shutdown?.().catch(() => {});
+				return pluginPaths.length > 0
+					? await loadHost(loadOptions, key)
+					: undefined;
+			});
+		return current;
+	};
+
+	return {
+		async listCommands() {
+			const host = await ensureHost();
+			return (host?.commands ?? []).map((command) => ({
+				name: normalizePluginCommandName(command.name),
+				description: command.description,
+			}));
+		},
+		async run(name, input) {
+			const normalized = normalizePluginCommandName(name);
+			const command = (await ensureHost())?.commands.find(
+				(candidate) =>
+					normalizePluginCommandName(candidate.name) === normalized,
+			);
+			if (!command?.handler) return undefined;
+			return normalizePluginCommandResult(await command.handler(input.trim()));
+		},
+		async shutdown() {
+			const host = await current.catch(() => undefined);
+			current = Promise.resolve(undefined);
+			await host?.shutdown?.().catch(() => {});
+		},
+	};
+}

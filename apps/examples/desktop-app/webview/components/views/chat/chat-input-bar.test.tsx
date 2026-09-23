@@ -498,27 +498,21 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("appends enabled plugin commands after skills and workflows", () => {
+	it("appends plugin commands after skills and workflows", () => {
 		expect(
-			buildUserInstructionSlashCommands({
-				runtimeCommands: [{ id: "skill:goal", name: "goal", kind: "skill" }],
-				plugins: [
-					{
-						name: "goal",
-						enabled: true,
-						contributions: { commands: ["goal", "/Goal-Status"] },
-					},
-					{
-						name: "disabled",
-						enabled: false,
-						contributions: { commands: ["hidden"] },
-					},
-					{ name: "team-plugin", contributions: { commands: ["team"] } },
+			buildUserInstructionSlashCommands(
+				{
+					runtimeCommands: [{ id: "skill:goal", name: "goal", kind: "skill" }],
+				},
+				[
+					{ name: "goal", description: "Set or clear a goal" },
+					{ name: "goal-status" },
+					{ name: "team", description: "Plugin team" },
 				],
-			}),
+			),
 		).toEqual([
 			{ name: "goal", description: "Skill command" },
-			{ name: "goal-status", description: "goal command" },
+			{ name: "goal-status", description: "Plugin command" },
 		]);
 	});
 

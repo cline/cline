@@ -101,11 +101,6 @@ type UserInstructionCommand = {
 
 type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
-	plugins?: Array<{
-		name?: string;
-		enabled?: boolean;
-		contributions?: { commands?: string[] };
-	}>;
 };
 
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
@@ -123,6 +118,9 @@ let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
+	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
+	// command service, so the menu matches what `/name` can actually run.
+	pluginCommands: SlashCommand[] = [],
 ): SlashCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
@@ -143,19 +141,13 @@ export function buildUserInstructionSlashCommands(
 			},
 		];
 	});
-	// Plugin commands (`api.registerCommand`) are executed by the sidecar; the
-	// hub's contribution inspection only exposes their names.
-	for (const plugin of response.plugins ?? []) {
-		if (plugin.enabled === false) continue;
-		for (const command of plugin.contributions?.commands ?? []) {
-			const name = command.trim().replace(/^\/+/, "").toLowerCase();
-			if (!name || seen.has(name)) continue;
-			seen.add(name);
-			result.push({
-				name,
-				description: `${plugin.name?.trim() || "Plugin"} command`,
-			});
-		}
+	for (const command of pluginCommands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description: command.description?.trim() || "Plugin command",
+		});
 	}
 	return result;
 }
@@ -1135,13 +1127,19 @@ function ChatInputBarImpl({
 		let cancelled = false;
 		// Only show the loading row when there is nothing cached to show.
 		setSlashLoading(cachedSlashCommands === null);
-		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+		Promise.all([
+			desktopClient.invoke<UserInstructionConfigResponse>(
+				"list_user_instruction_configs",
+			),
+			desktopClient
+				.invoke<SlashCommand[]>("list_plugin_commands")
+				.catch((): SlashCommand[] => []),
+		])
+			.then(([response, pluginCommands]) => {
 				if (cancelled) return;
 				const next = [
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
+					...buildUserInstructionSlashCommands(response, pluginCommands),
 				];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
