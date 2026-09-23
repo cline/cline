@@ -834,6 +834,7 @@ describe("remote environment command routing", () => {
 			const record = {
 				id: "same-id",
 				sessionId: "same-id",
+				prompt: "Explain this project",
 				status: "idle",
 				createdAt: "2026-09-14T00:00:00Z",
 			};

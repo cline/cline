@@ -172,13 +172,17 @@ import { listSessionAgents } from "./session-data/agents";
 import { readSessionHooks } from "./session-data/artifacts";
 import {
 	compareSessionRecordsByStartedAtDesc,
+	derivePromptFromMessages,
 	normalizeSessionTitle,
 } from "./session-data/common";
 import {
 	discoverChatSessions,
 	mergeDiscoveredSessionLists,
 } from "./session-data/discovery";
-import { readSessionMessages } from "./session-data/messages";
+import {
+	readPersistedChatMessages,
+	readSessionMessages,
+} from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
 	ChatSessionCommandRequest,
@@ -644,10 +648,7 @@ async function getSessionFromSidecarManager(
 }
 
 function isSidebarSessionWithPrompt(session: JsonRecord): boolean {
-	const prompt = typeof session.prompt === "string" ? session.prompt.trim() : "";
-	if (prompt) return true;
-	const status = String(session.status ?? "").trim().toLowerCase();
-	return status === "running" || status === "pending";
+	return typeof session.prompt === "string" && Boolean(session.prompt.trim());
 }
 
 async function listSessionsFromSidecarManager(
@@ -672,15 +673,20 @@ async function listSessionsFromSidecarManager(
 					ctx,
 					binding.environmentId,
 				).sessionEnvironmentIds.set(sessionId, binding.environmentId);
-					const merged = mergePersistedSessionRecord(
+				const merged = mergePersistedSessionRecord(
 					sessionId,
 					record,
 					binding.kind === "local"
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
-							: undefined,
+						: undefined,
+				);
+				if (binding.kind === "local" && !isSidebarSessionWithPrompt(merged)) {
+					merged.prompt = derivePromptFromMessages(
+						readPersistedChatMessages(sessionId) ?? [],
 					);
-					if (!isSidebarSessionWithPrompt(merged)) continue;
-					byId.set(JSON.stringify([binding.environmentId, sessionId]), {
+				}
+				if (!isSidebarSessionWithPrompt(merged)) continue;
+				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
 					remoteEnvironment:
@@ -700,6 +706,9 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
+			session.prompt ||= derivePromptFromMessages(
+				readPersistedChatMessages(session.sessionId) ?? [],
+			);
 			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
 				continue;
 			}
@@ -713,7 +722,9 @@ async function listSessionsFromSidecarManager(
 	for (const scoped of getEnvironmentContexts(ctx)) {
 		for (const [sessionId, session] of scoped.liveSessions.entries()) {
 			if (session.config.executionTarget === "cloud") continue;
-			if (!session.busy && !session.prompt?.trim()) continue;
+			const prompt =
+				session.prompt?.trim() || derivePromptFromMessages(session.messages);
+			if (!prompt) continue;
 			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
 			const existing = byId.get(key);
 			byId.set(key, {
@@ -729,7 +740,7 @@ async function listSessionsFromSidecarManager(
 					existing?.workspaceRoot ??
 					existing?.cwd ??
 					"",
-				prompt: session.prompt ?? existing?.prompt,
+				prompt,
 				startedAt:
 					existing?.startedAt ?? new Date(session.startedAt).toISOString(),
 				endedAt:
