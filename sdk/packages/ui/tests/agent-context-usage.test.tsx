@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -12,7 +13,7 @@ const usage: AgentContextUsageData = {
 	contextWindow: 2_000,
 };
 
-function render(data = usage, costLabel?: string) {
+function render(data = usage, costLabel?: ReactNode) {
 	return renderToStaticMarkup(
 		<AgentContextUsage costLabel={costLabel} usage={data}>
 			{({ triggerLabel, ring, details }) => (
@@ -67,6 +68,7 @@ describe("AgentContextUsage", () => {
 		expect(markup).toContain("width:12.5%");
 		expect(markup).toContain("width:25%");
 		expect(render()).not.toContain(">Cost<");
+		expect(render(usage, 0)).toMatch(/>Cost<\/span><span[^>]*>0<\/span>/);
 	});
 
 	it("caps the ring and scales segments when a model has a smaller context window", () => {
