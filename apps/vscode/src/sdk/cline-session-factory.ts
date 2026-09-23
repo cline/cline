@@ -1133,10 +1133,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 /**
  * Build the StartSessionInput for a new task.
  *
- * IMPORTANT: We pass `interactive: true` but NO `prompt`. This allocates the
- * idle session without running a turn. Seed its display title in metadata so
- * history can show the task while the caller prepares the separate first
- * `core.send({ sessionId, prompt })` call.
+ * IMPORTANT: We pass `interactive: true` but NO `prompt`. This allocates an
+ * idle session without running a turn. The caller then uses
+ * `core.send({ sessionId, prompt })` for the first user turn.
  */
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
 	const title = input.historyItem?.task || input.prompt
