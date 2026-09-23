@@ -16,8 +16,19 @@ const FREE_SECTION_DESCRIPTION = "Try with limited usage at no cost";
 const CLINE_PASS_FREE_SECTION_DESCRIPTION =
 	"Try with limited usage, separate from ClinePass quota";
 
-function displayName(model: ProviderModel): string {
-	return model.name?.trim() || model.id;
+const FREE_NAME_SUFFIX = /\s*\(free\)$/i;
+
+/**
+ * The SDK suffixes free-tier model names with "(free)" for clients that carry
+ * no tier metadata. The desktop already renders those models under a Free
+ * header or badge, so the suffix would only repeat itself.
+ */
+export function modelDisplayName(
+	model: ProviderModel,
+	free = model.featured?.tier === "free",
+): string {
+	const name = model.name?.trim() || model.id;
+	return free ? name.replace(FREE_NAME_SUFFIX, "") : name;
 }
 
 function byLabel(a: SearchComboboxOption, b: SearchComboboxOption): number {
@@ -27,12 +38,12 @@ function byLabel(a: SearchComboboxOption, b: SearchComboboxOption): number {
 function flatOptions(models: ProviderModel[]): SearchComboboxOption[] {
 	const labelCounts = new Map<string, number>();
 	for (const model of models) {
-		const label = displayName(model);
+		const label = modelDisplayName(model);
 		labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
 	}
 	return models
 		.map((model) => {
-			const label = displayName(model);
+			const label = modelDisplayName(model);
 			return {
 				label:
 					(labelCounts.get(label) ?? 0) > 1 ? `${label} (${model.id})` : label,
@@ -54,7 +65,7 @@ function tierOptions(
 		.map((model) => ({
 			badge: badge?.(model),
 			description: model.description?.trim() || undefined,
-			label: displayName(model),
+			label: modelDisplayName(model),
 			section,
 			value: model.id,
 		}));
@@ -81,14 +92,14 @@ export function buildModelPickerData(
 			"recommended",
 			(model) => model.featured?.tags[0],
 		);
-		const free = tierOptions(models, "free", "free", () => "Free");
+		const free = tierOptions(models, "free", "free");
 		if (recommended.length === 0 && free.length === 0) {
 			return { options: flatOptions(models) };
 		}
 		const rest = models
 			.filter((model) => !model.featured)
 			.map((model) => ({
-				label: displayName(model),
+				label: modelDisplayName(model),
 				section: "all",
 				value: model.id,
 			}))
@@ -109,7 +120,7 @@ export function buildModelPickerData(
 
 	if (providerId === "cline-pass") {
 		const subscribed = tierOptions(models, "subscribed", "subscribed");
-		const free = tierOptions(models, "free", "free", () => "Free");
+		const free = tierOptions(models, "free", "free");
 		if (subscribed.length === 0) {
 			// ClinePass catalogs contain subscription routes under cline-pass/
 			// plus the free feed overlay (cline-free/ or upstream IDs). Keep those
@@ -122,8 +133,13 @@ export function buildModelPickerData(
 			);
 			free.push(
 				...flatOptions(
-					fallback.filter((model) => !model.id.startsWith("cline-pass/")),
-				).map((option) => ({ ...option, section: "free", badge: "Free" })),
+					fallback
+						.filter((model) => !model.id.startsWith("cline-pass/"))
+						.map((model) => ({
+							...model,
+							name: modelDisplayName(model, true),
+						})),
+				).map((option) => ({ ...option, section: "free" })),
 			);
 		}
 		return {

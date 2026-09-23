@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { openExternalUrl } from "@/lib/desktop-client";
+import { modelDisplayName } from "@/lib/featured-models";
 import {
 	getProviderAuthKind,
 	isProviderConnected,
@@ -1087,7 +1088,9 @@ export function ProviderDetailContent({
 										>
 											<div className="min-w-0 flex-1 font-mono">
 												<div className="flex min-w-0 items-center gap-1.5 px-1 text-sm text-foreground">
-													<span className="truncate">{model.name}</span>
+													<span className="truncate">
+														{modelDisplayName(model)}
+													</span>
 													{featuredBadges(model).map((badge) => (
 														<span
 															className="inline-flex shrink-0 items-center rounded bg-surface-hover px-1 py-px font-sans text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground"

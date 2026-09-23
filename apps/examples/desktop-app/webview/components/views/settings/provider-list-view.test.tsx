@@ -718,7 +718,7 @@ describe("ProviderDetailContent audio capabilities", () => {
 			},
 			{
 				id: "deepseek/deepseek-v4-flash",
-				name: "DeepSeek V4 Flash",
+				name: "DeepSeek V4 Flash (free)",
 				featured: { tier: "free", rank: 0, tags: [] },
 			},
 			{ id: "vendor/plain-model", name: "Plain Model" },
@@ -751,6 +751,9 @@ describe("ProviderDetailContent audio capabilities", () => {
 		expect(container.textContent).not.toContain("Stale Model");
 		expect(container.textContent).toContain("Claude Opus 5");
 		expect(container.textContent).toContain("Most intelligent model");
+		// The FREE pill carries the tier; the SDK's "(free)" suffix is dropped.
+		expect(container.textContent).toContain("DeepSeek V4 Flash");
+		expect(container.textContent).not.toContain("(free)");
 		const badgeTexts = Array.from(
 			container.querySelectorAll(".uppercase.tracking-wide"),
 		).map((badge) => badge.textContent);
