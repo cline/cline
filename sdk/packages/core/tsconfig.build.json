@@ -14,6 +14,7 @@
 		"src/remote/remote-helper.ts",
 		"src/remote/remote-helper-entry.ts",
 		"src/hub/index.ts",
+		"src/cloud/index.ts",
 		"src/hub/daemon/entry.ts",
 		"src/services/telemetry/index.ts",
 		"src/services/feature-flags/posthog.ts"
