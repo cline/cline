@@ -1256,6 +1256,28 @@ describe("addLocalProvider – capabilities", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(models).toEqual([]);
 	});
+
+	it("surfaces the LiteLLM model refresh failure instead of an empty list", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key-catalog",
+				baseUrl: "https://litellm.corp.invalid",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockRejectedValue(new Error("unable to get local issuer certificate")),
+		);
+
+		await expect(
+			getLocalProviderModels("litellm", manager.getProviderConfig("litellm")),
+		).rejects.toThrow(/unable to get local issuer certificate/);
+	});
 });
 
 describe("audio transcription", () => {
