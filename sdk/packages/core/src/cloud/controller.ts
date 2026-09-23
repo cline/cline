@@ -187,7 +187,10 @@ type CloudConnection = {
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
 	/** Exact command correlation; optimistic transcript text is never acceptance. */
-	pendingInputs?: Map<string, { clientId: string; accept: () => void }>;
+	pendingInputs?: Map<
+		string,
+		{ clientId: string; ownsBusyState: boolean; accept: () => void }
+	>;
 	externalRun?: { progressHydrated: boolean };
 	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
@@ -210,8 +213,8 @@ export type CloudSessionControllerOptions = {
 	};
 	/** Desktop preserves its historical cleanup; CLI keeps late successful creations recoverable. */
 	lateCreateDisposition?: "preserve" | "delete";
-	/** Host-owned first-task state survives controller replacement; established tasks never qualify. */
-	pendingInitialTasks?: Set<string>;
+	/** Host-owned first-task policy survives controller replacement; established tasks never qualify. */
+	pendingInitialTasks?: Map<string, CloudCreationOptions>;
 
 	api: Pick<
 		CloudSessionApi,
@@ -396,7 +399,7 @@ export class CloudSessionController {
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
 	// Retain new sessions until discovery has observed them at least once.
 	private readonly unlistedSessions = new Map<string, CloudSessionRecord>();
-	private readonly pendingInitialTasks: Set<string>;
+	private readonly pendingInitialTasks: Map<string, CloudCreationOptions>;
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	private readonly unconfirmedInnerCreates = new Map<string, string>();
@@ -416,7 +419,7 @@ export class CloudSessionController {
 	>;
 
 	constructor(private readonly options: CloudSessionControllerOptions) {
-		this.pendingInitialTasks = options.pendingInitialTasks ?? new Set();
+		this.pendingInitialTasks = options.pendingInitialTasks ?? new Map();
 		this.createHubClient =
 			options.createHubClient ??
 			((clientOptions) => new NodeHubClient(clientOptions));
@@ -428,6 +431,12 @@ export class CloudSessionController {
 		options: CloudCreationOptions,
 	): void {
 		this.restoredOptions.set(sessionId, structuredClone(options));
+		if (this.pendingInitialTasks.has(sessionId)) {
+			this.pendingInitialTasks.set(sessionId, {
+				...this.pendingInitialTasks.get(sessionId),
+				...structuredClone(options),
+			});
+		}
 		const state = this.sessions.get(sessionId);
 		if (state) Object.assign(state.config, structuredClone(options));
 	}
@@ -442,7 +451,11 @@ export class CloudSessionController {
 
 	private stateFromRecord(record: CloudSessionRecord): CloudSessionState {
 		const state = recordToCloudSessionState(record);
-		Object.assign(state.config, this.restoredOptions.get(record.id));
+		Object.assign(
+			state.config,
+			this.pendingInitialTasks.get(record.id),
+			this.restoredOptions.get(record.id),
+		);
 		return state;
 	}
 
@@ -1071,19 +1084,15 @@ export class CloudSessionController {
 		};
 		this.knownSessions.set(record.id, record);
 		this.unlistedSessions.set(record.id, record);
-		this.pendingInitialTasks.add(record.id);
+		// REST does not round-trip these client-side first-task preferences.
+		const { autoApproveTools, thinking, reasoningEffort } = input;
+		this.pendingInitialTasks.set(record.id, {
+			autoApproveTools,
+			thinking,
+			reasoningEffort,
+		});
 		const live = this.stateFromRecord(record);
 		live.prompt = input.initialPrompt?.trim() || undefined;
-		// REST does not round-trip the client-side approval preference.
-		if (typeof input.autoApproveTools === "boolean") {
-			live.config.autoApproveTools = input.autoApproveTools;
-		}
-		if (typeof input.thinking === "boolean") {
-			live.config.thinking = input.thinking;
-		}
-		if (input.reasoningEffort) {
-			live.config.reasoningEffort = input.reasoningEffort;
-		}
 		live.config.mode = input.mode ?? "act";
 		this.sessions.set(record.id, live);
 		try {
@@ -1338,6 +1347,7 @@ export class CloudSessionController {
 						connection.pendingInputs ??= new Map();
 						connection.pendingInputs.set(requestId, {
 							clientId: connection.client.getClientId(),
+							ownsBusyState,
 							accept,
 						});
 					},
@@ -1534,6 +1544,16 @@ export class CloudSessionController {
 				session?.status ?? live?.status ?? "running",
 			).trim();
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+			// Initial hydration can miss run.started. Arm its terminal refresh once;
+			// rearming on a lagging terminal snapshot would start another refresh.
+			// The history read below already covers the run's first progress.
+			if (
+				status === "running" &&
+				!connection.transcriptKnown &&
+				!connection.pendingInputs?.size
+			) {
+				connection.externalRun ??= { progressHydrated: true };
+			}
 
 			const readMessages = () =>
 				connection.client.command(
@@ -2667,6 +2687,9 @@ export class CloudSessionController {
 			return;
 		}
 		if (event.event === "run.started") {
+			// The Hub also emits this for queue/steer acceptance during a run.
+			// Acknowledge the input without changing ownership of the active run.
+			const alreadyRunning = this.sessions.get(outerSessionId)?.busy;
 			const requestId = event.payload?.requestId;
 			const pending =
 				typeof requestId === "string"
@@ -2674,9 +2697,11 @@ export class CloudSessionController {
 					: undefined;
 			if (pending && event.payload?.clientId === pending.clientId) {
 				pending.accept();
-				connection.externalRun = undefined;
+				if (pending.ownsBusyState) connection.externalRun = undefined;
 			} else if (typeof event.payload?.clientId === "string") {
-				connection.externalRun = { progressHydrated: false };
+				connection.externalRun ??= {
+					progressHydrated: Boolean(alreadyRunning),
+				};
 			}
 		}
 		const external = connection.externalRun;

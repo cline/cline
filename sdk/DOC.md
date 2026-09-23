@@ -11,6 +11,16 @@ Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down.
+Viewers hydrating active runs with `readMessages` reconcile canonical history at
+completion even when they missed the run-start event and earlier content deltas.
+
+Hosts replacing controllers during credential refresh can share the
+`pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.
+It retains first-task approval/thinking/reasoning preferences, including updates
+through `restoreCreationOptions`, until the inner task is found or created (or
+the outer session is deleted). `dispose` preserves an injected map; without one,
+the controller owns and clears its pending state. Restoring options alone never
+authorizes recreation of a missing established task.
 
 ## Experimental cloud handoff
 
