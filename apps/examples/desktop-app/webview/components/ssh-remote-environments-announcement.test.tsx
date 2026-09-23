@@ -112,7 +112,7 @@ describe("SshRemoteEnvironmentsAnnouncement", () => {
 		const onOpenChange = vi.fn();
 		await render({ open: true, onSetUpHost, onOpenChange });
 
-		await click(buttonNamed("Read the setup guide"));
+		await click(buttonNamed("Read the guide"));
 
 		expect(openExternalUrl).toHaveBeenCalledWith(REMOTE_ENVIRONMENTS_DOCS_URL);
 		expect(onSetUpHost).not.toHaveBeenCalled();

@@ -38,17 +38,17 @@ const STEPS: Array<{
 	{
 		icon: Settings,
 		title: "Add a host in Settings → Remote",
-		body: "A hostname or SSH config alias, plus an optional user, port, and identity file. Test the connection before you rely on it.",
+		body: "Hostname, user, and key. Test it first.",
 	},
 	{
 		icon: Laptop,
 		title: "Pick it from the environment selector",
-		body: "The laptop button beside the workspace picker on the new-chat screen. Choosing a host connects at its home directory; Local disconnects.",
+		body: "The laptop button beside the workspace picker.",
 	},
 	{
 		icon: FolderOpen,
 		title: "Open a project on that machine",
-		body: "Open folder… in the workspace picker browses the host's folders. Recent workspaces are remembered per host.",
+		body: "Open folder… browses the host's folders.",
 	},
 ];
 
@@ -125,9 +125,8 @@ export function SshRemoteEnvironmentsAnnouncement({
 					</span>
 					<DialogTitle>Run Cline on any machine over SSH</DialogTitle>
 					<DialogDescription>
-						Point Cline at a server, a dev box, or a Raspberry Pi. Tools, Git,
-						and workspace discovery run on that host; approvals and live output
-						stay right here.
+						Point Cline at a server or dev box. Tools and Git run there;
+						approvals stay here.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid items-start gap-4 sm:grid-cols-[minmax(0,16rem)_1fr]">
@@ -153,14 +152,6 @@ export function SshRemoteEnvironmentsAnnouncement({
 						))}
 					</ol>
 				</div>
-				<p className="text-xs text-muted-foreground">
-					Works with Linux and macOS hosts you can already reach with{" "}
-					<code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
-						ssh user@host
-					</code>{" "}
-					using a key. New to SSH? The setup guide walks through creating a key
-					and trusting the host.
-				</p>
 				<DialogFooter>
 					<Button onClick={() => onOpenChange(false)} variant="ghost">
 						Maybe later
@@ -170,7 +161,7 @@ export function SshRemoteEnvironmentsAnnouncement({
 						variant="outline"
 					>
 						<BookOpen />
-						Read the setup guide
+						Read the guide
 					</Button>
 					<Button onClick={onSetUpHost}>Set up an SSH host</Button>
 				</DialogFooter>
