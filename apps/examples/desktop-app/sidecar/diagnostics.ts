@@ -112,7 +112,10 @@ export function buildDiagnosticsReport(
 			rest.metadata && typeof rest.metadata === "object"
 				? { ...(rest.metadata as Record<string, unknown>) }
 				: undefined;
-		if (metadata) delete metadata.systemPrompt;
+		if (metadata) {
+			delete metadata.prompt;
+			delete metadata.systemPrompt;
+		}
 		text += section(
 			`session ${sessionId}`,
 			JSON.stringify({ ...rest, metadata }, null, 2),

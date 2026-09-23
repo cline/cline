@@ -77,7 +77,11 @@ describe("buildDiagnosticsReport", () => {
 		writeSession("session_a", {
 			session_id: "session_a",
 			prompt: "fix the bug in my secret project",
-			metadata: { title: "Renamed", systemPrompt: "You are Cline…" },
+			metadata: {
+				title: "Renamed",
+				prompt: "fix the bug in my secret project",
+				systemPrompt: "You are Cline…",
+			},
 		});
 		writeSession("session_b", { session_id: "session_b", prompt: "other" });
 
