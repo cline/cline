@@ -160,9 +160,63 @@ function checkRipgrepAvailable(): Promise<boolean> {
 			}
 			if (rgAvailable === null) {
 				rgAvailable = false;
-				resolve(false);
-			}
+			resolve(false);
+		}
 		}, 1000);
+	});
+}
+
+/**
+ * Locates any .clineignore / .agentignore files in the workspace so they can
+ * be handed to the main content-search rg invocation via --ignore-file.
+ * rg understands .gitignore natively (once --no-require-git is set, see
+ * searchWithRipgrep below) but has no built-in awareness of Cline-specific
+ * ignore filenames.
+ *
+ * This is a second, narrowly-scoped rg invocation (just locating two
+ * filenames) rather than reusing the full file index, so a content search
+ * doesn't have to wait on a full workspace listing just to find a couple of
+ * small config files. Bounded by the same short-timeout pattern used
+ * elsewhere in this file; on timeout or any failure this returns an empty
+ * list, meaning search falls back to .gitignore-only behavior rather than
+ * failing the search outright.
+ */
+function findCustomIgnoreFiles(
+	cwd: string,
+	timeoutMs = 2000,
+): Promise<string[]> {
+	return new Promise((resolve) => {
+		const child = spawn(
+			"rg",
+			["--files", "--hidden", "-g", ".clineignore", "-g", ".agentignore"],
+			{ cwd, stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
+		);
+		let stdout = "";
+		const timeout = setTimeout(() => {
+			child.kill("SIGTERM");
+			resolve([]);
+		}, timeoutMs);
+		child.stdout.on("data", (chunk: Buffer | string) => {
+			stdout += chunk.toString();
+		});
+		child.stderr.on("data", () => {
+			// Ignore stderr
+		});
+		child.on("close", (code: number | null) => {
+			clearTimeout(timeout);
+			resolve(
+				code === 0 || code === 1
+					? stdout
+							.split(/\r?\n/)
+							.map((l) => l.trim())
+							.filter(Boolean)
+					: [],
+			);
+		});
+		child.on("error", () => {
+			clearTimeout(timeout);
+			resolve([]);
+		});
 	});
 }
 
@@ -174,10 +228,28 @@ function searchWithRipgrep(
 	timeoutMs: number = 5000,
 	abortSignal?: AbortSignal,
 ): Promise<SearchMatch[] | null> {
-	return new Promise((resolve) => {
+	return new Promise(async (resolve) => {
+		const customIgnoreFiles = await findCustomIgnoreFiles(cwd);
+		const ignoreFileArgs = customIgnoreFiles.flatMap((f) => [
+			"--ignore-file",
+			f,
+		]);
+
 		const child = spawn(
 			"rg",
-			["--json", `--context=${contextLines}`, "--max-count=1", "-i", query],
+			[
+				"--json",
+				`--context=${contextLines}`,
+				"--max-count=1",
+				"-i",
+				// Without this, rg only honors .gitignore inside a git working
+				// tree -- the direct cause of #13384's git-context-dependent
+				// gitignore bug. This makes gitignore-style filtering work
+				// regardless of whether cwd is (or is inside) a git repo.
+				"--no-require-git",
+				...ignoreFileArgs,
+				query,
+			],
 			{
 				cwd,
 				stdio: ["ignore", "pipe", "pipe"],
@@ -207,7 +279,7 @@ function searchWithRipgrep(
 			if (!resolved) {
 				resolved = true;
 				clearTimeout(timeout);
-				cleanup();
+			cleanup();
 				resolve(result);
 			}
 		};
@@ -264,27 +336,27 @@ function searchWithRipgrep(
 						} else if (json.type === "context" && matches.length > 0) {
 							const lastMatch = matches[matches.length - 1];
 							const prefix =
-								json.data.line_number === lastMatch.line ? ">" : " ";
+							json.data.line_number === lastMatch.line ? ">" : " ";
 							lastMatch.context.push(
 								`${prefix} ${json.data.line_number}: ${json.data.lines?.text ?? json.data.line?.text ?? ""}`,
-							);
-						}
+						);
 					}
-
-					finalize(matches.length > 0 ? matches : null);
-				} catch {
-					finalize(null);
 				}
-				return;
+
+				finalize(matches.length > 0 ? matches : null);
+			} catch {
+				finalize(null);
 			}
+			return;
+		}
 
-			finalize(null);
-		});
-
-		child.on("error", () => {
-			finalize(null);
-		});
+		finalize(null);
 	});
+
+	child.on("error", () => {
+		finalize(null);
+	});
+});
 }
 
 function shouldIncludeFile(
@@ -447,7 +519,7 @@ export function createSearchExecutor(
 							contextLinesArr.push(
 								`${prefix} ${i + 1}: ${lines[i].slice(0, MAX_LINE_CHARS)}`,
 							);
-						}
+					}
 
 						matches.push({
 							file: relativePath,
@@ -455,42 +527,42 @@ export function createSearchExecutor(
 							column: match.index + 1,
 							match: match[0],
 							context: contextLinesArr,
-						});
+					});
 
 						// Prevent infinite loop on zero-length matches
 						if (match.index === regex.lastIndex) {
 							regex.lastIndex++;
-						}
-						match = regex.exec(line);
 					}
+					match = regex.exec(line);
 				}
-			} catch {}
-		}
+			}
+		} catch {}
+	}
 
-		// Format results
-		if (matches.length === 0) {
-			return `No results found for pattern: ${query}\nSearched ${totalFilesSearched} files.`;
-		}
+	// Format results
+	if (matches.length === 0) {
+		return `No results found for pattern: ${query}\nSearched ${totalFilesSearched} files.`;
+	}
 
-		const resultLines: string[] = [
-			`Found ${matches.length} result${matches.length === 1 ? "" : "s"} for pattern: ${query}`,
-			`Searched ${totalFilesSearched} files.`,
-			"",
-		];
+	const resultLines: string[] = [
+		`Found ${matches.length} result${matches.length === 1 ? "" : "s"} for pattern: ${query}`,
+		`Searched ${totalFilesSearched} files.`,
+		"",
+	];
 
-		for (const match of matches) {
-			resultLines.push(`${match.file}:${match.line}:${match.column}`);
-			resultLines.push(...match.context);
-			resultLines.push("");
-		}
+	for (const match of matches) {
+		resultLines.push(`${match.file}:${match.line}:${match.column}`);
+		resultLines.push(...match.context);
+		resultLines.push("");
+	}
 
-		if (matches.length >= maxResults) {
-			resultLines.push(
-				`(Showing first ${maxResults} results. Refine your search for more specific results.)`,
-			);
-		}
+	if (matches.length >= maxResults) {
+		resultLines.push(
+			`(Showing first ${maxResults} results. Refine your search for more specific results.)`,
+		);
+	}
 
-		return capSearchOutput(resultLines.join("\n"));
+	return capSearchOutput(resultLines.join("\n"));
 	};
 }
 

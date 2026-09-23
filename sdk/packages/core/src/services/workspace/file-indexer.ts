@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { isMainThread, parentPort, Worker } from "node:worker_threads";
+import { buildIgnoreMatcher } from "./ignore-matcher";
 
 const DEFAULT_INDEX_TTL_MS = 15_000;
 const STALE_CACHE_EVICTION_MS = 10 * 60_000;
@@ -97,7 +98,7 @@ async function listFilesWithRg(cwd: string): Promise<Set<string>> {
 			stdout += chunk.toString();
 		});
 		child.stderr.on("data", (chunk: Buffer | string) => {
-			stderr += chunk.toString();
+		stderr += chunk.toString();
 		});
 		child.on("error", reject);
 		child.on("close", (code: number | null) => {
@@ -179,15 +180,32 @@ function isUnindexableRoot(cwd: string): boolean {
 	);
 }
 
-async function buildIndex(cwd: string): Promise<Set<string>> {
-	if (isUnindexableRoot(cwd)) {
-		return new Set();
-	}
+async function listRawFiles(cwd: string): Promise<Set<string>> {
 	try {
 		return await listFilesWithRg(cwd);
 	} catch {
 		return listFilesFallback(cwd);
 	}
+}
+
+async function buildIndex(cwd: string): Promise<Set<string>> {
+	if (isUnindexableRoot(cwd)) {
+		return new Set();
+	}
+	// Get the raw listing first (via whichever method succeeds), *then*
+	// filter it through the ignore matcher. This is deliberately a single
+	// post-filter step shared by both the rg-based listing and the JS
+	// walker fallback above, rather than two separate implementations of
+	// ignore-file handling -- see ignore-matcher.ts for why.
+	const rawFiles = await listRawFiles(cwd);
+	const matcher = await buildIgnoreMatcher(cwd, rawFiles);
+	const filtered = new Set<string>();
+	for (const relPath of rawFiles) {
+		if (!matcher.isIgnored(relPath)) {
+			filtered.add(relPath);
+		}
+	}
+	return filtered;
 }
 
 function startWorkerServer(): void {
