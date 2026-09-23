@@ -199,7 +199,7 @@ function AgentHeaderImpl({
 				</span>
 			) : isEditingTitle ? (
 				<form
-					className="m-0 min-w-0 max-w-full shrink-0"
+					className="m-0 min-w-0 max-w-full"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void submitTitle();
@@ -237,7 +237,10 @@ function AgentHeaderImpl({
 							return;
 						}
 						setTitleEditorWidth(
-							event.currentTarget.getBoundingClientRect().width,
+							Math.max(
+								240,
+								event.currentTarget.getBoundingClientRect().width,
+							),
 						);
 						setTitleInput(threadTitle);
 						setIsEditingTitle(true);
