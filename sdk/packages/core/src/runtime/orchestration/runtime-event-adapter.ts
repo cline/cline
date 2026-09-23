@@ -74,6 +74,7 @@ function resolveStatusNoticeReason(
 	reason: unknown,
 ): StatusNoticeReason | undefined {
 	switch (reason) {
+		case "provider_error_retry":
 		case "auto_compaction":
 		case "manual_compaction":
 		case "compaction_budget_emergency":

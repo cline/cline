@@ -29,6 +29,17 @@ function translateEvent(event: AgentEvent): SessionUpdate[] {
 			return translateContentStart(event);
 		case "content_end":
 			return translateContentEnd(event);
+		case "notice":
+			// ACP chunks are append-only. Separate both message and thought
+			// streams so neither can silently combine different attempts.
+			return event.reason === "provider_error_retry"
+				? (["agent_message_chunk", "agent_thought_chunk"] as const).map(
+						(sessionUpdate) => ({
+							sessionUpdate,
+							content: { type: "text", text: `\n\n[${event.message}]\n\n` },
+						}),
+					)
+				: [];
 		case "done":
 			return [];
 		case "error":

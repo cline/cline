@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { CoreSessionEvent } from "@cline/core";
+import { describe, expect, it, vi } from "vitest";
 import type { HubContext } from "./state";
 
 // agent-events.ts only needs these siblings at runtime; mocking them keeps the
@@ -74,4 +74,23 @@ describe("handleSessionEvent — agent error events", () => {
 			},
 		]);
 	});
+});
+
+it("forwards the retry boundary to webview clients", () => {
+	const { ctx, sent } = makeContextWithPeer("s");
+	handleSessionEvent(ctx, {
+		type: "agent_event",
+		payload: {
+			sessionId: "s",
+			event: {
+				type: "notice",
+				noticeType: "status",
+				reason: "provider_error_retry",
+				message: "retrying",
+			},
+		},
+	});
+	expect(sent).toEqual([
+		{ type: "status", text: "retrying", reason: "provider_error_retry" },
+	]);
 });

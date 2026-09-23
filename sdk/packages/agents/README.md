@@ -15,6 +15,22 @@ bringing in session storage, hub transport, or host-specific default tools.
   callback
 - Plugin setup callbacks for contributing tools and hooks at boot
 
+## Interrupted Responses
+
+Transient provider failures, including a stream ending without a finish reason,
+are retried up to three times with exponential backoff. Partial text and local
+tool calls from the failed attempt are discarded from the conversation sent to
+the model; the next attempt regenerates the response from the prior history.
+Already streamed output remains visible, separated by a retry status notice.
+Local tool calls from these unfinished responses never execute, even when the
+retry budget is exhausted. Attempts with model-tool activity are not replayed,
+because those tools may already have executed. Their recorded calls and available
+results (including errors) are saved on an interrupted assistant message before
+the run fails. A call without a received result retains an unknown outcome.
+Retry notices carry the typed `provider_error_retry` reason so clients can close
+abandoned output before rendering the replacement; append-only ACP clients receive
+a visible separator.
+
 ## What This Package Does Not Include
 
 `@cline/agents` does not ship a full application runtime by itself.

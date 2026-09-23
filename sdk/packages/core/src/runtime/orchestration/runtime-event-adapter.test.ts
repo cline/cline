@@ -192,11 +192,12 @@ describe("RuntimeEventAdapter — status notices", () => {
 		adapter = new RuntimeEventAdapter();
 	});
 
-	it("preserves bounded compaction reasons", () => {
+	it("preserves typed status reasons", () => {
 		for (const reason of [
 			"auto_compaction",
 			"manual_compaction",
 			"compaction_budget_emergency",
+			"provider_error_retry",
 		] as const) {
 			const out = adapter.translate({
 				type: "status-notice",

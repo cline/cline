@@ -827,6 +827,30 @@ export class AgentRuntime {
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
+				const modelToolActivities = message.metadata?.modelToolActivities;
+				const hasModelToolActivity =
+					Array.isArray(modelToolActivities) && modelToolActivities.length > 0;
+				if (
+					finishReason === "error" &&
+					(this.state.lastErrorRetryable === true || hasModelToolActivity)
+				) {
+					// Model tools may already have run. Keep exactly the activity and
+					// results received, including errors or calls with no known outcome.
+					// Local tool calls from this unfinished response must never execute.
+					if (hasModelToolActivity) {
+						await this.commitAssistantMessage(
+							{
+								...message,
+								content: message.content.filter(
+									(part) => part.type !== "tool-call",
+								),
+								metadata: { ...message.metadata, interrupted: true },
+							},
+							finishReason,
+						);
+					}
+					throw new Error(this.state.lastError ?? "Model stream failed");
+				}
 				if (message.content.length === 0) {
 					if (finishReason === "error") {
 						throw new Error(this.state.lastError ?? "Model stream failed");
@@ -837,10 +861,6 @@ export class AgentRuntime {
 					// activity is not empty: keep the message so the transcript and
 					// display projection retain it. Replay stays safe — the codec
 					// renders empty content as its placeholder text block.
-					const modelToolActivities = message.metadata?.modelToolActivities;
-					const hasModelToolActivity =
-						Array.isArray(modelToolActivities) &&
-						modelToolActivities.length > 0;
 					// A turn that produced no content because it hit the output-token
 					// limit is not a true empty response: fall through so the message is
 					// kept and the max-tokens recovery branch below can nudge and retry.
@@ -854,19 +874,7 @@ export class AgentRuntime {
 				);
 
 				finalAssistantMessage = message;
-				this.state.messages.push(message);
-				await this.emit({
-					type: "message-added",
-					snapshot: this.snapshot(),
-					message,
-				});
-				await this.emit({
-					type: "assistant-message",
-					snapshot: this.snapshot(),
-					iteration: this.state.iteration,
-					message,
-					finishReason,
-				});
+				await this.commitAssistantMessage(message, finishReason);
 
 				if (interrupted) {
 					await this.emit({
@@ -1031,6 +1039,25 @@ export class AgentRuntime {
 		}
 	}
 
+	private async commitAssistantMessage(
+		message: AgentMessage,
+		finishReason: AgentModelFinishReason,
+	): Promise<void> {
+		this.state.messages.push(message);
+		await this.emit({
+			type: "message-added",
+			snapshot: this.snapshot(),
+			message,
+		});
+		await this.emit({
+			type: "assistant-message",
+			snapshot: this.snapshot(),
+			iteration: this.state.iteration,
+			message,
+			finishReason,
+		});
+	}
+
 	/**
 	 * Injects the collected hook context blocks as one user message at the end
 	 * of the conversation. Always delivers: the buffer is empty afterwards.
@@ -1129,11 +1156,11 @@ export class AgentRuntime {
 	 * error") is re-issued up to {@link PROVIDER_ERROR_MAX_RETRIES} times, with
 	 * exponential backoff between attempts, before the error is allowed to
 	 * propagate and end the run. Non-retryable errors (auth, context-window
-	 * overflow, other client errors) and any attempt that already produced
-	 * visible output or provider tool activity are returned unchanged for the
-	 * caller to handle, so this only adds
-	 * resilience and never changes behavior for a turn that would otherwise
-	 * succeed. Context-window overflow recovery still runs inside each attempt.
+	 * overflow, other client errors) and turns with model-tool activity are
+	 * returned unchanged. Text and local tool-call fragments belong to an
+	 * unfinished attempt: discard them and regenerate from the prior history.
+	 * Local tools only execute after this method returns a completed turn.
+	 * Context-window overflow recovery still runs inside each attempt.
 	 */
 	private async generateAssistantMessageWithProviderRetry(): Promise<{
 		message: AgentMessage;
@@ -1161,7 +1188,7 @@ export class AgentRuntime {
 			await this.emit({
 				type: "status-notice",
 				snapshot: this.snapshot(),
-				message: `provider error — retrying (attempt ${attempt}/${PROVIDER_ERROR_MAX_RETRIES})`,
+				message: `${turn.message.content.length > 0 ? "unfinished response" : "provider error"} — retrying (attempt ${attempt}/${PROVIDER_ERROR_MAX_RETRIES})`,
 				metadata: {
 					kind: "provider_error_retry",
 					reason: "provider_error_retry",
@@ -1179,23 +1206,15 @@ export class AgentRuntime {
 
 	/**
 	 * True when a turn failed with a transient provider error that a retry
-	 * could plausibly recover, and the failed attempt left nothing behind that
-	 * a second stream would duplicate or repeat:
-	 * - no content at all (text, reasoning, media, or local tool calls): those
-	 *   deltas were already emitted to the UI and there is no event to retract
-	 *   them, so re-streaming would show the output twice;
-	 * - no provider-executed tool activity (recorded in message metadata, not
-	 *   content): re-issuing the request could run those side effects again;
-	 * - not an auth or context-window failure, which the same request cannot fix.
+	 * could plausibly recover. Local tool calls have not executed yet, so even
+	 * complete-looking calls can be discarded with the unfinished response.
+	 * Model-tool activity may already have side effects and cannot be replayed.
 	 */
 	private isRetryableProviderErrorTurn(turn: {
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}): boolean {
 		if (turn.finishReason !== "error") {
-			return false;
-		}
-		if (turn.message.content.length > 0) {
 			return false;
 		}
 		const modelToolActivities = turn.message.metadata?.modelToolActivities;

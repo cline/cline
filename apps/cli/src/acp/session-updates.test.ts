@@ -32,3 +32,45 @@ describe("forwardAgentEvent", () => {
 		});
 	});
 });
+
+it("separates abandoned and replacement answers in ACP's append-only output", () => {
+	const sessionUpdate = vi.fn().mockResolvedValue(undefined);
+	const connection = { sessionUpdate } as unknown as AgentSideConnection;
+	for (const event of [
+		{ type: "content_start", contentType: "text", text: "abandoned" },
+		{
+			type: "content_start",
+			contentType: "reasoning",
+			reasoning: "old thought",
+		},
+		{
+			type: "notice",
+			noticeType: "status",
+			reason: "provider_error_retry",
+			message: "unfinished response — retrying (attempt 1/3)",
+		},
+		{ type: "content_start", contentType: "text", text: "replacement" },
+		{
+			type: "content_start",
+			contentType: "reasoning",
+			reasoning: "new thought",
+		},
+	] satisfies AgentEvent[])
+		forwardAgentEvent(connection, "session-1", event);
+	expect(
+		sessionUpdate.mock.calls
+			.filter(([arg]) => arg.update.sessionUpdate === "agent_message_chunk")
+			.map(([arg]) => arg.update.content.text)
+			.join(""),
+	).toBe(
+		"abandoned\n\n[unfinished response — retrying (attempt 1/3)]\n\nreplacement",
+	);
+	expect(
+		sessionUpdate.mock.calls
+			.filter(([arg]) => arg.update.sessionUpdate === "agent_thought_chunk")
+			.map(([arg]) => arg.update.content.text)
+			.join(""),
+	).toBe(
+		"old thought\n\n[unfinished response — retrying (attempt 1/3)]\n\nnew thought",
+	);
+});

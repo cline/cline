@@ -697,6 +697,213 @@ describe("AgentRuntime", () => {
 		}
 	});
 
+	it.each([
+		'{"text":',
+		'{"text":"unfinished"}',
+	])("retries a cut-off response with text and tool arguments %s without executing it", async (inputText) => {
+		vi.useFakeTimers();
+		try {
+			const execute = vi.fn(async (_input: { text: string }) => ({
+				echoed: "done",
+			}));
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "partial response" },
+					{
+						type: "tool-call-delta",
+						toolCallId: "unfinished",
+						toolName: "echo",
+						inputText,
+					},
+					{
+						type: "finish",
+						reason: "error",
+						error: "Stream ended without a finish reason",
+						errorClass: "unknown",
+					},
+				],
+				() => [
+					{
+						type: "tool-call-delta",
+						toolCallId: "replacement",
+						toolName: "echo",
+						input: { text: "done" },
+					},
+					{ type: "finish", reason: "tool-calls" },
+				],
+				() => [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({
+				model,
+				tools: [{ ...createEchoTool(), execute }],
+			});
+			const notices: string[] = [];
+			runtime.subscribe((event) => {
+				if (event.type === "status-notice") notices.push(event.message);
+			});
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+			expect(notices).toContain("unfinished response — retrying (attempt 1/3)");
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(3);
+			expect(model.requests[1]?.messages).toEqual(model.requests[0]?.messages);
+			expect(execute).toHaveBeenCalledTimes(1);
+			expect(execute.mock.calls[0]?.[0]).toEqual({ text: "done" });
+			expect(JSON.stringify(result.messages)).not.toContain("unfinished");
+			expect(JSON.stringify(result.messages)).not.toContain("partial response");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("never executes tool calls from a cut-off response after retries are exhausted", async () => {
+		vi.useFakeTimers();
+		try {
+			const execute = vi.fn(async () => ({ echoed: "wrong" }));
+			const model = new ScriptedModel(
+				Array.from({ length: 4 }, () => () => [
+					{ type: "text-delta" as const, text: "partial" },
+					{
+						type: "tool-call-delta" as const,
+						toolCallId: "unfinished",
+						toolName: "echo",
+						input: { text: "wrong" },
+					},
+					{
+						type: "finish" as const,
+						reason: "error" as const,
+						error: "Stream ended without a finish reason",
+					},
+				]),
+			);
+			const runtime = new AgentRuntime({
+				model,
+				tools: [{ ...createEchoTool(), execute }],
+			});
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+			expect(result.status).toBe("failed");
+			expect(model.requests).toHaveLength(4);
+			expect(execute).not.toHaveBeenCalled();
+			expect(result.messages).toHaveLength(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not replay provider-executed tools after a stream is cut off", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search",
+					toolName: "web_search",
+					execution: "provider",
+					input: {},
+				},
+				{
+					type: "finish",
+					reason: "error",
+					error: "Stream ended without a finish reason",
+				},
+			],
+		]);
+		const result = await new AgentRuntime({ model }).run("Hi");
+		expect(result.status).toBe("failed");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it.each([
+		"success",
+		"error",
+		"unknown",
+	] as const)("persists model-tool %s outcomes on stream failure without replaying or executing local calls", async (outcome) => {
+		const execute = vi.fn();
+		const activity = {
+			toolCallId: "remote",
+			toolName: "remote_tool",
+			execution: "provider" as const,
+			input: { action: "write" },
+		};
+		const resultFields =
+			outcome === "unknown"
+				? {}
+				: {
+						output:
+							outcome === "error"
+								? { error: "permission denied" }
+								: { written: true },
+						isError: outcome === "error",
+					};
+		const model = new ScriptedModel([
+			() => [
+				{ type: "tool-call-delta", ...activity },
+				...(outcome === "unknown"
+					? []
+					: [{ type: "tool-result" as const, ...activity, ...resultFields }]),
+				{
+					type: "tool-call-delta",
+					toolCallId: "local",
+					toolName: "echo",
+					input: { text: "do not run" },
+				},
+				{
+					type: "finish",
+					reason: "error",
+					error: "Stream ended without a finish reason",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [{ ...createEchoTool(), execute }],
+		});
+		const saved: AgentMessage[] = [];
+		runtime.subscribe((event) => {
+			if (event.type === "message-added" && event.message.role === "assistant")
+				saved.push(event.message);
+		});
+		const result = await runtime.run("Hi");
+		expect(result.status).toBe("failed");
+		expect(model.requests).toHaveLength(1);
+		expect(execute).not.toHaveBeenCalled();
+		expect(saved).toHaveLength(1);
+		expect(result.messages.at(-1)).toEqual(saved[0]);
+		expect(saved[0]?.content).toEqual([]);
+		expect(saved[0]?.metadata).toMatchObject({
+			interrupted: true,
+			modelToolActivities: [{ ...activity, ...resultFields }],
+		});
+		if (outcome === "unknown") {
+			const activities = saved[0]?.metadata?.modelToolActivities as Record<
+				string,
+				unknown
+			>[];
+			expect(activities[0]).not.toHaveProperty("output");
+			expect(activities[0]).not.toHaveProperty("isError");
+		}
+		// Resume from the persisted transcript without turning observed model
+		// activity into executable local tool calls.
+		const resumedModel = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "resumed" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const resumed = new AgentRuntime({
+			model: resumedModel,
+			initialMessages: result.messages,
+		});
+		await resumed.run("Continue");
+		expect(resumedModel.requests[0]?.messages).toContainEqual(saved[0]);
+	});
+
 	it("does not retry a non-transient provider error (honors errorRetryable=false)", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -718,24 +925,31 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
-	it("does not retry when the failed attempt already streamed visible output", async () => {
-		const model = new ScriptedModel([
-			() => [
-				{ type: "text-delta", text: "partial answer" },
-				{
-					type: "finish",
-					reason: "error",
-					error: "Provider returned error",
-				},
-			],
-		]);
-		const runtime = new AgentRuntime({ model });
-
-		const result = await runtime.run("Hi");
-
-		expect(result.status).toBe("failed");
-		expect(result.error?.message).toBe("Provider returned error");
-		expect(model.requests).toHaveLength(1);
+	it("retries an unfinished response after streaming visible output", async () => {
+		vi.useFakeTimers();
+		try {
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "partial answer" },
+					{ type: "finish", reason: "error", error: "Provider returned error" },
+				],
+				() => [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const runtime = new AgentRuntime({ model });
+			const runPromise = runtime.run("Hi");
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			expect(model.requests).toHaveLength(2);
+			expect(model.requests[1]?.messages).toEqual(model.requests[0]?.messages);
+			expect(JSON.stringify(result.messages)).not.toContain("partial answer");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("does not retry when the failed attempt ran a provider-executed tool", async () => {

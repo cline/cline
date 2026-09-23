@@ -165,6 +165,7 @@ export type ChatTransportState =
 	| "unavailable";
 
 export type CoreLogChunk = {
+	reason?: string;
 	level?: string;
 	message?: string;
 	metadata?: unknown;

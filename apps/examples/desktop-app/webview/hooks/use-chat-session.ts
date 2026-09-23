@@ -1940,6 +1940,20 @@ export function useChatSession(environmentId: string) {
 				// here rather than on the turn-completion event.
 				try {
 					const parsed = JSON.parse(payload.chunk) as CoreLogChunk;
+					if (parsed.reason === "provider_error_retry") {
+						// Pending deltas were flushed above. Start the replacement in a
+						// fresh bubble so it cannot append to the interrupted response.
+						activeAssistantMessageIdRef.current = null;
+						setActiveAssistantMessageId(null);
+						setActivityLabel(parsed.message ?? "Retrying response...");
+						addMessage({
+							id: makeId("status"),
+							sessionId: listeningSessionId,
+							role: "status",
+							content: parsed.message ?? "Retrying response...",
+							createdAt: Date.now(),
+						});
+					}
 					if (
 						parsed.level?.trim().toLowerCase() === "error" &&
 						parsed.message?.trim()
