@@ -524,6 +524,14 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         ));
     };
 
+    // Bun only trusts its bundled Mozilla CA store unless told otherwise, so
+    // corporate or self-signed endpoints (e.g. a LiteLLM proxy behind a
+    // TLS-inspecting firewall) fail with certificate errors. This is Bun's
+    // equivalent of Node's --use-system-ca and is inherited by the Hub daemon
+    // the sidecar spawns. An explicit user value wins.
+    if std::env::var_os("NODE_USE_SYSTEM_CA").is_none() {
+        command.env("NODE_USE_SYSTEM_CA", "1");
+    }
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
