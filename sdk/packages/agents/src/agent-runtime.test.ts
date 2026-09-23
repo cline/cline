@@ -1111,6 +1111,115 @@ describe("AgentRuntime", () => {
 		expect(retry?.content).toEqual([{ type: "text", text: "The weather is" }]);
 	});
 
+	it("retries a transient provider error on the compacted request without recompacting", async () => {
+		vi.useFakeTimers();
+		try {
+			const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "truncated..." },
+					{ type: "finish", reason: "max-tokens" },
+				],
+				// The compacted request hits a transient provider error...
+				() => [
+					{ type: "finish", reason: "error", error: "Provider returned error" },
+				],
+				// ...and succeeds when re-issued.
+				() => [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				],
+			]);
+			const compactedMessages: AgentMessage[] = [
+				{ role: "user", content: [{ type: "text", text: "compacted" }] },
+			];
+			const prepareTurn = vi.fn(
+				async (context: { overflowRecovery?: boolean }) =>
+					context.overflowRecovery
+						? { messages: compactedMessages }
+						: undefined,
+			);
+			const runtime = new AgentRuntime({ model, prepareTurn });
+			const noticeKinds: string[] = [];
+			runtime.subscribe((event) => {
+				if (
+					event.type === "status-notice" &&
+					typeof event.metadata?.kind === "string"
+				) {
+					noticeKinds.push(event.metadata.kind);
+				}
+			});
+
+			const runPromise = runtime.run(longPrompt);
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("completed");
+			expect(result.outputText).toBe("recovered");
+			// Truncated turn, failed compacted request, re-issued compacted request.
+			expect(model.requests).toHaveLength(3);
+			expect(noticeKinds).toContain("provider_error_retry");
+			// The re-issue reuses the prepared compacted request: the transcript did
+			// not change between a 429 and its retry, so compaction runs once.
+			expect(
+				prepareTurn.mock.calls.filter(([c]) => c.overflowRecovery).length,
+			).toBe(1);
+			expect(model.requests[1]?.messages).toEqual(compactedMessages);
+			expect(model.requests[2]?.messages).toEqual(compactedMessages);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("keeps the truncated turn when transient retries of the compacted request are exhausted", async () => {
+		vi.useFakeTimers();
+		try {
+			const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+			const model = new ScriptedModel([
+				() => [
+					{ type: "text-delta", text: "truncated..." },
+					{ type: "finish", reason: "max-tokens" },
+				],
+				// Compacted request + 3 bounded retries, all failing transiently.
+				...Array.from({ length: 4 }, () => () => [
+					{
+						type: "finish" as const,
+						reason: "error" as const,
+						error: "Provider returned error",
+					},
+				]),
+			]);
+			const compactedMessages: AgentMessage[] = [
+				{ role: "user", content: [{ type: "text", text: "compacted" }] },
+			];
+			const prepareTurn = vi.fn(
+				async (context: { overflowRecovery?: boolean }) =>
+					context.overflowRecovery
+						? { messages: compactedMessages }
+						: undefined,
+			);
+			const runtime = new AgentRuntime({ model, prepareTurn });
+
+			const runPromise = runtime.run(longPrompt);
+			await vi.runAllTimersAsync();
+			const result = await runPromise;
+
+			expect(result.status).toBe("failed");
+			expect(result.error?.message).toBe("Provider returned error");
+			expect(model.requests).toHaveLength(5);
+			expect(
+				prepareTurn.mock.calls.filter(([c]) => c.overflowRecovery).length,
+			).toBe(1);
+			// The partial answer is still in the transcript.
+			expect(result.messages.at(-1)).toMatchObject({
+				role: "assistant",
+				content: [{ type: "text", text: "truncated..." }],
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],

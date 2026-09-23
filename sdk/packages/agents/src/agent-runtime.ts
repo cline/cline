@@ -1140,9 +1140,24 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
+		return await this.withProviderErrorRetry(() =>
+			this.generateAssistantMessageWithOverflowRecovery(),
+		);
+	}
+
+	/**
+	 * Run `issue`, re-running it with backoff while it returns a turn that
+	 * failed with a transient, retryable provider error (see
+	 * {@link isRetryableProviderErrorTurn}), up to PROVIDER_ERROR_MAX_RETRIES
+	 * times. `issue` decides what is re-run: the whole prepared turn for an
+	 * ordinary request, or just the issuing of an already-prepared request.
+	 */
+	private async withProviderErrorRetry<
+		T extends { message: AgentMessage; finishReason: AgentModelFinishReason },
+	>(issue: () => Promise<T>): Promise<T> {
 		let attempt = 0;
 		for (;;) {
-			const turn = await this.generateAssistantMessageWithOverflowRecovery();
+			const turn = await issue();
 			if (
 				attempt >= PROVIDER_ERROR_MAX_RETRIES ||
 				!this.isRetryableProviderErrorTurn(turn)
@@ -1405,9 +1420,17 @@ export class AgentRuntime {
 					"response hit the output token limit — compacting and retrying",
 				metadata: { ...noticeMetadata, phase: "started" },
 			});
-			retry = await this.generateAssistantMessage({
+			// Prepare (compact) once; a transient provider error on the compacted
+			// request gets the same bounded retry policy as any other request, but
+			// re-issues the *same* prepared request — the transcript has not
+			// changed between a 429 and its retry, so recompacting would only repeat
+			// the compaction's notices, telemetry, and any summarizer call.
+			const prepared = await this.prepareModelRequest({
 				overflowRecovery: true,
 			});
+			retry = await this.withProviderErrorRetry(() =>
+				this.issuePreparedRequest(prepared),
+			);
 		} catch (error) {
 			if (error instanceof ContextWindowOverflowError) {
 				// Nothing to compact — keep the truncated turn so the loop
@@ -1515,6 +1538,28 @@ export class AgentRuntime {
 		this.modelSteerController = controller;
 		try {
 			return await this.generateAssistantMessageForRequest(controller, options);
+		} finally {
+			this.modelSteerController = undefined;
+		}
+	}
+
+	/**
+	 * Issue an already-prepared request as a fresh attempt: turn preparation
+	 * (compaction, before-model hooks) is not re-run, but the attempt gets its
+	 * own steer controller and lifecycle timing.
+	 */
+	private async issuePreparedRequest(prepared: PreparedModelRequest): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const controller = new AbortController();
+		this.modelSteerController = controller;
+		try {
+			return await this.streamPreparedRequest(
+				{ ...prepared, startedAt: Date.now() },
+				controller,
+			);
 		} finally {
 			this.modelSteerController = undefined;
 		}
