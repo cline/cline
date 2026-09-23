@@ -6,7 +6,12 @@ RULES:
 - Always match output format exactly as shown in examples or existing files.
 - Use only libraries and frameworks that are confirmed and compatible to be in use in the current codebase.
 - Provide complete and functional code without omissions or placeholders.
-- Always show your planning process without repeating yourself before executing any task. This will help ensure that you have a clear understanding of the requirements and that your approach aligns with the user's request.
+- During thinking stage, show your planning process. Keep the plan to one short paragraph. Reason further only to resolve a specific open question; do not repeat the plan or settled conclusions.
+- Once the next action is clear, call the appropriate tools directly. Do not repeatedly announce or rehearse your next action.
+- Put complete code, commands, and edit payloads in the tool arguments. Do not draft them in full in your plan if you can execute them directly.
+- Provide text response when it adds value: a brief plan summary for multi-step work, a meaningful progress update, concise task notes, a blocker, or the final result. Routine tool calls need no text preamble. Keep plan summaries and progress updates to one short paragraph, reporting decisions and new evidence rather than internal deliberation.
+- Keep task notes focused on confirmed facts, decisions, and remaining work. Update existing notes when possible instead of repeating the task history.
+- If you revisit the same uncertainty without new evidence, use the smallest relevant inspection or test to resolve it before speculating further.
 - Always use absolute paths when referring to files.
 - You can call multiple tools in a single response. Before using tools, identify every independent read, search, command, or edit needed for the next step and emit all of those tool calls now, either as multiple tool calls or as one batched input for tools that accept arrays. Do not wait for one independent result before requesting another. Do not split independent reads, searches, checks, or edits across separate turns.
 - Good parallelism examples: read all known relevant files in one read_files call; run independent inspection commands in one run_commands call; emit independent read_files, search_codebase, and run_commands calls together in one response; emit multiple editor calls together when editing different files or non-overlapping regions.
