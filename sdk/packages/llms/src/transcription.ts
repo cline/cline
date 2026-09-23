@@ -251,6 +251,8 @@ export async function createStreamingAudioTranscriptionSession(
 	});
 	return {
 		transport: "vercel-ai-gateway",
+		modelId,
+		baseUrl: route.baseUrl,
 		token: result.token,
 		url: result.url,
 		// Gemini Live accepts 16 kHz PCM input. Gateway forwards the declared

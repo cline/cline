@@ -1531,6 +1531,8 @@ describe("authoritative voice model validation", () => {
 			.spyOn(LlmsModels, "createStreamingAudioTranscriptionSession")
 			.mockResolvedValue({
 				transport: "vercel-ai-gateway",
+				modelId: "google/gemini-3.5-transcribe-live",
+				baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 				sampleRate: 24_000,
 				token: "short-lived",
 				url: "wss://gateway.test",

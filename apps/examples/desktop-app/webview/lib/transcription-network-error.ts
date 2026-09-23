@@ -18,7 +18,7 @@ export function isTranscriptionNetworkError(error: unknown): boolean {
 		const message = typeof error === "string" ? error : record?.message;
 		if (
 			typeof message === "string" &&
-			/(failed to fetch|fetch failed|networkerror|network request failed|load failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|unable to connect|connection (?:timed out|was lost)|network connection was lost)/i.test(
+			/(failed to fetch|fetch failed|networkerror|network request failed|load failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|unable to connect|connection (?:timed out|was lost)|network connection was lost|network is too slow)/i.test(
 				message,
 			)
 		)

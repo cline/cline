@@ -338,7 +338,9 @@ credentials, request headers, recorded audio, or transcript contents.
 - Voice input requires a configured streaming transcription model. Choose one
   under **Settings → Models → Voice input**, such as Vercel AI Gateway's
   `openai/gpt-realtime-whisper` or ElevenLabs `scribe_v2_realtime`.
-  Text updates while you speak; Stop ends the session. Batch-only models are
+  Gateway audio flows through the AI SDK’s `experimental_streamTranscribe`
+  with continuous PCM input and partial transcript updates. Text updates while
+  you speak; Stop closes the audio stream and waits for final text. Batch-only models are
   excluded from Voice settings and rejected when saving a voice selection.
 - The voice selection is stored separately from the chat model as
   `modes.voiceInput` in `~/.cline/data/settings/providers.json`. The sidecar

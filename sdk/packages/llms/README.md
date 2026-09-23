@@ -119,6 +119,11 @@ const session = await createStreamingAudioTranscriptionSession({
 Vercel AI Gateway and ElevenLabs support streaming transcription. Gateway
 tokens default to 60 seconds for connection establishment (maximum 300);
 this is not the duration limit of an established recording session.
+For Gateway sessions, pass `session.token`, `session.baseUrl`, and
+`session.modelId` to `createGateway` and `experimental_streamTranscribe` from
+the AI SDK. Supply live PCM chunks through a `ReadableStream`, consume
+`fullStream` for interim transcript updates, and close the audio stream on Stop
+to obtain the final text. The desktop composer uses this path.
 Batch models continue to use `transcribeAudio`.
 
 ## Entry Points

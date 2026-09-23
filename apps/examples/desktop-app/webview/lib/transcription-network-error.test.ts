@@ -6,6 +6,7 @@ describe("transcription network errors", () => {
 		"fetch failed",
 		"Failed to fetch",
 		"Load failed",
+		"Streaming transcription network is too slow to send microphone audio",
 		"connect ECONNREFUSED",
 		"Streaming transcription network connection was lost",
 	])("recognizes %s across the sidecar boundary", (message) => {
@@ -13,6 +14,8 @@ describe("transcription network errors", () => {
 	});
 	it.each([
 		"Unauthorized",
+		"API key budget exceeded",
+		"Connection error on AI Gateway transcription stream",
 		"Rate limit exceeded",
 		"Model not found",
 		"Permission denied",

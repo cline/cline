@@ -167,6 +167,7 @@
       "name": "@cline/code",
       "version": "0.0.28",
       "dependencies": {
+        "@ai-sdk/gateway": "^4.0.64",
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -207,6 +208,7 @@
         "@streamdown/cjk": "^1.0.3",
         "@tauri-apps/api": "^2.0.0",
         "@tauri-apps/plugin-notification": "^2.0.0",
+        "ai": "^7.0.79",
         "ansi-to-react": "^6.2.6",
         "autoprefixer": "^10.4.20",
         "class-variance-authority": "^0.7.1",

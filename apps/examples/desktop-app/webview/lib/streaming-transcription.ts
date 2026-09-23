@@ -1,11 +1,11 @@
 "use client";
 
+import { createGateway } from "@ai-sdk/gateway";
 import type { StreamingAudioTranscriptionSession } from "@cline/shared/browser";
+import { experimental_streamTranscribe as streamTranscribe } from "ai";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 
 const STREAM_FINISH_TIMEOUT_MS = 15_000;
-const GATEWAY_TRANSCRIPTION_PROTOCOL = "ai-gateway-transcription.v1";
-const GATEWAY_AUTH_PROTOCOL_PREFIX = "ai-gateway-auth.";
 
 type TranscriptionStreamPart = {
 	type: string;
@@ -123,12 +123,6 @@ async function startPcmCapture(
 	};
 }
 
-function parseStreamPart(value: unknown): TranscriptionStreamPart | null {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-	const type = (value as { type?: unknown }).type;
-	return typeof type === "string" ? (value as TranscriptionStreamPart) : null;
-}
-
 function parseElevenLabsPart(value: unknown): TranscriptionStreamPart | null {
 	if (!value || typeof value !== "object") return null;
 	const part = value as {
@@ -163,6 +157,8 @@ export async function startStreamingTranscription(options: {
 	});
 
 	let capture: AudioCapture | null = null;
+	const abort = new AbortController();
+	let audioController: ReadableStreamDefaultController<Uint8Array> | undefined;
 	let socket: WebSocket | null = null;
 	let stopped = false;
 	let finished = false;
@@ -182,6 +178,8 @@ export async function startStreamingTranscription(options: {
 	// A provider may fail before microphone startup has returned the session.
 	void done.catch(() => {});
 	const cleanup = () => {
+		window.removeEventListener("offline", handleOffline);
+		abort.abort();
 		if (connectionTimeout) clearTimeout(connectionTimeout);
 		if (finishTimeout) {
 			clearTimeout(finishTimeout);
@@ -203,7 +201,8 @@ export async function startStreamingTranscription(options: {
 		if (finished) return;
 		finished = true;
 		cleanup();
-		const failure = new Error(errorMessage(error));
+		const failure =
+			error instanceof Error ? error : new Error(errorMessage(error));
 		rejectConnection(failure);
 		rejectDone(failure);
 		writeDesktopDebugLog({
@@ -214,6 +213,9 @@ export async function startStreamingTranscription(options: {
 			metadata: { transport: credentials.transport },
 		});
 	};
+	const handleOffline = () =>
+		fail(new Error("Streaming transcription network connection was lost"));
+	window.addEventListener("offline", handleOffline);
 	const complete = (text: string) => {
 		if (finished) return;
 		finished = true;
@@ -232,145 +234,166 @@ export async function startStreamingTranscription(options: {
 		if (text) options.onTranscript(text);
 	};
 
+	const handlePart = (part: TranscriptionStreamPart) => {
+		if (finished) return;
+		switch (part.type) {
+			case "transcript-delta": {
+				if (typeof part.delta !== "string") return;
+				const id = part.id ?? "active";
+				const delta = (segments.get(id)?.delta ?? "") + part.delta;
+				segments.set(id, { text: delta, delta });
+				emitSegmentTranscript();
+				break;
+			}
+			case "transcript-partial": {
+				if (typeof part.text !== "string") return;
+				const id = part.id ?? "active";
+				segments.set(id, {
+					text: part.text,
+					delta: segments.get(id)?.delta ?? "",
+				});
+				emitSegmentTranscript();
+				break;
+			}
+			case "transcript-final":
+				if (typeof part.text !== "string") return;
+				if (part.id)
+					segments.set(part.id, { text: part.text, delta: part.text });
+				else {
+					segments.delete("active");
+					if (part.text.trim()) finalSegments.push(part.text.trim());
+				}
+				emitSegmentTranscript();
+				break;
+			case "finish":
+				complete(typeof part.text === "string" ? part.text : "");
+				break;
+			case "raw": {
+				// Gateway otherwise replaces upstream errors with a generic message.
+				const raw = part.rawValue as {
+					type?: string;
+					error?: { message?: unknown };
+				} | null;
+				if (raw?.type === "error" && typeof raw.error?.message === "string")
+					providerError = raw.error.message;
+				break;
+			}
+			case "error":
+				fail(providerError ?? part.error);
+				break;
+		}
+	};
 	try {
-		const url = new URL(credentials.url);
-		const isElevenLabs = credentials.transport === "elevenlabs";
-		if (isElevenLabs) url.searchParams.set("token", credentials.token);
-		socket = new WebSocket(
-			url.toString(),
-			isElevenLabs
-				? []
-				: [
-						GATEWAY_TRANSCRIPTION_PROTOCOL,
-						`${GATEWAY_AUTH_PROTOCOL_PREFIX}${credentials.token}`,
-					],
-		);
-		socket.binaryType = "arraybuffer";
-		const activeSocket = socket;
-		let connectionOpened = false;
-		// Install all handlers before opening or sending audio: upstream errors
-		// can arrive while AudioContext.resume is still pending.
-		const connected = new Promise<void>((resolve, reject) => {
-			rejectConnection = reject;
-			connectionTimeout = setTimeout(
-				() => fail(new Error("Streaming transcription connection timed out")),
-				15_000,
+		if (credentials.transport === "vercel-ai-gateway") {
+			const audio = new ReadableStream<Uint8Array>(
+				{
+					start(controller) {
+						audioController = controller;
+					},
+				},
+				{ highWaterMark: 1024 * 1024, size: (chunk) => chunk.byteLength },
 			);
-			activeSocket.onopen = () => {
-				connectionOpened = true;
-				if (connectionTimeout) clearTimeout(connectionTimeout);
-				connectionTimeout = null;
-				resolve();
+			const gateway = createGateway({
+				apiKey: credentials.token,
+				baseURL: credentials.baseUrl,
+			});
+			const result = streamTranscribe({
+				model: gateway.transcriptionModel(credentials.modelId),
+				audio,
+				inputAudioFormat: { type: "audio/pcm", rate: credentials.sampleRate },
+				abortSignal: abort.signal,
+				includeRawChunks: true,
+			});
+			// Claim the stream before requesting the final text (which otherwise drains it).
+			const parts = result.fullStream;
+			const finalText = Promise.resolve(result.text);
+			void finalText.catch(() => {});
+			void (async () => {
+				try {
+					for await (const part of parts) handlePart(part);
+					complete(await finalText);
+				} catch (error) {
+					fail(providerError ?? error);
+				}
+			})();
+		} else {
+			const url = new URL(credentials.url);
+			url.searchParams.set("token", credentials.token);
+			socket = new WebSocket(url.toString(), []);
+			const activeSocket = socket;
+			let connectionOpened = false;
+			const connected = new Promise<void>((resolve, reject) => {
+				rejectConnection = reject;
+				connectionTimeout = setTimeout(
+					() => fail(new Error("Streaming transcription connection timed out")),
+					15_000,
+				);
+				activeSocket.onopen = () => {
+					connectionOpened = true;
+					if (connectionTimeout) clearTimeout(connectionTimeout);
+					connectionTimeout = null;
+					resolve();
+				};
+			});
+			socket.onmessage = (event) => {
+				if (finished || typeof event.data !== "string") return;
+				let parsed: unknown;
+				try {
+					parsed = JSON.parse(event.data);
+				} catch {
+					return;
+				}
+				const part = parseElevenLabsPart(parsed);
+				if (part) handlePart(part);
 			};
-		});
-
-		socket.onmessage = (event) => {
-			if (finished || typeof event.data !== "string") return;
-			let parsed: unknown;
-			try {
-				parsed = JSON.parse(event.data) as unknown;
-			} catch {
-				return;
-			}
-			const part = isElevenLabs
-				? parseElevenLabsPart(parsed)
-				: parseStreamPart(parsed);
-			if (!part) return;
-			switch (part.type) {
-				case "transcript-delta": {
-					if (typeof part.delta !== "string") return;
-					const id = part.id ?? "active";
-					const delta = (segments.get(id)?.delta ?? "") + part.delta;
-					segments.set(id, { text: delta, delta });
-					emitSegmentTranscript();
-					break;
-				}
-				case "transcript-partial": {
-					if (typeof part.text !== "string") return;
-					const id = part.id ?? "active";
-					segments.set(id, {
-						text: part.text,
-						delta: segments.get(id)?.delta ?? "",
-					});
-					emitSegmentTranscript();
-					break;
-				}
-				case "transcript-final":
-					if (typeof part.text !== "string") return;
-					if (part.id)
-						segments.set(part.id, { text: part.text, delta: part.text });
-					else {
-						segments.delete("active");
-						if (part.text.trim()) finalSegments.push(part.text.trim());
-					}
-					emitSegmentTranscript();
-					break;
-				case "finish":
-					complete(typeof part.text === "string" ? part.text : "");
-					break;
-				case "raw": {
-					// Gateway otherwise replaces upstream errors with a generic message.
-					const raw = part.rawValue as {
-						type?: string;
-						error?: { message?: unknown };
-					} | null;
-					if (raw?.type === "error" && typeof raw.error?.message === "string")
-						providerError = raw.error.message;
-					break;
-				}
-				case "error":
-					fail(providerError ?? part.error);
-					break;
-			}
-		};
-		socket.onerror = () => {
-			fail(
-				new Error(
-					providerError ??
-						(connectionOpened || navigator.onLine === false
-							? "Streaming transcription network connection was lost"
-							: "Streaming transcription connection failed"),
-				),
-			);
-		};
-		socket.onclose = (event) => {
-			if (!finished) {
+			socket.onerror = () => {
 				fail(
 					new Error(
 						providerError ??
-							(connectionOpened && event.code === 1006
+							(connectionOpened || navigator.onLine === false
 								? "Streaming transcription network connection was lost"
-								: `Streaming transcription ended before a final transcript was received (code ${event.code})`),
+								: "Streaming transcription connection failed"),
 					),
 				);
+			};
+			socket.onclose = (event) => {
+				if (!finished) {
+					fail(
+						new Error(
+							providerError ??
+								(connectionOpened && event.code === 1006
+									? "Streaming transcription network connection was lost"
+									: `Streaming transcription ended before a final transcript was received (code ${event.code})`),
+						),
+					);
+				}
+			};
+			await connected;
+			if (finished) {
+				await done;
+				throw new Error("Streaming transcription ended during setup");
 			}
-		};
-		await connected;
-		if (finished) {
-			await done;
-			throw new Error("Streaming transcription ended during setup");
 		}
-		if (!isElevenLabs)
-			socket.send(
-				JSON.stringify({
-					type: "transcription-stream.start",
-					inputAudioFormat: { type: "audio/pcm", rate: credentials.sampleRate },
-					includeRawChunks: true,
-				}),
-			);
 		const startedCapture = await startPcmCapture(
 			mediaStream,
 			credentials.sampleRate,
 			(bytes) => {
-				if (socket?.readyState === WebSocket.OPEN && !stopped && !finished) {
+				if (stopped || finished) return;
+				if (audioController) {
+					if ((audioController.desiredSize ?? 0) < bytes.byteLength) {
+						fail(
+							new Error(
+								"Streaming transcription network is too slow to send microphone audio",
+							),
+						);
+					} else audioController.enqueue(bytes);
+				} else if (socket?.readyState === WebSocket.OPEN) {
 					socket.send(
-						isElevenLabs
-							? JSON.stringify({
-									message_type: "input_audio_chunk",
-									audio_base_64: btoa(String.fromCharCode(...bytes)),
-									sample_rate: credentials.sampleRate,
-								})
-							: bytes,
+						JSON.stringify({
+							message_type: "input_audio_chunk",
+							audio_base_64: btoa(String.fromCharCode(...bytes)),
+							sample_rate: credentials.sampleRate,
+						}),
 					);
 				}
 			},
@@ -383,7 +406,7 @@ export async function startStreamingTranscription(options: {
 		writeDesktopDebugLog({
 			scope: "voice-input",
 			level: "debug",
-			message: "Streaming transcription is connected",
+			message: "Streaming transcription microphone capture started",
 			timestamp: new Date().toISOString(),
 			metadata: { expiresAt: credentials.expiresAt },
 		});
@@ -399,25 +422,25 @@ export async function startStreamingTranscription(options: {
 			stopped = true;
 			capture?.stop();
 			capture = null;
-			if (socket?.readyState === WebSocket.OPEN) {
+			if (audioController) audioController.close();
+			else if (socket?.readyState === WebSocket.OPEN) {
 				socket.send(
-					JSON.stringify(
-						credentials.transport === "elevenlabs"
-							? {
-									message_type: "input_audio_chunk",
-									audio_base_64: "",
-									commit: true,
-									sample_rate: credentials.sampleRate,
-								}
-							: { type: "transcription-stream.audio-done" },
-					),
+					JSON.stringify({
+						message_type: "input_audio_chunk",
+						audio_base_64: "",
+						commit: true,
+						sample_rate: credentials.sampleRate,
+					}),
 				);
-				finishTimeout = setTimeout(() => {
-					fail(new Error("Streaming transcription timed out while finalizing"));
-				}, STREAM_FINISH_TIMEOUT_MS);
 			} else {
 				fail(new Error("Streaming transcription connection is not open"));
+				return;
 			}
+			finishTimeout = setTimeout(
+				() =>
+					fail(new Error("Streaming transcription timed out while finalizing")),
+				STREAM_FINISH_TIMEOUT_MS,
+			);
 		},
 		cancel() {
 			if (finished) return;

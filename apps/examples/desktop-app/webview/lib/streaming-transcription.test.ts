@@ -101,6 +101,8 @@ describe("streaming transcription", () => {
 		stopTrack.mockClear();
 		invokeMock.mockReset().mockResolvedValue({
 			transport: "vercel-ai-gateway",
+			modelId: "openai/gpt-realtime-whisper",
+			baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 			sampleRate: 24_000,
 			token: "vcst_short_lived",
 			url: "wss://ai-gateway.vercel.sh/v4/ai/transcription-model?ai-model-id=openai%2Fgpt-realtime-whisper",
@@ -145,6 +147,7 @@ describe("streaming transcription", () => {
 			type: "transcription-stream.start",
 			inputAudioFormat: { type: "audio/pcm", rate: 24_000 },
 			includeRawChunks: true,
+			providerOptions: {},
 		});
 		const audioContext = FakeAudioContext.instances[0] as FakeAudioContext;
 		audioContext.processor.onaudioprocess?.({
@@ -152,23 +155,29 @@ describe("streaming transcription", () => {
 				getChannelData: () => Float32Array.from([0, 0.25, -0.25, 0.5, -0.5, 0]),
 			},
 		});
-		expect(socket.send).toHaveBeenCalledWith(expect.any(Uint8Array));
+		await vi.waitFor(() =>
+			expect(socket.send).toHaveBeenCalledWith(expect.any(Uint8Array)),
+		);
 
 		socket.message({ type: "transcript-delta", delta: "hello" });
 		socket.message({ type: "transcript-delta", delta: " world" });
-		expect(onTranscript).toHaveBeenLastCalledWith("hello world");
+		await vi.waitFor(() =>
+			expect(onTranscript).toHaveBeenLastCalledWith("hello world"),
+		);
 
 		session.stop();
-		expect(
-			socket.send.mock.calls.some(([value]) => {
-				if (typeof value !== "string") return false;
-				return (
-					(JSON.parse(value) as { type?: string }).type ===
-					"transcription-stream.audio-done"
-				);
-			}),
-		).toBe(true);
-		socket.message({ type: "finish", text: "hello world" });
+		await vi.waitFor(() =>
+			expect(
+				socket.send.mock.calls.some(([value]) => {
+					if (typeof value !== "string") return false;
+					return (
+						(JSON.parse(value) as { type?: string }).type ===
+						"transcription-stream.audio-done"
+					);
+				}),
+			).toBe(true),
+		);
+		socket.message({ type: "finish", text: "hello world", segments: [] });
 		await expect(session.done).resolves.toBeUndefined();
 		expect(stopTrack).toHaveBeenCalled();
 	});
@@ -203,7 +212,9 @@ describe("streaming transcription", () => {
 		});
 		socket.message({ message_type: "partial_transcript", text: "hello" });
 		socket.message({ message_type: "partial_transcript", text: "hello there" });
-		expect(onTranscript).toHaveBeenLastCalledWith("hello there");
+		await vi.waitFor(() =>
+			expect(onTranscript).toHaveBeenLastCalledWith("hello there"),
+		);
 		session.stop();
 		expect(JSON.parse(String(socket.send.mock.lastCall?.[0]))).toMatchObject({
 			message_type: "input_audio_chunk",
@@ -215,13 +226,17 @@ describe("streaming transcription", () => {
 			text: "Hello there.",
 		});
 		await session.done;
-		expect(onTranscript).toHaveBeenLastCalledWith("Hello there.");
+		await vi.waitFor(() =>
+			expect(onTranscript).toHaveBeenLastCalledWith("Hello there."),
+		);
 		expect(socket.close).toHaveBeenCalled();
 	});
 
 	it("uses the session sample rate for both capture and the Gateway start frame", async () => {
 		invokeMock.mockResolvedValue({
 			transport: "vercel-ai-gateway",
+			modelId: "openai/gpt-realtime-whisper",
+			baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 			sampleRate: 16_000,
 			token: "short-lived",
 			url: "wss://gateway.test",
@@ -241,7 +256,11 @@ describe("streaming transcription", () => {
 		).processor.onaudioprocess?.({
 			inputBuffer: { getChannelData: () => new Float32Array(480) },
 		});
-		expect((socket.send.mock.lastCall?.[0] as Uint8Array).byteLength).toBe(320);
+		await vi.waitFor(() =>
+			expect((socket.send.mock.lastCall?.[0] as Uint8Array).byteLength).toBe(
+				320,
+			),
+		);
 		session.cancel();
 		await session.done;
 	});
@@ -277,6 +296,7 @@ describe("streaming transcription", () => {
 			type: "error",
 			error: { message: "Transcription provider stream error" },
 		});
+		await vi.waitFor(() => expect(stopTrack).toHaveBeenCalled());
 		resume();
 		await rejected;
 		expect(stopTrack).toHaveBeenCalled();
@@ -287,7 +307,8 @@ describe("streaming transcription", () => {
 
 	it("rejects a socket closed before opening without waiting for the connection timeout", async () => {
 		const starting = startStreamingTranscription({ onTranscript: vi.fn() });
-		const rejected = expect(starting).rejects.toThrow("code 1006");
+		const session = await starting;
+		const rejected = expect(session.done).rejects.toThrow();
 		const socket = await vi.waitFor(() => {
 			expect(FakeWebSocket.instances).toHaveLength(1);
 			return FakeWebSocket.instances[0] as FakeWebSocket;
@@ -313,13 +334,87 @@ describe("streaming transcription", () => {
 			id: "second",
 			text: "Second sentence",
 		});
-		expect(onTranscript).toHaveBeenLastCalledWith("Hello. Second sentence");
+		await vi.waitFor(() =>
+			expect(onTranscript).toHaveBeenLastCalledWith("Hello. Second sentence"),
+		);
 		socket.message({
 			type: "transcript-final",
 			id: "second",
 			text: "Second sentence.",
 		});
-		expect(onTranscript).toHaveBeenLastCalledWith("Hello. Second sentence.");
+		await vi.waitFor(() =>
+			expect(onTranscript).toHaveBeenLastCalledWith("Hello. Second sentence."),
+		);
 		session.cancel();
+	});
+	it("cancels the SDK stream and ignores late transcript updates", async () => {
+		const onTranscript = vi.fn();
+		const session = await startStreamingTranscription({ onTranscript });
+		const socket = await vi.waitFor(() => {
+			expect(FakeWebSocket.instances).toHaveLength(1);
+			return FakeWebSocket.instances[0] as FakeWebSocket;
+		});
+		socket.open();
+		session.cancel();
+		await session.done;
+		socket.message({ type: "transcript-partial", text: "late" });
+		expect(onTranscript).not.toHaveBeenCalled();
+		expect(socket.close).toHaveBeenCalled();
+		expect(stopTrack).toHaveBeenCalled();
+	});
+	it("aborts capture on network loss so speech input can select browser fallback", async () => {
+		const session = await startStreamingTranscription({
+			onTranscript: vi.fn(),
+		});
+		const rejected = expect(session.done).rejects.toThrow(
+			"network connection was lost",
+		);
+		window.dispatchEvent(new Event("offline"));
+		await rejected;
+		expect(stopTrack).toHaveBeenCalled();
+	});
+	it("surfaces provider budget errors without replacing them with a connection error", async () => {
+		const session = await startStreamingTranscription({
+			onTranscript: vi.fn(),
+		});
+		const rejected = expect(session.done).rejects.toThrow(
+			"API key budget exceeded",
+		);
+		const socket = await vi.waitFor(() => {
+			expect(FakeWebSocket.instances).toHaveLength(1);
+			return FakeWebSocket.instances[0] as FakeWebSocket;
+		});
+		socket.open();
+		socket.message({
+			type: "error",
+			error: {
+				message: "API key budget exceeded",
+				type: "quota_for_entity_exceeded",
+			},
+		});
+		await rejected;
+		expect(stopTrack).toHaveBeenCalled();
+	});
+	it("aborts a stream that does not finish after Stop", async () => {
+		const session = await startStreamingTranscription({
+			onTranscript: vi.fn(),
+		});
+		const socket = await vi.waitFor(() => {
+			expect(FakeWebSocket.instances).toHaveLength(1);
+			return FakeWebSocket.instances[0] as FakeWebSocket;
+		});
+		socket.open();
+		vi.useFakeTimers();
+		try {
+			const rejected = expect(session.done).rejects.toThrow(
+				"timed out while finalizing",
+			);
+			session.stop();
+			await vi.advanceTimersByTimeAsync(15_000);
+			await rejected;
+			expect(socket.close).toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

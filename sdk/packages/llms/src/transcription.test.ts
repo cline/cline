@@ -221,6 +221,8 @@ describe("transcribeAudio", () => {
 			}),
 		).resolves.toEqual({
 			transport: "vercel-ai-gateway",
+			modelId: "openai/gpt-realtime-whisper",
+			baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 			sampleRate: 24_000,
 			token: "vcst_short_lived",
 			url: "wss://ai-gateway.vercel.sh/v4/ai/transcription-model?ai-model-id=openai%2Fgpt-realtime-whisper",
