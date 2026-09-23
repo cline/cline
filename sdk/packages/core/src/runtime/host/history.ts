@@ -356,9 +356,9 @@ export async function hydrateSessionHistory(
 	return await Promise.all(
 		rows.map(async (row) => {
 			const initial = normalizeHistoryRow(row);
-			// A projected fallback is not an authoritative stored title.
 			const hasTitle = Boolean(
-				asTrimmedString(asHistoryMetadata(row.metadata)?.title),
+				asTrimmedString(asHistoryMetadata(row.metadata)?.title) ??
+					asTrimmedString(row.prompt),
 			);
 			const hasProvider = Boolean(asKnownString(initial.provider));
 			const hasModel = Boolean(asKnownString(initial.model));

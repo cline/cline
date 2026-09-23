@@ -257,8 +257,13 @@ describe("session history", () => {
 		}
 	});
 
-	it("preserves rows that already have history display metadata", async () => {
-		const readSessionMessages = vi.fn();
+	it.each([
+		"stored",
+		"prompt",
+	])("preserves complete history rows with a %s title", async (titleSource) => {
+		const readSessionMessages = vi
+			.fn()
+			.mockRejectedValue(new Error("Transcript unavailable"));
 		const rows = await hydrateSessionHistory({ readSessionMessages }, [
 			createRow({
 				sessionId: "sess_1",
@@ -266,7 +271,7 @@ describe("session history", () => {
 				model: "anthropic/claude-sonnet-4.6",
 				prompt: "hello",
 				metadata: {
-					title: "hello",
+					title: titleSource === "stored" ? "hello" : undefined,
 					totalCost: 0.02,
 				},
 			}),
