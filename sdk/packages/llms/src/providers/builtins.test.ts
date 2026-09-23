@@ -14,6 +14,7 @@ import {
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
+import { MIMO_REASONING_EFFORT_ROUTING_METADATA } from "./routing/mimo-reasoning-effort";
 
 function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
@@ -360,6 +361,8 @@ describe("built-in provider metadata", () => {
 		// moonshot is intentionally absent: it carries a Cline-specific
 		// regional routing override (apiLineBaseUrls) on top of its generated
 		// spec. wandb is absent because it carries a CoreWeave branding override.
+		// xiaomi is absent because it carries MiMo thinking-strength reasoning
+		// routing metadata (see routing/mimo-reasoning-effort.ts).
 		const generatedOnlyProviderIds = [
 			"fireworks",
 			"poolside",
@@ -367,7 +370,6 @@ describe("built-in provider metadata", () => {
 			"baseten",
 			"requesty",
 			"huggingface",
-			"xiaomi",
 			"tencent-tokenhub",
 		] as const;
 
@@ -375,6 +377,27 @@ describe("built-in provider metadata", () => {
 			expect(BUILTIN_SPECS.find((spec) => spec.id === providerId)).toEqual(
 				GENERATED_PROVIDER_SPECS.find((spec) => spec.id === providerId),
 			);
+		}
+	});
+
+	it("preserves the generated Xiaomi specs under MiMo reasoning routing metadata", () => {
+		const xiaomiProviderIds = [
+			"xiaomi",
+			"xiaomi-token-plan-ams",
+			"xiaomi-token-plan-cn",
+			"xiaomi-token-plan-sgp",
+		] as const;
+
+		for (const providerId of xiaomiProviderIds) {
+			const generated = GENERATED_PROVIDER_SPECS.find(
+				(spec) => spec.id === providerId,
+			);
+			const builtin = BUILTIN_SPECS.find((spec) => spec.id === providerId);
+			expect(generated, providerId).toBeDefined();
+			expect(builtin, providerId).toEqual({
+				...generated,
+				metadata: MIMO_REASONING_EFFORT_ROUTING_METADATA,
+			});
 		}
 	});
 

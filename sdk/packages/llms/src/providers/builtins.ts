@@ -55,6 +55,7 @@ import {
 } from "./routing/anthropic-compatible";
 import { BEDROCK_ROUTING_METADATA } from "./routing/bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
+import { MIMO_REASONING_EFFORT_ROUTING_METADATA } from "./routing/mimo-reasoning-effort";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./routing/minimax-thinking";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
@@ -980,6 +981,25 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 			china: "https://api.moonshot.cn/v1",
 			international: "https://api.moonshot.ai/v1",
 		},
+	},
+	{
+		// Fully described by models.dev except for the MiMo thinking-strength
+		// `reasoning_effort` vocabulary (see routing/mimo-reasoning-effort.ts),
+		// which models.dev cannot express.
+		id: "xiaomi",
+		metadata: MIMO_REASONING_EFFORT_ROUTING_METADATA,
+	},
+	{
+		id: "xiaomi-token-plan-ams",
+		metadata: MIMO_REASONING_EFFORT_ROUTING_METADATA,
+	},
+	{
+		id: "xiaomi-token-plan-cn",
+		metadata: MIMO_REASONING_EFFORT_ROUTING_METADATA,
+	},
+	{
+		id: "xiaomi-token-plan-sgp",
+		metadata: MIMO_REASONING_EFFORT_ROUTING_METADATA,
 	},
 	{
 		id: "doubao",
