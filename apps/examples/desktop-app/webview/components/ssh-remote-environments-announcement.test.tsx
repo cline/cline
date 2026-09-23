@@ -81,11 +81,11 @@ describe("SshRemoteEnvironmentsAnnouncement", () => {
 		const dialog = document.querySelector('[role="dialog"]');
 		expect(dialog).not.toBeNull();
 		expect(dialog?.textContent).toContain("Run Cline on any machine over SSH");
-		expect(dialog?.textContent).toContain("Add a host in Settings → Remote");
+		expect(dialog?.textContent).toContain("Add a host under Settings → Remote");
 		expect(dialog?.textContent).toContain(
 			"Pick it from the environment selector",
 		);
-		expect(dialog?.textContent).toContain("Open a project on that machine");
+		expect(dialog?.textContent).toContain("open a project on that machine");
 		expect(
 			document.querySelector('[data-testid="ssh-announcement-preview"]'),
 		).not.toBeNull();
