@@ -29,6 +29,28 @@ anchors. `getAgentPullRequestMergeStatus` and
 `summarizeAgentPullRequestChecks` expose the same status normalization for other
 host presentation.
 
+## Voice input models
+
+`getLocalTranscriptionModels(providerId, config?)` from `@cline/core` returns the
+voice models supported by a provider's transcription transport. Use it to build
+voice pickers rather than filtering the bundled chat catalog. Vercel uses its live
+model list and advertised streaming tags; unavailable or malformed responses fail
+discovery rather than restoring stale bundled models. Voice selection saves and
+both batch and streaming execution revalidate through the same service.
+
+`isTranscriptionModel` from `@cline/shared` (also exported for browsers) accepts
+exact audio-only input and text-only output modalities. An explicit transcription
+label does not override additional input or output modalities. Multimodal live
+models are classified as `realtime`, which currently has no built-in transport
+support and is excluded from voice and chat pickers. Dedicated transcription can
+still use either batch or streaming mode. Classification alone does not prove
+that a provider implements the required transport.
+
+`createStreamingAudioTranscriptionSession` mints short-lived Vercel or single-use
+ElevenLabs credentials. Its shared response includes `transport` and `sampleRate`;
+browser clients must capture PCM at that rate (Google live routes require 16 kHz).
+ElevenLabs exposes batch `scribe_v2` and live `scribe_v2_realtime` separately.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH
