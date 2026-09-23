@@ -42,6 +42,7 @@ import {
 	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
+	getLocalTranscriptionModels,
 	getProviderAuthHandler,
 	identifyAccount,
 	listHookConfigFiles,
@@ -2878,6 +2879,14 @@ export async function handleCommand(
 		const manager = new ProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
 		return await listLocalProviders(manager, { isClinePassEnabled: true });
+	}
+	if (command === "list_transcription_models") {
+		const manager = new ProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
+		return getLocalTranscriptionModels(
+			providerId,
+			manager.getProviderConfig(providerId, { includeKnownModels: false }),
+		);
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();

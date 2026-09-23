@@ -16,16 +16,7 @@ import {
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	SpeechInput,
-	type SpeechTranscriptionSource,
-} from "@/components/ai-elements/speech-input";
-import { Button } from "@/components/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { SpeechInput } from "@/components/ai-elements/speech-input";
 import {
 	Select,
 	SelectContent,
@@ -36,7 +27,6 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
-import { formatCostUsd } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
@@ -65,11 +55,11 @@ import {
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
 import type { ProviderModel } from "@/lib/provider-schema";
+import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-
-import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { PullRequestBar } from "./pull-request-bar";
+import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -419,13 +409,6 @@ function ChatInputBarImpl({
 		draftVersion: number;
 		generation: number;
 	} | null>(null);
-	const speechRecognitionSessionRef = useRef<{
-		start: number;
-		end: number;
-		expectedValue: string;
-		draftVersion: number;
-		generation: number;
-	} | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
@@ -450,7 +433,6 @@ function ChatInputBarImpl({
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
 		batchTranscriptSessionRef.current = null;
-		speechRecognitionSessionRef.current = null;
 		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
@@ -609,7 +591,7 @@ function ChatInputBarImpl({
 	const updateTranscriptionTarget = useCallback(
 		(target: TranscriptionModelTarget | null) => {
 			const identity = target
-				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "auto"}`
+				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "media-recorder"}`
 				: "unconfigured";
 			transcriptionTargetStreamsRef.current =
 				target?.supportsStreaming ?? false;
@@ -617,7 +599,6 @@ function ChatInputBarImpl({
 				transcriptionTargetIdentityRef.current = identity;
 				transcriptionGenerationRef.current += 1;
 				batchTranscriptSessionRef.current = null;
-				speechRecognitionSessionRef.current = null;
 				streamingTranscriptRangeRef.current = null;
 			}
 			setTranscriptionTarget(target);
@@ -677,7 +658,7 @@ function ChatInputBarImpl({
 		let loadId = 0;
 		const loadVoiceInput = () => {
 			const currentLoadId = ++loadId;
-			loadProviderModelCatalog()
+			loadProviderModelCatalog({ includeVoiceInput: true })
 				.then((catalog) => {
 					if (!cancelled && currentLoadId === loadId) {
 						updateTranscriptionTarget(catalog.voiceInput);
@@ -702,28 +683,11 @@ function ChatInputBarImpl({
 	}, [updateTranscriptionTarget]);
 
 	const handleTranscriptionChange = useCallback(
-		(
-			transcript: string,
-			source: SpeechTranscriptionSource = "media-recorder",
-		) => {
+		(transcript: string) => {
 			const text = transcript.trim();
-			const session =
-				source === "speech-recognition"
-					? speechRecognitionSessionRef.current
-					: batchTranscriptSessionRef.current;
-
-			if (source === "speech-recognition") {
-				// Browser speech recognition yields final chunks while the microphone
-				// remains open. Keep its insertion cursor alive across those chunks.
-				batchTranscriptSessionRef.current = null;
-			} else {
-				// A completed recording produces one batch result.
-				speechRecognitionSessionRef.current = null;
-				batchTranscriptSessionRef.current = null;
-			}
-			// Each result must belong to the draft captured when recording began.
-			// Batch snapshots are consumed once; browser recognition advances its
-			// cursor after each final chunk.
+			const session = batchTranscriptSessionRef.current;
+			// A completed recording produces one result for the captured draft.
+			batchTranscriptSessionRef.current = null;
 			if (!text || !session) return;
 
 			const current = promptInputValueRef.current;
@@ -743,15 +707,6 @@ function ChatInputBarImpl({
 			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
 			const next = `${before}${insertedText}${after}`;
 			const nextCursor = before.length + insertedText.length;
-			if (source === "speech-recognition") {
-				speechRecognitionSessionRef.current = {
-					start: nextCursor,
-					end: nextCursor,
-					expectedValue: next,
-					draftVersion: session.draftVersion,
-					generation: session.generation,
-				};
-			}
 			setPromptInput(next);
 			requestAnimationFrame(() => {
 				const textarea = promptInputRef.current;
@@ -771,7 +726,6 @@ function ChatInputBarImpl({
 
 		if (!active) {
 			batchTranscriptSessionRef.current = null;
-			speechRecognitionSessionRef.current = null;
 			return;
 		}
 		if (wasActive || transcriptionTargetStreamsRef.current) return;
@@ -787,11 +741,7 @@ function ChatInputBarImpl({
 			draftVersion: latestDraftVersionRef.current,
 			generation: transcriptionGenerationRef.current,
 		};
-		// `auto` chooses browser speech recognition when available and falls back
-		// to MediaRecorder. Capture both session shapes until the result tells us
-		// which transport was selected.
 		batchTranscriptSessionRef.current = session;
-		speechRecognitionSessionRef.current = session;
 	}, []);
 
 	const handleStreamingTranscriptionStart = useCallback(() => {
@@ -858,7 +808,7 @@ function ChatInputBarImpl({
 
 	const handleStartStreamingTranscription = useCallback(() => {
 		const generation = transcriptionGenerationRef.current;
-		return startVercelStreamingTranscription({
+		return startStreamingTranscription({
 			onTranscript: (transcript) => {
 				if (generation === transcriptionGenerationRef.current) {
 					handleStreamingTranscriptionChange(transcript);
@@ -1521,10 +1471,11 @@ function ChatInputBarImpl({
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
-							    don't get a dead control. */}
+							    don't get a dead control. Always use the configured
+							    provider; auto mode can bypass it with browser recognition. */}
 							{transcriptionTarget ? (
 								<SpeechInput
-									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`}
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "media-recorder"}`}
 									onActiveChange={handleSpeechInputActiveChange}
 									onAudioRecorded={handleAudioRecorded}
 									onError={handleSpeechInputError}
@@ -1542,7 +1493,9 @@ function ChatInputBarImpl({
 											: handleTranscriptionChange
 									}
 									recordingMode={
-										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
+										transcriptionTarget.supportsStreaming
+											? "streaming"
+											: "media-recorder"
 									}
 									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
 								/>
@@ -2345,169 +2298,3 @@ const ModelSelector = memo(function ModelSelector({
 		</div>
 	);
 });
-
-type TokenUsage = {
-	tokensIn: number;
-	tokensOut: number;
-	cacheReadTokens: number;
-	totalCost?: number;
-	contextWindow?: number;
-};
-
-/** Current model context relative to the selected model's context window. */
-function TokenUsageRing({ usage }: { usage: TokenUsage }) {
-	const contextWindow = usage.contextWindow;
-	const totalTokens = usage.tokensIn + usage.tokensOut;
-	if (totalTokens <= 0 || !contextWindow || contextWindow <= 0) {
-		return null;
-	}
-
-	const ratio = Math.min(
-		Math.max(totalTokens / Math.max(contextWindow, 1), 0),
-		1,
-	);
-	const percent = Math.round(ratio * 100);
-	const ringColorClass =
-		ratio >= 0.75
-			? "stroke-red-500"
-			: ratio >= 0.5
-				? "stroke-orange-500"
-				: "stroke-primary";
-	const cost = formatCostUsd(usage.totalCost);
-	const contextUsageLabel = `${formatCompactTokens(totalTokens)} / ${formatCompactTokens(contextWindow)} (${percent}%)`;
-	const cachedTokens = Math.min(usage.cacheReadTokens, usage.tokensIn);
-	const uncachedInputTokens = Math.max(usage.tokensIn - cachedTokens, 0);
-	const segmentScale =
-		totalTokens > contextWindow ? contextWindow / totalTokens : 1;
-	const segmentWidth = (tokens: number) =>
-		`${(tokens / contextWindow) * segmentScale * 100}%`;
-	const radius = 8.5;
-	const circumference = 2 * Math.PI * radius;
-
-	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
-					id="token-usage"
-					size="icon-sm"
-					type="button"
-					variant="text"
-				>
-					<svg
-						aria-hidden="true"
-						className="-rotate-90 size-3.5"
-						height="22"
-						viewBox="0 0 22 22"
-						width="22"
-					>
-						<circle
-							className="stroke-muted-foreground/20"
-							cx="11"
-							cy="11"
-							fill="none"
-							r={radius}
-							strokeWidth="4"
-						/>
-						<circle
-							className={cn("", ringColorClass)}
-							cx="11"
-							cy="11"
-							fill="none"
-							r={radius}
-							strokeDasharray={circumference}
-							strokeDashoffset={circumference * (1 - ratio)}
-							strokeLinecap="round"
-							strokeWidth="4"
-						/>
-					</svg>
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				className="w-80 p-0"
-				id="token-usage-panel"
-				side="top"
-				sideOffset={8}
-			>
-				<div className="px-3 py-3">
-					<div className="flex items-center justify-between gap-4 text-sm">
-						<span className="text-muted-foreground">Context window</span>
-						<span className="font-mono text-sm text-foreground">
-							{contextUsageLabel}
-						</span>
-					</div>
-					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-primary transition-[width] duration-120"
-							data-token-kind="uncached-input"
-							style={{ width: segmentWidth(uncachedInputTokens) }}
-						/>
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-120"
-							data-token-kind="cached-input"
-							style={{
-								backgroundImage:
-									"linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 60%, transparent))",
-								width: segmentWidth(cachedTokens),
-							}}
-						/>
-						<div
-							aria-hidden="true"
-							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
-							data-token-kind="output"
-							style={{
-								backgroundImage:
-									"linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), var(--color-blue-500))",
-								width: segmentWidth(usage.tokensOut),
-							}}
-						/>
-					</div>
-					<div className="mt-3 space-y-2 text-sm">
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Input tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.tokensIn.toLocaleString()}
-							</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Output tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.tokensOut.toLocaleString()}
-							</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-muted-foreground">Cached tokens</span>
-							<span className="font-mono text-foreground">
-								{usage.cacheReadTokens.toLocaleString()}
-							</span>
-						</div>
-						{cost ? (
-							<div className="flex items-center justify-between gap-4">
-								<span className="text-muted-foreground">Cost</span>
-								<span className="font-mono text-foreground">{cost}</span>
-							</div>
-						) : null}
-					</div>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function formatCompactTokens(value: number): string {
-	if (value >= 1_000_000) {
-		return `${(value / 1_000_000).toFixed(1)}M`;
-	}
-	if (value >= 1_000) {
-		return `${formatCompactUnit(value / 1_000)}k`;
-	}
-	return value.toLocaleString();
-}
-
-function formatCompactUnit(value: number): string {
-	return value.toFixed(1).replace(/\.0$/, "");
-}
