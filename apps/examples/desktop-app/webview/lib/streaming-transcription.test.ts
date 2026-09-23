@@ -14,7 +14,7 @@ vi.mock("@/lib/desktop-client", () => ({
 
 import { startStreamingTranscription } from "./streaming-transcription";
 
-class FakeWebSocket {
+class FakeWebSocket extends EventTarget {
 	static readonly CONNECTING = 0;
 	static readonly OPEN = 1;
 	static readonly CLOSED = 3;
@@ -35,11 +35,13 @@ class FakeWebSocket {
 		readonly url: string,
 		readonly protocols: string[],
 	) {
+		super();
 		FakeWebSocket.instances.push(this);
 	}
 
 	open() {
 		this.readyState = FakeWebSocket.OPEN;
+		this.dispatchEvent(new Event("open"));
 		this.onopen?.();
 	}
 
@@ -211,7 +213,9 @@ describe("streaming transcription", () => {
 			audio_base_64: expect.any(String),
 		});
 		socket.message({ message_type: "partial_transcript", text: "hello" });
-		socket.message({ message_type: "partial_transcript", text: "hello there" });
+		socket.message({ message_type: "committed_transcript", text: "hello" });
+		expect(socket.close).not.toHaveBeenCalled();
+		socket.message({ message_type: "partial_transcript", text: "there" });
 		await vi.waitFor(() =>
 			expect(onTranscript).toHaveBeenLastCalledWith("hello there"),
 		);
@@ -223,11 +227,11 @@ describe("streaming transcription", () => {
 		});
 		socket.message({
 			message_type: "committed_transcript",
-			text: "Hello there.",
+			text: "there.",
 		});
 		await session.done;
 		await vi.waitFor(() =>
-			expect(onTranscript).toHaveBeenLastCalledWith("Hello there."),
+			expect(onTranscript).toHaveBeenLastCalledWith("hello there."),
 		);
 		expect(socket.close).toHaveBeenCalled();
 	});
@@ -466,5 +470,31 @@ describe("streaming transcription", () => {
 		await session.done;
 		expect(onTranscript).toHaveBeenLastCalledWith("Hello.");
 		expect(stopTrack).toHaveBeenCalled();
+	});
+	it.each([
+		"openai-native",
+		"vercel-ai-gateway",
+	])("classifies an established %s socket failure as network loss", async (transport) => {
+		invokeMock.mockResolvedValue({
+			transport,
+			modelId: "gpt-realtime-whisper",
+			baseUrl: "https://example.test/v1",
+			token: "short",
+			sampleRate: 24000,
+		});
+		const session = await startStreamingTranscription({
+			onTranscript: vi.fn(),
+		});
+		const socket = await vi.waitFor(() => {
+			expect(FakeWebSocket.instances).toHaveLength(1);
+			return FakeWebSocket.instances[0] as FakeWebSocket;
+		});
+		socket.open();
+		const rejected = expect(session.done).rejects.toThrow(
+			"network connection was lost",
+		);
+		socket.dispatchEvent(new Event("error"));
+		socket.onerror?.();
+		await rejected;
 	});
 });

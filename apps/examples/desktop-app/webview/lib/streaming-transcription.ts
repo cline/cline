@@ -136,7 +136,7 @@ function parseElevenLabsPart(value: unknown): TranscriptionStreamPart | null {
 	if (part.message_type === "partial_transcript")
 		return { type: "transcript-partial", text: part.text };
 	if (part.message_type === "committed_transcript")
-		return { type: "finish", text: part.text };
+		return { type: "transcript-final", text: part.text };
 	return null;
 }
 
@@ -162,6 +162,8 @@ export async function startStreamingTranscription(options: {
 	let audioController: ReadableStreamDefaultController<Uint8Array> | undefined;
 	let socket: WebSocket | null = null;
 	let stopped = false;
+	let sdkConnectionOpened = false;
+	let sdkConnectionLost = false;
 	let finished = false;
 	const finalSegments: string[] = [];
 	const segments = new Map<string, { text: string; delta: string }>();
@@ -203,7 +205,19 @@ export async function startStreamingTranscription(options: {
 		finished = true;
 		cleanup();
 		const failure =
-			error instanceof Error ? error : new Error(errorMessage(error));
+			sdkConnectionLost &&
+			!providerError &&
+			((error instanceof Error &&
+				error.name === "AI_NoTranscriptGeneratedError") ||
+				/^(Connection error on AI Gateway transcription stream|AI Gateway transcription stream closed before a finish part was received|OpenAI realtime transcription error)$/.test(
+					errorMessage(error),
+				))
+				? new Error("Streaming transcription network connection was lost", {
+						cause: error,
+					})
+				: error instanceof Error
+					? error
+					: new Error(errorMessage(error));
 		rejectConnection(failure);
 		rejectDone(failure);
 		writeDesktopDebugLog({
@@ -299,6 +313,22 @@ export async function startStreamingTranscription(options: {
 			)({
 				apiKey: credentials.token,
 				baseURL: credentials.baseUrl,
+				webSocket: class extends WebSocket {
+					constructor(url: string | URL, protocols?: string | string[]) {
+						super(url, protocols);
+						this.addEventListener("open", () => {
+							sdkConnectionOpened = true;
+						});
+						this.addEventListener("error", () => {
+							sdkConnectionLost =
+								sdkConnectionOpened || navigator.onLine === false;
+						});
+						this.addEventListener("close", (event) => {
+							if (event.code === 1006 && sdkConnectionOpened)
+								sdkConnectionLost = true;
+						});
+					}
+				},
 			});
 			const result = streamTranscribe({
 				model: provider.transcriptionModel(credentials.modelId),
@@ -347,7 +377,11 @@ export async function startStreamingTranscription(options: {
 					return;
 				}
 				const part = parseElevenLabsPart(parsed);
-				if (part) handlePart(part);
+				if (part) {
+					handlePart(part);
+					if (part.type === "transcript-final" && stopped)
+						complete(finalSegments.join(" "));
+				}
 			};
 			socket.onerror = () => {
 				fail(
