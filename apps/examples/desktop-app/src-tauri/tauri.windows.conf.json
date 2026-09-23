@@ -17,7 +17,7 @@
 		]
 	},
 	"bundle": {
-		"resources": ["icons/app/*.ico", "icons/app/*.png", "bin/remote-helpers/*"],
+		"resources": ["icons/app/*.png", "bin/remote-helpers/*"],
 		"windows": {
 			"nsis": {
 				"installerHooks": "nsis/installer-hooks.nsh"

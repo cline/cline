@@ -220,10 +220,20 @@ describe("WindowTitleBar", () => {
 			'[data-slot="window-controls"]',
 		);
 		expect(controls?.className).toContain("bg-background");
-		expect(controls?.className).toContain("border-b");
+		expect(controls?.className).not.toContain("border-b");
+		const separator = container.querySelector<HTMLElement>(
+			'[data-slot="window-title-bar-separator"]',
+		);
+		expect(separator?.className).toContain(
+			"top-[calc(var(--window-title-bar-height)-1px)]",
+		);
+		expect(separator?.className).toContain("z-[111]");
+		expect(separator?.className).toContain("border-b");
 
 		await act(async () => root.render(renderShell(false)));
-		expect(controls.className).not.toContain("border-b");
+		expect(
+			container.querySelector('[data-slot="window-title-bar-separator"]'),
+		).toBeNull();
 	});
 
 	it("does not render a caption separator without conversation content", async () => {
@@ -237,9 +247,8 @@ describe("WindowTitleBar", () => {
 		await act(async () => Promise.resolve());
 
 		expect(
-			container.querySelector<HTMLElement>('[data-slot="window-controls"]')
-				?.className,
-		).not.toContain("border-b");
+			container.querySelector('[data-slot="window-title-bar-separator"]'),
+		).toBeNull();
 	});
 
 	it("projects controls into the title bar within the main landmark", async () => {

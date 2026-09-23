@@ -49,20 +49,36 @@ struct WindowBounds {
 }
 
 #[cfg(any(target_os = "windows", test))]
-fn clamp_window_bounds(window: WindowBounds, work_area: WindowBounds) -> WindowBounds {
-    let work_width = (work_area.right - work_area.left).max(1);
-    let work_height = (work_area.bottom - work_area.top).max(1);
-    let width = (window.right - window.left).max(1).min(work_width);
-    let height = (window.bottom - window.top).max(1).min(work_height);
-    let left = window.left.clamp(work_area.left, work_area.right - width);
-    let top = window.top.clamp(work_area.top, work_area.bottom - height);
-
-    WindowBounds {
-        left,
-        top,
-        right: left + width,
-        bottom: top + height,
+fn clamp_window_bounds(
+    window: WindowBounds,
+    work_area: WindowBounds,
+) -> Result<WindowBounds, &'static str> {
+    let work_width = i64::from(work_area.right) - i64::from(work_area.left);
+    let work_height = i64::from(work_area.bottom) - i64::from(work_area.top);
+    if work_width <= 0 || work_height <= 0 {
+        return Err("monitor work area is empty");
     }
+    let width = (i64::from(window.right) - i64::from(window.left))
+        .max(1)
+        .min(work_width);
+    let height = (i64::from(window.bottom) - i64::from(window.top))
+        .max(1)
+        .min(work_height);
+    let left = i64::from(window.left).clamp(
+        i64::from(work_area.left),
+        i64::from(work_area.right) - width,
+    );
+    let top = i64::from(window.top).clamp(
+        i64::from(work_area.top),
+        i64::from(work_area.bottom) - height,
+    );
+
+    Ok(WindowBounds {
+        left: left as i32,
+        top: top as i32,
+        right: (left + width) as i32,
+        bottom: (top + height) as i32,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -943,66 +959,13 @@ fn handle_check_for_updates_menu(app: &tauri::AppHandle) {
 
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
 /// webview/lib/app-icon.ts. Every id has a matching bundled resource at
-/// icons/app/<id>.png and a Windows icons/app/<id>.ico, plus a macOS variant
-/// at icons/app/macos/<id>.png with the transparent margin the Dock expects
-/// (artwork fills ~80% of the canvas).
+/// icons/app/<id>.png, plus a macOS variant at icons/app/macos/<id>.png with
+/// the transparent margin the Dock expects (artwork fills ~80% of the canvas).
 const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
-
-#[cfg(target_os = "windows")]
-static WINDOWS_TASKBAR_ICON: Mutex<Option<isize>> = Mutex::new(None);
 
 #[cfg(target_os = "windows")]
 struct WindowsAppIconState {
     current: tokio::sync::Mutex<tauri::image::Image<'static>>,
-}
-
-#[cfg(target_os = "windows")]
-struct OwnedWindowsIcon(Option<isize>);
-
-#[cfg(target_os = "windows")]
-impl OwnedWindowsIcon {
-    fn take(&mut self) -> isize {
-        self.0.take().expect("owned Windows icon already consumed")
-    }
-}
-
-#[cfg(target_os = "windows")]
-impl Drop for OwnedWindowsIcon {
-    fn drop(&mut self) {
-        if let Some(handle) = self.0.take() {
-            destroy_windows_icon(handle);
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn destroy_windows_icon(handle: isize) {
-    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, HICON};
-
-    // SAFETY: WINDOWS_TASKBAR_ICON only stores handles returned by LoadImageW
-    // without LR_SHARED, so the app owns them until replacement or shutdown.
-    let _ = unsafe { DestroyIcon(HICON(handle as *mut _)) };
-}
-
-#[cfg(target_os = "windows")]
-fn clear_windows_taskbar_icon(app: &tauri::AppHandle) {
-    use windows::Win32::Foundation::WPARAM;
-    use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, ICON_BIG, WM_SETICON};
-
-    let mut taskbar_icon = WINDOWS_TASKBAR_ICON
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if let Some(handle) = taskbar_icon.take() {
-        if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-            if let Ok(hwnd) = window.hwnd() {
-                // Remove the app-owned icon from the window before destroying it.
-                unsafe {
-                    SendMessageW(hwnd, WM_SETICON, Some(WPARAM(ICON_BIG as usize)), None);
-                }
-            }
-        }
-        destroy_windows_icon(handle);
-    }
 }
 
 #[cfg(target_os = "windows")]
@@ -1050,7 +1013,8 @@ fn fit_windows_main_window_to_work_area(window: &tauri::WebviewWindow) -> Result
             right: monitor_info.rcWork.right,
             bottom: monitor_info.rcWork.bottom,
         },
-    );
+    )
+    .map_err(str::to_string)?;
     // SAFETY: fitted uses the same monitor's physical coordinate space and
     // preserves positive width and height.
     unsafe {
@@ -1089,83 +1053,6 @@ fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, Strin
         ));
     }
     Ok(icon_path)
-}
-
-#[cfg(target_os = "windows")]
-fn prepare_windows_taskbar_icon(
-    app: &tauri::AppHandle,
-    window: &tauri::WebviewWindow,
-    icon: &str,
-) -> Result<(isize, OwnedWindowsIcon), String> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows::core::PCWSTR;
-    use windows::Win32::UI::WindowsAndMessaging::{LoadImageW, IMAGE_ICON, LR_LOADFROMFILE};
-
-    let icon_path = app
-        .path()
-        .resolve(
-            format!("icons/app/{icon}.ico"),
-            tauri::path::BaseDirectory::Resource,
-        )
-        .map_err(|error| format!("failed resolving taskbar icon resource: {error}"))?;
-    if !icon_path.exists() {
-        return Err(format!(
-            "taskbar icon resource missing: {}",
-            icon_path.display()
-        ));
-    }
-
-    let hwnd = window
-        .hwnd()
-        .map_err(|error| format!("failed resolving the main window handle: {error}"))?;
-    let wide_path: Vec<u16> = icon_path
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    // SAFETY: wide_path is nul-terminated and remains alive for the call. Without
-    // LR_SHARED, LoadImageW returns an app-owned handle retained below.
-    let loaded = unsafe {
-        LoadImageW(
-            None,
-            PCWSTR(wide_path.as_ptr()),
-            IMAGE_ICON,
-            256,
-            256,
-            LR_LOADFROMFILE,
-        )
-    }
-    .map_err(|error| format!("failed loading taskbar icon: {error}"))?;
-    Ok((hwnd.0 as isize, OwnedWindowsIcon(Some(loaded.0 as isize))))
-}
-
-#[cfg(target_os = "windows")]
-fn set_windows_taskbar_icon(raw_hwnd: isize, mut taskbar_icon: OwnedWindowsIcon) {
-    use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
-    use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, ICON_BIG, WM_SETICON};
-
-    let taskbar_icon = taskbar_icon.take();
-    let hwnd = HWND(raw_hwnd as *mut _);
-
-    // WM_SETICON's ICON_BIG slot is the icon Windows uses for the taskbar. Tauri's
-    // set_icon updates the small window icon separately, so both calls are needed.
-    unsafe {
-        SendMessageW(
-            hwnd,
-            WM_SETICON,
-            Some(WPARAM(ICON_BIG as usize)),
-            Some(LPARAM(taskbar_icon)),
-        );
-    }
-
-    let previous = WINDOWS_TASKBAR_ICON
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .replace(taskbar_icon);
-    if let Some(previous) = previous {
-        // The main window no longer refers to the previous handle after WM_SETICON.
-        destroy_windows_icon(previous);
-    }
 }
 
 #[cfg(target_os = "windows")]
@@ -1234,22 +1121,20 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
         // The native boundary serializes every caller, including direct invokes
         // that do not pass through the webview's persistence queue.
         let mut current_icon = icon_state.current.lock().await;
-        let (raw_hwnd, taskbar_icon) = prepare_windows_taskbar_icon(&app, &window, &icon)?;
         // TrayIcon::set_icon performs its own synchronous main-thread dispatch,
-        // so call it before the explicit callback used by the Win32 taskbar icon.
+        // so call it before scheduling the window update.
         tray.set_icon(Some(image.clone()))
             .map_err(|error| format!("failed switching system tray icon: {error}"))?;
         let (result_tx, result_rx) = tokio::sync::oneshot::channel();
         if let Err(error) = app.run_on_main_thread({
             let image = image.clone();
             move || {
-                // Tauri applies the window icon synchronously here. Update the
-                // Win32 taskbar slot immediately afterwards, while both operations
-                // still refer to the same decoded icon selection.
+                // Windows owns pinned and grouped taskbar icons through the
+                // installed shortcut. The running app updates its window and
+                // system-tray surfaces together at this boundary.
                 let result = window
                     .set_icon(image)
-                    .map_err(|error| format!("failed switching window icon: {error}"))
-                    .map(|()| set_windows_taskbar_icon(raw_hwnd, taskbar_icon));
+                    .map_err(|error| format!("failed switching window icon: {error}"));
                 let _ = result_tx.send(result);
             }
         }) {
@@ -1765,8 +1650,6 @@ fn main() {
                     .stop();
             }
             RunEvent::Exit => {
-                #[cfg(target_os = "windows")]
-                clear_windows_taskbar_icon(app_handle);
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
@@ -1790,7 +1673,6 @@ mod window_bounds_tests {
             .filter_map(serde_json::Value::as_str)
             .collect::<Vec<_>>();
 
-        assert!(resources.contains(&"icons/app/*.ico"));
         assert!(resources.contains(&"icons/app/*.png"));
         assert!(resources.contains(&"bin/remote-helpers/*"));
     }
@@ -1811,7 +1693,8 @@ mod window_bounds_tests {
                     right: 1366,
                     bottom: 720,
                 },
-            ),
+            )
+            .unwrap(),
             WindowBounds {
                 left: 0,
                 top: 0,
@@ -1837,7 +1720,8 @@ mod window_bounds_tests {
                     right: 0,
                     bottom: 1040,
                 },
-            ),
+            )
+            .unwrap(),
             WindowBounds {
                 left: -1920,
                 top: 0,
@@ -1864,8 +1748,59 @@ mod window_bounds_tests {
                     right: 1920,
                     bottom: 1040,
                 },
-            ),
+            )
+            .unwrap(),
             window
+        );
+    }
+
+    #[test]
+    fn rejects_empty_work_area_without_panicking() {
+        let window = WindowBounds {
+            left: 0,
+            top: 0,
+            right: 1200,
+            bottom: 700,
+        };
+
+        assert_eq!(
+            clamp_window_bounds(
+                window,
+                WindowBounds {
+                    left: 100,
+                    top: 80,
+                    right: 100,
+                    bottom: 80,
+                },
+            ),
+            Err("monitor work area is empty")
+        );
+    }
+
+    #[test]
+    fn handles_extreme_coordinates_without_overflowing() {
+        assert_eq!(
+            clamp_window_bounds(
+                WindowBounds {
+                    left: i32::MIN,
+                    top: i32::MIN,
+                    right: i32::MAX,
+                    bottom: i32::MAX,
+                },
+                WindowBounds {
+                    left: i32::MIN,
+                    top: i32::MIN,
+                    right: i32::MAX,
+                    bottom: i32::MAX,
+                },
+            )
+            .unwrap(),
+            WindowBounds {
+                left: i32::MIN,
+                top: i32::MIN,
+                right: i32::MAX,
+                bottom: i32::MAX,
+            }
         );
     }
 }
