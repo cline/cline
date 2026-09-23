@@ -44,8 +44,8 @@ export function appIconAssetPath(icon: AppIconId): string {
 
 export function appIconSurface(
 	userAgent: string,
-): "Dock" | "System tray" | "desktop" {
-	if (/Windows/i.test(userAgent)) return "System tray";
+): "Dock" | "Taskbar and system tray" | "desktop" {
+	if (/Windows/i.test(userAgent)) return "Taskbar and system tray";
 	if (/(Macintosh|Mac OS X)/i.test(userAgent)) return "Dock";
 	return "desktop";
 }

@@ -691,7 +691,7 @@ function GeneralSettingsContent({
 		return readStoredAppIcon();
 	});
 	const [appIconLocation, setAppIconLocation] = useState<
-		"Dock" | "System tray" | "desktop"
+		"Dock" | "Taskbar and system tray" | "desktop"
 	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
