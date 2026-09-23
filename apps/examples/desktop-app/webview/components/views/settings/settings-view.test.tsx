@@ -109,6 +109,79 @@ describe("SettingsView font size", () => {
 	});
 });
 
+describe("SettingsView diagnostics export", () => {
+	it("lists local sessions and exports the checked ones", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_discovered_sessions") {
+				return [
+					{
+						sessionId: "s1",
+						status: "completed",
+						provider: "cline",
+						model: "m",
+						cwd: "/repo/app",
+						workspaceRoot: "/repo/app",
+						environmentId: "local",
+						startedAt: "2026-09-22T10:00:00.000Z",
+						metadata: { title: "Renamed session" },
+					},
+					{
+						sessionId: "cloud-1",
+						origin: "cloud",
+						status: "completed",
+						provider: "cline",
+						model: "m",
+						cwd: "",
+						workspaceRoot: "",
+						environmentId: "local",
+						startedAt: "2026-09-22T09:00:00.000Z",
+						prompt: "cloud only",
+					},
+				];
+			}
+			if (command === "export_diagnostics") {
+				return {
+					path: "/tmp/cline-diagnostics.zip",
+					bytes: 1,
+					files: [],
+					sessionIds: ["s1"],
+				};
+			}
+			return { telemetryOptOut: false, autoUpdateEnabled: true };
+		});
+
+		await act(async () => {
+			root.render(
+				<SettingsView onNavigateSection={vi.fn()} section="General" />,
+			);
+		});
+
+		const openButton = [
+			...container.querySelectorAll<HTMLButtonElement>("button"),
+		].find((button) => button.textContent?.includes("Export…"));
+		expect(openButton).toBeDefined();
+		await act(async () => {
+			openButton?.click();
+		});
+
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog?.textContent).toContain("Renamed session");
+		expect(dialog?.textContent).not.toContain("cloud only");
+
+		const exportButton = [
+			...(dialog?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+		].find((button) => button.textContent?.trim() === "Export");
+		await act(async () => {
+			exportButton?.click();
+		});
+
+		expect(invoke).toHaveBeenCalledWith("export_diagnostics", {
+			sessionIds: ["s1"],
+		});
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+	});
+});
+
 describe("SettingsView cloud sessions rollout", () => {
 	it.each([
 		{
