@@ -74,7 +74,7 @@ describe("transcribeAudio", () => {
 				baseUrl: "https://audio.example/v1/",
 			}),
 		).toMatchObject({
-			transport: "openai-compatible",
+			transport: "openai-native",
 			endpoint: "https://audio.example/v1/audio/transcriptions",
 		});
 	});
@@ -361,5 +361,67 @@ describe("transcribeAudio", () => {
 			}),
 		).rejects.toThrow('Provider "groq" is missing credentials');
 		expect(transcribeMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("native OpenAI streaming sessions", () => {
+	it("mints a transcription-bound ephemeral token without exposing the API key", async () => {
+		const fetchMock = vi.fn(async () =>
+			Response.json({ value: "ek_short", expires_at: 1234 }),
+		);
+		const session = await createStreamingAudioTranscriptionSession({
+			providerConfig: {
+				providerId: "openai-native",
+				modelId: "",
+				apiKey: "secret",
+				baseUrl: "https://openai.test/v1",
+				fetch: fetchMock as unknown as typeof fetch,
+			},
+			modelId: "gpt-realtime-whisper",
+		});
+		expect(session).toMatchObject({
+			transport: "openai-native",
+			token: "ek_short",
+			modelId: "gpt-realtime-whisper",
+			baseUrl: "https://openai.test/v1",
+			sampleRate: 24000,
+		});
+		expect(JSON.stringify(session)).not.toContain("secret");
+		const [url, init] = fetchMock.mock.calls[0] as unknown as [
+			string,
+			RequestInit,
+		];
+		expect(url).toBe("https://openai.test/v1/realtime/client_secrets");
+		expect(new Headers(init.headers).get("Authorization")).toBe(
+			"Bearer secret",
+		);
+		expect(JSON.parse(String(init.body))).toMatchObject({
+			session: {
+				type: "transcription",
+				audio: {
+					input: {
+						transcription: { model: "gpt-realtime-whisper" },
+						turn_detection: null,
+					},
+				},
+			},
+			expires_after: { anchor: "created_at", seconds: 60 },
+		});
+	});
+	it.each([
+		Response.json({}, { status: 401 }),
+		Response.json({}),
+	])("rejects failed or malformed token responses", async (response) => {
+		await expect(
+			createStreamingAudioTranscriptionSession({
+				providerConfig: {
+					providerId: "openai-native",
+					modelId: "",
+					apiKey: "secret",
+					fetch: (async () => response) as typeof fetch,
+				},
+				modelId: "gpt-realtime-whisper",
+			}),
+		).rejects.toThrow();
 	});
 });

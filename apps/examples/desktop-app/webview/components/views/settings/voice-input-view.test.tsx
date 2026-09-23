@@ -128,6 +128,39 @@ describe("VoiceInputContent", () => {
 		return onOpenModelProviders;
 	};
 
+	it("offers every connected provider with verified streaming models, including native OpenAI", async () => {
+		const native = {
+			...transcriptionProvider,
+			id: "openai-native",
+			name: "OpenAI Native",
+		};
+		const custom = {
+			...transcriptionProvider,
+			id: "custom-streaming",
+			name: "Custom Streaming",
+		};
+		fetchProviderCatalogMock.mockResolvedValue({
+			providers: [native, transcriptionProvider, custom],
+			voiceInput: {
+				providerId: "openai-native",
+				modelId: "gpt-realtime-whisper",
+			},
+		});
+		loadTranscriptionModelsMock.mockResolvedValue([
+			{
+				id: "gpt-realtime-whisper",
+				name: "Live transcription",
+				operation: "transcription",
+				operationModes: ["streaming"],
+				inputModalities: ["audio"],
+				outputModalities: ["text"],
+			},
+		]);
+		await render();
+		for (const name of ["OpenAI Native", "ElevenLabs", "Custom Streaming"])
+			expect(container.textContent).toContain(name);
+	});
+
 	it("renders the verified snapshot immediately while refreshing after navigation", async () => {
 		readVoiceInputCatalogMock.mockReturnValue({
 			providers: [transcriptionProvider],

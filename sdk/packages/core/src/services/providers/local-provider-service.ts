@@ -920,7 +920,13 @@ export async function getLocalTranscriptionModels(
 			),
 		};
 	}
-	const { models } = await getLocalProviderModels(id, config);
+	const modelMap = await resolveProviderModelMap(id, config);
+	const models = toSortedProviderModels({
+		...modelMap,
+		...LlmsModels.getBuiltinStreamingTranscriptionModels(
+			providerConfig.routingProviderId ?? id,
+		),
+	});
 	return {
 		providerId: id,
 		models: models.filter(

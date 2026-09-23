@@ -337,8 +337,9 @@ credentials, request headers, recorded audio, or transcript contents.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
 - Voice input requires a configured streaming transcription model. Choose one
   under **Settings → Models → Voice input**, such as Vercel AI Gateway's
-  `openai/gpt-realtime-whisper` or ElevenLabs `scribe_v2_realtime`.
-  Gateway audio flows through the AI SDK’s `experimental_streamTranscribe`
+  `openai/gpt-realtime-whisper`, native OpenAI `gpt-realtime-whisper`, or
+  ElevenLabs `scribe_v2_realtime`.
+  Gateway and native OpenAI audio flow through the AI SDK’s `experimental_streamTranscribe`
   with continuous PCM input and partial transcript updates. Text updates while
   you speak; Stop closes the audio stream and waits for final text. Batch-only models are
   excluded from Voice settings and rejected when saving a voice selection.

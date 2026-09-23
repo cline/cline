@@ -1,6 +1,7 @@
 "use client";
 
 import { createGateway } from "@ai-sdk/gateway";
+import { createOpenAI } from "@ai-sdk/openai";
 import type { StreamingAudioTranscriptionSession } from "@cline/shared/browser";
 import { experimental_streamTranscribe as streamTranscribe } from "ai";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
@@ -284,7 +285,7 @@ export async function startStreamingTranscription(options: {
 		}
 	};
 	try {
-		if (credentials.transport === "vercel-ai-gateway") {
+		if (credentials.transport !== "elevenlabs") {
 			const audio = new ReadableStream<Uint8Array>(
 				{
 					start(controller) {
@@ -293,12 +294,14 @@ export async function startStreamingTranscription(options: {
 				},
 				{ highWaterMark: 1024 * 1024, size: (chunk) => chunk.byteLength },
 			);
-			const gateway = createGateway({
+			const provider = (
+				credentials.transport === "openai-native" ? createOpenAI : createGateway
+			)({
 				apiKey: credentials.token,
 				baseURL: credentials.baseUrl,
 			});
 			const result = streamTranscribe({
-				model: gateway.transcriptionModel(credentials.modelId),
+				model: provider.transcriptionModel(credentials.modelId),
 				audio,
 				inputAudioFormat: { type: "audio/pcm", rate: credentials.sampleRate },
 				abortSignal: abort.signal,

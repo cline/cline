@@ -417,4 +417,54 @@ describe("streaming transcription", () => {
 			vi.useRealTimers();
 		}
 	});
+	it("streams native OpenAI transcripts through the SDK before Stop", async () => {
+		invokeMock.mockResolvedValue({
+			transport: "openai-native",
+			modelId: "gpt-realtime-whisper",
+			baseUrl: "https://api.openai.com/v1",
+			token: "ek_short",
+			sampleRate: 24000,
+		});
+		const onTranscript = vi.fn();
+		const session = await startStreamingTranscription({ onTranscript });
+		const socket = await vi.waitFor(() => {
+			expect(FakeWebSocket.instances).toHaveLength(1);
+			return FakeWebSocket.instances[0] as FakeWebSocket;
+		});
+		expect(String(socket.url)).toContain("/v1/realtime?intent=transcription");
+		expect(socket.protocols).toEqual([
+			"realtime",
+			"openai-insecure-api-key.ek_short",
+		]);
+		socket.open();
+		expect(JSON.parse(String(socket.send.mock.calls[0]?.[0]))).toMatchObject({
+			type: "session.update",
+			session: {
+				type: "transcription",
+				audio: { input: { transcription: { model: "gpt-realtime-whisper" } } },
+			},
+		});
+		socket.message({
+			type: "conversation.item.input_audio_transcription.delta",
+			item_id: "one",
+			delta: "Hello",
+		});
+		await vi.waitFor(() =>
+			expect(onTranscript).toHaveBeenLastCalledWith("Hello"),
+		);
+		session.stop();
+		await vi.waitFor(() =>
+			expect(socket.send).toHaveBeenCalledWith(
+				JSON.stringify({ type: "input_audio_buffer.commit" }),
+			),
+		);
+		socket.message({
+			type: "conversation.item.input_audio_transcription.completed",
+			item_id: "one",
+			transcript: "Hello.",
+		});
+		await session.done;
+		expect(onTranscript).toHaveBeenLastCalledWith("Hello.");
+		expect(stopTrack).toHaveBeenCalled();
+	});
 });

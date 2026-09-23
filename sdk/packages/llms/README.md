@@ -116,7 +116,11 @@ const session = await createStreamingAudioTranscriptionSession({
 });
 ```
 
-Vercel AI Gateway and ElevenLabs support streaming transcription. Gateway
+Native OpenAI, Vercel AI Gateway, and ElevenLabs support streaming transcription.
+Voice discovery includes SDK-supported live models missing from the external
+catalog, using the same provider capability declarations as request validation.
+Native OpenAI uses `gpt-realtime-whisper` with a transcription-bound client
+secret; the browser supplies that token to the AI SDK OpenAI provider. Gateway
 tokens default to 60 seconds for connection establishment (maximum 300);
 this is not the duration limit of an established recording session.
 For Gateway sessions, pass `session.token`, `session.baseUrl`, and

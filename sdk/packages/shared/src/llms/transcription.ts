@@ -5,6 +5,10 @@ export type StreamingAudioTranscriptionSession = {
 	sampleRate: number;
 	expiresAt?: number;
 } & (
-	| { transport: "vercel-ai-gateway"; modelId: string; baseUrl: string }
+	| {
+			transport: "vercel-ai-gateway" | "openai-native";
+			modelId: string;
+			baseUrl: string;
+	  }
 	| { transport: "elevenlabs" }
 );

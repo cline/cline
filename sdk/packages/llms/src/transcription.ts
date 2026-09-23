@@ -199,6 +199,8 @@ export async function createStreamingAudioTranscriptionSession(
 	if (route.transport === "elevenlabs") {
 		return createElevenLabsStreamingSession(request, route);
 	}
+	if (route.transport === "openai-native")
+		return createOpenAIStreamingSession(request, route);
 	if (route.transport !== "vercel-ai-gateway") {
 		throw new Error(
 			`Provider "${request.providerConfig.providerId}" does not support browser streaming transcription`,
@@ -260,6 +262,73 @@ export async function createStreamingAudioTranscriptionSession(
 		sampleRate: modelId.startsWith("google/") ? 16_000 : 24_000,
 		expiresAt:
 			typeof result.expiresAt === "number" ? result.expiresAt : undefined,
+	};
+}
+
+async function createOpenAIStreamingSession(
+	request: StreamingAudioTranscriptionSessionRequest,
+	route: AudioTranscriptionRoute,
+): Promise<StreamingAudioTranscriptionSession> {
+	const apiKey = resolveApiKey(request.providerConfig);
+	if (!apiKey)
+		throw new Error(
+			`Provider "${request.providerConfig.providerId}" is missing credentials`,
+		);
+	const expiresAfterSeconds = request.expiresAfterSeconds ?? 60;
+	if (
+		!Number.isInteger(expiresAfterSeconds) ||
+		expiresAfterSeconds < 1 ||
+		expiresAfterSeconds > 300
+	)
+		throw new Error(
+			"Streaming transcription session lifetime must be between 1 and 300 seconds",
+		);
+	const headers = new Headers(request.providerConfig.headers);
+	headers.set("Authorization", `Bearer ${apiKey}`);
+	headers.set("Content-Type", "application/json");
+	const modelId = request.modelId.trim();
+	const response = await (request.providerConfig.fetch ?? fetch)(
+		`${route.baseUrl}/realtime/client_secrets`,
+		{
+			method: "POST",
+			headers,
+			signal: resolveAbortSignal(request.providerConfig, request.abortSignal),
+			body: JSON.stringify({
+				expires_after: { anchor: "created_at", seconds: expiresAfterSeconds },
+				session: {
+					type: "transcription",
+					audio: {
+						input: {
+							format: { type: "audio/pcm", rate: 24000 },
+							transcription: { model: modelId },
+							turn_detection: null,
+						},
+					},
+				},
+			}),
+		},
+	);
+	if (!response.ok)
+		throw new Error(
+			`OpenAI streaming transcription setup failed (${response.status}): ${await readErrorBody(response)}`,
+		);
+	const result = (await response.json()) as {
+		value?: unknown;
+		expires_at?: unknown;
+	};
+	if (typeof result.value !== "string" || !result.value.trim())
+		throw new Error("OpenAI streaming transcription setup returned no token");
+	const url = new URL(`${route.baseUrl}/realtime?intent=transcription`);
+	url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+	return {
+		transport: "openai-native",
+		token: result.value,
+		url: url.toString(),
+		baseUrl: route.baseUrl,
+		modelId,
+		sampleRate: 24000,
+		expiresAt:
+			typeof result.expires_at === "number" ? result.expires_at : undefined,
 	};
 }
 

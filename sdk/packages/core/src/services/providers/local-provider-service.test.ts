@@ -1343,6 +1343,27 @@ describe("audio transcription", () => {
 		);
 	});
 
+	it.each([
+		["openai-native", "gpt-realtime-whisper"],
+		["elevenlabs", "scribe_v2_realtime"],
+	])("offers and saves streaming transcription for %s", async (providerId, modelId) => {
+		manager.saveProviderSettings(
+			{ provider: providerId, apiKey: "audio-key" },
+			{ setLastUsed: false },
+		);
+		const { models } = await getLocalTranscriptionModels(providerId);
+		expect(models).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: modelId, operationModes: ["streaming"] }),
+			]),
+		);
+		await saveVoiceInputSettings(manager, { providerId, modelId });
+		expect(manager.getVoiceInputSettings()).toMatchObject({
+			providerId,
+			modelId,
+		});
+	});
+
 	it("rejects batch-only models for voice input", async () => {
 		await expect(
 			saveVoiceInputSettings(manager, {
@@ -1355,7 +1376,6 @@ describe("audio transcription", () => {
 
 	it.each([
 		["groq", "realtime-whisper"],
-		["elevenlabs", "scribe_v2_realtime"],
 	])("rejects streaming models on the batch-only %s transport", async (providerId, modelId) => {
 		manager.saveProviderSettings(
 			{ provider: providerId, apiKey: "audio-key" },

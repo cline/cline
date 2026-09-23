@@ -39,6 +39,7 @@
 	},
 	"dependencies": {
 		"@ai-sdk/gateway": "^4.0.64",
+		"@ai-sdk/openai": "^4.0.47",
 		"@base-ui/react": "^1.2.0",
 		"@cline/core": "workspace:*",
 		"@cline/llms": "workspace:*",
