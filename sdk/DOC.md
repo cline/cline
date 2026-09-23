@@ -23,6 +23,18 @@ the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
 
+Session list titles share a pure core resolver across cloud discovery and local
+history: explicit title, prompt, first usable user text, assistant text, then
+`Session <last-six-ID-characters>`. List titles are capped at 70 characters;
+derived titles take the first line, while explicit titles retain embedded newlines.
+Message-derived titles ignore image/tool/reasoning-only content. These are display
+projections, not writes to stored titles. Discovery's `title` and `metadata.title`
+agree; resolving them does not fetch additional cloud transcripts.
+
+History and cloud root selection both exclude records marked `isSubagent: true`
+or having a nonblank `parentSessionId` at either the top level or in metadata.
+History's `includeSubagents` opt-in also applies to manifest fallback rows.
+
 ## Voice input models
 
 `getLocalTranscriptionModels(providerId, config?)` from `@cline/core` returns the

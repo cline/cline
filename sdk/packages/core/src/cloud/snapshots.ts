@@ -1,5 +1,8 @@
 import type { HubEventEnvelope } from "@cline/shared";
 import { isUserRunMessage } from "../session/user-run-messages";
+
+export { isRootSessionRecord as isRootSessionRow } from "../session/root-session";
+
 import type { JsonRecord, CloudQueuedPrompt as PromptInQueue } from "./types";
 
 export function readSessionRows(
@@ -26,16 +29,6 @@ export function sessionRowModelId(record: JsonRecord | undefined): string {
 			? (record.metadata as JsonRecord)
 			: undefined;
 	return String(metadata?.model ?? record?.model ?? "").trim();
-}
-
-export function isRootSessionRow(record: JsonRecord): boolean {
-	const metadata =
-		record.metadata && typeof record.metadata === "object"
-			? (record.metadata as JsonRecord)
-			: undefined;
-	return !String(
-		metadata?.parentSessionId ?? record.parentSessionId ?? "",
-	).trim();
 }
 
 function messageText(

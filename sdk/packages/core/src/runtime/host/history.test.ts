@@ -117,6 +117,133 @@ async function writeMessagesFile(
 }
 
 describe("session history", () => {
+	it("hydrates transcript titles before applying the fallback even when other metadata is complete", async () => {
+		const readSessionMessages = vi.fn().mockResolvedValue([
+			{
+				role: "user",
+				content: [{ type: "text", text: "x".repeat(80) + "\nDetails" }],
+			},
+		]);
+		const original = createRow({
+			sessionId: "abcdef",
+			provider: "cline",
+			model: "model",
+			metadata: { totalCost: 1 },
+		});
+		const [row] = await hydrateSessionHistory({ readSessionMessages }, [
+			original,
+		]);
+		expect(row.metadata?.title).toBe("x".repeat(70));
+		expect(readSessionMessages).toHaveBeenCalledExactlyOnceWith("abcdef");
+		expect(original.metadata).toEqual({ totalCost: 1 });
+	});
+
+	it.each([
+		true,
+		false,
+	])("uses prompt and ID fallbacks with empty transcripts (hydrate: %s)", async (hydrate) => {
+		const readSessionMessages = vi.fn().mockResolvedValue([]);
+		const listSessions = vi
+			.fn()
+			.mockResolvedValue([
+				createRow({ sessionId: "prompt-row", prompt: "Prompt title\nDetails" }),
+				createRow({ sessionId: "empty-abcdef" }),
+			]);
+		const rows = await listSessionHistory(
+			{ listSessions, readSessionMessages },
+			{ hydrate },
+		);
+		expect(rows.map((row) => row.metadata?.title)).toEqual([
+			"Prompt title",
+			"Session abcdef",
+		]);
+		expect(readSessionMessages).toHaveBeenCalledTimes(hydrate ? 2 : 0);
+	});
+
+	it("uses prompt before transcript title while still hydrating cost/provider/model", async () => {
+		const readSessionMessages = vi.fn().mockResolvedValue([
+			{
+				role: "user",
+				content: "Transcript title",
+				modelInfo: { provider: "cline", id: "model" },
+				metrics: { cost: 2 },
+			},
+		]);
+		const [row] = await hydrateSessionHistory({ readSessionMessages }, [
+			createRow({ sessionId: "abcdef", prompt: "Prompt title" }),
+		]);
+		expect(row).toMatchObject({
+			provider: "cline",
+			model: "model",
+			metadata: { title: "Prompt title", totalCost: 2 },
+		});
+		expect(readSessionMessages).toHaveBeenCalledOnce();
+	});
+
+	it("filters metadata child markers from backend history unless requested", async () => {
+		const listSessions = vi
+			.fn()
+			.mockResolvedValue([
+				createRow({ sessionId: "child", metadata: { isSubagent: true } }),
+				createRow({ sessionId: "root" }),
+			]);
+		const host = { listSessions, readSessionMessages: vi.fn() };
+		expect(
+			(await listSessionHistory(host, { hydrate: false })).map(
+				(row) => row.sessionId,
+			),
+		).toEqual(["root"]);
+		expect(
+			(
+				await listSessionHistory(host, {
+					hydrate: false,
+					includeSubagents: true,
+				})
+			).map((row) => row.sessionId),
+		).toEqual(["child", "root"]);
+	});
+
+	it.each([
+		{ isSubagent: true },
+		{ parentSessionId: "parent" },
+	])("filters child manifests before limiting root history (%j)", async (metadata) => {
+		tempSessionDataDir = await mkdtemp(join(tmpdir(), "history-root-filter-"));
+		process.env.CLINE_SESSION_DATA_DIR = tempSessionDataDir;
+		// More children than the minimum fallback window, all newer than the root.
+		await Promise.all(
+			Array.from({ length: 101 }, (_, index) =>
+				writeManifest("child-" + index, {
+					started_at: "2026-09-23T00:00:00Z",
+					metadata,
+				}),
+			),
+		);
+		await writeManifest("root", {});
+		const host = {
+			listSessions: vi.fn().mockResolvedValue([]),
+			readSessionMessages: vi.fn(),
+		};
+		expect(
+			(
+				await listSessionHistory(host, {
+					limit: 1,
+					hydrate: false,
+					includeManifestFallback: true,
+				})
+			).map((row) => row.sessionId),
+		).toEqual(["root"]);
+		expect(
+			(
+				await listSessionHistory(host, {
+					limit: 1,
+					hydrate: false,
+					includeManifestFallback: true,
+					includeSubagents: true,
+				})
+			)[0]?.sessionId,
+		).toMatch(/^child-/);
+	});
+
 	afterEach(async () => {
 		vi.clearAllMocks();
 		if (tempSessionDataDir) {

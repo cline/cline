@@ -21,6 +21,12 @@ This document is the architecture source of truth for the Cline SDK repository. 
 
 ## Layered Model
 
+Pure session-list title and root-classification helpers live under core's
+`src/session/`. Both local history and cloud discovery consume them directly;
+cloud exports retain the existing helper entry points without importing local
+runtime initialization. Display serialization, exact transcript matching, and
+bounded search extraction retain their distinct content policies.
+
 The workspace is organized as a layered runtime stack.
 
 ```mermaid
