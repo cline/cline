@@ -12,12 +12,20 @@ export {
 } from "./agent-ask-question.js";
 export { AgentAurora } from "./agent-aurora.js";
 export {
+	AgentCommandOutput,
+	type AgentCommandOutputProps,
+} from "./agent-command-output.js";
+export {
 	AgentContextUsage,
 	type AgentContextUsageData,
 	type AgentContextUsagePresentation,
 	type AgentContextUsageProps,
 } from "./agent-context-usage.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
+export {
+	AgentImageLightboxContent,
+	type AgentImageLightboxContentProps,
+} from "./agent-image-lightbox.js";
 export {
 	AgentPromptQueue,
 	type AgentPromptQueueItem,
