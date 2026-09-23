@@ -1907,7 +1907,6 @@ export async function handleCommand(
 			message: result.message,
 			remotePlatform: result.remotePlatform,
 			remoteArch: result.remoteArch,
-			cli: result.cli,
 		};
 	}
 	if (command === "connect_remote_environment") {
@@ -1998,8 +1997,6 @@ export async function handleCommand(
 				homeDir: connection.homeDir,
 				remotePlatform: connection.platform,
 				remoteArch: connection.arch,
-				hubSource: connection.hubSource,
-				cli: connection.cli,
 			};
 			broadcastEvent(ctx, "remote_environment_changed", result);
 			return result;
