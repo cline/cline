@@ -97,6 +97,7 @@ describe("AgentHeader title editor", () => {
 		const titleForm = container.querySelector("form");
 		const titleInput = container.querySelector<HTMLInputElement>("input");
 		expect(titleForm?.style.width).toBe(`${editorWidth}px`);
+		expect(titleForm?.classList.contains("shrink-0")).toBe(false);
 		expect(titleInput?.className).toContain("w-full");
 		expect(titleInput?.className).not.toContain("w-64");
 	});
