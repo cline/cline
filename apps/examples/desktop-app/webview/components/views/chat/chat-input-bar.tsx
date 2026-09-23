@@ -52,6 +52,7 @@ import {
 } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
+	rememberReasoningSelectionInWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
 import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
@@ -163,18 +164,23 @@ type ReasoningEffortOption = {
 	value: "none" | ReasoningEffort;
 };
 
-const DEFAULT_REASONING_EFFORT: ReasoningEffortOption = {
-	label: "Low",
-	value: "low",
-};
-
 const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "None", value: "none" },
-	DEFAULT_REASONING_EFFORT,
+	{ label: "Low", value: "low" },
 	{ label: "Medium", value: "medium" },
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
 ];
+
+/**
+ * Applied when a reasoning-capable model is selected and neither the session
+ * nor the remembered composer choice has an explicit value. Kept in step with
+ * the CLI's `--thinking` default so both surfaces open at the same level.
+ */
+const DEFAULT_REASONING_EFFORT: ReasoningEffortOption = {
+	label: "Medium",
+	value: "medium",
+};
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
@@ -206,7 +212,7 @@ function resolveEffortIndex(
 	const index = EFFORT_LEVELS.findIndex(
 		(option) => option.value === reasoningEffort,
 	);
-	return index >= 0 ? index : 1;
+	return index >= 0 ? index : EFFORT_LEVELS.indexOf(DEFAULT_REASONING_EFFORT);
 }
 
 function buildReasoningConfig(
@@ -962,7 +968,15 @@ function ChatInputBarImpl({
 			}
 			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
 			if (nextOption) {
-				onReasoningChange(buildReasoningConfig(nextOption));
+				const next = buildReasoningConfig(nextOption);
+				// Remember the pick so new threads and restarts reopen at this level
+				// instead of the built-in default.
+				try {
+					rememberReasoningSelectionInWindow(next);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
+				onReasoningChange(next);
 			}
 		},
 		[modelSupportsReasoning, onReasoningChange],
@@ -1688,7 +1702,10 @@ function ChatInputBarImpl({
 					<Select
 						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
 						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+						value={
+							EFFORT_LEVELS[effortIndex]?.value ??
+							DEFAULT_REASONING_EFFORT.value
+						}
 					>
 						<SelectTrigger
 							aria-label="Thinking level"

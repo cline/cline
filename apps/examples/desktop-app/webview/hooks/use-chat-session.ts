@@ -17,6 +17,7 @@ import {
 	mapCloudRuntimeStatus,
 	mapSessionRecordStatus,
 	normalizeRuntimeConfig,
+	resolveAttachedReasoningSelection,
 	resolveCredentialError,
 	resolveCredentialFailureHint,
 } from "@/hooks/chat-session/helpers";
@@ -3888,6 +3889,8 @@ export function useChatSession(environmentId: string) {
 						branch?: string;
 						prompt?: string;
 						environmentId?: string;
+						thinking?: boolean;
+						reasoningEffort?: string;
 					}>("chat_session_command", {
 						request: {
 							action: "attach",
@@ -3943,6 +3946,12 @@ export function useChatSession(environmentId: string) {
 						session.workspaceRoot ||
 						session.cwd ||
 						prev.cwd,
+					// Reopening a conversation restores the level that conversation
+					// last ran with instead of the default for a new thread.
+					...resolveAttachedReasoningSelection(
+						attached?.thinking,
+						attached?.reasoningEffort,
+					),
 				}));
 				if (
 					session.origin === "cloud" &&

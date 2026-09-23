@@ -12,6 +12,7 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { ChatSessionConfigSchema } from "@/lib/chat-schema";
 import { isGitHubRepositoryUrl } from "@/lib/cloud-repositories";
 import { normalizeProviderId } from "@/lib/provider-id";
 import type { SessionHistoryStatus } from "@/lib/session-history";
@@ -25,6 +26,33 @@ type RpcMessageLike = {
 
 export function makeId(prefix: string): string {
 	return createSessionId(`${prefix}_`);
+}
+
+/**
+ * Reasoning selection carried by a session attach response. The payload comes
+ * off the wire, so both fields are validated before they reach the composer,
+ * and an explicit `thinking: false` clears the effort instead of leaving the
+ * two out of step.
+ */
+export function resolveAttachedReasoningSelection(
+	thinking: unknown,
+	reasoningEffort: unknown,
+): Pick<ChatSessionConfig, "thinking" | "reasoningEffort"> {
+	const parsed =
+		ChatSessionConfigSchema.shape.reasoningEffort.safeParse(reasoningEffort);
+	const parsedEffort = parsed.success ? parsed.data : undefined;
+	if (thinking === false) {
+		return { thinking: false, reasoningEffort: undefined };
+	}
+	const parsedThinking =
+		typeof thinking === "boolean" ? thinking : parsedEffort ? true : undefined;
+	if (parsedThinking === undefined && parsedEffort === undefined) {
+		return {};
+	}
+	return {
+		...(parsedThinking === undefined ? {} : { thinking: parsedThinking }),
+		...(parsedEffort === undefined ? {} : { reasoningEffort: parsedEffort }),
+	};
 }
 
 function stringifyRpcMessageContent(content: unknown): string {

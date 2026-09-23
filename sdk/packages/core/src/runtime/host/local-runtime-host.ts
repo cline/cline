@@ -77,6 +77,7 @@ import {
 	SessionManifestSchema,
 } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
+import { withSessionReasoningMetadata } from "../../session/reasoning-metadata";
 import type { RootSessionArtifacts } from "../../session/services/session-service";
 import { createCoreSessionSnapshot } from "../../session/session-snapshot";
 import { SessionVersioningService } from "../../session/session-versioning-service";
@@ -627,18 +628,24 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.persistSessionMetadata(sessionId, () => metadata);
 			},
 		});
-		const initialSessionMetadata = withSessionHistoryOriginMetadata(
-			withSessionGitMetadata(
+		const initialSessionMetadata = withSessionReasoningMetadata(
+			withSessionHistoryOriginMetadata(
+				withSessionGitMetadata(
+					{
+						...(resumedArtifacts?.manifest.metadata ?? {}),
+						...(startInput.sessionMetadata ?? {}),
+					},
+					bootstrap.gitState,
+				),
 				{
-					...(resumedArtifacts?.manifest.metadata ?? {}),
-					...(startInput.sessionMetadata ?? {}),
+					mode: sessionOrigin?.mode,
+					trigger: sessionOrigin?.trigger,
+					version: bootstrap.config.extensionContext?.client?.version,
 				},
-				bootstrap.gitState,
 			),
 			{
-				mode: sessionOrigin?.mode,
-				trigger: sessionOrigin?.trigger,
-				version: bootstrap.config.extensionContext?.client?.version,
+				thinking: bootstrap.config.thinking,
+				reasoningEffort: bootstrap.config.reasoningEffort,
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
@@ -1965,13 +1972,23 @@ export class LocalRuntimeHost implements RuntimeHost {
 			);
 			this.usageBySession.set(session.sessionId, accumulatedUsage);
 			this.aggregateUsageBySession.set(session.sessionId, aggregateUsage);
-			await this.persistSessionMetadata(session.sessionId, (current) => ({
-				...(current ?? {}),
-				totalCost: accumulatedUsage.totalCost,
-				aggregatedAgentsCost: aggregateUsage.totalCost,
-				usage: accumulatedUsage,
-				aggregateUsage,
-			}));
+			await this.persistSessionMetadata(session.sessionId, (current) =>
+				withSessionReasoningMetadata(
+					{
+						...(current ?? {}),
+						totalCost: accumulatedUsage.totalCost,
+						aggregatedAgentsCost: aggregateUsage.totalCost,
+						usage: accumulatedUsage,
+						aggregateUsage,
+					},
+					// Recorded every turn so a level picked mid-session is the one a
+					// later re-attach restores for this session.
+					{
+						thinking: session.config.thinking,
+						reasoningEffort: session.config.reasoningEffort,
+					},
+				),
+			);
 			await this.invoke<void>(
 				"persistSessionMessages",
 				session.sessionId,

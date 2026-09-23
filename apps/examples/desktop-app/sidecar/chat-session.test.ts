@@ -20,6 +20,7 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveAttachedReasoningSelection,
 	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
@@ -328,6 +329,49 @@ describe("hasProviderChanged", () => {
 			model: "gpt-5.3-codex",
 			modelId: "gpt-5.3-codex",
 		});
+	});
+});
+
+describe("resolveAttachedReasoningSelection", () => {
+	it("restores what the session last ran with", () => {
+		expect(
+			resolveAttachedReasoningSelection(undefined, {
+				thinking: true,
+				reasoningEffort: "high",
+			}),
+		).toEqual({ thinking: true, reasoningEffort: "high" });
+	});
+
+	it("prefers the live config over the persisted value", () => {
+		expect(
+			resolveAttachedReasoningSelection(
+				{ thinking: true, reasoningEffort: "xhigh" },
+				{ thinking: true, reasoningEffort: "low" },
+			),
+		).toEqual({ thinking: true, reasoningEffort: "xhigh" });
+	});
+
+	it("omits both fields when the session recorded nothing", () => {
+		expect(resolveAttachedReasoningSelection(undefined, undefined)).toEqual({});
+		expect(resolveAttachedReasoningSelection({}, {})).toEqual({});
+	});
+
+	it("ignores an unsupported level", () => {
+		expect(
+			resolveAttachedReasoningSelection(undefined, {
+				thinking: true,
+				reasoningEffort: "extreme",
+			}),
+		).toEqual({ thinking: true });
+	});
+
+	it("keeps reasoning off even when a level was recorded", () => {
+		expect(
+			resolveAttachedReasoningSelection(
+				{ thinking: false },
+				{ thinking: true, reasoningEffort: "high" },
+			),
+		).toEqual({ thinking: false });
 	});
 });
 

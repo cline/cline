@@ -60,6 +60,15 @@ export function getInitialChatConfig(environmentId: string): ChatSessionConfig {
 		environmentId,
 		provider,
 		model,
+		// Carry the remembered reasoning choice into new threads. Without this the
+		// composer has no value to restore and falls back to its built-in default
+		// on every mount, which is what made the level reset between chats.
+		...(selection.thinking === undefined
+			? {}
+			: { thinking: selection.thinking }),
+		...(selection.reasoningEffort === undefined
+			? {}
+			: { reasoningEffort: selection.reasoningEffort }),
 		workspaceRoot: workspaceSelection.lastWorkspace,
 		cwd: workspaceSelection.lastWorkspace,
 	};
