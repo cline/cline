@@ -105,6 +105,7 @@ import {
 	handleSessionUpdateConnection,
 	handleSessionSteerFirstPendingPrompt,
 	handleSessionUpdatePendingPrompt,
+	releaseAbandonedEmptySession,
 } from "./handlers/session-handlers";
 import { HubEventLogStore } from "./hub-event-log";
 import { HubRunQueue } from "./hub-run-queue";
@@ -1166,6 +1167,14 @@ export class HubServerTransport implements NativeHubTransport {
 			}
 			if (state.participants.size === 0) {
 				this.sessionState.delete(sessionId);
+				void releaseAbandonedEmptySession(this.ctx, sessionId).catch(
+					(error) => {
+						logHubBoundaryError(
+							"failed to release abandoned empty session",
+							error,
+						);
+					},
+				);
 			}
 		}
 		cancelPendingCapabilityRequests(

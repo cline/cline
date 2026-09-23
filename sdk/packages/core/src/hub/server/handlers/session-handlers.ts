@@ -881,6 +881,30 @@ export async function handleSessionAttach(
 	return okReply(envelope, { session: attachedSession ?? session });
 }
 
+/**
+ * Stops a session whose last participant just left if it never received a
+ * prompt. Persistence is lazy until the first turn, so such a session has no
+ * artifacts and nothing to resume — yet it would otherwise stay resident in
+ * the hub, and in every client's session list, until the daemon restarts.
+ * Opening `cline` and exiting without typing is the common way to create one.
+ */
+export async function releaseAbandonedEmptySession(
+	ctx: HubTransportContext,
+	sessionId: string,
+): Promise<boolean> {
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (
+		!session ||
+		session.status !== "idle" ||
+		session.messagesPath ||
+		session.prompt?.trim()
+	) {
+		return false;
+	}
+	await ctx.sessionHost.stopSession(sessionId);
+	return true;
+}
+
 export async function handleSessionDetach(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
@@ -902,6 +926,16 @@ export async function handleSessionDetach(
 		}
 		if (state.participants.size === 0) {
 			ctx.sessionState.delete(sessionId);
+			// Awaited so a client that detaches and immediately recreates the
+			// same session id (config-change restarts) cannot race the teardown.
+			try {
+				await releaseAbandonedEmptySession(ctx, sessionId);
+			} catch (error) {
+				logHubMessage("warn", "failed to release abandoned empty session", {
+					error,
+					sessionId,
+				});
+			}
 		}
 	}
 	cancelPendingCapabilityRequests(

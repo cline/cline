@@ -1465,6 +1465,113 @@ describe("HubServerTransport boundaries", () => {
 		expect(readSessionCompactionState).not.toHaveBeenCalled();
 	});
 
+	it("stops a never-prompted session once its last participant detaches", async () => {
+		const stopSession = vi.fn().mockResolvedValue(undefined);
+		const getSession = vi.fn().mockResolvedValue({
+			sessionId: "session-1",
+			status: "idle",
+			startedAt: new Date(0).toISOString(),
+			updatedAt: new Date(0).toISOString(),
+			workspaceRoot: "/tmp/project",
+			cwd: "/tmp/project",
+		});
+		const transport = createTransport({
+			sessionHost: { getSession, stopSession },
+		});
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-detach-owner",
+			command: "session.detach",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+		expect(stopSession).not.toHaveBeenCalled();
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-detach-viewer",
+			command: "session.detach",
+			clientId: "viewer-client",
+			sessionId: "session-1",
+		});
+		expect(stopSession).toHaveBeenCalledWith("session-1");
+		expect(ctx.sessionState.has("session-1")).toBe(false);
+	});
+
+	it("keeps abandoned sessions that hold a prompt or a persisted transcript", async () => {
+		for (const record of [
+			{ status: "idle", prompt: "hello" },
+			{ status: "idle", messagesPath: "/tmp/sessions/s/s.messages.json" },
+			{ status: "running" },
+		]) {
+			const stopSession = vi.fn();
+			const transport = createTransport({
+				sessionHost: {
+					stopSession,
+					getSession: vi.fn().mockResolvedValue({
+						sessionId: "session-1",
+						startedAt: new Date(0).toISOString(),
+						updatedAt: new Date(0).toISOString(),
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+						...record,
+					}),
+				},
+			});
+			ensureSessionState(
+				getContext(transport),
+				"session-1",
+				"owner-client",
+				"creator",
+			);
+			await transport.handleCommand({
+				version: "v1",
+				requestId: "req-detach",
+				command: "session.detach",
+				clientId: "owner-client",
+				sessionId: "session-1",
+			});
+			expect(stopSession).not.toHaveBeenCalled();
+		}
+	});
+
+	it("stops a never-prompted session when its only client disconnects", async () => {
+		const stopSession = vi.fn().mockResolvedValue(undefined);
+		const transport = createTransport({
+			sessionHost: {
+				stopSession,
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "idle",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+			},
+		});
+		ensureSessionState(
+			getContext(transport),
+			"session-1",
+			"owner-client",
+			"creator",
+		);
+
+		await transport.handleCommand({
+			version: "v1",
+			requestId: "req-unregister",
+			command: "client.unregister",
+			clientId: "owner-client",
+		});
+		await vi.waitFor(() =>
+			expect(stopSession).toHaveBeenCalledWith("session-1"),
+		);
+	});
+
 	it("clears compaction sidecar ownership when the owner unregisters", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({
