@@ -1058,7 +1058,11 @@ export function extractToolOutputText(output: unknown): string {
 					parts.push(record.result)
 				} else if ("error" in record && typeof record.error === "string" && record.error) {
 					parts.push(record.error)
-				} else if (typeof record.result === "string") {
+				} else if (
+					typeof record.query === "string" &&
+					typeof record.success === "boolean" &&
+					typeof record.result === "string"
+				) {
 					// A command that legitimately printed nothing (`git add -A`,
 					// `mkdir`). Recognized as a ToolOperationResult so it must not
 					// fall through to the JSON fallback below and leak the envelope

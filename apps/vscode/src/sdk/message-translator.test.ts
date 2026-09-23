@@ -2561,6 +2561,11 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			const output = [{ query: "git add -A", result: "", success: true }]
 			expect(extractToolOutputText(output)).toBe("")
 		})
+
+		it("preserves an untyped result object with an empty result", () => {
+			const output = [{ result: "", details: "done" }]
+			expect(extractToolOutputText(output)).toBe('[{"result":"","details":"done"}]')
+		})
 	})
 
 	// ---------------------------------------------------------------------------
@@ -3769,6 +3774,47 @@ describe("MCP tool rendering (serverName__toolName convention)", () => {
 		expect(result.messages[0].partial).toBe(false)
 		expect(result.messages[1].say).toBe("mcp_server_response")
 		expect(result.messages[1].text).toBe("User: Max (self)")
+	})
+
+	it("content_end for MCP tool preserves an untyped object with an empty result", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "example__status",
+						toolCallId: "c-empty-result",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "example__status",
+						toolCallId: "c-empty-result",
+						output: [{ result: "", details: "done" }],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe('[{"result":"","details":"done"}]')
 	})
 
 	it("content_end for MCP tool with error shows error in response", () => {
