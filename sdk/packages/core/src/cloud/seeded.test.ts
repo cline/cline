@@ -184,6 +184,7 @@ describe("seeded cloud handoff controller", () => {
 		expect(order).toEqual(["persist", "read", "dispatch marker"]);
 		expect(f.api.create.mock.calls[0][0].organizationId).toBeUndefined();
 		expect(result.cwd).toBe("/workspace/packages/app");
+		expect(result.innerSessionId).toBe("inner-seeded");
 		expect(
 			f.calls.find((call) => call.name === "session.create")?.payload,
 		).toMatchObject({

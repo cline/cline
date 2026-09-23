@@ -1095,11 +1095,12 @@ export class CloudSessionController {
 		live.prompt = input.initialPrompt?.trim() || undefined;
 		live.config.mode = input.mode ?? "act";
 		this.sessions.set(record.id, live);
+		let innerSessionId: string | undefined;
 		try {
 			if (input.handoff) {
 				const messages = await input.handoff.resolveMessages();
 				this.assertSessionActive(record.id);
-				await this.seedHandoff(record.id, {
+				const seeded = await this.seedHandoff(record.id, {
 					sourceSessionId: input.handoff.sourceSessionId,
 					messages,
 					mode: input.mode,
@@ -1111,6 +1112,7 @@ export class CloudSessionController {
 					},
 					onSeeding: input.handoff.onSeeding,
 				});
+				innerSessionId = seeded.innerSessionId;
 			}
 		} catch (error) {
 			if (this.disposed && this.options.lateCreateDisposition === "delete")
@@ -1138,6 +1140,7 @@ export class CloudSessionController {
 			branch: input.branch ?? "",
 			cwd,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			...(innerSessionId ? { innerSessionId } : {}),
 			...(live.prompt ? { prompt: live.prompt } : {}),
 		};
 	}
