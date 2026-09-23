@@ -484,46 +484,6 @@ describe("Cloud sessions sidecar wiring", () => {
 		).toBe(true);
 	});
 
-	it("preserves first-task creation across a manager reset without recreating established tasks", async () => {
-		const api = {
-			list: async () => [structuredClone(REMOTE_SESSION)],
-			create: async () => ({
-				sessionId: REMOTE_SESSION.id,
-				status: "ready",
-				sandboxUrl: "pod",
-			}),
-		} as unknown as CloudSessionApi;
-		const { ctx, manager } = createFixture({ api });
-		await manager.create({
-			repoUrl: "https://github.com/cline/test",
-			modelId: "anthropic/claude-sonnet-5",
-		});
-		await resetCloudSessionManager(ctx);
-		const hub = new FakeHubClient(false);
-		const options = {
-			api,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		};
-		const replacement = new CloudSessionManager(ctx, options);
-		ctx.cloudSessionManager = replacement;
-		await replacement.attach(REMOTE_SESSION.id);
-		await replacement.send(REMOTE_SESSION.id, "Start the recovered task");
-		expect(
-			hub.commands.filter((entry) => entry.command === "session.create"),
-		).toHaveLength(1);
-		await resetCloudSessionManager(ctx);
-		const established = new CloudSessionManager(ctx, options);
-		await expect(established.attach(REMOTE_SESSION.id)).rejects.toThrow(
-			"task is unavailable",
-		);
-		expect(
-			hub.commands.filter((entry) => entry.command === "session.create"),
-		).toHaveLength(1);
-		await established.dispose();
-	});
-
 	it("creates a canonical session with the requested branch and approval policy", async () => {
 		const create = vi.fn(async () => ({
 			sessionId: "ses-created",

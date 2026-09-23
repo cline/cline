@@ -213,21 +213,4 @@ describe("desktop settings commands", () => {
 			handleCommand(ctx, "get_desktop_settings", {}),
 		).resolves.toEqual({ cloudSessionsEnabled: enabled });
 	});
-
-	it("reports the env override through the feature gate", async () => {
-		const { ctx } = createContext();
-		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-
-		await expect(
-			handleCommand(ctx, "get_feature_flags", {}),
-		).resolves.toMatchObject({
-			cloudAgents: true,
-			cloudAgentsAvailable: true,
-		});
-		// The toggle's stored value is reported as-is; the override only
-		// affects the effective gate.
-		await expect(
-			handleCommand(ctx, "get_desktop_settings", {}),
-		).resolves.toEqual({ cloudSessionsEnabled: false });
-	});
 });
