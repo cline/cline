@@ -1256,6 +1256,29 @@ describe("addLocalProvider – capabilities", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(models).toEqual([]);
 	});
+
+	it("surfaces LiteLLM model fetch failures instead of an empty list", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "wrong-key",
+				baseUrl: "http://localhost:4010",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response('{"error":"unauthorized"}', { status: 401 }),
+			),
+		);
+
+		await expect(
+			getLocalProviderModels("litellm", manager.getProviderConfig("litellm")),
+		).rejects.toThrow('HTTP 401: {"error":"unauthorized"}');
+	});
 });
 
 describe("audio transcription", () => {

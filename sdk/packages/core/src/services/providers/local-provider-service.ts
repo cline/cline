@@ -181,7 +181,10 @@ async function resolveProviderModelMap(
 			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
 			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
-			failOnError: false,
+			// LiteLLM has no bundled catalog to fall back on, so a swallowed
+			// endpoint failure (bad URL, 401, untrusted certificate) would show
+			// up as an empty picker with no explanation. Let it reach the UI.
+			failOnError: providerId === "litellm",
 		},
 		config,
 	);
