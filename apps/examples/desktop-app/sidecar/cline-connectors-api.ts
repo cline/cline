@@ -30,7 +30,6 @@ export type ConnectorsRequestContext = ClineAuthTelemetryContext & {
 
 const CONNECTORS_API_PATH = "/api/v1/connectors";
 const CONNECTORS_PAGE_SIZE = 200;
-const TOOLKIT_TOOL_LIMIT = 20;
 
 /** How often the connect waiter polls the caller's connections while the
  * user finishes the OAuth flow in their browser. */
@@ -210,7 +209,7 @@ export async function listConnections(
 }
 
 async function listAllConnectorPages<T>(
-	path: "/connections" | "/toolkits",
+	path: "/connections" | "/toolkits" | `/toolkits/${string}/tools`,
 	ctx?: ConnectorsRequestContext,
 ): Promise<T[]> {
 	ctx = { ...ctx, accountId: ctx?.accountId ?? getClineAccountId() };
@@ -270,19 +269,18 @@ export async function deleteConnection(
 }
 
 /**
- * `GET /api/v1/connectors/toolkits/{slug}/tools` — the toolkit's tool
- * schemas in provider importance order. Request the first 20 for local
- * materialization so large toolkits do not flood the session's tool set.
+ * `GET /api/v1/connectors/toolkits/{slug}/tools` — complete toolkit schemas
+ * in provider order. Fetch every page before
+ * returning so failed pagination cannot persist an incomplete tool set.
  */
 export async function listToolkitTools(
 	toolkit: ComposioToolkitSlug,
 	ctx?: ConnectorsRequestContext,
 ): Promise<ConnectorToolSchema[]> {
-	const response = await requestConnectorPage<ConnectorToolSchema>(
-		`/toolkits/${encodeURIComponent(toolkit)}/tools?limit=${TOOLKIT_TOOL_LIMIT}`,
+	return listAllConnectorPages<ConnectorToolSchema>(
+		`/toolkits/${encodeURIComponent(toolkit)}/tools`,
 		ctx,
 	);
-	return response.items.slice(0, TOOLKIT_TOOL_LIMIT);
 }
 
 /**

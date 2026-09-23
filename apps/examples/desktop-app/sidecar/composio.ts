@@ -487,7 +487,7 @@ function summarizeToolkit(
 	// A connected toolkit with zero materialized tools is a wedge, not a
 	// healthy state (sessions get nothing) — surface it instead of letting
 	// the card look fine. Reconciliation re-fetches the schemas on the next
-	// status refresh (see the self-heal arm in getComposioStatus).
+	// status refresh (see getComposioStatus).
 	const zeroToolsWarning =
 		status === "connected" && stored && stored.tools.length === 0
 			? "Connected, but no tools were retrieved from Composio yet. They are re-fetched automatically; if this persists, disconnect and reconnect."
@@ -558,6 +558,8 @@ export async function getComposioStatus(options?: {
 	}
 	// Reconcile with the proxy: connections can be revoked (or added) from the
 	// Composio dashboard, or by another device, without this app knowing.
+	// Refresh every active toolkit's schemas too: persisted tools may be
+	// incomplete or outdated. Ordinary status polling still uses local state.
 	try {
 		const refreshSequence = ++scope.operationSequence;
 		const connections = await listConnections({
@@ -614,15 +616,6 @@ export async function getComposioStatus(options?: {
 				removals.push(slug);
 			} else if (
 				remoteAccountId &&
-				(!stored ||
-					stored.connectedAccountId !== remoteAccountId ||
-					// Self-heal: a toolkit persisted with zero tools (the schema
-					// fetch returned empty at connect time — a transient hiccup,
-					// or state written by an older build) would otherwise stay
-					// wedged forever: reported as connected while sessions get no
-					// tools, with nothing ever re-fetching. Re-fetch instead of
-					// trusting the empty cache.
-					stored.tools.length === 0) &&
 				!scope.pendingConnections.has(slug) &&
 				// A connect mid-initiation owns the slug (its pending entry does
 				// not exist yet): a redirect-less attempt can already be ACTIVE
