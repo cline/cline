@@ -23,7 +23,7 @@ const {
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
-	startVercelStreamingTranscriptionMock,
+	startStreamingTranscriptionMock,
 	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
@@ -33,7 +33,7 @@ const {
 	speechInputMockState: {
 		current: null as MockSpeechInputProps | null,
 	},
-	startVercelStreamingTranscriptionMock: vi.fn(),
+	startStreamingTranscriptionMock: vi.fn(),
 	subscribeToProviderCatalogInvalidationMock: vi.fn<
 		(listener: () => void) => () => void
 	>(() => vi.fn()),
@@ -46,6 +46,7 @@ const {
 
 type MockSpeechInputProps = {
 	disabled?: boolean;
+	onAudioRecorded?: (audioBlob: Blob) => Promise<string>;
 	onError?: (error: unknown) => void;
 	onActiveChange?: (active: boolean) => void;
 	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
@@ -53,10 +54,7 @@ type MockSpeechInputProps = {
 	onStartStreaming?: () => Promise<unknown>;
 	onStreamingEnd?: () => void;
 	onStreamingStart?: () => void;
-	onTranscriptionChange?: (
-		transcript: string,
-		source?: "speech-recognition" | "media-recorder",
-	) => void;
+	onTranscriptionChange?: (transcript: string) => void;
 	recordingMode?: "auto" | "media-recorder" | "streaming";
 };
 
@@ -93,8 +91,8 @@ vi.mock("@/lib/provider-model-catalog", () => ({
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
 
-vi.mock("@/lib/vercel-streaming-transcription", () => ({
-	startVercelStreamingTranscription: startVercelStreamingTranscriptionMock,
+vi.mock("@/lib/streaming-transcription", () => ({
+	startStreamingTranscription: startStreamingTranscriptionMock,
 }));
 
 vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
@@ -120,7 +118,7 @@ beforeEach(() => {
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
 	toastMock.mockReset();
 	speechInputMockState.current = null;
-	startVercelStreamingTranscriptionMock.mockReset().mockResolvedValue({
+	startStreamingTranscriptionMock.mockReset().mockResolvedValue({
 		done: new Promise<void>(() => {}),
 		stop: vi.fn(),
 		cancel: vi.fn(),
@@ -857,7 +855,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const onTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -935,7 +933,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const onTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -976,7 +974,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const onTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -987,43 +985,37 @@ describe("ChatInputBar", () => {
 		expect(textarea?.value).toBe("alpha hello world omega");
 	});
 
-	it("adds browser speech-recognition chunks while recording remains active", async () => {
+	it.each([
+		{
+			providerId: "groq",
+			providerName: "Groq",
+			modelId: "whisper-large-v3-turbo",
+			modelName: "Whisper Large V3 Turbo",
+		},
+		{
+			providerId: "mistral",
+			providerName: "Mistral",
+			modelId: "voxtral-mini-latest",
+			modelName: "Voxtral Mini",
+		},
+	])("routes $providerName voice input through recorded audio", async (target) => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({
-				providerId: "openai-native",
-				providerName: "OpenAI",
-				modelId: "gpt-4o-mini-transcribe",
-				modelName: "GPT-4o mini Transcribe",
+				...target,
 				supportsStreaming: false,
 			}),
 		);
-		await renderVoiceComposer({ prompt: "alpha omega" });
+		await renderVoiceComposer();
 
 		await vi.waitFor(() =>
-			expect(speechInputMockState.current?.recordingMode).toBe("auto"),
+			expect(speechInputMockState.current?.recordingMode).toBe(
+				"media-recorder",
+			),
 		);
-		const textarea = container.querySelector<HTMLTextAreaElement>(
-			'textarea[role="combobox"]',
+		expect(speechInputMockState.current?.onAudioRecorded).toEqual(
+			expect.any(Function),
 		);
-		textarea?.setSelectionRange(6, 6);
-		await act(async () => {
-			speechInputMockState.current?.onActiveChange?.(true);
-			speechInputMockState.current?.onTranscriptionChange?.(
-				"hello",
-				"speech-recognition",
-			);
-		});
-
-		expect(textarea?.readOnly).toBe(true);
-		expect(textarea?.value).toBe("alpha hello omega");
-
-		await act(async () => {
-			speechInputMockState.current?.onTranscriptionChange?.(
-				"world",
-				"speech-recognition",
-			);
-		});
-		expect(textarea?.value).toBe("alpha hello world omega");
+		expect(speechInputMockState.current?.onStartStreaming).toBeUndefined();
 	});
 
 	it("discards a batch transcript after the draft lifecycle is replaced", async () => {
@@ -1047,7 +1039,7 @@ describe("ChatInputBar", () => {
 				container
 					.querySelector("[data-initial-recording-mode]")
 					?.getAttribute("data-initial-recording-mode"),
-			).toBe("auto");
+			).toBe("media-recorder");
 		});
 		const textarea = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
@@ -1120,7 +1112,9 @@ describe("ChatInputBar", () => {
 		await renderVoiceComposer({ prompt: "alpha omega" });
 
 		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe("auto");
+			expect(speechInputMockState.current?.recordingMode).toBe(
+				"media-recorder",
+			);
 		});
 		const textarea = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
@@ -1151,7 +1145,9 @@ describe("ChatInputBar", () => {
 		await renderVoiceComposer({ prompt: "alpha omega" });
 
 		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe("auto");
+			expect(speechInputMockState.current?.recordingMode).toBe(
+				"media-recorder",
+			);
 		});
 		const textarea = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
@@ -1267,7 +1263,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const oldSessionTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -1289,7 +1285,9 @@ describe("ChatInputBar", () => {
 			);
 		});
 		await vi.waitFor(() =>
-			expect(speechInputMockState.current?.recordingMode).toBe("auto"),
+			expect(speechInputMockState.current?.recordingMode).toBe(
+				"media-recorder",
+			),
 		);
 		await act(async () => oldSessionTranscript?.("late replacement"));
 
