@@ -3,6 +3,7 @@
 import {
 	CheckCircle2,
 	CircleAlert,
+	ExternalLink,
 	Loader2,
 	Plug,
 	Plus,
@@ -32,12 +33,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	createRemoteEnvironmentDraft,
 	DEFAULT_REMOTE_ENVIRONMENT_RUNTIME_STATE,
 	formatRemoteEnvironmentDestination,
 	normalizeRemoteEnvironmentProfile,
+	REMOTE_ENVIRONMENTS_DOCS_URL,
 	type RemoteEnvironmentDeleteResult,
 	type RemoteEnvironmentListResult,
 	type RemoteEnvironmentProfile,
@@ -50,6 +52,19 @@ import { cn } from "@/lib/utils";
 import { PageEmptyState, PageFrame, PageHeader } from "../page-layout";
 
 type RemoteAction = "save" | "test" | "delete";
+
+function DocsLink({ children }: { children: string }) {
+	return (
+		<button
+			className="inline-flex items-center gap-1 text-primary underline-offset-2 transition-colors hover:underline"
+			onClick={() => void openExternalUrl(REMOTE_ENVIRONMENTS_DOCS_URL)}
+			type="button"
+		>
+			{children}
+			<ExternalLink className="size-3" />
+		</button>
+	);
+}
 
 type BusyAction = {
 	action: RemoteAction;
@@ -378,7 +393,12 @@ export function RemoteEnvironmentsContent() {
 					</Button>
 				}
 				title="Remote Environments"
-				description="Manage your remote SSH hosts and their configurations."
+				description={
+					<>
+						Manage your remote SSH hosts and their configurations.{" "}
+						<DocsLink>Read the setup guide</DocsLink>
+					</>
+				}
 			/>
 
 			{error ? (
@@ -563,7 +583,8 @@ export function RemoteEnvironmentsContent() {
 							/>
 							<p className="text-xs text-muted-foreground">
 								Password sign-in is not supported. The host key must already be
-								trusted in your SSH known_hosts file.
+								trusted in your SSH known_hosts file.{" "}
+								<DocsLink>New to SSH?</DocsLink>
 							</p>
 						</div>
 

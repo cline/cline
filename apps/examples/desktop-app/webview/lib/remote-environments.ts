@@ -1,5 +1,9 @@
 export const DEFAULT_REMOTE_ENVIRONMENT_PORT = 22;
 
+/** Setup guide for first-time SSH users, linked from the spotlight and Settings → Remote. */
+export const REMOTE_ENVIRONMENTS_DOCS_URL =
+	"https://docs.cline.bot/usage/cline-desktop-ssh";
+
 export type {
 	RemoteEnvironmentInput as RemoteEnvironmentProfile,
 	RemoteEnvironmentStatus,

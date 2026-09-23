@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	BookOpen,
 	Check,
 	Folder,
 	FolderOpen,
@@ -19,6 +20,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { openExternalUrl } from "@/lib/desktop-client";
+import { REMOTE_ENVIRONMENTS_DOCS_URL } from "@/lib/remote-environments";
 
 export type SshRemoteEnvironmentsAnnouncementProps = {
 	open: boolean;
@@ -45,7 +48,7 @@ const STEPS: Array<{
 	{
 		icon: FolderOpen,
 		title: "Open a project on that machine",
-		body: "Add project… in the workspace picker browses the host's folders. Recent workspaces are remembered per host.",
+		body: "Open folder… in the workspace picker browses the host's folders. Recent workspaces are remembered per host.",
 	},
 ];
 
@@ -151,12 +154,23 @@ export function SshRemoteEnvironmentsAnnouncement({
 					</ol>
 				</div>
 				<p className="text-xs text-muted-foreground">
-					Key-based authentication and SSH config aliases are supported. Linux
-					hosts (x64 and arm64) are supported today.
+					Works with Linux and macOS hosts you can already reach with{" "}
+					<code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">
+						ssh user@host
+					</code>{" "}
+					using a key. New to SSH? The setup guide walks through creating a key
+					and trusting the host.
 				</p>
 				<DialogFooter>
-					<Button onClick={() => onOpenChange(false)} variant="outline">
+					<Button onClick={() => onOpenChange(false)} variant="ghost">
 						Maybe later
+					</Button>
+					<Button
+						onClick={() => void openExternalUrl(REMOTE_ENVIRONMENTS_DOCS_URL)}
+						variant="outline"
+					>
+						<BookOpen />
+						Read the setup guide
 					</Button>
 					<Button onClick={onSetUpHost}>Set up an SSH host</Button>
 				</DialogFooter>

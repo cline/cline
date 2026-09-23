@@ -3,7 +3,14 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { REMOTE_ENVIRONMENTS_DOCS_URL } from "@/lib/remote-environments";
 import { SshRemoteEnvironmentsAnnouncement } from "./ssh-remote-environments-announcement";
+
+const { openExternalUrl } = vi.hoisted(() => ({
+	openExternalUrl: vi.fn(async () => {}),
+}));
+
+vi.mock("@/lib/desktop-client", () => ({ openExternalUrl }));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -97,6 +104,18 @@ describe("SshRemoteEnvironmentsAnnouncement", () => {
 		await click(buttonNamed("Set up an SSH host"));
 
 		expect(onSetUpHost).toHaveBeenCalledTimes(1);
+		expect(onOpenChange).not.toHaveBeenCalled();
+	});
+
+	it("opens the setup guide without closing or routing to setup", async () => {
+		const onSetUpHost = vi.fn();
+		const onOpenChange = vi.fn();
+		await render({ open: true, onSetUpHost, onOpenChange });
+
+		await click(buttonNamed("Read the setup guide"));
+
+		expect(openExternalUrl).toHaveBeenCalledWith(REMOTE_ENVIRONMENTS_DOCS_URL);
+		expect(onSetUpHost).not.toHaveBeenCalled();
 		expect(onOpenChange).not.toHaveBeenCalled();
 	});
 
