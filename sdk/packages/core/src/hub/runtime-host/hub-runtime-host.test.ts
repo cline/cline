@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../../package.json";
 import { createSessionCompactionState } from "../../session/models/session-compaction";
 import { SessionSource } from "../../types/common";
+import type { HubTransportContext } from "../server/handlers/context";
+import { projectSessionEvent } from "../server/handlers/session-event-projector";
 
 const commandMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
@@ -1090,7 +1092,11 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
-	it("maps hub usage updates back to agent usage events with identity", async () => {
+	it.each([
+		undefined,
+		0,
+		4,
+	])("round-trips projected usage with reasoning=%s and agent identity", async (reasoningTokenCount) => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
 			onEvent = listener;
@@ -1120,32 +1126,45 @@ describe("HubRuntimeHost", () => {
 			prompt: "Hey",
 		});
 
-		onEvent?.({
-			version: "v1",
-			event: "usage.updated",
-			sessionId: "sess-1",
+		const ctx = {
+			sessionHost: {
+				getAccumulatedUsage: vi.fn().mockResolvedValue(undefined),
+			},
+			buildEvent: vi.fn<HubTransportContext["buildEvent"]>(
+				(event, payload, sessionId) => ({
+					version: "v1",
+					event,
+					payload,
+					sessionId,
+				}),
+			),
+			publish: (event: HubEventEnvelope) => {
+				// Exercise the wire representation, including omitted optional fields.
+				onEvent?.(JSON.parse(JSON.stringify(event)));
+			},
+		} as unknown as HubTransportContext;
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
 			payload: {
-				delta: {
+				sessionId: "sess-1",
+				teamAgentId: "investigator",
+				teamRole: "teammate",
+				event: {
+					type: "usage",
+					agentId: "agent-teammate-1",
+					conversationId: "conv-teammate-1",
+					parentAgentId: "lead",
 					inputTokens: 7,
 					outputTokens: 5,
 					cacheReadTokens: 2,
 					cacheWriteTokens: 1,
-					totalCost: 0.12,
-				},
-				totals: {
-					inputTokens: 17,
-					outputTokens: 8,
-					cacheReadTokens: 3,
-					cacheWriteTokens: 3,
+					cost: 0.12,
+					reasoningTokenCount,
+					totalInputTokens: 17,
+					totalOutputTokens: 8,
+					totalCacheReadTokens: 3,
+					totalCacheWriteTokens: 3,
 					totalCost: 0.23,
-				},
-				agent: {
-					kind: "teammate",
-					agentId: "agent-teammate-1",
-					conversationId: "conv-teammate-1",
-					parentAgentId: "lead",
-					teamAgentId: "investigator",
-					teamRole: "teammate",
 				},
 			},
 		});
@@ -1168,6 +1187,7 @@ describe("HubRuntimeHost", () => {
 							cacheReadTokens: 2,
 							cacheWriteTokens: 1,
 							cost: 0.12,
+							reasoningTokenCount,
 							totalInputTokens: 17,
 							totalOutputTokens: 8,
 							totalCacheReadTokens: 3,
