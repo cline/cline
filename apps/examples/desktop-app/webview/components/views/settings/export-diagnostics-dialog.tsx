@@ -106,8 +106,8 @@ export function ExportDiagnosticsDialog({
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="grid max-h-[min(640px,calc(100dvh-2rem))] w-[min(560px,calc(100vw-2rem))] max-w-none grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:max-w-none">
-				<DialogHeader>
+			<DialogContent className="grid max-h-[min(640px,calc(100dvh-2rem))] w-[min(560px,calc(100vw-2rem))] max-w-none grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 sm:max-w-none">
+				<DialogHeader className="min-w-0">
 					<DialogTitle>Export diagnostics</DialogTitle>
 					<DialogDescription>
 						Saves a text file with app info, recent logs, and the metadata of
@@ -115,7 +115,7 @@ export function ExportDiagnosticsDialog({
 						are never included.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex min-h-0 flex-col gap-2">
+				<div className="flex min-h-0 min-w-0 flex-col gap-2">
 					<p className="text-sm font-medium text-foreground">Sessions</p>
 					{loading ? (
 						<div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
