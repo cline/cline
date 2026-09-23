@@ -671,8 +671,10 @@ function ConnectorDetailDialog({
 										<dd className="text-foreground">
 											{status === "connected" && toolNames.length > 0 ? (
 												<>
-													{toolNames.length}/
-													{entry.toolsCount ?? toolNames.length}{" "}
+													{toolNames.length}
+													{typeof entry.toolsCount === "number"
+														? `/${entry.toolsCount}`
+														: null}{" "}
 													<span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 														available in new sessions
 													</span>

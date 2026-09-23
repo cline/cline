@@ -8,6 +8,17 @@ import {
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {
+	it("excludes display-only entries from agent input", () => {
+		expect(
+			messagesToAgentMessages([
+				{
+					role: "assistant",
+					content: "error only for the user",
+					metadata: { displayOnly: true, displayRole: "error" },
+				},
+			]),
+		).toEqual([]);
+	});
 	it("projects provider activity with the same persisted payload as a local tool", () => {
 		const nativeSearchResults = [
 			{
