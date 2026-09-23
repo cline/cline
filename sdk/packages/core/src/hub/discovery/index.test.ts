@@ -337,10 +337,13 @@ describe("hub discovery", () => {
 			NO_PROXY: process.env.NO_PROXY,
 			no_proxy: process.env.no_proxy,
 		};
-		process.env.HTTP_PROXY = "http://127.0.0.1:59999";
+		// Clear before setting: on Windows process.env is case-insensitive, so
+		// deleting http_proxy after assigning HTTP_PROXY would remove the
+		// variable that was just set and the bypass would correctly do nothing.
 		delete process.env.http_proxy;
 		delete process.env.NO_PROXY;
 		delete process.env.no_proxy;
+		process.env.HTTP_PROXY = "http://127.0.0.1:59999";
 		const fetchMock = async () =>
 			({
 				ok: true,
