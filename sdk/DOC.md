@@ -66,6 +66,49 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
+## Shared composer presentation
+
+`@cline/ui` exports `AgentComposer` and the `AgentComposerBody`,
+`AgentComposerField`, `AgentComposerTextarea`, `AgentComposerActions`,
+`AgentComposerStopButton`, `AgentComposerSendButton`,
+`AgentComposerAttachments`, `AgentComposerSettings`,
+`AgentComposerSettingsGroup`, and `AgentComposerSettingsEnd` primitives, along
+with their prop types and `AgentComposerVariant`. They preserve the desktop
+welcome and conversation presentation while forwarding native element props and
+refs.
+
+```tsx
+import {
+  AgentComposer,
+  AgentComposerActions,
+  AgentComposerBody,
+  AgentComposerField,
+  AgentComposerSendButton,
+  AgentComposerTextarea,
+} from "@cline/ui";
+
+<AgentComposer variant={welcome ? "welcome" : "conversation"}>
+  <AgentComposerBody hasQueue={queue.length > 0}>
+    <AgentComposerField>
+      <AgentComposerTextarea value={draft} onChange={handleDraftChange} />
+      <AgentComposerActions>
+        <AgentComposerSendButton type="button" onClick={send}>
+          Send
+        </AgentComposerSendButton>
+      </AgentComposerActions>
+    </AgentComposerField>
+  </AgentComposerBody>
+</AgentComposer>;
+```
+
+Variant-aware descendants inherit the parent composer variant unless they set
+an explicit override. The host owns drafts, keyboard/IME/paste and focus
+behavior, suggestions, attachments, queue operations, model/settings controls,
+voice controls, and send/stop state and callbacks. These exports provide
+presentation only; they do not implement a runtime composer or implicit form
+submission. Import the shared tokens and `@cline/ui/components.css` using the
+[package adoption setup](./packages/ui/ADOPTION.md).
+
 
 ## Concurrent subagent tool calls
 
