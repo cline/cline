@@ -28,9 +28,9 @@ export type SshRemoteEnvironmentsAnnouncementProps = {
 };
 
 const STEPS = [
-	"Add a host in Settings → Remote",
-	"Pick it from the environment selector",
-	"Open a project on that machine",
+	"Add a host under Settings → Remote and test the connection.",
+	"Pick it from the environment selector beside the workspace picker.",
+	"Choose Open folder… to open a project on that machine.",
 ];
 
 /**
@@ -110,11 +110,11 @@ export function SshRemoteEnvironmentsAnnouncement({
 					<EnvironmentSelectorPreview />
 					<ol className="flex flex-col gap-5">
 						{STEPS.map((step, index) => (
-							<li className="flex items-center gap-3" key={step}>
-								<span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground">
+							<li className="flex items-start gap-3" key={step}>
+								<span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-medium text-muted-foreground">
 									{index + 1}
 								</span>
-								<span className="text-sm font-medium">{step}</span>
+								<span className="pt-0.5 text-sm leading-snug">{step}</span>
 							</li>
 						))}
 					</ol>
