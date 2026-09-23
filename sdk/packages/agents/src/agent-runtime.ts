@@ -51,6 +51,13 @@ import {
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
+/** A model request after turn preparation, ready to be issued (possibly more than once). */
+interface PreparedModelRequest {
+	request: AgentModelRequest;
+	/** When preparation began; anchors the provider-request lifecycle timings. */
+	startedAt: number;
+}
+
 const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
@@ -1513,17 +1520,10 @@ export class AgentRuntime {
 		}
 	}
 
-	private async generateAssistantMessageForRequest(
-		steerController: AbortController,
-		options?: {
-			overflowRecovery?: boolean;
-		},
-	): Promise<{
-		message: AgentMessage;
-		finishReason: AgentModelFinishReason;
-		interrupted?: boolean;
-	}> {
-		const usageBeforeModel = cloneUsage(this.state.usage);
+	/** A model request with turn preparation and before-model hooks applied. */
+	private async prepareModelRequest(options?: {
+		overflowRecovery?: boolean;
+	}): Promise<PreparedModelRequest> {
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
 			clientName: trimNonEmpty(this.config.clientName),
@@ -1550,9 +1550,7 @@ export class AgentRuntime {
 			}),
 		};
 
-		const taskLifecycleStartedAt = Date.now();
-		const getTaskLifecycleDurationMs = () =>
-			Date.now() - taskLifecycleStartedAt;
+		const startedAt = Date.now();
 
 		if (this.state.iteration > 1) {
 			const pendingUserMessage = await this.consumePendingUserMessage();
@@ -1604,6 +1602,40 @@ export class AgentRuntime {
 					: undefined,
 			...summarizeModelRequest(request),
 		});
+
+		return { request, startedAt };
+	}
+
+	private async generateAssistantMessageForRequest(
+		steerController: AbortController,
+		options?: {
+			overflowRecovery?: boolean;
+		},
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const prepared = await this.prepareModelRequest(options);
+		return await this.streamPreparedRequest(prepared, steerController);
+	}
+
+	/**
+	 * Issue a prepared request and assemble the assistant turn from its stream.
+	 * Separate from preparation so a prepared request can be re-issued (e.g.
+	 * after a transient provider error) without re-running turn preparation.
+	 */
+	private async streamPreparedRequest(
+		prepared: PreparedModelRequest,
+		steerController: AbortController,
+	): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+		interrupted?: boolean;
+	}> {
+		const usageBeforeModel = cloneUsage(this.state.usage);
+		const getTaskLifecycleDurationMs = () => Date.now() - prepared.startedAt;
+		let request = prepared.request;
 
 		this.throwIfAborted();
 		this.captureTaskLifecycle(TASK_PROVIDER_REQUEST_STARTED_EVENT, {
