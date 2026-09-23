@@ -1124,11 +1124,6 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
  * in providers.generated.ts and only retain Cline-owned behavior here.
  */
 const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
-	// Keep the coding default generative; catalog recency also includes encoders.
-	{
-		id: "pioneer",
-		defaultModelId: "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16",
-	},
 	{
 		id: "openai-native",
 		name: "OpenAI",
@@ -1249,8 +1244,6 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "vertex",
-		// Gemini supports API-key-only Vertex configurations; Claude requires Google auth.
-		defaultModelId: "gemini-3.8-flash",
 		name: "Google Vertex AI",
 		description: "Google Cloud Vertex AI",
 		family: "vertex",

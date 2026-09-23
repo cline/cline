@@ -279,14 +279,6 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
-	it.each([
-		["vertex", "gemini-3.8-flash"],
-		["pioneer", "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16"],
-	])("keeps a compatible coding default for %s", async (providerId, modelId) => {
-		expect((await getProvider(providerId))?.defaultModelId).toBe(modelId);
-		expect((await getModelsForProvider(providerId))[modelId]).toBeDefined();
-	});
-
 	it("registers ElevenLabs Scribe v2 as a dedicated transcription provider", async () => {
 		await expect(getProvider("elevenlabs")).resolves.toMatchObject({
 			id: "elevenlabs",
