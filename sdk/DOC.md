@@ -40,8 +40,7 @@ host. Importing this subpath does not start a local agent.
 Use `subscribe` for immutable snapshots and live events, `attach`/`readMessages`
 to open a session, and `send` for a follow-up. Attaching a provisioning or failed
 session returns its receipt without connecting. `detach` closes this viewer, not
-the remote task. Call `dispose` when the host shuts down. This foundation does
-not include local-to-cloud handoff.
+the remote task. Call `dispose` when the host shuts down.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
@@ -52,6 +51,16 @@ through `restoreCreationOptions`, until the inner task is found or created (or
 the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
+
+## Experimental cloud handoff
+
+Hosts can use `create({ handoff, ... })` or `seedHandoff(id, seed)`.
+Both return the seeded `innerSessionId`; `create` also returns the outer `sessionId`.
+Persist the outer target and seed-dispatch marker through the provided callbacks.
+After an uncertain dispatch, `recoverOnly` adopts an existing matching conversation
+but never creates a replacement. `verifyHandoffTranscript` checks persisted read-back.
+`waitUntilReady(id)` explicitly waits for provisioning; ordinary `attach(id)` keeps
+returning a provisioning receipt immediately. Hosts own feature gates and draft recovery.
 
 ## Voice input models
 
