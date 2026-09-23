@@ -71,13 +71,19 @@ describe("AgentContextUsage", () => {
 
 	it.each([
 		[undefined, false],
+		[null, false],
 		["", false],
 		[false, false],
 		[Number.NaN, false],
 		[0, true],
+		["$0.014", true],
 	] as const)("preserves cost-row visibility for %p", (costLabel, visible) => {
 		const markup = render(usage, costLabel);
-		expect(markup.includes(">Cost<")).toBe(visible);
+		if (visible) {
+			expect(markup).toContain(">Cost<");
+		} else {
+			expect(markup).not.toContain(">Cost<");
+		}
 		if (costLabel === 0) {
 			expect(markup).toMatch(/>Cost<\/span><span[^>]*>0<\/span>/);
 		}
