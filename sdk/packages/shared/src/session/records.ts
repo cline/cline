@@ -1,10 +1,7 @@
 export const SESSION_STATUS_VALUES = [
-	// Session exists but has never received a user prompt. Use for interactive
-	// runtimes created before input arrives; transition to running/pending when
-	// the first prompt is dispatched. Discovery should normally hide this state.
-	"new",
-	// The session is available for input and no turn is executing. Use after a
-	// turn completes or when an interactive session is ready between prompts.
+	// The session is available for input and no turn is executing. Use both for
+	// a newly created session waiting for its first prompt and after a turn
+	// completes; an idle session with no prompt/messages is effectively new.
 	"idle",
 	// A turn is actively executing. Use from first prompt dispatch until the
 	// runtime emits a terminal result or cancellation.

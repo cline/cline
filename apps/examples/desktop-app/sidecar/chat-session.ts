@@ -388,7 +388,7 @@ function createLiveSession(
 		promptsInQueue: overrides?.promptsInQueue ?? [],
 		busy: false,
 		startedAt: nowMs(),
-		status: overrides?.status ?? "new",
+		status: overrides?.status ?? "idle",
 		prompt: overrides?.prompt,
 		title: overrides?.title,
 		attachedViaHub: overrides?.attachedViaHub ?? false,
@@ -1062,7 +1062,7 @@ async function handleStart(
 				requestedSessionId && binding.kind === "local"
 					? readSessionMetadataTitle(requestedSessionId)
 					: undefined,
-			status: "new",
+			status: "idle",
 		},
 	);
 	ctx.liveSessions.set(sessionId, session);

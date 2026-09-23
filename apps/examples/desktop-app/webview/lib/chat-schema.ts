@@ -25,7 +25,6 @@ export const ChatSessionConfigSchema = z.object({
 });
 
 export const ChatSessionStatusSchema = z.enum([
-	"new",
 	"idle",
 	"starting",
 	"running",
