@@ -765,9 +765,13 @@ export async function listLocalProviders(
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
 				]);
+				// LiteLLM's registered collection is only a default-model
+				// placeholder; the proxy owns the real list (see
+				// resolveProviderModelMap). Listing it here would surface a
+				// phantom model whenever the live refresh fails.
 				const modelList = applyClineFeaturedModels(
 					id,
-					toSortedProviderModels(registeredModels),
+					toSortedProviderModels(id === "litellm" ? {} : registeredModels),
 					featuredData,
 				);
 				const directSettings = state.providers[id]?.settings;

@@ -1270,8 +1270,7 @@ describe("addLocalProvider – capabilities", () => {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(
-				async () =>
-					new Response('{"error":"unauthorized"}', { status: 401 }),
+				async () => new Response('{"error":"unauthorized"}', { status: 401 }),
 			),
 		);
 
@@ -2260,10 +2259,9 @@ describe("listLocalProviders", () => {
 		const litellm = providers.find((provider) => provider.id === "litellm");
 
 		expect(fetchMock).not.toHaveBeenCalled();
-		expect(litellm?.modelList?.length).toBeGreaterThan(0);
-		expect(
-			litellm?.modelList?.some((model) => model.id === "team/private-model"),
-		).toBe(false);
+		// No bundled placeholder either: the list is empty until the proxy
+		// answers, so a failed refresh cannot leave a phantom model behind.
+		expect(litellm?.modelList).toEqual([]);
 	});
 });
 
