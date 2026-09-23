@@ -1,3 +1,4 @@
+import { isUserRunMessage, resolveMessageDisplayRole } from "@cline/core";
 import { formatDisplayUserInput } from "@cline/shared";
 import { readSessionManifest } from "../paths";
 import type { JsonRecord } from "../types";
@@ -138,14 +139,27 @@ export function derivePromptFromMessages(
 				? (record.metadata as JsonRecord)
 				: undefined;
 		if (
-			typeof metadata?.kind === "string" &&
-			metadata.kind === "recovery_notice"
+			!isUserRunMessage(record) ||
+			resolveMessageDisplayRole(record) !== "user" ||
+			metadata?.kind === "compaction" ||
+			metadata?.kind === "compaction_summary"
 		) {
 			continue;
 		}
 		const content = stringifyMessageContent(record.content);
 		if (content.trim()) {
 			return content.trim();
+		}
+		if (
+			Array.isArray(record.content) &&
+			record.content.some(
+				(block) =>
+					block &&
+					typeof block === "object" &&
+					(block as JsonRecord).type === "file",
+			)
+		) {
+			return "[file]";
 		}
 	}
 	return undefined;

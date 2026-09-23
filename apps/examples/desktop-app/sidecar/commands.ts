@@ -680,10 +680,15 @@ async function listSessionsFromSidecarManager(
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
 						: undefined,
 				);
-				if (binding.kind === "local" && !isSidebarSessionWithPrompt(merged)) {
-					merged.prompt = derivePromptFromMessages(
-						readPersistedChatMessages(sessionId) ?? [],
-					);
+				if (!isSidebarSessionWithPrompt(merged)) {
+					// Attachment-only sessions may have no textual prompt metadata.
+					const messages =
+						binding.kind === "local"
+							? readPersistedChatMessages(sessionId)
+							: await binding.sessionManager
+									.readMessages(sessionId)
+									.catch(() => []);
+					merged.prompt = derivePromptFromMessages(messages ?? []);
 				}
 				if (!isSidebarSessionWithPrompt(merged)) continue;
 				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
@@ -706,9 +711,11 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
-			session.prompt ||= derivePromptFromMessages(
-				readPersistedChatMessages(session.sessionId) ?? [],
-			);
+			session.prompt =
+				session.prompt?.trim() ||
+				derivePromptFromMessages(
+					readPersistedChatMessages(session.sessionId) ?? [],
+				);
 			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
 				continue;
 			}
