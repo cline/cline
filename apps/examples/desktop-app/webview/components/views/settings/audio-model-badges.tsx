@@ -1,4 +1,4 @@
-import { AudioWaveform, Mic, RadioOff } from "lucide-react";
+import { AudioWaveform, Mic, WifiOff } from "lucide-react";
 import type { ProviderModel } from "@/lib/provider-schema";
 
 /** Operation and execution-mode labels shared by the voice and provider catalogs. */
@@ -31,7 +31,7 @@ export function AudioModelBadges({ model }: { model: ProviderModel }) {
 					title="Streaming not supported"
 					className="shrink-0 text-muted-foreground"
 				>
-					<RadioOff aria-hidden="true" className="size-3.5" />
+					<WifiOff aria-hidden="true" className="size-3.5" />
 				</span>
 			) : null}
 		</>
