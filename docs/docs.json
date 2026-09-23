@@ -106,6 +106,7 @@
 						"group": "Usage",
 						"pages": [
 							"usage/cline-desktop",
+							"usage/cline-desktop-ssh",
 							"usage/ide",
 							"usage/tui",
 							{
