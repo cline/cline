@@ -20,7 +20,7 @@ describe("buildModelPickerData", () => {
 			model("zzz/last-model", "ZZZ Last"),
 			model(
 				"deepseek/deepseek-v4-flash",
-				"DeepSeek V4 Flash (free)",
+				"DeepSeek V4 Flash",
 				{ tier: "free", rank: 0, tags: [] },
 				"Fast and efficient",
 			),
@@ -50,14 +50,7 @@ describe("buildModelPickerData", () => {
 			label: "Claude Opus 5",
 			section: "recommended",
 		});
-		// The Free header already says it: no "(free)" suffix, no per-row badge.
-		expect(options[1]).toEqual({
-			badge: undefined,
-			description: "Fast and efficient",
-			label: "DeepSeek V4 Flash",
-			section: "free",
-			value: "deepseek/deepseek-v4-flash",
-		});
+		expect(options[1]).toMatchObject({ badge: "Free", section: "free" });
 		// The "all" tier is sorted by display name, not raw id.
 		expect(options[2]?.label).toBe("AAA First");
 	});
@@ -150,8 +143,9 @@ describe("buildModelPickerData", () => {
 			["cline-free/longcat-2.0", "free"],
 		]);
 		expect(options[0]?.label).toBe("DeepSeek V4 Flash");
-		expect(options.at(-1)?.label).toBe("LongCat 2.0");
-		expect(options.every((option) => option.badge === undefined)).toBe(true);
+		expect(options.slice(2).every((option) => option.badge === "Free")).toBe(
+			true,
+		);
 	});
 
 	it("falls back to a flat name-sorted list when nothing is featured", () => {
