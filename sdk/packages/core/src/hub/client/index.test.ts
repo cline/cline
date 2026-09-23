@@ -260,6 +260,7 @@ describe("NodeHubClient", () => {
 				await client.connect();
 				MockWebSocket.instances[0].emit("close", { code: 1006, reason: "" });
 				let cancelled = false;
+				const onDispatch = vi.fn();
 				const beforeDispatch = vi.fn(() => {
 					if (cancelled) throw new Error("cancelled");
 				});
@@ -269,11 +270,13 @@ describe("NodeHubClient", () => {
 					"task",
 					{
 						beforeDispatch,
+						onDispatch,
 					},
 				);
 				expect(beforeDispatch).not.toHaveBeenCalled();
 				cancelled = true;
 				await expect(command).rejects.toThrow("cancelled");
+				expect(onDispatch).not.toHaveBeenCalled();
 				expect(MockWebSocket.instances[1].sentFrames).not.toContainEqual(
 					expect.objectContaining({
 						envelope: expect.objectContaining({
@@ -289,8 +292,18 @@ describe("NodeHubClient", () => {
 				await expect(
 					client.command("session.send_input", { prompt: "new" }, "task", {
 						beforeDispatch,
+						onDispatch,
 					}),
 				).resolves.toMatchObject({ ok: true });
+				expect(onDispatch).toHaveBeenCalledOnce();
+				expect(MockWebSocket.instances[1].sentFrames).toContainEqual(
+					expect.objectContaining({
+						envelope: expect.objectContaining({
+							requestId: onDispatch.mock.calls[0][0],
+							command: "session.send_input",
+						}),
+					}),
+				);
 			} finally {
 				await client.dispose();
 			}
