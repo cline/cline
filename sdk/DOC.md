@@ -30,6 +30,7 @@ Call `prepare()`, confirm the repository, branch, and model, then `execute()`.
 Execution revalidates the source and returns a verified target without sending a follow-up.
 
 Lower-level hosts can use `create({ handoff, ... })` or `seedHandoff(id, seed)`.
+Both return the seeded `innerSessionId`; `create` also returns the outer `sessionId`.
 Persist the outer target and seed-dispatch marker through the provided callbacks.
 After an uncertain dispatch, `recoverOnly` adopts an existing matching conversation
 but never creates a replacement. `verifyHandoffTranscript` checks persisted read-back.
