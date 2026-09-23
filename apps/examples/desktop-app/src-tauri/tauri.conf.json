@@ -37,6 +37,10 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
+		"category": "DeveloperTool",
+		"shortDescription": "Cline AI coding agent",
+		"longDescription": "Cline is an AI coding agent. It reads your code, edits files, runs commands, and works through tasks with you in any project on your machine.",
+		"homepage": "https://cline.bot",
 		"externalBin": ["bin/code-sidecar"],
 		"resources": [
 			"icons/app/*.png",
