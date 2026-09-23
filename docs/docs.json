@@ -105,8 +105,13 @@
 					{
 						"group": "Usage",
 						"pages": [
-							"usage/cline-desktop",
-							"usage/cline-desktop-ssh",
+							{
+								"group": "Cline Desktop",
+								"pages": [
+									"usage/cline-desktop",
+									"usage/cline-desktop-ssh"
+								]
+							},
 							"usage/ide",
 							"usage/tui",
 							{
