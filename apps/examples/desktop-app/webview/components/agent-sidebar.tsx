@@ -1,6 +1,12 @@
 "use client";
 
 import {
+	AgentSessionOverview,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+} from "@cline/ui";
+
+import {
 	ArrowLeft,
 	ArrowRight,
 	Blocks,
@@ -1513,27 +1519,11 @@ function ThreadItem({
 	const rowText = label ?? title;
 	const overviewTitle = getSessionOverviewTitle(title);
 	const pending = pendingAction !== null;
-	const statusDotClass = pending
-		? "bg-yellow-400"
-		: thread.status === "provisioning"
-			? "animate-pulse bg-yellow-400"
-			: thread.status === "running"
-				? "bg-green-500"
-				: unread
-					? "bg-blue-500"
-					: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
 		return (
-			<div
-				className={cn(
-					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2",
-					isActive
-						? "bg-surface-hover text-sidebar-foreground"
-						: "text-sidebar-foreground/80",
-				)}
-			>
+			<AgentSessionRowEditor active={isActive}>
 				<EditableSessionTitle
 					disabled={pendingAction === "rename"}
 					onCancel={onCancelRename}
@@ -1544,7 +1534,7 @@ function ThreadItem({
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />
 				) : null}
-			</div>
+			</AgentSessionRowEditor>
 		);
 	}
 
@@ -1558,24 +1548,24 @@ function ThreadItem({
 			>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
-						{/* The delete affordance is a sibling of the row button
-						    (buttons cannot nest), overlaid where the timestamp
-						    sits; group/row hover swaps the two and keeps the
-						    row's hover background while the pointer is on the
-						    trash button. */}
-						<div className="group/row relative min-w-0">
-							<button
-								className={cn(
-									"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
-									isActive
-										? "bg-surface-hover text-sidebar-foreground"
-										: "text-sidebar-foreground/80 group-hover/row:bg-surface-hover",
-								)}
-								disabled={pending}
-								onClick={onClick}
-								type="button"
-							>
-								<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden">
+						<AgentSessionRow
+							active={isActive}
+							disabled={pending}
+							status={
+								pending
+									? "pending"
+									: thread.status === "provisioning"
+										? "provisioning"
+										: thread.status === "running"
+											? "running"
+											: "idle"
+							}
+							unread={unread}
+							label={rowText}
+							timestamp={thread.time}
+							onSelect={onClick}
+							leading={
+								<>
 									{thread.origin === "cloud" ? (
 										<Cloud
 											aria-label="Cloud session"
@@ -1588,41 +1578,31 @@ function ThreadItem({
 											className="size-3 shrink-0 text-muted-foreground"
 										/>
 									) : null}
-									<span className="block min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-										{rowText}
-									</span>
-								</span>
-								<span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
-									{statusDotClass ? (
-										<span
-											aria-hidden="true"
-											className={cn("size-1.5 rounded-full", statusDotClass)}
-										/>
-									) : null}
-									{thread.pinned ? (
-										<Pin aria-label="Pinned" className="size-3 fill-current" />
-									) : null}
-									<span className="group-hover/row:invisible">
-										{thread.time}
-									</span>
-								</span>
-							</button>
-							<Button
-								aria-label={`Delete ${title}`}
-								className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
-								disabled={pending}
-								onClick={(event) => {
-									event.stopPropagation();
-									onDelete();
-								}}
-								size="icon"
-								title="Delete session"
-								type="button"
-								variant="ghost"
-							>
-								<Trash2 className="size-3.5" />
-							</Button>
-						</div>
+								</>
+							}
+							pinnedIndicator={
+								thread.pinned ? (
+									<Pin aria-label="Pinned" className="size-3 fill-current" />
+								) : null
+							}
+							action={
+								<Button
+									aria-label={`Delete ${title}`}
+									className="absolute top-1/2 right-1 size-6 -translate-y-1/2 justify-center px-0 text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:text-destructive focus-visible:opacity-100"
+									disabled={pending}
+									onClick={(event) => {
+										event.stopPropagation();
+										onDelete();
+									}}
+									size="icon"
+									title="Delete session"
+									type="button"
+									variant="ghost"
+								>
+									<Trash2 className="size-3.5" />
+								</Button>
+							}
+						/>
 					</HoverCardTrigger>
 				</ContextMenuTrigger>
 				<HoverCardContent
@@ -1636,24 +1616,7 @@ function ThreadItem({
 					side="right"
 					sideOffset={8}
 				>
-					<div className="min-w-0 space-y-2">
-						<div className="wrap-break-word text-sm font-medium">
-							{overviewTitle}
-						</div>
-						<div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
-							{infoItems.map(([label, value, fullValue]) => (
-								<div className="contents" key={label}>
-									<span className="text-muted-foreground">{label}</span>
-									<span
-										className="min-w-0 truncate font-mono text-foreground"
-										title={fullValue}
-									>
-										{value}
-									</span>
-								</div>
-							))}
-						</div>
-					</div>
+					<AgentSessionOverview title={overviewTitle} items={infoItems} />
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent

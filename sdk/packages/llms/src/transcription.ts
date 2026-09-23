@@ -1,5 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import type { GatewayProviderMetadata } from "@cline/shared";
+import type {
+	GatewayProviderMetadata,
+	StreamingAudioTranscriptionSession,
+} from "@cline/shared";
+
+export type { StreamingAudioTranscriptionSession } from "@cline/shared";
+
 import { experimental_transcribe as transcribe } from "ai";
 import { BUILTIN_PROVIDER_MANIFESTS_BY_ID } from "./providers/builtins";
 import {
@@ -38,12 +44,6 @@ export interface StreamingAudioTranscriptionSessionRequest {
 	modelId: string;
 	expiresAfterSeconds?: number;
 	abortSignal?: AbortSignal;
-}
-
-export interface StreamingAudioTranscriptionSession {
-	token: string;
-	url: string;
-	expiresAt?: number;
 }
 
 export interface AudioTranscriptionRoute {
@@ -246,6 +246,9 @@ export async function createStreamingAudioTranscriptionSession(
 		throw new Error("A streaming transcription model is required");
 	}
 	const route = resolveAudioTranscriptionRoute(request.providerConfig);
+	if (route.transport === "elevenlabs") {
+		return createElevenLabsStreamingSession(request, route);
+	}
 	if (route.transport !== "vercel-ai-gateway") {
 		throw new Error(
 			`Provider "${request.providerConfig.providerId}" does not support browser streaming transcription`,
@@ -314,10 +317,58 @@ export async function createStreamingAudioTranscriptionSession(
 	url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
 	url.searchParams.set("ai-model-id", modelId);
 	return {
+		transport: "vercel-ai-gateway",
 		token: result.token,
 		url: url.toString(),
+		// Gemini Live accepts 16 kHz PCM input. Gateway forwards the declared
+		// format; it does not resample audio to the upstream provider's rate.
+		sampleRate: modelId.startsWith("google/") ? 16_000 : 24_000,
 		expiresAt:
 			typeof result.expiresAt === "number" ? result.expiresAt : undefined,
+	};
+}
+
+async function createElevenLabsStreamingSession(
+	request: StreamingAudioTranscriptionSessionRequest,
+	route: AudioTranscriptionRoute,
+): Promise<StreamingAudioTranscriptionSession> {
+	const apiKey = resolveApiKey(request.providerConfig);
+	if (!apiKey)
+		throw new Error(
+			`Provider "${request.providerConfig.providerId}" is missing credentials`,
+		);
+	const headers = new Headers(request.providerConfig.headers);
+	headers.set("xi-api-key", apiKey);
+	const response = await (request.providerConfig.fetch ?? fetch)(
+		`${route.baseUrl}/single-use-token/realtime_scribe`,
+		{
+			method: "POST",
+			headers,
+			signal: resolveAbortSignal(request.providerConfig, request.abortSignal),
+		},
+	);
+	if (!response.ok) {
+		const detail = await readErrorBody(response);
+		throw new Error(
+			`ElevenLabs streaming transcription setup failed (${response.status})${detail ? `: ${detail}` : ""}`,
+		);
+	}
+	const result = (await response.json()) as { token?: unknown };
+	if (typeof result.token !== "string" || !result.token.trim())
+		throw new Error(
+			"ElevenLabs streaming transcription setup returned no token",
+		);
+	const url = new URL(`${route.endpoint}/realtime`);
+	url.protocol = url.protocol === "http:" ? "ws:" : "wss:";
+	url.searchParams.set("model_id", request.modelId.trim());
+	url.searchParams.set("audio_format", "pcm_24000");
+	// Partials arrive continuously; Stop commits the final transcript.
+	url.searchParams.set("commit_strategy", "manual");
+	return {
+		transport: "elevenlabs",
+		token: result.token,
+		url: url.toString(),
+		sampleRate: 24_000,
 	};
 }
 

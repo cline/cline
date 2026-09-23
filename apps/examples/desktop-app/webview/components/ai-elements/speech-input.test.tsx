@@ -107,6 +107,14 @@ let stopTrack: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	vi.stubGlobal(
+		"ResizeObserver",
+		class {
+			observe() {}
+			unobserve() {}
+			disconnect() {}
+		},
+	);
 	FakeMediaRecorder.instances = [];
 	FakeMediaRecorder.deferStopEvents = false;
 	FakeMediaRecorder.stopError = undefined;
@@ -154,6 +162,7 @@ afterEach(async () => {
 	delete (window as typeof window & { AudioContext?: typeof AudioContext })
 		.AudioContext;
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe("SpeechInput", () => {
@@ -211,7 +220,7 @@ describe("SpeechInput", () => {
 		expect(button?.getAttribute("aria-label")).toBe("Record speech");
 	});
 
-	it("records audio and forwards the provider transcript", async () => {
+	it("records audio for the provider even when browser speech recognition is available", async () => {
 		FakeMediaRecorder.deferStopEvents = true;
 		let resolveTranscript: (transcript: string) => void = () => {};
 		const transcript = new Promise<string>((resolve) => {
@@ -247,6 +256,7 @@ describe("SpeechInput", () => {
 			await Promise.resolve();
 		});
 		expect(FakeMediaRecorder.instances).toHaveLength(1);
+		expect(FakeSpeechRecognition.instances).toHaveLength(0);
 		expect(onActiveChange).toHaveBeenLastCalledWith(true);
 		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
 		expect(button?.title).toBe("Stop recording");
