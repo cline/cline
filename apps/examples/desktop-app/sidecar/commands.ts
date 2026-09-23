@@ -643,6 +643,13 @@ async function getSessionFromSidecarManager(
 		: undefined;
 }
 
+function isSidebarSessionWithPrompt(session: JsonRecord): boolean {
+	const prompt = typeof session.prompt === "string" ? session.prompt.trim() : "";
+	if (prompt) return true;
+	const status = String(session.status ?? "").trim().toLowerCase();
+	return status === "running" || status === "pending";
+}
+
 async function listSessionsFromSidecarManager(
 	ctx: SidecarContext,
 	limit: number,
@@ -665,14 +672,15 @@ async function listSessionsFromSidecarManager(
 					ctx,
 					binding.environmentId,
 				).sessionEnvironmentIds.set(sessionId, binding.environmentId);
-				const merged = mergePersistedSessionRecord(
+					const merged = mergePersistedSessionRecord(
 					sessionId,
 					record,
 					binding.kind === "local"
 						? (store.get(sessionId) as unknown as JsonRecord | undefined)
-						: undefined,
-				);
-				byId.set(JSON.stringify([binding.environmentId, sessionId]), {
+							: undefined,
+					);
+					if (!isSidebarSessionWithPrompt(merged)) continue;
+					byId.set(JSON.stringify([binding.environmentId, sessionId]), {
 					...merged,
 					environmentId: binding.environmentId,
 					remoteEnvironment:
@@ -692,6 +700,9 @@ async function listSessionsFromSidecarManager(
 
 	if (byId.size === 0) {
 		for (const session of store.list(max)) {
+			if (!isSidebarSessionWithPrompt(session as unknown as JsonRecord)) {
+				continue;
+			}
 			byId.set(JSON.stringify([LOCAL_ENVIRONMENT_ID, session.sessionId]), {
 				...(session as unknown as JsonRecord),
 				environmentId: LOCAL_ENVIRONMENT_ID,
@@ -702,6 +713,7 @@ async function listSessionsFromSidecarManager(
 	for (const scoped of getEnvironmentContexts(ctx)) {
 		for (const [sessionId, session] of scoped.liveSessions.entries()) {
 			if (session.config.executionTarget === "cloud") continue;
+			if (!session.busy && !session.prompt?.trim()) continue;
 			const key = JSON.stringify([scoped.activeEnvironmentId, sessionId]);
 			const existing = byId.get(key);
 			byId.set(key, {
@@ -1876,6 +1888,7 @@ export async function handleCommand(
 			message: result.message,
 			remotePlatform: result.remotePlatform,
 			remoteArch: result.remoteArch,
+			cli: result.cli,
 		};
 	}
 	if (command === "connect_remote_environment") {
@@ -1966,6 +1979,8 @@ export async function handleCommand(
 				homeDir: connection.homeDir,
 				remotePlatform: connection.platform,
 				remoteArch: connection.arch,
+				hubSource: connection.hubSource,
+				cli: connection.cli,
 			};
 			broadcastEvent(ctx, "remote_environment_changed", result);
 			return result;
