@@ -46,6 +46,14 @@ export {
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
 export {
+	AgentSessionOverview,
+	type AgentSessionOverviewProps,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	type AgentSessionRowEditorProps,
+	type AgentSessionRowProps,
+} from "./agent-session-row.js";
+export {
 	AgentWelcomeHero,
 	type AgentWelcomeHeroLayout,
 	type AgentWelcomeHeroProps,

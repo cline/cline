@@ -27,6 +27,9 @@ import {
 	AgentWelcomeHero,
 	AgentPromptQueue,
 	AgentQuickActions,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	AgentSessionOverview,
 	SearchCombobox,
 	SessionStatus,
 	Switch,
@@ -89,6 +92,9 @@ if (
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
+	!AgentSessionRow ||
+	!AgentSessionRowEditor ||
+	!AgentSessionOverview ||
 	!SessionStatus ||
 	!Switch ||
 	!Conversation ||
@@ -223,6 +229,7 @@ async function verifyTailwindContract(
 		"backdrop-blur-sm",
 		"border-dashed",
 		"pointer-events-none",
+		"group-hover/row:bg-cline-ui-surface-hover",
 	]) {
 		expectCandidate(css, candidate);
 	}

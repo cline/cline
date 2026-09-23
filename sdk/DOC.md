@@ -172,6 +172,37 @@ executes its available tools without inheriting that policy or approval callback
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
 
+
+## Shared UI session rows
+
+`@cline/ui` exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`, together with their public props types. These are
+presentation primitives for session navigation, rename, and metadata content;
+the host retains session data, routing, menus, permissions, formatting, and
+interaction policy. Import the shared component stylesheet with the host theme.
+
+`AgentSessionRow` owns the row geometry, selected/hover appearance, timestamp
+placement, and pending/provisioning/running/unread status-dot precedence. Hosts
+provide the already-formatted `label` and `timestamp`, optional `leading` and
+`pinnedIndicator` content, and a sibling `action`. Root DOM props and refs pass
+through to the row wrapper for host-owned context-menu or hover-card triggers.
+
+The default control is the desktop native `button`; its `disabled` and
+`onSelect` props apply only in that mode. URL or router navigation uses the
+mutually exclusive `renderControl` mode, which receives the shared navigation
+`className` and row `children` for the host's link or router control. The host
+control owns its href, accessibility, disabled behavior, and event handling.
+The control union prevents combining `renderControl` with `disabled` or
+`onSelect`, and keeps optional actions as siblings so interactive elements are
+not nested.
+
+`AgentSessionRowEditor` supplies the matching edit frame while the host owns
+the rename input, focus, Enter/Escape/blur handling, and saving state.
+`AgentSessionOverview` renders a title and `[label, value, fullValue?]`
+metadata rows; the host owns the hover-card lifecycle, positioning, and
+metadata formatting. See the [session-row adoption guide](./packages/ui/ADOPTION.md#session-rows)
+for the import, slot, and trigger/ref examples.
+
 ## Shared command output and image presentation (`@cline/ui`)
 
 `AgentCommandOutput` renders `output` with a running cursor controlled by
