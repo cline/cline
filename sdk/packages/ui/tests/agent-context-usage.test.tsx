@@ -67,8 +67,20 @@ describe("AgentContextUsage", () => {
 		);
 		expect(markup).toContain("width:12.5%");
 		expect(markup).toContain("width:25%");
-		expect(render()).not.toContain(">Cost<");
-		expect(render(usage, 0)).toMatch(/>Cost<\/span><span[^>]*>0<\/span>/);
+	});
+
+	it.each([
+		[undefined, false],
+		["", false],
+		[false, false],
+		[Number.NaN, false],
+		[0, true],
+	] as const)("preserves cost-row visibility for %p", (costLabel, visible) => {
+		const markup = render(usage, costLabel);
+		expect(markup.includes(">Cost<")).toBe(visible);
+		if (costLabel === 0) {
+			expect(markup).toMatch(/>Cost<\/span><span[^>]*>0<\/span>/);
+		}
 	});
 
 	it("caps the ring and scales segments when a model has a smaller context window", () => {

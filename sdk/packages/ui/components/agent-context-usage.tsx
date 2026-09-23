@@ -152,7 +152,7 @@ export function AgentContextUsage({
 							{usage.cacheReadTokens.toLocaleString()}
 						</span>
 					</div>
-					{costLabel != null ? (
+					{costLabel || costLabel === 0 ? (
 						<div className="flex items-center justify-between gap-4">
 							<span className="text-cline-ui-muted-foreground">Cost</span>
 							<span className="font-cline-ui-mono text-cline-ui-foreground">
