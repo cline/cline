@@ -1277,7 +1277,7 @@ function GeneralSettingsContent({
 						</p>
 						<p className="text-sm text-muted-foreground">
 							Export app info, recent logs, and the metadata of sessions you
-							choose as a zip you can share when reporting a problem.
+							choose as a file you can attach when reporting a problem.
 						</p>
 					</div>
 					<Button

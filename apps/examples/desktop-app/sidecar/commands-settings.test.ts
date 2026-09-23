@@ -1,10 +1,4 @@
-import {
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -190,47 +184,5 @@ describe("desktop settings commands", () => {
 		await expect(
 			handleCommand(ctx, "get_desktop_settings", {}),
 		).resolves.toEqual({ cloudSessionsEnabled: enabled });
-	});
-});
-
-describe("export_diagnostics", () => {
-	const savedEnv: Record<string, string | undefined> = {};
-
-	beforeEach(() => {
-		// Point the home directory at the fixture so the bundle falls back to
-		// <data dir>/diagnostics instead of the real ~/Downloads.
-		for (const key of ["HOME", "USERPROFILE", "CLINE_SESSION_DATA_DIR"]) {
-			savedEnv[key] = process.env[key];
-		}
-		process.env.HOME = dataDir;
-		process.env.USERPROFILE = dataDir;
-		process.env.CLINE_SESSION_DATA_DIR = join(dataDir, "sessions");
-	});
-
-	afterEach(() => {
-		for (const [key, value] of Object.entries(savedEnv)) {
-			if (value === undefined) delete process.env[key];
-			else process.env[key] = value;
-		}
-	});
-
-	it("writes a zip with the report and the requested session manifests", async () => {
-		const { ctx } = createContext();
-		const sessionDir = join(dataDir, "sessions", "session_x");
-		mkdirSync(sessionDir, { recursive: true });
-		writeFileSync(
-			join(sessionDir, "session_x.json"),
-			JSON.stringify({ session_id: "session_x", metadata: { title: "T" } }),
-		);
-
-		const result = (await handleCommand(ctx, "export_diagnostics", {
-			sessionIds: ["session_x", 42, "missing"],
-			reveal: false,
-		})) as { path: string; files: string[]; sessionIds: string[] };
-
-		expect(result.path.startsWith(join(dataDir, "diagnostics"))).toBe(true);
-		expect(existsSync(result.path)).toBe(true);
-		expect(result.files).toEqual(["report.json", "sessions/session_x.json"]);
-		expect(result.sessionIds).toEqual(["session_x"]);
 	});
 });

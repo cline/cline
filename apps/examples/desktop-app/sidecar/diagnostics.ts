@@ -10,50 +10,23 @@ import {
 import { arch, homedir, platform, release } from "node:os";
 import { join } from "node:path";
 import { readGlobalSettings, resolveClineDataDir } from "@cline/core";
-import { strToU8, zipSync } from "fflate";
 import packageJson from "../package.json";
 import { readDesktopSettings } from "./desktop-settings";
 import { readSessionManifest } from "./paths";
 
-/** Tail of the sidecar log (`code.log`) included in the bundle. */
+/** How much of each log file (from the end) is included in the report. */
 export const DIAGNOSTICS_LOG_TAIL_BYTES = 2 * 1024 * 1024;
-/** Tail of the hub daemon log; the file itself is unbounded. */
-export const DIAGNOSTICS_HUB_LOG_TAIL_LINES = 5_000;
-// Enough to cover the line tail without reading the whole hub log.
-const HUB_LOG_READ_WINDOW_BYTES = 8 * 1024 * 1024;
 
-const SESSION_ID_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-export interface DiagnosticsExportInput {
-	sessionIds: string[];
-	hubUrl?: string | null;
-	runningSessionCount?: number;
-	cloudAgents?: { available: boolean; enabled: boolean };
-	now?: Date;
-}
-
-export interface DiagnosticsBundle {
-	fileName: string;
-	files: Record<string, Uint8Array>;
-	sessionIds: string[];
-}
-
-// Secrets are never read on purpose (providers.json / secrets.json stay
-// out of the bundle), but logs echo request headers and provider configs.
-// Blank anything that looks like a credential before it leaves the machine.
+// providers.json / secrets.json are never read, but blank anything
+// credential-shaped that shows up in logs or settings as cheap insurance.
 const SECRET_FIELD_PATTERN =
-	/("?(?:api[_-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret|password|authorization|x-api-key)"?\s*[:=]\s*)("?)([^",}\s]+)\2/gi;
-const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/g;
-const KEY_PREFIX_PATTERN = /\b(?:sk|pk|rk|xox[abps])-[A-Za-z0-9_-]{8,}/g;
+	/("?(?:api[_-]?key|[a-z_-]*token|[a-z_-]*secret|password|authorization)"?\s*[:=]\s*"?)([^",}\s]+)/gi;
 
 export function redactDiagnosticsText(text: string): string {
 	const home = homedir();
-	// Bearer first: the field pattern would otherwise treat the word
-	// "Bearer" as the value of an `authorization:` header.
-	let result = text
-		.replace(BEARER_PATTERN, "Bearer <redacted>")
-		.replace(SECRET_FIELD_PATTERN, "$1$2<redacted>$2")
-		.replace(KEY_PREFIX_PATTERN, "<redacted>");
+	let result = text.replace(SECRET_FIELD_PATTERN, "$1<redacted>");
 	if (home) {
 		// JSON-encoded Windows paths carry doubled backslashes.
 		result = result
@@ -65,7 +38,7 @@ export function redactDiagnosticsText(text: string): string {
 	return result;
 }
 
-function readTailBytes(path: string, maxBytes: number): string | null {
+function readTail(path: string, maxBytes: number): string | null {
 	if (!existsSync(path)) return null;
 	let fd: number | undefined;
 	try {
@@ -74,36 +47,16 @@ function readTailBytes(path: string, maxBytes: number): string | null {
 		const buffer = Buffer.alloc(length);
 		fd = openSync(path, "r");
 		readSync(fd, buffer, 0, length, size - length);
-		let text = buffer.toString("utf8");
-		if (length < size) {
-			// Drop the partial first line so the tail starts on a record boundary.
-			const newline = text.indexOf("\n");
-			text = newline === -1 ? "" : text.slice(newline + 1);
-		}
-		return text;
+		const text = buffer.toString("utf8");
+		if (length === size) return text;
+		// Drop the partial first line so the tail starts on a record boundary.
+		const newline = text.indexOf("\n");
+		return newline === -1 ? "" : text.slice(newline + 1);
 	} catch {
 		return null;
 	} finally {
 		if (fd !== undefined) closeSync(fd);
 	}
-}
-
-function readTailLines(path: string, maxLines: number): string | null {
-	const text = readTailBytes(path, HUB_LOG_READ_WINDOW_BYTES);
-	if (text === null) return null;
-	const lines = text.split("\n");
-	if (lines.at(-1) === "") lines.pop();
-	return `${lines.slice(-maxLines).join("\n")}\n`;
-}
-
-function sanitizeSessionIds(sessionIds: string[]): string[] {
-	return [
-		...new Set(
-			sessionIds
-				.map((id) => id.trim())
-				.filter((id) => SESSION_ID_PATTERN.test(id) && !id.includes("..")),
-		),
-	];
 }
 
 function formatStamp(date: Date): string {
@@ -114,78 +67,60 @@ function formatStamp(date: Date): string {
 	);
 }
 
-export function buildDiagnosticsBundle(
-	input: DiagnosticsExportInput,
-): DiagnosticsBundle {
-	const now = input.now ?? new Date();
+function section(title: string, body: string): string {
+	return `\n===== ${title} =====\n${body.endsWith("\n") ? body : `${body}\n`}`;
+}
+
+export function buildDiagnosticsReport(
+	sessionIds: string[],
+	now = new Date(),
+): { text: string; sessionIds: string[] } {
 	const dataDir = resolveClineDataDir();
-	const sessionIds = sanitizeSessionIds(input.sessionIds);
-	const files: Record<string, string> = {};
-
-	const sidecarLogPath =
-		process.env.CLINE_LOG_PATH?.trim() || join(dataDir, "logs", "code.log");
-	const sidecarLog = readTailBytes(sidecarLogPath, DIAGNOSTICS_LOG_TAIL_BYTES);
-	if (sidecarLog !== null) files["logs/code.log"] = sidecarLog;
-
-	const hubLog = readTailLines(
-		join(dataDir, "logs", "hub-daemon.log"),
-		DIAGNOSTICS_HUB_LOG_TAIL_LINES,
-	);
-	if (hubLog !== null) files["logs/hub-daemon.log"] = hubLog;
-
-	const includedSessions: string[] = [];
-	for (const sessionId of sessionIds) {
-		const manifest = readSessionManifest(sessionId);
-		if (!manifest) continue;
-		// The system prompt is large and not diagnostic; conversation
-		// contents (messages.json) are deliberately never included.
-		const metadata =
-			manifest.metadata && typeof manifest.metadata === "object"
-				? { ...(manifest.metadata as Record<string, unknown>) }
-				: undefined;
-		if (metadata) delete metadata.systemPrompt;
-		files[`sessions/${sessionId}.json`] = `${JSON.stringify(
-			{ ...manifest, metadata },
-			null,
-			2,
-		)}\n`;
-		includedSessions.push(sessionId);
-	}
-
 	const report = {
 		generatedAt: now.toISOString(),
-		app: {
-			name: packageJson.name,
-			version: packageJson.version,
-		},
+		app: { name: packageJson.name, version: packageJson.version },
 		system: {
 			platform: platform(),
 			arch: arch(),
 			osRelease: release(),
 			bun: process.versions.bun ?? null,
-			node: process.versions.node,
 		},
-		hubUrl: input.hubUrl ?? null,
-		runningSessionCount: input.runningSessionCount ?? null,
-		cloudAgents: input.cloudAgents ?? null,
+		dataDir,
 		globalSettings: readGlobalSettings(),
 		desktopSettings: readDesktopSettings(),
-		dataDir,
-		includedSessions,
-		includedFiles: Object.keys(files).sort(),
 	};
-	files["report.json"] = `${JSON.stringify(report, null, 2)}\n`;
+	let text = `${JSON.stringify(report, null, 2)}\n`;
 
-	return {
-		fileName: `cline-diagnostics-${packageJson.version}-${formatStamp(now)}.zip`,
-		files: Object.fromEntries(
-			Object.entries(files).map(([name, text]) => [
-				name,
-				strToU8(redactDiagnosticsText(text)),
-			]),
-		),
-		sessionIds: includedSessions,
-	};
+	const logs = [
+		process.env.CLINE_LOG_PATH?.trim() || join(dataDir, "logs", "code.log"),
+		join(dataDir, "logs", "hub-daemon.log"),
+	];
+	for (const path of logs) {
+		const tail = readTail(path, DIAGNOSTICS_LOG_TAIL_BYTES);
+		if (tail !== null) text += section(`tail of ${path}`, tail);
+	}
+
+	const includedSessions: string[] = [];
+	for (const sessionId of new Set(sessionIds)) {
+		if (!SESSION_ID_PATTERN.test(sessionId)) continue;
+		const manifest = readSessionManifest(sessionId);
+		if (!manifest) continue;
+		// Keep the manifest (title, provider, model, cwd, status…) but not the
+		// prompt text. Conversation contents (messages.json) are never read.
+		const { prompt: _prompt, ...rest } = manifest;
+		const metadata =
+			rest.metadata && typeof rest.metadata === "object"
+				? { ...(rest.metadata as Record<string, unknown>) }
+				: undefined;
+		if (metadata) delete metadata.systemPrompt;
+		text += section(
+			`session ${sessionId}`,
+			JSON.stringify({ ...rest, metadata }, null, 2),
+		);
+		includedSessions.push(sessionId);
+	}
+
+	return { text: redactDiagnosticsText(text), sessionIds: includedSessions };
 }
 
 export function resolveDiagnosticsOutputDir(): string {
@@ -195,19 +130,17 @@ export function resolveDiagnosticsOutputDir(): string {
 		: join(resolveClineDataDir(), "diagnostics");
 }
 
-export function writeDiagnosticsBundle(
-	input: DiagnosticsExportInput,
+export function writeDiagnosticsReport(
+	sessionIds: string[],
 	outputDir = resolveDiagnosticsOutputDir(),
-): { path: string; bytes: number; files: string[]; sessionIds: string[] } {
-	const bundle = buildDiagnosticsBundle(input);
-	const zipped = zipSync(bundle.files, { level: 6 });
+): { path: string; sessionIds: string[] } {
+	const now = new Date();
+	const report = buildDiagnosticsReport(sessionIds, now);
 	mkdirSync(outputDir, { recursive: true });
-	const path = join(outputDir, bundle.fileName);
-	writeFileSync(path, zipped);
-	return {
-		path,
-		bytes: zipped.byteLength,
-		files: Object.keys(bundle.files).sort(),
-		sessionIds: bundle.sessionIds,
-	};
+	const path = join(
+		outputDir,
+		`cline-diagnostics-${packageJson.version}-${formatStamp(now)}.txt`,
+	);
+	writeFileSync(path, report.text);
+	return { path, sessionIds: report.sessionIds };
 }

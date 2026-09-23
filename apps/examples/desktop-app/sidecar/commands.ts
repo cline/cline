@@ -129,7 +129,7 @@ import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
-import { writeDiagnosticsBundle } from "./diagnostics";
+import { writeDiagnosticsReport } from "./diagnostics";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
@@ -3171,27 +3171,8 @@ export async function handleCommand(
 					(value): value is string => typeof value === "string",
 				)
 			: [];
-		let hubUrl: string | null = null;
-		try {
-			hubUrl = getCommandRuntimeBinding(ctx, args).hubClient.getUrl() ?? null;
-		} catch {
-			// The report is still useful when the hub is not reachable.
-		}
-		const runningSessionCount = Array.from(ctx.liveSessions.values()).filter(
-			(session) => session.busy || session.status === "running",
-		).length;
-		const result = writeDiagnosticsBundle({
-			sessionIds,
-			hubUrl,
-			runningSessionCount,
-			cloudAgents: {
-				available: isCloudAgentsAvailable(),
-				enabled: isCloudAgentsEnabled(),
-			},
-		});
-		if (args?.reveal !== false) {
-			openFileInEditor(dirname(result.path));
-		}
+		const result = writeDiagnosticsReport(sessionIds);
+		openFileInEditor(dirname(result.path));
 		return result;
 	}
 	if (command === "set_cloud_sessions_enabled") {

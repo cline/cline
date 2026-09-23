@@ -19,14 +19,6 @@ import {
 } from "@/lib/session-history";
 
 const SESSION_LIMIT = 50;
-const DEFAULT_SELECTED = 3;
-
-export interface ExportDiagnosticsResult {
-	path: string;
-	bytes: number;
-	files: string[];
-	sessionIds: string[];
-}
 
 interface ExportDiagnosticsDialogProps {
 	open: boolean;
@@ -67,11 +59,8 @@ export function ExportDiagnosticsDialog({
 					(item) => item.origin !== "cloud" && !item.isSubagent,
 				);
 				setSessions(local);
-				setSelected(
-					new Set(
-						local.slice(0, DEFAULT_SELECTED).map((item) => item.sessionId),
-					),
-				);
+				// The most recent session is almost always the one the bug was in.
+				setSelected(new Set(local.slice(0, 1).map((item) => item.sessionId)));
 			})
 			.catch((cause) => {
 				if (cancelled) return;
@@ -99,7 +88,7 @@ export function ExportDiagnosticsDialog({
 		setExporting(true);
 		setError(null);
 		try {
-			const result = await desktopClient.invoke<ExportDiagnosticsResult>(
+			const result = await desktopClient.invoke<{ path: string }>(
 				"export_diagnostics",
 				{ sessionIds: [...selected] },
 			);
@@ -121,9 +110,9 @@ export function ExportDiagnosticsDialog({
 				<DialogHeader>
 					<DialogTitle>Export diagnostics</DialogTitle>
 					<DialogDescription>
-						Saves a zip with app info, recent logs, and the metadata of the
-						sessions you pick. Conversation contents and API keys are never
-						included.
+						Saves a text file with app info, recent logs, and the metadata of
+						the sessions you pick. Prompts, conversation contents, and API keys
+						are never included.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex min-h-0 flex-col gap-2">
