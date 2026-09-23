@@ -513,6 +513,14 @@ Use the small `--brand-*` palette only for branded artwork. Normal controls
 should prefer visual/status roles or shadcn semantic tokens so they continue to
 work across light, dark, and future theme layers.
 
+## Radius utilities
+
+Use `rounded-cline-ui-lg` and other `rounded-cline-ui-*` theme sizes in
+shared components. They use Cline's radius tokens without taking over the
+host application's `rounded-lg` utility. Desktop's equivalent utilities
+resolve to the same radius values. Keep structural shapes such as
+`rounded-full` unchanged; there is no `rounded-cline-ui-full` token.
+
 ## Product overrides
 
 Import the package first, then override standard semantic values:
