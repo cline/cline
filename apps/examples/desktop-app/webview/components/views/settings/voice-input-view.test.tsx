@@ -229,7 +229,7 @@ describe("VoiceInputContent", () => {
 		expect(container.textContent).not.toContain("Removed model");
 		expect(container.textContent).not.toContain("Chat transcribe");
 		expect(container.querySelector('[role="radio"]')?.textContent).toContain(
-			"Streaming",
+			"Realtime",
 		);
 	});
 

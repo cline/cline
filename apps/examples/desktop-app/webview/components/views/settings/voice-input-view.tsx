@@ -1,14 +1,10 @@
 "use client";
 
 import { Switch } from "@cline/ui";
-import { Mic, Radio } from "lucide-react";
+import { Mic } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+
 import { desktopClient } from "@/lib/desktop-client";
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
@@ -25,6 +21,7 @@ import type {
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
+import { AudioModelBadges } from "./audio-model-badges";
 
 type VoiceProviderEntry = {
 	provider: Provider;
@@ -344,20 +341,7 @@ export function VoiceInputContent({
 														<span className="truncate text-sm text-foreground">
 															{model.name}
 														</span>
-														<Tooltip>
-															<TooltipTrigger asChild>
-																<span className="inline-flex shrink-0 items-center gap-1 rounded bg-surface-hover px-1.5 py-px text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
-																	<Radio
-																		aria-hidden="true"
-																		className="size-3"
-																	/>{" "}
-																	Streaming
-																</span>
-															</TooltipTrigger>
-															<TooltipContent>
-																Text appears in the chat box while you speak.
-															</TooltipContent>
-														</Tooltip>
+														<AudioModelBadges model={model} />
 														{isDefault ? (
 															<span className="shrink-0 text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground">
 																Default
