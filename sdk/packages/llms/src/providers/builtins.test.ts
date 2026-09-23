@@ -410,6 +410,19 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
+	it("serves the ai& default model from the catalog instead of the stub fallback", async () => {
+		const provider = await getProvider("aiand");
+		const models = await getModelsForProvider("aiand");
+		const defaultModel = models[provider?.defaultModelId ?? ""];
+
+		expect(provider?.defaultModelId).toBe("zai-org/glm-5.3");
+		// Carries the catalog record rather than the 128k stub fallbackModelInfo
+		// synthesizes for a default missing from the catalog. Bounds instead of
+		// exact values: the numbers rotate with models.dev.
+		expect(defaultModel?.contextWindow).toBeGreaterThan(128_000);
+		expect(defaultModel?.pricing).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");
