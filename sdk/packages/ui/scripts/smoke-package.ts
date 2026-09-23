@@ -214,6 +214,7 @@ async function verifyTailwindContract(
 		"backdrop-blur-sm",
 		"border-dashed",
 		"pointer-events-none",
+		"group-hover/row:bg-cline-ui-surface-hover",
 	]) {
 		expectCandidate(css, candidate);
 	}

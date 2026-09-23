@@ -7,10 +7,9 @@ import {
 	type ReactNode,
 } from "react";
 
-export interface AgentSessionRowProps
+interface AgentSessionRowSharedProps
 	extends Omit<ComponentPropsWithoutRef<"div">, "children" | "onSelect"> {
 	active?: boolean;
-	disabled?: boolean;
 	/** Pending actions take precedence over runtime status; unread is idle-only. */
 	status?: "idle" | "pending" | "provisioning" | "running";
 	unread?: boolean;
@@ -20,13 +19,26 @@ export interface AgentSessionRowProps
 	pinnedIndicator?: ReactNode;
 	/** A sibling action, so interactive controls never nest inside the row button. */
 	action?: ReactNode;
+}
+
+interface AgentSessionRowDefaultControlProps {
+	disabled?: boolean;
 	onSelect?: ComponentPropsWithoutRef<"button">["onClick"];
+	renderControl?: undefined;
+}
+
+interface AgentSessionRowHostControlProps {
 	/** Opt into host-owned URL/router semantics while reusing the row presentation. */
-	renderControl?: (props: {
+	renderControl: (props: {
 		className: string;
 		children: ReactNode;
 	}) => ReactNode;
+	disabled?: never;
+	onSelect?: never;
 }
+
+export type AgentSessionRowProps = AgentSessionRowSharedProps &
+	(AgentSessionRowDefaultControlProps | AgentSessionRowHostControlProps);
 
 /** Presentation only. Root props/ref support host-owned hover/context triggers. */
 export const AgentSessionRow = forwardRef<HTMLDivElement, AgentSessionRowProps>(
