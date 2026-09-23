@@ -23,6 +23,28 @@ the outer session is deleted). `dispose` preserves an injected map; without one,
 the controller owns and clears its pending state. Restoring options alone never
 authorizes recreation of a missing established task.
 
+## Voice input models
+
+`getLocalTranscriptionModels(providerId, config?)` from `@cline/core` returns the
+voice models supported by a provider's transcription transport. Use it to build
+voice pickers rather than filtering the bundled chat catalog. Vercel uses its live
+model list and advertised streaming tags; unavailable or malformed responses fail
+discovery rather than restoring stale bundled models. Voice selection saves and
+both batch and streaming execution revalidate through the same service.
+
+`isTranscriptionModel` from `@cline/shared` (also exported for browsers) accepts
+exact audio-only input and text-only output modalities. An explicit transcription
+label does not override additional input or output modalities. Multimodal live
+models are classified as `realtime`, which currently has no built-in transport
+support and is excluded from voice and chat pickers. Dedicated transcription can
+still use either batch or streaming mode. Classification alone does not prove
+that a provider implements the required transport.
+
+`createStreamingAudioTranscriptionSession` mints short-lived Vercel or single-use
+ElevenLabs credentials. Its shared response includes `transport` and `sampleRate`;
+browser clients must capture PCM at that rate (Google live routes require 16 kHz).
+ElevenLabs exposes batch `scribe_v2` and live `scribe_v2_realtime` separately.
+
 ## SSH remote environments
 
 `RemoteEnvironmentService` (exported by `@cline/core` and `@cline/sdk`) owns SSH
@@ -119,3 +141,20 @@ Configured agents do not expose a tool approval policy setting. The parent’s
 executes its available tools without inheriting that policy or approval callback.
 Its configured `tools` allowlist and disabled-tool filtering still apply. Runtime
 hooks remain inherited and can block tool execution.
+
+## Shared command output and image presentation (`@cline/ui`)
+
+`AgentCommandOutput` renders `output` with a running cursor controlled by
+`isRunning`. Optional `children` let the host retain ANSI rendering or normalize
+control characters. It follows new output initially, pauses when the user
+scrolls away, and resumes within 24px of the bottom. Hosts own output collection,
+limits, and session identity; remount it when switching commands. `tabIndex` and
+`classNames.viewport` / `classNames.cursor` allow host-specific accessibility styling.
+
+`AgentImageLightboxContent` renders an image and two close controls calling
+`onClose`. The host owns the dialog, positioning, Escape handling, focus management,
+and image navigation. `backdropTabIndex` can exclude the backdrop from a managed
+dialog's tab order. Image source validation and resolution remain host-owned;
+provider-generated URLs must go through an explicit host trust policy before
+rendering. This presentation primitive does not replace `GeneratedMediaContent`
+or its inline-byte validation.

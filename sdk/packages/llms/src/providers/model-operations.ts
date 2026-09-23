@@ -34,6 +34,7 @@ export const BUILTIN_TRANSCRIPTION_TRANSPORTS = {
 		transport: "vercel-ai-gateway",
 		modes: ["batch", "streaming"],
 	},
+	// Realtime transcription is deferred until its configuration is supported.
 	elevenlabs: { transport: "elevenlabs", modes: ["batch"] },
 	evroc: { transport: "openai-compatible", modes: ["batch"] },
 	groq: { transport: "openai-compatible", modes: ["batch"] },
@@ -215,6 +216,10 @@ export function normalizeBuiltinModelOperationModalities(input: {
 	capabilities?: readonly string[];
 }): ModelModalities | undefined {
 	if (!input.modalities) return undefined;
+	// Voice classification must see the full provider-declared shape. Cropping
+	// a multimodal session to audio -> text would misclassify it as supported STT.
+	if (input.operation === "transcription" || input.operation === "realtime")
+		return input.modalities;
 	const model: OperationModelDescriptor = {
 		id: input.modelId,
 		operation: input.operation,
