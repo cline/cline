@@ -311,6 +311,8 @@ function mapHistoryStatusToChatStatus(
 	status: SessionHistoryStatus,
 ): ChatSessionStatus {
 	switch (status) {
+		case "new":
+			return "new";
 		case "running":
 			return "running";
 		case "completed":

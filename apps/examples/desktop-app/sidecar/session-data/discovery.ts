@@ -52,6 +52,9 @@ export function discoverChatSessions(
 		if (session.config.executionTarget === "cloud") {
 			continue;
 		}
+		if (session.status === "new") {
+			continue;
+		}
 		if (!session.busy && !session.prompt && session.messages.length === 0) {
 			continue;
 		}

@@ -1,4 +1,5 @@
 export const SESSION_STATUS_VALUES = [
+	"new",
 	"idle",
 	"running",
 	"pending",

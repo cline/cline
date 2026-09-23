@@ -5,6 +5,7 @@ export const SESSION_STATUSES = SESSION_STATUS_VALUES;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 export const NON_TERMINAL_SESSION_STATUSES = [
+	"new",
 	"idle",
 	"running",
 	"pending",

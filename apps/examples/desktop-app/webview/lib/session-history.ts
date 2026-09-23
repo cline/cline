@@ -1,4 +1,5 @@
 export type SessionHistoryStatus =
+	| "new"
 	| "running"
 	| "completed"
 	| "expired"
