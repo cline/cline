@@ -234,6 +234,14 @@ These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
 
+## Session-row presentation
+
+The root entry exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`. Desktop uses these for its existing session row, rename
+frame, and hover metadata. Hosts retain their icons, actions, rename input,
+menus, data formatting, and session behavior. See the session-row section in
+[ADOPTION.md](./ADOPTION.md) for the slot and trigger/ref contract.
+
 ## Storybook
 
 Run the interactive component catalog from the repository root:

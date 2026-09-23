@@ -535,6 +535,64 @@ describe("Cloud sessions sidecar wiring", () => {
 		});
 	});
 
+	it.each([
+		false,
+		true,
+	])("preserves pending creation policy across manager reset (updated: %s)", async (updateBeforeReset) => {
+		const session = { ...REMOTE_SESSION, id: "ses-created" };
+		const api = {
+			list: async () => [session],
+			create: async () => ({ sessionId: session.id, status: "ready" }),
+		} as unknown as CloudSessionApi;
+		const { ctx, manager } = createFixture({
+			hub: new FakeHubClient(false),
+			api,
+		});
+		const policy = {
+			autoApproveTools: false,
+			thinking: false,
+			reasoningEffort: "high" as const,
+		};
+		try {
+			await manager.create({
+				repoUrl: "https://github.com/cline/test",
+				modelId: "anthropic/claude-sonnet-5",
+				...(updateBeforeReset
+					? { autoApproveTools: true, thinking: true }
+					: policy),
+			});
+			if (updateBeforeReset) manager.restoreCreationOptions(session.id, policy);
+			await resetCloudSessionManager(ctx);
+			expect(ctx.liveSessions.has(session.id)).toBe(false);
+
+			const hub = new FakeHubClient(false);
+			const replacement = new CloudSessionManager(ctx, {
+				api,
+				apiBaseUrl: "https://api.example",
+				getAuthToken: async () => "workos:fresh",
+				createHubClient: () => hub as never,
+			});
+			ctx.cloudSessionManager = replacement;
+			await replacement.attach(session.id);
+			await replacement.send(session.id, "First prompt after reset");
+			expect(
+				hub.commands.filter((entry) => entry.command === "session.create"),
+			).toEqual([
+				expect.objectContaining({
+					payload: expect.objectContaining({
+						toolPolicies: { "*": { autoApprove: false } },
+						sessionConfig: expect.objectContaining({
+							thinking: false,
+							reasoningEffort: "high",
+						}),
+					}),
+				}),
+			]);
+		} finally {
+			await resetCloudSessionManager(ctx);
+		}
+	});
+
 	it("returns the real id immediately and sends only after readiness", async () => {
 		const ready = Promise.withResolvers<void>();
 		const waitUntilReady = vi.fn(() => ready.promise);
