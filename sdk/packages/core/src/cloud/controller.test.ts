@@ -239,8 +239,13 @@ describe("CloudSessionController neutral host contract", () => {
 		).toEqual([]);
 		await f.controller.dispose();
 	});
-	it("refreshes another viewer's transcript at a terminal event without streamed progress", async () => {
+	it.each([
+		false,
+		true,
+	])("refreshes another viewer's transcript without streamed progress (running status first: %s)", async (runningStatusFirst) => {
 		const f = await attached();
+		if (runningStatusFirst)
+			f.emit("session.updated", { session: { status: "running" } });
 		f.emit("run.started", {
 			requestId: "other-request",
 			clientId: "other-viewer",
@@ -256,6 +261,159 @@ describe("CloudSessionController neutral host contract", () => {
 		);
 		expect(f.controller.getSnapshot(record.id)?.status).toBe("error");
 		await f.controller.dispose();
+	});
+	it.each([
+		"local",
+		"other",
+	] as const)("preserves the active external run when a %s viewer queues input", async (viewer) => {
+		const f = await attached();
+		const user = {
+			role: "user",
+			content: "Current turn",
+		} as MessageWithMetadata;
+		try {
+			f.setStatus("running");
+			f.setMessages([user]);
+			f.emit("run.started", { requestId: "active", clientId: "other-viewer" });
+			f.emit("assistant.delta", { text: "First" });
+			await vi.waitFor(() =>
+				expect(
+					JSON.stringify(f.controller.getSnapshot(record.id)?.messages),
+				).toContain("First"),
+			);
+			const reads = f.commands.filter(
+				(command) => command.command === "session.messages",
+			).length;
+			if (viewer === "local") {
+				const original = f.command.getMockImplementation()!;
+				f.command.mockImplementation(
+					async (name, payload, sessionId, options) => {
+						const requestId = `request-${f.commands.length}`;
+						const reply = await original(name, payload, sessionId, options);
+						if (name === "session.send_input") {
+							f.emit("run.started", { requestId, clientId: "viewer" });
+						}
+						return reply;
+					},
+				);
+				await f.controller.send(record.id, "Next turn", "queue");
+			} else {
+				// The Hub emits run.started on queue acceptance, not only execution.
+				f.emit("run.started", {
+					requestId: "queued",
+					clientId: "third-viewer",
+				});
+			}
+			f.emit("assistant.delta", { text: " second" });
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(
+				f.commands.filter((command) => command.command === "session.messages"),
+			).toHaveLength(reads);
+			expect(f.controller.getSnapshot(record.id)?.messages).toEqual([
+				user,
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "First second" }],
+				},
+			]);
+			const canonical = [
+				user,
+				{
+					role: "assistant",
+					content: "First second, canonical finish",
+				} as MessageWithMetadata,
+			];
+			f.setMessages(canonical);
+			f.setStatus("completed");
+			f.emit("run.completed");
+			await vi.waitFor(() =>
+				expect(f.controller.getSnapshot(record.id)?.messages).toEqual(
+					canonical,
+				),
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it.each([
+		"missed",
+		"partial",
+		"complete",
+	] as const)("reconciles finished content after attaching mid-run with %s deltas", async (deltas) => {
+		const f = fixture();
+		const user = {
+			role: "user",
+			content: "Already running when this viewer attached",
+		} as MessageWithMetadata;
+		const answer = {
+			role: "assistant",
+			content: [
+				{ type: "thinking", thinking: "Canonical reasoning" },
+				{ type: "text", text: "Canonical answer" },
+			],
+		} as MessageWithMetadata;
+		try {
+			f.setStatus("running");
+			f.setMessages([user]);
+			await f.controller.attach(record.id);
+			f.emit("session.attached", { session: { status: "running" } });
+			await f.controller.readMessages(record.id);
+			const initial = f.controller.getSnapshot(record.id);
+			// This viewer never receives the earlier run.started event.
+			if (deltas !== "missed") {
+				f.emit("reasoning.delta", {
+					text: deltas === "partial" ? "reasoning" : "Canonical reasoning",
+				});
+			}
+			f.emit("reasoning.finished", { reasoning: "Canonical reasoning" });
+			if (deltas !== "missed") {
+				f.emit("assistant.delta", {
+					text: deltas === "partial" ? "answer" : "Canonical answer",
+				});
+			}
+			f.setMessages([user, answer]);
+			f.setStatus("completed");
+			f.emit("assistant.finished", { text: "Canonical answer" });
+			f.emit("run.completed");
+			await vi.waitFor(() =>
+				expect(f.controller.getSnapshot(record.id)).toMatchObject({
+					status: "completed",
+					busy: false,
+					messages: [user, answer],
+				}),
+			);
+			expect(initial?.messages).toEqual([user]);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
+	it("does not rearm late-attach tracking when terminal hydration reads a lagging running status", async () => {
+		const f = fixture();
+		try {
+			f.setStatus("running");
+			await f.controller.attach(record.id);
+			await f.controller.readMessages(record.id);
+			const reads = f.commands.filter(
+				(command) => command.command === "session.messages",
+			).length;
+			const canonical = [
+				{ role: "assistant", content: "Final answer" } as MessageWithMetadata,
+			];
+			f.setMessages(canonical);
+			// The terminal event is authoritative even if session.get still lags.
+			f.emit("run.completed");
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(f.controller.getSnapshot(record.id)).toMatchObject({
+				status: "completed",
+				busy: false,
+				messages: canonical,
+			});
+			expect(
+				f.commands.filter((command) => command.command === "session.messages"),
+			).toHaveLength(reads + 1);
+		} finally {
+			await f.controller.dispose();
+		}
 	});
 	it("confirms only the exact dispatched request and client before completion", async () => {
 		const f = await attached();

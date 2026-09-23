@@ -124,7 +124,10 @@ type CloudConnection = {
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
 	/** Exact command correlation; optimistic transcript text is never acceptance. */
-	pendingInputs?: Map<string, { clientId: string; accept: () => void }>;
+	pendingInputs?: Map<
+		string,
+		{ clientId: string; ownsBusyState: boolean; accept: () => void }
+	>;
 	externalRun?: { progressHydrated: boolean };
 	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
@@ -1102,6 +1105,7 @@ export class CloudSessionController {
 						connection.pendingInputs ??= new Map();
 						connection.pendingInputs.set(requestId, {
 							clientId: connection.client.getClientId(),
+							ownsBusyState,
 							accept,
 						});
 					},
@@ -1298,6 +1302,16 @@ export class CloudSessionController {
 				session?.status ?? live?.status ?? "running",
 			).trim();
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+			// Initial hydration can miss run.started. Arm its terminal refresh once;
+			// rearming on a lagging terminal snapshot would start another refresh.
+			// The history read below already covers the run's first progress.
+			if (
+				status === "running" &&
+				!connection.transcriptKnown &&
+				!connection.pendingInputs?.size
+			) {
+				connection.externalRun ??= { progressHydrated: true };
+			}
 
 			const readMessages = () =>
 				connection.client.command(
@@ -2255,6 +2269,9 @@ export class CloudSessionController {
 			return;
 		}
 		if (event.event === "run.started") {
+			// The Hub also emits this for queue/steer acceptance during a run.
+			// Acknowledge the input without changing ownership of the active run.
+			const alreadyRunning = this.sessions.get(outerSessionId)?.busy;
 			const requestId = event.payload?.requestId;
 			const pending =
 				typeof requestId === "string"
@@ -2262,9 +2279,11 @@ export class CloudSessionController {
 					: undefined;
 			if (pending && event.payload?.clientId === pending.clientId) {
 				pending.accept();
-				connection.externalRun = undefined;
+				if (pending.ownsBusyState) connection.externalRun = undefined;
 			} else if (typeof event.payload?.clientId === "string") {
-				connection.externalRun = { progressHydrated: false };
+				connection.externalRun ??= {
+					progressHydrated: Boolean(alreadyRunning),
+				};
 			}
 		}
 		const external = connection.externalRun;

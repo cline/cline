@@ -12,6 +12,8 @@ to open a session, and `send` for a follow-up. Attaching a provisioning or faile
 session returns its receipt without connecting. `detach` closes this viewer, not
 the remote task. Call `dispose` when the host shuts down. This foundation does
 not include local-to-cloud handoff.
+Viewers hydrating active runs with `readMessages` reconcile canonical history at
+completion even when they missed the run-start event and earlier content deltas.
 
 ## SSH remote environments
 
