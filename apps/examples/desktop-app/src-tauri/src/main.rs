@@ -819,17 +819,49 @@ async fn get_desktop_backend_endpoint(
 }
 
 #[tauri::command]
-fn pick_workspace_directory(initial_path: Option<String>) -> Option<String> {
-    let mut dialog = rfd::FileDialog::new();
-    if let Some(path) = initial_path
+async fn pick_workspace_directory(
+    app: tauri::AppHandle,
+    initial_path: Option<String>,
+) -> Option<String> {
+    let initial_path = initial_path
         .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
-        dialog = dialog.set_directory(path);
-    }
-    dialog
-        .pick_folder()
-        .map(|path| path.to_string_lossy().to_string())
+        .filter(|value| !value.is_empty());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    // Same shape as tauri-plugin-dialog: the dialog is created on the main
+    // thread (native dialogs must be) and this async command awaits the
+    // result off it.
+    let _ = app.run_on_main_thread(move || {
+        // GTK: rfd drives the dialog through the GLib main loop that Tauri
+        // already owns, so it must be created here and awaited on another
+        // thread; a blocking pick_folder() on the main thread deadlocks.
+        #[cfg(target_os = "linux")]
+        {
+            let mut dialog = rfd::AsyncFileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let picked = dialog.pick_folder();
+            std::thread::spawn(move || {
+                let picked = tauri::async_runtime::block_on(picked);
+                let _ = tx.send(picked.map(|handle| handle.path().to_string_lossy().to_string()));
+            });
+        }
+        // macOS and Windows: the blocking dialog runs its own nested event
+        // loop on the main thread, as before.
+        #[cfg(not(target_os = "linux"))]
+        {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(path) = initial_path {
+                dialog = dialog.set_directory(path);
+            }
+            let _ = tx.send(
+                dialog
+                    .pick_folder()
+                    .map(|path| path.to_string_lossy().to_string()),
+            );
+        }
+    });
+    rx.await.ok().flatten()
 }
 
 #[tauri::command]
