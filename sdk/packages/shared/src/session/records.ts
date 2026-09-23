@@ -1,10 +1,26 @@
 export const SESSION_STATUS_VALUES = [
+	// Session exists but has never received a user prompt. Use for interactive
+	// runtimes created before input arrives; transition to running/pending when
+	// the first prompt is dispatched. Discovery should normally hide this state.
 	"new",
+	// The session is available for input and no turn is executing. Use after a
+	// turn completes or when an interactive session is ready between prompts.
 	"idle",
+	// A turn is actively executing. Use from first prompt dispatch until the
+	// runtime emits a terminal result or cancellation.
 	"running",
+	// Work is waiting to be delivered or resumed, but is not currently executing.
+	// Use for queued prompts or runtime handoff; transition to running when work
+	// begins, or to a terminal state when it is discarded.
 	"pending",
+	// The session reached a normal terminal result. Use with endedAt/exitCode
+	// metadata when the runtime will not accept another turn.
 	"completed",
+	// The session terminated because of an execution or setup failure. Use when
+	// the failure is not a user cancellation and preserve diagnostic metadata.
 	"failed",
+	// The session was intentionally stopped or aborted by the user/system. Use
+	// instead of failed for expected interruption and record the exit reason.
 	"cancelled",
 ] as const;
 
