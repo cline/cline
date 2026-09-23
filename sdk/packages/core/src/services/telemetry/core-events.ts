@@ -539,11 +539,14 @@ export function captureTokenUsage(
 		ulid: string;
 		/** Uncached input tokens only — disjoint from the cache buckets. */
 		tokensIn: number;
+		/** Non-reasoning output tokens only — reasoningTokenCount is disjoint from this. */
 		tokensOut: number;
 		cacheWriteTokens?: number;
 		cacheReadTokens?: number;
 		/** This request's cost delta, not a running total. */
 		totalCost?: number;
+		/** Reasoning/thinking tokens for this request, reported separately since they're no longer folded into tokensOut. */
+		reasoningTokenCount?: number;
 		provider?: string;
 		model: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
