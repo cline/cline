@@ -166,7 +166,10 @@ afterEach(async () => {
 });
 
 describe("SpeechInput", () => {
-	it("falls back after an upload network failure and retries the provider after reconnecting", async () => {
+	it.each([
+		true,
+		false,
+	])("retries the provider after browser fallback (online event: %s)", async (emitOnline) => {
 		const onAudioRecorded = vi
 			.fn()
 			.mockRejectedValue(new TypeError("fetch failed"));
@@ -207,7 +210,8 @@ describe("SpeechInput", () => {
 			"speech-recognition",
 		);
 		await act(async () => button?.click());
-		await act(async () => window.dispatchEvent(new Event("online")));
+		if (emitOnline)
+			await act(async () => window.dispatchEvent(new Event("online")));
 		await act(async () => button?.click());
 		expect(FakeMediaRecorder.instances).toHaveLength(2);
 	});

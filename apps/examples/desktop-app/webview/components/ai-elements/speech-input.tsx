@@ -240,6 +240,9 @@ export function SpeechInput({
 		};
 		const handleEnd = () => {
 			setIsListening(false);
+			// A transient provider failure need not produce an online event.
+			// Give browser fallback one recording, then retry the provider when online.
+			if (navigator.onLine !== false) setRestoreProviderWhenIdle(true);
 			onStreamingEndRef.current?.();
 		};
 		const handleResult = (event: Event) => {
@@ -255,6 +258,7 @@ export function SpeechInput({
 		};
 		const handleError = (event: Event) => {
 			setIsListening(false);
+			if (navigator.onLine !== false) setRestoreProviderWhenIdle(true);
 			onStreamingEndRef.current?.();
 			const speechError = event as SpeechRecognitionErrorEvent;
 			onErrorRef.current?.(
