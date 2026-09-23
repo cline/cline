@@ -292,6 +292,7 @@ export {
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export { toPosixSeparators } from "./parse/path";
 export {
 	getDefaultShell,
 	getPowerShellEdition,
