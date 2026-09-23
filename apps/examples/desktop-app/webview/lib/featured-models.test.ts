@@ -20,7 +20,7 @@ describe("buildModelPickerData", () => {
 			model("zzz/last-model", "ZZZ Last"),
 			model(
 				"deepseek/deepseek-v4-flash",
-				"DeepSeek V4 Flash",
+				"DeepSeek V4 Flash (free)",
 				{ tier: "free", rank: 0, tags: [] },
 				"Fast and efficient",
 			),
@@ -50,7 +50,11 @@ describe("buildModelPickerData", () => {
 			label: "Claude Opus 5",
 			section: "recommended",
 		});
-		expect(options[1]).toMatchObject({ badge: undefined, section: "free" });
+		expect(options[1]).toMatchObject({
+			badge: undefined,
+			label: "DeepSeek V4 Flash",
+			section: "free",
+		});
 		// The "all" tier is sorted by display name, not raw id.
 		expect(options[2]?.label).toBe("AAA First");
 	});

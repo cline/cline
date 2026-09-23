@@ -54,7 +54,8 @@ function tierOptions(
 		.map((model) => ({
 			badge: badge?.(model),
 			description: model.description?.trim() || undefined,
-			label: displayName(model),
+			// The SDK's "(free)" suffix is redundant under the Free section header.
+			label: displayName(model).replace(/\s*\(free\)$/i, ""),
 			section,
 			value: model.id,
 		}));
