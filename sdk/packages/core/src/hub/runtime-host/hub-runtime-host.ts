@@ -529,6 +529,7 @@ function usageEventFromPayload(payload: Record<string, unknown> | undefined): {
 			cacheReadTokens: usageMetric(delta, "cacheReadTokens"),
 			cacheWriteTokens: usageMetric(delta, "cacheWriteTokens"),
 			cost: finiteNumber(delta?.totalCost),
+			reasoningTokenCount: finiteNumber(delta?.reasoningTokenCount),
 			totalInputTokens: usageMetric(totals, "inputTokens"),
 			totalOutputTokens: usageMetric(totals, "outputTokens"),
 			totalCacheReadTokens: usageMetric(totals, "cacheReadTokens"),
