@@ -318,7 +318,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
 	const modalities = toModalities(model);
-	const operation = resolveCatalogModelOperation(model);
+	const operation = resolveCatalogModelOperation({ ...model, id: modelId });
 	const operationModes = resolveCatalogModelOperationModes(modelId, model);
 	const apiProtocol = model.provider?.npm
 		? MODEL_API_PROTOCOLS[model.provider.npm]

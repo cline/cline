@@ -30,10 +30,7 @@ import {
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	SpeechInput,
-	type SpeechTranscriptionSource,
-} from "@/components/ai-elements/speech-input";
+import { SpeechInput } from "@/components/ai-elements/speech-input";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
@@ -79,9 +76,8 @@ import {
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
 import type { ProviderModel } from "@/lib/provider-schema";
+import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-
-import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { PullRequestBar } from "./pull-request-bar";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -433,13 +429,6 @@ function ChatInputBarImpl({
 		draftVersion: number;
 		generation: number;
 	} | null>(null);
-	const speechRecognitionSessionRef = useRef<{
-		start: number;
-		end: number;
-		expectedValue: string;
-		draftVersion: number;
-		generation: number;
-	} | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
@@ -464,7 +453,6 @@ function ChatInputBarImpl({
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
 		batchTranscriptSessionRef.current = null;
-		speechRecognitionSessionRef.current = null;
 		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
@@ -623,7 +611,7 @@ function ChatInputBarImpl({
 	const updateTranscriptionTarget = useCallback(
 		(target: TranscriptionModelTarget | null) => {
 			const identity = target
-				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "auto"}`
+				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "media-recorder"}`
 				: "unconfigured";
 			transcriptionTargetStreamsRef.current =
 				target?.supportsStreaming ?? false;
@@ -631,7 +619,6 @@ function ChatInputBarImpl({
 				transcriptionTargetIdentityRef.current = identity;
 				transcriptionGenerationRef.current += 1;
 				batchTranscriptSessionRef.current = null;
-				speechRecognitionSessionRef.current = null;
 				streamingTranscriptRangeRef.current = null;
 			}
 			setTranscriptionTarget(target);
@@ -691,7 +678,7 @@ function ChatInputBarImpl({
 		let loadId = 0;
 		const loadVoiceInput = () => {
 			const currentLoadId = ++loadId;
-			loadProviderModelCatalog()
+			loadProviderModelCatalog({ includeVoiceInput: true })
 				.then((catalog) => {
 					if (!cancelled && currentLoadId === loadId) {
 						updateTranscriptionTarget(catalog.voiceInput);
@@ -716,28 +703,11 @@ function ChatInputBarImpl({
 	}, [updateTranscriptionTarget]);
 
 	const handleTranscriptionChange = useCallback(
-		(
-			transcript: string,
-			source: SpeechTranscriptionSource = "media-recorder",
-		) => {
+		(transcript: string) => {
 			const text = transcript.trim();
-			const session =
-				source === "speech-recognition"
-					? speechRecognitionSessionRef.current
-					: batchTranscriptSessionRef.current;
-
-			if (source === "speech-recognition") {
-				// Browser speech recognition yields final chunks while the microphone
-				// remains open. Keep its insertion cursor alive across those chunks.
-				batchTranscriptSessionRef.current = null;
-			} else {
-				// A completed recording produces one batch result.
-				speechRecognitionSessionRef.current = null;
-				batchTranscriptSessionRef.current = null;
-			}
-			// Each result must belong to the draft captured when recording began.
-			// Batch snapshots are consumed once; browser recognition advances its
-			// cursor after each final chunk.
+			const session = batchTranscriptSessionRef.current;
+			// A completed recording produces one result for the captured draft.
+			batchTranscriptSessionRef.current = null;
 			if (!text || !session) return;
 
 			const current = promptInputValueRef.current;
@@ -757,15 +727,6 @@ function ChatInputBarImpl({
 			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
 			const next = `${before}${insertedText}${after}`;
 			const nextCursor = before.length + insertedText.length;
-			if (source === "speech-recognition") {
-				speechRecognitionSessionRef.current = {
-					start: nextCursor,
-					end: nextCursor,
-					expectedValue: next,
-					draftVersion: session.draftVersion,
-					generation: session.generation,
-				};
-			}
 			setPromptInput(next);
 			requestAnimationFrame(() => {
 				const textarea = promptInputRef.current;
@@ -785,7 +746,6 @@ function ChatInputBarImpl({
 
 		if (!active) {
 			batchTranscriptSessionRef.current = null;
-			speechRecognitionSessionRef.current = null;
 			return;
 		}
 		if (wasActive || transcriptionTargetStreamsRef.current) return;
@@ -801,11 +761,7 @@ function ChatInputBarImpl({
 			draftVersion: latestDraftVersionRef.current,
 			generation: transcriptionGenerationRef.current,
 		};
-		// `auto` chooses browser speech recognition when available and falls back
-		// to MediaRecorder. Capture both session shapes until the result tells us
-		// which transport was selected.
 		batchTranscriptSessionRef.current = session;
-		speechRecognitionSessionRef.current = session;
 	}, []);
 
 	const handleStreamingTranscriptionStart = useCallback(() => {
@@ -872,7 +828,7 @@ function ChatInputBarImpl({
 
 	const handleStartStreamingTranscription = useCallback(() => {
 		const generation = transcriptionGenerationRef.current;
-		return startVercelStreamingTranscription({
+		return startStreamingTranscription({
 			onTranscript: (transcript) => {
 				if (generation === transcriptionGenerationRef.current) {
 					handleStreamingTranscriptionChange(transcript);
@@ -1503,10 +1459,11 @@ function ChatInputBarImpl({
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
-							    don't get a dead control. */}
+							    don't get a dead control. Always use the configured
+							    provider; auto mode can bypass it with browser recognition. */}
 							{transcriptionTarget ? (
 								<SpeechInput
-									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`}
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "media-recorder"}`}
 									onActiveChange={handleSpeechInputActiveChange}
 									onAudioRecorded={handleAudioRecorded}
 									onError={handleSpeechInputError}
@@ -1524,7 +1481,9 @@ function ChatInputBarImpl({
 											: handleTranscriptionChange
 									}
 									recordingMode={
-										transcriptionTarget.supportsStreaming ? "streaming" : "auto"
+										transcriptionTarget.supportsStreaming
+											? "streaming"
+											: "media-recorder"
 									}
 									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
 								/>
