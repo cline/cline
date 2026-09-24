@@ -60,10 +60,14 @@
 /*
  * Prose surfaces: pick a base direction per block instead of inheriting the
  * document direction, so mixed replies align per paragraph rather than per
- * message. Applies to markdown bodies and chat message text.
+ * message. This is deliberately NOT scoped to `dir="rtl"`: a Persian paragraph
+ * inside an English UI needs the same treatment as one inside an RTL UI, which
+ * is what discussion #14047 asks for.
+ *
+ * `text-align: start` resolves against each block's own direction, so an
+ * English-only paragraph stays left aligned even when the document is RTL.
  */
-[dir="rtl"]
-	:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
+:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
 	:is(
 		p,
 		li,
@@ -86,15 +90,13 @@
 }
 
 /* List markers and cell alignment follow the start edge in both directions. */
-[dir="rtl"]
-	:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
+:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
 	:is(ol, ul) {
 	padding-inline-start: 1.25rem;
 	padding-inline-end: 0;
 }
 
-[dir="rtl"]
-	:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
+:is(.cline-markdown, .inline-markdown-block, .cline-chat-message-content)
 	:is(th, td) {
 	text-align: start;
 }
