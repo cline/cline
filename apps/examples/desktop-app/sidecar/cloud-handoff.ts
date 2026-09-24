@@ -576,6 +576,11 @@ async function handleHandoffOnce(
 					error.code === "session_expired" ||
 					error.code === "session_failed")
 			) {
+				if (
+					error.code === "session_not_found" &&
+					(await cloud.handoffTargetExists(outerSessionId))
+				)
+					throw error;
 				await clearPendingTarget(outerSessionId);
 				outerSessionId = "";
 				innerSessionId = "";

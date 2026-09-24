@@ -793,12 +793,45 @@ describe("cloud handoff transaction", () => {
 		vi.spyOn(f.cloud, "waitUntilReady").mockRejectedValueOnce(
 			new CloudSessionError("session_not_found", "gone"),
 		);
+		vi.spyOn(f.cloud, "handoffTargetExists").mockResolvedValue(false);
 		vi.spyOn(f.cloud, "delete").mockRejectedValueOnce(
 			new CloudSessionError("session_not_found", "gone"),
 		);
 		await expect(
 			handleChatSessionCommand(f.ctx, f.request),
 		).resolves.toMatchObject({ outerSessionId: "ses-cloud" });
+	});
+
+	it.each([
+		"exists",
+		"uncertain",
+	])("preserves an unlisted pending target when its status is %s", async (status) => {
+		const f = createHandoffFixture();
+		f.create.mockImplementationOnce(async (input) => {
+			await input.handoff?.onOuterSessionCreated("ses-cloud", {
+				created: true,
+			});
+			throw new Error("interrupted");
+		});
+		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
+			"interrupted",
+		);
+		const metadata = f.getPersistedMetadata();
+		vi.spyOn(f.cloud, "waitUntilReady").mockResolvedValue(undefined);
+		vi.spyOn(f.cloud, "seedHandoff").mockRejectedValue(
+			new CloudSessionError("session_not_found", "not listed"),
+		);
+		vi.spyOn(f.cloud, "handoffTargetExists").mockImplementation(async () => {
+			if (status === "uncertain") throw new Error("status unavailable");
+			return true;
+		});
+		const remove = vi.spyOn(f.cloud, "delete").mockResolvedValue(undefined);
+		await expect(handleChatSessionCommand(f.ctx, f.request)).rejects.toThrow(
+			status === "exists" ? "not listed" : "status unavailable",
+		);
+		expect(remove).not.toHaveBeenCalled();
+		expect(f.create).toHaveBeenCalledOnce();
+		expect(f.getPersistedMetadata()).toEqual(metadata);
 	});
 
 	it("stops before creation when its intent cannot be saved", async () => {
