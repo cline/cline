@@ -49,7 +49,6 @@ export function deriveCloudSessionTitle(prompt: string): string {
 }
 
 export type CreateCloudSessionInput = {
-	/** Resumable sandboxes retain their workspace when stopped. Defaults to standard. */
 	sandboxType?: "standard" | "resumable";
 	/** Stable client-planned id for single-flighting one chat's start request. */
 	requestId?: string;

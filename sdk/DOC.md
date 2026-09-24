@@ -45,15 +45,8 @@ not include local-to-cloud handoff.
 Viewers hydrating active runs with `readMessages` reconcile canonical history at
 completion even when they missed the run-start event and earlier content deltas.
 
-`create` accepts `sandboxType: "standard" | "resumable"`; omitting it preserves
-the backend's standard default. Desktop requests `resumable` by default so the
-workspace survives sandbox suspension. `CloudSessionApi.resume` calls the resume
-endpoint. The controller resumes suspended sessions when opened, waits for
-readiness, and restores a saved task's runtime from its persisted conversation
-under the same task ID. Discovery alone does not resume a suspended sandbox.
-For concurrent viewers, the cloud Hub must include the runtime's atomic
-same-ID creation guard (`session_already_exists`); roll out that Hub change
-before the desktop default.
+`create` accepts `sandboxType: "standard" | "resumable"` (default: `"standard"`).
+The controller resumes suspended sessions when opened and restores their saved tasks.
 
 Hosts replacing controllers during credential refresh can share the
 `pendingInitialTasks: Map<string, CloudCreationOptions>` constructor option.

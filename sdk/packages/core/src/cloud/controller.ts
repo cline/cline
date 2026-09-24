@@ -1900,7 +1900,6 @@ export class CloudSessionController {
 					remote.metadata.sandboxType === "resumable" ||
 					remote.status === "suspended")
 			) {
-				// Reconcile a cached ready row before connecting to a stopped pod.
 				const status = await this.options.api.status(outerSessionId);
 				assertCurrent();
 				if (status.status) remote.status = status.status;
@@ -1918,8 +1917,7 @@ export class CloudSessionController {
 							controller.signal,
 						);
 					} catch (error) {
-						// A different viewer can move suspended -> provisioning between
-						// our status read and POST. Only that conflict is recoverable.
+						// Another viewer may have resumed the session since our status read.
 						if (!(error instanceof CloudSessionError) || error.status !== 409)
 							throw error;
 						assertCurrent();
@@ -2198,8 +2196,7 @@ export class CloudSessionController {
 		sessionId: string,
 		saved: JsonRecord,
 	): Promise<void> {
-		// session.get/attach also return persisted records after a pod restart.
-		// Only the runtime lookup distinguishes those from a live agent.
+		// session.get/attach can return saved records without a live runtime.
 		const probe = () =>
 			connection.client.command(
 				"session.update_connection",
@@ -2231,8 +2228,6 @@ export class CloudSessionController {
 		const metadata = (saved.metadata ?? {}) as JsonRecord;
 		const runtimeOptions = (saved.runtimeOptions ?? {}) as JsonRecord;
 		const config = this.sessions.get(connection.remote.id)?.config;
-		// Hub records persist approval/checkpoint settings in metadata, while
-		// thinking settings are retained by the host's creation-options storage.
 		const autoApproveTools =
 			typeof metadata.autoApproveTools === "boolean"
 				? metadata.autoApproveTools
@@ -2280,7 +2275,6 @@ export class CloudSessionController {
 		} catch (error) {
 			if ((error as { code?: string })?.code !== "session_already_exists")
 				throw error;
-			// A different viewer may have restored the same saved task first.
 			this.assertSessionActive(connection.remote.id, connection);
 			await probe();
 		}

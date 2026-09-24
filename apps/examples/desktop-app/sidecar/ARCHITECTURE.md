@@ -19,7 +19,7 @@ sidecar/
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
-├── cloud-sessions.ts     # Cloud session projection; new sessions default to PVC-backed resumable storage
+├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
 ├── cline-auth.ts         # Refresh-aware Cline auth token resolution
 ├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
 ├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)

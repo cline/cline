@@ -212,7 +212,7 @@ describe("CloudSessionController neutral host contract", () => {
 		await f.controller.dispose();
 	});
 
-	it("reconciles a cached ready PVC session before resuming it", async () => {
+	it("reconciles a cached ready resumable session before resuming it", async () => {
 		const f = fixture();
 		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
 		await f.controller.list();
@@ -402,8 +402,6 @@ describe("CloudSessionController neutral host contract", () => {
 			reasoningEffort: "high",
 		});
 		f.setMessages([{ role: "user", content: "Saved work" }]);
-		// Use the real Hub projection: these settings live in metadata, not
-		// in the runtimeOptions object exposed to clients.
 		const saved = toHubSessionRecord({
 			sessionId: "inner",
 			isSubagent: false,

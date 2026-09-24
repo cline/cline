@@ -417,8 +417,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const sessionId = requestedSessionId || createSessionId();
 		const pending = this.sessionStarts.get(sessionId);
 		if (pending) {
-			// A duplicate restore can probe the runtime as soon as this rejects.
-			// Wait until the winner is usable; a failed start releases the ID.
+			// Wait for the first start so the caller can attach or retry after failure.
 			await pending.catch(() => undefined);
 			return await this.startSession({
 				...input,

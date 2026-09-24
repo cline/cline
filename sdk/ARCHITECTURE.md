@@ -136,8 +136,7 @@ Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent. It does not implement local-to-cloud handoff.
-- Hosts choose `sandboxType` at creation; desktop defaults to `resumable` (PVC-backed). Discovery leaves suspended sandboxes asleep and closes their stale transports. Opening a suspended session resumes the sandbox and waits for readiness before connecting. For resumable sessions, the controller probes the saved task's live runtime and restores it with its original ID and persisted conversation if the pod restarted.
-- Runtime session creation serializes competing starts for the same ID and rejects an existing live session with `session_already_exists`. A losing restore waits for the winning start to settle before attaching, so independent viewers cannot replace a live runtime with stale saved history. Cloud Hub images must include this guard before rolling out concurrent desktop restoration.
+- The cloud controller resumes suspended sessions and restores saved tasks. The runtime serializes starts for the same session ID and rejects duplicates.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
