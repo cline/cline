@@ -9,6 +9,7 @@ import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	MODEL_SELECTION_STORAGE_KEY,
 	parseModelSelectionStorage,
+	REASONING_SELECTION_STORAGE_KEY,
 } from "@/lib/model-selection";
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
@@ -112,6 +113,7 @@ beforeEach(() => {
 			value: window.sessionStorage,
 		});
 	}
+	window.localStorage.removeItem(REASONING_SELECTION_STORAGE_KEY);
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
 		enabledProviderIds: ["cline"],
@@ -1453,6 +1455,73 @@ describe("ChatInputBar", () => {
 		expect(onReasoningChange).toHaveBeenCalledWith({
 			thinking: true,
 			reasoningEffort: "high",
+		});
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(REASONING_SELECTION_STORAGE_KEY) ?? "{}",
+			),
+		).toEqual({ cline: "high" });
+	});
+
+	it("seeds an unset thinking level from the remembered provider choice instead of Low", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline"],
+			providerModels: { cline: ["test-model"] },
+			providerReasoningModels: { cline: ["test-model"] },
+		});
+		window.localStorage.setItem(
+			REASONING_SELECTION_STORAGE_KEY,
+			JSON.stringify({ cline: "medium", anthropic: "high" }),
+		);
+		const onReasoningChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						environmentId="local"
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={onReasoningChange}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={vi.fn()}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort={undefined}
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={undefined}
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		await vi.waitFor(() => {
+			expect(onReasoningChange).toHaveBeenCalledWith({
+				thinking: true,
+				reasoningEffort: "medium",
+			});
+		});
+		expect(onReasoningChange).not.toHaveBeenCalledWith({
+			thinking: true,
+			reasoningEffort: "low",
 		});
 	});
 
