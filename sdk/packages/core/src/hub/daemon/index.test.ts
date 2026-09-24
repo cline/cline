@@ -300,6 +300,51 @@ describe("ensureDetachedHubServer", () => {
 		);
 	});
 
+	it("keeps the preferred port and lets the daemon fall back when allowBindFallback is set", async () => {
+		vi.useFakeTimers();
+		try {
+			const record = {
+				url: "ws://127.0.0.1:53121/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				authToken: "token",
+			};
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace", {
+				allowBindFallback: true,
+			});
+			await vi.advanceTimersByTimeAsync(1_000);
+			// The daemon lands on an OS-assigned port and publishes it.
+			readHubDiscovery.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue(record);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:53121/hub",
+				authToken: "token",
+			});
+			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0]?.[1] ?? []) as string[];
+			expect(spawnArgs).toContain("--allow-port-fallback");
+			// Unlike allowPortFallback, the preferred port is still requested.
+			expect(spawnArgs).not.toContain("0");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not pass the bind fallback flag by default", async () => {
+		const { spawnDetachedHubServer } = await import(".");
+		spawnDetachedHubServer("/workspace");
+		const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+			.mock.calls[0]?.[1] ?? []) as string[];
+		expect(spawnArgs).not.toContain("--allow-port-fallback");
+	});
+
 	it("does not spawn another detached daemon from inside the hub daemon process", async () => {
 		process.env[CLINE_RUN_AS_HUB_DAEMON_ENV] = "1";
 

@@ -54,6 +54,7 @@ function isAddressInUseError(error: unknown): boolean {
 async function startHubWebSocketServerWithBindRetry(
 	bindDeadline: number,
 	options: Parameters<typeof startHubWebSocketServer>[0],
+	allowPortFallback = false,
 ): Promise<Awaited<ReturnType<typeof startHubWebSocketServer>>> {
 	for (;;) {
 		try {
@@ -68,6 +69,21 @@ async function startHubWebSocketServerWithBindRetry(
 				(!isAddressInUseError(error) && !isHubLockHeldError(error)) ||
 				Date.now() >= bindDeadline
 			) {
+				// The preferred port is held by something that is not a
+				// retiring Hub (another app, or a Windows reserved port range
+				// that moves between reboots). When the launcher allows it,
+				// bind an OS-assigned port instead of dying: clients find the
+				// Hub through the discovery record, not the port number.
+				if (
+					allowPortFallback &&
+					isAddressInUseError(error) &&
+					options.port !== 0
+				) {
+					process.stderr.write(
+						`[hub-daemon] port ${options.port} is in use; binding an OS-assigned port instead\n`,
+					);
+					return await startHubWebSocketServer({ ...options, port: 0 });
+				}
 				throw error;
 			}
 			await new Promise((resolve) =>
@@ -83,8 +99,10 @@ function parseArgs(argv: string[]): {
 	host?: string;
 	port?: number;
 	pathname?: string;
+	allowPortFallback: boolean;
 } {
 	let manageConnectors = true;
+	let allowPortFallback = false;
 	let cwd = process.cwd();
 	let host: string | undefined;
 	let port: number | undefined;
@@ -95,6 +113,10 @@ function parseArgs(argv: string[]): {
 		const value = argv[index + 1];
 		if (arg === "--no-connectors") {
 			manageConnectors = false;
+			continue;
+		}
+		if (arg === "--allow-port-fallback") {
+			allowPortFallback = true;
 			continue;
 		}
 		if (arg === "--cwd" && value) {
@@ -121,7 +143,7 @@ function parseArgs(argv: string[]): {
 		}
 	}
 
-	return { cwd, host, port, pathname, manageConnectors };
+	return { cwd, host, port, pathname, manageConnectors, allowPortFallback };
 }
 
 /**
@@ -251,27 +273,31 @@ async function main(): Promise<void> {
 	const bindDeadline = Date.now() + HUB_STARTUP_BIND_RETRY_WINDOW_MS;
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
-		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
-			workspaceRoot: options.cwd,
-			onShutdownRequested: () => {
-				void requestOrQueueShutdown({
-					reason: "authenticated HTTP shutdown request",
-					exitCode: 0,
-				});
-			},
-			host: endpoint.host,
-			port: endpoint.port,
-			pathname: endpoint.pathname,
-			owner:
-				resolveClineBuildEnv() === "production"
-					? resolveProductionHubOwnerContext()
-					: resolveSharedHubOwnerContext(),
-			telemetry: daemonTelemetry.telemetry,
-			runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+		server = await startHubWebSocketServerWithBindRetry(
+			bindDeadline,
+			{
+				workspaceRoot: options.cwd,
+				onShutdownRequested: () => {
+					void requestOrQueueShutdown({
+						reason: "authenticated HTTP shutdown request",
+						exitCode: 0,
+					});
+				},
+				host: endpoint.host,
+				port: endpoint.port,
+				pathname: endpoint.pathname,
+				owner:
+					resolveClineBuildEnv() === "production"
+						? resolveProductionHubOwnerContext()
+						: resolveSharedHubOwnerContext(),
 				telemetry: daemonTelemetry.telemetry,
-			}),
-			cronOptions: { workspaceRoot: options.cwd },
-		});
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers({
+					telemetry: daemonTelemetry.telemetry,
+				}),
+				cronOptions: { workspaceRoot: options.cwd },
+			},
+			options.allowPortFallback,
+		);
 	} catch (error) {
 		// Losing the singleton race to a live Hub is expected, not a failure.
 		if (!isHubLockHeldError(error)) {

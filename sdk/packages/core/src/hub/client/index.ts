@@ -201,6 +201,11 @@ export interface LocalHubResolutionOptions {
 	workspaceRoot?: string;
 	cwd?: string;
 	/**
+	 * Let a Hub this client has to start bind an OS-assigned port when the
+	 * preferred one is unavailable. See `DetachedHubOptions.allowBindFallback`.
+	 */
+	allowBindFallback?: boolean;
+	/**
 	 * Called with the error when starting a detached Hub fails. The function
 	 * still resolves `undefined` in that case; this lets a caller report why.
 	 */
@@ -1331,6 +1336,7 @@ export async function ensureCompatibleLocalHubUrl(
 	try {
 		const ensured = await ensureDetachedHubServer(
 			options.workspaceRoot ?? process.cwd(),
+			{ allowBindFallback: options.allowBindFallback },
 		);
 		return ensured.url;
 	} catch (error) {

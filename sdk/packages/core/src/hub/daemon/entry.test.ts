@@ -489,6 +489,92 @@ describe("hub daemon entry", () => {
 		}
 	});
 
+	it("binds an OS-assigned port when the preferred port stays busy and fallback is allowed", async () => {
+		vi.useFakeTimers();
+		try {
+			const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+			tempDirs.push(cwd);
+			process.argv = [
+				"node",
+				"entry.js",
+				"--cwd",
+				cwd,
+				"--allow-port-fallback",
+			];
+			vi.spyOn(process, "on").mockImplementation(() => process);
+			vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			const exitSpy = vi
+				.spyOn(process, "exit")
+				.mockImplementation(() => undefined as never);
+			const server = createMockServerClose({
+				closed: new Promise<void>(() => undefined),
+			});
+			mockStartHubWebSocketServer.mockImplementation(
+				async (options: unknown) => {
+					if ((options as { port?: number }).port === 0) {
+						return server;
+					}
+					throw Object.assign(new Error("Failed to start server"), {
+						code: "EADDRINUSE",
+					});
+				},
+			);
+
+			const { hubDaemonReady } = await import("./entry");
+			// Inside the bind-retry window the daemon keeps trying the
+			// preferred port for a retiring predecessor.
+			await vi.advanceTimersByTimeAsync(4_000);
+			const portsSoFar = mockStartHubWebSocketServer.mock.calls.map(
+				(call) => (call[0] as { port?: number }).port,
+			);
+			expect(portsSoFar.length).toBeGreaterThan(1);
+			expect(portsSoFar.every((port) => port !== 0)).toBe(true);
+
+			await vi.advanceTimersByTimeAsync(2_000);
+			await hubDaemonReady;
+			const lastCall = mockStartHubWebSocketServer.mock.calls.at(-1)?.[0] as
+				| { port?: number }
+				| undefined;
+			expect(lastCall?.port).toBe(0);
+			expect(exitSpy).not.toHaveBeenCalled();
+		} finally {
+			mockStartHubWebSocketServer.mockReset();
+			vi.useRealTimers();
+		}
+	});
+
+	it("still exits when the preferred port stays busy and fallback is not allowed", async () => {
+		vi.useFakeTimers();
+		try {
+			const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+			tempDirs.push(cwd);
+			process.argv = ["node", "entry.js", "--cwd", cwd];
+			vi.spyOn(process, "on").mockImplementation(() => process);
+			vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+			const exitSpy = vi
+				.spyOn(process, "exit")
+				.mockImplementation(() => undefined as never);
+			mockStartHubWebSocketServer.mockImplementation(async () => {
+				throw Object.assign(new Error("Failed to start server"), {
+					code: "EADDRINUSE",
+				});
+			});
+
+			const { hubDaemonReady } = await import("./entry");
+			await vi.advanceTimersByTimeAsync(6_000);
+			await expect(hubDaemonReady).rejects.toThrow("Failed to start server");
+			expect(
+				mockStartHubWebSocketServer.mock.calls.some(
+					(call) => (call[0] as { port?: number }).port === 0,
+				),
+			).toBe(false);
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		} finally {
+			mockStartHubWebSocketServer.mockReset();
+			vi.useRealTimers();
+		}
+	});
+
 	it("disposes telemetry and exits when server startup fails", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);

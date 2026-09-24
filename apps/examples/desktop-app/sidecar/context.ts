@@ -1308,6 +1308,11 @@ export async function initializeSessionManager(
 			cwd: ctx.localWorkspaceRoot,
 			clientType: "code-sidecar",
 			displayName: "Cline Desktop sidecar",
+			// Port 25463 is sometimes taken on Windows (another app, or a
+			// Hyper-V/WSL reserved range that moves between reboots). The
+			// VS Code extension and the SSH helper already tolerate that; a
+			// desktop launch must not fail over it either.
+			allowBindFallback: true,
 		},
 	});
 
