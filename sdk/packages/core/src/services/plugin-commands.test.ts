@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPluginCommandService } from "./plugin-commands";
 
 describe("createPluginCommandService", () => {
@@ -90,6 +90,18 @@ describe("createPluginCommandService", () => {
 		await expect(service.listCommands()).resolves.toEqual([]);
 		await expect(service.run("goalish", "status")).resolves.toBeUndefined();
 		expect(errors).toHaveLength(1);
+
+		// The failure may have been transient, so it is retried after a delay.
+		const realNow = Date.now;
+		const nowSpy = vi
+			.spyOn(Date, "now")
+			.mockImplementation(() => realNow() + 60_000);
+		try {
+			await expect(service.run("goalish", "status")).resolves.toBeUndefined();
+			expect(errors).toHaveLength(2);
+		} finally {
+			nowSpy.mockRestore();
+		}
 
 		await writeFile(
 			pluginPath,
