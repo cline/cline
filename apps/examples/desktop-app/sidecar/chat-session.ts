@@ -1318,13 +1318,24 @@ async function handleSend(
 		ctx.localWorkspaceRoot;
 	// Plugin slash commands (`api.registerCommand`) run here in the sidecar,
 	// as in the CLI: the handler's reply goes to the webview as a toast and
-	// only its `submitPrompt` (if any) reaches the model.
+	// only its `submitPrompt` (if any) reaches the model. A plugin that fails
+	// to load must not block the prompt (it may be a skill or workflow), so
+	// like the CLI we log and continue without plugin commands.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
 	const pluginCommand =
 		commandName &&
 		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
 		binding.kind !== "ssh"
-			? await runPluginSlashCommand({ workspacePath, prompt })
+			? await runPluginSlashCommand({ workspacePath, prompt }).catch(
+					(error: unknown) => {
+						ctx.logger?.error?.("Plugin slash command failed", {
+							sessionId,
+							command: commandName,
+							error,
+						});
+						return undefined;
+					},
+				)
 			: undefined;
 	if (pluginCommand) {
 		if (pluginCommand.reply) {
