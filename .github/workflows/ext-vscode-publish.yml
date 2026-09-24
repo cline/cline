@@ -22,8 +22,8 @@ name: ext-vscode-publish
 # timeout, and the stable job was running the workspace-vendored vsce 3.9.2
 # via `bun run` after a 25-minute build. The mechanism is NOT established;
 # the retry below covers a transient Marketplace hang without risking a
-# double publish (vsce checks the listing first and exits 0 on "already
-# published").
+# double publish (with --skip-duplicate, vsce checks the listing first and
+# exits 0 on "already published"; without it a duplicate is an error).
 
 on:
     workflow_dispatch:
@@ -241,9 +241,14 @@ jobs:
 
             # Publish uploads this file as-is, so check the bytes that will
             # ship rather than the source tree: identity + version of the
-            # packaged manifest, and that the build actually inlined its env
-            # (a leftover `process.env.TELEMETRY_SERVICE_API_KEY` literal means
-            # telemetry is silently dead in the shipped extension).
+            # packaged manifest, and that the build actually inlined its env.
+            # apps/vscode/esbuild.mjs only defines each of these when the
+            # variable is non-empty, so a missing/blank secret leaves the
+            # `process.env.X` literal in the bundle and that piece of telemetry
+            # is silently dead in the shipped extension. The list mirrors the
+            # env block of the build step above (variables the workflow does
+            # not supply, e.g. OTEL_METRIC_EXPORT_INTERVAL, legitimately remain
+            # runtime lookups and are not checked).
             - name: Assert packaged identity and inlined env
               working-directory: apps/vscode
               env:
@@ -259,11 +264,21 @@ jobs:
                     assert.equal(pkg.version, process.env.EXPECTED_VERSION, `unexpected version ${pkg.version}`);
                     console.log(`identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
                   '
-                  if unzip -p "$VSIX" extension/dist/extension.js | grep -q 'process.env.TELEMETRY_SERVICE_API_KEY'; then
-                    echo "Error: dist/extension.js still references process.env.TELEMETRY_SERVICE_API_KEY — the build ran without its env."
+                  unzip -p "$VSIX" extension/dist/extension.js > /tmp/packaged-extension.js
+                  MISSING=""
+                  for VAR in CLINE_ENVIRONMENT TELEMETRY_SERVICE_API_KEY ERROR_SERVICE_API_KEY \
+                             OTEL_TELEMETRY_ENABLED OTEL_LOGS_EXPORTER OTEL_METRICS_EXPORTER OTEL_TRACES_EXPORTER \
+                             CLINE_TRACE_RECORD_CONTENT OTEL_EXPORTER_OTLP_PROTOCOL OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_HEADERS; do
+                    if grep -q "process\.env\.$VAR\b" /tmp/packaged-extension.js; then
+                      MISSING="$MISSING $VAR"
+                    fi
+                  done
+                  if [[ -n "$MISSING" ]]; then
+                    echo "Error: dist/extension.js still references process.env literals for:$MISSING"
+                    echo "The build ran without those values (missing/empty secret?) — the shipped extension would have that telemetry disabled."
                     exit 1
                   fi
-                  echo "env inlining ok: no TELEMETRY_SERVICE_API_KEY literal in dist/extension.js"
+                  echo "env inlining ok: no build-time process.env literals left in dist/extension.js"
 
             - name: Upload VSIX artifact
               uses: actions/upload-artifact@v4
@@ -357,11 +372,15 @@ jobs:
                     echo "Error: OVSX_PAT is required to publish to Open VSX."
                     exit 1
                   fi
-                  # Retry a hung/timed-out upload. Safe: vsce queries the listing
-                  # before uploading and exits 0 with "already published" if a
-                  # previous attempt landed but its response was lost.
+                  # Retry a hung/timed-out upload. --skip-duplicate makes this
+                  # safe: vsce queries the listing before uploading (and maps a
+                  # 409 from the upload itself) to "already published" + exit 0,
+                  # so an attempt whose upload landed but whose response was lost
+                  # is a success on the next attempt instead of an error that
+                  # would skip the tag/release/Slack bookkeeping. Without the
+                  # flag vsce throws "already exists".
                   for attempt in 1 2 3; do
-                    if vsce publish --no-dependencies --packagePath "cline-${{ github.event.inputs.version }}.vsix"; then
+                    if vsce publish --no-dependencies --skip-duplicate --packagePath "cline-${{ github.event.inputs.version }}.vsix"; then
                       exit 0
                     fi
                     echo "vsce publish attempt $attempt failed."
