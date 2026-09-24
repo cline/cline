@@ -142,16 +142,6 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
-## Shared composer presentation
-
-`@cline/ui` exports `AgentComposer` and companion presentation primitives.
-They forward native props and refs; descendants inherit the parent's `welcome`
-or `conversation` variant unless explicitly overridden. State and interactions
-remain host-owned.
-
-See the [composer adoption guide](./packages/ui/ADOPTION.md#composer-presentation)
-for composition and styling.
-
 
 ## Concurrent subagent tool calls
 
