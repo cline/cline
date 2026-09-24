@@ -501,6 +501,24 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("appends plugin commands after skills and workflows", () => {
+		expect(
+			buildUserInstructionSlashCommands(
+				{
+					runtimeCommands: [{ id: "skill:goal", name: "goal", kind: "skill" }],
+				},
+				[
+					{ name: "goal", description: "Set or clear a goal" },
+					{ name: "goal-status" },
+					{ name: "team", description: "Plugin team" },
+				],
+			),
+		).toEqual([
+			{ name: "goal", description: "Skill command" },
+			{ name: "goal-status", description: "Plugin command" },
+		]);
+	});
+
 	it("allows cloud image and model selection without replacing local defaults", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],

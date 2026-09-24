@@ -107,12 +107,15 @@ let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
+	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
+	// command service, so the menu matches what `/name` can actually run.
+	pluginCommands: SlashCommand[] = [],
 ): SlashCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
+	const result = commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
 			return [];
@@ -127,6 +130,15 @@ export function buildUserInstructionSlashCommands(
 			},
 		];
 	});
+	for (const command of pluginCommands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	return result;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
@@ -933,13 +945,21 @@ function ChatInputBarImpl({
 		let cancelled = false;
 		// Only show the loading row when there is nothing cached to show.
 		setSlashLoading(cachedSlashCommands === null);
-		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+		Promise.all([
+			desktopClient.invoke<UserInstructionConfigResponse>(
+				"list_user_instruction_configs",
+			),
+			desktopClient
+				.invoke<SlashCommand[]>("list_plugin_commands", {
+					workspacePath: workspaceRoot,
+				})
+				.catch((): SlashCommand[] => []),
+		])
+			.then(([response, pluginCommands]) => {
 				if (cancelled) return;
 				const next = [
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
+					...buildUserInstructionSlashCommands(response, pluginCommands),
 				];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
@@ -953,7 +973,7 @@ function ChatInputBarImpl({
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen]);
+	}, [slashOpen, workspaceRoot]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
