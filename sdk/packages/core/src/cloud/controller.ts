@@ -2890,14 +2890,12 @@ export class CloudSessionController {
 			if (live) live.config.cwd = cwd;
 		}
 		const live = this.sessions.get(connection.remote.id);
+		const mode = (row.runtimeOptions as JsonRecord | undefined)?.mode;
 		if (
 			live &&
-			(row.mode === "act" ||
-				row.mode === "plan" ||
-				row.mode === "yolo" ||
-				row.mode === "zen")
+			(mode === "act" || mode === "plan" || mode === "yolo" || mode === "zen")
 		)
-			live.config.mode = row.mode;
+			live.config.mode = mode;
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {

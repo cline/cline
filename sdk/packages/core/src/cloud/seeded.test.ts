@@ -73,7 +73,7 @@ function fixture() {
 							status: "idle",
 							metadata: payload?.metadata,
 							cwd: config.cwd,
-							mode: config.mode,
+							runtimeOptions: { mode: config.mode },
 						},
 					];
 					transcript = structuredClone(
@@ -215,14 +215,14 @@ describe("seeded cloud handoff controller", () => {
 		);
 		await f.controller.dispose();
 	});
-	it("adopts a sole matching previously seeded conversation without reseeding", async () => {
+	it("reattaches and adopts a seeded conversation with its saved mode without reseeding", async () => {
 		const f = fixture();
 		f.setRows([
 			{
 				sessionId: "existing",
 				status: "idle",
 				cwd: "/workspace/packages/app",
-				mode: "plan",
+				runtimeOptions: { mode: "plan" },
 				metadata: {
 					model: "model",
 					handoff: { sourceSessionId: seed.sourceSessionId },
@@ -230,6 +230,8 @@ describe("seeded cloud handoff controller", () => {
 			},
 		]);
 		f.setTranscript(messages);
+		await f.controller.attach(record.id);
+		expect(f.controller.getSnapshot(record.id)?.config.mode).toBe("plan");
 		await f.controller.seedHandoff(record.id, { ...seed, recoverOnly: true });
 		await f.controller.verifyHandoffTranscript(record.id, messages);
 		expect(f.calls.filter((call) => call.name === "session.create")).toEqual(

@@ -3859,25 +3859,27 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
-	it("reflects persisted metadata updates for an active session", async () => {
+	it.each([
+		{
+			name: "replacement",
+			metadata: {
+				handoff: { status: "complete", toCloudSessionId: "cloud-1" },
+			},
+			updated: true,
+		},
+		{ name: "clear", metadata: null, updated: true },
+		{ name: "failed save", metadata: null, updated: false },
+	])("keeps active metadata consistent with persistence after $name", async ({
+		metadata,
+		updated,
+	}) => {
 		const sessionId = "sess-active-metadata-update";
-		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = new FileSessionService(
+			join(isolatedHomeDir, "sessions"),
+		);
 		const manager = new RuntimeHostUnderTest({
 			distinctId,
-			sessionService: {
-				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
-				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
-					manifestPath: "/tmp/manifest.json",
-					messagesPath: "/tmp/messages.json",
-					manifest: createManifest(sessionId),
-				}),
-				persistSessionMessages: vi.fn(),
-				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
-				updateSession,
-				writeSessionManifest: vi.fn(),
-				listSessions: vi.fn().mockResolvedValue([]),
-				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
-			} as never,
+			sessionService,
 			runtimeBuilder: {
 				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
 			} as never,
@@ -3894,26 +3896,37 @@ describe("LocalRuntimeHost", () => {
 					shutdown: vi.fn().mockResolvedValue(undefined),
 				}) as never,
 		});
-		await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-				sessionMetadata: { before: true },
-			}),
-		);
-
-		const metadata = {
-			handoff: { status: "complete", toCloudSessionId: "cloud-1" },
-		};
-		await expect(
-			manager.updateSession(sessionId, { metadata }),
-		).resolves.toEqual({
-			updated: true,
-		});
-		expect(updateSession).toHaveBeenCalledWith({ sessionId, metadata });
-		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
-			metadata,
-		});
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+					prompt: "Named session",
+					interactive: true,
+					sessionMetadata: { title: "Named session", before: true },
+				}),
+			);
+			const before = (await manager.getSession(sessionId))?.metadata;
+			if (!updated)
+				vi.spyOn(sessionService, "updateSession").mockResolvedValueOnce({
+					updated: false,
+				});
+			await expect(
+				manager.updateSession(sessionId, { metadata }),
+			).resolves.toEqual({ updated });
+			const expected = updated
+				? { ...metadata, title: "Named session" }
+				: before;
+			expect(sessionService.readSessionManifest(sessionId)?.metadata).toEqual(
+				expected,
+			);
+			expect((await manager.getSession(sessionId))?.metadata).toEqual(expected);
+		} finally {
+			await manager.dispose();
+		}
 	});
 
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
