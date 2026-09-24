@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const runtime = vi.hoisted(() => ({
 	listeners: [] as Array<(event: unknown) => void>,
 	runTurn: vi.fn(),
+	pendingUpdate: vi.fn(),
+	pendingDelete: vi.fn(),
 }))
 
 vi.mock("@cline/core", () => ({
 	RemoteRuntimeHost: class {
-		pendingPrompts = {}
+		pendingPrompts = { update: runtime.pendingUpdate, delete: runtime.pendingDelete }
 		connect = vi.fn(async () => undefined)
 		listSessions = vi.fn(async () => [{ sessionId: "inner-session", updatedAt: new Date().toISOString(), status: "idle" }])
 		subscribe(listener: (event: unknown) => void) {
@@ -25,6 +27,8 @@ describe("CloudSessionHost status", () => {
 	beforeEach(() => {
 		runtime.listeners.length = 0
 		runtime.runTurn.mockReset()
+		runtime.pendingUpdate.mockReset()
+		runtime.pendingDelete.mockReset()
 	})
 
 	it.each([
@@ -42,12 +46,31 @@ describe("CloudSessionHost status", () => {
 		runtime.runTurn.mockRejectedValue(error)
 		const host = await CloudSessionHost.connect({
 			outerSessionId: "ses-outer",
+			taskId: "inner-session",
 			socketUrl: "ws://127.0.0.1:1/session",
 			getAuthToken: async () => "token",
 		})
 
 		await expect(host.send({ sessionId: "ses-outer", prompt: "continue" })).rejects.toBe(error)
 		expect(host.status).toBe("unknown")
+	})
+
+	it.each(["update", "delete"] as const)("maps pending-prompt %s across the cloud id boundary", async (action) => {
+		const mutate = action === "update" ? runtime.pendingUpdate : runtime.pendingDelete
+		mutate.mockResolvedValue({ sessionId: "inner-session", prompts: [] })
+		const host = await CloudSessionHost.connect({
+			outerSessionId: "ses-outer",
+			taskId: "inner-session",
+			socketUrl: "ws://127.0.0.1:1/session",
+			getAuthToken: async () => "token",
+		})
+		const input = { sessionId: "ses-outer", promptId: "prompt-1" }
+
+		const result =
+			action === "update" ? await host.pendingPrompts("update", input) : await host.pendingPrompts("delete", input)
+
+		expect(mutate).toHaveBeenCalledWith({ ...input, sessionId: "inner-session" })
+		expect(result).toEqual({ sessionId: "ses-outer", prompts: [] })
 	})
 
 	it.each([
@@ -67,6 +90,7 @@ describe("CloudSessionHost status", () => {
 			)
 			const host = await CloudSessionHost.connect({
 				outerSessionId: "ses-outer",
+				taskId: "inner-session",
 				socketUrl: "ws://127.0.0.1:1",
 				getAuthToken: async () => "token",
 			})
