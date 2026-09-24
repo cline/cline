@@ -784,7 +784,7 @@ export class CloudSessionApi {
 			await input.handoff.onOuterSessionCreated(sessionId, { created: true });
 		} catch (persistenceError) {
 			try {
-				await this.deleteWithAuth(sessionId, auth);
+				await this.deleteWithAuth(sessionId, auth.token);
 			} catch (cleanupError) {
 				if (
 					!(

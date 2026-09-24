@@ -24,6 +24,7 @@ describe("cloud handoff metadata", () => {
 				title: "Local work",
 				nested: { keep: true },
 				cloudHandoffSeedDispatched: true,
+				cloudHandoffIntent: { fingerprint },
 			},
 			{
 				toCloudSessionId: "ses-1",
