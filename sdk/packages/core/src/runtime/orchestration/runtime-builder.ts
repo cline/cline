@@ -148,6 +148,7 @@ function createBuiltinToolsList(
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
 	runCommandExecutionController?: RunCommandExecutionController,
+	enableSubmitAndExit?: boolean,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -167,6 +168,9 @@ function createBuiltinToolsList(
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
+			...(enableSubmitAndExit !== undefined
+				? { enableSubmitAndExit }
+				: {}),
 			executors: {
 				...(skillsExecutor
 					? {
@@ -355,6 +359,7 @@ function normalizeConfig(
 		CoreSessionConfig,
 		| "mode"
 		| "enableTools"
+		| "enableSubmitAndExit"
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
 		| "disableMcpSettingsTools"
@@ -370,6 +375,8 @@ function normalizeConfig(
 		mode:
 			config.mode === "plan" ? "plan" : config.mode === "yolo" ? "yolo" : "act",
 		enableTools: config.enableTools !== false,
+		enableSubmitAndExit:
+			config.enableSubmitAndExit ?? preset.enableSubmitAndExit ?? false,
 		enableSpawnAgent:
 			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
 		enableAgentTeams:
@@ -577,6 +584,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					input.runCommandExecutionController,
+					normalized.enableSubmitAndExit,
 				),
 			);
 			const agentPluginMcpServers = pluginsEnabled

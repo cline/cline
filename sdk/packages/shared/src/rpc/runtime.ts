@@ -19,6 +19,8 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	enableTools: boolean;
 	enableSpawn?: boolean;
 	enableTeams?: boolean;
+	/** Include the canonical completion tool even when the selected mode omits it. */
+	enableSubmitAndExit?: boolean;
 	disableMcpSettingsTools?: boolean;
 	/** Additional Agent Plugins package roots resolved by the hub runtime. */
 	agentPluginPaths?: string[];

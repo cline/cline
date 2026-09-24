@@ -31,6 +31,9 @@ import {
 } from "./thread-bindings";
 import type { ConnectIo } from "./types";
 
+const CONNECTOR_RESPONSE_RULES =
+	"For connector conversations, do not narrate your investigation or announce tool calls. Keep all intermediate reasoning and tool activity internal. When you are ready to reply, call submit_and_exit with the complete user-facing response in its summary. The summary submitted through submit_and_exit is the only assistant content that will be delivered to the user.";
+
 async function resolveProviderApiKeyFromEnv(
 	provider: string,
 ): Promise<string | undefined> {
@@ -116,6 +119,7 @@ export async function buildConnectorStartRequest(input: {
 		systemPrompt,
 		logger: input.loggerConfig,
 		enableTools: input.options.enableTools,
+		enableSubmitAndExit: true,
 		autoApproveTools: false,
 	};
 }
@@ -124,16 +128,36 @@ export function buildThreadStartRequest<TState extends ConnectorThreadState>(
 	base: ChatStartSessionRequest,
 	state: TState,
 ): ChatStartSessionRequest {
-	const enableTools = state.enableTools ?? base.enableTools;
+	const allowGeneralTools = state.enableTools ?? base.enableTools;
+	const toolPolicies = {
+		...base.toolPolicies,
+		...(!allowGeneralTools
+			? { "*": { ...base.toolPolicies?.["*"], enabled: false } }
+			: {}),
+		submit_and_exit: {
+			...base.toolPolicies?.submit_and_exit,
+			enabled: true,
+			autoApprove: true,
+		},
+	};
 	return {
 		...base,
-		enableTools,
-		enableSpawn: enableTools,
-		enableTeams: enableTools,
+		// Keep the completion tool available even when connector tools are
+		// otherwise disabled. The policy below limits that case to submit only.
+		enableTools: true,
+		enableSubmitAndExit: true,
+		enableSpawn: allowGeneralTools,
+		enableTeams: allowGeneralTools,
 		autoApproveTools: state.autoApproveTools ?? base.autoApproveTools,
+		toolPolicies,
 		cwd: state.cwd || base.cwd,
 		workspaceRoot: state.workspaceRoot || base.workspaceRoot,
-		systemPrompt: state.systemPrompt || base.systemPrompt,
+		systemPrompt: [
+			state.systemPrompt || base.systemPrompt,
+			CONNECTOR_RESPONSE_RULES,
+		]
+			.filter(Boolean)
+			.join("\n\n"),
 	};
 }
 
@@ -185,7 +209,10 @@ export async function getOrCreateSessionId<
 	const existing = threadState.sessionId?.trim();
 	if (existing) {
 		const existingSession = await input.client.getSession(existing);
-		if (isReusableConnectorSession(existingSession)) {
+		if (
+			threadState.completionToolEnabled === true &&
+			isReusableConnectorSession(existingSession)
+		) {
 			await persistMergedThreadState(
 				input.thread,
 				input.bindingsPath,
@@ -227,9 +254,11 @@ export async function getOrCreateSessionId<
 			input.errorLabel,
 		);
 		input.logger.core.log(
-			existingSession
-				? "Connector thread session is terminal; starting a new session"
-				: "Connector thread session missing; starting a new session",
+			threadState.completionToolEnabled !== true
+				? "Connector thread session predates submit_and_exit; starting a new session"
+				: existingSession
+					? "Connector thread session is terminal; starting a new session"
+					: "Connector thread session missing; starting a new session",
 			{
 				severity: "warn",
 				transport: input.transport,
@@ -275,6 +304,7 @@ export async function getOrCreateSessionId<
 		{
 			...threadState,
 			sessionId,
+			completionToolEnabled: true,
 		},
 		input.errorLabel,
 	);
