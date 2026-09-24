@@ -541,6 +541,7 @@ export class CloudSessionApi {
 			token: initialAuthToken,
 			subject: authSubject(initialAuthToken),
 		};
+		// The title carries the request identity because the API lacks idempotency.
 		const recoveryTitle = createRequestTitle(
 			input.requestId?.trim() || randomUUID(),
 		);
