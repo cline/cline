@@ -636,6 +636,25 @@ export class CloudSessionApi {
 			if (matches[0]) return await adopt(matches[0]);
 			const completed = this.completedHandoffCreates.get(handoffKey);
 			if (completed) {
+				try {
+					await this.request(
+						`/api/v1/session/${encodeURIComponent(completed.sessionId)}/status`,
+						{},
+						undefined,
+						creationAuth,
+					);
+				} catch (error) {
+					if (
+						error instanceof CloudSessionError &&
+						(error.code === "session_not_found" ||
+							error.code === "session_expired")
+					) {
+						await input.handoff?.onOuterSessionRemoved?.(completed.sessionId);
+						this.completedHandoffCreates.delete(handoffKey);
+						this.unconfirmedHandoffCreates.delete(handoffKey);
+					}
+					throw error;
+				}
 				await input.handoff?.onOuterSessionCreated(completed.sessionId, {
 					created: false,
 				});
