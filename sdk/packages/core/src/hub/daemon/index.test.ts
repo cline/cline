@@ -850,7 +850,7 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("waits for a slow hub up to the configured startup timeout", async () => {
+	it("keeps waiting for a hub that comes up after the old 8s limit", async () => {
 		vi.useFakeTimers();
 		try {
 			const record = {
@@ -865,13 +865,11 @@ describe("ensureDetachedHubServer", () => {
 
 			const { ensureDetachedHubServer } = await import(".");
 			let settled = false;
-			const pending = ensureDetachedHubServer("/workspace", {
-				startupTimeoutMs: 25_000,
-			}).finally(() => {
+			const pending = ensureDetachedHubServer("/workspace").finally(() => {
 				settled = true;
 			});
-			// Past the 15s default: still waiting instead of failing.
-			await vi.advanceTimersByTimeAsync(20_000);
+			// Past the old 8s limit: still waiting instead of failing.
+			await vi.advanceTimersByTimeAsync(12_000);
 			expect(settled).toBe(false);
 
 			readHubDiscovery.mockResolvedValue(record);

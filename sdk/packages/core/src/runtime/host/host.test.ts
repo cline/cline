@@ -218,22 +218,6 @@ describe("runtime host resolution", () => {
 		});
 	});
 
-	it("forwards the hub startup timeout", async () => {
-		const { createRuntimeHost } = await import("./host");
-		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
-			"ws://127.0.0.1:25463/hub",
-		);
-
-		await createRuntimeHost({
-			backendMode: "hub",
-			hub: { startupTimeoutMs: 25_000 },
-		});
-
-		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith(
-			expect.objectContaining({ startupTimeoutMs: 25_000 }),
-		);
-	});
-
 	it("includes the hub startup failure in the error", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const startupError = new Error(

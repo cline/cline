@@ -169,7 +169,6 @@ export async function createRuntimeHost(
 				strategy: options.hub?.strategy ?? "require-hub",
 				workspaceRoot: options.hub?.workspaceRoot,
 				cwd: options.hub?.cwd,
-				startupTimeoutMs: options.hub?.startupTimeoutMs,
 				onStartupError: (error) => {
 					startupError = error;
 				},
@@ -177,16 +176,18 @@ export async function createRuntimeHost(
 		if (!hubUrl) {
 			// Keep the reason in the message: telemetry and logs record the
 			// message, and without it every startup failure looks identical.
-			if (startupError === undefined) {
-				throw new Error("No compatible hub runtime is available.");
-			}
 			const reason =
 				startupError instanceof Error
 					? startupError.message
-					: String(startupError);
-			throw new Error(`No compatible hub runtime is available: ${reason}`, {
-				cause: startupError,
-			});
+					: startupError === undefined
+						? undefined
+						: String(startupError);
+			throw new Error(
+				reason
+					? `No compatible hub runtime is available: ${reason}`
+					: "No compatible hub runtime is available.",
+				startupError === undefined ? undefined : { cause: startupError },
+			);
 		}
 		options.logger?.log("Using hub runtime host", {
 			url: hubUrl,

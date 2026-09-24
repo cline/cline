@@ -200,8 +200,6 @@ export interface LocalHubResolutionOptions {
 	strategy?: "prefer-hub" | "require-hub";
 	workspaceRoot?: string;
 	cwd?: string;
-	/** Forwarded to `ensureDetachedHubServer` when a Hub has to be started. */
-	startupTimeoutMs?: number;
 	/**
 	 * Called with the error when starting a detached Hub fails. The function
 	 * still resolves `undefined` in that case; this lets a caller report why.
@@ -1333,7 +1331,6 @@ export async function ensureCompatibleLocalHubUrl(
 	try {
 		const ensured = await ensureDetachedHubServer(
 			options.workspaceRoot ?? process.cwd(),
-			{ startupTimeoutMs: options.startupTimeoutMs },
 		);
 		return ensured.url;
 	} catch (error) {

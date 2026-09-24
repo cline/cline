@@ -50,14 +50,10 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	allowPortFallback?: boolean;
 	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
 	manageConnectors?: boolean;
-	/**
-	 * How long to wait for a freshly spawned Hub to publish a usable
-	 * discovery record. Defaults to `HUB_STARTUP_TIMEOUT_MS`.
-	 */
-	startupTimeoutMs?: number;
 }
 
 /**
+ * How long a freshly spawned Hub gets to publish a usable discovery record.
  * A cold start of the compiled binary the Hub runs from (first launch after
  * an install or update, while antivirus scans it) regularly takes 8-13s on
  * Windows. The old 8s limit gave up just before those Hubs came up, which
@@ -681,9 +677,7 @@ async function ensureDetachedHubServerLocked(
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,
 	});
-	const startupTimeoutMs =
-		endpointOverrides.startupTimeoutMs ?? HUB_STARTUP_TIMEOUT_MS;
-	const deadline = Date.now() + startupTimeoutMs;
+	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url && nextDiscovery.authToken) {
@@ -741,7 +735,7 @@ async function ensureDetachedHubServerLocked(
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
 	throw new Error(
-		`Timed out after ${startupTimeoutMs}ms waiting for detached hub startup.`,
+		`Timed out after ${HUB_STARTUP_TIMEOUT_MS}ms waiting for detached hub startup.`,
 	);
 }
 
