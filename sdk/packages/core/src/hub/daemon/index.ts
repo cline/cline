@@ -50,14 +50,7 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	allowPortFallback?: boolean;
 	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
 	manageConnectors?: boolean;
-	/**
-	 * Let the spawned daemon bind an OS-assigned port when the preferred one
-	 * cannot be bound (held by another app, or inside a Windows reserved
-	 * range). The daemon still tries the preferred port first, and clients
-	 * reach it through the discovery record either way. Unlike
-	 * `allowPortFallback`, this never spawns on port 0 up front and never
-	 * bypasses an incompatible Hub that could not be retired.
-	 */
+	/** Let the daemon bind an OS-assigned port if the preferred one stays busy. */
 	allowBindFallback?: boolean;
 }
 
@@ -686,7 +679,7 @@ async function ensureDetachedHubServerLocked(
 	await spawnDetachedHubServerWithRetry(workspaceRoot, {
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,
-		allowBindFallback: endpointOverrides.allowBindFallback,
+		allowBindFallback: !hasExplicitEndpoint,
 	});
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {

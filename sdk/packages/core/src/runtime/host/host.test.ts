@@ -218,22 +218,6 @@ describe("runtime host resolution", () => {
 		});
 	});
 
-	it("forwards allowBindFallback to hub resolution", async () => {
-		const { createRuntimeHost } = await import("./host");
-		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
-			"ws://127.0.0.1:53121/hub",
-		);
-
-		await createRuntimeHost({
-			backendMode: "hub",
-			hub: { allowBindFallback: true },
-		});
-
-		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith(
-			expect.objectContaining({ allowBindFallback: true }),
-		);
-	});
-
 	it("includes the hub startup failure in the error", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const startupError = new Error(

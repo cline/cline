@@ -69,11 +69,6 @@ async function startHubWebSocketServerWithBindRetry(
 				(!isAddressInUseError(error) && !isHubLockHeldError(error)) ||
 				Date.now() >= bindDeadline
 			) {
-				// The preferred port is held by something that is not a
-				// retiring Hub (another app, or a Windows reserved port range
-				// that moves between reboots). When the launcher allows it,
-				// bind an OS-assigned port instead of dying: clients find the
-				// Hub through the discovery record, not the port number.
 				if (
 					allowPortFallback &&
 					isAddressInUseError(error) &&

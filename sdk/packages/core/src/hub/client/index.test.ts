@@ -1266,53 +1266,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				cwd: "/tmp/project",
 			}),
 		).resolves.toBe("ws://127.0.0.1:25464/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
-			allowBindFallback: undefined,
-		});
-	});
-
-	it("forwards allowBindFallback to the daemon ensure API", async () => {
-		vi.stubGlobal("WebSocket", MockWebSocket);
-		const ensureDetachedHubServerMock = vi.fn(async () => ({
-			authToken: "token",
-			url: "ws://127.0.0.1:53121/hub",
-		}));
-		vi.doMock("../daemon", () => ({
-			ensureDetachedHubServer: ensureDetachedHubServerMock,
-		}));
-		vi.doMock("../discovery/workspace", () => ({
-			resolveProductionHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath: "/tmp/hub-discovery.json",
-			}),
-			resolveSharedHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath: "/tmp/hub-discovery.json",
-			}),
-		}));
-		vi.doMock("../discovery", async () => {
-			const actual =
-				await vi.importActual<typeof import("../discovery")>("../discovery");
-			return {
-				...actual,
-				resolveHubBuildId: () => "test-build",
-				readHubDiscovery: vi.fn(async () => undefined),
-				probeHubServer: vi.fn(async () => undefined),
-				clearHubDiscovery: vi.fn(async () => undefined),
-			};
-		});
-
-		const { ensureCompatibleLocalHubUrl } = await import(".");
-
-		await expect(
-			ensureCompatibleLocalHubUrl({
-				workspaceRoot: "/tmp/project",
-				allowBindFallback: true,
-			}),
-		).resolves.toBe("ws://127.0.0.1:53121/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
-			allowBindFallback: true,
-		});
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
 	});
 
 	it("replaces a stale-build hub without dropping its retirement credentials", async () => {
@@ -1369,9 +1323,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				cwd: "/tmp/project",
 			}),
 		).resolves.toBe("ws://127.0.0.1:25465/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
-			allowBindFallback: undefined,
-		});
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
@@ -1411,9 +1363,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				onStartupError,
 			}),
 		).resolves.toBeUndefined();
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
-			allowBindFallback: undefined,
-		});
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
 		expect(onStartupError).toHaveBeenCalledWith(
 			new Error("could not retire stale hub"),
 		);

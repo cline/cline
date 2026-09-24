@@ -37,12 +37,6 @@ export interface HubOptions {
 	displayName?: string;
 	workspaceRoot?: string;
 	cwd?: string;
-	/**
-	 * Let a Hub this client has to start bind an OS-assigned port when the
-	 * preferred one cannot be bound. Clients discover the Hub through its
-	 * discovery record, so the port number does not need to be fixed.
-	 */
-	allowBindFallback?: boolean;
 }
 
 export interface RemoteOptions {

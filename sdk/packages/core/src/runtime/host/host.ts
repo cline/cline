@@ -169,7 +169,6 @@ export async function createRuntimeHost(
 				strategy: options.hub?.strategy ?? "require-hub",
 				workspaceRoot: options.hub?.workspaceRoot,
 				cwd: options.hub?.cwd,
-				allowBindFallback: options.hub?.allowBindFallback,
 				onStartupError: (error) => {
 					startupError = error;
 				},

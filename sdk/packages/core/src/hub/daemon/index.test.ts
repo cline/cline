@@ -300,7 +300,7 @@ describe("ensureDetachedHubServer", () => {
 		);
 	});
 
-	it("keeps the preferred port and lets the daemon fall back when allowBindFallback is set", async () => {
+	it("lets the daemon fall back to a free port when the endpoint is not explicit", async () => {
 		vi.useFakeTimers();
 		try {
 			const record = {
@@ -314,11 +314,8 @@ describe("ensureDetachedHubServer", () => {
 			verifyHubConnection.mockResolvedValue(true);
 
 			const { ensureDetachedHubServer } = await import(".");
-			const pending = ensureDetachedHubServer("/workspace", {
-				allowBindFallback: true,
-			});
+			const pending = ensureDetachedHubServer("/workspace");
 			await vi.advanceTimersByTimeAsync(1_000);
-			// The daemon lands on an OS-assigned port and publishes it.
 			readHubDiscovery.mockResolvedValue(record);
 			probeHubServer.mockResolvedValue(record);
 			await vi.advanceTimersByTimeAsync(1_000);
@@ -330,19 +327,43 @@ describe("ensureDetachedHubServer", () => {
 			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
 				.mock.calls[0]?.[1] ?? []) as string[];
 			expect(spawnArgs).toContain("--allow-port-fallback");
-			// Unlike allowPortFallback, the preferred port is still requested.
+			expect(spawnArgs).toContain("--port");
 			expect(spawnArgs).not.toContain("0");
 		} finally {
 			vi.useRealTimers();
 		}
 	});
 
-	it("does not pass the bind fallback flag by default", async () => {
-		const { spawnDetachedHubServer } = await import(".");
-		spawnDetachedHubServer("/workspace");
-		const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
-			.mock.calls[0]?.[1] ?? []) as string[];
-		expect(spawnArgs).not.toContain("--allow-port-fallback");
+	it("keeps an explicitly configured port fixed", async () => {
+		vi.useFakeTimers();
+		try {
+			const record = {
+				url: "ws://127.0.0.1:25470/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				authToken: "token",
+			};
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace", { port: 25470 });
+			await vi.advanceTimersByTimeAsync(1_000);
+			readHubDiscovery.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue(record);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:25470/hub",
+				authToken: "token",
+			});
+			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0]?.[1] ?? []) as string[];
+			expect(spawnArgs).not.toContain("--allow-port-fallback");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("does not spawn another detached daemon from inside the hub daemon process", async () => {
