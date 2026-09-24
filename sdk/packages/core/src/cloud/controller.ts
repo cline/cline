@@ -2402,7 +2402,7 @@ export class CloudSessionController {
 			limit: 100,
 		});
 		this.assertSessionActive(connection.remote.id, connection);
-		const rows = readSessionRows(listed.payload);
+		const rows = readSessionRows(listed.payload).filter(isRootSessionRow);
 		const [only] = rows;
 		if (
 			rows.length !== 1 ||
@@ -2470,7 +2470,7 @@ export class CloudSessionController {
 			limit: 100,
 		});
 		this.assertSessionActive(connection.remote.id, connection);
-		const rows = readSessionRows(listed.payload);
+		const rows = readSessionRows(listed.payload).filter(isRootSessionRow);
 		if (rows.length === 0) return false;
 		const [only] = rows;
 		const innerSessionId = String(only?.sessionId ?? "").trim();
@@ -2912,14 +2912,12 @@ export class CloudSessionController {
 			if (live) live.config.cwd = cwd;
 		}
 		const live = this.sessions.get(connection.remote.id);
+		const mode = (row.runtimeOptions as JsonRecord | undefined)?.mode;
 		if (
 			live &&
-			(row.mode === "act" ||
-				row.mode === "plan" ||
-				row.mode === "yolo" ||
-				row.mode === "zen")
+			(mode === "act" || mode === "plan" || mode === "yolo" || mode === "zen")
 		)
-			live.config.mode = row.mode;
+			live.config.mode = mode;
 	}
 
 	private async disposeConnection(outerSessionId: string): Promise<void> {
