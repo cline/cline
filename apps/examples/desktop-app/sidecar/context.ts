@@ -7,7 +7,7 @@ import {
 	type BasicLogger,
 	ClineCore,
 	type CoreSessionEvent,
-	ensureCompatibleLocalHubUrl,
+	ensureLoginShellPath,
 	type ITelemetryService,
 	NodeHubClient,
 	type RuntimeCapabilities,
@@ -27,6 +27,10 @@ import {
 	reconcileQueuedAttachments,
 } from "./attachments";
 import {
+	BackendInitialization,
+	BackendReadinessError,
+} from "./backend-readiness";
+import {
 	disposeDesktopFeatureFlagsService,
 	getDesktopFeatureFlagsService,
 } from "./feature-flags";
@@ -43,10 +47,32 @@ import type {
 import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
-const hubClientInitialization = new WeakMap<
+const backendInitializations = new WeakMap<
 	SidecarContext,
-	Promise<NodeHubClient>
+	BackendInitialization
 >();
+const stoppedContexts = new WeakSet<SidecarContext>();
+
+export function getBackendInitialization(
+	ctx: SidecarContext,
+): BackendInitialization {
+	ctx = getSidecarContextOwner(ctx);
+	let initialization = backendInitializations.get(ctx);
+	if (!initialization) {
+		initialization = new BackendInitialization(
+			(signal) => createLocalSessionRuntime(ctx, signal),
+			(state) => broadcastEvent(ctx, "backend_readiness", state),
+		);
+		backendInitializations.set(ctx, initialization);
+		if (stoppedContexts.has(ctx)) initialization.stop();
+	}
+	return initialization;
+}
+
+export function initializeSessionManager(ctx: SidecarContext): Promise<void> {
+	return getBackendInitialization(ctx).start();
+}
+
 const approvalReadinessUpdates = new WeakMap<SidecarContext, Promise<void>>();
 
 // ---------------------------------------------------------------------------
@@ -686,6 +712,9 @@ export async function disposeSidecarContext(
 	ctx: SidecarContext,
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
+	ctx = getSidecarContextOwner(ctx);
+	stoppedContexts.add(ctx);
+	backendInitializations.get(ctx)?.stop();
 	const cleanup: Array<Promise<unknown>> = [];
 	const approvalCleanup: Array<Promise<unknown>> = [];
 
@@ -1286,11 +1315,16 @@ async function handleHubApprovalRequest(
 	);
 }
 
-export async function initializeSessionManager(
+async function createLocalSessionRuntime(
 	ctx: SidecarContext,
+	signal: AbortSignal,
 ): Promise<void> {
+	const shellPath = await ensureLoginShellPath();
+	signal.throwIfAborted();
+	ctx.logger?.log("Login shell PATH resolution", shellPath);
 	setHomeDirIfUnset(homedir());
 	const sessionManager = await ClineCore.create({
+		signal,
 		clientName: "cline-code",
 		backendMode: "hub",
 		capabilities: createSidecarRuntimeCapabilities(
@@ -1311,32 +1345,79 @@ export async function initializeSessionManager(
 		},
 	});
 
-	// Subscribe to all session events and relay them to WS clients
-	const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
-		handleCoreSessionEvent(
-			getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
-			event,
-		);
-	});
-
-	let hubClient: NodeHubClient;
+	let unsubscribe: (() => void) | undefined;
+	let hubClient: NodeHubClient | undefined;
 	try {
-		hubClient = await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+		signal.throwIfAborted();
+		unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
+			handleCoreSessionEvent(
+				getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
+				event,
+			);
+		});
+		const url = sessionManager.runtimeAddress;
+		if (!url) throw new Error("Shared hub did not publish its runtime address");
+		hubClient = new NodeHubClient({
+			url,
+			clientType: "code-sidecar-observer",
+			displayName: "Cline Desktop observer",
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
+		});
+		const client = hubClient;
+		const abort = () => client.close();
+		signal.addEventListener("abort", abort, { once: true });
+		try {
+			await client.connect(signal);
+			signal.throwIfAborted();
+			client.subscribe((event) =>
+				handleHubLiveEvent(
+					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
+					event,
+				),
+			);
+			await client.updateCapabilities(
+				[...ctx.wsClients].some(
+					(client) => client.data?.canApproveTools === true,
+				)
+					? [
+							{
+								name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+								description:
+									"Cline Code has a live user surface for tool review.",
+							},
+						]
+					: [],
+			);
+			signal.throwIfAborted();
+		} finally {
+			signal.removeEventListener("abort", abort);
+		}
+		if (stoppedContexts.has(ctx))
+			throw new Error("Desktop sidecar is shutting down");
+		ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+			environmentId: LOCAL_ENVIRONMENT_ID,
+			kind: "local",
+			workspaceRoot: ctx.localWorkspaceRoot,
+			sessionManager,
+			hubClient,
+			unsubscribeSessionEvents: unsubscribe,
+		});
+		// Connections can change while the initial capabilities request is pending.
+		void syncSidecarApprovalReadiness(ctx).catch((error) =>
+			ctx.logger?.error?.("Hub approval readiness update failed", { error }),
+		);
 	} catch (error) {
-		unsubscribe();
-		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
+		try {
+			unsubscribe?.();
+		} finally {
+			await Promise.allSettled([
+				sessionManager.dispose("code_sidecar_hub_initialization_failed"),
+				...(hubClient ? [hubClient.dispose()] : []),
+			]);
+		}
 		throw error;
 	}
-
-	ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
-		environmentId: LOCAL_ENVIRONMENT_ID,
-		kind: "local",
-		workspaceRoot: ctx.localWorkspaceRoot,
-		sessionManager,
-		hubClient,
-		unsubscribeSessionEvents: unsubscribe,
-	});
-	await syncSidecarApprovalReadiness(ctx);
 }
 
 export function getRuntimeBinding(
@@ -1345,7 +1426,15 @@ export function getRuntimeBinding(
 ): SessionRuntimeBinding {
 	const binding = ctx.runtimeBindings.get(environmentId);
 	if (!binding) {
-		throw new Error(`Environment ${environmentId} is not connected.`);
+		throw new BackendReadinessError(
+			environmentId === LOCAL_ENVIRONMENT_ID
+				? getBackendInitialization(ctx).state
+				: {
+						state: "failed",
+						attempt: 0,
+						message: `Environment ${environmentId} is not connected.`,
+					},
+		);
 	}
 	return binding;
 }
@@ -1427,6 +1516,8 @@ export async function connectRemoteSessionRuntime(
 	let unsubscribe: (() => void) | undefined;
 	let hubClient: NodeHubClient | undefined;
 	try {
+		if (stoppedContexts.has(getSidecarContextOwner(ctx)))
+			throw new Error("Desktop sidecar is shutting down");
 		unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			handleCoreSessionEvent(getEnvironmentContext(ctx, environmentId), event);
 		});
@@ -1439,6 +1530,8 @@ export async function connectRemoteSessionRuntime(
 			cwd: connection.workspaceRoot,
 		});
 		await hubClient.connect();
+		if (stoppedContexts.has(getSidecarContextOwner(ctx)))
+			throw new Error("Desktop sidecar is shutting down");
 		hubClient.subscribe((event) =>
 			handleHubLiveEvent(getEnvironmentContext(ctx, environmentId), event),
 		);
@@ -1493,55 +1586,7 @@ export async function disconnectRemoteSessionRuntime(
 	}
 }
 
-export async function ensureSharedHubClient(
-	ctx: SidecarContext,
-	preferredUrl?: string,
-): Promise<NodeHubClient> {
-	const existing = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
-	if (existing) {
-		return existing;
-	}
-	const pending = hubClientInitialization.get(ctx);
-	if (pending) {
-		return await pending;
-	}
-
-	const initialization = (async () => {
-		const url =
-			preferredUrl?.trim() ||
-			(await ensureCompatibleLocalHubUrl({
-				strategy: "require-hub",
-				workspaceRoot: ctx.localWorkspaceRoot,
-				cwd: ctx.localWorkspaceRoot,
-			}));
-		if (!url) {
-			throw new Error("Unable to start or connect to the shared Cline Hub.");
-		}
-
-		const client = new NodeHubClient({
-			url,
-			clientType: "code-sidecar-observer",
-			displayName: "Cline Desktop observer",
-			workspaceRoot: ctx.localWorkspaceRoot,
-			cwd: ctx.localWorkspaceRoot,
-		});
-		try {
-			await client.connect();
-			client.subscribe((event) => {
-				handleHubLiveEvent(
-					getEnvironmentContext(ctx, LOCAL_ENVIRONMENT_ID),
-					event,
-				);
-			});
-			return client;
-		} catch (error) {
-			await client.dispose().catch(() => undefined);
-			throw error;
-		}
-	})().finally(() => {
-		hubClientInitialization.delete(ctx);
-	});
-
-	hubClientInitialization.set(ctx, initialization);
-	return await initialization;
+/** Commands must never bootstrap a second client outside the serialized lifecycle. */
+export function getSharedHubClient(ctx: SidecarContext): NodeHubClient {
+	return getRuntimeBinding(ctx, LOCAL_ENVIRONMENT_ID).hubClient;
 }

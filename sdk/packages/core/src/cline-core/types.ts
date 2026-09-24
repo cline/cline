@@ -176,6 +176,8 @@ export interface CompareCheckpointInput {
 export type CompareCheckpointResult = CheckpointWorkspaceCompareResult;
 
 export interface ClineCoreOptions {
+	/** Cancels initialization; does not dispose an already-created core. */
+	signal?: AbortSignal;
 	/**
 	 * A human-readable name for this SDK client (e.g. `"my-app"`, `"acme-bot"`).
 	 * Used to identify the consumer in telemetry and logs.

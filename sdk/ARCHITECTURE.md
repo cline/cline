@@ -40,6 +40,33 @@ flowchart LR
   apps --> core
 ```
 
+## Desktop startup readiness
+
+The desktop webview mounts immediately. Its sidecar publishes the authenticated
+WebSocket endpoint before resolving the login-shell PATH or initializing the
+local session service. Transport readiness enables authentication, local provider
+settings, diagnostics, and recovery independently of the shared Hub.
+
+The sidecar owns one serialized local bootstrap lifecycle (`starting`, `ready`,
+`failed`), replayed to each WebSocket client. Each attempt has a 30-second deadline;
+explicit retries use exponential backoff capped at 30 seconds, with no unbounded
+automatic retry loop. Hub-dependent commands return `SESSION_SERVICE_NOT_READY`
+with the current state. Chat waits for readiness while sign-in and settings remain
+available. SSH runtimes continue to connect on demand.
+
+Bootstrap retains `backendMode: "hub"` and `require-hub` discovery. A compatible
+existing daemon is reused; the desktop still owns its Core session manager and
+observer client. `ClineCore.create({ signal })` and `NodeHubClient.connect(signal)`
+allow cancellation to close partial connections. Shutdown aborts bootstrap, and
+late completions cannot install runtime bindings. Once a shared daemon has been
+spawned, its discovery lock remains held until startup settles, so cancellation
+of one caller cannot cause a duplicate daemon.
+
+Tauri separately tracks bounded, sanitized sidecar startup diagnostics and exit
+status. Its status and retry commands do not require the WebSocket transport, so
+launch/crash failures are actionable before sign-in is available. Neither layer
+extends the desktop command-readiness timeout.
+
 ## Package Responsibilities
 
 ### `@cline/shared`

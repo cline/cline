@@ -496,7 +496,9 @@ async function ensureDetachedHubServerLocked(
 	owner: HubOwnerContext,
 	workspaceRoot: string,
 	endpointOverrides: DetachedHubOptions = {},
+	signal?: AbortSignal,
 ): Promise<DetachedHubResolution> {
+	signal?.throwIfAborted();
 	const hasExplicitEndpoint =
 		endpointOverrides.host !== undefined ||
 		endpointOverrides.port !== undefined ||
@@ -673,11 +675,14 @@ async function ensureDetachedHubServerLocked(
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
+	signal?.throwIfAborted();
 	await spawnDetachedHubServerWithRetry(workspaceRoot, {
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,
 	});
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
+	// Once spawned, keep the shared startup lock until discovery is published.
+	// Cancelling a waiter must not let another waiter launch a duplicate daemon.
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url && nextDiscovery.authToken) {
@@ -742,10 +747,17 @@ async function ensureDetachedHubServerLocked(
 export async function ensureDetachedHubServer(
 	workspaceRoot: string,
 	endpointOverrides: DetachedHubOptions = {},
+	signal?: AbortSignal,
 ): Promise<DetachedHubResolution> {
+	signal?.throwIfAborted();
 	const owner = resolveDefaultHubOwnerContext();
 	return await withHubStartupLock(owner.discoveryPath, async () =>
-		ensureDetachedHubServerLocked(owner, workspaceRoot, endpointOverrides),
+		ensureDetachedHubServerLocked(
+			owner,
+			workspaceRoot,
+			endpointOverrides,
+			signal,
+		),
 	);
 }
 

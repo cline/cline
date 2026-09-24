@@ -16,6 +16,7 @@ import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
+import { StartupStatus } from "@/components/startup-status";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -51,6 +52,7 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { checkForUpdateAndNotify, useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { usePendingAttachments } from "@/hooks/use-pending-attachments";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
@@ -277,6 +279,37 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 }
 
 export default function Home() {
+	const readiness = useDesktopReadiness();
+	const [hasConnected, setHasConnected] = useState(false);
+	const connected = readiness.transport === "connected";
+	useEffect(() => {
+		if (connected) setHasConnected(true);
+	}, [connected]);
+	return (
+		<>
+			{(connected || hasConnected) && (
+				<div
+					className="h-screen"
+					inert={!connected ? true : undefined}
+					style={!connected ? { display: "none" } : undefined}
+				>
+					<HomeShell readiness={readiness} />
+				</div>
+			)}
+			{!connected && (
+				<div className="h-screen">
+					<StartupStatus readiness={readiness} service="desktop" />
+				</div>
+			)}
+		</>
+	);
+}
+
+function HomeShell({
+	readiness,
+}: {
+	readiness: ReturnType<typeof useDesktopReadiness>;
+}) {
 	const [initialThreadId] = useState(makeThreadId);
 	const [appState, dispatchApp] = useReducer(
 		desktopAppReducer<SettingsSection>,
@@ -732,6 +765,10 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const refreshHistory = sessionHistory.refreshSessions;
+	useEffect(() => {
+		if (readiness.hub.state === "ready") void refreshHistory();
+	}, [readiness.hub.state, refreshHistory]);
 	const sessionHistoryRef = useRef(sessionHistory.sessions);
 	useEffect(() => {
 		sessionHistoryRef.current = sessionHistory.sessions;
@@ -880,7 +917,26 @@ export default function Home() {
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{view === "sessions" ? (
+								{readiness.hub.state !== "ready" &&
+								view !== "sessions" &&
+								activeThread?.environmentId ===
+									LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+								activeThread.historySession?.origin !== "cloud" ? (
+									<div className="flex min-h-0 flex-1 flex-col">
+										<StartupStatus readiness={readiness} service="hub" />
+										<div className="flex justify-center pb-8">
+											<EnvironmentSelector
+												activeEnvironmentId={activeThread.environmentId}
+												profiles={remoteEnvironmentProfiles}
+												loading={remoteEnvironmentProfilesLoading}
+												onSelectEnvironment={handleSelectEnvironment}
+												onAddSshHost={() =>
+													handleSettingsSectionChange("Remote")
+												}
+											/>
+										</div>
+									</div>
+								) : view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
 										history={sessionHistory}

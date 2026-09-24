@@ -2,7 +2,6 @@ import { homedir } from "node:os";
 import {
 	checkManagedHubBuildMismatch,
 	createClineTelemetryServiceConfig,
-	ensureLoginShellPath,
 	readGlobalSettings,
 	setHomeDirIfUnset,
 	setModelToolEnabledGlobally,
@@ -57,13 +56,6 @@ async function main() {
 		throw new Error("sidecar must be run with Bun");
 	}
 
-	// When launched from Finder/the Dock the app inherits launchd's minimal
-	// PATH, so agent-spawned processes can't find shell-profile-installed
-	// tools like `gh`. Kick resolution off first so it overlaps the rest of
-	// startup, but await it before the session manager exists — that's what
-	// spawns children (agent sessions, MCP servers, scheduled runs).
-	const shellPathPromise = ensureLoginShellPath();
-
 	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
 	setHomeDirIfUnset(homedir());
 	configureConnectorCliLaunch(workspaceRoot);
@@ -90,11 +82,6 @@ async function main() {
 	}
 
 	prewarmWorkspaceMetadata(workspaceRoot);
-	observability.logger.log(
-		"Login shell PATH resolution",
-		await shellPathPromise,
-	);
-	await initializeSessionManager(ctx);
 
 	let shuttingDown = false;
 	let handlingFatalError = false;
@@ -175,8 +162,8 @@ async function main() {
 	// The watcher's first check only runs after its interval, but a mismatch
 	// that already exists at startup - an older Hub this app attached to
 	// because it is still serving other clients' sessions - must prompt
-	// before the user starts working, not half a minute in. Session-manager
-	// init has already settled the hub state, so check once right away. The
+	// before the user starts working, not half a minute in. The session manager
+	// may still be starting; check once now and keep watching. The
 	// broadcast reaches webviews that are already connected; the replay in
 	// createWebSocketHandler covers ones that connect later. Skipped when
 	// CLINE_HUB_PORT pins an explicit endpoint, matching the watcher: such
@@ -215,6 +202,8 @@ async function main() {
 			mode: SIDECAR_MODE,
 		})}\n`,
 	);
+	// The webview can now sign in and explain session-service failures.
+	void initializeSessionManager(ctx);
 }
 
 /**

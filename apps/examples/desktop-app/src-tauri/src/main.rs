@@ -334,9 +334,151 @@ struct DesktopBackendState {
     ws_endpoint: Mutex<Option<String>>,
     process: Mutex<Option<Child>>,
     shutting_down: AtomicBool,
+    diagnostics: Mutex<BackendDiagnostics>,
+    retry: Mutex<()>,
+}
+
+const MAX_STARTUP_DIAGNOSTICS: usize = 32;
+const MAX_DIAGNOSTIC_LINE: usize = 1024;
+
+#[derive(Default)]
+struct BackendDiagnostics {
+    started_at: Option<Instant>,
+    lines: VecDeque<String>,
+    exit_status: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopBackendStatus {
+    state: &'static str,
+    diagnostics: Vec<String>,
+    exit_status: Option<String>,
+    error: Option<String>,
+}
+
+// Do not retain potentially sensitive log records at all. This intentionally
+// trades detail for safety: OAuth URLs, headers, settings dumps and endpoint
+// authentication tokens must never be replayed to the webview.
+fn sanitize_startup_diagnostic(line: &str) -> String {
+    let lower = line.to_ascii_lowercase();
+    if [
+        "token",
+        "secret",
+        "password",
+        "authorization",
+        "credential",
+        "api_key",
+        "apikey",
+        "api-key",
+        "bearer",
+        "://",
+        "private key",
+        "cookie",
+        "sk-",
+        "eyj",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+    {
+        return "[Sensitive startup diagnostic omitted]".to_string();
+    }
+    line.chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_DIAGNOSTIC_LINE)
+        .collect()
+}
+
+// Bound memory even when a failing process writes a huge unterminated line.
+fn read_diagnostic_lines(reader: impl std::io::Read, mut consume: impl FnMut(String)) {
+    let mut reader = BufReader::new(reader);
+    let mut line = Vec::new();
+    let mut truncated = false;
+    loop {
+        let Ok(buffer) = reader.fill_buf() else { break };
+        if buffer.is_empty() {
+            if !line.is_empty() {
+                consume(if truncated {
+                    "[Oversized startup diagnostic omitted]".to_string()
+                } else {
+                    String::from_utf8_lossy(&line).into_owned()
+                });
+            }
+            break;
+        }
+        let length = buffer
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map(|i| i + 1)
+            .unwrap_or(buffer.len());
+        let complete = buffer[length - 1] == b'\n';
+        let available = MAX_DIAGNOSTIC_LINE.saturating_sub(line.len());
+        if length > available {
+            truncated = true;
+        }
+        line.extend_from_slice(&buffer[..length.min(available)]);
+        reader.consume(length);
+        if complete {
+            // A truncated record could hide a sensitive marker after its prefix.
+            consume(if truncated {
+                "[Oversized startup diagnostic omitted]".to_string()
+            } else {
+                String::from_utf8_lossy(&line).into_owned()
+            });
+            line.clear();
+            truncated = false;
+        }
+    }
 }
 
 impl DesktopBackendState {
+    fn record_diagnostic(&self, line: &str) {
+        if self
+            .ws_endpoint
+            .lock()
+            .map(|endpoint| endpoint.is_some())
+            .unwrap_or(false)
+        {
+            return;
+        }
+        let line = sanitize_startup_diagnostic(line.trim());
+        if line.is_empty() {
+            return;
+        }
+        if let Ok(mut diagnostics) = self.diagnostics.lock() {
+            if diagnostics.lines.len() == MAX_STARTUP_DIAGNOSTICS {
+                diagnostics.lines.pop_front();
+            }
+            diagnostics.lines.push_back(line);
+        }
+    }
+
+    fn startup_failure(&self) -> String {
+        let diagnostics = self
+            .diagnostics
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut message = diagnostics.error.clone().unwrap_or_else(|| {
+            "Desktop backend did not publish its endpoint. Retry startup.".to_string()
+        });
+        if let Some(status) = &diagnostics.exit_status {
+            message.push_str(&format!(" Last sidecar exit: {status}."));
+        }
+        if !diagnostics.lines.is_empty() {
+            message.push_str(&format!(
+                " Startup diagnostics: {}",
+                diagnostics
+                    .lines
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" | ")
+            ));
+        }
+        message
+    }
+
     fn is_shutting_down(&self) -> bool {
         self.shutting_down.load(AtomicOrdering::Acquire)
     }
@@ -579,11 +721,17 @@ fn ensure_desktop_backend_started_locked(
     if let Some(existing) = process_guard.as_mut() {
         match existing.try_wait() {
             // A live child owns startup even while its endpoint is still
-            // pending (login-shell PATH resolution plus session-manager init
-            // take a few seconds). Spawning again here would orphan it and
+            // pending (login-shell PATH resolution can take a few seconds). Spawning again here would orphan it and
             // race on the port.
             Ok(None) => return Ok(()),
-            Ok(Some(_)) | Err(_) => {
+            outcome => {
+                if let Ok(mut diagnostics) = state.diagnostics.lock() {
+                    diagnostics.exit_status = Some(match outcome {
+                        Ok(Some(status)) => status.to_string(),
+                        Err(error) => sanitize_startup_diagnostic(&error.to_string()),
+                        _ => unreachable!(),
+                    });
+                }
                 *process_guard = None;
                 if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
                     *endpoint_guard = None;
@@ -592,7 +740,16 @@ fn ensure_desktop_backend_started_locked(
         }
     }
 
-    let mut child = spawn_backend()?;
+    if let Ok(mut diagnostics) = state.diagnostics.lock() {
+        diagnostics.started_at = Some(Instant::now());
+    }
+    let mut child = spawn_backend().map_err(|error| {
+        let error = sanitize_startup_diagnostic(&error);
+        if let Ok(mut diagnostics) = state.diagnostics.lock() {
+            diagnostics.error = Some(error.clone());
+        }
+        error
+    })?;
 
     let stdout = child
         .stdout
@@ -606,58 +763,50 @@ fn ensure_desktop_backend_started_locked(
     let child_pid = child.id();
     let state_for_stdout = state.clone();
     thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        loop {
-            line.clear();
-            let Ok(bytes) = reader.read_line(&mut line) else {
-                break;
-            };
-            if bytes == 0 {
-                break;
-            }
+        read_diagnostic_lines(stdout, |line| {
             let trimmed = line.trim();
             if trimmed.is_empty() {
-                continue;
+                return;
             }
             if let Ok(parsed) = serde_json::from_str::<DesktopBackendReadyLine>(trimmed) {
                 if parsed.line_type == "ready" {
                     if let Some(endpoint) = parsed.ws_endpoint.or(parsed.endpoint) {
-                        if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
-                            *endpoint_guard = Some(endpoint);
+                        // A replaced child may still flush a buffered ready line.
+                        let process = state_for_stdout
+                            .process
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        if !state_for_stdout.is_shutting_down()
+                            && process.as_ref().map(Child::id) == Some(child_pid)
+                        {
+                            if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
+                                *endpoint_guard = Some(endpoint);
+                            }
+                            if let Ok(mut diagnostics) = state_for_stdout.diagnostics.lock() {
+                                diagnostics.error = None;
+                            }
                         }
                     }
-                    continue;
+                    return;
                 }
             }
-            eprintln!("[desktop-backend] {trimmed}");
-        }
+            state_for_stdout.record_diagnostic(trimmed);
+        });
         // Only clear the endpoint if this thread's child is still the one
         // being tracked — a late EOF from a replaced child must not wipe the
         // endpoint its successor already published.
-        let owns_tracked_child = state_for_stdout
-            .process
-            .lock()
-            .ok()
-            .map(|guard| guard.as_ref().map(|child| child.id()) == Some(child_pid))
-            .unwrap_or(false);
-        if owns_tracked_child {
-            if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
-                *endpoint_guard = None;
+        if let Ok(process) = state_for_stdout.process.lock() {
+            if process.as_ref().map(Child::id) == Some(child_pid) {
+                if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
+                    *endpoint_guard = None;
+                }
             }
         }
     });
 
+    let state_for_stderr = state.clone();
     thread::spawn(move || {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines() {
-            match line {
-                Ok(text) if !text.trim().is_empty() => {
-                    eprintln!("[desktop-backend:err] {}", text.trim());
-                }
-                _ => {}
-            }
-        }
+        read_diagnostic_lines(stderr, |line| state_for_stderr.record_diagnostic(&line));
     });
 
     *process_guard = Some(child);
@@ -729,9 +878,9 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 
 /// How long one `get_desktop_backend_endpoint` call waits for the sidecar's
 /// ready line. Sidecar startup includes login-shell PATH resolution (bounded
-/// at ~7.5s worst case, see sdk/packages/core/src/remote/shell-path.ts) plus session-manager init,
-/// and a first spawn that dies (e.g. no compatible hub runtime yet, see
-/// cline/cline#14129) is respawned inside the wait — the window must cover a
+/// at ~7.5s worst case, see sdk/packages/core/src/remote/shell-path.ts).
+/// Hub initialization runs independently after endpoint publication. A first
+/// spawn that dies is respawned inside the wait — the window must cover a
 /// failed first start plus a full second startup. The wait returns as soon as
 /// the ready line arrives, so only failure waits long, and the webview keeps
 /// re-requesting the endpoint after a failure anyway.
@@ -791,10 +940,136 @@ fn wait_for_desktop_backend_endpoint(
             respawn()?;
         }
         if Instant::now() >= deadline {
-            return Err("desktop backend endpoint not ready".to_string());
+            let message = state.startup_failure();
+            if let Ok(mut diagnostics) = state.diagnostics.lock() {
+                if diagnostics.error.is_none() {
+                    diagnostics.error = Some(
+                        "Desktop backend did not publish its endpoint. Retry startup.".to_string(),
+                    );
+                }
+            }
+            return Err(message);
         }
         thread::sleep(poll_interval);
     }
+}
+
+#[tauri::command]
+fn get_desktop_backend_status(
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+) -> DesktopBackendStatus {
+    desktop_backend_status(&backend_state)
+}
+
+fn desktop_backend_status(backend_state: &DesktopBackendState) -> DesktopBackendStatus {
+    // Reap an exited child before inspecting endpoint readiness. The stdout
+    // reader and periodic supervisor can otherwise lag behind the process.
+    if let Ok(mut process) = backend_state.process.lock() {
+        if let Some(child) = process.as_mut() {
+            if let Ok(Some(status)) = child.try_wait() {
+                if let Ok(mut endpoint) = backend_state.ws_endpoint.lock() {
+                    *endpoint = None;
+                }
+                if let Ok(mut diagnostics) = backend_state.diagnostics.lock() {
+                    diagnostics.exit_status = Some(status.to_string());
+                }
+            }
+        }
+    }
+    let ready = backend_state
+        .ws_endpoint
+        .lock()
+        .map(|endpoint| endpoint.is_some())
+        .unwrap_or(false);
+    let mut diagnostics = backend_state
+        .diagnostics
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !ready
+        && diagnostics.error.is_none()
+        && diagnostics
+            .started_at
+            .is_some_and(|started| started.elapsed() >= ENDPOINT_WAIT_TIMEOUT)
+    {
+        diagnostics.error = Some(
+            "Desktop backend did not publish its endpoint within 30 seconds. Retry startup."
+                .to_string(),
+        );
+    }
+    // Status reads never wait for readiness; the webview can render immediately.
+    let state = if ready {
+        "ready"
+    } else if diagnostics.error.is_some() || diagnostics.exit_status.is_some() {
+        "failed"
+    } else {
+        "starting"
+    };
+    DesktopBackendStatus {
+        state,
+        diagnostics: diagnostics.lines.iter().cloned().collect(),
+        exit_status: diagnostics.exit_status.clone(),
+        error: diagnostics.error.clone(),
+    }
+}
+
+fn retry_desktop_backend_with(
+    state: &Arc<DesktopBackendState>,
+    spawn_backend: impl FnOnce() -> Result<Child, String>,
+) -> Result<(), String> {
+    let Ok(_retry) = state.retry.try_lock() else {
+        return Ok(());
+    };
+    let mut process = state
+        .process
+        .lock()
+        .map_err(|_| "failed to lock desktop backend process state")?;
+    if state.is_shutting_down() {
+        return Err("desktop backend is shutting down".to_string());
+    }
+    if state
+        .ws_endpoint
+        .lock()
+        .map(|endpoint| endpoint.is_some())
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+    // Repeated clicks after the first retry must reuse its pending child.
+    let failed = state
+        .diagnostics
+        .lock()
+        .map(|diagnostics| diagnostics.error.is_some() || diagnostics.exit_status.is_some())
+        .unwrap_or(false);
+    if !failed && process.is_some() {
+        return Ok(());
+    }
+    if let Some(child) = process.as_mut() {
+        child
+            .kill()
+            .map_err(|error| format!("failed to stop desktop backend: {error}"))?;
+        child
+            .wait()
+            .map_err(|error| format!("failed to reap desktop backend: {error}"))?;
+    }
+    *process = None;
+    if let Ok(mut diagnostics) = state.diagnostics.lock() {
+        *diagnostics = BackendDiagnostics::default();
+    }
+    ensure_desktop_backend_started_locked(state, process, spawn_backend)
+}
+
+#[tauri::command]
+async fn retry_desktop_backend(
+    backend_state: State<'_, Arc<DesktopBackendState>>,
+    context: State<'_, AppContext>,
+) -> Result<(), String> {
+    let state = backend_state.inner().clone();
+    let context = context.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        retry_desktop_backend_with(&state, || spawn_desktop_backend_process(&context))
+    })
+    .await
+    .map_err(|error| format!("desktop backend retry task failed: {error}"))?
 }
 
 #[tauri::command]
@@ -1484,6 +1759,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_desktop_backend_endpoint,
+            get_desktop_backend_status,
+            retry_desktop_backend,
             pick_workspace_directory,
             open_mcp_settings_file,
             get_update_status,
@@ -1676,6 +1953,152 @@ mod tests {
         );
         assert_eq!(tray_badge_text(0), None);
         assert_eq!(tray_badge_text(3), Some("3".to_string()));
+    }
+
+    #[test]
+    fn startup_diagnostics_are_bounded_and_sanitized() {
+        let state = DesktopBackendState::default();
+        for index in 0..100 {
+            state.record_diagnostic(&format!("startup failure {index}"));
+        }
+        state.record_diagnostic("Authorization: Bearer private-value");
+        state.record_diagnostic("ws://127.0.0.1/transport?approval_token=private-value");
+        state.record_diagnostic("api_key = private-value");
+        let diagnostics = state.diagnostics.lock().unwrap();
+        assert_eq!(diagnostics.lines.len(), MAX_STARTUP_DIAGNOSTICS);
+        assert!(diagnostics
+            .lines
+            .iter()
+            .all(|line| !line.contains("private-value")));
+        assert!(diagnostics
+            .lines
+            .iter()
+            .any(|line| line.contains("startup failure 99")));
+    }
+
+    #[test]
+    fn oversized_diagnostic_records_are_discarded_including_unterminated_records() {
+        for suffix in ["", "\n"] {
+            let input = format!(
+                "{}secret=hidden{}",
+                "a".repeat(MAX_DIAGNOSTIC_LINE * 2),
+                suffix
+            );
+            let mut lines = Vec::new();
+            read_diagnostic_lines(input.as_bytes(), |line| lines.push(line));
+            assert_eq!(lines, ["[Oversized startup diagnostic omitted]"]);
+        }
+    }
+
+    #[test]
+    fn startup_failure_includes_exit_status_and_sanitized_diagnostics() {
+        let state = DesktopBackendState::default();
+        state.record_diagnostic("Error: failed to load sidecar module");
+        state.record_diagnostic("token=private-value");
+        state.diagnostics.lock().unwrap().exit_status = Some("exit status: 7".to_string());
+        let error = state.startup_failure();
+        assert!(error.contains("exit status: 7"));
+        assert!(error.contains("failed to load sidecar module"));
+        assert!(!error.contains("private-value"));
+    }
+
+    #[test]
+    fn crashed_sidecar_retains_stderr_and_exit_status_across_respawn() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, || {
+            Command::new("sh").arg("-c")
+                .arg("echo 'Error: missing sidecar dependency' >&2; echo 'approval_token=private-value' >&2; exit 7")
+                .stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|error| error.to_string())
+        }).unwrap();
+        wait_until_tracked_child_exits(&state);
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while state.diagnostics.lock().unwrap().lines.len() < 2 {
+            assert!(Instant::now() < deadline, "stderr should be captured");
+            thread::sleep(Duration::from_millis(5));
+        }
+        ensure_desktop_backend_started_with(&state, spawn_pending_sidecar).unwrap();
+        let error = state.startup_failure();
+        assert!(error.contains("exit status: 7"));
+        assert!(error.contains("missing sidecar dependency"));
+        assert!(!error.contains("private-value"));
+        state
+            .process
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .kill()
+            .unwrap();
+        state.stop();
+    }
+
+    #[test]
+    fn status_times_out_pending_startup_without_an_endpoint_request_and_retry_resets_timer() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_pending_sidecar).unwrap();
+        assert_eq!(desktop_backend_status(&state).state, "starting");
+        state.diagnostics.lock().unwrap().started_at = Some(Instant::now() - ENDPOINT_WAIT_TIMEOUT);
+        let status = desktop_backend_status(&state);
+        assert_eq!(status.state, "failed");
+        assert!(status.error.unwrap().contains("Retry startup"));
+        retry_desktop_backend_with(&state, spawn_pending_sidecar).unwrap();
+        let status = desktop_backend_status(&state);
+        assert_eq!(status.state, "starting");
+        assert!(status.error.is_none());
+        assert!(
+            state
+                .diagnostics
+                .lock()
+                .unwrap()
+                .started_at
+                .unwrap()
+                .elapsed()
+                < ENDPOINT_WAIT_TIMEOUT
+        );
+        // Once transport is ready, elapsed startup time cannot fail it.
+        *state.ws_endpoint.lock().unwrap() = Some("ws://127.0.0.1/transport".to_string());
+        state.diagnostics.lock().unwrap().started_at = Some(Instant::now() - ENDPOINT_WAIT_TIMEOUT);
+        assert_eq!(desktop_backend_status(&state).state, "ready");
+        state
+            .process
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .kill()
+            .unwrap();
+        state.stop();
+    }
+
+    #[test]
+    fn repeated_retry_replaces_failed_child_once_and_respects_shutdown() {
+        let state = Arc::new(DesktopBackendState::default());
+        ensure_desktop_backend_started_with(&state, spawn_pending_sidecar).unwrap();
+        let original = state.process.lock().unwrap().as_ref().unwrap().id();
+        state.diagnostics.lock().unwrap().error = Some("startup timed out".to_string());
+        let attempts = AtomicUsize::new(0);
+        for _ in 0..3 {
+            retry_desktop_backend_with(&state, || {
+                attempts.fetch_add(1, Ordering::SeqCst);
+                spawn_pending_sidecar()
+            })
+            .unwrap();
+        }
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+        let replacement = state.process.lock().unwrap().as_ref().unwrap().id();
+        assert_ne!(original, replacement);
+        assert!(state.diagnostics.lock().unwrap().error.is_none());
+        state.shutting_down.store(true, AtomicOrdering::Release);
+        assert!(retry_desktop_backend_with(&state, || panic!("shutdown must not spawn")).is_err());
+        state
+            .process
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .kill()
+            .unwrap();
+        state.stop();
     }
 
     /// A stand-in sidecar that stays alive without ever publishing a ready
@@ -1892,10 +2315,7 @@ mod tests {
                 ensure_desktop_backend_started_with(&state, spawn_exiting_sidecar)
             },
         );
-        assert_eq!(
-            result,
-            Err("desktop backend endpoint not ready".to_string())
-        );
+        assert!(result.unwrap_err().contains("did not publish its endpoint"));
         // 400ms window with a 150ms backoff allows the initial respawn plus
         // at most a few paced ones — not one per 10ms poll tick.
         let respawns = respawn_count.load(Ordering::SeqCst);
@@ -1919,10 +2339,7 @@ mod tests {
             Duration::from_millis(100),
             || panic!("a live child must not be respawned"),
         );
-        assert_eq!(
-            result,
-            Err("desktop backend endpoint not ready".to_string())
-        );
+        assert!(result.unwrap_err().contains("did not publish its endpoint"));
 
         if let Ok(mut guard) = state.process.lock() {
             if let Some(child) = guard.as_mut() {

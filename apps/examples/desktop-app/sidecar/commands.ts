@@ -118,11 +118,12 @@ import {
 	broadcastEvent,
 	connectRemoteSessionRuntime,
 	disconnectRemoteSessionRuntime,
-	ensureSharedHubClient,
 	findSessionRuntimeBinding,
+	getBackendInitialization,
 	getEnvironmentContext,
 	getEnvironmentContexts,
 	getRuntimeBinding,
+	getSharedHubClient,
 	resolveSidecarAskQuestion,
 	sendEventToClient,
 } from "./context";
@@ -1209,7 +1210,7 @@ async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
-	const hubClient = await ensureSharedHubClient(ctx);
+	const hubClient = getSharedHubClient(ctx);
 	const clientCommand = async (
 		hubCommand: string,
 		payload?: Record<string, unknown>,
@@ -1410,7 +1411,7 @@ async function handleAgendaTaskCommand(
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
-	const hubClient = await ensureSharedHubClient(ctx);
+	const hubClient = getSharedHubClient(ctx);
 	const reply = await hubClient.command(command as never, args);
 	if (!reply.ok) {
 		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
@@ -1430,7 +1431,7 @@ async function listHubSettings(
 	ctx: SidecarContext,
 	workspaceRoot: string = ctx.localWorkspaceRoot,
 ): Promise<CoreSettingsSnapshot> {
-	const hubClient = await ensureSharedHubClient(ctx);
+	const hubClient = getSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.list", {
 		workspaceRoot,
 		cwd: workspaceRoot,
@@ -1452,7 +1453,7 @@ async function toggleHubSetting(
 		enabled?: boolean;
 	},
 ): Promise<CoreSettingsSnapshot> {
-	const hubClient = await ensureSharedHubClient(ctx);
+	const hubClient = getSharedHubClient(ctx);
 	const reply = await hubClient.command("settings.toggle", {
 		...input,
 		workspaceRoot: ctx.localWorkspaceRoot,
@@ -1869,6 +1870,12 @@ export async function handleCommand(
 	args?: Record<string, unknown>,
 	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
+	if (command === "get_backend_readiness")
+		return getBackendInitialization(ctx).state;
+	if (command === "retry_backend_initialization") {
+		void getBackendInitialization(ctx).start();
+		return getBackendInitialization(ctx).state;
+	}
 	const explicitEnvironment = requestedEnvironmentId(args);
 	if (explicitEnvironment) {
 		ctx = getEnvironmentContext(ctx, explicitEnvironment);
@@ -2150,7 +2157,30 @@ export async function handleCommand(
 
 	// ── Process context ───────────────────────────────────────────────
 	if (command === "get_process_context") {
-		const binding = getCommandRuntimeBinding(ctx, args);
+		const binding = ctx.runtimeBindings.get(
+			requestedEnvironmentId(args) ?? ctx.activeEnvironmentId,
+		);
+		if (!binding && ctx.activeEnvironmentId !== LOCAL_ENVIRONMENT_ID) {
+			getRuntimeBinding(ctx);
+		}
+		if (!binding)
+			return {
+				environmentId: LOCAL_ENVIRONMENT_ID,
+				activeEnvironmentId: ctx.activeEnvironmentId,
+				remoteEnvironment: null,
+				taskWorktreeRoot: taskWorktreesRoot(),
+				workspaceRoot: ctx.localWorkspaceRoot,
+				cwd: ctx.localWorkspaceRoot,
+				homeDir: homedir(),
+				platform: process.platform,
+				appVersion: packageJson.version,
+				runningSessionCount: 0,
+				hub: {
+					status: getBackendInitialization(ctx).state.state,
+					url: null,
+					error: getBackendInitialization(ctx).state.message ?? null,
+				},
+			};
 		const hubUrl =
 			binding.hubClient.getUrl() ??
 			binding.sessionManager.runtimeAddress?.trim() ??
@@ -3640,23 +3670,24 @@ export async function handleCommand(
 
 	// ── Native OS commands ────────────────────────────────────────────
 	if (command === "validate_workspace_directory") {
-		const binding = getCommandRuntimeBinding(ctx, args);
+		const environmentId =
+			requestedEnvironmentId(args) ?? ctx.activeEnvironmentId;
 		const workspacePath = String(args?.path ?? "").trim();
 		if (!workspacePath) {
-			return { environmentId: binding.environmentId, valid: false };
+			return { environmentId, valid: false };
 		}
-		if (binding.kind === "ssh") {
+		if (environmentId !== LOCAL_ENVIRONMENT_ID) {
 			try {
 				if (!ctx.remoteEnvironments) {
 					throw new Error("Remote environment service is unavailable");
 				}
-				await ctx.remoteEnvironments.run(binding.environmentId, {
+				await ctx.remoteEnvironments.run(environmentId, {
 					command: "test",
 					args: ["-d", workspacePath],
 				});
-				return { environmentId: binding.environmentId, valid: true };
+				return { environmentId, valid: true };
 			} catch {
-				return { environmentId: binding.environmentId, valid: false };
+				return { environmentId, valid: false };
 			}
 		}
 		// Support typed/pasted paths like "~/projects/app" from the manual
@@ -3669,20 +3700,24 @@ export async function handleCommand(
 					: workspacePath;
 		try {
 			return {
-				environmentId: binding.environmentId,
+				environmentId,
 				valid: statSync(resolved).isDirectory(),
 				path: resolved,
 			};
 		} catch {
 			return {
-				environmentId: binding.environmentId,
+				environmentId,
 				valid: false,
 				path: resolved,
 			};
 		}
 	}
 	if (command === "pick_workspace_directory") {
-		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") return null;
+		if (
+			(requestedEnvironmentId(args) ?? ctx.activeEnvironmentId) !==
+			LOCAL_ENVIRONMENT_ID
+		)
+			return null;
 		return await pickWorkspaceDirectory();
 	}
 	if (command === "open_mcp_settings_file") {
@@ -3694,7 +3729,10 @@ export async function handleCommand(
 		return await listAvailableCodeEditors();
 	}
 	if (command === "open_file_in_editor") {
-		if (getCommandRuntimeBinding(ctx, args).kind === "ssh") {
+		if (
+			(requestedEnvironmentId(args) ?? ctx.activeEnvironmentId) !==
+			LOCAL_ENVIRONMENT_ID
+		) {
 			throw new Error(
 				"Opening remote files in a local editor is not available in the SSH proof of concept yet.",
 			);
