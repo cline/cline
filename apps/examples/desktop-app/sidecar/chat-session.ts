@@ -2215,6 +2215,12 @@ export async function handleChatSessionCommand(
 				if (!repoUrl || !modelId) {
 					throw new Error("repoUrl and model are required for a cloud session");
 				}
+				const models = await cloud.listModels();
+				if (!models.some((model) => model.id === modelId)) {
+					throw new Error(
+						`The selected model ${modelId} is not available in Cline Cloud for this account. Select a supported model before starting a cloud session.`,
+					);
+				}
 				const branch = String(request.config?.branch ?? "").trim();
 				const initialPrompt = request.prompt?.trim();
 				const reasoningEffort = readReasoningEffort(

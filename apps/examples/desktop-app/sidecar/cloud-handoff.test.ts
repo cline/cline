@@ -561,7 +561,7 @@ describe("cloud handoff transaction", () => {
 							JSON.stringify({ data: [{ id: modelId, name: "Sonnet" }] }),
 							{ status: 200, headers: { "content-type": "application/json" } },
 						)
-					: new Response("not found", { status: 404 }),
+					: new Response(JSON.stringify({}), { status: 200 }),
 			),
 		);
 
@@ -693,6 +693,40 @@ describe("cloud handoff transaction", () => {
 			create,
 		};
 	}
+
+	it("rejects an unavailable source model before recording or provisioning a handoff", async () => {
+		const fixture = createHandoffFixture();
+		fixture.ctx.liveSessions.get(fixture.sourceSessionId)!.config.model =
+			"unavailable-model";
+		await expect(
+			handleChatSessionCommand(fixture.ctx, {
+				action: "prepare_handoff",
+				sessionId: fixture.sourceSessionId,
+			}),
+		).rejects.toThrow("selected model unavailable-model is not available");
+		expect(fixture.create).not.toHaveBeenCalled();
+		expect(fixture.metadataUpdates).toEqual([]);
+	});
+
+	it("rejects a source model changed after preflight instead of reusing the pinned model", async () => {
+		const fixture = createHandoffFixture();
+		fixture.ctx.liveSessions.get(fixture.sourceSessionId)!.config.model =
+			"changed-model";
+		await expect(
+			handleChatSessionCommand(fixture.ctx, {
+				action: "handoff",
+				sessionId: fixture.sourceSessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/test",
+					branch: "main",
+					headSha: fixture.headSha,
+					modelId: fixture.modelId,
+				},
+			}),
+		).rejects.toThrow("source model changed");
+		expect(fixture.create).not.toHaveBeenCalled();
+		expect(fixture.metadataUpdates).toEqual([]);
+	});
 
 	it.each([
 		"client_authority_mismatch",

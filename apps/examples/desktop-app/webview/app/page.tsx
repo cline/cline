@@ -76,7 +76,6 @@ import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { openPersonalGitHubInstallUrl } from "@/lib/cline-integrations";
 import {
-	formatHandoffModelFallback,
 	HANDOFF_PROGRESS_LABELS,
 	type HandoffPreflight,
 	type HandoffProgressPhase,
@@ -2248,15 +2247,6 @@ function ChatThreadPane({
 						},
 					},
 				);
-				const fallbackMessage = formatHandoffModelFallback(
-					preflight.modelFallback,
-				);
-				if (fallbackMessage) {
-					toast({
-						title: "Using a cloud-compatible model",
-						description: fallbackMessage,
-					});
-				}
 				await runHandoff(
 					preflight,
 					nextCommand,

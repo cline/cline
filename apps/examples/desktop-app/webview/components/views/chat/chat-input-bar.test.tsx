@@ -556,6 +556,10 @@ describe("ChatInputBar", () => {
 	});
 
 	it("allows cloud image and model selection without replacing local defaults", async () => {
+		loadProviderModelsMock.mockResolvedValue([
+			{ id: "cline-test", name: "cline-test" },
+			{ id: "cline-alt", name: "cline-alt" },
+		]);
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["anthropic", "cline"],
@@ -632,16 +636,17 @@ describe("ChatInputBar", () => {
 		await vi.waitFor(() => {
 			expect(onProviderChange).toHaveBeenCalledWith("cline");
 		});
-		const initialCatalogLoads = loadProviderModelCatalogMock.mock.calls.length;
+		const initialCatalogLoads = loadProviderModelsMock.mock.calls.length;
 		const catalogInvalidated =
 			subscribeToProviderCatalogInvalidationMock.mock.calls[0]?.[0];
 		await act(async () => catalogInvalidated?.());
 		await vi.waitFor(() => {
-			expect(loadProviderModelCatalogMock).toHaveBeenCalledTimes(
+			expect(loadProviderModelsMock).toHaveBeenCalledTimes(
 				initialCatalogLoads + 1,
 			);
 		});
-		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
+		expect(loadProviderModelCatalogMock).not.toHaveBeenCalledWith();
+		expect(loadProviderModelsMock).toHaveBeenCalledWith("cline", {
 			includeCloudModels: true,
 		});
 		const providerModelsListener =
@@ -675,17 +680,14 @@ describe("ChatInputBar", () => {
 		);
 		await act(async () => modelTrigger?.click());
 		const cloudModel = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Model: cline-test"]',
+			'[aria-label="Model: claude-test"]',
 		);
 		loadProviderModelsMock.mockClear();
 		loadProviderModelCatalogMock.mockClear();
 		await act(async () => cloudModel?.click());
-		expect(loadProviderModelsMock).toHaveBeenCalledExactlyOnceWith(
-			"anthropic",
-			{
-				includeCloudModels: true,
-			},
-		);
+		expect(loadProviderModelsMock).toHaveBeenCalledExactlyOnceWith("cline", {
+			includeCloudModels: true,
+		});
 		expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
 		const alternateModel = Array.from(
 			container.querySelectorAll<HTMLButtonElement>(
@@ -2261,7 +2263,13 @@ describe("ChatInputBar", () => {
 				await Promise.resolve();
 			});
 			await vi.waitFor(() => {
-				expect(loadProviderModelCatalogMock).toHaveBeenCalled();
+				if (props.executionTarget === "cloud") {
+					expect(loadProviderModelsMock).toHaveBeenCalledWith("cline", {
+						includeCloudModels: true,
+					});
+				} else {
+					expect(loadProviderModelCatalogMock).toHaveBeenCalled();
+				}
 			});
 		};
 
@@ -2589,6 +2597,40 @@ describe("ChatInputBar", () => {
 					[]),
 			].find((option) => option.textContent?.includes("Stale Legacy"));
 			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
+		});
+
+		it.each([
+			"empty",
+			"failed",
+		])("keeps the selected cloud model without bundled choices when the catalog is %s", async (result) => {
+			if (result === "failed")
+				loadProviderModelsMock.mockRejectedValue(new Error("offline"));
+			else loadProviderModelsMock.mockResolvedValue([]);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				model: "selected-model",
+				provider: "cline",
+				onModelChange,
+			});
+			const trigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label="Model: selected-model"]',
+			);
+			expect(trigger).not.toBeNull();
+			await act(async () => trigger?.click());
+			await vi.waitFor(() => {
+				if (result === "failed")
+					expect(container.textContent).toContain(
+						"Could not load cloud models",
+					);
+			});
+			const options = [...document.querySelectorAll('[role="option"]')].map(
+				(option) => option.textContent,
+			);
+			expect(options).toHaveLength(1);
+			expect(options[0]).toContain("selected-model");
+			expect(loadProviderModelCatalogMock).not.toHaveBeenCalledWith();
+			expect(onModelChange).not.toHaveBeenCalled();
 		});
 
 		it("keeps an active model that is absent from the gated catalog", async () => {

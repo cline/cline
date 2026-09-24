@@ -164,13 +164,36 @@ describe("desktop settings commands", () => {
 		).toBe(false);
 
 		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		const listModels = vi
+			.spyOn(getCloudSessionManager(ctx), "listModels")
+			.mockResolvedValue([
+				{
+					id: "cline-cloud/cloud-only",
+					name: "Cloud Only",
+					catalogId: "cline-cloud",
+				},
+			]);
 		const cloud = (await handleCommand(ctx, "list_provider_models", {
 			provider: "cline",
 			includeCloudModels: true,
 		})) as { models: Array<{ id: string }> };
-		expect(cloud.models).toContainEqual(
-			expect.objectContaining({ id: "cline-cloud/cloud-only" }),
-		);
+		expect(cloud.models.map((model) => model.id)).toEqual([
+			"cline-cloud/cloud-only",
+		]);
+		listModels.mockResolvedValueOnce([]);
+		await expect(
+			handleCommand(ctx, "list_provider_models", {
+				provider: "cline",
+				includeCloudModels: true,
+			}),
+		).resolves.toMatchObject({ models: [] });
+		listModels.mockRejectedValueOnce(new Error("Cloud catalog unavailable"));
+		await expect(
+			handleCommand(ctx, "list_provider_models", {
+				provider: "cline",
+				includeCloudModels: true,
+			}),
+		).rejects.toThrow("Cloud catalog unavailable");
 	});
 
 	it("rejects a non-boolean cloud sessions toggle value", async () => {

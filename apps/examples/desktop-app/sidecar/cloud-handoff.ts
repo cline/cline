@@ -12,9 +12,8 @@ import {
 	mergeCloudHandoffMetadata,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
-	selectCloudHandoffModel,
 } from "@cline/core";
-import { loadCloudHandoffModels } from "@cline/core/cloud";
+import { loadCloudModels } from "@cline/core/cloud";
 import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
@@ -49,7 +48,6 @@ type PreparedCloudHandoff = {
 	branch: string;
 	headSha: string;
 	modelId: string;
-	modelFallback?: { from: string; to: string };
 };
 
 type CloudHandoffGitState = {
@@ -230,32 +228,26 @@ async function prepareCloudHandoff(
 	const localModelId = String(
 		config.model ?? config.modelId ?? persisted?.model ?? "",
 	).trim();
-	const models = await loadCloudHandoffModels(
-		getClineEnvironmentConfig().apiBaseUrl,
-	);
-	let selection = selectCloudHandoffModel({
-		localModelId: options.pinnedModelId ?? localModelId,
-		models,
+	if (options.pinnedModelId && options.pinnedModelId !== localModelId) {
+		throw new Error(
+			"The source model changed after handoff started. Run handoff preflight again before continuing.",
+		);
+	}
+	const models = await loadCloudModels(getClineEnvironmentConfig().apiBaseUrl, {
 		isOrganizationSession: Boolean(organizationId),
 	});
-	if (options.pinnedModelId) {
-		if (selection.modelId !== options.pinnedModelId) {
-			throw new Error(
-				`Cloud model ${options.pinnedModelId} is no longer available for this account. Run /cloud again to select an available model.`,
-			);
-		}
-		selection = {
-			modelId: options.pinnedModelId,
-			usedFallback: options.pinnedModelId !== localModelId,
-			catalogId: selection.catalogId,
-		};
+	const modelId = options.pinnedModelId ?? localModelId;
+	if (!modelId || !models.some((model) => model.id === modelId)) {
+		throw new Error(
+			`The selected model ${modelId || "(none)"} is not available in Cline Cloud for this account. Select a supported model before handing off.`,
+		);
 	}
 	const mode = readCloudHandoffMode(config.mode);
 	const fingerprint = createCloudHandoffFingerprint({
 		repoUrl: git.repoUrl,
 		branch: git.branch,
 		headSha: git.headSha,
-		modelId: selection.modelId,
+		modelId,
 		...(organizationId ? { organizationId } : {}),
 		...(git.workspaceRelativePath
 			? { workspaceRelativePath: git.workspaceRelativePath }
@@ -267,10 +259,7 @@ async function prepareCloudHandoff(
 		repoUrl: git.repoUrl,
 		branch: git.branch,
 		headSha: git.headSha,
-		modelId: selection.modelId,
-		...(selection.usedFallback && localModelId
-			? { modelFallback: { from: localModelId, to: selection.modelId } }
-			: {}),
+		modelId,
 	};
 }
 
