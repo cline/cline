@@ -190,11 +190,13 @@ async function resolveProviderModelMap(
 			loadLatestOnInit: shouldLoadLiveCatalog || options.loadLatest,
 			includeClineCloudModels: options.loadLatest,
 			loadPrivateOnAuth: true,
-			// Endpoint-owned catalogs (LiteLLM, Baseten, ...) have no bundled
-			// fallback, so a failed refresh (unreachable host, TLS rejection,
-			// bad key) must reach the caller instead of silently yielding an
-			// empty list.
-			failOnError: isPrivateModelCatalogProvider(providerId),
+			// Endpoint-owned catalogs (LiteLLM, Baseten, Ollama, custom
+			// `modelsSourceUrl` providers, ...) have no bundled fallback, so a
+			// failed refresh (unreachable host, TLS rejection, bad key) must
+			// reach the caller instead of silently yielding an empty list.
+			failOnError:
+				isPrivateModelCatalogProvider(providerId) ||
+				Boolean(provider?.modelsSourceUrl),
 		},
 		config,
 	);
