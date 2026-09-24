@@ -849,7 +849,7 @@ describe("seeded cloud handoff controller", () => {
 			reasoningEffort: "high",
 		},
 	};
-	function fixture() {
+	function fixture(taskId?: string) {
 		let rows: Record<string, unknown>[] = [];
 		let transcript: MessageWithMetadata[] = [];
 		let failure: "none" | "timeout" | "malformed" | "send-timeout" = "none";
@@ -866,8 +866,11 @@ describe("seeded cloud handoff controller", () => {
 				calls.push({ name, payload });
 				let result: Record<string, unknown> = {};
 				if (name === "session.list") result = { sessions: rows };
-				if (name === "session.get" || name === "session.attach")
-					result = { session: rows[0] };
+				if (name === "session.get")
+					result = {
+						session: rows.find((row) => row.sessionId === payload?.sessionId),
+					};
+				if (name === "session.attach") result = { session: rows[0] };
 				if (name === "session.messages") result = { messages: transcript };
 				if (name === "session.pending_prompts") result = { prompts: [] };
 				if (name === "session.send_input" && failure === "send-timeout")
@@ -914,7 +917,12 @@ describe("seeded cloud handoff controller", () => {
 					cleanupAuthToken: "token",
 				};
 			}),
-			list: vi.fn(async () => [structuredClone(record)]),
+			list: vi.fn(async () => [
+				{
+					...structuredClone(record),
+					metadata: { ...record.metadata, taskId },
+				},
+			]),
 			status: vi.fn(async () => ({ status: "ready" })),
 			waitUntilReady: vi.fn(async () => {}),
 			delete: vi.fn(async () => {}),
@@ -967,6 +975,36 @@ describe("seeded cloud handoff controller", () => {
 		};
 	}
 
+	it.each([
+		undefined,
+		"stale-task-id",
+	])("recovers a matching root with a subagent child (taskId: %s)", async (taskId) => {
+		const f = fixture(taskId);
+		f.setRows([
+			{
+				sessionId: "root",
+				metadata: { handoff: { sourceSessionId: seed.sourceSessionId } },
+			},
+			{
+				sessionId: "child",
+				parentSessionId: "root",
+				metadata: { isSubagent: true },
+			},
+		]);
+		try {
+			await expect(
+				f.controller.seedHandoff(record.id, { ...seed, recoverOnly: true }),
+			).resolves.toEqual({ innerSessionId: "root" });
+			expect(f.calls.filter((call) => call.name === "session.get")).toEqual(
+				taskId ? [{ name: "session.get", payload: { sessionId: taskId } }] : [],
+			);
+			expect(f.calls.filter((call) => call.name === "session.create")).toEqual(
+				[],
+			);
+		} finally {
+			await f.controller.dispose();
+		}
+	});
 	it("does not use old identical seeded text to confirm a new ambiguous send", async () => {
 		const f = fixture();
 		await f.controller.seedHandoff(record.id, seed);

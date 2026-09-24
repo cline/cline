@@ -279,8 +279,20 @@ export class CloudSessionApi {
 		let refreshed = false;
 		let rejectedToken: string | undefined;
 		while (true) {
-			const token =
-				typeof auth === "string" ? auth : await this.options.getAuthToken();
+			let token: string | undefined;
+			try {
+				token =
+					typeof auth === "string" ? auth : await this.options.getAuthToken();
+			} catch (error) {
+				if (rejectedToken)
+					throw cloudErrorForResponse(
+						401,
+						undefined,
+						this.appBaseUrl,
+						githubConnectUrl,
+					);
+				throw error;
+			}
 			if (!token?.trim()) {
 				throw new CloudSessionError(
 					"authentication_required",
@@ -867,17 +879,28 @@ export class CloudSessionApi {
 		sessionId: string,
 		auth?: RequestAuth,
 	): Promise<void> {
-		await this.request(
-			`/api/v1/session/${encodeURIComponent(sessionId)}`,
-			{ method: "DELETE" },
-			undefined,
-			auth,
-		);
+		let goneError: CloudSessionError | undefined;
+		try {
+			await this.request(
+				`/api/v1/session/${encodeURIComponent(sessionId)}`,
+				{ method: "DELETE" },
+				undefined,
+				auth,
+			);
+		} catch (error) {
+			if (
+				!(error instanceof CloudSessionError) ||
+				(error.code !== "session_not_found" && error.code !== "session_expired")
+			)
+				throw error;
+			goneError = error;
+		}
 		for (const [key, result] of this.completedHandoffCreates)
 			if (result.sessionId === sessionId) {
 				this.completedHandoffCreates.delete(key);
 				this.unconfirmedHandoffCreates.delete(key);
 			}
+		if (goneError) throw goneError;
 	}
 
 	async updateTitle(
