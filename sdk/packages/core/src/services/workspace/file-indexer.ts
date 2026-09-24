@@ -4,6 +4,7 @@ import { readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { isMainThread, parentPort, Worker } from "node:worker_threads";
+import { toPosixSeparators } from "@cline/shared";
 
 const DEFAULT_INDEX_TTL_MS = 15_000;
 const STALE_CACHE_EVICTION_MS = 10 * 60_000;
@@ -77,10 +78,6 @@ function pruneStaleCacheEntries(now: number): void {
 	}
 }
 
-function toPosixRelative(cwd: string, absolutePath: string): string {
-	return path.relative(cwd, absolutePath).split(path.sep).join("/");
-}
-
 async function listFilesWithRg(cwd: string): Promise<Set<string>> {
 	const output = await new Promise<string>((resolve, reject) => {
 		const child = spawn("rg", ["--files", "--hidden", "-g", "!.git"], {
@@ -149,7 +146,7 @@ async function walkDir(
 			continue;
 		}
 		if (entry.isFile()) {
-			files.add(toPosixRelative(cwd, absolutePath));
+			files.add(toPosixSeparators(path.relative(cwd, absolutePath)));
 		}
 	}
 }
