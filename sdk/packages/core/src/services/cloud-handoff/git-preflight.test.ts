@@ -68,25 +68,17 @@ describe("preflightCloudHandoffGit", () => {
 		);
 	});
 
-	it("preserves a workspace path relative to the repository root", async () => {
+	it.each([
+		"apps/desktop",
+		" leading ",
+	])("preserves repository-relative workspace path %j", async (path) => {
 		await expect(
 			preflightCloudHandoffGit({
-				cwd: "/repo/apps/desktop",
-				git: fakeGit({ "rev-parse --show-prefix": "apps/desktop/\n" }),
+				cwd: `/repo/${path}`,
+				git: fakeGit({ "rev-parse --show-prefix": `${path}/\n` }),
 			}),
 		).resolves.toEqual(
-			expect.objectContaining({ workspaceRelativePath: "apps/desktop" }),
-		);
-	});
-
-	it("preserves significant whitespace in repository-relative workspace paths", async () => {
-		await expect(
-			preflightCloudHandoffGit({
-				cwd: "/repo/ leading ",
-				git: fakeGit({ "rev-parse --show-prefix": " leading /\n" }),
-			}),
-		).resolves.toEqual(
-			expect.objectContaining({ workspaceRelativePath: " leading " }),
+			expect.objectContaining({ workspaceRelativePath: path }),
 		);
 	});
 
