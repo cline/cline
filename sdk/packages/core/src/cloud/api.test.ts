@@ -60,7 +60,7 @@ describe("CloudSessionApi", () => {
 		else expect(body).not.toHaveProperty("sandboxType");
 	});
 
-	it("resumes through the authenticated REST endpoint", async () => {
+	it("resumes through authenticated REST and preserves quota errors", async () => {
 		const resumed = {
 			...REMOTE_SESSION,
 			status: "provisioning",
@@ -86,16 +86,9 @@ describe("CloudSessionApi", () => {
 				}),
 			}),
 		);
-	});
-
-	it("preserves resume quota failures for the caller", async () => {
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api.example",
-			appBaseUrl: "https://app.example",
-			getAuthToken: async () => "token",
-			fetch: async () =>
-				jsonResponse({ error: "Active instance limit reached" }, 429),
-		});
+		fetch.mockResolvedValueOnce(
+			jsonResponse({ error: "Active instance limit reached" }, 429),
+		);
 		await expect(api.resume("ses-outer")).rejects.toMatchObject({
 			status: 429,
 			detail: "Active instance limit reached",

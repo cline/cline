@@ -417,12 +417,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const sessionId = requestedSessionId || createSessionId();
 		const pending = this.sessionStarts.get(sessionId);
 		if (pending) {
-			// Wait for the first start so the caller can attach or retry after failure.
-			await pending.catch(() => undefined);
-			return await this.startSession({
-				...input,
-				config: { ...input.config, sessionId },
-			});
+			try {
+				await pending;
+			} catch {
+				return await this.startSession({
+					...input,
+					config: { ...input.config, sessionId },
+				});
+			}
+			// A successful one-shot start may already have released its runtime.
+			throw new SessionAlreadyExistsError(sessionId);
 		}
 		if (this.sessions.has(sessionId)) {
 			throw new SessionAlreadyExistsError(sessionId);

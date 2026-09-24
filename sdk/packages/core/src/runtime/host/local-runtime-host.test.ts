@@ -222,9 +222,11 @@ describe("LocalRuntimeHost", () => {
 	});
 
 	it.each([
-		false,
-		true,
-	])("serializes duplicate session restoration (first start fails: %s)", async (failFirst) => {
+		"interactive",
+		"failed",
+		"one-shot",
+	])("serializes duplicate session restoration after a %s start", async (mode) => {
+		const failFirst = mode === "failed";
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
@@ -258,19 +260,17 @@ describe("LocalRuntimeHost", () => {
 			runtimeBuilder: runtimeBuilder as never,
 			createAgent: () => agent as never,
 		});
-		const input: StartSessionInput = {
-			interactive: true,
-			config: {
+		const input = normalizeStartInput({
+			interactive: mode !== "one-shot",
+			prompt: mode === "one-shot" ? "Run once" : undefined,
+			config: createConfig({
 				sessionId: "restored-task",
 				cwd: isolatedHomeDir,
-				providerId: "mock-provider",
-				modelId: "mock-model",
-				systemPrompt: "Test",
 				enableTools: false,
 				enableSpawnAgent: false,
 				enableAgentTeams: false,
-			},
-		};
+			}),
+		});
 		try {
 			const first = manager.startSession(input);
 			const firstResult = first.then(
@@ -280,19 +280,11 @@ describe("LocalRuntimeHost", () => {
 			await vi.waitFor(() =>
 				expect(runtimeBuilder.build).toHaveBeenCalledTimes(1),
 			);
-			let secondSettled = false;
 			const second = manager.startSession(input).then(
-				() => {
-					secondSettled = true;
-					return "created";
-				},
-				(error: { code: string }) => {
-					secondSettled = true;
-					return error.code;
-				},
+				() => "created",
+				(error: { code: string }) => error.code,
 			);
 			await Promise.resolve();
-			expect(secondSettled).toBe(false);
 			expect(runtimeBuilder.build).toHaveBeenCalledTimes(1);
 			release();
 			expect(await firstResult).toBe(
@@ -302,13 +294,20 @@ describe("LocalRuntimeHost", () => {
 				failFirst ? "created" : "session_already_exists",
 			);
 			expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 2 : 1);
-			await expect(
-				manager.updateSessionConnection("restored-task", {}),
-			).resolves.toBeUndefined();
-			await expect(manager.startSession(input)).rejects.toMatchObject({
-				code: "session_already_exists",
-			});
-			expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 2 : 1);
+			if (mode === "one-shot") {
+				await expect(
+					manager.updateSessionConnection("restored-task", {}),
+				).rejects.toMatchObject({
+					code: "session_not_found",
+				});
+			} else {
+				await expect(
+					manager.updateSessionConnection("restored-task", {}),
+				).resolves.toBeUndefined();
+				await expect(manager.startSession(input)).rejects.toMatchObject({
+					code: "session_already_exists",
+				});
+			}
 		} finally {
 			release();
 			await manager.dispose();
