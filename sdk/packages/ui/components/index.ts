@@ -21,6 +21,12 @@ export {
 	AgentCommandOutput,
 	type AgentCommandOutputProps,
 } from "./agent-command-output.js";
+export {
+	AgentContextUsage,
+	type AgentContextUsageData,
+	type AgentContextUsagePresentation,
+	type AgentContextUsageProps,
+} from "./agent-context-usage.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
 export {
 	AgentImageLightboxContent,

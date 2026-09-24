@@ -3,6 +3,28 @@ import { loadCloudHandoffModels } from "./model-catalog";
 import { selectCloudHandoffModel } from "./model-selection";
 
 describe("handoff live model catalog", () => {
+	it.each([
+		[" https://api.example.test/// \n", "https://api.example.test"],
+		[
+			`https://api.example.test${"/".repeat(40_000)}`,
+			"https://api.example.test",
+		],
+		[
+			`https://api.example.test/${"/".repeat(40_000)}path/`,
+			`https://api.example.test/${"/".repeat(40_000)}path`,
+		],
+	])("normalizes the catalog base URL (case %#)", async (input, expected) => {
+		const fetcher = vi.fn(
+			async (_url: string) => new Response(JSON.stringify([])),
+		);
+		await expect(
+			loadCloudHandoffModels(input, fetcher as unknown as typeof fetch),
+		).resolves.toEqual([]);
+		expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+			`${expected}/api/v1/ai/cline/models`,
+			`${expected}/api/v1/ai/cline/recommended-models`,
+		]);
+	});
 	it("keeps a supported local model even when it is absent from recommendations", async () => {
 		const fetcher = vi.fn(
 			async (url: string) =>
