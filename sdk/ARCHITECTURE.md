@@ -136,7 +136,7 @@ Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
-- `cloud/models` supplies the live, account-scoped model inventory for cloud creation and handoff; hosts validate exact model IDs without substitution. `services/cloud-handoff` owns Git preflight, source fingerprints, and transcript comparison. Desktop owns the handoff transaction, source mutation locks, durable metadata, rollout gate, and draft recovery; it saves the target and seed-dispatch intent before seeding, uses recovery-only adoption after a restart, and verifies the transcript before marking the source complete. Unconfirmed follow-ups are never automatically resent; local forks clear handoff metadata.
+- `cloud/models` owns cloud model eligibility; `services/cloud-handoff` owns Git preflight, fingerprints, and transcript verification. Desktop owns transfer orchestration, source locks, persistence, feature gating, and draft recovery.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -304,8 +304,7 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
-Successful metadata updates refresh active-session metadata from the persisted
-manifest, preserving the persistence layer's title normalization.
+Metadata updates keep active sessions synchronized with the persisted manifest.
 
 Session history listing filters child rows at the persistence layer. Subagent
 and team-task sessions are stored in the same table as the roots that spawned
