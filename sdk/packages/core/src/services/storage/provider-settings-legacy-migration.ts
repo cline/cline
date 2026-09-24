@@ -891,12 +891,20 @@ function collectCandidateProviderIds(
  * is still tagged "migration", carries no authentication choice, profile,
  * static credentials or API key, and legacy state still has the bare
  * profile with no explicit authentication.
+ *
+ * Applied at most once per file: legacy state is never deleted, so a repair
+ * that re-evaluated on every launch would keep restoring a profile a user had
+ * removed through a path that does not write legacy state back (a hand-edited
+ * providers.json, or another client sharing the same data directory).
  */
 function backfillMigratedBedrockProfile(
 	next: StoredProviderSettings,
 	legacyGlobalState: LegacyGlobalState,
 	now: string,
 ): boolean {
+	if (next.repairs?.bedrockProfile) {
+		return false;
+	}
 	const entry = next.providers.bedrock;
 	if (!entry || entry.tokenSource !== "migration") {
 		return false;
@@ -926,6 +934,7 @@ function backfillMigratedBedrockProfile(
 		},
 		updatedAt: now,
 	};
+	next.repairs = { ...next.repairs, bedrockProfile: true };
 	return true;
 }
 
@@ -965,6 +974,9 @@ export function migrateLegacyProviderSettings(
 	const next = emptyStoredProviderSettings();
 	next.providers = { ...existing.providers };
 	next.lastUsedProvider = existing.lastUsedProvider;
+	// Everything this function does not own has to survive the rewrite.
+	next.modes = existing.modes;
+	next.repairs = existing.repairs;
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
 	const modelsPath = join(

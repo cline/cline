@@ -1038,6 +1038,101 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
 	});
 
+	it("backfills the profile at most once, so a later removal sticks", () => {
+		// Legacy state keeps the profile forever. Without a marker the repair
+		// would restore it on every launch and fight a user who removed it
+		// through a path that does not write legacy state back.
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		manager.saveProviderSettings(
+			{
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-6",
+				aws: { region: "us-east-1" },
+			},
+			{ tokenSource: "migration" },
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					awsRegion: "us-east-1",
+					awsProfile: "work",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		expect(
+			migrateLegacyProviderSettings({
+				providerSettingsManager: manager,
+				dataDir: tempDir,
+			}).migrated,
+		).toBe(true);
+		expect(manager.getProviderSettings("bedrock")?.aws?.profile).toBe("work");
+		expect(manager.read().repairs?.bedrockProfile).toBe(true);
+
+		// The user removes the profile again; the repair must not undo that.
+		manager.saveProviderSettings(
+			{
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-6",
+				aws: { region: "us-east-1" },
+			},
+			{ tokenSource: "migration" },
+		);
+		expect(
+			migrateLegacyProviderSettings({
+				providerSettingsManager: manager,
+				dataDir: tempDir,
+			}).migrated,
+		).toBe(false);
+		expect(
+			manager.getProviderSettings("bedrock")?.aws?.profile,
+		).toBeUndefined();
+	});
+
+	it("preserves stored modes when the migration rewrites the file", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		const stored = manager.read();
+		manager.write({
+			...stored,
+			modes: { voiceInput: { providerId: "openai", modelId: "whisper-1" } },
+		});
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify({ mode: "act", actModeApiProvider: "anthropic" }, null, 2),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ apiKey: "legacy-key" }),
+		);
+
+		expect(
+			migrateLegacyProviderSettings({
+				providerSettingsManager: manager,
+				dataDir: tempDir,
+			}).migrated,
+		).toBe(true);
+		expect(manager.read().modes.voiceInput).toEqual({
+			providerId: "openai",
+			modelId: "whisper-1",
+		});
+	});
+
 	it("does not backfill a Bedrock entry the user has edited or that chose another auth mode", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
