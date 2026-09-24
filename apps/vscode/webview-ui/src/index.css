@@ -5,6 +5,8 @@
 /* Tailwind CSS */
 @import "tailwindcss";
 @import "./theme.css";
+/* Direction (RTL) support: shared with the desktop app so both stay aligned. */
+@import "@cline/ui/theme/direction.css";
 @plugin "tailwindcss-animate";
 @custom-variant dark (&:is(.dark *));
 

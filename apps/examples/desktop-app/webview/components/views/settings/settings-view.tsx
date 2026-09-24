@@ -32,6 +32,14 @@ import {
 	setStoredAppIcon,
 } from "@/lib/app-icon";
 import { desktopClient } from "@/lib/desktop-client";
+import {
+	type AppDirection,
+	DEFAULT_APP_DIRECTION,
+	type ResolvedDirection,
+	readStoredDirection,
+	readSystemDirection,
+	setStoredDirection,
+} from "@/lib/direction";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	getProviderAuthKind,
@@ -669,6 +677,33 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
 ];
 
+/**
+ * Text direction presets. "Auto" mirrors the app for right-to-left system
+ * languages (Persian, Arabic, Hebrew, ...) while explicit options let someone
+ * who runs their OS in one language read Cline in another.
+ */
+const DIRECTION_OPTIONS: {
+	id: AppDirection;
+	label: string;
+	description: string;
+}[] = [
+	{
+		id: "auto",
+		label: "Auto",
+		description: "Match the system language",
+	},
+	{
+		id: "ltr",
+		label: "LTR",
+		description: "Always lay out left to right",
+	},
+	{
+		id: "rtl",
+		label: "RTL",
+		description: "Always lay out right to left",
+	},
+];
+
 function GeneralSettingsContent({
 	onOpenModelProviders,
 }: {
@@ -686,6 +721,16 @@ function GeneralSettingsContent({
 		if (typeof window === "undefined") return DEFAULT_APP_FONT_SIZE;
 		return readStoredAppFontSize();
 	});
+	const [direction, setDirection] = useState<AppDirection>(() => {
+		if (typeof window === "undefined") return DEFAULT_APP_DIRECTION;
+		return readStoredDirection();
+	});
+	const [systemDirection, setSystemDirection] = useState<ResolvedDirection>(
+		() => {
+			if (typeof window === "undefined") return "ltr";
+			return readSystemDirection();
+		},
+	);
 	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
@@ -955,6 +1000,12 @@ function GeneralSettingsContent({
 		updateFontSizePreference(nextFontSize);
 	};
 
+	const updateDirection = (nextDirection: AppDirection) => {
+		setStoredDirection(nextDirection);
+		setDirection(nextDirection);
+		setSystemDirection(readSystemDirection());
+	};
+
 	const updateAppIcon = async (nextIcon: AppIconId) => {
 		const requestId = ++appIconRequestRef.current;
 		const previousIcon = appIcon;
@@ -1046,6 +1097,41 @@ function GeneralSettingsContent({
 							{fontSize}px
 						</output>
 					</div>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Text direction
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Mirror the interface for right-to-left languages such as Persian,
+							Arabic, and Hebrew. Code, diffs, and terminals always stay left to
+							right.
+						</p>
+						{direction === "auto" && (
+							<p className="text-xs text-muted-foreground">
+								Currently rendering{" "}
+								{systemDirection === "rtl" ? "right to left" : "left to right"}{" "}
+								from your system language.
+							</p>
+						)}
+					</div>
+					<fieldset className="flex shrink-0 items-center gap-2">
+						<legend className="sr-only">Text direction</legend>
+						{DIRECTION_OPTIONS.map((option) => (
+							<Button
+								aria-pressed={direction === option.id}
+								key={option.id}
+								onClick={() => updateDirection(option.id)}
+								size="sm"
+								title={option.description}
+								type="button"
+								variant={direction === option.id ? "default" : "outline"}
+							>
+								{option.label}
+							</Button>
+						))}
+					</fieldset>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">

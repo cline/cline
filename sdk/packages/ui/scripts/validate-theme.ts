@@ -114,9 +114,12 @@ if (base.includes("#__next") || base.includes("@source")) {
 if (
 	!index.includes('@import "@cline/ui/theme/tokens.css";') ||
 	!index.includes('@import "@cline/ui/theme/theme.css";') ||
-	!index.includes('@import "@cline/ui/theme/base.css";')
+	!index.includes('@import "@cline/ui/theme/base.css";') ||
+	!index.includes('@import "@cline/ui/theme/direction.css";')
 ) {
-	throw new Error("theme entry point must compose tokens, theme, and base CSS");
+	throw new Error(
+		"theme entry point must compose tokens, theme, base, and direction CSS",
+	);
 }
 for (const subpath of [
 	"./components.css",
@@ -127,6 +130,7 @@ for (const subpath of [
 	"./theme/tokens.css",
 	"./theme/theme.css",
 	"./theme/base.css",
+	"./theme/direction.css",
 ]) {
 	const target = manifest.exports?.[subpath];
 	if (!target || !existsSync(join(packageRoot, target))) {

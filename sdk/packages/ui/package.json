@@ -43,6 +43,7 @@
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
 		"./theme/base.css": "./theme/base.css",
+		"./theme/direction.css": "./theme/direction.css",
 		"./package.json": "./package.json"
 	},
 	"files": [
