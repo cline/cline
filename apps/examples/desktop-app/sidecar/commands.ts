@@ -3562,7 +3562,7 @@ export async function handleCommand(
 		// only offers commands that can actually run there.
 		const workspacePath =
 			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
-		return await getPluginCommandService(workspacePath).listCommands();
+		return await getPluginCommandService(ctx, workspacePath).listCommands();
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

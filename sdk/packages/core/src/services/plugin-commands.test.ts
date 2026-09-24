@@ -70,6 +70,48 @@ describe("createPluginCommandService", () => {
 		await expect(service.run("not-a-command", "")).resolves.toBeUndefined();
 	});
 
+	it("continues without commands when a plugin fails to load, retrying only when plugins change", async () => {
+		const { workspacePath, pluginPath } = await createWorkspace();
+		await writeFile(
+			pluginPath,
+			"export default { name: 'broken', manifest: { capabilities: ['bogus'] }, setup() {} };",
+		);
+		const errors: string[] = [];
+		const service = createPluginCommandService({
+			cwd: workspacePath,
+			logger: {
+				debug: () => {},
+				log: () => {},
+				error: (message) => errors.push(message),
+			},
+		});
+		shutdowns.push(service.shutdown);
+
+		await expect(service.listCommands()).resolves.toEqual([]);
+		await expect(service.run("goalish", "status")).resolves.toBeUndefined();
+		expect(errors).toHaveLength(1);
+
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'goalish-plugin',",
+				"  manifest: { capabilities: ['commands'] },",
+				"  setup(api) {",
+				"    api.registerCommand({ name: 'goalish', handler: () => { throw new Error('handler boom'); } });",
+				"  },",
+				"};",
+			].join("\n"),
+		);
+		const later = new Date(Date.now() + 5_000);
+		await utimes(pluginPath, later, later);
+
+		// Handler failures are the plugin's own errors and still surface.
+		await expect(service.run("goalish", "status")).rejects.toThrow(
+			"handler boom",
+		);
+	});
+
 	it("reloads plugins when the plugin set changes", async () => {
 		const { workspacePath, pluginPath } = await createWorkspace();
 		const service = createPluginCommandService({ cwd: workspacePath });

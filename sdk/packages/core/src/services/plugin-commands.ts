@@ -3,6 +3,7 @@ import {
 	type AgentExtensionCommand,
 	type AgentExtensionCommandResult,
 	type AgentTool,
+	type BasicLogger,
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
@@ -84,6 +85,7 @@ async function loadHost(
 export function createPluginCommandService(options: {
 	cwd: string;
 	workspacePath?: string;
+	logger?: BasicLogger;
 }): PluginCommandService {
 	const loadOptions = {
 		cwd: options.cwd,
@@ -109,9 +111,19 @@ export function createPluginCommandService(options: {
 			.then(async (host) => {
 				if (host?.key === key) return host;
 				await host?.shutdown?.().catch(() => {});
-				return pluginPaths.length > 0
-					? await loadHost(loadOptions, key)
-					: undefined;
+				if (pluginPaths.length === 0) return undefined;
+				try {
+					return await loadHost(loadOptions, key);
+				} catch (error) {
+					// A broken plugin must not block slash commands (the prompt may
+					// be a skill or workflow). Remember the failure under the same
+					// key so it is retried only when the plugin set changes.
+					options.logger?.error?.(
+						"plugin command loading failed; continuing without plugin commands",
+						{ error },
+					);
+					return { key, commands: [] };
+				}
 			});
 		return current;
 	};
