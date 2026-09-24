@@ -55,7 +55,6 @@ describe("preflightCloudHandoffGit", () => {
 		).resolves.toEqual({
 			repoUrl: "https://github.com/cline/cline",
 			branch: "feature/handoff",
-			remoteName: "origin",
 			headSha: HEAD,
 		});
 		expect(git).toHaveBeenCalledWith(
@@ -218,7 +217,6 @@ describe("preflightCloudHandoffGit", () => {
 		).resolves.toEqual(
 			expect.objectContaining({
 				repoUrl: "https://github.com/cline/cline",
-				remoteName: "https://github.com/cline/cline",
 			}),
 		);
 	});
