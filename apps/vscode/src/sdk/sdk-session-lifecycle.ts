@@ -159,6 +159,31 @@ export class SdkSessionLifecycle {
 		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
 		const sdkHost = await this.getOrCreateSharedHost()
+		const startConfig = startInput.config
+			? {
+					providerId: startInput.config.providerId,
+					modelId: startInput.config.modelId,
+				}
+			: undefined
+
+		// Publish a placeholder active session synchronously, before awaiting
+		// sdkHost.start(). initTask sets this.task (TaskProxy) and posts a
+		// "streaming" turn phase before this async start settles, so a
+		// follow-up submitted in that window (e.g. a second prompt typed
+		// right after the first) would otherwise see getActiveSession() as
+		// undefined and mistake the in-flight start for "no session", routing
+		// into a resume-from-history path that raced the still-starting
+		// session and failed. Marking isRunning true here makes such
+		// follow-ups queue onto this start instead.
+		if (requestedSessionId) {
+			this.activeSession = {
+				sessionId: requestedSessionId,
+				startConfig,
+				sdkHost,
+				unsubscribe: () => {},
+				isRunning: true,
+			}
+		}
 
 		const startResult = await sdkHost.start({
 			...startInput,
@@ -166,12 +191,7 @@ export class SdkSessionLifecycle {
 		})
 		this.activeSession = {
 			sessionId: startResult.sessionId,
-			startConfig: startInput.config
-				? {
-						providerId: startInput.config.providerId,
-						modelId: startInput.config.modelId,
-					}
-				: undefined,
+			startConfig,
 			sdkHost,
 			unsubscribe: () => {},
 			startResult,
