@@ -1,5 +1,8 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
+/* Vazirmatn covers Persian/Arabic so RTL prose renders in a font designed for
+ * it; Latin text keeps coming from Inter because Inter is listed first. */
+@import "@fontsource-variable/vazirmatn";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@cline/ui/theme/index.css";
