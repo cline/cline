@@ -302,7 +302,7 @@ describe("built-in provider metadata", () => {
 			modelOperationCapabilities: [
 				{
 					operation: "transcription",
-					modes: ["batch"],
+					modes: ["batch", "streaming"],
 				},
 			],
 			metadata: { transcriptionTransport: "elevenlabs" },

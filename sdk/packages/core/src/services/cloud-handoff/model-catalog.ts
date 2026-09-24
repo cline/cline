@@ -44,7 +44,10 @@ export async function loadCloudHandoffModels(
 	apiBaseUrl: string,
 	fetchImpl: typeof fetch = fetch,
 ): Promise<CloudHandoffModel[]> {
-	const baseUrl = apiBaseUrl.trim().replace(/\/+$/, "");
+	const trimmedBaseUrl = apiBaseUrl.trim();
+	let end = trimmedBaseUrl.length;
+	while (end > 0 && trimmedBaseUrl[end - 1] === "/") end--;
+	const baseUrl = trimmedBaseUrl.slice(0, end);
 	const load = async (path: string): Promise<unknown> => {
 		const response = await fetchImpl(`${baseUrl}${path}`, {
 			headers: { Accept: "application/json" },
