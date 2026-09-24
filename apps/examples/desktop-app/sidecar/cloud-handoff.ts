@@ -397,6 +397,25 @@ async function handleHandoffOnce(
 	let innerSessionId = pending?.innerSessionId ?? "";
 	let seededMessages: MessageWithMetadata[] | undefined;
 	let createdOuterSessionThisAttempt = false;
+	const onSeeding = async (): Promise<void> => {
+		const current = await manager.get(sourceSessionId);
+		// Persist before dispatch so a restart cannot repeat an uncertain inner create.
+		await updateHandoffMetadataOrThrow(
+			manager,
+			sourceSessionId,
+			{
+				...((current?.metadata as JsonRecord | null | undefined) ??
+					metadataBefore),
+				cloudHandoffSeedDispatched: true,
+			},
+			"The cloud conversation could not be created because its recovery state could not be saved locally.",
+		);
+		emitProgress(
+			"seeding",
+			"Copying the local conversation to cloud…",
+			outerSessionId,
+		);
+	};
 	const readSeedMessages = async (): Promise<MessageWithMetadata[]> => {
 		await assertHandoffIdle(ctx, manager, sourceSessionId);
 		emitProgress(
@@ -493,12 +512,8 @@ async function handleHandoffOnce(
 				// After a sidecar restart nothing else remembers the source
 				// session's approval/reasoning settings for the inner create.
 				config: handoffConfig,
-				onSeeding: () =>
-					emitProgress(
-						"seeding",
-						"Copying the local conversation to cloud…",
-						outerSessionId,
-					),
+				recoverOnly: metadataBefore.cloudHandoffSeedDispatched === true,
+				onSeeding,
 			});
 			innerSessionId = resumed.innerSessionId;
 			if (!pendingHandoff.dashboardUrl) {
@@ -586,12 +601,7 @@ async function handleHandoffOnce(
 					innerSessionId = "";
 					seededMessages = undefined;
 				},
-				onSeeding: () =>
-					emitProgress(
-						"seeding",
-						"Copying the local conversation to cloud…",
-						outerSessionId,
-					),
+				onSeeding,
 			},
 		});
 		outerSessionId = String(created.sessionId ?? "").trim();
@@ -710,8 +720,7 @@ async function handleHandoffOnce(
 		}
 	}
 	const destination = isCloudAgentsEnabled() ? "in_app" : "external";
-	// The completion event is the authoritative signal for the webview; emit it
-	// with the full payload before the RPC returns.
+	// Include warnings in the authoritative event in case the RPC response is lost.
 	sendEvent(ctx, "cloud_handoff_progress", {
 		sourceSessionId,
 		...(handoffAttemptId ? { handoffAttemptId } : {}),
@@ -720,8 +729,6 @@ async function handleHandoffOnce(
 		sessionId: outerSessionId,
 		dashboardUrl,
 		destination,
-		// If the RPC response is lost, this event is all the webview sees: a
-		// clean complete would silently drop a definite follow-up queue failure.
 		...(warning ? { warning } : {}),
 		...(warningKind ? { warningKind } : {}),
 		// Only a definitely-unqueued command is safe to offer for resending; an
