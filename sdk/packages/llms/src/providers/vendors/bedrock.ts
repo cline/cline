@@ -62,6 +62,10 @@ const BEDROCK_INFERENCE_PROFILE_REQUIRED_PATTERNS: readonly RegExp[] = [
 	// Claude 3.7 predates tier-first naming but launched profile-only.
 	/^anthropic\.claude-3-7-/,
 	/^amazon\.nova-(?:2|micro|lite|pro|premier)/,
+	// OpenAI GPT-5.x / GPT-6 (Sol, Luna, Astra, Terra) launched profile-only;
+	// gpt-oss has on-demand throughput and keeps its bare id
+	// (cline/cline#14468).
+	/^openai\.gpt-(?!oss-)/,
 	/^deepseek\./,
 	/^meta\.llama3-[23]-/,
 	/^meta\.llama4-/,

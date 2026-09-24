@@ -409,6 +409,56 @@ describe("resolveBedrockModelId", () => {
 		).toBe("anthropic.claude-sonnet-4-6");
 	});
 
+	it("prefixes bare OpenAI GPT-5.x/GPT-6 ids, which have no on-demand throughput", () => {
+		// cline/cline#14468: the catalog lists these under their bare ids, but
+		// Bedrock only serves them through inference profiles.
+		const hasCatalogModel = (id: string) =>
+			[
+				"us.openai.gpt-6-astra",
+				"us.openai.gpt-6-sol",
+				"us.openai.gpt-5.6-luna",
+				"global.openai.gpt-6-astra",
+			].includes(id);
+		for (const [bare, expected] of [
+			["openai.gpt-6-astra", "us.openai.gpt-6-astra"],
+			["openai.gpt-6-sol", "us.openai.gpt-6-sol"],
+			["openai.gpt-5.6-luna", "us.openai.gpt-5.6-luna"],
+		]) {
+			expect(
+				resolveBedrockModelId(bare, { region: "us-east-1", hasCatalogModel }),
+			).toBe(expected);
+		}
+		// Only a catalog-confirmed geo variant is used: without an eu. profile
+		// the id stays raw rather than guessing (global. needs the explicit
+		// useGlobalInference setting).
+		expect(
+			resolveBedrockModelId("openai.gpt-6-astra", {
+				region: "eu-west-1",
+				hasCatalogModel,
+			}),
+		).toBe("openai.gpt-6-astra");
+		expect(
+			resolveBedrockModelId("openai.gpt-6-astra", {
+				region: "eu-west-1",
+				useCrossRegionInference: true,
+				useGlobalInference: true,
+				hasCatalogModel,
+			}),
+		).toBe("global.openai.gpt-6-astra");
+	});
+
+	it("keeps bare gpt-oss ids, which have on-demand throughput", () => {
+		const hasCatalogModel = (id: string) =>
+			id === "us-gov.openai.gpt-oss-120b-1:0" ||
+			id === "us.openai.gpt-oss-120b-1:0";
+		expect(
+			resolveBedrockModelId("openai.gpt-oss-120b-1:0", {
+				region: "us-east-1",
+				hasCatalogModel,
+			}),
+		).toBe("openai.gpt-oss-120b-1:0");
+	});
+
 	it("leaves on-demand-capable models untouched", () => {
 		for (const modelId of [
 			"anthropic.claude-3-5-sonnet-20241022-v2:0",
