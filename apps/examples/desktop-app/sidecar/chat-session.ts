@@ -56,6 +56,7 @@ import {
 } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { derivePromptFromMessages } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -358,19 +359,6 @@ function readSessionMetadata(sessionId: string): JsonRecord | undefined {
 	return manifest?.metadata && typeof manifest.metadata === "object"
 		? (manifest.metadata as JsonRecord)
 		: undefined;
-}
-
-function derivePromptFromMessages(messages: unknown[]): string {
-	for (const msg of messages) {
-		if (!msg || typeof msg !== "object") continue;
-		const m = msg as JsonRecord;
-		if (m.role !== "user") continue;
-		if (typeof m.content === "string") {
-			const line = m.content.trim().split("\n")[0]?.trim();
-			if (line) return line.slice(0, 200);
-		}
-	}
-	return "";
 }
 
 // ---------------------------------------------------------------------------
