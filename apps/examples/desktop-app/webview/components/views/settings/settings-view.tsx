@@ -565,7 +565,7 @@ export function SettingsView({
 			</p>
 		</div>
 	) : selectedProvider ? (
-		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(24rem,0.9fr)_minmax(26rem,1fr)]">
+		<div className="grid h-full grid-cols-[minmax(24rem,0.95fr)_minmax(28rem,1.05fr)] overflow-hidden max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(0,0.9fr)_minmax(0,1fr)]">
 			{/* min-h-0/min-w-0: grid items default to min-size auto, which lets
 			    the pane grow past its track and leaves the inner ScrollArea with
 			    nothing to scroll. */}

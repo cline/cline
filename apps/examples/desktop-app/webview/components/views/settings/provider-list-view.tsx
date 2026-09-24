@@ -948,14 +948,13 @@ export function ProviderDetailContent({
 		);
 
 	return (
-		// Keep Radix's table wrapper from sizing the panel to long model IDs.
-		<ScrollArea className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:block!">
-			<div
-				className={cn(
-					"py-10 max-[720px]:px-4 max-[720px]:py-5",
-					isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
-				)}
-			>
+		<div
+			className={cn(
+				"flex h-full min-h-0 min-w-0 flex-col overflow-hidden py-10 max-[720px]:px-4 max-[720px]:py-5",
+				isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
+			)}
+		>
+			<div className="max-h-1/2 shrink-0 overflow-y-auto overscroll-contain">
 				{/* Back + title (the panel variant is always open, so no close button) */}
 				<div className="mb-8 flex items-center gap-3">
 					{isPanel ? null : (
@@ -982,243 +981,244 @@ export function ProviderDetailContent({
 				</div>
 
 				{connectionSection}
+			</div>
 
-				{/* Models section */}
-				<section
-					className={cn(
-						"overflow-hidden rounded-lg border",
-						isPanel ? "max-w-none" : "max-w-184",
-					)}
-				>
-					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
-						<div className="flex items-center gap-1">
-							<h2 className="mr-1 text-lg font-medium text-muted-foreground">
-								Models
-							</h2>
-							<Button
-								aria-label="Refresh models"
-								className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
-								disabled={modelsLoading}
-								onClick={onLoadModels}
-								variant="ghost"
-							>
-								<RefreshCw
-									className={cn("size-4", modelsLoading && "animate-spin")}
-								/>
-							</Button>
-						</div>
-						{onUpdateModels ? (
-							<Button
-								aria-label="Add model"
-								className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
-								disabled={modelsLoading}
-								onClick={() =>
-									setAddModelState({ providerId: provider.id, value: "" })
-								}
-								variant="ghost"
-							>
-								<Plus className="size-4" />
-							</Button>
-						) : null}
+			{/* Models section */}
+			<section
+				className={cn(
+					"flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border",
+					isPanel ? "max-w-none" : "max-w-184",
+				)}
+			>
+				<div className="flex h-12 shrink-0 items-center justify-between bg-muted/40 px-4">
+					<div className="flex items-center gap-1">
+						<h2 className="mr-1 text-lg font-medium text-muted-foreground">
+							Models
+						</h2>
+						<Button
+							aria-label="Refresh models"
+							className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+							disabled={modelsLoading}
+							onClick={onLoadModels}
+							variant="ghost"
+						>
+							<RefreshCw
+								className={cn("size-4", modelsLoading && "animate-spin")}
+							/>
+						</Button>
 					</div>
-					{isAddingModel ? (
-						<div className="flex items-center gap-2 border-t px-4 py-3">
+					{onUpdateModels ? (
+						<Button
+							aria-label="Add model"
+							className="size-4 rounded-none p-0 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
+							disabled={modelsLoading}
+							onClick={() =>
+								setAddModelState({ providerId: provider.id, value: "" })
+							}
+							variant="ghost"
+						>
+							<Plus className="size-4" />
+						</Button>
+					) : null}
+				</div>
+				{isAddingModel ? (
+					<div className="flex shrink-0 items-center gap-2 border-t px-4 py-3">
+						<Input
+							aria-label="New model ID"
+							autoFocus
+							className="h-9 flex-1 font-mono"
+							onChange={(event) =>
+								setAddModelState({
+									providerId: provider.id,
+									value: event.target.value,
+								})
+							}
+							onKeyDown={(event) => {
+								if (event.key === "Enter") addModel();
+								if (event.key === "Escape") setAddModelState(null);
+							}}
+							placeholder="Model ID"
+							value={newModelId}
+						/>
+						<Button disabled={!newModelId.trim()} onClick={addModel} size="sm">
+							Add
+						</Button>
+						<Button
+							onClick={() => setAddModelState(null)}
+							size="sm"
+							variant="ghost"
+						>
+							Cancel
+						</Button>
+					</div>
+				) : null}
+
+				{modelsError ? (
+					<div className="border-t border-destructive/30 bg-destructive/5 px-4 py-2">
+						<p className="text-sm text-destructive">{modelsError}</p>
+					</div>
+				) : null}
+				{/* A failed refresh means the endpoint's list is unknown; the
+					    bundled placeholder models would only read as a fallback. */}
+				{modelList.length > 0 && !modelsError ? (
+					<div className="flex min-h-0 flex-1 flex-col gap-3">
+						<div className="mx-4 mt-4 flex h-9 shrink-0 items-center gap-2 rounded border bg-background px-3">
+							<Search className="size-4 shrink-0 text-muted-foreground" />
 							<Input
-								aria-label="New model ID"
-								autoFocus
-								className="h-9 flex-1 font-mono"
+								aria-label="Search models"
+								className={EMBEDDED_INPUT_CLASS}
 								onChange={(event) =>
-									setAddModelState({
+									setModelSearchState({
 										providerId: provider.id,
 										value: event.target.value,
 									})
 								}
-								onKeyDown={(event) => {
-									if (event.key === "Enter") addModel();
-									if (event.key === "Escape") setAddModelState(null);
-								}}
-								placeholder="Model ID"
-								value={newModelId}
+								placeholder="Search models by name or ID"
+								spellCheck={false}
+								value={modelSearch}
 							/>
-							<Button
-								disabled={!newModelId.trim()}
-								onClick={addModel}
-								size="sm"
-							>
-								Add
-							</Button>
-							<Button
-								onClick={() => setAddModelState(null)}
-								size="sm"
-								variant="ghost"
-							>
-								Cancel
-							</Button>
 						</div>
-					) : null}
-
-					{modelsError ? (
-						<div className="border-t border-destructive/30 bg-destructive/5 px-4 py-2">
-							<p className="text-sm text-destructive">{modelsError}</p>
-						</div>
-					) : null}
-					{/* A failed refresh means the endpoint's list is unknown; the
-					    bundled placeholder models would only read as a fallback. */}
-					{modelList.length > 0 && !modelsError ? (
-						<div className="space-y-3">
-							<div className="mx-4 mt-4 flex h-9 items-center gap-2 rounded border bg-background px-3">
-								<Search className="size-4 shrink-0 text-muted-foreground" />
-								<Input
-									aria-label="Search models"
-									className={EMBEDDED_INPUT_CLASS}
-									onChange={(event) =>
-										setModelSearchState({
-											providerId: provider.id,
-											value: event.target.value,
-										})
-									}
-									placeholder="Search models by name or ID"
-									spellCheck={false}
-									value={modelSearch}
-								/>
-							</div>
-							{filteredModelList.length > 0 ? (
-								<div className="border-t">
-									{filteredModelList.map((model) => (
-										<div
-											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 hover:bg-surface-hover-lighter"
-											key={model.id}
-										>
-											<div className="min-w-0 flex-1 font-mono">
-												<div className="flex min-w-0 items-center gap-1.5 px-1 text-sm text-foreground">
-													<span className="truncate">{model.name}</span>
-													{featuredBadges(model).map((badge) => (
-														<span
-															className="inline-flex shrink-0 items-center rounded bg-surface-hover px-1 py-px font-sans text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground"
-															key={badge}
-														>
-															{badge}
-														</span>
-													))}
-													{/* Capability icons */}
-													{model.supportsAttachments && (
-														<span
-															aria-label="File support"
-															role="img"
-															title="File support"
-														>
-															<FileIcon
-																aria-hidden="true"
-																className="h-3.5 w-3.5 text-muted-foreground"
-															/>
-														</span>
-													)}
-													{model.supportsVision && (
-														<span
-															aria-label="Image support"
-															role="img"
-															title="Image support"
-														>
-															<ImageIcon
-																aria-hidden="true"
-																className="h-3.5 w-3.5 text-muted-foreground"
-															/>
-														</span>
-													)}
-													<AudioModelBadges model={model} />
-													{supportsAudio(model) &&
-														model.operation !== "transcription" &&
-														model.operation !== "realtime" && (
-															<span
-																aria-label="Audio support"
-																role="img"
-																title="Audio support"
-															>
-																<Mic
-																	aria-hidden="true"
-																	className="h-3.5 w-3.5 text-muted-foreground"
-																/>
-															</span>
-														)}
-													{model.supportsReasoning && (
-														<span
-															aria-label="Reasoning support"
-															role="img"
-															title="Reasoning support"
-														>
-															<Brain
-																aria-hidden="true"
-																className="h-3.5 w-3.5 text-muted-foreground"
-															/>
-														</span>
-													)}
-												</div>
-												{model.description ? (
-													<p className="mt-0.5 truncate px-1 font-sans text-xs text-muted-foreground">
-														{model.description}
-													</p>
-												) : null}
-												<button
-													aria-label={`Copy model ID ${model.id}`}
-													className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground  hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-													onClick={() => copyModelId(model.id)}
-													title="Copy model ID"
-													type="button"
-												>
-													<span className="min-w-0 truncate">{model.id}</span>
-													<Copy className="size-3 shrink-0" />
-													{copiedModelId === model.id ? (
-														<span className="shrink-0 text-foreground">
-															Copied
-														</span>
-													) : null}
-												</button>
-											</div>
-
-											<Button
-												aria-label={
-													favoriteModelIds.has(model.id)
-														? `Unfavorite ${model.name}`
-														: `Favorite ${model.name}`
-												}
-												className={cn(
-													"ml-auto shrink-0 rounded-md p-1.5 transition-colors hover:bg-surface-hover hover:text-foreground",
-													favoriteModelIds.has(model.id)
-														? "text-amber-400"
-														: "text-muted-foreground",
+						{filteredModelList.length > 0 ? (
+							<section
+								aria-label="Models"
+								className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-t"
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: Allow keyboard scrolling of the model list.
+								tabIndex={0}
+							>
+								{filteredModelList.map((model) => (
+									<div
+										className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 hover:bg-surface-hover-lighter"
+										key={model.id}
+									>
+										<div className="min-w-0 flex-1 font-mono">
+											<div className="flex min-w-0 items-center gap-1.5 px-1 text-sm text-foreground">
+												<span className="truncate">{model.name}</span>
+												{featuredBadges(model).map((badge) => (
+													<span
+														className="inline-flex shrink-0 items-center rounded bg-surface-hover px-1 py-px font-sans text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground"
+														key={badge}
+													>
+														{badge}
+													</span>
+												))}
+												{/* Capability icons */}
+												{model.supportsAttachments && (
+													<span
+														aria-label="File support"
+														role="img"
+														title="File support"
+													>
+														<FileIcon
+															aria-hidden="true"
+															className="h-3.5 w-3.5 text-muted-foreground"
+														/>
+													</span>
 												)}
-												onClick={() => toggleFavoriteModel(model.id)}
-												variant="ghost"
-											>
-												<Star
-													className={cn(
-														"size-4",
-														favoriteModelIds.has(model.id) && "fill-current",
+												{model.supportsVision && (
+													<span
+														aria-label="Image support"
+														role="img"
+														title="Image support"
+													>
+														<ImageIcon
+															aria-hidden="true"
+															className="h-3.5 w-3.5 text-muted-foreground"
+														/>
+													</span>
+												)}
+												<AudioModelBadges model={model} />
+												{supportsAudio(model) &&
+													model.operation !== "transcription" &&
+													model.operation !== "realtime" && (
+														<span
+															aria-label="Audio support"
+															role="img"
+															title="Audio support"
+														>
+															<Mic
+																aria-hidden="true"
+																className="h-3.5 w-3.5 text-muted-foreground"
+															/>
+														</span>
 													)}
-												/>
-											</Button>
+												{model.supportsReasoning && (
+													<span
+														aria-label="Reasoning support"
+														role="img"
+														title="Reasoning support"
+													>
+														<Brain
+															aria-hidden="true"
+															className="h-3.5 w-3.5 text-muted-foreground"
+														/>
+													</span>
+												)}
+											</div>
+											{model.description ? (
+												<p className="mt-0.5 truncate px-1 font-sans text-xs text-muted-foreground">
+													{model.description}
+												</p>
+											) : null}
+											<button
+												aria-label={`Copy model ID ${model.id}`}
+												className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground  hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+												onClick={() => copyModelId(model.id)}
+												title="Copy model ID"
+												type="button"
+											>
+												<span className="min-w-0 truncate">{model.id}</span>
+												<Copy className="size-3 shrink-0" />
+												{copiedModelId === model.id ? (
+													<span className="shrink-0 text-foreground">
+														Copied
+													</span>
+												) : null}
+											</button>
 										</div>
-									))}
-								</div>
-							) : (
-								<div className="rounded-lg border border-border px-4 py-8 text-center">
-									<p className="text-sm text-muted-foreground">
-										No models match "{modelSearch.trim()}".
-									</p>
-								</div>
-							)}
-						</div>
-					) : (
-						<div className="rounded-lg border border-border px-4 py-8 text-center">
-							<p className="text-sm text-muted-foreground">
-								{modelsLoading
-									? "Loading models..."
-									: "No models available. Click refresh to load models."}
-							</p>
-						</div>
-					)}
-				</section>
-			</div>
-		</ScrollArea>
+
+										<Button
+											aria-label={
+												favoriteModelIds.has(model.id)
+													? `Unfavorite ${model.name}`
+													: `Favorite ${model.name}`
+											}
+											className={cn(
+												"ml-auto shrink-0 rounded-md p-1.5 transition-colors hover:bg-surface-hover hover:text-foreground",
+												favoriteModelIds.has(model.id)
+													? "text-amber-400"
+													: "text-muted-foreground",
+											)}
+											onClick={() => toggleFavoriteModel(model.id)}
+											variant="ghost"
+										>
+											<Star
+												className={cn(
+													"size-4",
+													favoriteModelIds.has(model.id) && "fill-current",
+												)}
+											/>
+										</Button>
+									</div>
+								))}
+							</section>
+						) : (
+							<div className="rounded-lg border border-border px-4 py-8 text-center">
+								<p className="text-sm text-muted-foreground">
+									No models match "{modelSearch.trim()}".
+								</p>
+							</div>
+						)}
+					</div>
+				) : (
+					<div className="rounded-lg border border-border px-4 py-8 text-center">
+						<p className="text-sm text-muted-foreground">
+							{modelsLoading
+								? "Loading models..."
+								: "No models available. Click refresh to load models."}
+						</p>
+					</div>
+				)}
+			</section>
+		</div>
 	);
 }
