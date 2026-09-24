@@ -16,7 +16,6 @@ import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import { SessionCommandBar } from "@/components/session-command-bar";
-import { StartupStatus } from "@/components/startup-status";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -40,6 +39,7 @@ import { EnvironmentSelector } from "@/components/views/chat/environment-selecto
 import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
+import { SiteLoader } from "@/components/views/loading/SiteLoader";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import {
@@ -280,28 +280,10 @@ function toThreadTitle(options: { title?: string; prompt?: string }): string {
 
 export default function Home() {
 	const readiness = useDesktopReadiness();
-	const [hasConnected, setHasConnected] = useState(false);
-	const connected = readiness.transport === "connected";
-	useEffect(() => {
-		if (connected) setHasConnected(true);
-	}, [connected]);
 	return (
-		<>
-			{(connected || hasConnected) && (
-				<div
-					className="h-screen"
-					inert={!connected ? true : undefined}
-					style={!connected ? { display: "none" } : undefined}
-				>
-					<HomeShell readiness={readiness} />
-				</div>
-			)}
-			{!connected && (
-				<div className="h-screen">
-					<StartupStatus readiness={readiness} service="desktop" />
-				</div>
-			)}
-		</>
+		<SiteLoader readiness={readiness}>
+			<HomeShell readiness={readiness} />
+		</SiteLoader>
 	);
 }
 
@@ -917,26 +899,7 @@ function HomeShell({
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{readiness.hub.state !== "ready" &&
-								view !== "sessions" &&
-								activeThread?.environmentId ===
-									LOCAL_WORKSPACE_ENVIRONMENT_ID &&
-								activeThread.historySession?.origin !== "cloud" ? (
-									<div className="flex min-h-0 flex-1 flex-col">
-										<StartupStatus readiness={readiness} service="hub" />
-										<div className="flex justify-center pb-8">
-											<EnvironmentSelector
-												activeEnvironmentId={activeThread.environmentId}
-												profiles={remoteEnvironmentProfiles}
-												loading={remoteEnvironmentProfilesLoading}
-												onSelectEnvironment={handleSelectEnvironment}
-												onAddSshHost={() =>
-													handleSettingsSectionChange("Remote")
-												}
-											/>
-										</div>
-									</div>
-								) : view === "sessions" ? (
+								{view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
 										history={sessionHistory}

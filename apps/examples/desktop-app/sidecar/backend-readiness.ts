@@ -4,6 +4,8 @@ const MAX_AUTOMATIC_ATTEMPTS = 4;
 export type BackendReadiness = {
 	state: "starting" | "ready" | "failed";
 	attempt: number;
+	automaticRetry?: boolean;
+	step?: "environment" | "discovery" | "connecting" | "sessions";
 	message?: string;
 };
 
@@ -34,6 +36,11 @@ export class BackendInitialization {
 		this.publish(state);
 	}
 
+	reportStep(step: NonNullable<BackendReadiness["step"]>): void {
+		if (!this.stopped && this.state.state === "starting")
+			this.update({ ...this.state, step });
+	}
+
 	start(): Promise<void> {
 		if (this.stopped || this.state.state === "ready") return Promise.resolve();
 		if (this.queuedRetry) return this.queuedRetry;
@@ -52,7 +59,7 @@ export class BackendInitialization {
 		const controller = new AbortController();
 		this.controller = controller;
 		const attempt = this.state.attempt + 1;
-		this.update({ state: "starting", attempt });
+		this.update({ state: "starting", attempt, step: "environment" });
 		this.pending = (async () => {
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			try {
@@ -77,6 +84,7 @@ export class BackendInitialization {
 					if (!this.stopped)
 						this.update({
 							state: "failed",
+							automaticRetry: attempt < MAX_AUTOMATIC_ATTEMPTS,
 							attempt,
 							message:
 								attempt < MAX_AUTOMATIC_ATTEMPTS
@@ -93,6 +101,7 @@ export class BackendInitialization {
 				if (!this.stopped && this.state.state !== "failed")
 					this.update({
 						state: "failed",
+						automaticRetry: attempt < MAX_AUTOMATIC_ATTEMPTS,
 						attempt,
 						message:
 							attempt < MAX_AUTOMATIC_ATTEMPTS

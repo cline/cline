@@ -52,4 +52,6 @@ export type DesktopBackendReadiness = {
 	state: "starting" | "ready" | "failed";
 	message?: string;
 	attempt: number;
+	automaticRetry?: boolean;
+	step?: "environment" | "discovery" | "connecting" | "sessions";
 };

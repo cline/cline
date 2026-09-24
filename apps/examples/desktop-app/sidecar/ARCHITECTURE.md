@@ -30,7 +30,7 @@ Tauri launches the app
          |      |
          |      +--> Webview connects; replay current hub readiness
          |             |
-         |             +--> Sign-in + local settings are usable
+         |             +--> Full-screen loader shows live startup steps
          |
          +--> Initialize local session service asynchronously [starting]
                 |
@@ -43,10 +43,10 @@ Tauri launches the app
                 +--> Connect sidecar's own observer client
                 +--> Install runtime bindings and subscriptions
                        |
-                       +--> [ready]: enable local session operations
+                       +--> [ready]: reveal app and sidebar
                        |
-                       +--> [failed]: chat error + Retry hub
-                              |       (sign-in/settings stay usable)
+                       +--> [failed]: loading during automatic retries
+                              |       (terminal failure shows diagnostics + Retry)
                               v
                          Wait for failed attempt cleanup
                               |
@@ -77,7 +77,8 @@ without the sidecar transport. They expose bounded, sanitized startup diagnostic
 and recovery for sidecar failures. `get_backend_readiness` and
 `retry_backend_initialization` run over the sidecar transport and manage the local
 session service. Remote environments connect on demand and do not delay sign-in
-or local settings.
+or local settings. The full-screen loader gates the app shell on local readiness;
+remote connections are not part of this gate.
 
 ## Directory Structure
 

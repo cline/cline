@@ -52,8 +52,11 @@ The sidecar owns one serialized local bootstrap lifecycle (`starting`, `ready`,
 failures trigger up to three automatic retries after cleanup, with 1-, 2-, and
 4-second delays. Manual retries remain available afterward, with exponential
 backoff capped at 30 seconds. Shutdown cancels scheduled retries. Hub-dependent commands return `SESSION_SERVICE_NOT_READY`
-with the current state. Chat waits for readiness while sign-in and settings remain
-available. SSH runtimes continue to connect on demand.
+with the current state. A full-screen loader displays actual bootstrap steps and
+keeps the app shell and sidebar hidden until local readiness. Automatic retry
+waits remain loading; exhausted retries show an actionable error. Authentication
+and settings commands remain independent of the Hub. SSH runtimes continue to
+connect on demand.
 
 Bootstrap retains `backendMode: "hub"` and `require-hub` discovery. A compatible
 existing daemon is reused; the desktop still owns its Core session manager and

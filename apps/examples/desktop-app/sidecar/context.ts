@@ -1323,6 +1323,7 @@ async function createLocalSessionRuntime(
 	signal.throwIfAborted();
 	ctx.logger?.log("Login shell PATH resolution", shellPath);
 	setHomeDirIfUnset(homedir());
+	getBackendInitialization(ctx).reportStep("discovery");
 	const sessionManager = await ClineCore.create({
 		signal,
 		clientName: "cline-code",
@@ -1368,6 +1369,7 @@ async function createLocalSessionRuntime(
 		const abort = () => client.close();
 		signal.addEventListener("abort", abort, { once: true });
 		try {
+			getBackendInitialization(ctx).reportStep("connecting");
 			await client.connect(signal);
 			signal.throwIfAborted();
 			client.subscribe((event) =>
@@ -1376,6 +1378,7 @@ async function createLocalSessionRuntime(
 					event,
 				),
 			);
+			getBackendInitialization(ctx).reportStep("sessions");
 			await client.updateCapabilities(
 				[...ctx.wsClients].some(
 					(client) => client.data?.canApproveTools === true,
