@@ -2176,7 +2176,9 @@ export async function handleCommand(
 				appVersion: packageJson.version,
 				runningSessionCount: 0,
 				hub: {
-					status: getBackendInitialization(ctx).state.state,
+					status: getBackendInitialization(ctx).state.automaticRetry
+						? "starting"
+						: getBackendInitialization(ctx).state.state,
 					url: null,
 					error: getBackendInitialization(ctx).state.message ?? null,
 				},

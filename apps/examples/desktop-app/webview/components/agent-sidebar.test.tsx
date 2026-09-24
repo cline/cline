@@ -1192,6 +1192,60 @@ describe("AgentSidebar session organization", () => {
 		).toBeNull();
 	});
 
+	it("treats startup as loading and ignores stale requests after recovery", async () => {
+		invoke.mockResolvedValue({ hub: { status: "starting", error: null } });
+		await act(async () => {
+			root.render(
+				<AccountProvider>
+					<SidebarProvider>
+						<AgentSidebar
+							activeSessionId={null}
+							onHome={vi.fn()}
+							onSettingsSectionChange={vi.fn()}
+							sessionHistory={makeSessionHistory([], vi.fn())}
+							setView={vi.fn()}
+							settingsSection="General"
+							view="chat"
+						/>
+					</SidebarProvider>
+				</AccountProvider>,
+			);
+		});
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		const listener = desktopMocks.subscribe.mock.calls.find(
+			([event]) => event === "backend_readiness",
+		)?.[1];
+		let resolve!: (value: unknown) => void;
+		invoke.mockImplementation(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		await act(async () => listener?.({ state: "failed", message: "offline" }));
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).not.toBeNull();
+		await act(async () =>
+			listener?.({ state: "failed", automaticRetry: true }),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		await act(async () => listener?.({ state: "ready" }));
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+		await act(async () =>
+			resolve({ hub: { status: "disconnected", error: "stale failure" } }),
+		);
+		expect(
+			container.querySelector('[aria-label="Cline Hub connection error"]'),
+		).toBeNull();
+	});
+
 	it("hosts back and forward navigation in the draggable sidebar title bar", async () => {
 		const onNavigateBack = vi.fn();
 		const onNavigateForward = vi.fn();

@@ -856,6 +856,12 @@ function HomeShell({
 		sessionHistory.threads,
 	]);
 
+	const localChatUnavailable =
+		readiness.hub.state !== "ready" &&
+		view === "chat" &&
+		activeThread?.environmentId === LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+		activeThread.historySession?.origin !== "cloud";
+
 	return (
 		<AccountProvider>
 			<SidebarProvider>
@@ -899,11 +905,7 @@ function HomeShell({
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{readiness.hub.state !== "ready" &&
-								view === "chat" &&
-								activeThread?.environmentId ===
-									LOCAL_WORKSPACE_ENVIRONMENT_ID &&
-								activeThread.historySession?.origin !== "cloud" ? (
+								{localChatUnavailable && (
 									<div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
 										<output className="text-sm text-muted-foreground">
 											{readiness.hub.message ?? "Starting session service…"}
@@ -927,16 +929,28 @@ function HomeShell({
 											onAddSshHost={() => handleSettingsSectionChange("Remote")}
 										/>
 									</div>
-								) : view === "sessions" ? (
+								)}
+								{view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
 										history={sessionHistory}
 									/>
 								) : activeThread ? (
 									<div
-										aria-hidden={view === "settings" ? true : undefined}
+										aria-hidden={
+											view === "settings" || localChatUnavailable
+												? true
+												: undefined
+										}
 										className="flex min-h-0 flex-1 flex-col"
-										inert={view === "settings" ? true : undefined}
+										inert={
+											view === "settings" || localChatUnavailable
+												? true
+												: undefined
+										}
+										style={
+											localChatUnavailable ? { display: "none" } : undefined
+										}
 									>
 										<ChatThreadPane
 											key={`${activeThread.id}:${activeThread.environmentId}`}

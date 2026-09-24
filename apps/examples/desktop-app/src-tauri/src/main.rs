@@ -741,6 +741,13 @@ fn ensure_desktop_backend_started_locked(
     }
 
     if let Ok(mut diagnostics) = state.diagnostics.lock() {
+        if let Some(previous_exit) = diagnostics.exit_status.take() {
+            if diagnostics.lines.len() == MAX_STARTUP_DIAGNOSTICS {
+                diagnostics.lines.pop_front();
+            }
+            diagnostics.lines.push_back(format!("Previous sidecar exited: {previous_exit}"));
+        }
+        diagnostics.error = None;
         diagnostics.started_at = Some(Instant::now());
     }
     let mut child = spawn_backend().map_err(|error| {
@@ -2017,6 +2024,9 @@ mod tests {
             thread::sleep(Duration::from_millis(5));
         }
         ensure_desktop_backend_started_with(&state, spawn_pending_sidecar).unwrap();
+        let status = desktop_backend_status(&state);
+        assert_eq!(status.state, "starting");
+        assert!(status.exit_status.is_none());
         let error = state.startup_failure();
         assert!(error.contains("exit status: 7"));
         assert!(error.contains("missing sidecar dependency"));

@@ -135,6 +135,7 @@ type DesktopProcessContext = {
 };
 type HubStatus = {
 	connected: boolean;
+	starting: boolean;
 	error: string | null;
 	url: string | null;
 };
@@ -355,14 +356,17 @@ export function AgentSidebar({
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
 	const processContextPending = useRef(false);
+	const processContextRevision = useRef(0);
 
 	const loadProcessContext = useCallback(async () => {
 		if (processContextPending.current) return;
 		processContextPending.current = true;
+		const revision = processContextRevision.current;
 		try {
 			const context = await desktopClient.invoke<DesktopProcessContext>(
 				"get_process_context",
 			);
+			if (revision !== processContextRevision.current) return;
 			const version =
 				typeof context?.appVersion === "string"
 					? context.appVersion.trim()
@@ -374,6 +378,7 @@ export function AgentSidebar({
 					: null;
 			setHubStatus({
 				connected: context?.hub?.status === "connected",
+				starting: context?.hub?.status === "starting",
 				error:
 					typeof context?.hub?.error === "string"
 						? context.hub.error.trim() || null
@@ -381,8 +386,10 @@ export function AgentSidebar({
 				url: hubUrl,
 			});
 		} catch (error) {
+			if (revision !== processContextRevision.current) return;
 			setHubStatus({
 				connected: false,
+				starting: false,
 				error:
 					error instanceof Error
 						? error.message
@@ -397,9 +404,24 @@ export function AgentSidebar({
 	useEffect(() => {
 		void loadProcessContext();
 		const timer = setInterval(() => void loadProcessContext(), 5_000);
-		const unsubscribe = desktopClient.subscribe("backend_readiness", () => {
-			void loadProcessContext();
-		});
+		const unsubscribe = desktopClient.subscribe(
+			"backend_readiness",
+			(payload) => {
+				const state = payload as {
+					state: "starting" | "ready" | "failed";
+					automaticRetry?: boolean;
+					message?: string;
+				};
+				processContextRevision.current += 1;
+				setHubStatus((previous) => ({
+					connected: state.state === "ready",
+					starting: state.state === "starting" || state.automaticRetry === true,
+					error: state.message ?? null,
+					url: previous?.url ?? null,
+				}));
+				void loadProcessContext();
+			},
+		);
 		return () => {
 			clearInterval(timer);
 			unsubscribe();
@@ -859,7 +881,7 @@ export function AgentSidebar({
 									type="button"
 								>
 									<ClineLogo className="size-5" />
-									{hubStatus && !hubStatus.connected && (
+									{hubStatus && !hubStatus.connected && !hubStatus.starting && (
 										<output
 											aria-label="Cline Hub connection error"
 											className="pointer-events-none absolute right-0.5 top-0.5 flex size-2"
@@ -908,7 +930,12 @@ export function AgentSidebar({
 											Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
 										</span>
 									</div>
-									{hubStatus && !hubStatus.connected && (
+									{hubStatus?.starting && (
+										<p className="mt-1 text-[11px] text-muted-foreground">
+											Starting session service…
+										</p>
+									)}
+									{hubStatus && !hubStatus.connected && !hubStatus.starting && (
 										<p className="mt-1 text-[11px] text-destructive">
 											{hubStatus.error ?? "Cline Hub is not connected."}
 										</p>

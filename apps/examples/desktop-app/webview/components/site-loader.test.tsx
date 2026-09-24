@@ -151,10 +151,16 @@ it("advances slowly during the five-second minimum and announces ready only at 9
 	advance(2_500);
 	expect(container.querySelector("nav")).toBeNull();
 	expect(container.textContent).not.toContain("Cline is ready");
-	for (let elapsed = 0; elapsed < 1_000 && !container.textContent?.includes("99%"); elapsed++) advance(1);
+	for (
+		let elapsed = 0;
+		elapsed < 1_000 && !container.textContent?.includes("99%");
+		elapsed++
+	)
+		advance(1);
 	expect(container.textContent).toContain("99%");
 	expect(container.textContent).toContain("Cline is ready");
-	advance(200);
+	// Allow the full finishing interval, independent of the percentage at entry.
+	advance(1_000);
 	expect(container.textContent).toBe("Sidebar");
 });
 
@@ -206,4 +212,34 @@ it.each([
 	expect(container.querySelector("nav")).not.toBeNull();
 	expect(container.querySelector("[inert]")).toBeNull();
 	expect(container.querySelector("[hidden]")).toBeNull();
+});
+
+it("keeps the mounted composer and attachments across transport recovery", () => {
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: "ready", attempt: 1 };
+	const render = () =>
+		root.render(
+			<SiteLoader readiness={state}>
+				<textarea defaultValue="Unsent draft" />
+				<input type="file" />
+			</SiteLoader>,
+		);
+	act(render);
+	advance(7_000);
+	const composer = container.querySelector("textarea");
+	const attachments = container.querySelector("input");
+	expect(composer).not.toBeNull();
+	state.transport = "connecting";
+	state.hub = { state: "starting", attempt: 0 };
+	act(render);
+	expect(container.querySelector("textarea")).toBe(composer);
+	expect(container.querySelector("input")).toBe(attachments);
+	state.transport = "connected";
+	state.hub = { state: "ready", attempt: 1 };
+	act(render);
+	advance(7_000);
+	expect(container.querySelector("textarea")).toBe(composer);
+	expect(composer?.value).toBe("Unsent draft");
+	expect(container.querySelector("input")).toBe(attachments);
 });
