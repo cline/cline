@@ -1,10 +1,30 @@
-import type { IncomingMessage } from "node:http";
-import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { spawn } from "node:child_process";
+import { createPrivateKey } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import { type AddressInfo, connect as connectTcp, type Socket } from "node:net";
+import type { Duplex } from "node:stream";
+import * as tls from "node:tls";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
 import { NodeHubClient } from ".";
 
 const servers: WebSocketServer[] = [];
+const networkServers: Server[] = [];
+const tunnelSockets = new Set<Socket | Duplex>();
+const proxyEnvironmentKeys = [
+	"HTTP_PROXY",
+	"http_proxy",
+	"HTTPS_PROXY",
+	"https_proxy",
+	"ALL_PROXY",
+	"all_proxy",
+	"NO_PROXY",
+	"no_proxy",
+] as const;
+let proxyEnvironment = new Map<string, string | undefined>();
 
 type CommandContext = {
 	command: string;
@@ -16,13 +36,13 @@ type CommandContext = {
 	) => void;
 };
 
-async function startHubServer(options?: {
-	onConnection?: (request: IncomingMessage) => void;
-	onCommand?: (context: CommandContext) => void;
-}): Promise<{ server: WebSocketServer; url: string }> {
-	const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
-	servers.push(server);
-	await new Promise<void>((resolve) => server.once("listening", resolve));
+function configureHubServer(
+	server: WebSocketServer,
+	options?: {
+		onConnection?: (request: IncomingMessage) => void;
+		onCommand?: (context: CommandContext) => void;
+	},
+): void {
 	server.on("connection", (socket, request) => {
 		options?.onConnection?.(request);
 		socket.on("message", (data) => {
@@ -66,9 +86,33 @@ async function startHubServer(options?: {
 			}
 		});
 	});
+}
+
+async function startHubServer(options?: {
+	onConnection?: (request: IncomingMessage) => void;
+	onCommand?: (context: CommandContext) => void;
+}): Promise<{ server: WebSocketServer; url: string }> {
+	const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+	servers.push(server);
+	await new Promise<void>((resolve) => server.once("listening", resolve));
+	configureHubServer(server, options);
 	const { port } = server.address() as AddressInfo;
 	return { server, url: `ws://127.0.0.1:${port}/hub` };
 }
+
+async function listen(server: Server): Promise<number> {
+	networkServers.push(server);
+	server.listen(0, "127.0.0.1");
+	await new Promise<void>((resolve) => server.once("listening", resolve));
+	return (server.address() as AddressInfo).port;
+}
+
+beforeEach(() => {
+	proxyEnvironment = new Map(
+		proxyEnvironmentKeys.map((name) => [name, process.env[name]]),
+	);
+	for (const name of proxyEnvironmentKeys) delete process.env[name];
+});
 
 afterEach(async () => {
 	for (const server of servers.splice(0)) {
@@ -77,10 +121,148 @@ afterEach(async () => {
 		}
 		await new Promise<void>((resolve) => server.close(() => resolve()));
 	}
+	for (const socket of tunnelSockets) socket.destroy();
+	tunnelSockets.clear();
+	for (const server of networkServers.splice(0)) {
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	}
+	for (const name of proxyEnvironmentKeys) delete process.env[name];
+	for (const [name, value] of proxyEnvironment) {
+		if (value !== undefined) process.env[name] = value;
+	}
 	vi.restoreAllMocks();
 });
 
 describe("NodeHubClient connection headers", () => {
+	it("tunnels WSS through HTTPS_PROXY without leaking origin authorization to the proxy", async () => {
+		const certificate = readFileSync(
+			new URL("./__fixtures__/localhost-cert.pem", import.meta.url),
+			"utf8",
+		);
+		const key = createPrivateKey({
+			key: readFileSync(
+				new URL("./__fixtures__/localhost-key.der", import.meta.url),
+			),
+			format: "der",
+			type: "pkcs8",
+		}).export({ format: "pem", type: "pkcs8" });
+		const defaultCaApi = tls as typeof tls & {
+			getCACertificates?: (type: "default") => string[];
+			setDefaultCACertificates?: (certificates: string[]) => void;
+		};
+		const defaultCertificates = defaultCaApi.getCACertificates?.("default");
+		const rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+		if (defaultCertificates && defaultCaApi.setDefaultCACertificates) {
+			defaultCaApi.setDefaultCACertificates([
+				...defaultCertificates,
+				certificate,
+			]);
+		} else {
+			// Node releases before 22.19 cannot extend the default CA set at runtime.
+			// This affects only the self-signed destination inside this test worker.
+			process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+		}
+
+		const destinationUpgrades: IncomingMessage[] = [];
+		const destinationServer = createHttpsServer({ cert: certificate, key });
+		const hubServer = new WebSocketServer({ server: destinationServer });
+		servers.push(hubServer);
+		configureHubServer(hubServer, {
+			onConnection: (request) => destinationUpgrades.push(request),
+		});
+		const destinationPort = await listen(destinationServer);
+
+		const proxyConnects: IncomingMessage[] = [];
+		const proxyServer = createServer();
+		proxyServer.on("connect", (request, clientSocket, head) => {
+			proxyConnects.push(request);
+			tunnelSockets.add(clientSocket);
+			const separator = request.url?.lastIndexOf(":") ?? -1;
+			const host = request.url?.slice(0, separator);
+			const port = Number(request.url?.slice(separator + 1));
+			const upstream = connectTcp({ host, port });
+			tunnelSockets.add(upstream);
+			upstream.once("connect", () => {
+				clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+				if (head.length > 0) upstream.write(head);
+				clientSocket.pipe(upstream);
+				upstream.pipe(clientSocket);
+			});
+		});
+		const proxyPort = await listen(proxyServer);
+
+		process.env.HTTPS_PROXY = `http://proxy-user:proxy-pass@127.0.0.1:${proxyPort}`;
+
+		const url = `wss://127.0.0.1:${destinationPort}/hub`;
+		const client = new NodeHubClient({
+			url,
+			resolveConnectionHeaders: () => ({
+				Authorization: "Bearer workos:destination-token",
+			}),
+		});
+
+		try {
+			await client.connect();
+			const bunFixture = fileURLToPath(
+				new URL("./__fixtures__/bun-proxy-client.ts", import.meta.url),
+			);
+			const bun = spawn(
+				process.env.BUN_EXEC_PATH?.trim() || "bun",
+				[bunFixture],
+				{
+					env: {
+						...process.env,
+						CLINE_TEST_HUB_URL: url,
+						CLINE_TEST_HUB_AUTHORIZATION: "Bearer workos:bun-destination-token",
+						NODE_TLS_REJECT_UNAUTHORIZED: "0",
+					},
+					stdio: ["ignore", "pipe", "pipe"],
+				},
+			);
+			const stdout: Buffer[] = [];
+			const stderr: Buffer[] = [];
+			bun.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+			bun.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+			const exitCode = await new Promise<number | null>((resolve, reject) => {
+				bun.once("error", reject);
+				bun.once("exit", resolve);
+			});
+			expect(Buffer.concat(stdout).toString()).toContain("connected");
+			expect(exitCode, Buffer.concat(stderr).toString()).toBe(0);
+
+			expect(proxyConnects).toHaveLength(2);
+			expect(proxyConnects[0].url).toBe(`127.0.0.1:${destinationPort}`);
+			for (const request of proxyConnects) {
+				expect(request.headers.authorization).toBeUndefined();
+				expect(request.headers["proxy-authorization"]).toBe(
+					`Basic ${Buffer.from("proxy-user:proxy-pass").toString("base64")}`,
+				);
+			}
+			expect(destinationUpgrades).toHaveLength(2);
+			expect(destinationUpgrades[0].url).toBe("/hub");
+			expect(destinationUpgrades[0].headers.authorization).toBe(
+				"Bearer workos:destination-token",
+			);
+			expect(destinationUpgrades[1].headers.authorization).toBe(
+				"Bearer workos:bun-destination-token",
+			);
+			for (const request of destinationUpgrades) {
+				expect(request.url).toBe("/hub");
+				expect(request.headers["proxy-authorization"]).toBeUndefined();
+			}
+		} finally {
+			client.close();
+			if (defaultCertificates && defaultCaApi.setDefaultCACertificates) {
+				defaultCaApi.setDefaultCACertificates(defaultCertificates);
+			}
+			if (rejectUnauthorized === undefined) {
+				delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+			} else {
+				process.env.NODE_TLS_REJECT_UNAUTHORIZED = rejectUnauthorized;
+			}
+		}
+	});
+
 	it("keeps concurrent connects pending until registration finishes", async () => {
 		let acknowledgeRegistration: (() => void) | undefined;
 		let registrationReceived: (() => void) | undefined;
