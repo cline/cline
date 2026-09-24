@@ -3862,13 +3862,15 @@ describe("LocalRuntimeHost", () => {
 	it.each([
 		{
 			name: "replacement",
-			metadata: { custom: { status: "complete" } },
+			updates: { metadata: { custom: { status: "complete" } } },
 			updated: true,
 		},
-		{ name: "clear", metadata: null, updated: true },
-		{ name: "failed save", metadata: null, updated: false },
+		{ name: "clear", updates: { metadata: null }, updated: true },
+		{ name: "failed save", updates: { metadata: null }, updated: false },
+		{ name: "rename", updates: { title: "Renamed session" }, updated: true },
+		{ name: "derived title", updates: { prompt: "New prompt" }, updated: true },
 	])("keeps active metadata consistent with persistence after $name", async ({
-		metadata,
+		updates,
 		updated,
 	}) => {
 		const sessionId = "sess-active-metadata-update";
@@ -3907,16 +3909,28 @@ describe("LocalRuntimeHost", () => {
 					sessionMetadata: { title: "Named session", before: true },
 				}),
 			);
+			if (updates.prompt) {
+				await manager.updateSession(sessionId, {
+					metadata: { before: true },
+					title: null,
+				});
+				expect(
+					(await manager.getSession(sessionId))?.metadata?.title,
+				).toBeUndefined();
+			}
 			const before = (await manager.getSession(sessionId))?.metadata;
 			if (!updated)
 				vi.spyOn(sessionService, "updateSession").mockResolvedValueOnce({
 					updated: false,
 				});
-			await expect(
-				manager.updateSession(sessionId, { metadata }),
-			).resolves.toEqual({ updated });
+			await expect(manager.updateSession(sessionId, updates)).resolves.toEqual({
+				updated,
+			});
 			const expected = updated
-				? { ...metadata, title: "Named session" }
+				? {
+						...(updates.metadata !== undefined ? updates.metadata : before),
+						title: updates.title ?? updates.prompt ?? "Named session",
+					}
 				: before;
 			expect(sessionService.readSessionManifest(sessionId)?.metadata).toEqual(
 				expected,
