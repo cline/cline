@@ -11,7 +11,6 @@ export type GitCommand = (
 export type CloudHandoffGitContext = {
 	repoUrl: string;
 	branch: string;
-	remoteName: string;
 	headSha: string;
 	workspaceRelativePath?: string;
 };
@@ -339,7 +338,6 @@ export async function preflightCloudHandoffGit(input: {
 	return {
 		repoUrl,
 		branch: upstreamBranch,
-		remoteName: normalizeGitHubRemoteUrl(remoteName) ? repoUrl : remoteName,
 		headSha,
 		...(workspaceRelativePath ? { workspaceRelativePath } : {}),
 	};
