@@ -3881,19 +3881,17 @@ describe("LocalRuntimeHost", () => {
 			distinctId,
 			sessionService,
 			runtimeBuilder: {
-				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+				build: () => ({ tools: [], shutdown: () => {} }),
 			} as never,
 			createAgent: () =>
 				({
-					run: vi.fn().mockResolvedValue(createResult()),
-					continue: vi.fn().mockResolvedValue(createResult()),
-					getMessages: vi.fn().mockReturnValue([]),
-					getAgentId: vi.fn().mockReturnValue("agent-active-metadata"),
-					getConversationId: vi.fn().mockReturnValue("conv-active-metadata"),
-					abort: vi.fn(),
-					subscribeEvents: vi.fn().mockReturnValue(() => {}),
-					canStartRun: vi.fn().mockReturnValue(true),
-					shutdown: vi.fn().mockResolvedValue(undefined),
+					run: async () => createResult(),
+					getMessages: () => [],
+					getAgentId: () => "agent-active-metadata",
+					getConversationId: () => "conv-active-metadata",
+					subscribeEvents: () => () => {},
+					canStartRun: () => true,
+					shutdown: async () => {},
 				}) as never,
 		});
 		try {
