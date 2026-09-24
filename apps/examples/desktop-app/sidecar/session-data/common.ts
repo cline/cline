@@ -144,3 +144,10 @@ export function normalizeChatFinishStatus(status?: string): string {
 	}
 	return "idle";
 }
+
+export function readSessionMetadata(sessionId: string): JsonRecord | undefined {
+	const manifest = readSessionManifest(sessionId);
+	return manifest?.metadata && typeof manifest.metadata === "object"
+		? (manifest.metadata as JsonRecord)
+		: undefined;
+}
