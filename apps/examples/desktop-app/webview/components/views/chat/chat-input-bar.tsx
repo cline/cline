@@ -948,6 +948,7 @@ function ChatInputBarImpl({
 		Promise.all([
 			desktopClient.invoke<UserInstructionConfigResponse>(
 				"list_user_instruction_configs",
+				{ workspacePath: workspaceRoot },
 			),
 			desktopClient
 				.invoke<SlashCommand[]>("list_plugin_commands", {
