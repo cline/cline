@@ -15,6 +15,7 @@ import {
 	selectCloudHandoffModel,
 } from "@cline/core";
 import { loadCloudHandoffModels } from "@cline/core/cloud";
+import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
 import {
@@ -416,6 +417,26 @@ async function handleHandoffOnce(
 			outerSessionId,
 		);
 	};
+	const handleSeedFailure = async (error: unknown): Promise<never> => {
+		// This rejection precedes the create handler; generic command failures may follow persistence.
+		if (
+			error instanceof Error &&
+			error.name === "HubCommandError" &&
+			(error as HubCommandError).command === "session.create" &&
+			(error as HubCommandError).code === "client_authority_mismatch"
+		) {
+			const current = await manager.get(sourceSessionId);
+			const { cloudHandoffSeedDispatched: _dispatched, ...metadata } =
+				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore;
+			await updateHandoffMetadataOrThrow(
+				manager,
+				sourceSessionId,
+				metadata,
+				"The rejected cloud conversation could not clear its local dispatch marker.",
+			);
+		}
+		throw error;
+	};
 	const readSeedMessages = async (): Promise<MessageWithMetadata[]> => {
 		await assertHandoffIdle(ctx, manager, sourceSessionId);
 		emitProgress(
@@ -504,17 +525,19 @@ async function handleHandoffOnce(
 		try {
 			await cloud.waitUntilReady(outerSessionId);
 			const seed = await readSeedMessages();
-			const resumed = await cloud.seedHandoff(outerSessionId, {
-				sourceSessionId,
-				messages: seed,
-				workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
-				mode: prepared.fingerprint.mode ?? "act",
-				// After a sidecar restart nothing else remembers the source
-				// session's approval/reasoning settings for the inner create.
-				config: handoffConfig,
-				recoverOnly: metadataBefore.cloudHandoffSeedDispatched === true,
-				onSeeding,
-			});
+			const resumed = await cloud
+				.seedHandoff(outerSessionId, {
+					sourceSessionId,
+					messages: seed,
+					workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
+					mode: prepared.fingerprint.mode ?? "act",
+					// After a sidecar restart nothing else remembers the source
+					// session's approval/reasoning settings for the inner create.
+					config: handoffConfig,
+					recoverOnly: metadataBefore.cloudHandoffSeedDispatched === true,
+					onSeeding,
+				})
+				.catch(handleSeedFailure);
 			innerSessionId = resumed.innerSessionId;
 			if (!pendingHandoff.dashboardUrl) {
 				const current = await manager.get(sourceSessionId);
@@ -551,59 +574,61 @@ async function handleHandoffOnce(
 	}
 	if (!outerSessionId) {
 		emitProgress("creating", "Creating the cloud workspace…");
-		const created = await cloud.create({
-			// Single-flight concurrent handoff attempts of the same source
-			// session under the base's requestId-keyed create dedupe.
-			requestId: `handoff:${sourceSessionId}:${prepared.headSha.toLowerCase()}`,
-			repoUrl: prepared.repoUrl,
-			branch: prepared.branch,
-			modelId: prepared.modelId,
-			mode: prepared.fingerprint.mode ?? "act",
-			workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
-			organizationId: prepared.fingerprint.organizationId ?? null,
-			...handoffConfig,
-			handoff: {
-				sourceSessionId,
-				resolveMessages: readSeedMessages,
-				onOuterSessionCreated: async (createdSessionId, info) => {
-					outerSessionId = createdSessionId;
-					const dashboardUrl = buildCloudHandoffDashboardUrl(
-						environment.appBaseUrl,
-						createdSessionId,
-					);
-					const current = await manager.get(sourceSessionId);
-					await updateHandoffMetadataOrThrow(
-						manager,
-						sourceSessionId,
-						mergeCloudHandoffMetadata(
-							(current?.metadata as JsonRecord | null | undefined) ??
-								metadataBefore,
-							{
-								toCloudSessionId: createdSessionId,
-								handedOffAt: new Date().toISOString(),
-								status: "pending",
-								dashboardUrl,
-								fingerprint: prepared.fingerprint,
-							},
-						),
-						`Cloud workspace ${createdSessionId} was created, but its recovery link could not be saved locally.`,
-					);
-					createdOuterSessionThisAttempt = info?.created === true;
-					emitProgress(
-						"provisioning",
-						"Preparing the cloud workspace…",
-						createdSessionId,
-					);
+		const created = await cloud
+			.create({
+				// Single-flight concurrent handoff attempts of the same source
+				// session under the base's requestId-keyed create dedupe.
+				requestId: `handoff:${sourceSessionId}:${prepared.headSha.toLowerCase()}`,
+				repoUrl: prepared.repoUrl,
+				branch: prepared.branch,
+				modelId: prepared.modelId,
+				mode: prepared.fingerprint.mode ?? "act",
+				workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
+				organizationId: prepared.fingerprint.organizationId ?? null,
+				...handoffConfig,
+				handoff: {
+					sourceSessionId,
+					resolveMessages: readSeedMessages,
+					onOuterSessionCreated: async (createdSessionId, info) => {
+						outerSessionId = createdSessionId;
+						const dashboardUrl = buildCloudHandoffDashboardUrl(
+							environment.appBaseUrl,
+							createdSessionId,
+						);
+						const current = await manager.get(sourceSessionId);
+						await updateHandoffMetadataOrThrow(
+							manager,
+							sourceSessionId,
+							mergeCloudHandoffMetadata(
+								(current?.metadata as JsonRecord | null | undefined) ??
+									metadataBefore,
+								{
+									toCloudSessionId: createdSessionId,
+									handedOffAt: new Date().toISOString(),
+									status: "pending",
+									dashboardUrl,
+									fingerprint: prepared.fingerprint,
+								},
+							),
+							`Cloud workspace ${createdSessionId} was created, but its recovery link could not be saved locally.`,
+						);
+						createdOuterSessionThisAttempt = info?.created === true;
+						emitProgress(
+							"provisioning",
+							"Preparing the cloud workspace…",
+							createdSessionId,
+						);
+					},
+					onOuterSessionRemoved: async () => {
+						await clearPendingMetadata();
+						outerSessionId = "";
+						innerSessionId = "";
+						seededMessages = undefined;
+					},
+					onSeeding,
 				},
-				onOuterSessionRemoved: async () => {
-					await clearPendingMetadata();
-					outerSessionId = "";
-					innerSessionId = "";
-					seededMessages = undefined;
-				},
-				onSeeding,
-			},
-		});
+			})
+			.catch(handleSeedFailure);
 		outerSessionId = String(created.sessionId ?? "").trim();
 		innerSessionId = String(created.innerSessionId ?? "").trim();
 	}
