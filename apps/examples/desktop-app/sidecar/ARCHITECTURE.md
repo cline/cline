@@ -6,8 +6,74 @@ The sidecar is a Bun process that adapts the desktop UI and native operations to
 the shared Cline Hub.
 
 It imports `@cline/core`, discovers or starts the canonical shared Hub, registers
-as a Hub client, and serves the Next.js frontend over HTTP + WebSocket. The
+as a Hub client, and exposes the desktop command API over HTTP + WebSocket. The
 sidecar does not own a private agent runtime Hub.
+
+## Desktop Startup Flow
+
+Transport readiness is independent of local Hub readiness. The webview mounts
+immediately; it does not wait for either service before displaying startup state.
+
+```text
+Tauri launches the app
+  |
+  +--> Webview mounts immediately: "Starting Cline..."
+  |      |
+  |      +--> Read native startup status (no sidecar connection needed)
+  |             |
+  |             +--> Launch/crash/timeout: diagnostics + Retry sidecar
+  |
+  +--> Launch and supervise desktop sidecar
+         |
+         +--> Start HTTP + WebSocket server
+         +--> Publish authenticated endpoint to Tauri
+         |      |
+         |      +--> Webview connects; replay current hub readiness
+         |             |
+         |             +--> Sign-in + local settings are usable
+         |
+         +--> Initialize local session service asynchronously [starting]
+                |
+                +--> Resolve login-shell PATH
+                +--> ClineCore (hub mode, require-hub)
+                |      |
+                |      +--> Discover/reuse compatible shared hub
+                |           OR start one through shared discovery lock
+                |
+                +--> Connect sidecar's own observer client
+                +--> Install runtime bindings and subscriptions
+                       |
+                       +--> [ready]: enable local session operations
+                       |
+                       +--> [failed]: chat error + Retry hub
+                              |       (sign-in/settings stay usable)
+                              v
+                         Wait for failed attempt cleanup
+                              |
+                         Backoff -> one serialized retry
+
+Shutdown -> abort initialization; no late runtime binding installation
+Remote SSH hubs -> connect on user request, outside local startup gating
+```
+
+`index.ts` publishes the endpoint before starting `initializeSessionManager()`.
+`backend-readiness.ts` owns the `starting`, `ready`, and `failed` states; each new
+WebSocket connection receives the current state, and later changes are broadcast
+as `backend_readiness`. Hub-dependent commands return a structured
+`SESSION_SERVICE_NOT_READY` error when their runtime is unavailable.
+
+Each local initialization attempt has a 30-second deadline. Retry clicks during
+failed-attempt cleanup queue one subsequent attempt; repeated clicks coalesce.
+Retries retain exponential backoff capped at 30 seconds. Shutdown cancels pending
+initialization and queued retries. The existing 90-second command-readiness timeout
+is unchanged.
+
+Tauri's `get_desktop_backend_status` and `retry_desktop_backend` commands work
+without the sidecar transport. They expose bounded, sanitized startup diagnostics
+and recovery for sidecar failures. `get_backend_readiness` and
+`retry_backend_initialization` run over the sidecar transport and manage the local
+session service. Remote environments connect on demand and do not delay sign-in
+or local settings.
 
 ## Directory Structure
 
@@ -15,7 +81,8 @@ sidecar does not own a private agent runtime Hub.
 sidecar/
 ├── index.ts              # Entry point: starts HTTP+WS server
 ├── server.ts             # Bun HTTP server + WebSocket handlers
-├── context.ts            # SidecarContext type and factory
+├── context.ts            # Runtime bindings, bootstrap, and cleanup
+├── backend-readiness.ts  # Serialized local bootstrap state and retries
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
 ├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
@@ -29,11 +96,11 @@ sidecar/
 └── ARCHITECTURE.md       # This file
 ```
 
-## Transport Protocol (unchanged)
+## Transport Protocol
 
 ```
 Request:  { "type": "command", "id": string, "command": string, "args"?: object }
-Response: { "type": "response", "id": string, "ok": boolean, "result"?: unknown, "error"?: string }
+Response: { "type": "response", "id": string, "ok": boolean, "result"?: unknown, "error"?: string, "errorCode"?: string, "readiness"?: { "state": "starting" | "ready" | "failed", "attempt": number, "message"?: string } }
 Event:    { "type": "event", "event": { "name": string, "payload": unknown } }
 ```
 
@@ -146,8 +213,9 @@ await ctx.hubClient.command("schedule.list", { limit: 200 });
 ### 7. Frontend Connection
 
 The frontend `desktop-client.ts` connects directly to the sidecar WebSocket:
-- Discovers endpoint from `window.__SIDECAR_WS_ENDPOINT__` or defaults to `ws://127.0.0.1:3126/transport`
-- No Tauri dependency needed
+- An explicit `window.__SIDECAR_WS_ENDPOINT__` override takes precedence.
+- In the native app, discovers the endpoint through Tauri's `get_desktop_backend_endpoint` command.
+- In browser/dev mode without Tauri, uses `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` or defaults to `ws://127.0.0.1:3126/transport`.
 - Same `invoke()` / `subscribe()` API
 
 ## Command Map
