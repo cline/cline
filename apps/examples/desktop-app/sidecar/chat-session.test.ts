@@ -35,6 +35,7 @@ import {
 	requestSidecarAskQuestion,
 	resolveSidecarAskQuestion,
 } from "./context";
+import * as pluginCommands from "./plugin-commands";
 import {
 	cleanupCloudHandoffGates,
 	enableCloudHandoffGates,
@@ -2111,6 +2112,7 @@ describe("runtime slash command expansion on send", () => {
 	const tempRoots: string[] = [];
 
 	afterEach(() => {
+		vi.restoreAllMocks();
 		for (const dir of tempRoots) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -2202,6 +2204,29 @@ Follow the desktop send workflow instructions.`,
 			}),
 		);
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("still sends a skill command when a workspace plugin fails to load", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const pluginsDir = join(workspace, ".cline", "plugins");
+		mkdirSync(pluginsDir, { recursive: true });
+		writeFileSync(
+			join(pluginsDir, "broken.js"),
+			"export default { name: 'broken', manifest: { capabilities: ['bogus'] }, setup() {} };",
+		);
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
 	});
 
 	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
@@ -2327,6 +2352,9 @@ Follow the user cloud workflow instructions.`,
 		);
 
 		// Gate on: /cloud is built-in again and passes through untouched.
+		const runPlugin = vi
+			.spyOn(pluginCommands, "runPluginSlashCommand")
+			.mockResolvedValue(undefined);
 		enableCloudHandoffGates();
 		await handleChatSessionCommand(ctx, {
 			action: "send",
@@ -2336,6 +2364,7 @@ Follow the user cloud workflow instructions.`,
 		expect(send).toHaveBeenLastCalledWith(
 			expect.objectContaining({ prompt: "/cloud please" }),
 		);
+		expect(runPlugin).not.toHaveBeenCalled();
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {

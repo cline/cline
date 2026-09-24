@@ -43,6 +43,18 @@ const WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX: Record<string, string[]> = {
 	arm64: ["windows-aarch64"],
 };
 
+// On Linux the updater artifacts are the packages themselves, signed by
+// createUpdaterArtifacts. The updater asks for `linux-<arch>-<installer>`
+// first and falls back to the bare `linux-<arch>` key, so each package format
+// gets only its own suffixed key: a deb must never be served to an rpm
+// install (or to an AppImage, which we do not ship).
+const LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX: Record<string, string[]> = {
+	"_amd64.deb": ["linux-x86_64-deb"],
+	"_arm64.deb": ["linux-aarch64-deb"],
+	"_x86_64.rpm": ["linux-x86_64-rpm"],
+	"_aarch64.rpm": ["linux-aarch64-rpm"],
+};
+
 const getArgValue = (args: string[], name: string): string | undefined => {
 	const index = args.indexOf(name);
 	if (index >= 0 && args[index + 1] && !args[index + 1].startsWith("--")) {
@@ -67,6 +79,12 @@ const platformKeysOfUpdaterArtifact = (
 			(candidate) => fileName.endsWith(`_${candidate}-setup.exe`),
 		);
 		return arch ? WINDOWS_PLATFORM_KEYS_BY_ARCH_SUFFIX[arch] : undefined;
+	}
+	const linuxSuffix = Object.keys(LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX).find(
+		(candidate) => fileName.endsWith(candidate),
+	);
+	if (linuxSuffix) {
+		return LINUX_PLATFORM_KEYS_BY_FILE_SUFFIX[linuxSuffix];
 	}
 	return undefined;
 };
@@ -106,7 +124,7 @@ export const buildUpdateManifest = (options: {
 
 	if (Object.keys(platforms).length === 0) {
 		throw new Error(
-			`no updater artifacts (*.app.tar.gz or *-setup.exe with a known arch suffix) found in ${options.dir}`,
+			`no updater artifacts (*.app.tar.gz, *-setup.exe, *.deb or *.rpm with a known arch suffix) found in ${options.dir}`,
 		);
 	}
 
