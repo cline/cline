@@ -21,24 +21,30 @@ function request(
 	};
 }
 
-function bedrockContext(
-	modelId: string,
-	reasoningOptions: readonly ModelReasoningOption[] | undefined,
+/**
+ * A provider context is required by the reasoning gate, so every call needs
+ * one. `reasoningOptions` is the only field the gate reads: `undefined` stands
+ * for a model the catalog does not describe, `[]` for one that advertises no
+ * user-facing control.
+ */
+function contextFor(
+	request: GatewayStreamRequest,
+	reasoningOptions: readonly ModelReasoningOption[] | null = EFFORT_OPTIONS,
 ): GatewayProviderContext {
 	return {
 		provider: {
-			id: "bedrock",
-			name: "Amazon Bedrock",
-			defaultModelId: modelId,
+			id: request.providerId,
+			name: request.providerId,
+			defaultModelId: request.modelId,
 			models: [],
 		},
 		model: {
-			id: modelId,
-			name: modelId,
-			providerId: "bedrock",
-			reasoningOptions,
+			id: request.modelId,
+			name: request.modelId,
+			providerId: request.providerId,
+			reasoningOptions: reasoningOptions ?? undefined,
 		},
-		config: { providerId: "bedrock" },
+		config: { providerId: request.providerId },
 	};
 }
 
@@ -57,42 +63,45 @@ describe("resolvePortableReasoning", () => {
 		[{ effort: "max" }, "xhigh"],
 		[{ enabled: true }, "medium"],
 	] as const)("maps %o to %s", (reasoning, expected) => {
-		expect(resolvePortableReasoning(request(reasoning))).toBe(expected);
+		const req = request(reasoning);
+		expect(resolvePortableReasoning(req, contextFor(req))).toBe(expected);
 	});
 
 	it("leaves an exact token budget to provider-specific options", () => {
-		expect(
-			resolvePortableReasoning(
-				request({ enabled: true, effort: "high", budgetTokens: 12_000 }),
-			),
-		).toBeUndefined();
+		const req = request({
+			enabled: true,
+			effort: "high",
+			budgetTokens: 12_000,
+		});
+		expect(resolvePortableReasoning(req, contextFor(req))).toBeUndefined();
 	});
 
 	it("gives explicit disable precedence over an exact token budget", () => {
-		expect(
-			resolvePortableReasoning(
-				request({ enabled: false, budgetTokens: 12_000 }),
-			),
-		).toBe("none");
+		const req = request({ enabled: false, budgetTokens: 12_000 });
+		expect(resolvePortableReasoning(req, contextFor(req))).toBe("none");
 	});
 
 	it("removes conflicting controls from native disable requests", () => {
-		const normalized = withoutPortableReasoning({
+		const req: GatewayStreamRequest = {
 			...request({ enabled: false, effort: "high", budgetTokens: 12_000 }),
 			providerId: "custom-provider",
+		};
+		expect(withoutPortableReasoning(req, contextFor(req)).reasoning).toEqual({
+			enabled: false,
 		});
-		expect(normalized.reasoning).toEqual({ enabled: false });
 	});
 
 	it("omits reasoning when the caller has no explicit intent", () => {
-		expect(resolvePortableReasoning(request())).toBeUndefined();
-		expect(resolvePortableReasoning(request({}))).toBeUndefined();
+		for (const req of [request(), request({})]) {
+			expect(resolvePortableReasoning(req, contextFor(req))).toBeUndefined();
+		}
 	});
 
 	it("adds portable reasoning to supported provider stream settings", () => {
-		expect(
-			buildAiSdkStreamConfig(request({ effort: "high" }), undefined as never),
-		).toMatchObject({ reasoning: "high" });
+		const req = request({ effort: "high" });
+		expect(buildAiSdkStreamConfig(req, contextFor(req))).toMatchObject({
+			reasoning: "high",
+		});
 	});
 
 	// Bedrock's adapter turns the portable effort into `reasoningConfig` for
@@ -111,7 +120,7 @@ describe("resolvePortableReasoning", () => {
 
 		it("keeps portable reasoning for catalog models with advertised controls", () => {
 			const req = bedrock("anthropic.claude-sonnet-4-6", { effort: "high" });
-			const context = bedrockContext(req.modelId, EFFORT_OPTIONS);
+			const context = contextFor(req);
 			expect(resolvePortableReasoning(req, context)).toBe("high");
 			expect(buildAiSdkStreamConfig(req, context)).toMatchObject({
 				reasoning: "high",
@@ -124,7 +133,7 @@ describe("resolvePortableReasoning", () => {
 				"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
 				{ effort: "medium" },
 			);
-			const context = bedrockContext(req.modelId, undefined);
+			const context = contextFor(req, null);
 			expect(resolvePortableReasoning(req, context)).toBeUndefined();
 			expect(buildAiSdkStreamConfig(req, context)).not.toHaveProperty(
 				"reasoning",
@@ -139,42 +148,31 @@ describe("resolvePortableReasoning", () => {
 		it("withholds portable reasoning from models that advertise no controls", () => {
 			const req = bedrock("amazon.nova-2-lite-v1:0", { enabled: true });
 			expect(
-				resolvePortableReasoning(req, bedrockContext(req.modelId, [])),
+				resolvePortableReasoning(req, contextFor(req, [])),
 			).toBeUndefined();
 		});
 
-		it("withholds portable reasoning from OpenAI models, prefixed or not", () => {
+		it("keeps portable reasoning for OpenAI catalog models, prefixed or not", () => {
+			// @ai-sdk/amazon-bedrock 5.0.65+ recognises inference-profile prefixed
+			// OpenAI ids and emits `reasoning.effort` for them (cline/cline#14451).
 			for (const modelId of [
 				"openai.gpt-6-astra",
 				"us.openai.gpt-6-astra",
 				"global.openai.gpt-5.6-luna",
 			]) {
 				const req = bedrock(modelId, { effort: "high" });
-				expect(
-					resolvePortableReasoning(
-						req,
-						bedrockContext(modelId, EFFORT_OPTIONS),
-					),
-				).toBeUndefined();
+				expect(resolvePortableReasoning(req, contextFor(req))).toBe("high");
 			}
-		});
-
-		it("falls back to provider-id gating when no context is available", () => {
-			expect(
-				resolvePortableReasoning(
-					bedrock("openai.gpt-6-astra", { effort: "high" }),
-				),
-			).toBe("high");
 		});
 	});
 
 	it("uses Ollama's top-level reasoning support", () => {
-		const ollamaRequest = {
+		const ollamaRequest: GatewayStreamRequest = {
 			...request({ effort: "high" }),
 			providerId: "ollama",
 		};
 		expect(
-			buildAiSdkStreamConfig(ollamaRequest, undefined as never),
+			buildAiSdkStreamConfig(ollamaRequest, contextFor(ollamaRequest)),
 		).toHaveProperty("reasoning", "high");
 	});
 });

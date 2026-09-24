@@ -34,12 +34,12 @@ const NON_PORTABLE_REASONING_PROVIDERS = new Set([
  * Resolve reasoning intent owned by the AI SDK's portable top-level option.
  *
  * `context` gates provider/model combinations whose adapter cannot translate
- * the portable option safely (see `bedrock-reasoning.ts`); without it the
- * decision is made from the provider id alone.
+ * the portable option safely (see `bedrock-reasoning.ts`). It is required so
+ * that a caller cannot silently opt out of that gate.
  */
 export function resolvePortableReasoning(
 	request: GatewayStreamRequest,
-	context?: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): AiSdkReasoning | undefined {
 	const reasoning = request.reasoning;
 	if (!reasoning) {
@@ -73,7 +73,7 @@ export function resolvePortableReasoning(
  */
 export function withoutPortableReasoning(
 	request: GatewayStreamRequest,
-	context?: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): GatewayStreamRequest {
 	const normalizedRequest =
 		request.reasoning?.enabled === false &&

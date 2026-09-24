@@ -4,7 +4,6 @@ import type {
 	ModelReasoningOption,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { isBedrockOpenAiModelId } from "../model-facts";
 import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
@@ -159,15 +158,13 @@ type Case = {
 function runCases(cases: ReadonlyArray<Case>) {
 	it.each(cases)("$name", ({ request, context, expect: expectations }) => {
 		const gatewayRequest = makeRequest(request);
-		const result = composeAiSdkProviderOptions(
-			gatewayRequest,
-			makeContext({
-				providerId: request.providerId,
-				modelId: request.modelId,
-				...context,
-			}),
-		);
-		if (resolvePortableReasoning(gatewayRequest)) {
+		const gatewayContext = makeContext({
+			providerId: request.providerId,
+			modelId: request.modelId,
+			...context,
+		});
+		const result = composeAiSdkProviderOptions(gatewayRequest, gatewayContext);
+		if (resolvePortableReasoning(gatewayRequest, gatewayContext)) {
 			for (const bucket of Object.values(result)) {
 				for (const key of [
 					"effort",
@@ -342,90 +339,37 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.openaiCompatible ?? {}).not.toHaveProperty("cache_control");
 	});
 
-	describe("Bedrock reasoning wire shapes (cline/cline#14095)", () => {
-		it.each([
-			["openai.gpt-6-astra", true],
-			["us.openai.gpt-6-astra", true],
-			["global.openai.gpt-5.6-luna", true],
-			["anthropic.claude-sonnet-4-6", false],
-			["us.anthropic.claude-sonnet-4-6", false],
-			["myopenai.custom", false],
-			[
-				"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
-				false,
-			],
-		])("recognises OpenAI-on-Bedrock ids: %s -> %s", (modelId, expected) => {
-			expect(isBedrockOpenAiModelId(modelId)).toBe(expected);
-		});
-
-		const openAiEffortOptions: readonly ModelReasoningOption[] = [
-			{ type: "effort", values: ["low", "medium", "high", "xhigh", "max"] },
-		];
-
-		it.each([
-			"openai.gpt-6-astra",
-			"us.openai.gpt-6-astra",
-			"global.openai.gpt-5.6-luna",
-		])("writes reasoning_effort directly for OpenAI model %s", (modelId) => {
-			const result = composeAiSdkProviderOptions(
-				makeRequest({
-					providerId: "bedrock",
-					modelId,
-					reasoning: { effort: "high" },
-				}),
-				makeContext({
-					providerId: "bedrock",
-					modelId,
-					reasoningOptions: openAiEffortOptions,
-					metadata: BEDROCK_ROUTING_METADATA,
-				}),
-			);
-
-			expect(result.bedrock).toEqual({
-				additionalModelRequestFields: { reasoning_effort: "high" },
-			});
-		});
-
-		it("maps the Anthropic-flavoured max tier onto OpenAI's xhigh", () => {
-			const modelId = "global.openai.gpt-6-astra";
-			const result = composeAiSdkProviderOptions(
-				makeRequest({
-					providerId: "bedrock",
-					modelId,
-					reasoning: { effort: "max" },
-				}),
-				makeContext({
-					providerId: "bedrock",
-					modelId,
-					reasoningOptions: openAiEffortOptions,
-					metadata: BEDROCK_ROUTING_METADATA,
-				}),
-			);
-
-			expect(result.bedrock).toEqual({
-				additionalModelRequestFields: { reasoning_effort: "xhigh" },
-			});
-		});
-
-		it("sends nothing for an OpenAI model when reasoning is disabled", () => {
-			const modelId = "us.openai.gpt-6-astra";
-			const result = composeAiSdkProviderOptions(
-				makeRequest({
-					providerId: "bedrock",
-					modelId,
-					reasoning: { enabled: false },
-				}),
-				makeContext({
-					providerId: "bedrock",
-					modelId,
-					reasoningOptions: openAiEffortOptions,
-					metadata: BEDROCK_ROUTING_METADATA,
-				}),
-			);
-
-			expect(result.bedrock ?? {}).not.toHaveProperty(
-				"additionalModelRequestFields",
-			);
+	describe("Bedrock reasoning routing (cline/cline#14095)", () => {
+		it("leaves OpenAI catalog models on the portable path with no Cline-authored fields", () => {
+			// The adapter (5.0.65+) writes `reasoning.effort` for prefixed OpenAI
+			// ids itself; Cline must not add a competing wire shape.
+			for (const modelId of [
+				"us.openai.gpt-6-astra",
+				"global.openai.gpt-5.6-luna",
+			]) {
+				const result = composeAiSdkProviderOptions(
+					makeRequest({
+						providerId: "bedrock",
+						modelId,
+						reasoning: { effort: "high" },
+					}),
+					makeContext({
+						providerId: "bedrock",
+						modelId,
+						reasoningOptions: [
+							{
+								type: "effort",
+								values: ["low", "medium", "high", "xhigh", "max"],
+							},
+						],
+						metadata: BEDROCK_ROUTING_METADATA,
+					}),
+				);
+				expect(result.bedrock ?? {}).not.toHaveProperty(
+					"additionalModelRequestFields",
+				);
+				expect(result.bedrock ?? {}).not.toHaveProperty("reasoning");
+			}
 		});
 
 		it("sends no reasoning fields for an unlisted inference-profile ARN", () => {
@@ -2243,15 +2187,13 @@ describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
 			modelId: "accounts/fireworks/models/kimi-k3",
 			reasoning,
 		});
-		const result = composeAiSdkProviderOptions(
-			gatewayRequest,
-			makeContext({
-				providerId: "fireworks",
-				modelId: "accounts/fireworks/models/kimi-k3",
-				reasoningOptions,
-			}),
-		);
-		if (resolvePortableReasoning(gatewayRequest)) {
+		const gatewayContext = makeContext({
+			providerId: "fireworks",
+			modelId: "accounts/fireworks/models/kimi-k3",
+			reasoningOptions,
+		});
+		const result = composeAiSdkProviderOptions(gatewayRequest, gatewayContext);
+		if (resolvePortableReasoning(gatewayRequest, gatewayContext)) {
 			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
 			expect(result.fireworks).not.toHaveProperty("thinking");
 			return;

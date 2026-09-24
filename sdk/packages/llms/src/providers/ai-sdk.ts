@@ -329,7 +329,7 @@ function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
 
 export function buildAiSdkStreamConfig(
 	request: GatewayStreamRequest,
-	context: GatewayProviderContext | undefined,
+	context: GatewayProviderContext,
 ): Partial<CallSettings> {
 	const reasoning = resolvePortableReasoning(request, context);
 	return {
