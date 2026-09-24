@@ -10,7 +10,12 @@ import {
 	resolveClineBuildEnv,
 	resolveHubCommandTimeoutMs,
 } from "@cline/shared";
-import NodeWebSocket from "ws";
+import { HttpProxyAgent } from "http-proxy-agent";
+import { HttpsProxyAgent } from "https-proxy-agent";
+// @ts-expect-error node-ws aliases the ws runtime so Bun does not replace it,
+// while @types/ws declares only the literal "ws" package name.
+import NodeWebSocket from "node-ws";
+import { getProxyForUrl } from "proxy-from-env";
 import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
@@ -75,6 +80,18 @@ function getWebSocketCtor(): WebSocketCtor {
 		);
 	}
 	return ctor;
+}
+
+function resolveWebSocketProxyAgent(url: URL) {
+	const proxyLookupUrl = new URL(url);
+	proxyLookupUrl.protocol = url.protocol === "wss:" ? "https:" : "http:";
+	const proxyUrl = getProxyForUrl(proxyLookupUrl.toString());
+	if (!proxyUrl) {
+		return undefined;
+	}
+	return url.protocol === "wss:"
+		? new HttpsProxyAgent(proxyUrl)
+		: new HttpProxyAgent(proxyUrl);
 }
 
 function decodeSocketData(data: unknown): string {
@@ -546,9 +563,22 @@ export class NodeHubClient {
 			throw error;
 		}
 
+		// Proxy settings and origin headers are resolved for the same connection
+		// attempt so environment and credential changes apply on reconnect.
+		let agent: ReturnType<typeof resolveWebSocketProxyAgent>;
+		try {
+			agent = headers ? resolveWebSocketProxyAgent(url) : undefined;
+		} catch (error) {
+			const transportError = normalizeWebSocketConnectError(error, url);
+			if (generation === this.connectGeneration) {
+				this.lastCloseError = transportError;
+			}
+			throw transportError;
+		}
 		const socket = headers
 			? (new NodeWebSocket(url.toString(), {
 					headers: { ...headers },
+					agent,
 				}) as unknown as WebSocketLike)
 			: new (getWebSocketCtor())(
 					url.toString(),
