@@ -237,7 +237,7 @@ describe("runtime host resolution", () => {
 	it("includes the hub startup failure in the error", async () => {
 		const { createRuntimeHost } = await import("./host");
 		const startupError = new Error(
-			"Timed out after 8000ms waiting for detached hub startup.",
+			"Timed out after 15000ms waiting for detached hub startup.",
 		);
 		ensureCompatibleLocalHubUrlMock.mockImplementation(
 			async (options: { onStartupError?: (error: unknown) => void }) => {
@@ -252,7 +252,7 @@ describe("runtime host resolution", () => {
 
 		expect(failure).toBeInstanceOf(Error);
 		expect((failure as Error).message).toBe(
-			"No compatible hub runtime is available: Timed out after 8000ms waiting for detached hub startup.",
+			"No compatible hub runtime is available: Timed out after 15000ms waiting for detached hub startup.",
 		);
 		expect((failure as Error).cause).toBe(startupError);
 	});

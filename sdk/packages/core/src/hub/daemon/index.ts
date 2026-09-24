@@ -52,14 +52,20 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	manageConnectors?: boolean;
 	/**
 	 * How long to wait for a freshly spawned Hub to publish a usable
-	 * discovery record. Defaults to 8s. A cold start of a large compiled
-	 * binary (first run after install or update, antivirus scanning) can take
-	 * longer, and giving up early turns a slow Hub into a failed startup.
+	 * discovery record. Defaults to `HUB_STARTUP_TIMEOUT_MS`.
 	 */
 	startupTimeoutMs?: number;
 }
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
+/**
+ * A cold start of the compiled binary the Hub runs from (first launch after
+ * an install or update, while antivirus scans it) regularly takes 8-13s on
+ * Windows. The old 8s limit gave up just before those Hubs came up, which
+ * failed startup even though the next attempt attached fine. 15s covers most
+ * cold starts and still fits inside the desktop shell's 30s endpoint wait
+ * alongside login-shell PATH resolution.
+ */
+const HUB_STARTUP_TIMEOUT_MS = 15_000;
 const HUB_STARTUP_POLL_MS = 200;
 const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;

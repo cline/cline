@@ -39,7 +39,7 @@ export interface HubOptions {
 	cwd?: string;
 	/**
 	 * How long to wait for a Hub this client had to start to come up.
-	 * Defaults to 8s.
+	 * Defaults to 15s.
 	 */
 	startupTimeoutMs?: number;
 }
