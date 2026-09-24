@@ -1,3 +1,4 @@
+import type { WorkspaceRestoreAvailability } from "@shared/ExtensionMessage"
 import { EditMessageAndRegenerateRequest } from "@shared/proto/cline/task"
 import type React from "react"
 import { useMemo, useState } from "react"
@@ -12,10 +13,10 @@ interface UserMessageProps {
 	images?: string[]
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
-	canRestoreWorkspace?: boolean
+	workspaceRestoreAvailability?: WorkspaceRestoreAvailability
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
+const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, workspaceRestoreAvailability }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
@@ -23,6 +24,12 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [savingMode, setSavingMode] = useState<"chat" | "workspace" | undefined>()
 	const [errorMessage, setErrorMessage] = useState<string | undefined>()
 	const highlightedText = useMemo(() => highlightText(text), [text])
+	const workspaceRestoreTooltip =
+		workspaceRestoreAvailability?.available === true
+			? "Rewind conversation, reset code edits"
+			: workspaceRestoreAvailability?.reason === "checkpoints_disabled"
+				? "No checkpoint is available for this message. Enable Checkpoints in Settings to create checkpoints for future tasks."
+				: "No workspace checkpoint was created for this message."
 
 	const startEditing = () => {
 		setEditedText(text ?? "")
@@ -156,14 +163,16 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 									</span>
 								</TooltipTrigger>
 							</Tooltip>
-							{canRestoreWorkspace && (
+							{workspaceRestoreAvailability && (
 								<Tooltip>
-									<TooltipContent side="top">Rewind conversation, reset code edits</TooltipContent>
+									<TooltipContent className="max-w-xs" side="top">
+										{workspaceRestoreTooltip}
+									</TooltipContent>
 									<TooltipTrigger asChild>
 										<span className="inline-flex shrink-0">
 											<button
 												className="whitespace-nowrap px-2 py-1 rounded-xs border border-vscode-button-border bg-transparent text-badge-foreground cursor-pointer disabled:opacity-60 text-xs"
-												disabled={!!savingMode}
+												disabled={!!savingMode || !workspaceRestoreAvailability.available}
 												onClick={() => handleSave(true)}
 												type="button">
 												{savingMode === "workspace" ? "Restoring..." : "Reset Code"}

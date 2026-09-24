@@ -86,7 +86,15 @@ describe("UserMessage – IME composition handling", () => {
 
 	it("labels reset actions and preserves their restore behavior", async () => {
 		const user = userEvent.setup()
-		render(<UserMessage files={["src/app.ts"]} images={["image.png"]} messageTs={123} text="Update this" />)
+		render(
+			<UserMessage
+				files={["src/app.ts"]}
+				images={["image.png"]}
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: true }}
+			/>,
+		)
 
 		await user.click(screen.getByText("Update this"))
 
@@ -117,6 +125,46 @@ describe("UserMessage – IME composition handling", () => {
 				restoreWorkspace: true,
 			}),
 		)
+	})
+
+	it("keeps Reset Chat enabled and disables Reset Code when checkpoints were off", async () => {
+		const user = userEvent.setup()
+		render(
+			<UserMessage
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: false, reason: "checkpoints_disabled" }}
+			/>,
+		)
+
+		await user.click(screen.getByText("Update this"))
+
+		expect(screen.getByRole("button", { name: "Reset Chat" })).toBeEnabled()
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		expect(resetCode).toBeDisabled()
+		await user.hover(resetCode.parentElement as HTMLElement)
+		expect(
+			await screen.findByText(
+				"No checkpoint is available for this message. Enable Checkpoints in Settings to create checkpoints for future tasks.",
+			),
+		).toBeInTheDocument()
+	})
+
+	it("explains when checkpoint creation was enabled but no checkpoint exists", async () => {
+		const user = userEvent.setup()
+		render(
+			<UserMessage
+				messageTs={123}
+				text="Update this"
+				workspaceRestoreAvailability={{ available: false, reason: "checkpoint_unavailable" }}
+			/>,
+		)
+
+		await user.click(screen.getByText("Update this"))
+		const resetCode = screen.getByRole("button", { name: "Reset Code" })
+		expect(resetCode).toBeDisabled()
+		await user.hover(resetCode.parentElement as HTMLElement)
+		expect(await screen.findByText("No workspace checkpoint was created for this message.")).toBeInTheDocument()
 	})
 
 	it("removes an image before regenerating an edited message", async () => {

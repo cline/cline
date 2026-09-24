@@ -176,6 +176,21 @@ describe("SdkSessionLifecycle", () => {
 		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
 	})
 
+	it("notifies idle listeners after a send fails", async () => {
+		const onDidBecomeIdle = vi.fn()
+		const onSendError = vi.fn()
+		const sdkHost = makeSdkHost({ send: vi.fn().mockRejectedValue(new Error("provider failed")) })
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ onDidBecomeIdle, onSendError })
+		await lifecycle.startNewSession({} as StartInput)
+
+		lifecycle.fireAndForgetSend(sdkHost as any, "session-123", "hello")
+		await vi.waitFor(() => expect(onSendError).toHaveBeenCalledWith(expect.any(Error), "session-123"))
+
+		expect(onDidBecomeIdle).toHaveBeenCalledOnce()
+		expect(lifecycle.getActiveSession()?.isRunning).toBe(false)
+	})
+
 	it("notifies idle listeners only on a running-to-idle transition", async () => {
 		const onDidBecomeIdle = vi.fn()
 		const sdkHost = makeSdkHost()

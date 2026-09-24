@@ -155,6 +155,7 @@ export const ChatRowContent = memo(
 			clineMessages,
 			showFeatureTips,
 			enableCheckpointsSetting,
+			workspaceRestoreAvailabilityByMessageTs,
 		} = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -905,12 +906,21 @@ export const ChatRowContent = memo(
 					case "user_feedback":
 						return (
 							<UserMessage
-								canRestoreWorkspace={canRestoreWorkspaceFromMessage(clineMessages, message.ts)}
 								files={message.files}
 								images={message.images}
 								messageTs={message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
 								text={message.text}
+								workspaceRestoreAvailability={
+									canRestoreWorkspaceFromMessage(clineMessages, message.ts)
+										? (workspaceRestoreAvailabilityByMessageTs?.[message.ts] ?? {
+												available: false,
+												reason: enableCheckpointsSetting
+													? "checkpoint_unavailable"
+													: "checkpoints_disabled",
+											})
+										: undefined
+								}
 							/>
 						)
 					case "user_feedback_diff":

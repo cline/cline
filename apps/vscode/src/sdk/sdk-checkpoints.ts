@@ -1,4 +1,4 @@
-import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, WorkspaceRestoreAvailability } from "@shared/ExtensionMessage"
 
 export function isVisibleCheckpointUserMessage(message: ClineMessage): boolean {
 	return message.type === "say" && (message.say === "task" || message.say === "user_feedback")
@@ -60,4 +60,38 @@ export function findVisibleCheckpointUserMessageByRun(
 		}
 	}
 	return undefined
+}
+
+/**
+ * Resolves the workspace checkpoint that Reset Code would use for each
+ * editable user message. This follows the same visible-message → persisted
+ * message → run-count chain as editMessageAndRegenerate, then delegates the
+ * checkpoint lookup rule to Core.
+ */
+export function buildWorkspaceRestoreAvailabilityByMessageTs(input: {
+	clineMessages: ClineMessage[]
+	getRunCountForUserOrdinal: (userOrdinal: number) => number | undefined
+	hasCheckpointForRun: (runCount: number) => boolean
+}): Record<number, WorkspaceRestoreAvailability> {
+	const result: Record<number, WorkspaceRestoreAvailability> = {}
+	let userOrdinal = 0
+
+	for (let index = 0; index < input.clineMessages.length; index += 1) {
+		const message = input.clineMessages[index]
+		if (!isVisibleCheckpointUserMessage(message)) {
+			continue
+		}
+
+		userOrdinal += 1
+		if (!isCheckpointRunUserMessage(input.clineMessages, index)) {
+			continue
+		}
+
+		const runCount = input.getRunCountForUserOrdinal(userOrdinal)
+		const checkpointAvailable = runCount !== undefined && input.hasCheckpointForRun(runCount)
+
+		result[message.ts] = checkpointAvailable ? { available: true } : { available: false, reason: "checkpoint_unavailable" }
+	}
+
+	return result
 }

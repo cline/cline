@@ -1,6 +1,7 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {
+	buildWorkspaceRestoreAvailabilityByMessageTs,
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
 	isCheckpointAnswerMessage,
@@ -96,5 +97,40 @@ describe("SDK checkpoint user-run mapping", () => {
 		expect(getCheckpointRunCountForMessage(messages, 5)).toBe(2)
 		expect(findVisibleCheckpointUserMessageByRun(messages, 1)?.message.text).toBe("start")
 		expect(findVisibleCheckpointUserMessageByRun(messages, 2)?.message.text).toBe("next task")
+	})
+})
+
+describe("buildWorkspaceRestoreAvailabilityByMessageTs", () => {
+	it("keeps existing checkpoints available", () => {
+		const result = buildWorkspaceRestoreAvailabilityByMessageTs({
+			clineMessages: [userTask("start", 1), assistant("done", 2), userFeedback("continue", 3)],
+			getRunCountForUserOrdinal: (userOrdinal) => userOrdinal,
+			hasCheckpointForRun: (runCount) => runCount >= 1,
+		})
+
+		expect(result).toEqual({
+			1: { available: true },
+			3: { available: true },
+		})
+	})
+
+	it("reports a missing checkpoint", () => {
+		const result = buildWorkspaceRestoreAvailabilityByMessageTs({
+			clineMessages: [userTask("start", 1)],
+			getRunCountForUserOrdinal: (userOrdinal) => userOrdinal,
+			hasCheckpointForRun: () => false,
+		})
+
+		expect(result[1]).toEqual({ available: false, reason: "checkpoint_unavailable" })
+	})
+
+	it("omits ask answers that do not start agent runs", () => {
+		const result = buildWorkspaceRestoreAvailabilityByMessageTs({
+			clineMessages: [userTask("start", 1), followupAsk("which file?", 2), userFeedback("src/index.ts", 3)],
+			getRunCountForUserOrdinal: (userOrdinal) => userOrdinal,
+			hasCheckpointForRun: (runCount) => runCount === 1,
+		})
+
+		expect(result).toEqual({ 1: { available: true } })
 	})
 })
