@@ -42,9 +42,6 @@ export type CloudHandoffUiEntry =
 			status: "complete";
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
-			/** Follow-up queue outcome, carried so a lost RPC response can
-			 * still drive the definite-failure restoration. */
-			warningKind?: "unqueued" | "unconfirmed";
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  };
@@ -83,7 +80,6 @@ export type CloudHandoffUiAction =
 			dashboardUrl?: string;
 			sessionId?: string;
 			destination?: "in_app" | "external";
-			warningKind?: "unqueued" | "unconfirmed";
 			retryDraft?: string;
 			retryAttachments?: File[];
 			retainRetry?: boolean;
@@ -100,7 +96,6 @@ export type CloudHandoffUiAction =
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
 			pendingPrompt?: PendingHandoffPrompt;
-			warningKind?: "unqueued" | "unconfirmed";
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  }
@@ -120,7 +115,6 @@ function completeHandoff(
 	receipt: HandoffReceipt,
 	externalPresentation: boolean,
 	pendingPrompt?: PendingHandoffPrompt,
-	warningKind?: "unqueued" | "unconfirmed",
 	retryDraft?: string,
 	retryAttachments?: File[],
 	retainRetry = false,
@@ -150,7 +144,6 @@ function completeHandoff(
 			status: "complete",
 			receipt,
 			externalPresentation,
-			...(warningKind ? { warningKind } : {}),
 			...(carriedRetryDraft ? { retryDraft: carriedRetryDraft } : {}),
 			...(carriedRetryAttachments?.length
 				? { retryAttachments: carriedRetryAttachments }
@@ -210,7 +203,6 @@ export function cloudHandoffUiReducer(
 					},
 					action.destination === "external",
 					undefined,
-					action.warningKind,
 					action.retryDraft,
 					action.retryAttachments,
 					action.retainRetry,
@@ -283,7 +275,6 @@ export function cloudHandoffUiReducer(
 				action.receipt,
 				action.externalPresentation,
 				action.pendingPrompt,
-				action.warningKind,
 				action.retryDraft,
 				action.retryAttachments,
 			);
@@ -368,7 +359,6 @@ export function cloudHandoffUiReducer(
 					status: "complete",
 					receipt: current.receipt,
 					externalPresentation: current.externalPresentation,
-					...(current.warningKind ? { warningKind: current.warningKind } : {}),
 				},
 			};
 		}

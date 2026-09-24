@@ -261,7 +261,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				dashboardUrl: progress.dashboardUrl,
 				sessionId: progress.sessionId,
 				destination: progress.destination,
-				warningKind: progress.warningKind,
 				...(retainNewerRetry
 					? { retryDraft: newerRetry?.command ?? "" }
 					: retryDraft
@@ -336,7 +335,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				receipt,
 				externalPresentation: destination === "external",
 				pendingPrompt,
-				...(result.warningKind ? { warningKind: result.warningKind } : {}),
 				...(undeliveredCommand ? { retryDraft: undeliveredCommand } : {}),
 				...(undeliveredAttachments
 					? { retryAttachments: undeliveredAttachments }
@@ -453,9 +451,6 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 					sourceSessionId,
 					receipt: completedEntry.receipt,
 					externalPresentation: completedEntry.externalPresentation,
-					...(completedEntry.warningKind
-						? { warningKind: completedEntry.warningKind }
-						: {}),
 					...(restoreCommand ? { retryDraft: restoreCommand } : {}),
 					...(restoreAttachments
 						? { retryAttachments: restoreAttachments }
