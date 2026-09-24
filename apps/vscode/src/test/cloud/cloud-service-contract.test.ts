@@ -48,7 +48,7 @@ describe("local cloud service boundary", () => {
 		expect(created).toMatchObject({
 			status: "active",
 			repoContext: { repoUrl: "https://github.com/cline/fixture", branch: "fixture" },
-			metadata: { modelId: "fixture-model" },
+			metadata: { modelId: "fixture-model", taskId: expect.stringMatching(/^tsk-/) },
 		})
 		expect(service.sessionSocketUrl(created.id)).toBe(
 			environment.apiBaseUrl.replace("http://", "ws://") + `/api/v1/session/${created.id}`,

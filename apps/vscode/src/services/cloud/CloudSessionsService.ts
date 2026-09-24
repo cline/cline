@@ -38,7 +38,7 @@ export interface CloudSessionRecord {
 	title?: string
 	sandboxUrl?: string
 	repoContext: { repoUrl?: string; branch?: string }
-	metadata: { modelId?: string; statusReason?: string }
+	metadata: { modelId?: string; taskId?: string; statusReason?: string }
 	expiredAt?: string | null
 	createdAt: string
 	updatedAt: string

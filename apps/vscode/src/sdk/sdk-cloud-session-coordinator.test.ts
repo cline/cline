@@ -29,7 +29,7 @@ const record: CloudSessionRecord = {
 	id: "ses-stale",
 	status: "active",
 	repoContext: { repoUrl: "https://github.com/cline/fixture", branch: "main" },
-	metadata: { modelId: "fixture-model" },
+	metadata: { modelId: "fixture-model", taskId: "tsk-stale" },
 	createdAt: new Date(0).toISOString(),
 	updatedAt: new Date(0).toISOString(),
 }
@@ -105,6 +105,20 @@ describe("SdkCloudSessionCoordinator ownership", () => {
 		expect(await (coordinator as unknown as { resolveCloudModelId: () => Promise<string> }).resolveCloudModelId()).toBe(
 			"act-cloud-model",
 		)
+	})
+
+	it("refuses to connect when the control plane omits the canonical task id", async () => {
+		const withoutTaskId = { ...record, metadata: { modelId: "fixture-model" } }
+		const { coordinator, cloudSessions, options } = makeCoordinator()
+		cloudSessions.listSessions.mockResolvedValue([withoutTaskId])
+		const connect = vi.spyOn(CloudSessionHost, "connect")
+
+		await coordinator.openCloudTask(withoutTaskId.id)
+
+		expect(options.getTask()?.messageStateHandler.getClineMessages().at(-1)?.text).toBe(
+			`Could not connect to this cloud session: Cloud session ${withoutTaskId.id} has no canonical task id.`,
+		)
+		expect(connect).not.toHaveBeenCalled()
 	})
 
 	it("ignores a successful list after disposal", async () => {

@@ -1,8 +1,8 @@
 // CloudSessionHost — an SdkSessionHost backed by a Cline Cloud sandbox.
 //
 // A cloud session has two ids: the outer `ses-…` record owned by the Cline
-// Cloud control plane (what history and the task view use as the task id),
-// and the inner Hub session running on the sandbox pod. This host dials the
+// Cloud control plane (what extension history and the task view use as their
+// identifier), and the canonical `tsk-…` Hub session named by the control plane. This host dials the
 // pod's Hub through the api.cline.bot WebSocket proxy with the user's Cline
 // account token, maps outer <-> inner ids, and re-emits Hub events under the
 // outer id so the rest of the extension (session lifecycle, event coordinator,
@@ -48,6 +48,8 @@ export const CLOUD_GITHUB_AUTH_SYSTEM_PROMPT =
 
 export interface CloudSessionHostOptions {
 	outerSessionId: string
+	/** Canonical `tsk-…` id shared by runtime requests, transcripts and history snapshots. */
+	taskId: string
 	socketUrl: string
 	getAuthToken: () => Promise<string | null | undefined>
 	requestToolApproval?: (request: ToolApprovalRequest) => Promise<ToolApprovalResult>
@@ -102,6 +104,7 @@ export class CloudSessionHost implements SdkSessionHost {
 	readonly isCloud = true as const
 	readonly runtimeAddress: string | undefined
 	readonly outerSessionId: string
+	private readonly taskId: string
 	private innerSessionId: string | undefined
 	private agentStatus: CloudSessionStatus = "idle"
 	private modelId: string | undefined
@@ -114,6 +117,7 @@ export class CloudSessionHost implements SdkSessionHost {
 		host: RemoteRuntimeHost,
 	) {
 		this.outerSessionId = options.outerSessionId
+		this.taskId = options.taskId
 		this.host = host
 		this.runtimeAddress = options.socketUrl
 		// Track the agent's activity for the whole life of the connection, not
@@ -163,16 +167,14 @@ export class CloudSessionHost implements SdkSessionHost {
 		return this.modelId
 	}
 
-	/** The sandbox Hub hosts at most one conversation per sandbox; adopt the newest. */
+	/** Attach only to the canonical conversation named by the control plane. */
 	private async discoverInnerSession(): Promise<void> {
 		const sessions = await this.host.listSessions(100)
-		const newest = [...sessions].sort(
-			(a, b) => Date.parse(String(b.updatedAt ?? "")) - Date.parse(String(a.updatedAt ?? "")),
-		)[0]
-		if (newest?.sessionId) {
-			this.innerSessionId = newest.sessionId
-			this.modelId = typeof newest.model === "string" ? newest.model : undefined
-			const mapped = mapAgentStatus(String(newest.status ?? ""))
+		const task = sessions.find((session) => session.sessionId === this.taskId)
+		if (task) {
+			this.innerSessionId = task.sessionId
+			this.modelId = typeof task.model === "string" ? task.model : undefined
+			const mapped = mapAgentStatus(String(task.status ?? ""))
 			if (mapped) {
 				this.setStatus(mapped)
 			}
@@ -239,10 +241,9 @@ export class CloudSessionHost implements SdkSessionHost {
 		}
 		const workspaceRoot = this.options.workspaceRoot ?? CLOUD_WORKSPACE_ROOT
 		const cwd = input.config.cwd?.trim() || workspaceRoot
-		// Pin the inner id to the outer id so events need no remapping for
-		// sessions this extension created; attached sessions created elsewhere
-		// keep their own inner id.
-		const plannedId = this.outerSessionId
+		// The control plane snapshots the outer session and canonical task ids
+		// together. Keep that task id for every artifact this Hub session writes.
+		const plannedId = this.taskId
 		this.innerSessionId = plannedId
 		this.setStatus("running")
 		try {
@@ -383,15 +384,15 @@ export class CloudSessionHost implements SdkSessionHost {
 	pendingPrompts(action: "update", input: PendingPromptsUpdateInput): Promise<PendingPromptMutationResult>
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	pendingPrompts(action: any, input: any): any {
+	async pendingPrompts(action: any, input: any): Promise<any> {
 		const mapped = { ...input, sessionId: this.toInner(input.sessionId) }
 		switch (action) {
 			case "list":
-				return this.host.pendingPrompts.list(mapped)
+				return await this.host.pendingPrompts.list(mapped)
 			case "update":
-				return this.host.pendingPrompts.update(mapped)
+				return { ...(await this.host.pendingPrompts.update(mapped)), sessionId: this.outerSessionId }
 			case "delete":
-				return this.host.pendingPrompts.delete(mapped)
+				return { ...(await this.host.pendingPrompts.delete(mapped)), sessionId: this.outerSessionId }
 			default:
 				throw new Error(`Unsupported pending prompt action: ${String(action)}`)
 		}
