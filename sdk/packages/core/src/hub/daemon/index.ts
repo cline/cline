@@ -50,6 +50,13 @@ export interface DetachedHubOptions extends HubEndpointOverrides {
 	allowPortFallback?: boolean;
 	/** Disable account-wide connector supervision for session-only Hubs. Defaults to true. */
 	manageConnectors?: boolean;
+	/**
+	 * How long to wait for a freshly spawned Hub to publish a usable
+	 * discovery record. Defaults to 8s. A cold start of a large compiled
+	 * binary (first run after install or update, antivirus scanning) can take
+	 * longer, and giving up early turns a slow Hub into a failed startup.
+	 */
+	startupTimeoutMs?: number;
 }
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
@@ -668,7 +675,9 @@ async function ensureDetachedHubServerLocked(
 		...spawnEndpoint,
 		manageConnectors: endpointOverrides.manageConnectors,
 	});
-	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
+	const startupTimeoutMs =
+		endpointOverrides.startupTimeoutMs ?? HUB_STARTUP_TIMEOUT_MS;
+	const deadline = Date.now() + startupTimeoutMs;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url && nextDiscovery.authToken) {
@@ -725,7 +734,9 @@ async function ensureDetachedHubServerLocked(
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
-	throw new Error("Timed out waiting for detached hub startup.");
+	throw new Error(
+		`Timed out after ${startupTimeoutMs}ms waiting for detached hub startup.`,
+	);
 }
 
 export async function ensureDetachedHubServer(

@@ -43,6 +43,16 @@ import type {
 import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
+/**
+ * How long the sidecar waits for a Hub it had to start. Core's default (8s)
+ * is too short for a cold start of the compiled sidecar on Windows: the first
+ * launch after an install or update often takes 8-15s while antivirus scans
+ * the new binary, and giving up exits the sidecar with "No compatible hub
+ * runtime is available" even though the Hub finishes starting moments later.
+ * The Tauri shell waits 30s for the endpoint (main.rs) and the webview keeps
+ * re-requesting it after that, so a slow start still connects.
+ */
+const DESKTOP_HUB_STARTUP_TIMEOUT_MS = 25_000;
 const hubClientInitialization = new WeakMap<
 	SidecarContext,
 	Promise<NodeHubClient>
@@ -1308,6 +1318,7 @@ export async function initializeSessionManager(
 			cwd: ctx.localWorkspaceRoot,
 			clientType: "code-sidecar",
 			displayName: "Cline Desktop sidecar",
+			startupTimeoutMs: DESKTOP_HUB_STARTUP_TIMEOUT_MS,
 		},
 	});
 

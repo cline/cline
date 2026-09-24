@@ -37,6 +37,11 @@ export interface HubOptions {
 	displayName?: string;
 	workspaceRoot?: string;
 	cwd?: string;
+	/**
+	 * How long to wait for a Hub this client had to start to come up.
+	 * Defaults to 8s.
+	 */
+	startupTimeoutMs?: number;
 }
 
 export interface RemoteOptions {

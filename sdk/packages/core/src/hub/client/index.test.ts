@@ -1266,7 +1266,9 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				cwd: "/tmp/project",
 			}),
 		).resolves.toBe("ws://127.0.0.1:25464/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
+			startupTimeoutMs: undefined,
+		});
 	});
 
 	it("replaces a stale-build hub without dropping its retirement credentials", async () => {
@@ -1323,7 +1325,9 @@ describe("resolveCompatibleLocalHubUrl", () => {
 				cwd: "/tmp/project",
 			}),
 		).resolves.toBe("ws://127.0.0.1:25465/hub");
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
+			startupTimeoutMs: undefined,
+		});
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
@@ -1355,11 +1359,21 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		});
 
 		const { ensureCompatibleLocalHubUrl } = await import(".");
+		const onStartupError = vi.fn();
 
 		await expect(
-			ensureCompatibleLocalHubUrl({ workspaceRoot: "/tmp/project" }),
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				startupTimeoutMs: 25_000,
+				onStartupError,
+			}),
 		).resolves.toBeUndefined();
-		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project", {
+			startupTimeoutMs: 25_000,
+		});
+		expect(onStartupError).toHaveBeenCalledWith(
+			new Error("could not retire stale hub"),
+		);
 	});
 
 	it("resolves managed shared discovery in development builds", async () => {

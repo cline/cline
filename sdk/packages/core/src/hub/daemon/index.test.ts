@@ -828,6 +828,65 @@ describe("ensureDetachedHubServer", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it("gives up on a slow hub after the default 8s startup timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace").catch(
+				(error: unknown) => error,
+			);
+			await vi.advanceTimersByTimeAsync(9_000);
+
+			await expect(pending).resolves.toEqual(
+				new Error("Timed out after 8000ms waiting for detached hub startup."),
+			);
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("waits for a slow hub up to the configured startup timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			const record = {
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "current-build",
+				authToken: "token",
+			};
+			readHubDiscovery.mockResolvedValue(undefined);
+			probeHubServer.mockResolvedValue(undefined);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			let settled = false;
+			const pending = ensureDetachedHubServer("/workspace", {
+				startupTimeoutMs: 25_000,
+			}).finally(() => {
+				settled = true;
+			});
+			// Past the 8s default: still waiting instead of failing.
+			await vi.advanceTimersByTimeAsync(15_000);
+			expect(settled).toBe(false);
+
+			readHubDiscovery.mockResolvedValue(record);
+			probeHubServer.mockResolvedValue(record);
+			await vi.advanceTimersByTimeAsync(1_000);
+
+			await expect(pending).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "token",
+			});
+			expect(spawn).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("upgradeManagedHub", () => {
