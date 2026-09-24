@@ -200,16 +200,42 @@ desktop integration notes.
 Releases are built, signed, notarized, and published by the `desktop-publish`
 GitHub workflow as a single universal macOS DMG — one download that runs
 natively on both Apple Silicon and Intel (macOS picks the matching slice at
-launch, so users never choose an architecture). The step-by-step flow (version
-bumps, changelog, tag, repo secrets) lives in the `publish-desktop` skill
-(`.cline/skills/publish-desktop/SKILL.md`).
+launch, so users never choose an architecture) — plus a Windows x64 NSIS
+installer and Linux x64 `.deb` and `.rpm` packages. The step-by-step flow
+(version bumps, changelog, tag, repo secrets) lives in the `publish-desktop`
+skill (`.cline/skills/publish-desktop/SKILL.md`).
 
 Installed apps auto-update via the Tauri updater: they poll the rolling
-`desktop-latest` release's `latest.json` on launch and every 2 hours, install
-updates in the background, and prompt for a restart. Two things must never be
-lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
-apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
-shipped apps can't verify new updates).
+`desktop-latest` release's `latest.json` on launch and every 2 hours, download
+updates in the background, and prompt for a restart. macOS installs the update
+in the background too; Windows and Linux install it when the user restarts
+(the NSIS installer on Windows, `pkexec dpkg -i` / `rpm -U` on Linux, which
+asks for the user's password). Two things must never be lost: the
+`desktop-latest` release/tag (its feed URL is baked into shipped apps) and the
+updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it, shipped apps
+can't verify new updates).
+
+### Linux
+
+Linux ships as `.deb` (Debian, Ubuntu and derivatives) and `.rpm` (Fedora,
+RHEL, openSUSE) packages for x86_64, built on Ubuntu 22.04 so they run on
+distros with at least that era's glibc and WebKitGTK 4.1. Install from the
+release page with the system package manager so the runtime dependencies
+(`libwebkit2gtk-4.1-0`, `libgtk-3-0`, `libayatana-appindicator3-1`) resolve:
+
+```bash
+sudo apt install ./Cline_<version>_amd64.deb     # Debian / Ubuntu
+sudo dnf install ./Cline_<version>_x86_64.rpm    # Fedora / RHEL
+```
+
+The app installs as `/usr/bin/cline-app` with a `Cline` launcher entry; the
+sidecar is `/usr/bin/code-sidecar` and the bundled SSH remote helpers live in
+`/usr/lib/Cline/`. The tray icon needs a StatusNotifier host (KDE, XFCE, and
+GNOME with the AppIndicator extension); without one the app still runs but the
+tray menu is unavailable. There is no AppImage: linuxdeploy cannot process the
+Bun-compiled sidecar (`ldd` fails on it and `patchelf` corrupts it), so the
+AppImage target is excluded from `tauri build` on Linux. A Linux desktop
+cannot use a Mac as an SSH remote host (see the changelog).
 
 There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
