@@ -142,6 +142,7 @@ describe("hub daemon entry", () => {
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
+		mockDaemonTelemetryService.capture.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -505,6 +506,17 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
-		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+		expect(mockDaemonTelemetryService.capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "hub",
+				operation: "hub.daemon.startup",
+				severity: "fatal",
+				error_message: "port already in use",
+			}),
+		});
+		expect(
+			mockDaemonTelemetryService.capture.mock.invocationCallOrder[0],
+		).toBeLessThan(mockDaemonTelemetryDispose.mock.invocationCallOrder[0]);
 	});
 });

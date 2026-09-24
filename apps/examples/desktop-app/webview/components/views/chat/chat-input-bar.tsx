@@ -56,7 +56,9 @@ import {
 } from "@/lib/image-attachments";
 import {
 	readModelSelectionStorageFromWindow,
+	readReasoningSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
+	writeReasoningSelectionToWindow,
 } from "@/lib/model-selection";
 import { subscribeToPromptInputFocus } from "@/lib/prompt-input-focus";
 import { normalizeProviderId } from "@/lib/provider-id";
@@ -71,7 +73,6 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import { startStreamingTranscription } from "@/lib/streaming-transcription";
 import { cn } from "@/lib/utils";
-import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { PullRequestBar } from "./pull-request-bar";
 import { TokenUsageRing } from "./token-usage-ring";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
@@ -122,12 +123,15 @@ let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
+	// Plugin commands (`api.registerCommand`) as listed by the sidecar's
+	// command service, so the menu matches what `/name` can actually run.
+	pluginCommands: SlashCommand[] = [],
 ): SlashCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
+	const result = commands.flatMap((command) => {
 		const name = command.name;
 		if (!name || seen.has(name)) {
 			return [];
@@ -142,6 +146,15 @@ export function buildUserInstructionSlashCommands(
 			},
 		];
 	});
+	for (const command of pluginCommands) {
+		if (!command.name || seen.has(command.name)) continue;
+		seen.add(command.name);
+		result.push({
+			name: command.name,
+			description: command.description?.trim() || "Plugin command",
+		});
+	}
+	return result;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
@@ -183,23 +196,6 @@ const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
-const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
-
-async function blobToBase64(blob: Blob): Promise<string> {
-	const bytes = new Uint8Array(await blob.arrayBuffer());
-	let binary = "";
-	for (
-		let offset = 0;
-		offset < bytes.length;
-		offset += AUDIO_BASE64_CHUNK_SIZE
-	) {
-		binary += String.fromCharCode(
-			...bytes.subarray(offset, offset + AUDIO_BASE64_CHUNK_SIZE),
-		);
-	}
-	return window.btoa(binary);
-}
-
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
 	reasoningEffort: ChatSessionConfig["reasoningEffort"],
@@ -416,13 +412,6 @@ function ChatInputBarImpl({
 			}),
 		[],
 	);
-	const batchTranscriptSessionRef = useRef<{
-		start: number;
-		end: number;
-		expectedValue: string;
-		draftVersion: number;
-		generation: number;
-	} | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
@@ -432,7 +421,6 @@ function ChatInputBarImpl({
 	} | null>(null);
 	const transcriptionGenerationRef = useRef(0);
 	const transcriptionTargetIdentityRef = useRef("unconfigured");
-	const transcriptionTargetStreamsRef = useRef(false);
 	const setPromptInput = useCallback(
 		(value: string) => {
 			promptInputValueRef.current = value;
@@ -446,7 +434,6 @@ function ChatInputBarImpl({
 			return;
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
-		batchTranscriptSessionRef.current = null;
 		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
@@ -456,7 +443,6 @@ function ChatInputBarImpl({
 		status === "running" || status === "stopping" || hasRunningAgents;
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
 	const [speechInputActive, setSpeechInputActive] = useState(false);
-	const speechInputActiveRef = useRef(false);
 	const [speechInputProcessing, setSpeechInputProcessing] = useState(false);
 
 	const [reasoningCapability, setReasoningCapability] = useState<{
@@ -605,14 +591,11 @@ function ChatInputBarImpl({
 	const updateTranscriptionTarget = useCallback(
 		(target: TranscriptionModelTarget | null) => {
 			const identity = target
-				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "media-recorder"}`
+				? `${target.providerId}:${target.modelId}`
 				: "unconfigured";
-			transcriptionTargetStreamsRef.current =
-				target?.supportsStreaming ?? false;
 			if (identity !== transcriptionTargetIdentityRef.current) {
 				transcriptionTargetIdentityRef.current = identity;
 				transcriptionGenerationRef.current += 1;
-				batchTranscriptSessionRef.current = null;
 				streamingTranscriptRangeRef.current = null;
 			}
 			setTranscriptionTarget(target);
@@ -696,68 +679,6 @@ function ChatInputBarImpl({
 		};
 	}, [updateTranscriptionTarget]);
 
-	const handleTranscriptionChange = useCallback(
-		(transcript: string) => {
-			const text = transcript.trim();
-			const session = batchTranscriptSessionRef.current;
-			// A completed recording produces one result for the captured draft.
-			batchTranscriptSessionRef.current = null;
-			if (!text || !session) return;
-
-			const current = promptInputValueRef.current;
-			if (
-				session.generation !== transcriptionGenerationRef.current ||
-				session.draftVersion !== latestDraftVersionRef.current ||
-				session.expectedValue !== current
-			) {
-				return;
-			}
-			const insertionStart = session.start;
-			const insertionEnd = session.end;
-			const before = current.slice(0, insertionStart);
-			const after = current.slice(insertionEnd);
-			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
-			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
-			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
-			const next = `${before}${insertedText}${after}`;
-			const nextCursor = before.length + insertedText.length;
-			setPromptInput(next);
-			requestAnimationFrame(() => {
-				const textarea = promptInputRef.current;
-				if (!textarea) return;
-				textarea.focus();
-				textarea.setSelectionRange(nextCursor, nextCursor);
-				setCursorIndex(nextCursor);
-			});
-		},
-		[setPromptInput],
-	);
-
-	const handleSpeechInputActiveChange = useCallback((active: boolean) => {
-		const wasActive = speechInputActiveRef.current;
-		speechInputActiveRef.current = active;
-		setSpeechInputActive(active);
-
-		if (!active) {
-			batchTranscriptSessionRef.current = null;
-			return;
-		}
-		if (wasActive || transcriptionTargetStreamsRef.current) return;
-
-		const current = promptInputValueRef.current;
-		const input = promptInputRef.current;
-		const start = input?.selectionStart ?? current.length;
-		const end = input?.selectionEnd ?? start;
-		const session = {
-			start,
-			end,
-			expectedValue: current,
-			draftVersion: latestDraftVersionRef.current,
-			generation: transcriptionGenerationRef.current,
-		};
-		batchTranscriptSessionRef.current = session;
-	}, []);
-
 	const handleStreamingTranscriptionStart = useCallback(() => {
 		const current = promptInputValueRef.current;
 		const input = promptInputRef.current;
@@ -831,45 +752,6 @@ function ChatInputBarImpl({
 		});
 	}, [handleStreamingTranscriptionChange]);
 
-	const handleAudioRecorded = useCallback(
-		async (audioBlob: Blob): Promise<string> => {
-			if (!transcriptionTarget) {
-				throw new Error(
-					"Configure an audio-to-text provider before using speech input",
-				);
-			}
-			if (audioBlob.size > MAX_RECORDED_AUDIO_BYTES) {
-				throw new Error("Recorded audio exceeds the 25 MiB upload limit");
-			}
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "debug",
-				message: "Webview recorded audio and is sending it to the sidecar",
-				timestamp: new Date().toISOString(),
-				metadata: {
-					providerId: transcriptionTarget.providerId,
-					modelId: transcriptionTarget.modelId,
-					mediaType: audioBlob.type,
-					audioBytes: audioBlob.size,
-				},
-			});
-			const audioBase64 = await blobToBase64(audioBlob);
-			const result = await desktopClient.invoke<{ text?: string }>(
-				"transcribe_audio",
-				{
-					audioBase64,
-					mediaType: audioBlob.type,
-				},
-			);
-			const text = result.text?.trim();
-			if (!text) {
-				throw new Error("The transcription provider returned no text");
-			}
-			return text;
-		},
-		[transcriptionTarget],
-	);
-
 	const handleSpeechInputError = useCallback((error: unknown) => {
 		// Keep recording and provider failures in chat so the user can see
 		// the actual error and retry with their configured voice model.
@@ -927,20 +809,53 @@ function ChatInputBarImpl({
 			const nextOption = EFFORT_LEVELS.find((option) => option.value === value);
 			if (nextOption) {
 				onReasoningChange(buildReasoningConfig(nextOption));
+				try {
+					writeReasoningSelectionToWindow(
+						normalizeProviderId(provider),
+						nextOption.value,
+					);
+				} catch {
+					// Ignore localStorage persistence failures.
+				}
 			}
 		},
-		[modelSupportsReasoning, onReasoningChange],
+		[modelSupportsReasoning, onReasoningChange, provider],
 	);
 
+	const seededReasoningProviderRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (
-			modelSupportsReasoning === true &&
-			thinking === undefined &&
-			reasoningEffort === undefined
-		) {
-			onReasoningChange(buildReasoningConfig(DEFAULT_REASONING_EFFORT));
+		if (modelSupportsReasoning !== true) {
+			return;
 		}
-	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
+		const normalizedId = normalizeProviderId(provider);
+		const unset = thinking === undefined && reasoningEffort === undefined;
+		if (!unset && seededReasoningProviderRef.current === normalizedId) {
+			return;
+		}
+		seededReasoningProviderRef.current = normalizedId;
+		// The thread's config is rebuilt on every mount (and session hydration
+		// only restores provider/model), so seed the effort from the last value
+		// the user picked for this provider before falling back to the default.
+		// A provider switch re-seeds too, but only when that provider has a
+		// remembered value; otherwise the current choice carries over.
+		const remembered = EFFORT_LEVELS.find(
+			(option) =>
+				option.value ===
+				readReasoningSelectionStorageFromWindow()[normalizedId],
+		);
+		if (!unset && !remembered) {
+			return;
+		}
+		onReasoningChange(
+			buildReasoningConfig(remembered ?? DEFAULT_REASONING_EFFORT),
+		);
+	}, [
+		modelSupportsReasoning,
+		onReasoningChange,
+		provider,
+		reasoningEffort,
+		thinking,
+	]);
 
 	// Focus the composer on mount/variant change and when text is injected
 	// from outside (quick actions, queue undo). Deliberately NOT on every
@@ -1070,6 +985,22 @@ function ChatInputBarImpl({
 		}
 	}, [slashOpen]);
 
+	// The menus scroll (max-h + overflow-y-auto), so keep the keyboard-selected
+	// option visible as arrow keys move the highlight past the visible rows.
+	useEffect(() => {
+		if (!slashOpen) return;
+		document
+			.getElementById(`slash-command-option-${slashSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [slashOpen, slashSelectedIndex]);
+
+	useEffect(() => {
+		if (!mentionOpen) return;
+		document
+			.getElementById(`mention-file-option-${mentionSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [mentionOpen, mentionSelectedIndex]);
+
 	// Reload user commands whenever the slash menu opens so newly installed or
 	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {
@@ -1079,13 +1010,22 @@ function ChatInputBarImpl({
 		let cancelled = false;
 		// Only show the loading row when there is nothing cached to show.
 		setSlashLoading(cachedSlashCommands === null);
-		desktopClient
-			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
-			.then((response) => {
+		Promise.all([
+			desktopClient.invoke<UserInstructionConfigResponse>(
+				"list_user_instruction_configs",
+				{ workspacePath: workspaceRoot },
+			),
+			desktopClient
+				.invoke<SlashCommand[]>("list_plugin_commands", {
+					workspacePath: workspaceRoot,
+				})
+				.catch((): SlashCommand[] => []),
+		])
+			.then(([response, pluginCommands]) => {
 				if (cancelled) return;
 				const next = [
 					...BUILTIN_SLASH_COMMANDS,
-					...buildUserInstructionSlashCommands(response),
+					...buildUserInstructionSlashCommands(response, pluginCommands),
 				];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
@@ -1099,7 +1039,7 @@ function ChatInputBarImpl({
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen]);
+	}, [slashOpen, workspaceRoot]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
@@ -1453,33 +1393,28 @@ function ChatInputBarImpl({
 							)}
 							{/* The mic button only appears once a voice model is
 							    configured in Settings → Voice; unconfigured users
-							    don't get a dead control. Always use the configured
-							    provider; auto mode can bypass it with browser recognition. */}
+							    don't get a dead control. Start with the configured provider;
+							    browser recognition is only a fallback for network failures. */}
 							{transcriptionTarget ? (
 								<SpeechInput
-									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "media-recorder"}`}
-									onActiveChange={handleSpeechInputActiveChange}
-									onAudioRecorded={handleAudioRecorded}
+									fallbackOnNetworkError
+									key={`${transcriptionTarget.providerId}:${transcriptionTarget.modelId}`}
+									onActiveChange={setSpeechInputActive}
 									onError={handleSpeechInputError}
-									onProcessingChange={setSpeechInputProcessing}
-									onStartStreaming={
-										transcriptionTarget.supportsStreaming
-											? handleStartStreamingTranscription
-											: undefined
+									onNetworkFallback={() =>
+										toast({
+											title: "Switched to browser speech recognition",
+											description:
+												"The voice provider could not be reached. Click the microphone and repeat any missing speech. Browser recognition may also require internet access.",
+										})
 									}
+									onProcessingChange={setSpeechInputProcessing}
+									onStartStreaming={handleStartStreamingTranscription}
 									onStreamingEnd={handleStreamingTranscriptionEnd}
 									onStreamingStart={handleStreamingTranscriptionStart}
-									onTranscriptionChange={
-										transcriptionTarget.supportsStreaming
-											? undefined
-											: handleTranscriptionChange
-									}
-									recordingMode={
-										transcriptionTarget.supportsStreaming
-											? "streaming"
-											: "media-recorder"
-									}
-									title={`${transcriptionTarget.supportsStreaming ? "Transcribe live" : "Transcribe"} with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
+									onTranscriptionChange={handleStreamingTranscriptionChange}
+									recordingMode="streaming"
+									title={`Transcribe live with ${transcriptionTarget.providerName} / ${transcriptionTarget.modelName}`}
 								/>
 							) : null}
 							{(!isBusy || canSend) && (

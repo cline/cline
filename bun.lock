@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.64",
+      "version": "3.0.65",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -167,6 +167,8 @@
       "name": "@cline/code",
       "version": "0.0.28",
       "dependencies": {
+        "@ai-sdk/gateway": "^4.0.64",
+        "@ai-sdk/openai": "^4.0.47",
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -207,6 +209,7 @@
         "@streamdown/cjk": "^1.0.3",
         "@tauri-apps/api": "^2.0.0",
         "@tauri-apps/plugin-notification": "^2.0.0",
+        "ai": "^7.0.79",
         "ansi-to-react": "^6.2.6",
         "autoprefixer": "^10.4.20",
         "class-variance-authority": "^0.7.1",
@@ -639,7 +642,7 @@
     },
     "sdk/packages/agents": {
       "name": "@cline/agents",
-      "version": "0.0.85",
+      "version": "0.0.86",
       "dependencies": {
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
@@ -648,7 +651,7 @@
     },
     "sdk/packages/core": {
       "name": "@cline/core",
-      "version": "0.0.85",
+      "version": "0.0.86",
       "dependencies": {
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -686,15 +689,15 @@
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
-      "version": "0.0.85",
+      "version": "0.0.86",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^5.0.50",
         "@ai-sdk/anthropic": "^4.0.36",
-        "@ai-sdk/gateway": "^4",
+        "@ai-sdk/gateway": "^4.0.64",
         "@ai-sdk/google": "^4.0.39",
         "@ai-sdk/google-vertex": "^5.0.47",
         "@ai-sdk/mistral": "^4.0.27",
-        "@ai-sdk/openai": "^4.0.36",
+        "@ai-sdk/openai": "^4.0.47",
         "@ai-sdk/openai-compatible": "^3.0.27",
         "@ai-sdk/otel": "^1.0.58",
         "@ai-sdk/provider": "^4.0.7",
@@ -735,14 +738,14 @@
     },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
-      "version": "0.0.85",
+      "version": "0.0.86",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
     "sdk/packages/shared": {
       "name": "@cline/shared",
-      "version": "0.0.85",
+      "version": "0.0.86",
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",

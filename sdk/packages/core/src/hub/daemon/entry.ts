@@ -1,5 +1,5 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
-import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { captureSdkError, initVcr, resolveClineBuildEnv } from "@cline/shared";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -273,6 +273,16 @@ async function main(): Promise<void> {
 			cronOptions: { workspaceRoot: options.cwd },
 		});
 	} catch (error) {
+		// Losing the singleton race to a live Hub is expected, not a failure.
+		if (!isHubLockHeldError(error)) {
+			captureSdkError(daemonTelemetry.telemetry, {
+				component: "hub",
+				operation: "hub.daemon.startup",
+				error,
+				handled: false,
+				severity: "fatal",
+			});
+		}
 		// Flush before the top-level catch exits so failed daemon starts are
 		// still visible in telemetry instead of dying silently.
 		await daemonTelemetry.dispose().catch(() => undefined);
