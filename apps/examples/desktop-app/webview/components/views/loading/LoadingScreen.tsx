@@ -1,9 +1,8 @@
 "use client";
 
 import { AgentWelcomeHero } from "@cline/ui";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
-import styles from "./LoadingScreen.module.css";
 
 export function LoadingScreen({
 	readiness,
@@ -76,7 +75,7 @@ export function LoadingScreen({
 			finishDelay.current = 1000 / (100 - progress);
 		const timer = setTimeout(
 			() => setProgress((value) => value + Math.sign(target - value)),
-			progress >= 90 ? (finishing ? (finishDelay.current ?? 100) : 500) : 12,
+			progress >= 90 ? (finishing ? (finishDelay.current ?? 100) : 500) : 50,
 		);
 		return () => clearTimeout(timer);
 	}, [progress, target, finishing]);
@@ -115,12 +114,7 @@ export function LoadingScreen({
 			</div>
 
 			<div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6">
-				<div
-					className={`w-full ${styles.head}`}
-					style={
-						{ "--startup-head-unfilled": `${100 - progress}%` } as CSSProperties
-					}
-				>
+				<div className="w-full">
 					<AgentWelcomeHero variant="bot-only" interactive={false} />
 				</div>
 				<h1 className="sr-only">
@@ -153,7 +147,7 @@ export function LoadingScreen({
 					className="h-1 w-full overflow-hidden rounded-full bg-muted"
 				>
 					<div
-						className="h-full rounded-full bg-primary motion-safe:transition-[width] motion-safe:duration-500 motion-safe:ease-out"
+						className="h-full rounded-full bg-primary motion-safe:transition-[width] motion-safe:duration-100 motion-safe:ease-linear"
 						style={{ width: `${progress}%` }}
 					/>
 				</div>

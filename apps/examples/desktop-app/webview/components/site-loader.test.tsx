@@ -120,7 +120,7 @@ it("fills the bar from completed steps and uses the shared Cline head", () => {
 		state.transport = "connected";
 		state.hub = { state: "starting", attempt: 1, step };
 		act(() => root.render(<LoadingScreen readiness={state} />));
-		advance(1_000);
+		advance(2_000);
 		expect(container.querySelector("progress")?.value).toBe(count);
 		expect(container.querySelector("progress")?.max).toBe(5);
 		expect(container.textContent).toContain(`${count * 18}%`);
@@ -143,18 +143,18 @@ it("advances slowly during the five-second minimum and announces ready only at 9
 		),
 	);
 	advance(2_000);
-	expect(container.textContent).toContain("91%");
+	expect(container.textContent).toContain("40%");
 	expect(container.textContent).toContain("Finishing up…");
 	expect(container.textContent).not.toContain("Cline is ready");
 	advance(500);
-	expect(container.textContent).toContain("92%");
+	expect(container.textContent).toContain("50%");
 	advance(2_500);
 	expect(container.querySelector("nav")).toBeNull();
 	expect(container.textContent).not.toContain("Cline is ready");
-	advance(667);
+	for (let elapsed = 0; elapsed < 1_000 && !container.textContent?.includes("99%"); elapsed++) advance(1);
 	expect(container.textContent).toContain("99%");
 	expect(container.textContent).toContain("Cline is ready");
-	advance(334);
+	advance(200);
 	expect(container.textContent).toBe("Sidebar");
 });
 
@@ -180,7 +180,7 @@ it("never reveals an unready app after the minimum duration", () => {
 			</SiteLoader>,
 		),
 	);
-	advance(2_000);
+	advance(5_000);
 	expect(container.textContent).toBe("Sidebar");
 });
 
