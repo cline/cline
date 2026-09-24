@@ -13,6 +13,7 @@ import {
 import type { ProviderModel } from "@/lib/provider-schema";
 import {
 	buildUserInstructionSlashCommands,
+	buildWorkspaceFileSearchKey,
 	ChatInputBar,
 } from "./chat-input-bar";
 
@@ -21,7 +22,8 @@ const {
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
-	startVercelStreamingTranscriptionMock,
+	startStreamingTranscriptionMock,
+	subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
 	toastMock: vi.fn(),
@@ -30,7 +32,10 @@ const {
 	speechInputMockState: {
 		current: null as MockSpeechInputProps | null,
 	},
-	startVercelStreamingTranscriptionMock: vi.fn(),
+	startStreamingTranscriptionMock: vi.fn(),
+	subscribeToProviderCatalogInvalidationMock: vi.fn<
+		(listener: () => void) => () => void
+	>(() => vi.fn()),
 	subscribeToProviderModelsMock: vi.fn<
 		(
 			listener: (providerId: string, models: ProviderModel[]) => void,
@@ -39,7 +44,9 @@ const {
 }));
 
 type MockSpeechInputProps = {
+	title?: string;
 	disabled?: boolean;
+	onAudioRecorded?: (audioBlob: Blob) => Promise<string>;
 	onError?: (error: unknown) => void;
 	onActiveChange?: (active: boolean) => void;
 	onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
@@ -70,6 +77,7 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 						aria-label="Record speech"
 						disabled={props.disabled}
 						onClick={props.onClick}
+						title={props.title}
 						type="button"
 					/>
 				</div>
@@ -81,12 +89,14 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	subscribeToProviderCatalogInvalidation:
+		subscribeToProviderCatalogInvalidationMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
 
-vi.mock("@/lib/vercel-streaming-transcription", () => ({
-	startVercelStreamingTranscription: startVercelStreamingTranscriptionMock,
+vi.mock("@/lib/streaming-transcription", () => ({
+	startStreamingTranscription: startStreamingTranscriptionMock,
 }));
 
 vi.mock("@/hooks/use-toast", () => ({ toast: toastMock }));
@@ -96,6 +106,12 @@ let root: Root;
 
 beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+	if (typeof window.localStorage.clear !== "function") {
+		Object.defineProperty(window, "localStorage", {
+			configurable: true,
+			value: window.sessionStorage,
+		});
+	}
 	loadProviderModelCatalogMock.mockReset().mockResolvedValue({
 		providers: [],
 		enabledProviderIds: ["cline"],
@@ -106,11 +122,14 @@ beforeEach(() => {
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
 	toastMock.mockReset();
 	speechInputMockState.current = null;
-	startVercelStreamingTranscriptionMock.mockReset().mockResolvedValue({
+	startStreamingTranscriptionMock.mockReset().mockResolvedValue({
 		done: new Promise<void>(() => {}),
 		stop: vi.fn(),
 		cancel: vi.fn(),
 	});
+	subscribeToProviderCatalogInvalidationMock
+		.mockReset()
+		.mockReturnValue(vi.fn());
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
@@ -173,6 +192,9 @@ async function renderVoiceComposer({
 	prompt = "",
 	promptVersion = 0,
 	status = "idle",
+	readOnly = false,
+	executionTarget,
+	onAttachFiles = vi.fn(),
 }: {
 	attachments?: Parameters<typeof ChatInputBar>[0]["attachments"];
 	model?: string;
@@ -183,18 +205,23 @@ async function renderVoiceComposer({
 	prompt?: string;
 	promptVersion?: number;
 	status?: ChatSessionStatus;
+	readOnly?: boolean;
+	executionTarget?: "cloud" | "local";
+	onAttachFiles?: Parameters<typeof ChatInputBar>[0]["onAttachFiles"];
 } = {}) {
 	await act(async () => {
 		root.render(
 			<WorkspaceProvider value={workspaceValue}>
 				<ChatInputBar
+					readOnly={readOnly}
+					executionTarget={executionTarget}
 					attachments={attachments}
 					gitBranch="main"
 					hasRunningAgents={hasRunningAgents}
 					mode="act"
 					model={model}
 					onAbort={onAbort}
-					onAttachFiles={vi.fn()}
+					onAttachFiles={onAttachFiles}
 					onEditPromptInQueue={vi.fn()}
 					onListGitBranches={vi.fn(async () => ({
 						current: "main",
@@ -225,6 +252,25 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("prevents sending from a read-only session", async () => {
+		const onSend = vi.fn();
+		await renderVoiceComposer({ prompt: "Test", readOnly: true, onSend });
+		const textarea = container.querySelector("textarea");
+		expect(textarea?.readOnly).toBe(true);
+		const send = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Send message"]',
+		);
+		expect(send).not.toBeNull();
+		expect(send?.disabled).toBe(true);
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+			send?.click();
+		});
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
 	it("blocks sending existing draft images after switching models and preserves the draft", async () => {
 		const onSend = vi.fn();
 		const attachments = [{ id: "image", name: "photo.jfif", isImage: true }];
@@ -342,6 +388,95 @@ describe("ChatInputBar", () => {
 		expect(onAbort).toHaveBeenCalledOnce();
 	});
 
+	it("filters unsupported cloud file selections while preserving local files", async () => {
+		const cloudAttach = vi.fn();
+		await renderVoiceComposer({
+			executionTarget: "cloud",
+			onAttachFiles: cloudAttach,
+		});
+		const cloudInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const png = new File(["png"], "capture.png", { type: "image/png" });
+		const pngByExtension = new File(["png"], "capture.jfif");
+		const text = new File(["text"], "notes.txt", { type: "text/plain" });
+		const svg = new File(["svg"], "diagram.svg", { type: "image/svg+xml" });
+		Object.defineProperty(cloudInput, "files", {
+			configurable: true,
+			value: [png, pngByExtension, text, svg],
+		});
+		await act(async () =>
+			cloudInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(cloudAttach).toHaveBeenCalledWith([png, pngByExtension]);
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({ title: "Unsupported cloud attachment" }),
+		);
+		Object.defineProperty(cloudInput, "files", {
+			configurable: true,
+			value: [text, svg],
+		});
+		await act(async () =>
+			cloudInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(cloudAttach).toHaveBeenCalledTimes(1);
+
+		const localAttach = vi.fn();
+		await renderVoiceComposer({ onAttachFiles: localAttach });
+		const localInput =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		Object.defineProperty(localInput, "files", {
+			configurable: true,
+			value: [text],
+		});
+		await act(async () =>
+			localInput?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(localAttach).toHaveBeenCalledWith([text]);
+	});
+
+	it("blocks cloud images for a model without vision support", async () => {
+		const onAttachFiles = vi.fn();
+		loadProviderModelsMock.mockResolvedValue([
+			{ id: "test-model", name: "Text only", inputModalities: ["text"] },
+		]);
+		await renderVoiceComposer({ executionTarget: "cloud", onAttachFiles });
+		await vi.waitFor(() => expect(loadProviderModelsMock).toHaveBeenCalled());
+		const input =
+			container.querySelector<HTMLInputElement>('input[type="file"]');
+		const png = new File(["png"], "capture.png", { type: "image/png" });
+		Object.defineProperty(input, "files", { configurable: true, value: [png] });
+		await act(async () =>
+			input?.dispatchEvent(new Event("change", { bubbles: true })),
+		);
+		expect(onAttachFiles).not.toHaveBeenCalled();
+		expect(toastMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: "This model doesn’t support image input",
+			}),
+		);
+		expect(toastMock.mock.calls.at(-1)?.[0]?.description).not.toContain(
+			"Other files can still be attached",
+		);
+	});
+
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
@@ -364,6 +499,249 @@ describe("ChatInputBar", () => {
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
 		]);
+	});
+
+	it("allows cloud image and model selection without replacing local defaults", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["anthropic", "cline"],
+			providerModels: {
+				anthropic: ["claude-test"],
+				cline: ["cline-test", "cline-alt"],
+			},
+			providerReasoningModels: { anthropic: [], cline: [] },
+		});
+		const localSelection = {
+			lastProvider: "anthropic",
+			lastModelByProvider: { anthropic: "claude-test" },
+		};
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify(localSelection),
+		);
+		const onProviderChange = vi.fn();
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "",
+						workspaces: [],
+						listWorkspaces: vi.fn(async () => []),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						cloudBranch="feature/cloud"
+						environmentId="local"
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession
+						mode="act"
+						model="claude-test"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="anthropic"
+						reasoningEffort="low"
+						repoUrl="https://github.com/cline/cline"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="conversation"
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		await vi.waitFor(() => {
+			expect(onProviderChange).toHaveBeenCalledWith("cline");
+		});
+		const initialCatalogLoads = loadProviderModelCatalogMock.mock.calls.length;
+		const catalogInvalidated =
+			subscribeToProviderCatalogInvalidationMock.mock.calls[0]?.[0];
+		await act(async () => catalogInvalidated?.());
+		await vi.waitFor(() => {
+			expect(loadProviderModelCatalogMock).toHaveBeenCalledTimes(
+				initialCatalogLoads + 1,
+			);
+		});
+		expect(loadProviderModelsMock).toHaveBeenCalledWith("anthropic", {
+			includeCloudModels: true,
+		});
+		const providerModelsListener =
+			subscribeToProviderModelsMock.mock.calls[0]?.[0];
+		await act(async () => {
+			providerModelsListener?.("cline", [
+				{ id: "local-only-model", name: "Local only" },
+			]);
+		});
+		expect(onModelChange).not.toHaveBeenCalled();
+		expect(
+			container.querySelector('[aria-label="Attach images"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector<HTMLInputElement>('input[type="file"]')?.accept,
+		).toBe("image/*");
+		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(container.textContent).toContain("cline/cline / feature/cloud");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Model and provider"]',
+			)?.disabled,
+		).toBe(false);
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Thinking level"]',
+			)?.disabled,
+		).toBe(true);
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model and provider"]',
+		);
+		await act(async () => modelTrigger?.click());
+		const cloudModel = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model: cline-test"]',
+		);
+		loadProviderModelsMock.mockClear();
+		loadProviderModelCatalogMock.mockClear();
+		await act(async () => cloudModel?.click());
+		expect(loadProviderModelsMock).toHaveBeenCalledExactlyOnceWith(
+			"anthropic",
+			{
+				includeCloudModels: true,
+			},
+		);
+		expect(loadProviderModelCatalogMock).not.toHaveBeenCalled();
+		const alternateModel = Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				".cline-ui-search-combobox__option",
+			),
+		).find((button) => button.textContent?.includes("cline-alt"));
+		expect(alternateModel).not.toBeUndefined();
+		expect(container.textContent).not.toContain("Local only");
+		await act(async () => alternateModel?.click());
+		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
+			),
+		).toEqual(localSelection);
+	});
+
+	it("blocks a new cloud message until a GitHub repository is selected", async () => {
+		const onSend = vi.fn();
+		const render = async (
+			repoUrl?: string,
+			prompt = "Continue in cloud",
+			attachments: Array<{ id: string; name: string; isImage: boolean }> = [],
+		) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider
+						value={{
+							workspaceRoot: "",
+							workspaces: [],
+							listWorkspaces: vi.fn(async () => []),
+							refreshWorkspaces: vi.fn(async () => undefined),
+							switchWorkspace: vi.fn(async () => true),
+							pickWorkspaceDirectory: vi.fn(async () => null),
+							selectChat: vi.fn(async () => true),
+						}}
+					>
+						<ChatInputBar
+							environmentId="local"
+							attachments={attachments}
+							executionTarget="cloud"
+							gitBranch="no-git"
+							hasActiveSession={false}
+							mode="act"
+							model="test-model"
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "no-git",
+								branches: [],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={onSend}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => false)}
+							promptDraft={{ version: 0, value: prompt }}
+							promptsInQueue={[]}
+							provider="cline"
+							reasoningEffort="low"
+							repoUrl={repoUrl}
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+		};
+
+		await render();
+		const sendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(sendButton?.disabled).toBe(true);
+		expect(sendButton?.title).toBe("Choose a repository");
+		expect(container.textContent).toContain("Repository required");
+		expect(promptInput?.placeholder).toBe("Choose a repository");
+		await act(async () => {
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(false);
+		await act(async () => sendButton?.click());
+		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
+
+		onSend.mockClear();
+		await render("https://github.com/cline/cline", "", [
+			{ id: "image-1", name: "image.png", isImage: true },
+		]);
+		const imageOnlySendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		expect(imageOnlySendButton?.disabled).toBe(false);
+		await act(async () => imageOnlySendButton?.click());
+		expect(onSend).not.toHaveBeenCalled();
 	});
 
 	it("top-aligns the textarea in the taller welcome composer", async () => {
@@ -423,12 +801,59 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.className).toContain("self-start");
 	});
 
+	it("inserts cumulative browser fallback transcripts without duplicating text", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "vercel-ai-gateway",
+				providerName: "Gateway",
+				modelId: "openai/gpt-realtime-whisper",
+				modelName: "Whisper",
+				supportsStreaming: true,
+			}),
+		);
+		await renderVoiceComposer({
+			onPromptInputChange: vi.fn(),
+			onSend: vi.fn(),
+			prompt: "alpha omega",
+		});
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onStreamingStart?.();
+			speechInputMockState.current?.onActiveChange?.(true);
+		});
+		await act(async () =>
+			speechInputMockState.current?.onTranscriptionChange?.(
+				"hello",
+				"speech-recognition",
+			),
+		);
+		expect(textarea?.value).toBe("alpha hello omega");
+		await act(async () =>
+			speechInputMockState.current?.onTranscriptionChange?.(
+				"hello world",
+				"speech-recognition",
+			),
+		);
+		expect(textarea?.value).toBe("alpha hello world omega");
+		await act(async () => {
+			speechInputMockState.current?.onStreamingEnd?.();
+			speechInputMockState.current?.onActiveChange?.(false);
+		});
+		expect(textarea?.readOnly).toBe(false);
+	});
+
 	it("protects the draft and send action for the full streaming transcription lifecycle", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({
 				providerId: "vercel-ai-gateway",
 				providerName: "Vercel AI Gateway",
-				modelId: "openai/gpt-4o-mini-transcribe",
+				modelId: "openai/gpt-realtime-whisper",
 				modelName: "GPT-4o mini Transcribe",
 				supportsStreaming: true,
 			}),
@@ -466,7 +891,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const onTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -525,7 +950,7 @@ describe("ChatInputBar", () => {
 			providerCatalog({
 				providerId: "vercel-ai-gateway",
 				providerName: "Vercel AI Gateway",
-				modelId: "openai/gpt-4o-mini-transcribe",
+				modelId: "openai/gpt-realtime-whisper",
 				modelName: "GPT-4o mini Transcribe",
 				supportsStreaming: true,
 			}),
@@ -544,7 +969,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const onTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -566,7 +991,7 @@ describe("ChatInputBar", () => {
 			providerCatalog({
 				providerId: "vercel-ai-gateway",
 				providerName: "Vercel AI Gateway",
-				modelId: "openai/gpt-4o-mini-transcribe",
+				modelId: "openai/gpt-realtime-whisper",
 				modelName: "GPT-4o mini Transcribe",
 				supportsStreaming: true,
 			}),
@@ -585,7 +1010,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const onTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -596,89 +1021,23 @@ describe("ChatInputBar", () => {
 		expect(textarea?.value).toBe("alpha hello world omega");
 	});
 
-	it("adds browser speech-recognition chunks while recording remains active", async () => {
+	it("starts a live session without a recorded-audio callback", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({
-				providerId: "openai-native",
-				providerName: "OpenAI",
-				modelId: "gpt-4o-mini-transcribe",
-				modelName: "GPT-4o mini Transcribe",
-				supportsStreaming: false,
+				providerId: "elevenlabs",
+				providerName: "ElevenLabs",
+				modelId: "scribe_v2_realtime",
+				modelName: "Scribe v2 Realtime",
+				supportsStreaming: true,
 			}),
 		);
-		await renderVoiceComposer({ prompt: "alpha omega" });
-
+		await renderVoiceComposer();
 		await vi.waitFor(() =>
-			expect(speechInputMockState.current?.recordingMode).toBe("auto"),
+			expect(speechInputMockState.current?.recordingMode).toBe("streaming"),
 		);
-		const textarea = container.querySelector<HTMLTextAreaElement>(
-			'textarea[role="combobox"]',
-		);
-		textarea?.setSelectionRange(6, 6);
-		await act(async () => {
-			speechInputMockState.current?.onActiveChange?.(true);
-			speechInputMockState.current?.onTranscriptionChange?.(
-				"hello",
-				"speech-recognition",
-			);
-		});
-
-		expect(textarea?.readOnly).toBe(true);
-		expect(textarea?.value).toBe("alpha hello omega");
-
-		await act(async () => {
-			speechInputMockState.current?.onTranscriptionChange?.(
-				"world",
-				"speech-recognition",
-			);
-		});
-		expect(textarea?.value).toBe("alpha hello world omega");
-	});
-
-	it("discards a batch transcript after the draft lifecycle is replaced", async () => {
-		loadProviderModelCatalogMock.mockResolvedValue(
-			providerCatalog({
-				providerId: "openai-native",
-				providerName: "OpenAI",
-				modelId: "gpt-4o-mini-transcribe",
-				modelName: "GPT-4o mini Transcribe",
-				supportsStreaming: false,
-			}),
-		);
-		const onPromptInputChange = vi.fn();
-		await renderVoiceComposer({
-			onPromptInputChange,
-			prompt: "alpha omega",
-		});
-
-		await vi.waitFor(() => {
-			expect(
-				container
-					.querySelector("[data-initial-recording-mode]")
-					?.getAttribute("data-initial-recording-mode"),
-			).toBe("auto");
-		});
-		const textarea = container.querySelector<HTMLTextAreaElement>(
-			'textarea[role="combobox"]',
-		);
-		textarea?.setSelectionRange(6, 6);
-		await act(async () => {
-			speechInputMockState.current?.onActiveChange?.(true);
-		});
-
-		await renderVoiceComposer({
-			onPromptInputChange,
-			prompt: "external replacement",
-			promptVersion: 1,
-		});
-		expect(textarea?.value).toBe("external replacement");
-
-		await act(async () => {
-			speechInputMockState.current?.onTranscriptionChange?.("late transcript");
-		});
-		expect(textarea?.value).toBe("external replacement");
-		expect(onPromptInputChange).toHaveBeenLastCalledWith(
-			"external replacement",
+		expect(speechInputMockState.current?.onAudioRecorded).toBeUndefined();
+		expect(speechInputMockState.current?.onStartStreaming).toEqual(
+			expect.any(Function),
 		);
 	});
 
@@ -696,9 +1055,9 @@ describe("ChatInputBar", () => {
 			providerCatalog({
 				providerId: "openai-native",
 				providerName: "OpenAI",
-				modelId: "gpt-4o-mini-transcribe",
+				modelId: "gpt-realtime-whisper",
 				modelName: "GPT-4o mini Transcribe",
-				supportsStreaming: false,
+				supportsStreaming: true,
 			}),
 		);
 		await renderVoiceComposer({ prompt: "Keep my draft" });
@@ -716,85 +1075,7 @@ describe("ChatInputBar", () => {
 		).not.toBeNull();
 	});
 
-	it("inserts a batch transcript only into its captured draft range", async () => {
-		loadProviderModelCatalogMock.mockResolvedValue(
-			providerCatalog({
-				providerId: "openai-native",
-				providerName: "OpenAI",
-				modelId: "gpt-4o-mini-transcribe",
-				modelName: "GPT-4o mini Transcribe",
-				supportsStreaming: false,
-			}),
-		);
-		await renderVoiceComposer({ prompt: "alpha omega" });
-
-		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe("auto");
-		});
-		const textarea = container.querySelector<HTMLTextAreaElement>(
-			'textarea[role="combobox"]',
-		);
-		textarea?.setSelectionRange(6, 6);
-		await act(async () => {
-			speechInputMockState.current?.onActiveChange?.(true);
-			speechInputMockState.current?.onTranscriptionChange?.("hello");
-		});
-
-		expect(textarea?.value).toBe("alpha hello omega");
-		await act(async () => {
-			speechInputMockState.current?.onTranscriptionChange?.("replayed");
-		});
-		expect(textarea?.value).toBe("alpha hello omega");
-	});
-
-	it("discards a pending batch transcript when the voice target changes", async () => {
-		loadProviderModelCatalogMock.mockResolvedValue(
-			providerCatalog({
-				providerId: "openai-native",
-				providerName: "OpenAI",
-				modelId: "gpt-4o-mini-transcribe",
-				modelName: "GPT-4o mini Transcribe",
-				supportsStreaming: false,
-			}),
-		);
-		await renderVoiceComposer({ prompt: "alpha omega" });
-
-		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe("auto");
-		});
-		const textarea = container.querySelector<HTMLTextAreaElement>(
-			'textarea[role="combobox"]',
-		);
-		textarea?.setSelectionRange(6, 6);
-		await act(async () => {
-			speechInputMockState.current?.onActiveChange?.(true);
-		});
-		const staleBatchResult =
-			speechInputMockState.current?.onTranscriptionChange;
-
-		loadProviderModelCatalogMock.mockResolvedValue(
-			providerCatalog({
-				providerId: "vercel-ai-gateway",
-				providerName: "Vercel AI Gateway",
-				modelId: "openai/gpt-4o-mini-transcribe",
-				modelName: "GPT-4o mini Transcribe",
-				supportsStreaming: true,
-			}),
-		);
-		await act(async () => {
-			window.dispatchEvent(
-				new Event("cline:test-voice-input-settings-changed"),
-			);
-		});
-		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe("streaming");
-		});
-
-		await act(async () => staleBatchResult?.("late transcript"));
-		expect(textarea?.value).toBe("alpha omega");
-	});
-
-	it("ignores stale voice catalog responses and remounts when the recording mode changes", async () => {
+	it("ignores stale voice catalog responses", async () => {
 		const firstCatalog = deferred<ReturnType<typeof providerCatalog>>();
 		const refreshedCatalog = deferred<ReturnType<typeof providerCatalog>>();
 		loadProviderModelCatalogMock
@@ -817,7 +1098,7 @@ describe("ChatInputBar", () => {
 				providerCatalog({
 					providerId: "vercel-ai-gateway",
 					providerName: "Vercel AI Gateway",
-					modelId: "openai/gpt-4o-mini-transcribe",
+					modelId: "openai/gpt-realtime-whisper",
 					modelName: "GPT-4o mini Transcribe",
 					supportsStreaming: true,
 				}),
@@ -839,7 +1120,7 @@ describe("ChatInputBar", () => {
 					providerName: "OpenAI",
 					modelId: "whisper-1",
 					modelName: "Whisper",
-					supportsStreaming: false,
+					supportsStreaming: true,
 				}),
 			);
 			await firstCatalog.promise;
@@ -857,7 +1138,7 @@ describe("ChatInputBar", () => {
 			providerCatalog({
 				providerId: "vercel-ai-gateway",
 				providerName: "Vercel AI Gateway",
-				modelId: "openai/gpt-4o-mini-transcribe",
+				modelId: "openai/gpt-realtime-whisper",
 				modelName: "GPT-4o mini Transcribe",
 				supportsStreaming: true,
 			}),
@@ -876,7 +1157,7 @@ describe("ChatInputBar", () => {
 			await speechInputMockState.current?.onStartStreaming?.();
 		});
 		const oldSessionTranscript = (
-			startVercelStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
+			startStreamingTranscriptionMock.mock.calls.at(-1)?.[0] as
 				| { onTranscript?: (text: string) => void }
 				| undefined
 		)?.onTranscript;
@@ -885,11 +1166,11 @@ describe("ChatInputBar", () => {
 
 		loadProviderModelCatalogMock.mockResolvedValueOnce(
 			providerCatalog({
-				providerId: "openai",
-				providerName: "OpenAI",
-				modelId: "whisper-1",
-				modelName: "Whisper",
-				supportsStreaming: false,
+				providerId: "elevenlabs",
+				providerName: "ElevenLabs",
+				modelId: "scribe_v2_realtime",
+				modelName: "Scribe v2 Realtime",
+				supportsStreaming: true,
 			}),
 		);
 		await act(async () => {
@@ -898,7 +1179,11 @@ describe("ChatInputBar", () => {
 			);
 		});
 		await vi.waitFor(() =>
-			expect(speechInputMockState.current?.recordingMode).toBe("auto"),
+			expect(
+				container
+					.querySelector('[aria-label="Record speech"]')
+					?.getAttribute("title"),
+			).toContain("ElevenLabs"),
 		);
 		await act(async () => oldSessionTranscript?.("late replacement"));
 
@@ -923,6 +1208,7 @@ describe("ChatInputBar", () => {
 					>
 						<ChatInputBar
 							attachments={[]}
+							environmentId="local"
 							gitBranch="main"
 							mode="act"
 							model="test-model"
@@ -1105,6 +1391,7 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -1169,7 +1456,10 @@ describe("ChatInputBar", () => {
 		});
 	});
 
-	it("shows queued prompts in an accessible list with clear priority actions", async () => {
+	it.each([
+		"local",
+		"cloud",
+	] as const)("shows %s queued prompts in an accessible list with clear priority actions", async (executionTarget) => {
 		const onSteerPromptInQueue = vi
 			.fn()
 			.mockRejectedValue(new Error("steer failed"));
@@ -1192,12 +1482,14 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={onEditPromptInQueue}
+						executionTarget={executionTarget}
 						onListGitBranches={vi.fn(async () => ({
 							current: "main",
 							branches: ["main"],
@@ -1263,7 +1555,9 @@ describe("ChatInputBar", () => {
 				}),
 			);
 		});
-		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith();
+		expect(onSteerPromptInQueue).toHaveBeenCalledExactlyOnceWith(
+			...(executionTarget === "cloud" ? ["queued-prompt-1"] : []),
+		);
 		onSteerPromptInQueue.mockClear();
 
 		const queueToggle = [
@@ -1726,6 +2020,8 @@ describe("ChatInputBar", () => {
 
 	describe("cline-pass picker offer", () => {
 		const renderComposer = async (props: {
+			executionTarget?: "cloud" | "local";
+			hasActiveSession?: boolean;
 			model: string;
 			provider: string;
 			onModelChange?: ReturnType<typeof vi.fn>;
@@ -1736,7 +2032,9 @@ describe("ChatInputBar", () => {
 					<WorkspaceProvider value={workspaceValue}>
 						<ChatInputBar
 							attachments={[]}
+							executionTarget={props.executionTarget}
 							gitBranch="main"
+							hasActiveSession={props.hasActiveSession}
 							mode="act"
 							model={props.model}
 							onAbort={vi.fn()}
@@ -2099,6 +2397,27 @@ describe("ChatInputBar", () => {
 			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
 		});
 
+		it("keeps an active model that is absent from the gated catalog", async () => {
+			const onModelChange = vi.fn();
+			await renderComposer({
+				executionTarget: "cloud",
+				hasActiveSession: true,
+				model: "cline-cloud/claude-sonnet-4.6",
+				onModelChange,
+				provider: "cline",
+			});
+
+			expect(onModelChange).not.toHaveBeenCalled();
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain(
+					"cline-cloud/claude-sonnet-4.6",
+				);
+			});
+		});
+
 		it("falls back to a visible model when switching providers with a hidden remembered model", async () => {
 			window.localStorage.setItem(
 				MODEL_SELECTION_STORAGE_KEY,
@@ -2307,6 +2626,7 @@ describe("ChatInputBar token ring", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -2411,7 +2731,9 @@ describe("ChatInputBar token ring", () => {
 			{ toolCalls: 0, tokensIn: 499, tokensOut: 0 },
 			1000,
 		);
-		expect(belowWarning?.querySelector("circle.stroke-primary")).not.toBeNull();
+		expect(
+			belowWarning?.querySelector("circle.stroke-cline-ui-primary"),
+		).not.toBeNull();
 
 		const warning = await renderTokenUsage(
 			{ toolCalls: 0, tokensIn: 500, tokensOut: 0 },
@@ -2456,9 +2778,13 @@ describe("ChatInputBar token ring", () => {
 		const outputSegment = panel?.querySelector<HTMLElement>(
 			'[data-token-kind="output"]',
 		);
-		expect(uncachedSegment?.classList.contains("bg-primary")).toBe(true);
+		expect(uncachedSegment?.classList.contains("bg-cline-ui-primary")).toBe(
+			true,
+		);
 		expect(uncachedSegment?.style.width).toBe("37.5%");
-		expect(cachedSegment?.classList.contains("bg-primary/60")).toBe(true);
+		expect(cachedSegment?.classList.contains("bg-cline-ui-primary/60")).toBe(
+			true,
+		);
 		expect(cachedSegment?.style.backgroundImage).toContain("linear-gradient");
 		expect(cachedSegment?.style.width).toBe("12.5%");
 		expect(outputSegment?.classList.contains("bg-blue-500")).toBe(true);

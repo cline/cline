@@ -83,7 +83,8 @@ async function connectLatestSocket(options?: {
 	}
 	socket.sendError = options?.sendError ?? null;
 	socket.open();
-	for (let attempt = 0; attempt < 10 && socket.sent.length === 0; attempt++) {
+	// Let the connect promise chain settle and the pending command flush.
+	for (let attempt = 0; attempt < 50 && socket.sent.length === 0; attempt++) {
 		await Promise.resolve();
 	}
 	return socket;
@@ -406,6 +407,140 @@ describe("DesktopClient endpoint resolution", () => {
 		sockets[0]?.open();
 		expect(desktopClient.getTransportState()).toBe("connected");
 		expect(desktopClient.getTransportError()).toBeNull();
+	});
+
+	it("holds a command open across 'endpoint not ready' failures and sends it once the sidecar comes up", async () => {
+		// The launch race from cline/cline#14201 / #14129: the sidecar is
+		// still booting (or being respawned) when the user clicks Sign in.
+		tauriInvoke
+			.mockRejectedValueOnce(new Error("desktop backend endpoint not ready"))
+			.mockRejectedValueOnce(new Error("desktop backend endpoint not ready"))
+			.mockResolvedValue("ws://127.0.0.1:3126/transport?approval_token=late");
+		const { desktopClient } = await import("./desktop-client");
+
+		let settled = false;
+		const invocation = desktopClient
+			.invoke<{ ok: boolean }>("run_provider_oauth_login", {
+				provider: "cline",
+			})
+			.finally(() => {
+				settled = true;
+			});
+
+		// Let the failing connect attempts and their retry delays play out.
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(settled).toBe(false);
+		await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(0));
+		const socket = sockets.at(-1);
+		expect(socket?.url).toBe(
+			"ws://127.0.0.1:3126/transport?approval_token=late",
+		);
+
+		socket?.open();
+		await vi.waitFor(() => expect(socket?.sent.length ?? 0).toBeGreaterThan(0));
+		expect(socket?.lastRequest()).toMatchObject({
+			command: "run_provider_oauth_login",
+			args: { provider: "cline" },
+		});
+		socket?.respond({ ok: true });
+		await expect(invocation).resolves.toEqual({ ok: true });
+	});
+
+	it("fails a command with the last connect error once the connect deadline passes", async () => {
+		tauriInvoke.mockRejectedValue(
+			new Error("desktop backend endpoint not ready"),
+		);
+		const { desktopClient } = await import("./desktop-client");
+
+		const invocation = desktopClient.invoke("run_provider_oauth_login", {
+			provider: "cline",
+		});
+		const rejection = expect(invocation).rejects.toThrow(
+			"desktop backend endpoint not ready",
+		);
+
+		// Default connect budget is 90s; give it time to expire.
+		await vi.advanceTimersByTimeAsync(120_000);
+		await rejection;
+		expect(sockets).toHaveLength(0);
+	});
+
+	it("honors a per-command connect deadline override", async () => {
+		tauriInvoke.mockRejectedValue(
+			new Error("desktop backend endpoint not ready"),
+		);
+		const { desktopClient } = await import("./desktop-client");
+
+		const invocation = desktopClient.invoke(
+			"get_process_context",
+			{},
+			{ connectTimeoutMs: 1_000 },
+		);
+		const rejection = expect(invocation).rejects.toThrow(
+			"desktop backend endpoint not ready",
+		);
+
+		await vi.advanceTimersByTimeAsync(2_000);
+		await rejection;
+	});
+
+	it("enforces the connect deadline while an endpoint lookup is still in flight", async () => {
+		// The Tauri endpoint command can legitimately block for its whole 30s
+		// readiness wait; a command's own budget must not stretch to match it.
+		const pendingLookups: Array<(endpoint: string) => void> = [];
+		tauriInvoke.mockImplementation(
+			() =>
+				new Promise<string>((resolve) => {
+					pendingLookups.push(resolve);
+				}),
+		);
+		const { desktopClient } = await import("./desktop-client");
+
+		const invocation = desktopClient.invoke(
+			"get_process_context",
+			{},
+			{ connectTimeoutMs: 1_000 },
+		);
+		const rejection = expect(invocation).rejects.toThrow(
+			"did not become ready within 1000ms",
+		);
+
+		await vi.advanceTimersByTimeAsync(1_000);
+		await rejection;
+		expect(sockets).toHaveLength(0);
+
+		// The abandoned lookup keeps running so the next command benefits.
+		for (const release of pendingLookups) {
+			release("ws://127.0.0.1:3126/transport?approval_token=late");
+		}
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		const next = desktopClient.invoke<{ ok: boolean }>("get_process_context");
+		const socket = await connectLatestSocket();
+		expect(socket.lastRequest().command).toBe("get_process_context");
+		socket.respond({ ok: true });
+		await expect(next).resolves.toEqual({ ok: true });
+	});
+
+	it("abandons a WebSocket handshake that never completes and reconnects", async () => {
+		tauriInvoke.mockResolvedValue("ws://127.0.0.1:3126/transport");
+		const { desktopClient } = await import("./desktop-client");
+		const states: string[] = [];
+		desktopClient.subscribeTransportState((state) => states.push(state));
+		await vi.waitFor(() => expect(sockets).toHaveLength(1));
+		expect(sockets[0]?.readyState).toBe(FakeWebSocket.CONNECTING);
+
+		// WS_HANDSHAKE_TIMEOUT_MS.
+		await vi.advanceTimersByTimeAsync(15_000);
+		expect(sockets[0]?.readyState).toBe(FakeWebSocket.CLOSED);
+		expect(states).toContain("unavailable");
+		expect(desktopClient.getTransportError()).toContain(
+			"transport unavailable",
+		);
+
+		await vi.advanceTimersByTimeAsync(RECONNECT_FIRST_DELAY_MS);
+		await vi.waitFor(() => expect(sockets).toHaveLength(2));
+		sockets[1]?.open();
+		expect(desktopClient.getTransportState()).toBe("connected");
 	});
 
 	it("re-resolves the endpoint when reconnecting after the transport drops", async () => {

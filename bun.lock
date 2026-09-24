@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.62",
+      "version": "3.0.64",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -167,6 +167,8 @@
       "name": "@cline/code",
       "version": "0.0.28",
       "dependencies": {
+        "@ai-sdk/gateway": "^4.0.64",
+        "@ai-sdk/openai": "^4.0.47",
         "@base-ui/react": "^1.2.0",
         "@cline/core": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -207,6 +209,7 @@
         "@streamdown/cjk": "^1.0.3",
         "@tauri-apps/api": "^2.0.0",
         "@tauri-apps/plugin-notification": "^2.0.0",
+        "ai": "^7.0.79",
         "ansi-to-react": "^6.2.6",
         "autoprefixer": "^10.4.20",
         "class-variance-authority": "^0.7.1",
@@ -415,7 +418,7 @@
         "ignore": "^7.0.3",
         "image-size": "^2.0.2",
         "isbinaryfile": "^5.0.2",
-        "js-yaml": "^4.1.1",
+        "js-yaml": "^4.3.2",
         "jschardet": "^3.1.4",
         "json5": "^2.2.3",
         "jwt-decode": "^4.0.0",
@@ -639,7 +642,7 @@
     },
     "sdk/packages/agents": {
       "name": "@cline/agents",
-      "version": "0.0.83",
+      "version": "0.0.85",
       "dependencies": {
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
@@ -648,7 +651,7 @@
     },
     "sdk/packages/core": {
       "name": "@cline/core",
-      "version": "0.0.83",
+      "version": "0.0.85",
       "dependencies": {
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -686,15 +689,15 @@
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
-      "version": "0.0.83",
+      "version": "0.0.85",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^5.0.50",
         "@ai-sdk/anthropic": "^4.0.36",
-        "@ai-sdk/gateway": "^4",
+        "@ai-sdk/gateway": "^4.0.64",
         "@ai-sdk/google": "^4.0.39",
         "@ai-sdk/google-vertex": "^5.0.47",
         "@ai-sdk/mistral": "^4.0.27",
-        "@ai-sdk/openai": "^4.0.36",
+        "@ai-sdk/openai": "^4.0.47",
         "@ai-sdk/openai-compatible": "^3.0.27",
         "@ai-sdk/otel": "^1.0.58",
         "@ai-sdk/provider": "^4.0.7",
@@ -735,14 +738,14 @@
     },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
-      "version": "0.0.83",
+      "version": "0.0.85",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
     "sdk/packages/shared": {
       "name": "@cline/shared",
-      "version": "0.0.83",
+      "version": "0.0.85",
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",
@@ -758,6 +761,7 @@
         "@radix-ui/react-slot": "1.2.4",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "lucide-react": "^0.564.0",
       },
       "devDependencies": {
         "@fontsource-variable/geist-mono": "^5.2.8",
@@ -815,15 +819,15 @@
   "overrides": {
     "@opentui/core": "0.4.3",
     "@opentui/react": "0.4.3",
-    "@sap-cloud-sdk/connectivity": "4.6.0",
-    "@sap-cloud-sdk/http-client": "4.6.0",
-    "@sap-cloud-sdk/openapi": "4.6.0",
-    "@sap-cloud-sdk/resilience": "4.6.0",
-    "@sap-cloud-sdk/util": "4.6.0",
+    "@sap-cloud-sdk/connectivity": "4.9.1",
+    "@sap-cloud-sdk/http-client": "4.9.1",
+    "@sap-cloud-sdk/openapi": "4.9.1",
+    "@sap-cloud-sdk/resilience": "4.9.1",
+    "@sap-cloud-sdk/util": "4.9.1",
     "axios": "1.18.0",
     "diff": "8.0.4",
     "fast-uri": ">=3.1.4",
-    "js-yaml": "^4.1.1",
+    "js-yaml": ">=4.3.2 <5",
     "mermaid": "11.16.1",
     "protobufjs": "7.6.5",
     "serialize-javascript": ">=7.0.3",
@@ -2214,25 +2218,25 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.63.0", "", { "os": "win32", "cpu": "x64" }, "sha512-hncn90N4sOky0L2LKE5oESKLbxCPeVo4eLA2LSMoDzM+879ml4WSr+Rr4DWknNIVVvS1Hirkc9hx02W6YxS8rQ=="],
 
-    "@sap-ai-sdk/ai-api": ["@sap-ai-sdk/ai-api@2.15.0", "", { "dependencies": { "@sap-ai-sdk/core": "^2.15.0", "@sap-cloud-sdk/connectivity": "^4.8.0", "@sap-cloud-sdk/util": "^4.8.0" } }, "sha512-tW2XwemZ5mWuYQW9P2mFxaH7xNBWwr1+AU8jnfleCE7IQ494+OKmjhWOASrfNWRRnRrcepaAbjk2earpjcIcBA=="],
+    "@sap-ai-sdk/ai-api": ["@sap-ai-sdk/ai-api@2.16.0", "", { "dependencies": { "@sap-ai-sdk/core": "^2.16.0", "@sap-cloud-sdk/connectivity": "^4.9.1", "@sap-cloud-sdk/util": "^4.9.1" } }, "sha512-L5PfhyTE4NIWxACUmfBf7ULlF4I/YOd73j9LfkNaHO/Bhzo1ED36+pkJqqR18Z1dPm0hJcjrb2PDRWHdjoU2KQ=="],
 
-    "@sap-ai-sdk/core": ["@sap-ai-sdk/core@2.15.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.8.0", "@sap-cloud-sdk/http-client": "^4.8.0", "@sap-cloud-sdk/openapi": "^4.8.0", "@sap-cloud-sdk/util": "^4.8.0" } }, "sha512-GbPq4GC6LNVoGDMDnNsAdK0PDQSl3QsJQ5Dy7Zx+1f14i6DDcHpoJWBeyDzlfEBtQ0CUgF7sRKRUt2ufnzCpdg=="],
+    "@sap-ai-sdk/core": ["@sap-ai-sdk/core@2.16.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.9.1", "@sap-cloud-sdk/http-client": "^4.9.1", "@sap-cloud-sdk/openapi": "^4.9.1", "@sap-cloud-sdk/util": "^4.9.1" } }, "sha512-njvfKccou923tIHDOFLgqR1bv+3OMB056Cc9LlJ7vY0XjkZsL5aS3XgTG/HvD9b7hASx5NZen0tu6UYX9cvWnw=="],
 
-    "@sap-ai-sdk/foundation-models": ["@sap-ai-sdk/foundation-models@2.15.0", "", { "dependencies": { "@sap-ai-sdk/ai-api": "^2.15.0", "@sap-ai-sdk/core": "^2.15.0", "@sap-cloud-sdk/connectivity": "^4.8.0", "@sap-cloud-sdk/http-client": "^4.8.0", "@sap-cloud-sdk/util": "^4.8.0" } }, "sha512-UTuFBJUQfaK1xVx041v0iWkCC/LD4DJxlvxTOCNTu1AuC1p+TTLAR2WcvxqW6vIduREMXIxOjbaDJwfr1d+kgg=="],
+    "@sap-ai-sdk/foundation-models": ["@sap-ai-sdk/foundation-models@2.16.0", "", { "dependencies": { "@sap-ai-sdk/ai-api": "^2.16.0", "@sap-ai-sdk/core": "^2.16.0", "@sap-cloud-sdk/connectivity": "^4.9.1", "@sap-cloud-sdk/http-client": "^4.9.1", "@sap-cloud-sdk/util": "^4.9.1" } }, "sha512-PdMJlku8UAWjkaYt46jP/XHUe7QPwE7R95OmCCyrdWIAaa2OtGvD6KWH0e5CpMm8V4pHkgv+gS/vCNn/QKn4hw=="],
 
-    "@sap-ai-sdk/orchestration": ["@sap-ai-sdk/orchestration@2.15.0", "", { "dependencies": { "@sap-ai-sdk/ai-api": "^2.15.0", "@sap-ai-sdk/core": "^2.15.0", "@sap-ai-sdk/prompt-registry": "^2.15.0", "@sap-cloud-sdk/util": "^4.8.0", "yaml": "^2.9.0" } }, "sha512-wxpzZLzhi47eFMLJbymeO9XmZajpqQVHyk6iZ0Plwa7V/aD2UlEJVDbC9FvzVgdm6z6+jkx8VD1irapW1YtfdA=="],
+    "@sap-ai-sdk/orchestration": ["@sap-ai-sdk/orchestration@2.16.0", "", { "dependencies": { "@sap-ai-sdk/ai-api": "^2.16.0", "@sap-ai-sdk/core": "^2.16.0", "@sap-ai-sdk/prompt-registry": "^2.16.0", "@sap-cloud-sdk/util": "^4.9.1", "yaml": "^2.9.0" } }, "sha512-jupRrvqtTKyikfYtJFCXAhIJUqXIt909OHnx4YT1t1kFbcrLIrNO1wsmhBJAKRRLLFYgsnLdXawNiuQ2faH5zA=="],
 
-    "@sap-ai-sdk/prompt-registry": ["@sap-ai-sdk/prompt-registry@2.15.0", "", { "dependencies": { "@sap-ai-sdk/core": "^2.15.0", "zod": "^4.4.3" } }, "sha512-qC3ACUsV+Cw+DfjMj/GSw5DY0XymwCQDzclvr4LArZ2OH0DhMrbzJMPqBSIYCyVF8zq57PNMnJoJrx1vE8CLHQ=="],
+    "@sap-ai-sdk/prompt-registry": ["@sap-ai-sdk/prompt-registry@2.16.0", "", { "dependencies": { "@sap-ai-sdk/core": "^2.16.0", "zod": "^4.4.3" } }, "sha512-pMKq/GCZ9et9y2Cn32g1nEIOSJgffEVAS6CEfpGVjuptjbENLzoi43VF4Ui71KLsarIjqV1GoC64qL9wbah4kg=="],
 
-    "@sap-cloud-sdk/connectivity": ["@sap-cloud-sdk/connectivity@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/resilience": "^4.6.0", "@sap-cloud-sdk/util": "^4.6.0", "@sap/xsenv": "^6.1.0", "@sap/xssec": "^4.13.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "jks-js": "^1.1.6", "jsonwebtoken": "^9.0.3" } }, "sha512-Pf+0O1s4eDNR/MZ+UcyOyPa/U8dl3xUHEbjY+BG7DHZtLZFYVfKg2dV63ZTzeHypqMRVQePCN8yIyIz296FWHg=="],
+    "@sap-cloud-sdk/connectivity": ["@sap-cloud-sdk/connectivity@4.9.1", "", { "dependencies": { "@sap-cloud-sdk/resilience": "^4.9.1", "@sap-cloud-sdk/util": "^4.9.1", "@sap/xsenv": "^6.2.0", "@sap/xssec": "^4.13.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "jks-js": "^1.1.6", "jsonwebtoken": "^9.0.3", "safe-stable-stringify": "^2.5.0" } }, "sha512-0deJBmdUd1LD1O3CX/wqYjTEKmnrnLsxnrSE8CyGtzbyomjjL1ePEXB3g6QUpQKmClVyOgJG/IbpyJFGGXXL5A=="],
 
-    "@sap-cloud-sdk/http-client": ["@sap-cloud-sdk/http-client@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.6.0", "@sap-cloud-sdk/resilience": "^4.6.0", "@sap-cloud-sdk/util": "^4.6.0", "axios": "^1.15.0" } }, "sha512-fBaJAnOsHGyIlRS4HA2XYxp9v3GjUWPACoGDRg01jjoq49r3KjIMi8FqycMwKTF9QnkX/4rlPtj2wnziHgG2bg=="],
+    "@sap-cloud-sdk/http-client": ["@sap-cloud-sdk/http-client@4.9.1", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.9.1", "@sap-cloud-sdk/resilience": "^4.9.1", "@sap-cloud-sdk/util": "^4.9.1", "axios": "^1.15.0" } }, "sha512-bsF8T/syitm+GI8eInOB1AfvHsTYJ8Qvg5dfGt5SGXEQjqV2amFEulPp7edNTzCLo0+BBbBa/jhvqLCvXSoV6A=="],
 
-    "@sap-cloud-sdk/openapi": ["@sap-cloud-sdk/openapi@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.6.0", "@sap-cloud-sdk/http-client": "^4.6.0", "@sap-cloud-sdk/resilience": "^4.6.0", "@sap-cloud-sdk/util": "^4.6.0", "axios": "^1.15.0" } }, "sha512-If5eD5DWUA7nXUUvMYuG3p8+JjSR2+DZPnE88YdDR7+kIbblDuV2c4QbyjpT0oeA2sQ3S9iZVx8cZP8n5dmdHQ=="],
+    "@sap-cloud-sdk/openapi": ["@sap-cloud-sdk/openapi@4.9.1", "", { "dependencies": { "@sap-cloud-sdk/connectivity": "^4.9.1", "@sap-cloud-sdk/http-client": "^4.9.1", "@sap-cloud-sdk/resilience": "^4.9.1", "@sap-cloud-sdk/util": "^4.9.1", "axios": "^1.15.0" } }, "sha512-o46XbWWjo4piTPsLWPE9yuGCNS8jIj1GfZSJpaHdWDO6ZF+CqaUwF21UtGTg0SJggoe6AsJlhVObL7QA6urcJg=="],
 
-    "@sap-cloud-sdk/resilience": ["@sap-cloud-sdk/resilience@4.6.0", "", { "dependencies": { "@sap-cloud-sdk/util": "^4.6.0", "async-retry": "^1.3.3", "axios": "^1.15.0", "opossum": "^9.0.0" } }, "sha512-NMY683lNvJcE5dghVqUsBLM/voTLE6MMn5OmmB5BkG8qp5TZSuy/lhMZCVfGpBVnRLv6k19vWiBcueXxYg8bcQ=="],
+    "@sap-cloud-sdk/resilience": ["@sap-cloud-sdk/resilience@4.9.1", "", { "dependencies": { "@sap-cloud-sdk/util": "^4.9.1", "async-retry": "^1.3.3", "axios": "^1.15.0", "opossum": "^10.0.0" } }, "sha512-14Hdd2VqEd3BarikR/ChZjquQuelC+CP69HKdMycADmmsuQEwaJkSXURW8cDl19bfx8Re1ldM/4Ig0gbCY4x/A=="],
 
-    "@sap-cloud-sdk/util": ["@sap-cloud-sdk/util@4.6.0", "", { "dependencies": { "axios": "^1.15.0", "logform": "^2.7.0", "voca": "^1.4.1", "winston": "^3.19.0", "winston-transport": "^4.9.0" } }, "sha512-z1gFjgzhAUhzPy1IkwWjfOrnPHh9KrEZbLlFBG5LbL3oBS3JMmKusW0162Hq4r+AVTR43akEoHxk07p247YQTw=="],
+    "@sap-cloud-sdk/util": ["@sap-cloud-sdk/util@4.9.1", "", { "dependencies": { "axios": "^1.15.0", "logform": "^2.7.0", "voca": "^1.4.1", "winston": "^3.19.0", "winston-transport": "^4.9.0" } }, "sha512-1tuv+c6o2Y8/1F3UEdqiv3TPWzZDpCjxuDpAFtFBM8C+weum8ixgwc2YXEWvBzWvtSEl7C5L/o8jBqiuhcXF4w=="],
 
     "@sap/xsenv": ["@sap/xsenv@6.2.2", "", { "dependencies": { "debug": "4.4.3", "node-cache": "^5.1.2", "verror": "1.10.1" } }, "sha512-SGn+yaVKeXND/rQaQhqTZC+M6g5ASW1YnqAdQiZqNL74E1T1kUsDHttgOjQNkLObMZ0fsxgQxRPMnuVcAgIODg=="],
 
@@ -3802,7 +3806,7 @@
 
     "js-tokens": ["js-tokens@10.0.0", "", {}, "sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q=="],
 
-    "js-yaml": ["js-yaml@4.3.1", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ=="],
+    "js-yaml": ["js-yaml@4.3.2", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA=="],
 
     "jschardet": ["jschardet@3.1.4", "", {}, "sha512-/kmVISmrwVwtyYU40iQUOp3SUPk2dhNCMsZBQX0R1/jZ8maaXJ/oZIzUOiyOqcgtLnETFKYChbJ5iDC/eWmFHg=="],
 
@@ -4254,7 +4258,7 @@
 
     "opentui-spinner": ["opentui-spinner@0.0.7", "", { "dependencies": { "cli-spinners": "^3.3.0" }, "peerDependencies": { "@opentui/core": "^0.3.4", "@opentui/react": "^0.3.4", "@opentui/solid": "^0.3.4", "typescript": "^5" }, "optionalPeers": ["@opentui/react", "@opentui/solid"] }, "sha512-nPzwAvJG+y9rVEwwHLHqbsMzLnIk2zw+F9LqwA7aYJvpM5gsrKC2rrGi36A+tZpA+1RnWxXeWEgVZMchnaH18Q=="],
 
-    "opossum": ["opossum@9.0.0", "", {}, "sha512-K76U0QkxOfUZamneQuzz+AP0fyfTJcCplZ2oZL93nxeupuJbN4s6uFNbmVCt4eWqqGqRnnowdFuBicJ1fLMVxw=="],
+    "opossum": ["opossum@10.0.0", "", {}, "sha512-sghtqL8Usj+et06Zui0nyn0R6FFsl7cyuoU+d7MctYU0nbS7Htzjleh+tWohFqk1Rp1srrFwbFa8Vxd0O64w6A=="],
 
     "option": ["option@0.2.4", "", {}, "sha512-pkEqbDyl8ou5cpq+VsnQbe/WlEy5qS7xPzMS1U55OCG9KPvwFD46zDbxQIj3egJSFc3D+XhYOPUzz49zQAVy7A=="],
 
@@ -5175,6 +5179,8 @@
     "@cline/code/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@cline/ui/@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
+
+    "@cline/ui/lucide-react": ["lucide-react@0.564.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-JJ8GVTQqFwuliifD48U6+h7DXEHdkhJ/E87kksGByII3qHxtPciVb8T8woQONHBQgHVOl7rSMrrip3SeVNy7Fg=="],
 
     "@cline/ui/vite": ["vite@7.3.6", "", { "dependencies": { "esbuild": "^0.27.0 || ^0.28.0", "fdir": "^6.5.0", "picomatch": "^4.0.3", "postcss": "^8.5.6", "rollup": "^4.43.0", "tinyglobby": "^0.2.15" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^20.19.0 || >=22.12.0", "jiti": ">=1.21.0", "less": "^4.0.0", "lightningcss": "^1.21.0", "sass": "^1.70.0", "sass-embedded": "^1.70.0", "stylus": ">=0.54.8", "sugarss": "^5.0.0", "terser": "^5.16.0", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["@types/node", "jiti", "less", "lightningcss", "sass", "sass-embedded", "stylus", "sugarss", "terser", "tsx", "yaml"], "bin": { "vite": "bin/vite.js" } }, "sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg=="],
 

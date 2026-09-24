@@ -27,7 +27,7 @@ const meta: Meta<typeof AgentAskQuestion> = {
 		docs: {
 			description: {
 				component:
-					"Presents one or more model-supplied follow-up questions with explicit submission. Set an item to multiple and provide onAnswers to allow more than one selection. Hosts own pending and error state for each question.",
+					"Presents one or more model-supplied follow-up questions. Single-choice items answer as soon as an option is picked and also accept a typed custom answer. Set an item to multiple and provide onAnswers to collect more than one selection behind an explicit Submit. Hosts own pending and error state for each question.",
 			},
 		},
 	},

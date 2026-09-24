@@ -18,7 +18,11 @@ sidecar/
 ├── context.ts            # SidecarContext type and factory
 ├── client-context.ts     # Desktop client/account identity for shared telemetry
 ├── commands.ts           # Command router
-├── chat-session.ts       # Shared-Hub chat session adapter
+├── chat-session.ts       # Shared-Hub chat session adapter (local + cloud routing)
+├── cloud-sessions.ts     # Cloud session REST client + Hub-proxy manager
+├── cline-auth.ts         # Refresh-aware Cline auth token resolution
+├── desktop-settings.ts   # Desktop-owned settings (cloud sessions opt-in)
+├── feature-flags.ts      # Cloud sessions gate (env override + settings toggle)
 ├── session-data/         # Shared discovery, messages, artifacts, search helpers
 ├── paths.ts              # Path resolution
 ├── types.ts              # Shared types
@@ -99,13 +103,17 @@ online:
 
 ```typescript
 const pendingApprovals = new Map<string, {
-  resolve: (result: ToolApprovalResult) => void;
+  resolve: (result: ToolApprovalResult) => void | Promise<void>;
   request: ToolApprovalRequest;
 }>();
 
 // When core requests approval → store promise, push to frontend
 // When frontend responds → resolve promise
 ```
+
+Cloud sessions route approvals the same way, but the resolver forwards the
+response to the sandbox Hub (`approval.respond`), which is why `resolve` may
+be async.
 
 ### 3. Provider Management — Direct ProviderSettingsManager
 
@@ -155,25 +163,50 @@ five seconds, and the initial picker remains usable while a refresh is pending.
 The sidecar omits bundled `knownModels` from the discovery config so they cannot
 override live metadata; explicitly registered model overrides retain precedence.
 
+Voice settings and the composer's microphone separately call
+`list_transcription_models`. Exact audio-only input and text-only output identify
+speech-to-text models; operation labels do not admit additional modalities.
+Multimodal live models are categorized as `realtime` and are currently unsupported.
+The core service restricts voice choices to executable transcription transports. Vercel voice discovery uses its current `/v1/models` response and
+`websocket-transcription` tags, without merging bundled entries. Discovery errors
+hide that provider's voice choices; they do not block ordinary chat model loading.
+Saving a voice choice, transcribing a recording, and creating a streaming session
+all validate against this same catalog. The network-free provider snapshot carries
+the saved voice choice, which is not proof of current availability.
+
+The webview caches verified voice models for five minutes and renders their
+snapshot when reopening Voice settings. Provider credential changes invalidate
+this cache; changing only the selected voice model preserves it. Session startup
+still validates on the sidecar. Streaming sessions declare the transport and PCM
+sample rate, including Gemini's 16 kHz input and ElevenLabs Scribe v2 Realtime.
+Provider WebSocket handlers are installed before capture starts; Gateway raw
+error events preserve upstream failures that its generic stream error omits.
+
 Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | shared Hub through `ClineCore` |
+| `chat_session_command` | shared Hub through `ClineCore`; cloud sessions route to `CloudSessionManager` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `list_transcription_models` | `getLocalTranscriptionModels` |
 | `save_voice_input_settings` | validates and persists the selected transcription provider/model |
 | `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
 | `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
-| `list_chat_sessions` | `SqliteSessionStore` + file discovery |
-| `list_discovered_sessions` | Merged discovery |
-| `read_session_messages` | Session data readers |
+| `list_chat_sessions` | `SqliteSessionStore` + file discovery, merged with cloud sessions |
+| `list_discovered_sessions` | Merged discovery (local + cloud) |
+| `read_session_messages` | Session data readers; cloud sessions read through the sandbox Hub |
 | `read_session_hooks` | Session data readers |
-| `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
-| `update_chat_session_title` | `resolveSessionBackend().updateSession` |
+| `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
+| `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
+| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
+| `get_desktop_settings` | `readDesktopSettings()` |
+| `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
+| `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |
+| `list_cloud_branches` | `CloudSessionManager.listBranches()` (paginated) |
 | `list_mcp_servers` | Direct file I/O |
 | `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
 | `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
@@ -182,6 +215,7 @@ Supported commands:
 | `get_git_branch` | async `execFile("git", ...)` |
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
+| `create_git_worktree` | async `execFile("git", ...)` → `~/.cline/worktrees/<id>/<repo>` |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
