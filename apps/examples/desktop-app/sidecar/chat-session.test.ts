@@ -1090,6 +1090,9 @@ describe("session forks", () => {
 								handedOffAt: "2026-08-18T00:00:00.000Z",
 								status: "complete",
 							},
+							cloudHandoffScope: "old-account",
+							cloudHandoffIntent: { fingerprint: {} },
+							cloudHandoffSeedDispatched: true,
 						},
 					})),
 					readMessages,
@@ -1128,9 +1131,13 @@ describe("session forks", () => {
 		expect(start).toHaveBeenCalledWith(
 			expect.objectContaining({
 				initialMessages: sourceMessages,
-				sessionMetadata: expect.not.objectContaining({
-					handoff: expect.anything(),
-				}),
+				sessionMetadata: {
+					fork: {
+						forkedFromSessionId: sourceSessionId,
+						forkedAt: expect.any(String),
+						source: "desktop",
+					},
+				},
 			}),
 		);
 	});
