@@ -18,6 +18,7 @@ import type { HubCommandError } from "@cline/core/hub";
 import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
 import {
+	CloudHandoffCreationRejectedError,
 	CloudHandoffSeedUnsupportedError,
 	CloudQueueUnconfirmedError,
 	CloudSessionError,
@@ -377,6 +378,20 @@ async function handleHandoffOnce(
 		readSessionMetadata(sourceSessionId) ??
 		{};
 	const pending = readCloudHandoffMetadata(metadataBefore);
+	const creationIntent = metadataBefore.cloudHandoffIntent as
+		| { fingerprint?: CloudHandoffFingerprint }
+		| undefined;
+	if (
+		!pending &&
+		creationIntent &&
+		!cloudHandoffFingerprintsEqual(
+			creationIntent.fingerprint,
+			prepared.fingerprint,
+		)
+	)
+		throw new Error(
+			"An earlier cloud handoff is unconfirmed for different settings. Restore the original repository, commit, and model before retrying.",
+		);
 	await assertPendingCloudHandoffCompatible(cloud, {
 		pending,
 		fingerprint: prepared.fingerprint,
@@ -387,6 +402,7 @@ async function handleHandoffOnce(
 	let innerSessionId = pending?.innerSessionId ?? "";
 	let seededMessages: MessageWithMetadata[] | undefined;
 	let createdOuterSessionThisAttempt = false;
+	let savedCreationIntentThisAttempt = false;
 	const onSeeding = async (): Promise<void> => {
 		const current = await manager.get(sourceSessionId);
 		// Persist before dispatch so a restart cannot repeat an uncertain inner create.
@@ -407,6 +423,11 @@ async function handleHandoffOnce(
 		);
 	};
 	const handleSeedFailure = async (error: unknown): Promise<never> => {
+		if (
+			savedCreationIntentThisAttempt &&
+			error instanceof CloudHandoffCreationRejectedError
+		)
+			await clearPendingMetadata();
 		// These rejections precede the create handler; generic failures may follow persistence.
 		if (
 			error instanceof Error &&
@@ -579,6 +600,26 @@ async function handleHandoffOnce(
 				handoff: {
 					sourceSessionId,
 					resolveMessages: readSeedMessages,
+					onCreating: async () => {
+						const current = await manager.get(sourceSessionId);
+						const metadata =
+							(current?.metadata as JsonRecord | null | undefined) ??
+							metadataBefore;
+						if (metadata.cloudHandoffIntent)
+							throw new Error(
+								"The earlier cloud creation is still unconfirmed. Retry later or check Cline Cloud; no new workspace was created.",
+							);
+						await updateHandoffMetadataOrThrow(
+							manager,
+							sourceSessionId,
+							{
+								...metadata,
+								cloudHandoffIntent: { fingerprint: prepared.fingerprint },
+							},
+							"The cloud workspace could not be created because its recovery state could not be saved locally.",
+						);
+						savedCreationIntentThisAttempt = true;
+					},
 					onOuterSessionCreated: async (createdSessionId, info) => {
 						outerSessionId = createdSessionId;
 						const dashboardUrl = buildCloudHandoffDashboardUrl(
