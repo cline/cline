@@ -989,6 +989,123 @@ describe("migrateLegacyProviderSettings", () => {
 		});
 	});
 
+	it("backfills the profile on a Bedrock entry migrated before the bare-profile inference", () => {
+		// Migration never overwrites an existing entry, so an install that
+		// migrated before this fix has a Bedrock entry with no profile. Repair
+		// it from the legacy state that is still on disk.
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		manager.saveProviderSettings(
+			{
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-6",
+				aws: { region: "eu-west-1", usePromptCache: true },
+			},
+			{ tokenSource: "migration" },
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					actModeApiModelId: "anthropic.claude-sonnet-4-6",
+					awsRegion: "eu-west-1",
+					awsProfile: "work",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(true);
+		expect(manager.getProviderSettings("bedrock")?.aws).toEqual({
+			region: "eu-west-1",
+			usePromptCache: true,
+			authentication: "profile",
+			profile: "work",
+		});
+		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
+	});
+
+	it("does not backfill a Bedrock entry the user has edited or that chose another auth mode", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+		// Manually saved entry: the user's choice stands, even without a profile.
+		manager.saveProviderSettings(
+			{
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-6",
+				aws: { region: "us-east-1" },
+			},
+			{ tokenSource: "manual" },
+		);
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					awsRegion: "us-east-1",
+					awsProfile: "work",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(path.join(tempDir, "secrets.json"), JSON.stringify({}));
+
+		const manualResult = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(manualResult.migrated).toBe(false);
+		expect(manager.getProviderSettings("bedrock")?.aws).toEqual({
+			region: "us-east-1",
+		});
+
+		// Migrated entry with an explicit IAM choice: also left alone.
+		manager.saveProviderSettings(
+			{
+				provider: "bedrock",
+				model: "anthropic.claude-sonnet-4-6",
+				aws: {
+					region: "us-east-1",
+					authentication: "iam",
+					accessKey: "a",
+					secretKey: "s",
+				},
+			},
+			{ tokenSource: "migration" },
+		);
+		const iamResult = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+		expect(iamResult.migrated).toBe(false);
+		expect(manager.getProviderSettings("bedrock")?.aws).toMatchObject({
+			authentication: "iam",
+			accessKey: "a",
+		});
+		expect(
+			manager.getProviderSettings("bedrock")?.aws?.profile,
+		).toBeUndefined();
+	});
+
 	it("does not turn a stale awsProfile into profile auth when legacy auth is explicit", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),

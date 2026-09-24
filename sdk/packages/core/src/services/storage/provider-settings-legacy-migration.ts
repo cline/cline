@@ -7,6 +7,7 @@ import {
 	emptyStoredProviderSettings,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+	type StoredProviderSettings,
 } from "../../types/provider-settings";
 import {
 	readModelsFileSync,
@@ -881,6 +882,53 @@ function collectCandidateProviderIds(
 	return candidates;
 }
 
+/**
+ * Repair a Bedrock entry written by an earlier run of this migration that
+ * dropped a bare legacy `awsProfile` (see the profile inference in
+ * buildLegacyProviderSettings). Migration never overwrites an existing
+ * entry, so without this pass the inference only reaches installs that have
+ * not migrated yet. Only untouched migration output is repaired: the entry
+ * is still tagged "migration", carries no authentication choice, profile,
+ * static credentials or API key, and legacy state still has the bare
+ * profile with no explicit authentication.
+ */
+function backfillMigratedBedrockProfile(
+	next: StoredProviderSettings,
+	legacyGlobalState: LegacyGlobalState,
+	now: string,
+): boolean {
+	const entry = next.providers.bedrock;
+	if (!entry || entry.tokenSource !== "migration") {
+		return false;
+	}
+	if (legacyGlobalState.awsAuthentication !== undefined) {
+		return false;
+	}
+	const profile = trimNonEmpty(legacyGlobalState.awsProfile);
+	if (!profile) {
+		return false;
+	}
+	const aws = entry.settings.aws;
+	if (
+		aws?.authentication !== undefined ||
+		aws?.profile !== undefined ||
+		aws?.accessKey ||
+		aws?.secretKey ||
+		entry.settings.apiKey
+	) {
+		return false;
+	}
+	next.providers.bedrock = {
+		...entry,
+		settings: {
+			...entry.settings,
+			aws: { ...(aws ?? {}), authentication: "profile", profile },
+		},
+		updatedAt: now,
+	};
+	return true;
+}
+
 export function migrateLegacyProviderSettings(
 	options: MigrateLegacyProviderSettingsOptions,
 ): MigrateLegacyProviderSettingsResult {
@@ -966,7 +1014,17 @@ export function migrateLegacyProviderSettings(
 		}
 	}
 
-	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
+	const repairedBedrockProfile = backfillMigratedBedrockProfile(
+		next,
+		globalState,
+		now,
+	);
+
+	if (
+		addedProviderCount === 0 &&
+		addedCustomProviderCount === 0 &&
+		!repairedBedrockProfile
+	) {
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,
@@ -994,7 +1052,10 @@ export function migrateLegacyProviderSettings(
 	}
 
 	return {
-		migrated: addedProviderCount > 0 || addedCustomProviderCount > 0,
+		migrated:
+			addedProviderCount > 0 ||
+			addedCustomProviderCount > 0 ||
+			repairedBedrockProfile,
 		providerCount: Object.keys(next.providers).length,
 		lastUsedProvider: next.lastUsedProvider,
 	};
