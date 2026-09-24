@@ -25,10 +25,9 @@ import {
 	Star,
 	X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useOAuthUserCode } from "@/hooks/use-oauth-user-code";
 import { openExternalUrl } from "@/lib/desktop-client";
 import {
@@ -224,21 +223,46 @@ function ProviderRow({
 	);
 }
 
-function ProviderSectionHeading({
+function ProviderSection({
 	title,
 	description,
+	expanded,
+	onToggle,
+	children,
 }: {
 	title: string;
 	description?: string;
+	expanded: boolean;
+	onToggle: () => void;
+	children: ReactNode;
 }) {
+	const contentId = useId();
 	return (
-		<div className="mb-2 mt-8 first:mt-0">
-			<h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-				{title}
+		<div className="mt-8 first:mt-0">
+			<h2>
+				<button
+					aria-expanded={expanded}
+					aria-controls={contentId}
+					className="mb-2 flex w-full items-center gap-2 rounded text-left text-sm font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					onClick={onToggle}
+					type="button"
+				>
+					<ChevronRight
+						aria-hidden="true"
+						className={cn(
+							"size-4 shrink-0 transition-transform",
+							expanded && "rotate-90",
+						)}
+					/>
+					{title}
+				</button>
 			</h2>
-			{description ? (
-				<p className="mt-1 text-sm text-muted-foreground">{description}</p>
-			) : null}
+			<div hidden={!expanded} id={contentId}>
+				{description ? (
+					<p className="mb-2 text-sm text-muted-foreground">{description}</p>
+				) : null}
+				{children}
+			</div>
 		</div>
 	);
 }
@@ -257,6 +281,17 @@ export function ProviderListContent({
 	variant?: "page" | "panel";
 }) {
 	const [providerSearch, setProviderSearch] = useState("");
+	const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
+		new Set(),
+	);
+	const toggleSection = (title: string) => {
+		setCollapsedSections((current) => {
+			const next = new Set(current);
+			if (next.has(title)) next.delete(title);
+			else next.add(title);
+			return next;
+		});
+	};
 	const isPanel = variant === "panel";
 
 	const providerSearchQuery = providerSearch.trim().toLowerCase();
@@ -296,104 +331,122 @@ export function ProviderListContent({
 	);
 
 	return (
-		<ScrollArea className="h-full">
+		<div
+			className={cn(
+				"flex h-full min-h-0 min-w-0 flex-col overflow-hidden py-10 max-[720px]:px-4 max-[720px]:py-5",
+				isPanel ? "px-8" : "px-18 max-[1200px]:px-8",
+			)}
+		>
 			<div
 				className={cn(
-					"py-10 max-[720px]:px-4 max-[720px]:py-5",
-					isPanel ? "px-8" : "px-18 max-[1200px]:px-8",
+					"mb-6 flex shrink-0 items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
+					isPanel ? "max-w-none" : "max-w-2xl",
 				)}
 			>
-				<div
-					className={cn(
-						"mb-6 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
-						isPanel ? "max-w-none" : "max-w-2xl",
-					)}
-				>
-					<div className="min-w-0">
-						<h1
-							className={cn(
-								"truncate font-semibold leading-[1.15] text-foreground",
-								isPanel ? "text-2xl" : "text-3xl",
-							)}
-						>
-							Model Providers
-						</h1>
-						<p className="mt-3 text-base leading-6 text-muted-foreground">
-							{connectedCount === 0
-								? "Connect a provider to start using models."
-								: `${connectedCount} configured · ${providers.length} available`}
-						</p>
-					</div>
-					<Button
-						className="h-8 shrink-0 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90 max-[860px]:self-start"
-						onClick={onAddProvider}
-						type="button"
+				<div className="min-w-0">
+					<h1
+						className={cn(
+							"truncate font-semibold leading-[1.15] text-foreground",
+							isPanel ? "text-2xl" : "text-3xl",
+						)}
 					>
-						<PlusCircle className="size-4" />
-						Add provider
-					</Button>
+						Model Providers
+					</h1>
+					<p className="mt-3 text-base leading-6 text-muted-foreground">
+						{connectedCount === 0
+							? "Connect a provider to start using models."
+							: `${connectedCount} configured · ${providers.length} available`}
+					</p>
 				</div>
+				<Button
+					className="h-8 shrink-0 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90 max-[860px]:self-start"
+					onClick={onAddProvider}
+					type="button"
+				>
+					<PlusCircle className="size-4" />
+					Add provider
+				</Button>
+			</div>
 
-				<div className={cn("mb-6", isPanel ? "max-w-none" : "max-w-2xl")}>
-					<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
-						<Search className="size-4 shrink-0 text-muted-foreground" />
-						<Input
-							aria-label="Search model providers"
-							className={EMBEDDED_INPUT_CLASS}
-							onChange={(event) => setProviderSearch(event.target.value)}
-							placeholder="Search providers"
-							value={providerSearch}
-						/>
-						{providerSearch ? (
-							<button
-								aria-label="Clear provider search"
-								className="grid size-5 place-items-center rounded text-muted-foreground hover:text-foreground"
-								onClick={() => setProviderSearch("")}
-								type="button"
-							>
-								<X className="size-3.5" />
-							</button>
-						) : null}
-					</div>
-				</div>
-
-				<div className={cn(isPanel ? "max-w-none" : "max-w-2xl")}>
-					{filteredProviders.length === 0 ? (
-						<div className="border-y px-2 py-6 text-base text-muted-foreground">
-							No providers match "{providerSearch.trim()}".
-						</div>
-					) : null}
-
-					{connectedProviders.length > 0 ? (
-						<>
-							<ProviderSectionHeading title="Configured" />
-							{renderRows(connectedProviders)}
-						</>
-					) : null}
-
-					{popularProviders.length > 0 ? (
-						<>
-							<ProviderSectionHeading
-								description={
-									connectedProviders.length === 0 && !providerSearchQuery
-										? "Sign in or add an API key to connect."
-										: undefined
-								}
-								title="Popular"
-							/>
-							{renderRows(popularProviders)}
-						</>
-					) : null}
-
-					{otherProviders.length > 0 ? (
-						<>
-							<ProviderSectionHeading title="All providers" />
-							{renderRows(otherProviders)}
-						</>
+			<div
+				className={cn("mb-6 shrink-0", isPanel ? "max-w-none" : "max-w-2xl")}
+			>
+				<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
+					<Search className="size-4 shrink-0 text-muted-foreground" />
+					<Input
+						aria-label="Search model providers"
+						className={EMBEDDED_INPUT_CLASS}
+						onChange={(event) => {
+							setProviderSearch(event.target.value);
+							setCollapsedSections(new Set());
+						}}
+						placeholder="Search providers"
+						value={providerSearch}
+					/>
+					{providerSearch ? (
+						<button
+							aria-label="Clear provider search"
+							className="grid size-5 place-items-center rounded text-muted-foreground hover:text-foreground"
+							onClick={() => setProviderSearch("")}
+							type="button"
+						>
+							<X className="size-3.5" />
+						</button>
 					) : null}
 				</div>
 			</div>
-		</ScrollArea>
+
+			<section
+				aria-label="Model providers"
+				className={cn(
+					"min-h-0 flex-1 overflow-y-auto overscroll-contain",
+					isPanel ? "max-w-none" : "max-w-2xl",
+				)}
+				// biome-ignore lint/a11y/noNoninteractiveTabindex: Allow keyboard scrolling of the provider list.
+				tabIndex={0}
+			>
+				{filteredProviders.length === 0 ? (
+					<div className="border-y px-2 py-6 text-base text-muted-foreground">
+						No providers match "{providerSearch.trim()}".
+					</div>
+				) : null}
+
+				{connectedProviders.length > 0 ? (
+					<ProviderSection
+						title="Configured"
+						expanded={!collapsedSections.has("Configured")}
+						onToggle={() => toggleSection("Configured")}
+					>
+						{renderRows(connectedProviders)}
+					</ProviderSection>
+				) : null}
+
+				{popularProviders.length > 0 ? (
+					<ProviderSection
+						expanded={!collapsedSections.has("Popular")}
+						onToggle={() => toggleSection("Popular")}
+						description={
+							connectedProviders.length === 0 && !providerSearchQuery
+								? "Sign in or add an API key to connect."
+								: undefined
+						}
+						title="Popular"
+					>
+						{renderRows(popularProviders)}
+					</ProviderSection>
+				) : null}
+
+				{otherProviders.length > 0 ? (
+					<ProviderSection
+						title="All providers"
+						expanded={!collapsedSections.has("All providers")}
+						onToggle={() => toggleSection("All providers")}
+					>
+						{renderRows(otherProviders)}
+					</ProviderSection>
+				) : null}
+			</section>
+		</div>
 	);
 }
 
@@ -767,17 +820,6 @@ export function ProviderDetailContent({
 								needed.
 							</p>
 						</div>
-						{onDisconnect ? (
-							<Button
-								className="shrink-0"
-								onClick={handleDisconnect}
-								size="sm"
-								type="button"
-								variant="outline"
-							>
-								Sign out
-							</Button>
-						) : null}
 					</div>
 				) : connected && apiKeyValue ? (
 					<div className="flex flex-col">
@@ -785,17 +827,6 @@ export function ProviderDetailContent({
 							<p className="text-sm text-muted-foreground">
 								Configured with an API key.
 							</p>
-							{onDisconnect ? (
-								<Button
-									className="shrink-0"
-									onClick={handleDisconnect}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									Disconnect
-								</Button>
-							) : null}
 						</div>
 						{apiKeyField ? renderConfigFieldRow(apiKeyField) : null}
 					</div>
@@ -874,28 +905,16 @@ export function ProviderDetailContent({
 							API key needed.
 						</p>
 					</div>
-					{connected
-						? onDisconnect && (
-								<Button
-									className="shrink-0"
-									onClick={handleDisconnect}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									Disconnect
-								</Button>
-							)
-						: onConnect && (
-								<Button
-									className="shrink-0"
-									onClick={onConnect}
-									size="sm"
-									type="button"
-								>
-									Connect
-								</Button>
-							)}
+					{!connected && onConnect && (
+						<Button
+							className="shrink-0"
+							onClick={onConnect}
+							size="sm"
+							type="button"
+						>
+							Connect
+						</Button>
+					)}
 				</div>
 			</section>
 		) : (
@@ -905,45 +924,26 @@ export function ProviderDetailContent({
 						{configFields.map(renderConfigFieldRow)}
 					</div>
 				) : null}
-				<div className="mt-4 flex items-center justify-between gap-4">
-					{connected ? (
-						<>
-							<p className="text-xs text-muted-foreground">
-								Changes to the fields above are saved automatically.
-							</p>
-							{onDisconnect ? (
-								<Button
-									className="shrink-0"
-									onClick={handleDisconnect}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									Disconnect
-								</Button>
-							) : null}
-						</>
-					) : (
-						<>
-							<p className="text-xs text-muted-foreground">
-								Saving an API key configures this provider automatically. Use
-								Connect if it reads credentials from your environment or a local
-								endpoint.
-							</p>
-							{onConnect ? (
-								<Button
-									className="shrink-0"
-									onClick={onConnect}
-									size="sm"
-									type="button"
-									variant="outline"
-								>
-									Connect
-								</Button>
-							) : null}
-						</>
-					)}
-				</div>
+				{!connected ? (
+					<div className="mt-4 flex items-center justify-between gap-4">
+						<p className="text-xs text-muted-foreground">
+							Saving an API key configures this provider automatically. Use
+							Connect if it reads credentials from your environment or a local
+							endpoint.
+						</p>
+						{onConnect ? (
+							<Button
+								className="shrink-0"
+								onClick={onConnect}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								Connect
+							</Button>
+						) : null}
+					</div>
+				) : null}
 			</section>
 		);
 
@@ -967,17 +967,39 @@ export function ProviderDetailContent({
 							<ArrowLeft className="size-4" />
 						</Button>
 					)}
-					<h1
-						className={cn(
-							"min-w-0 flex-1 truncate font-semibold leading-[1.15] text-foreground",
-							isPanel ? "text-2xl" : "text-3xl",
-						)}
-					>
-						{provider.name}
-					</h1>
-					<span className="inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-						{connected ? "Configured" : "Not configured"}
-					</span>
+					<div className="min-w-0 flex-1">
+						<div className="flex min-w-0 flex-wrap items-center gap-3">
+							<h1
+								className={cn(
+									"min-w-0 truncate font-semibold leading-[1.15] text-foreground",
+									isPanel ? "text-2xl" : "text-3xl",
+								)}
+							>
+								{provider.name}
+							</h1>
+							<span className="inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+								{connected ? "Configured" : "Not configured"}
+							</span>
+						</div>
+						{connected && authKind !== "oauth" && authKind !== "local" ? (
+							<p className="mt-2 text-xs text-muted-foreground">
+								Changes to the fields below are saved automatically.
+							</p>
+						) : null}
+					</div>
+					{connected && onDisconnect ? (
+						<Button
+							className="shrink-0"
+							onClick={handleDisconnect}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							{authKind === "oauth" && oauthConnected
+								? "Sign out"
+								: "Disconnect"}
+						</Button>
+					) : null}
 				</div>
 
 				{connectionSection}
