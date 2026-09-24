@@ -694,12 +694,15 @@ describe("cloud handoff transaction", () => {
 		};
 	}
 
-	it("allows retries after pre-dispatch authority rejection on both create and resume", async () => {
+	it.each([
+		"client_authority_mismatch",
+		"hub_draining",
+	])("allows retries after pre-dispatch %s on both create and resume", async (code) => {
 		const fixture = createHandoffFixture();
 		const rejected = new HubCommandError(
 			"session.create",
-			"client_authority_mismatch",
-			"Command clientId does not belong to this connection.",
+			code,
+			"Create rejected before dispatch.",
 		);
 		const request = {
 			action: "handoff" as const,
