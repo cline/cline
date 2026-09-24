@@ -889,11 +889,7 @@ export default function Home() {
 		},
 		[handleOpenSession],
 	);
-	// One lifecycle coordinator for the app's lifetime: it owns the
-	// synchronous completion/retry registries and the warning-toast claim set
-	// (previously three Home-level refs), so it must never be recreated.
-	// handleOpenSessionById routes through a ref so the coordinator always
-	// calls the latest binding without depending on its identity.
+	// Keep recovery state across pane changes while using the latest open-session binding.
 	const openHandoffSessionRef = useRef(handleOpenSessionById);
 	openHandoffSessionRef.current = handleOpenSessionById;
 	const handoffLifecycleRef = useRef<HandoffLifecycle | null>(null);
@@ -2123,8 +2119,6 @@ function ChatThreadPane({
 					},
 					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
 				);
-				// Throws when the result carries no cloud session, landing in the
-				// rejection path below exactly like an RPC failure.
 				await handoffLifecycle.onRpcResolved(sourceSessionId, {
 					handoffAttemptId,
 					result,

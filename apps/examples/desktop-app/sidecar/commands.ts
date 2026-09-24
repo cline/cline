@@ -2689,6 +2689,10 @@ export async function handleCommand(
 				sessionId,
 				deleted,
 			});
+			// A task worktree goes with its task, unless another session still
+			// lives in (or under) it, e.g. a second thread started while it was
+			// the workspace. Only the exact `<home>/<id>/<repo>` shape qualifies,
+			// since removal also deletes the `<id>` parent directory.
 			const removedWorktree =
 				deleted &&
 				isTaskWorktreePath(sessionCwd) &&

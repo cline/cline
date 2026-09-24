@@ -62,7 +62,7 @@ describe("cloudHandoffUiReducer", () => {
 		).toEqual({});
 	});
 
-	it("keeps a source locked across pane remounts and preserves its latest phase", () => {
+	it("preserves the source's latest progress phase", () => {
 		const creating = cloudHandoffUiReducer(
 			{},
 			{
