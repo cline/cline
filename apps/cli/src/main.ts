@@ -1006,6 +1006,7 @@ export async function runCli(): Promise<void> {
 		}
 
 		let knownModels: Config["knownModels"];
+		let providerDefaultModelId: string | undefined;
 		try {
 			const persistedProviderConfig = providerSettingsManager.getProviderConfig(
 				provider,
@@ -1026,6 +1027,7 @@ export async function runCli(): Promise<void> {
 				persistedProviderConfig,
 			);
 			knownModels = resolvedProviderConfig?.knownModels;
+			providerDefaultModelId = resolvedProviderConfig?.modelId || undefined;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			writeln(
@@ -1055,9 +1057,13 @@ export async function runCli(): Promise<void> {
 
 		const config: Config = {
 			providerId: provider,
+			// Prefer the provider's declared default over the first catalog entry:
+			// the generated catalog is ordered newest-first, so `knownModelIds[0]`
+			// drifts to whatever model was added most recently on each refresh.
 			modelId:
 				args.model ??
 				selectedProviderSettings?.model ??
+				providerDefaultModelId ??
 				knownModelIds[0] ??
 				"anthropic/claude-sonnet-4.6",
 			apiKey: apiKey ?? "",

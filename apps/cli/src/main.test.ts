@@ -955,6 +955,36 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("prefers the provider default model over the first catalog entry when no model is saved", async () => {
+		llmMocks.resolveProviderConfig.mockResolvedValue({
+			modelId: "anthropic/claude-sonnet-5",
+			knownModels: {
+				"newest-vendor/just-added-model": {
+					id: "newest-vendor/just-added-model",
+					name: "Just Added",
+				},
+				"anthropic/claude-sonnet-5": {
+					id: "anthropic/claude-sonnet-5",
+					name: "Claude Sonnet 5",
+				},
+			},
+		});
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-5",
+			}),
+			expect.anything(),
+			undefined,
+			expect.any(Object),
+		);
+	});
+
 	it("passes a positional prompt into TUI mode for startup submission", async () => {
 		process.argv = ["bun", "src/index.ts", "sup", "-i"];
 
