@@ -2533,7 +2533,7 @@ export async function handleCommand(
 		if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
 			throw new Error("metadata patch is required");
 		}
-		const { beginSessionMetadataUpdate } = await import("./chat-session");
+		const { beginSessionMetadataUpdate } = await import("./cloud-handoff");
 		const releaseMetadataUpdate = beginSessionMetadataUpdate(ctx, sessionId);
 		try {
 			// updateSession replaces metadata wholesale in both the session row and
@@ -2587,7 +2587,7 @@ export async function handleCommand(
 			return true;
 		}
 		const { assertSessionDeleteAllowedDuringHandoff } = await import(
-			"./chat-session"
+			"./cloud-handoff"
 		);
 		const releaseDelete = await assertSessionDeleteAllowedDuringHandoff(
 			ctx,
