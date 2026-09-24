@@ -24,6 +24,10 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
+import {
+	HUB_STARTUP_RETRY_WINDOW_MS,
+	retryUntilHubAvailable,
+} from "./hub-startup-retry";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
@@ -94,7 +98,32 @@ async function main() {
 		"Login shell PATH resolution",
 		await shellPathPromise,
 	);
-	await initializeSessionManager(ctx);
+	// A Hub that is slow to start (cold launch of the compiled binary on
+	// Windows, antivirus scanning it) used to take the whole sidecar down;
+	// the respawned process then started the same cold Hub over again. Keep
+	// this process alive and retry instead, so a later attempt attaches to
+	// the daemon an earlier one already spawned.
+	await retryUntilHubAvailable(() => initializeSessionManager(ctx), {
+		onRetry: ({ error, attempt, elapsedMs }) => {
+			observability.logger.log("Hub not ready yet; retrying", {
+				attempt,
+				elapsedMs,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			if (attempt === 1) {
+				// One handled event per launch: counts the devices that needed
+				// a retry without the fatal sidecar.startup noise of before.
+				captureSdkError(observability.telemetry, {
+					component: "desktop",
+					operation: "sidecar.hub_startup_retry",
+					error,
+					handled: true,
+					severity: "warn",
+					context: { retry_window_ms: HUB_STARTUP_RETRY_WINDOW_MS },
+				});
+			}
+		},
+	});
 
 	let shuttingDown = false;
 	let handlingFatalError = false;
