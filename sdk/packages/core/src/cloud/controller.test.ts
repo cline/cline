@@ -852,7 +852,8 @@ describe("seeded cloud handoff controller", () => {
 	function fixture(taskId?: string) {
 		let rows: Record<string, unknown>[] = [];
 		let transcript: MessageWithMetadata[] = [];
-		let failure: "none" | "timeout" | "malformed" | "send-timeout" = "none";
+		let failure: "none" | "timeout" | "malformed" | "send-timeout" | "connect" =
+			"none";
 		const calls: Array<{ name: string; payload?: Record<string, unknown> }> =
 			[];
 		const command = vi.fn(
@@ -860,9 +861,18 @@ describe("seeded cloud handoff controller", () => {
 				name: string,
 				payload?: Record<string, unknown>,
 				_sessionId?: string,
-				options?: { beforeDispatch?: () => void },
+				options?: {
+					beforeDispatch?: () => void;
+					onDispatch?: (requestId: string) => void;
+				},
 			) => {
+				if (name === "session.create" && failure === "connect")
+					throw Object.assign(new Error("connection failed"), {
+						name: "HubTransportError",
+						code: "hub_connect_failed",
+					});
 				options?.beforeDispatch?.();
+				options?.onDispatch?.("seed-request");
 				calls.push({ name, payload });
 				let result: Record<string, unknown> = {};
 				if (name === "session.list") result = { sessions: rows };
@@ -1162,7 +1172,10 @@ describe("seeded cloud handoff controller", () => {
 		).toHaveLength(0);
 		await f.controller.dispose();
 	});
-	it("awaits the durable seed marker and cancels safely while it is pending", async () => {
+	it.each([
+		"detach",
+		"dispose",
+	] as const)("makes pre-dispatch %s retryable in a new controller", async (cancel) => {
 		const f = fixture();
 		let release!: () => void;
 		const marker = new Promise<void>((resolve) => {
@@ -1173,17 +1186,51 @@ describe("seeded cloud handoff controller", () => {
 			...seed,
 			onSeeding: started,
 		});
-		const rejection = expect(pending).rejects.toThrow();
+		const rejection = expect(pending).rejects.toMatchObject({
+			name: "CloudHandoffSeedRejectedError",
+		});
 		await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
 		expect(
 			f.calls.filter((call) => call.name === "session.create"),
 		).toHaveLength(0);
-		await f.controller.detach(record.id);
+		if (cancel === "detach") await f.controller.detach(record.id);
+		else await f.controller.dispose();
 		release();
 		await rejection;
 		expect(
 			f.calls.filter((call) => call.name === "session.create"),
 		).toHaveLength(0);
+		await f.controller.dispose();
+		const restarted = fixture();
+		await expect(
+			restarted.controller.seedHandoff(record.id, {
+				...seed,
+				recoverOnly: false,
+			}),
+		).resolves.toEqual({ innerSessionId: "inner-seeded" });
+		await restarted.controller.dispose();
+	});
+	it.each([
+		"connect",
+		"hook",
+	])("classifies a %s failure before seed dispatch as safe to retry", async (failure) => {
+		const f = fixture();
+		if (failure === "connect") f.setFailure("connect");
+		await expect(
+			f.controller.seedHandoff(record.id, {
+				...seed,
+				onSeeding: () => {
+					if (failure === "hook") throw new Error("marker write failed");
+				},
+			}),
+		).rejects.toMatchObject({ name: "CloudHandoffSeedRejectedError" });
+		f.setFailure("none");
+		await expect(f.controller.seedHandoff(record.id, seed)).resolves.toEqual({
+			innerSessionId: "inner-seeded",
+		});
+		expect(
+			f.calls.filter((call) => call.name === "session.create"),
+		).toHaveLength(1);
 		await f.controller.dispose();
 	});
 	it("requires a durable read-back and permits appended messages only when requested", async () => {
