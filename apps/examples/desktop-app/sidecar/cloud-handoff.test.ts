@@ -3,6 +3,7 @@ import {
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
 } from "@cline/core";
+import { HubCommandError } from "@cline/core/hub";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
@@ -693,6 +694,59 @@ describe("cloud handoff transaction", () => {
 		};
 	}
 
+	it("allows retries after pre-dispatch authority rejection on both create and resume", async () => {
+		const fixture = createHandoffFixture();
+		const rejected = new HubCommandError(
+			"session.create",
+			"client_authority_mismatch",
+			"Command clientId does not belong to this connection.",
+		);
+		const request = {
+			action: "handoff" as const,
+			sessionId: fixture.sourceSessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha: fixture.headSha,
+				modelId: fixture.modelId,
+			},
+		};
+		fixture.create.mockImplementationOnce(async (input) => {
+			await input.handoff?.onOuterSessionCreated?.("ses-cloud", {
+				created: true,
+			});
+			await input.handoff?.onSeeding?.();
+			throw rejected;
+		});
+		await expect(handleChatSessionCommand(fixture.ctx, request)).rejects.toBe(
+			rejected,
+		);
+		expect(fixture.getPersistedMetadata()).not.toHaveProperty(
+			"cloudHandoffSeedDispatched",
+		);
+		vi.spyOn(fixture.cloud, "waitUntilReady").mockResolvedValue(undefined);
+		const seed = vi
+			.spyOn(fixture.cloud, "seedHandoff")
+			.mockImplementation(async (_id, input) => {
+				expect(input.recoverOnly).toBe(false);
+				await input.onSeeding?.();
+				if (seed.mock.calls.length === 1) throw rejected;
+				return { innerSessionId: "inner-cloud" };
+			});
+		await expect(handleChatSessionCommand(fixture.ctx, request)).rejects.toBe(
+			rejected,
+		);
+		expect(fixture.getPersistedMetadata()).not.toHaveProperty(
+			"cloudHandoffSeedDispatched",
+		);
+		await expect(
+			handleChatSessionCommand(fixture.ctx, request),
+		).resolves.toMatchObject({ innerSessionId: "inner-cloud" });
+		expect(fixture.getPersistedMetadata().cloudHandoffSeedDispatched).toBe(
+			true,
+		);
+	});
+
 	it("does not seed when saving the dispatch marker fails", async () => {
 		const fixture = createHandoffFixture();
 		vi.mocked(
@@ -721,7 +775,13 @@ describe("cloud handoff transaction", () => {
 		expect(fixture.verifyHandoffTranscript).not.toHaveBeenCalled();
 	});
 
-	it("recovers an uncertain seed after restart without dispatching another create", async () => {
+	it.each([
+		"lost reply",
+		"hub_command_timeout",
+		"command_failed",
+		"unknown_code",
+		undefined,
+	])("recovers an uncertain seed after restart without another create (%s)", async (outcome) => {
 		const first = createHandoffFixture();
 		const request = {
 			action: "handoff" as const,
@@ -739,7 +799,9 @@ describe("cloud handoff transaction", () => {
 			});
 			await input.handoff?.resolveMessages();
 			await input.handoff?.onSeeding?.();
-			throw new Error("lost create reply");
+			throw outcome === "lost reply"
+				? new Error("lost create reply")
+				: new HubCommandError("session.create", outcome, "lost create reply");
 		});
 		await expect(handleChatSessionCommand(first.ctx, request)).rejects.toThrow(
 			"lost create reply",
