@@ -1,6 +1,6 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
 import { Switch } from "@cline/ui";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,7 @@ import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizeView } from "./customize-view";
+import { ExportDiagnosticsDialog } from "./export-diagnostics-dialog";
 import { ImportContent } from "./import-view";
 import { NotificationSettings } from "./notification-settings";
 import {
@@ -693,6 +694,7 @@ function GeneralSettingsContent({
 		"Dock" | "Taskbar" | "desktop"
 	>("desktop");
 	const [appIconError, setAppIconError] = useState<string | null>(null);
+	const [exportDiagnosticsOpen, setExportDiagnosticsOpen] = useState(false);
 	const appIconRequestRef = useRef(0);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
@@ -1268,6 +1270,25 @@ function GeneralSettingsContent({
 						Replay
 					</Button>
 				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Diagnostics
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Export app info, recent logs, and the metadata of sessions you
+							choose as a file you can attach when reporting a problem.
+						</p>
+					</div>
+					<Button
+						className="shrink-0"
+						onClick={() => setExportDiagnosticsOpen(true)}
+						variant="outline"
+					>
+						<Download className="size-3" />
+						Export…
+					</Button>
+				</div>
 				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">About</p>
@@ -1289,6 +1310,10 @@ function GeneralSettingsContent({
 					) : null}
 				</div>
 			</section>
+			<ExportDiagnosticsDialog
+				onOpenChange={setExportDiagnosticsOpen}
+				open={exportDiagnosticsOpen}
+			/>
 		</PageFrame>
 	);
 }

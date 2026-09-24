@@ -1,5 +1,30 @@
 # Cline Desktop Changelog
 
+## 0.0.35
+
+- Cline Desktop now runs on Linux. Each release ships x64 `.deb` and `.rpm` packages alongside the macOS and Windows builds. **Open folder…** uses the native GTK picker, and updates download in the background and install when you choose **Restart now**, so you are never hit with a surprise password prompt. There is no AppImage for now
+- Plugin slash commands now work in the desktop app. Commands a plugin registers, like `/goal`, used to be sent to the model as plain text; they now run the plugin's handler, show its reply, and start a turn only when the command asks for one. Enabled plugin commands appear in the slash menu, skills and workflows in that menu now come from the conversation's own workspace (including worktrees), and a broken plugin no longer makes every slash prompt fail
+- Settings has a new **Diagnostics** row. **Export…** writes a single text file to your Downloads folder with the app version, OS, settings, recent sidecar and hub logs, and the manifests of the sessions you pick. API keys, credential-shaped values, your prompts, and your home directory path are stripped, so the file is safe to attach to a GitHub issue
+- Voice input works again with provider-backed transcription, and it streams live. OpenAI, Vercel AI Gateway, and ElevenLabs transcribe as you speak; when the network drops mid-recording, the app falls back to the browser's recognizer and retries the provider next time. The model picker labels which voice models are realtime and which transcribe recordings
+- Your reasoning effort choice is now remembered per provider. Reopening a session reset the thinking picker to Low, and that Low was sent with your next message; switching providers now applies the effort you last picked for that provider
+- Model lists for LiteLLM, Baseten, Hicap, Poolside, Ollama, and LM Studio now show the actual error when your endpoint can't be reached, instead of an empty list or a placeholder model. The app also trusts your operating system's certificate store, so endpoints signed by a corporate CA stop failing with "unable to get local issuer certificate"
+- When the backend's hub fails to start, the error now says why, and the app waits up to 15 seconds for it instead of 8. The first launch after an install or update can take 8 to 13 seconds on Windows while the new binary is scanned
+- Renaming a session now sticks after a relaunch, and renaming no longer clears other state such as pinning
+- CLI sessions that were opened and closed without a prompt no longer show up as empty entries in the sidebar
+- Arrow-key navigation in the slash command and @-mention menus now scrolls the highlighted option into view
+- Free models under the picker's Free header no longer carry a redundant FREE badge on every row
+- Short session titles now have room to edit
+- Long replies on local models (llama.cpp, Ollama, LM Studio) that hit the output-token limit now compact the conversation and retry once instead of failing the run
+- New provider: ai&, an OpenAI-compatible endpoint serving open-weight models from Japan
+- Refreshed the model catalog to 6,386 models. The default model changes for 19 providers, 11 of them to Claude Opus 5.5 (including GitHub Copilot and Vertex). If you use one of those providers without picking a model, expect a different default
+
+## 0.0.34
+
+- Composio connectors now load all their tools, not just the first 20. Google Calendar, for example, showed only 20 of its 47 tools, and the Installed view wrongly said "20/20." The full list is now fetched and the tool cache refreshes instead of staying stale forever
+- You can now connect to a Mac as an SSH remote from a Mac. Picking a Mac host used to fail with "Remote target darwin/arm64 is unsupported in SSH" even though **Test** passed on the same profile. The app now uses its own signed backend as the helper on both Apple Silicon and Intel Mac hosts. Windows and Linux desktops still can't connect to a Mac out of the box
+- Session errors now stay in the transcript when you leave a session or open it in another client. Before, a failed run's error disappeared once you went away and came back, or opened the session in the CLI. Failures after all retries run out are now recorded too, and these error-only entries are left out of compaction
+- Stopping a run while it waits to retry an empty model response now takes effect right away, instead of after the backoff finishes
+
 ## 0.0.33
 
 - Start a task in its own git worktree. The welcome screen's “Work in” switch (next to the folder and branch chips) now offers Local or Worktree; pick Worktree and the first prompt of a new thread cuts a fresh `cline/<id>` branch off the current one, creates a worktree under `~/.cline/worktrees/`, and runs the task there, so the agent never touches your working tree. The conversation chip shows `<repo> / cline/<id>` with the full path in its tooltip. Deleting the task removes its worktree and branch (discarding uncommitted changes in it), unless another session still lives there. Only new threads are affected — follow-ups and reopened sessions stay where they are

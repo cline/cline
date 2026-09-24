@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.85",
+	"version": "0.0.86",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -38,6 +38,10 @@
 		"./remote/helper-entry": {
 			"types": "./dist/remote/remote-helper-entry.d.ts",
 			"import": "./dist/remote/remote-helper-entry.js"
+		},
+		"./cloud": {
+			"types": "./dist/cloud/index.d.ts",
+			"import": "./dist/cloud/index.js"
 		},
 		"./remote/helper": {
 			"types": "./dist/remote/remote-helper.d.ts",

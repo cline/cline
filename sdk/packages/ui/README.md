@@ -234,6 +234,14 @@ These are presentation primitives, not an agent SDK. Consumers map their own
 message and tool schemas into the components and retain their own Markdown,
 transport, approvals, persistence, and product actions.
 
+## Session-row presentation
+
+The root entry exports `AgentSessionRow`, `AgentSessionRowEditor`, and
+`AgentSessionOverview`. Desktop uses these for its existing session row, rename
+frame, and hover metadata. Hosts retain their icons, actions, rename input,
+menus, data formatting, and session behavior. See the session-row section in
+[ADOPTION.md](./ADOPTION.md) for the slot and trigger/ref contract.
+
 ## Storybook
 
 Run the interactive component catalog from the repository root:
@@ -340,3 +348,8 @@ The install command above pins the resolved release. Commit the consumer
 lockfile and update deliberately. The package is ESM and its React components
 target browser applications. A complete Tailwind theme also requires Tailwind
 v4 and the two font packages shown above.
+
+`AgentContextUsage` supplies the desktop context ring, accessible trigger label,
+and usage-detail body through a render callback. The host keeps its existing
+button/popover behavior and passes its formatted cost separately from the latest
+request's context tokens. See [context usage](./ADOPTION.md#context-usage).

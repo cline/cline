@@ -214,6 +214,7 @@ export {
 	type ChatCompatibleModelDescriptor,
 	type ChatModelModalities,
 	isChatCompatibleModel,
+	isTranscriptionModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -277,6 +278,7 @@ export {
 	ToolCallRecordSchema,
 	USER_REJECTED_TOOL_REASON,
 } from "./llms/tools";
+export type { StreamingAudioTranscriptionSession } from "./llms/transcription";
 export {
 	type BasicLogger,
 	type BasicLogMetadata,
@@ -292,6 +294,7 @@ export {
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export { toPosixSeparators } from "./parse/path";
 export {
 	getDefaultShell,
 	getPowerShellEdition,
@@ -555,6 +558,7 @@ export {
 	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,

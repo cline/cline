@@ -1,0 +1,512 @@
+name: ext-vscode-publish
+
+# Build (and optionally publish) the stable VS Code extension as a plain
+# standalone build of apps/vscode from `main` — the successor to both the
+# combined A/B loader VSIX (ext-vscode-ab-package.yml, retired once the SDK
+# rollout reached 100%) and ext-vscode-publish-stable.yml.
+#
+# Job layout mirrors the A/B workflow that shipped 4.1.0–4.1.19: cheap input
+# gates (preflight) and the test suite run ungated; the build job packages the
+# .vsix as an artifact with no environment attached, so publish=false
+# rehearsals complete without any approval; only the publish job — Marketplace
+# + Open VSX + bookkeeping — waits on the `publish` environment.
+#
+# Publishing uploads the PREBUILT artifact with `vsce publish --packagePath`
+# from a short, fresh job, instead of letting a bare `vsce publish` re-run
+# vscode:prepublish and repack the source tree inside the build job. That is
+# the shape of every claude-dev publish that has succeeded since August
+# (4.1.16-4.1.20), while ext-vscode-publish-stable.yml hung five times in a
+# row on v4.1.18. What is known about that hang: it was the client's very
+# first request (`OPTIONS /_apis/gallery`, route discovery, no body — the
+# VSIX was never uploaded), it lasted exactly typed-rest-client's 180s socket
+# timeout, and the stable job was running the workspace-vendored vsce 3.9.2
+# via `bun run` after a 25-minute build. The mechanism is NOT established;
+# the retry below covers a transient Marketplace hang without risking a
+# double publish (with --skip-duplicate, vsce checks the listing first and
+# exits 0 on "already published"; without it a duplicate is an error).
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Version to release — must equal apps/vscode/package.json and exceed every previously published version (e.g. 4.1.20)"
+                required: true
+                type: string
+            publish:
+                description: "Publish to the VS Code Marketplace and Open VSX (unchecked: just build the .vsix artifact)"
+                required: true
+                default: false
+                type: boolean
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ext-vscode-publish-${{ github.event.inputs.version }}
+    cancel-in-progress: false
+
+jobs:
+    # Input gates that need no checkout: fail in seconds — before the test
+    # suite, the build, and the environment approval — instead of at publish
+    # time.
+    preflight:
+        name: Validate inputs
+        runs-on: ubuntu-latest
+        steps:
+            # The input reaches the shell ONLY via env here (never inline
+            # expression interpolation, which is evaluated before bash runs and
+            # would allow script injection from the dispatch form). Because
+            # every later job `needs` preflight, passing this regex is what
+            # makes the plain-string `${{ inputs.version }}` interpolations
+            # downstream safe.
+            - name: Validate version format
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "Error: version must be plain X.Y.Z with no leading 'v' and no suffix (got '$VERSION')."
+                    exit 1
+                  fi
+                  echo "Version format ok: $VERSION"
+
+            # The reusable test suite runs against the dispatch revision, and
+            # the build job checks out that same revision — so a publish from
+            # any ref other than main would ship a tested-but-unreviewed
+            # branch. The `publish` environment's branch policy is the
+            # enforced boundary; this is the fast, readable failure.
+            - name: Refuse to publish from a non-main ref
+              if: ${{ github.event.inputs.publish == 'true' && github.ref != 'refs/heads/main' }}
+              env:
+                  REF: ${{ github.ref }}
+              run: |
+                  echo "Error: publish=true requires dispatching from main (got '$REF')."
+                  exit 1
+
+            # Marketplace versions are monotonic and cannot be unpublished:
+            # every publish must exceed the highest version ever published to
+            # the claude-dev listing FROM ANY BRANCH (this workflow, the
+            # retired combined VSIX, or a legacy hotfix). The publish job
+            # re-checks right before publishing — the environment-approval
+            # wait can last days. Keep both copies of this check in sync.
+            - name: Verify version exceeds the live Marketplace version
+              if: ${{ github.event.inputs.publish == 'true' }}
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  LIVE=$(curl -sf --retry 3 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+                    -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+                    --data '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
+                    | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{process.stdout.write(JSON.parse(d).results[0].extensions[0].versions[0].version)})')
+                  if [[ -z "$LIVE" ]]; then
+                    echo "Error: could not resolve the live Marketplace version for saoudrizwan.claude-dev."
+                    exit 1
+                  fi
+                  node -e '
+                    const [next, live] = process.argv.slice(1).map((v) => v.split(".").map(Number));
+                    for (let i = 0; i < 3; i++) {
+                      if (next[i] > live[i]) process.exit(0);
+                      if (next[i] < live[i]) break;
+                    }
+                    console.error(`Error: version ${process.argv[1]} does not exceed the live Marketplace version ${process.argv[2]}.`);
+                    process.exit(1);
+                  ' "$VERSION" "$LIVE"
+                  echo "Version ok: $VERSION exceeds live Marketplace version $LIVE"
+
+    # Gate the build/publish on the extension's own test suite. The reusable
+    # workflow tests the DISPATCH revision; the build job pins its checkout to
+    # that same revision (tested == built).
+    test:
+        name: Test extension
+        permissions:
+            contents: read
+            pull-requests: read
+        uses: ./.github/workflows/ext-vscode-test.yml
+
+    build:
+        name: Build VSIX
+        needs: [preflight, test]
+        runs-on: ubuntu-latest
+        steps:
+            # Pin the checkout to the exact revision the test gate ran against:
+            # a moving branch name could otherwise drift past the tested commit
+            # during the test phase.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.sha }}
+                  lfs: true
+
+            # The version input is a confirmation of what is being shipped, not
+            # a stamp: the About tab, telemetry extension_version and the
+            # Marketplace listing all read apps/vscode/package.json, so the
+            # repo must already carry the release version (bumped via the
+            # release-prep PR).
+            - name: Verify version matches apps/vscode/package.json
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  PKG_VERSION=$(node -p "require('./apps/vscode/package.json').version")
+                  if [[ "$PKG_VERSION" != "$VERSION" ]]; then
+                    echo "Error: version input '$VERSION' does not match apps/vscode/package.json version '$PKG_VERSION'."
+                    echo "Bump the package version on main (release-prep PR) before dispatching."
+                    exit 1
+                  fi
+                  echo "Version ok: apps/vscode/package.json is at $VERSION"
+
+            # Fail fast (before the build) if a real publish is missing its
+            # changelog entry. Build-only rehearsals are exempt.
+            - name: Verify changelog entry
+              if: ${{ github.event.inputs.publish == 'true' }}
+              run: |
+                  EXPECTED_HEADING="## [${{ github.event.inputs.version }}]"
+                  FIRST_HEADING=$(grep -m 1 '^## \[' CHANGELOG.md || true)
+                  if [[ "$FIRST_HEADING" != "$EXPECTED_HEADING" ]]; then
+                    echo "Error: CHANGELOG.md must start with '$EXPECTED_HEADING' before publishing (found '$FIRST_HEADING')."
+                    exit 1
+                  fi
+                  echo "Found changelog entry for ${{ github.event.inputs.version }}"
+
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: 1.3.14
+
+            # setup-bun provides no Node runtime; vsce runs vscode:prepublish
+            # via `npm run`, and the identity assert below is a node script.
+            # Pinned to Node 22 because newer LTS (Node 24 / npm 11) can make
+            # vsce's `npm list` detection fail with ELSPROBLEMS during
+            # packaging.
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            # --frozen-lockfile so the built extension resolves the exact
+            # dependency set the test gate ran against (the reusable suite
+            # installs frozen too) — a bare install could silently re-resolve.
+            - name: Install workspace dependencies
+              run: bun install --frozen-lockfile
+
+            # @cline/* are local workspace symlinks to source packages; apps/vscode's
+            # `package` script does NOT build them, so without this the esbuild step
+            # fails on a fresh checkout.
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            - name: Assert better-sqlite3 native binary present
+              working-directory: apps/vscode
+              run: |
+                  NODE_FILE="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+                  if [ ! -f "$NODE_FILE" ]; then
+                    echo "ERROR: better-sqlite3 native binary missing at apps/vscode/$NODE_FILE"
+                    echo "(bun trustedDependencies postinstall likely did not run)"
+                    exit 1
+                  fi
+                  echo "Found better-sqlite3 native binary: $NODE_FILE"
+
+            # `vsce package` runs vscode:prepublish (`bun run package`:
+            # check-types + build:webview + lint + esbuild --production) itself,
+            # so this single step is the whole build. The env is inlined by
+            # esbuild at that point — omitting it ships an extension whose
+            # telemetry is silently dead (asserted below).
+            - name: Build and package VSIX
+              working-directory: apps/vscode
+              env:
+                  CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+                  # OpenTelemetry production defaults (can be overridden at runtime)
+                  OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+                  OTEL_LOGS_EXPORTER: otlp
+                  OTEL_METRICS_EXPORTER: otlp
+                  OTEL_TRACES_EXPORTER: otlp
+                  CLINE_TRACE_RECORD_CONTENT: "true"
+                  OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+              run: |
+                  npm install -g @vscode/vsce
+
+                  # vsce reads README.md from the extension root and has no flag
+                  # to point it elsewhere: swap the marketplace-flavored README
+                  # into place for packaging and put the GitHub one back after.
+                  node scripts/marketplace-readme.mjs swap-in
+                  trap 'node scripts/marketplace-readme.mjs restore' EXIT
+
+                  # --no-dependencies: the extension is fully esbuild-bundled, and
+                  # under the bun workspace the @cline/* deps are symlinks pointing
+                  # outside the package, so without this vsce would walk them and
+                  # pull the whole monorepo into the .vsix.
+                  # --allow-package-secrets sendgrid: narrowly scoped scanner
+                  # exemption carried over from every previous ext workflow. No
+                  # SendGrid credential is intentionally supplied; inspect the
+                  # reported artifact before widening it.
+                  vsce package --no-dependencies --allow-package-secrets sendgrid --out "cline-${{ github.event.inputs.version }}.vsix"
+
+            # Publish uploads this file as-is, so check the bytes that will
+            # ship rather than the source tree: identity + version of the
+            # packaged manifest, and that the build actually inlined its env.
+            # apps/vscode/esbuild.mjs only defines each of these when the
+            # variable is non-empty, so a missing/blank secret leaves the
+            # `process.env.X` literal in the bundle and that piece of telemetry
+            # is silently dead in the shipped extension. The list mirrors the
+            # env block of the build step above (variables the workflow does
+            # not supply, e.g. OTEL_METRIC_EXPORT_INTERVAL, legitimately remain
+            # runtime lookups and are not checked).
+            - name: Assert packaged identity and inlined env
+              working-directory: apps/vscode
+              env:
+                  EXPECTED_VERSION: ${{ github.event.inputs.version }}
+                  VSIX: cline-${{ github.event.inputs.version }}.vsix
+              run: |
+                  unzip -p "$VSIX" extension/package.json > /tmp/packaged-package.json
+                  node -e '
+                    const assert = require("node:assert");
+                    const pkg = require("/tmp/packaged-package.json");
+                    assert.equal(pkg.name, "claude-dev", `unexpected name ${pkg.name}`);
+                    assert.equal(pkg.publisher, "saoudrizwan", `unexpected publisher ${pkg.publisher}`);
+                    assert.equal(pkg.version, process.env.EXPECTED_VERSION, `unexpected version ${pkg.version}`);
+                    console.log(`identity ok: ${pkg.publisher}.${pkg.name}@${pkg.version}`);
+                  '
+                  unzip -p "$VSIX" extension/dist/extension.js > /tmp/packaged-extension.js
+                  MISSING=""
+                  for VAR in CLINE_ENVIRONMENT TELEMETRY_SERVICE_API_KEY ERROR_SERVICE_API_KEY \
+                             OTEL_TELEMETRY_ENABLED OTEL_LOGS_EXPORTER OTEL_METRICS_EXPORTER OTEL_TRACES_EXPORTER \
+                             CLINE_TRACE_RECORD_CONTENT OTEL_EXPORTER_OTLP_PROTOCOL OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_HEADERS; do
+                    if grep -q "process\.env\.$VAR\b" /tmp/packaged-extension.js; then
+                      MISSING="$MISSING $VAR"
+                    fi
+                  done
+                  if [[ -n "$MISSING" ]]; then
+                    echo "Error: dist/extension.js still references process.env literals for:$MISSING"
+                    echo "The build ran without those values (missing/empty secret?) — the shipped extension would have that telemetry disabled."
+                    exit 1
+                  fi
+                  echo "env inlining ok: no build-time process.env literals left in dist/extension.js"
+
+            - name: Upload VSIX artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cline-${{ github.event.inputs.version }}
+                  path: apps/vscode/cline-${{ github.event.inputs.version }}.vsix
+                  if-no-files-found: error
+
+    publish:
+        name: Publish to Marketplace and Open VSX
+        needs: build
+        if: ${{ github.event.inputs.publish == 'true' }}
+        runs-on: ubuntu-latest
+        environment: publish
+        # contents: write is required by the post-publish bookkeeping (tag +
+        # GitHub Release).
+        permissions:
+            contents: write
+        steps:
+            # The built revision: preflight refused publish=true off main, and
+            # the build job pinned its checkout to the dispatch SHA — so
+            # github.sha IS the published commit. Used for the changelog, the
+            # release tag, and the previous-tag lookup.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.sha }}
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Download VSIX artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: cline-${{ github.event.inputs.version }}
+                  path: staging
+
+            - name: Install Publishing Tools
+              run: npm install -g @vscode/vsce ovsx
+
+            # Re-check monotonicity at the last moment: the environment-approval
+            # wait can last days, and anything published in the meantime would
+            # otherwise be silently superseded by this older code line. Keep in
+            # sync with the preflight copy of this check.
+            - name: Re-verify version exceeds the live Marketplace version
+              env:
+                  VERSION: ${{ github.event.inputs.version }}
+              run: |
+                  LIVE=$(curl -sf --retry 3 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+                    -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+                    --data '{"filters":[{"criteria":[{"filterType":7,"value":"saoudrizwan.claude-dev"}]}],"flags":16}' \
+                    | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{process.stdout.write(JSON.parse(d).results[0].extensions[0].versions[0].version)})')
+                  if [[ -z "$LIVE" ]]; then
+                    echo "Error: could not resolve the live Marketplace version for saoudrizwan.claude-dev."
+                    exit 1
+                  fi
+                  node -e '
+                    const [next, live] = process.argv.slice(1).map((v) => v.split(".").map(Number));
+                    for (let i = 0; i < 3; i++) {
+                      if (next[i] > live[i]) process.exit(0);
+                      if (next[i] < live[i]) break;
+                    }
+                    console.error(`Error: version ${process.argv[1]} does not exceed the live Marketplace version ${process.argv[2]}.`);
+                    process.exit(1);
+                  ' "$VERSION" "$LIVE"
+                  echo "Version ok: $VERSION exceeds live Marketplace version $LIVE"
+
+            # Both PATs are verified BEFORE the first irreversible publish so a
+            # missing Open VSX token can't strand us half-published. The two
+            # registries are separate steps: if Open VSX fails after the
+            # Marketplace accepted the VSIX, the run goes red (so the operator
+            # notices Open VSX lagged) but the bookkeeping below still runs —
+            # it is keyed off the Marketplace outcome, which is what "shipped"
+            # means for this listing.
+            #
+            # --packagePath uploads the prebuilt artifact verbatim (no
+            # prepublish re-run, no repack) — see the header comment for why.
+            - name: Publish to Marketplace
+              id: publish_marketplace
+              working-directory: staging
+              env:
+                  VSCE_PAT: ${{ secrets.VSCE_PAT }}
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: |
+                  if [[ -z "$VSCE_PAT" ]]; then
+                    echo "Error: VSCE_PAT is required to publish."
+                    exit 1
+                  fi
+                  if [[ -z "$OVSX_PAT" ]]; then
+                    echo "Error: OVSX_PAT is required to publish to Open VSX."
+                    exit 1
+                  fi
+                  # Retry a hung/timed-out upload. --skip-duplicate makes this
+                  # safe: vsce queries the listing before uploading (and maps a
+                  # 409 from the upload itself) to "already published" + exit 0,
+                  # so an attempt whose upload landed but whose response was lost
+                  # is a success on the next attempt instead of an error that
+                  # would skip the tag/release/Slack bookkeeping. Without the
+                  # flag vsce throws "already exists".
+                  for attempt in 1 2 3; do
+                    if vsce publish --no-dependencies --skip-duplicate --packagePath "cline-${{ github.event.inputs.version }}.vsix"; then
+                      exit 0
+                    fi
+                    echo "vsce publish attempt $attempt failed."
+                    if [[ $attempt -lt 3 ]]; then
+                      echo "Retrying in 30s..."
+                      sleep 30
+                    fi
+                  done
+                  exit 1
+
+            - name: Publish to Open VSX
+              working-directory: staging
+              env:
+                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
+              run: npx ovsx publish --packagePath "cline-${{ github.event.inputs.version }}.vsix" --pat "$OVSX_PAT"
+
+            # ---- Post-publish bookkeeping (tag / GitHub Release / Slack) ----
+            # Every step here is continue-on-error, and gated on the MARKETPLACE
+            # outcome rather than plain step ordering: the Marketplace publish
+            # already happened, so bookkeeping must still run when only the
+            # Open VSX step failed, and a red run after a successful publish is
+            # exactly the confusion the nightly workflow taught us to avoid
+            # (tag pushes fail whenever the built commit touches
+            # .github/workflows/** — no grantable permission fixes that; push
+            # the tag manually in that case, see the publish-extension skill).
+
+            - name: Extract changelog entry
+              id: changelog
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              run: |
+                  CONTENT=$(awk '/^## \[/{if(found) exit; found=1; next} found{print}' CHANGELOG.md)
+                  {
+                    echo "content<<CHANGELOG_EOF"
+                    echo "$CONTENT"
+                    echo "CHANGELOG_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+                  # Slack section blocks reject text longer than 3000 characters, and
+                  # the Slack action logs that rejection WITHOUT failing the step - so
+                  # an over-long changelog silently drops the release announcement
+                  # while the run stays green. Post a trimmed copy to Slack and link
+                  # out to the full notes. The GitHub release body stays whole.
+                  RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${{ github.event.inputs.version }}"
+                  SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+                  import os
+                  content = os.environ["CONTENT"]
+                  more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+                  if len(content) <= 3000:
+                      print(content, end="")
+                  else:
+                      budget = 3000 - len(more)
+                      kept, used = [], 0
+                      for line in content.splitlines(keepends=True):
+                          if used + len(line) > budget:
+                              break
+                          kept.append(line)
+                          used += len(line)
+                      body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+                      print(body + more, end="")
+                  ')
+                  {
+                    echo "slack_content<<CHANGELOG_EOF"
+                    echo "$SLACK_CONTENT"
+                    echo "CHANGELOG_EOF"
+                  } >> "$GITHUB_OUTPUT"
+
+            - name: Resolve previous release tag
+              id: prev_tag
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              run: |
+                  # ls-remote needs no local tag objects; take the highest v* tag
+                  # below the one being released.
+                  PREV=$(git ls-remote --tags origin 'v*' \
+                    | awk -F/ '{print $NF}' | grep -v '\^{}' \
+                    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+                    | grep -vx "v${{ github.event.inputs.version }}" \
+                    | sort -V | tail -1)
+                  echo "prev_tag=$PREV" >> "$GITHUB_OUTPUT"
+
+            - name: Create and push release tag
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              run: |
+                  TAG="v${{ github.event.inputs.version }}"
+                  git tag "$TAG" HEAD
+                  git push origin "refs/tags/$TAG"
+                  echo "Pushed $TAG at $(git rev-parse HEAD)"
+
+            - name: Create GitHub Release
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ github.event.inputs.version }}
+                  files: staging/cline-${{ github.event.inputs.version }}.vsix
+                  body: |
+                      ${{ steps.changelog.outputs.content }}
+
+                      **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...v${{ github.event.inputs.version }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Post release to Slack
+              if: ${{ !cancelled() && steps.publish_marketplace.outcome == 'success' }}
+              continue-on-error: true
+              uses: slackapi/slack-github-action@v3.0.1
+              with:
+                  method: chat.postMessage
+                  token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+                  payload: |
+                    channel: "C0APVKGGZFC"
+                    text: "Cline v${{ github.event.inputs.version }}"
+                    blocks:
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: "*Cline v${{ github.event.inputs.version }}*"
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
+                      - type: "context"
+                        elements:
+                          - type: "mrkdwn"
+                            text: "Full Changelog: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...v${{ github.event.inputs.version }}"
