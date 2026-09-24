@@ -1,5 +1,19 @@
 # Cline Desktop Changelog
 
+## 0.0.35
+
+- Session renames now stick. Renaming a session in the sidebar or header only changed the name in memory, so every custom name reverted to the auto-generated one on the next launch (reported on r/Cline as "Session names keep resetting"). The rename now reaches the session record on disk and survives relaunch, and it no longer wipes other saved session metadata such as pinned state
+- Fewer "No compatible hub runtime is available" failures at startup, especially on Windows. Cline runs its own copy of the Cline Hub in the background, and on the first launch after an install or update (while Defender scans the new binary) it could take longer than the 8 seconds the app was willing to wait, so the app gave up even though the Hub was about to become ready. The app now waits up to 15 seconds, and when startup does fail the error names the actual reason instead of the generic message, so the next report can be diagnosed
+- New **Diagnostics → Export…** in Settings. It writes a single text file to your Downloads folder with app and system info, the tail of the app and Hub logs, and the metadata of the sessions you tick. Conversation contents, prompts, and API keys are never included, and known secret patterns and your home directory are redacted from the logs, so the file is safe to attach to a bug report
+- Voice input now shows text while you speak. The microphone always opens a live transcription session with the selected provider; Voice settings only offers streaming models, and browser speech recognition is used as a fallback when the provider connection drops mid-recording. If your saved voice model was a batch ("After recording") model, you will be asked to pick a streaming one. OpenAI (`gpt-realtime-whisper`), ElevenLabs (`scribe_v2_realtime`), and Vercel AI Gateway streaming models are supported; batch-only voice providers (Groq, Mistral, Evroc, NearAI, Privatemode, Scaleway) no longer appear in Voice settings
+- Plugin slash commands now work in the desktop app. Commands a plugin registers (for example `/goal` from the goal plugin) were sent to the model as plain text; they now run in the desktop backend the same way they do in the CLI, appear in the `/` autocomplete, and reply-only commands like `/goal status` show a toast without starting a turn
+- Model-list failures are shown instead of silently producing an empty list. For providers whose catalog comes only from your own endpoint (LiteLLM, Baseten, Hicap, Poolside), a TLS rejection or unreachable host now surfaces the error in the provider panel. The desktop backend also trusts the operating system's certificate store on macOS and Windows, so LiteLLM behind a company CA works
+- Opening the CLI no longer adds an empty session to the desktop sidebar, and old sessions that only contain initialization or recovery messages are hidden. No session data is deleted
+- Renaming a short session title such as `test` opens an input wide enough to type in instead of one as narrow as the title
+- Free models in the model picker no longer carry a redundant `FREE` badge on every row under the Free header
+- ai& (aiand.com) is available as a built-in OpenAI-compatible provider
+- Refreshed the model catalog. The resolved default model changes for 23 providers that do not pin one, including Anthropic (`claude-opus-5-5`), OpenAI (`gpt-6-luna`), OpenRouter (`aion-labs/aion-3.5`), Vertex (`claude-opus-5-5@default`), Bedrock, GitHub Copilot, Requesty, and Vercel AI Gateway. If you use one of those without pinning a model, expect a different default; explicitly selected models are unaffected
+
 ## 0.0.34
 
 - Composio connectors now load all their tools, not just the first 20. Google Calendar, for example, showed only 20 of its 47 tools, and the Installed view wrongly said "20/20." The full list is now fetched and the tool cache refreshes instead of staying stale forever
