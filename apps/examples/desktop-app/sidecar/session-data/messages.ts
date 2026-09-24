@@ -184,7 +184,10 @@ export function persistUsageInMessages(
 		if (!item || typeof item !== "object") {
 			continue;
 		}
-		if ((item as JsonRecord).role === "assistant") {
+		if (
+			(item as JsonRecord).role === "assistant" &&
+			readMessageMetadata(item as JsonRecord)?.displayOnly !== true
+		) {
 			assistantIndex = i;
 			break;
 		}
@@ -329,15 +332,16 @@ function readCheckpointEntriesByRunCount(
 	return entries;
 }
 
-export async function readSessionMessages(
+export function readSessionMessagesSync(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
-	remoteMessages?: unknown[],
-): Promise<unknown[]> {
-	const isRemoteRead = remoteMessages !== undefined;
+	/** Explicit authoritative source for remote sessions; bypasses local disk. */
+	sourceMessages?: unknown[],
+): unknown[] {
+	const isRemoteRead = sourceMessages !== undefined;
 	const persisted = isRemoteRead
-		? (remoteMessages as MessageWithMetadata[])
+		? (sourceMessages as MessageWithMetadata[])
 		: (readPersistedChatMessages(sessionId) ??
 			// A child agent's transcript is not stored under its own session
 			// directory — it lives beside the root session's artifacts — so opening a
@@ -723,4 +727,14 @@ export function persistSessionMessages(
 			2,
 		),
 	);
+}
+
+/** Async compatibility for existing sidecar callers. */
+export async function readSessionMessages(
+	ctx: Pick<SidecarContext, "liveSessions">,
+	sessionId: string,
+	maxMessages = 800,
+	sourceMessages?: unknown[],
+): Promise<unknown[]> {
+	return readSessionMessagesSync(ctx, sessionId, maxMessages, sourceMessages);
 }
