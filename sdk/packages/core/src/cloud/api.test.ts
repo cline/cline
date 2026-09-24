@@ -1084,6 +1084,45 @@ describe("seeded cloud provisioning recovery", () => {
 		await api.create(input());
 		expect(posts).toBe(status === 500 ? 1 : 2);
 	});
+	it.each([
+		200, 404, 410, 500, 401,
+	])("revalidates a cached target missing from the list: HTTP %s", async (status) => {
+		let posts = 0;
+		let currentStatus = status;
+		const removed = vi.fn(async () => {});
+		const api = createApi(async (url, init) => {
+			if (String(url).endsWith("/status"))
+				return response({ status: "ready" }, currentStatus);
+			if (init?.method === "POST") {
+				posts++;
+				return response({ sessionId: record.id, status: "ready" });
+			}
+			return response([]);
+		});
+		await api.create(input());
+		if (status === 404) {
+			removed.mockRejectedValueOnce(new Error("metadata write failed"));
+			await expect(
+				api.create(input({ onOuterSessionRemoved: removed })),
+			).rejects.toThrow("metadata write failed");
+		}
+		if (status === 200)
+			await expect(
+				api.create(input({ onOuterSessionRemoved: removed })),
+			).resolves.toMatchObject({ sessionId: record.id });
+		else
+			await expect(
+				api.create(input({ onOuterSessionRemoved: removed })),
+			).rejects.toBeInstanceOf(CloudSessionError);
+		expect(posts).toBe(1);
+		expect(removed).toHaveBeenCalledTimes(
+			status === 404 ? 2 : status === 410 ? 1 : 0,
+		);
+		currentStatus = 200;
+		await api.create(input());
+		expect(posts).toBe(status === 404 || status === 410 ? 2 : 1);
+	});
+
 	it("adopts the exact stable marker before any POST and persists the recovered outer id", async () => {
 		const persist = vi.fn(async () => {});
 		const fetch = vi.fn(async () =>
