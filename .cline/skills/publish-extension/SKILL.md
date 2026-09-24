@@ -64,6 +64,8 @@ git log v<PREV>..origin/main --oneline --no-merges -- apps/vscode sdk/packages
 
 The CLI/SDK notes are the best starting point for the extension notes — the extension bundles `@cline/*` from source, so an SDK release in the same window ships here too. Read `sdk/CHANGELOG.md` for the matching SDK version and translate what's extension-visible; skip CLI-only and desktop-only items.
 
+**Scope notes to the extension.** Shared-code commits in the range are often for the CLI or desktop. Keep a bullet only if the change reaches `apps/vscode`. It runs the SDK in-process with no hub, so hub fixes don't apply, and desktop-only or CLI-only features don't either. Skip items already in the last extension section, grep any quoted string, and leave out anything uncertain.
+
 ### Release prep on `main` (PR, not direct push)
 
 - Bump `apps/vscode/package.json` → `<VERSION>`.

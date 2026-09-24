@@ -59,7 +59,11 @@ The sidecar bundles `@cline/core` and friends from the monorepo, so SDK changes 
 
 3. Draft user-facing release notes.
 
-Flat bullet list, user-facing language. Present the draft and wait for approval before editing files.
+Flat bullet list, user-facing language.
+
+**Scope notes to the desktop app.** Shared-code commits in the range are often for the CLI or the extension. Keep a bullet only if the change reaches `apps/examples/desktop-app` (CLI subcommands, TUI, and yolo prompt rules don't). Skip items already in the last desktop section, grep any quoted string, and leave out anything uncertain.
+
+Present the draft and wait for approval before editing files.
 
 4. Decide the version bump.
 
