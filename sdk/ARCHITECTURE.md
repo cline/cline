@@ -304,8 +304,6 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
-Metadata updates keep active sessions synchronized with the persisted manifest.
-
 Session history listing filters child rows at the persistence layer. Subagent
 and team-task sessions are stored in the same table as the roots that spawned
 them and always sort newer, so `listSessionHistory` asks the runtime host for
