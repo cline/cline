@@ -327,4 +327,28 @@ describe("applyBedrockCachePointToLastCacheableMessage", () => {
 		});
 		expect(markedMessages).toHaveLength(1);
 	});
+
+	it("falls back to the last user message when tool messages are disabled", () => {
+		const messages: Array<Record<string, unknown>> = [
+			{ role: "user", content: [{ type: "text", text: "start" }] },
+			{
+				role: "assistant",
+				content: [{ type: "tool-call", toolCallId: "call-1" }],
+			},
+			{
+				role: "tool",
+				content: [{ type: "tool-result", toolCallId: "call-1" }],
+			},
+		];
+
+		applyBedrockCachePointToLastCacheableMessage(messages, {
+			includeToolMessages: false,
+		});
+
+		expect(messages[0].providerOptions).toEqual({
+			bedrock: { cachePoint: { type: "default" } },
+		});
+		expect(messages[1]).not.toHaveProperty("providerOptions");
+		expect(messages[2]).not.toHaveProperty("providerOptions");
+	});
 });

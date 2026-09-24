@@ -5594,6 +5594,17 @@ describe("sdk-gateway", () => {
 				providerId: "bedrock",
 				modelId: "anthropic.claude-sonnet-4-6",
 				messages,
+				tools: [
+					{
+						name: "read_file",
+						description: "Read a file",
+						inputSchema: {
+							type: "object",
+							properties: { path: { type: "string" } },
+							required: ["path"],
+						},
+					},
+				],
 			}),
 		);
 

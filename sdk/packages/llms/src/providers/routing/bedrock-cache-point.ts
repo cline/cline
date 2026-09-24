@@ -61,14 +61,19 @@ export function createBedrockCachePointProviderOptions() {
  * Attach a message-level cache-point marker to the last user message, or to
  * the last tool-result message during a tool continuation. The Bedrock
  * message converter appends the `cachePoint` block after that message's
- * content, so the cached prefix advances with the tool loop.
+ * content, so the cached prefix advances with the tool loop. When no tools
+ * are available, Bedrock drops tool history, so the marker stays on the last
+ * user message instead.
  */
 export function applyBedrockCachePointToLastCacheableMessage(
 	messages: Array<Record<string, unknown>>,
+	options?: { includeToolMessages?: boolean },
 ): void {
+	const includeToolMessages = options?.includeToolMessages ?? true;
 	for (let i = messages.length - 1; i >= 0; i--) {
 		const message = messages[i];
 		const hasToolResult =
+			includeToolMessages &&
 			message?.role === "tool" &&
 			Array.isArray(message.content) &&
 			message.content.some(
