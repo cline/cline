@@ -2315,22 +2315,19 @@ export async function updateHandoffMetadataOrThrow(
 	if (!result.updated) throw new Error(failureMessage);
 }
 
-export async function reconcilePendingCloudHandoff(
-	_manager: Pick<ClineCore, "update">,
+export async function assertPendingCloudHandoffCompatible(
 	cloud: Pick<CloudSessionManager, "handoffTargetExists">,
 	input: {
-		sourceSessionId: string;
-		metadata: JsonRecord;
 		pending?: CloudHandoffMetadata;
 		fingerprint: CloudHandoffFingerprint;
 		appBaseUrl: string;
 	},
-): Promise<{ metadata: JsonRecord; pending?: CloudHandoffMetadata }> {
+): Promise<void> {
 	if (
 		input.pending?.status !== "pending" ||
 		cloudHandoffFingerprintsEqual(input.pending.fingerprint, input.fingerprint)
 	) {
-		return { metadata: input.metadata, pending: input.pending };
+		return;
 	}
 	if (await cloud.handoffTargetExists(input.pending.toCloudSessionId)) {
 		const dashboardUrl =
@@ -2580,20 +2577,16 @@ async function handleHandoffOnce(
 	const sourceCwd =
 		readWorkspacePath(sourceConfig) ?? readWorkspacePath(persistedBefore);
 	if (!sourceCwd) throw new Error("Cloud handoff requires a workspace path.");
-	let metadataBefore =
+	const metadataBefore =
 		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
 		readSessionMetadata(sourceSessionId) ??
 		{};
-	let pending = readCloudHandoffMetadata(metadataBefore);
-	const reconciled = await reconcilePendingCloudHandoff(manager, cloud, {
-		sourceSessionId,
-		metadata: metadataBefore,
+	const pending = readCloudHandoffMetadata(metadataBefore);
+	await assertPendingCloudHandoffCompatible(cloud, {
 		pending,
 		fingerprint: prepared.fingerprint,
 		appBaseUrl: environment.appBaseUrl,
 	});
-	metadataBefore = reconciled.metadata;
-	pending = reconciled.pending;
 
 	let outerSessionId = pending?.toCloudSessionId ?? "";
 	let innerSessionId = pending?.innerSessionId ?? "";
@@ -2752,7 +2745,7 @@ async function handleHandoffOnce(
 			handoff: {
 				sourceSessionId,
 				resolveMessages: readSeedMessages,
-				onOuterSessionCreated: async (createdSessionId) => {
+				onOuterSessionCreated: async (createdSessionId, info) => {
 					outerSessionId = createdSessionId;
 					const dashboardUrl = buildCloudHandoffDashboardUrl(
 						environment.appBaseUrl,
@@ -2775,7 +2768,7 @@ async function handleHandoffOnce(
 						),
 						`Cloud workspace ${createdSessionId} was created, but its recovery link could not be saved locally.`,
 					);
-					createdOuterSessionThisAttempt = true;
+					createdOuterSessionThisAttempt = info?.created === true;
 					emitProgress(
 						"provisioning",
 						"Preparing the cloud workspace…",

@@ -17,6 +17,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
+	assertPendingCloudHandoffCompatible,
 	assertSessionDeleteAllowedDuringHandoff,
 	beginSessionMetadataUpdate,
 	buildSessionConnectionUpdate,
@@ -29,7 +30,6 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
-	reconcilePendingCloudHandoff,
 	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldCleanupFailedHandoffVerification,
@@ -2507,97 +2507,58 @@ describe("cloud handoff gates", () => {
 	it("does not build a recovery URL for a fresh handoff", async () => {
 		const handoffTargetExists = vi.fn();
 		await expect(
-			reconcilePendingCloudHandoff(
-				{ update: vi.fn() } as never,
+			assertPendingCloudHandoffCompatible(
 				{ handoffTargetExists },
 				{
-					sourceSessionId: "local-1",
-					metadata: { workspace: "preserved" },
 					fingerprint: changedFingerprint,
 					appBaseUrl: "not a valid URL",
 				},
 			),
-		).resolves.toEqual({
-			metadata: { workspace: "preserved" },
-			pending: undefined,
-		});
+		).resolves.toBeUndefined();
 		expect(handoffTargetExists).not.toHaveBeenCalled();
 	});
 
 	it("preserves a mismatched pending handoff while its target exists", async () => {
-		const update = vi.fn();
 		await expect(
-			reconcilePendingCloudHandoff(
-				{ update } as never,
+			assertPendingCloudHandoffCompatible(
 				{ handoffTargetExists: vi.fn(async () => true) },
 				{
-					sourceSessionId: "local-1",
-					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).rejects.toThrow("still pending for a different");
-		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("preserves a mismatched pending handoff when it is invisible to the current account", async () => {
-		const update = vi.fn();
 		await expect(
-			reconcilePendingCloudHandoff(
-				{ update } as never,
+			assertPendingCloudHandoffCompatible(
 				{ handoffTargetExists: vi.fn(async () => false) },
 				{
-					sourceSessionId: "local-1",
-					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).rejects.toThrow("not visible from the current account");
-		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("preserves pending lineage when target lookup is uncertain", async () => {
-		const update = vi.fn();
 		await expect(
-			reconcilePendingCloudHandoff(
-				{ update } as never,
+			assertPendingCloudHandoffCompatible(
 				{
 					handoffTargetExists: vi.fn(async () => {
 						throw new Error("network unavailable");
 					}),
 				},
 				{
-					sourceSessionId: "local-1",
-					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
 					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).rejects.toThrow("network unavailable");
-		expect(update).not.toHaveBeenCalled();
-	});
-
-	it("does not clear gone lineage before proving the current account owns it", async () => {
-		const update = vi.fn(async () => ({ updated: false }));
-		await expect(
-			reconcilePendingCloudHandoff(
-				{ update } as never,
-				{ handoffTargetExists: vi.fn(async () => false) },
-				{
-					sourceSessionId: "local-1",
-					metadata: pendingMetadata,
-					pending: pendingMetadata.handoff,
-					fingerprint: changedFingerprint,
-					appBaseUrl: "https://app.cline.bot",
-				},
-			),
-		).rejects.toThrow("not visible from the current account");
-		expect(update).not.toHaveBeenCalled();
 	});
 
 	it("fails when a required handoff metadata update is not persisted", async () => {
@@ -2853,14 +2814,13 @@ describe("cloud handoff transaction", () => {
 		vi.unstubAllGlobals();
 	});
 
-	function createHandoffFixture() {
+	function createHandoffFixture(created = true) {
 		const sourceSessionId = "local-handoff-source";
 		const modelId = "anthropic/claude-sonnet-4.6";
 		const headSha = "a".repeat(40);
 		vi.mocked(preflightCloudHandoffGit).mockResolvedValue({
 			repoUrl: "https://github.com/cline/test",
 			branch: "main",
-			remoteName: "origin",
 			headSha,
 		});
 		// The model catalog is the only network dependency left on this path.
@@ -2961,12 +2921,15 @@ describe("cloud handoff transaction", () => {
 		const create = vi.fn(
 			async (input: {
 				handoff?: {
-					onOuterSessionCreated?: (id: string) => Promise<void>;
+					onOuterSessionCreated?: (
+						id: string,
+						info: { created: boolean },
+					) => Promise<void>;
 					resolveMessages: () => Promise<unknown>;
 					onSeeding?: () => void;
 				};
 			}) => {
-				await input.handoff?.onOuterSessionCreated?.("ses-cloud");
+				await input.handoff?.onOuterSessionCreated?.("ses-cloud", { created });
 				await input.handoff?.resolveMessages();
 				input.handoff?.onSeeding?.();
 				return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
@@ -2989,6 +2952,7 @@ describe("cloud handoff transaction", () => {
 			ctx,
 			sourceSessionId,
 			modelId,
+			cloud,
 			headSha,
 			messages,
 			order,
@@ -3001,7 +2965,10 @@ describe("cloud handoff transaction", () => {
 		};
 	}
 
-	it("completes a fresh handoff end to end", async () => {
+	it.each([
+		true,
+		false,
+	])("completes a handoff (new target: %s)", async (created) => {
 		const {
 			ctx,
 			sourceSessionId,
@@ -3015,7 +2982,7 @@ describe("cloud handoff transaction", () => {
 			verifyHandoffTranscript,
 			cloudSend,
 			create,
-		} = createHandoffFixture();
+		} = createHandoffFixture(created);
 
 		const running = handleChatSessionCommand(ctx, {
 			action: "handoff",
@@ -3067,7 +3034,7 @@ describe("cloud handoff transaction", () => {
 		expect(verifyHandoffTranscript).toHaveBeenCalledWith(
 			"ses-cloud",
 			messages,
-			{ allowAppendedMessages: false },
+			{ allowAppendedMessages: !created },
 		);
 		expect(create).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -3106,6 +3073,47 @@ describe("cloud handoff transaction", () => {
 		});
 		expect(result.dashboardUrl).toContain("ses-cloud");
 		expect(result).not.toHaveProperty("warning");
+	});
+
+	it.each([
+		true,
+		false,
+	])("only deletes a newly created target on transcript mismatch (new target: %s)", async (created) => {
+		const fixture = createHandoffFixture(created);
+		const deleteTarget = vi
+			.spyOn(fixture.cloud, "delete")
+			.mockResolvedValue(undefined);
+		fixture.verifyHandoffTranscript.mockRejectedValue(
+			new CloudHandoffTranscriptMismatchError(2, 3),
+		);
+
+		await expect(
+			handleChatSessionCommand(fixture.ctx, {
+				action: "handoff",
+				sessionId: fixture.sourceSessionId,
+				handoffAttemptId: "attempt-1",
+				nextCommand: "continue in cloud",
+				fingerprint: {
+					repoUrl: "https://github.com/cline/test",
+					branch: "main",
+					headSha: fixture.headSha,
+					modelId: fixture.modelId,
+				},
+			}),
+		).rejects.toThrow();
+
+		if (created) {
+			expect(deleteTarget).toHaveBeenCalledExactlyOnceWith("ses-cloud");
+			expect(
+				readCloudHandoffMetadata(fixture.getPersistedMetadata()),
+			).toBeUndefined();
+		} else {
+			expect(deleteTarget).not.toHaveBeenCalled();
+			expect(
+				readCloudHandoffMetadata(fixture.getPersistedMetadata()),
+			).toMatchObject({ status: "pending", toCloudSessionId: "ses-cloud" });
+		}
+		expect(fixture.cloudSend).not.toHaveBeenCalled();
 	});
 
 	async function runHandoffWithFailingFollowUp(sendError: Error): Promise<{

@@ -4,8 +4,6 @@ export type CloudHandoffModel = {
 	id: string;
 	name: string;
 	catalogId: CloudHandoffModelCatalogId;
-	description?: string;
-	tags?: string[];
 };
 
 export type CloudHandoffModelSelection = {
