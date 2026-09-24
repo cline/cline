@@ -853,6 +853,7 @@ export {
 	projectSessionMessagesForDisplay,
 	type SessionDisplayMessage,
 } from "./session/display-messages";
+export { createForkSessionMetadata } from "./session/fork-metadata";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
