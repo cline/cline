@@ -5537,6 +5537,83 @@ describe("sdk-gateway", () => {
 		).not.toHaveProperty("cache_control");
 	});
 
+	it("advances Bedrock cache points through tool-result continuations", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "bedrock",
+					apiKey: "bedrock-key",
+					models: [
+						{
+							id: "anthropic.claude-sonnet-4-6",
+							name: "Claude Sonnet 4.6 (Bedrock-style ID)",
+						},
+					],
+				},
+			],
+		});
+		const createdAt = Date.now();
+		const messages: AgentMessage[] = [
+			{
+				id: "user_1",
+				role: "user",
+				content: [{ type: "text", text: "Read the file" }],
+				createdAt,
+			},
+			{
+				id: "assistant_1",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call-1",
+						toolName: "read_file",
+						input: { path: "example.txt" },
+					},
+				],
+				createdAt,
+			},
+			{
+				id: "user_2",
+				role: "user",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call-1",
+						toolName: "read_file",
+						output: "file contents",
+					},
+				],
+				createdAt,
+			},
+		];
+
+		await collect(
+			await gateway.stream({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
+				messages,
+			}),
+		);
+
+		const streamMessages = streamTextSpy.mock.calls.at(-1)?.[0]?.messages as
+			| Array<Record<string, unknown>>
+			| undefined;
+		expect(streamMessages).toBeDefined();
+		expect(streamMessages?.[0]).toMatchObject({
+			role: "user",
+		});
+		expect(streamMessages?.[0]).not.toHaveProperty("providerOptions");
+		expect(streamMessages?.at(-1)).toMatchObject({
+			role: "tool",
+			providerOptions: {
+				bedrock: { cachePoint: { type: "default" } },
+			},
+		});
+		expect(JSON.stringify(streamMessages)).not.toContain("cache_control");
+	});
+
 	it("supports provider config metadata overrides for anthropic prompt-cache strategy", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
