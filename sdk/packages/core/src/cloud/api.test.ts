@@ -1155,21 +1155,35 @@ describe("seeded cloud provisioning recovery", () => {
 		await expect(api.create(input())).rejects.toThrow("unconfirmed");
 		expect(posts).toBe(1);
 	});
-	it("cleans up a newly created outer session when its durable id cannot be saved", async () => {
+	it.each([
+		false,
+		true,
+	])("cleans up an unpersisted outer session after account switch: %s", async (switchAccount) => {
 		const methods: string[] = [];
 		const removed = vi.fn(async () => {});
-		const api = createApi(async (_url, init) => {
-			methods.push(init?.method ?? "GET");
-			return response(
-				init?.method === "POST"
-					? { sessionId: record.id, status: "ready" }
-					: [],
-			);
+		let token = "original-account";
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken: async () => token,
+			fetch: async (_url, init) => {
+				methods.push(init?.method ?? "GET");
+				if (init?.method === "DELETE")
+					expect(new Headers(init.headers).get("Authorization")).toBe(
+						"Bearer original-account",
+					);
+				return response(
+					init?.method === "POST"
+						? { sessionId: record.id, status: "ready" }
+						: [],
+				);
+			},
 		});
 		await expect(
 			api.create(
 				input({
 					onOuterSessionCreated: async () => {
+						if (switchAccount) token = "other-account";
 						throw new Error("disk full");
 					},
 					onOuterSessionRemoved: removed,
