@@ -16,15 +16,9 @@ function readWorkspaceRelativePath(value: unknown): string | undefined {
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export function createCloudHandoffFingerprint(input: {
-	repoUrl: string;
-	branch: string;
-	headSha: string;
-	modelId: string;
-	organizationId?: string;
-	workspaceRelativePath?: string;
-	mode?: "plan" | "yolo" | "zen";
-}): CloudHandoffFingerprint {
+export function createCloudHandoffFingerprint(
+	input: CloudHandoffFingerprint,
+): CloudHandoffFingerprint {
 	const repoUrl = readRequiredString(input.repoUrl);
 	const branch = readRequiredString(input.branch);
 	const headSha = readRequiredString(input.headSha);
@@ -140,7 +134,11 @@ export function mergeCloudHandoffMetadata(
 export function clearCloudHandoffMetadata(
 	metadata: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
-	const { handoff: _handoff, ...rest } = metadata ?? {};
+	const {
+		handoff: _handoff,
+		cloudHandoffSeedDispatched: _seedDispatched,
+		...rest
+	} = metadata ?? {};
 	return rest;
 }
 
