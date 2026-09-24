@@ -132,6 +132,19 @@ function sessionRowHandoffSourceSessionId(
 			: undefined;
 	return String(handoff?.sourceSessionId ?? "").trim();
 }
+/** The seed command was not dispatched; the host may clear its seed marker. */
+export class CloudHandoffSeedRejectedError extends Error {
+	constructor(cause: unknown) {
+		super(
+			cause instanceof Error
+				? cause.message
+				: "Cloud conversation creation was not dispatched.",
+			{ cause },
+		);
+		this.name = "CloudHandoffSeedRejectedError";
+	}
+}
+
 /** A queued prompt may have been accepted even when recovery also fails. */
 export class CloudQueueUnconfirmedError extends CloudSessionError {
 	constructor() {
@@ -2502,8 +2515,13 @@ export class CloudSessionController {
 		const live = this.sessions.get(connection.remote.id);
 		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
 		const mode = handoffSeed?.mode ?? "act";
-		await handoffSeed?.onSeeding?.();
-		this.assertSessionActive(connection.remote.id, connection);
+		try {
+			await handoffSeed?.onSeeding?.();
+			this.assertSessionActive(connection.remote.id, connection);
+		} catch (error) {
+			if (handoffSeed) throw new CloudHandoffSeedRejectedError(error);
+			throw error;
+		}
 		const branch = `cline/${(connection.remote.metadata.taskId?.trim() || connection.remote.id).slice(-8).toLowerCase()}`;
 		const systemPrompt =
 			`${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
@@ -2514,6 +2532,7 @@ export class CloudSessionController {
 			"Commit regularly as you complete meaningful steps, using clear, descriptive messages. " +
 			`The first time you commit, push the branch with \`git push -u origin ${branch}\`, and push again after each later commit. ` +
 			"Do not force-push or amend commits that are already pushed unless the user explicitly asks.";
+		let dispatched = false;
 		const pendingReply = connection.client.command(
 			"session.create",
 			{
@@ -2585,12 +2604,17 @@ export class CloudSessionController {
 			{
 				beforeDispatch: () =>
 					this.assertSessionActive(connection.remote.id, connection),
+				onDispatch: () => {
+					dispatched = true;
+				},
 			},
 		);
 		let reply: Awaited<typeof pendingReply>;
 		try {
 			reply = await pendingReply;
 		} catch (error) {
+			if (handoffSeed && !dispatched)
+				throw new CloudHandoffSeedRejectedError(error);
 			if (
 				handoffSeed &&
 				(isHubCommandTimeoutError(error, "session.create") ||
