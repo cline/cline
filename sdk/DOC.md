@@ -88,15 +88,6 @@ The helper implements `--remote-hub-ensure --cwd <path> --discovery-path <path>`
 and the core detached-daemon sentinel. Agent tools and persistence run remotely;
 the host only manages SSH and forwards the authenticated hub connection.
 
-## Shared conversation layout
-
-`@cline/ui` exports `AgentConversationLayout`, `AgentConversationHeader`, and
-`AgentSessionContent` for the desktop welcome/conversation layout and header.
-Hosts supply content, state, and event handlers.
-
-See the [layout adoption guide](./packages/ui/ADOPTION.md#conversation-layout-and-header)
-for slots, styling, and mounting behavior.
-
 
 ## Concurrent subagent tool calls
 
