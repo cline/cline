@@ -29,6 +29,10 @@ anchors. `getAgentPullRequestMergeStatus` and
 `summarizeAgentPullRequestChecks` expose the same status normalization for other
 host presentation.
 
+## Fork metadata
+
+`createForkSessionMetadata` from `@cline/core` copies metadata, replaces fork ancestry, and removes inherited handoff markers. Callers supply the source ID, timestamp, source, and optional `beforeRunCount`; titles and session creation remain caller-owned.
+
 ## Cloud sessions (experimental)
 
 `CloudSessionApi` and `CloudSessionController` are exported from `@cline/core/cloud`.

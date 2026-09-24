@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	CloudHandoffCreationRejectedError,
 	CloudSessionApi,
+	type CloudSessionApiOptions,
 	CloudSessionError,
 	type CloudSessionRecord,
 	type CreateCloudSessionInput,
@@ -909,9 +910,14 @@ describe("seeded cloud provisioning recovery", () => {
 		{ role: "assistant", content: [{ type: "text", text: "Prior answer" }] },
 	];
 	function response(data: unknown, status = 200) {
-		return new Response(JSON.stringify({ data }), {
-			status,
-			headers: { "content-type": "application/json" },
+		return jsonResponse({ data }, status);
+	}
+	function createApi(fetch: CloudSessionApiOptions["fetch"]) {
+		return new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken: async () => "token",
+			fetch,
 		});
 	}
 	const input = (
@@ -935,18 +941,13 @@ describe("seeded cloud provisioning recovery", () => {
 		});
 		const methods: string[] = [];
 		const onCreating = vi.fn(() => gate);
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				methods.push(init?.method ?? "GET");
-				return response(
-					init?.method === "POST"
-						? { sessionId: record.id, status: "ready" }
-						: [],
-				);
-			},
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response(
+				init?.method === "POST"
+					? { sessionId: record.id, status: "ready" }
+					: [],
+			);
 		});
 		const creating = api.create(input({ onCreating }));
 		await vi.waitFor(() => expect(onCreating).toHaveBeenCalledOnce());
@@ -957,14 +958,9 @@ describe("seeded cloud provisioning recovery", () => {
 	});
 	it("does not POST when durable create intent cannot be saved", async () => {
 		const methods: string[] = [];
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				methods.push(init?.method ?? "GET");
-				return response([]);
-			},
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response([]);
 		});
 		await expect(
 			api.create(
@@ -981,17 +977,12 @@ describe("seeded cloud provisioning recovery", () => {
 		400, 401, 403, 404, 429,
 	])("marks HTTP %s as definitely rejected and allows an explicit retry", async (status) => {
 		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				if (init?.method === "POST") {
-					posts++;
-					return response(undefined, status);
-				}
-				return response([]);
-			},
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "POST") {
+				posts++;
+				return response(undefined, status);
+			}
+			return response([]);
 		});
 		await expect(api.create(input())).rejects.toBeInstanceOf(
 			CloudHandoffCreationRejectedError,
@@ -1005,17 +996,12 @@ describe("seeded cloud provisioning recovery", () => {
 		408, 409, 500,
 	])("preserves ambiguity and does not repeat a POST after HTTP %s", async (status) => {
 		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				if (init?.method === "POST") {
-					posts++;
-					return response(undefined, status);
-				}
-				return response([]);
-			},
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "POST") {
+				posts++;
+				return response(undefined, status);
+			}
+			return response([]);
 		});
 		await expect(api.create(input())).rejects.not.toBeInstanceOf(
 			CloudHandoffCreationRejectedError,
@@ -1025,13 +1011,8 @@ describe("seeded cloud provisioning recovery", () => {
 	});
 	it("does not mark a failed pre-list as definitely rejected or write dispatch intent", async () => {
 		const onCreating = vi.fn();
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async () => {
-				throw new Error("lookup unavailable");
-			},
+		const api = createApi(async () => {
+			throw new Error("lookup unavailable");
 		});
 		await expect(api.create(input({ onCreating }))).rejects.not.toBeInstanceOf(
 			CloudHandoffCreationRejectedError,
@@ -1060,17 +1041,12 @@ describe("seeded cloud provisioning recovery", () => {
 	});
 	it("permits a fresh create after the original sandbox was explicitly deleted", async () => {
 		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				if (init?.method === "POST") {
-					posts++;
-					return response({ sessionId: record.id, status: "ready" });
-				}
-				return response([]);
-			},
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "POST") {
+				posts++;
+				return response({ sessionId: record.id, status: "ready" });
+			}
+			return response([]);
 		});
 		await api.create(input());
 		await api.delete(record.id);
@@ -1084,12 +1060,7 @@ describe("seeded cloud provisioning recovery", () => {
 				{ ...record, title: "__cline_create_request__:handoff:source:sha" },
 			]),
 		);
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch,
-		});
+		const api = createApi(fetch);
 		expect(
 			(await api.create(input({ onOuterSessionCreated: persist }))).sessionId,
 		).toBe(record.id);
@@ -1101,37 +1072,32 @@ describe("seeded cloud provisioning recovery", () => {
 		const removed = vi.fn(async () => {});
 		let failedMarkerVisible = false;
 		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				const method = init?.method ?? "GET";
-				methods.push(method);
-				if (method === "DELETE") {
-					failedMarkerVisible = false;
-					return response(undefined);
+		const api = createApi(async (_url, init) => {
+			const method = init?.method ?? "GET";
+			methods.push(method);
+			if (method === "DELETE") {
+				failedMarkerVisible = false;
+				return response(undefined);
+			}
+			if (method === "POST") {
+				posts++;
+				if (posts === 1) {
+					failedMarkerVisible = true;
+					throw new Error("lost create reply");
 				}
-				if (method === "POST") {
-					posts++;
-					if (posts === 1) {
-						failedMarkerVisible = true;
-						throw new Error("lost create reply");
-					}
-					return response({ sessionId: "ses-retry", status: "ready" });
-				}
-				return response(
-					failedMarkerVisible
-						? [
-								{
-									...record,
-									status: "failed",
-									title: "__cline_create_request__:handoff:source:sha",
-								},
-							]
-						: [],
-				);
-			},
+				return response({ sessionId: "ses-retry", status: "ready" });
+			}
+			return response(
+				failedMarkerVisible
+					? [
+							{
+								...record,
+								status: "failed",
+								title: "__cline_create_request__:handoff:source:sha",
+							},
+						]
+					: [],
+			);
 		});
 
 		await expect(
@@ -1147,17 +1113,12 @@ describe("seeded cloud provisioning recovery", () => {
 	});
 	it("fences an invisible accepted POST instead of issuing another create", async () => {
 		let posts = 0;
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				if (init?.method === "POST") {
-					posts++;
-					throw new Error("lost response");
-				}
-				return response([]);
-			},
+		const api = createApi(async (_url, init) => {
+			if (init?.method === "POST") {
+				posts++;
+				throw new Error("lost response");
+			}
+			return response([]);
 		});
 		await expect(api.create(input())).rejects.toThrow("lost response");
 		await expect(api.create(input())).rejects.toThrow("unconfirmed");
@@ -1166,18 +1127,13 @@ describe("seeded cloud provisioning recovery", () => {
 	it("cleans up a newly created outer session when its durable id cannot be saved", async () => {
 		const methods: string[] = [];
 		const removed = vi.fn(async () => {});
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				methods.push(init?.method ?? "GET");
-				return response(
-					init?.method === "POST"
-						? { sessionId: record.id, status: "ready" }
-						: [],
-				);
-			},
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response(
+				init?.method === "POST"
+					? { sessionId: record.id, status: "ready" }
+					: [],
+			);
 		});
 		await expect(
 			api.create(
@@ -1194,16 +1150,11 @@ describe("seeded cloud provisioning recovery", () => {
 	});
 	it("does not delete an adopted workspace when persistence fails", async () => {
 		const methods: string[] = [];
-		const api = new CloudSessionApi({
-			apiBaseUrl: "https://api",
-			appBaseUrl: "https://app",
-			getAuthToken: async () => "token",
-			fetch: async (_url, init) => {
-				methods.push(init?.method ?? "GET");
-				return response([
-					{ ...record, title: "__cline_create_request__:handoff:source:sha" },
-				]);
-			},
+		const api = createApi(async (_url, init) => {
+			methods.push(init?.method ?? "GET");
+			return response([
+				{ ...record, title: "__cline_create_request__:handoff:source:sha" },
+			]);
 		});
 		await expect(
 			api.create(
