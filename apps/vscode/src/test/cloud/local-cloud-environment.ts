@@ -23,7 +23,7 @@ export interface LocalCloudSessionRecord {
 	title?: string
 	sandboxUrl?: string
 	repoContext: { repoUrl?: string; branch?: string }
-	metadata: { modelId?: string; statusReason?: string }
+	metadata: { modelId?: string; taskId: string; statusReason?: string }
 	expiredAt?: string | null
 	createdAt: string
 	updatedAt: string
@@ -190,6 +190,7 @@ export async function startLocalCloudEnvironment(
 			if (url.pathname === "/api/v1/session" && req.method === "POST") {
 				const input = await readJson(req)
 				const id = `ses-${randomUUID()}`
+				const taskId = `tsk-${randomUUID()}`
 				const sandboxRoot = await mkdtemp(path.join(root, "sandbox-"))
 				const now = new Date().toISOString()
 				const record: LocalCloudSessionRecord = {
@@ -200,7 +201,7 @@ export async function startLocalCloudEnvironment(
 						repoUrl: String(input.repoUrl ?? ""),
 						branch: typeof input.branch === "string" ? input.branch : undefined,
 					},
-					metadata: { modelId: typeof input.modelId === "string" ? input.modelId : undefined },
+					metadata: { modelId: typeof input.modelId === "string" ? input.modelId : undefined, taskId },
 					createdAt: now,
 					updatedAt: now,
 				}

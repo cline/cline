@@ -30,9 +30,13 @@ describe("CloudSessionHost real Hub boundary", () => {
 		})
 		const owned = await environment.activateSession(record.id)
 		expect(owned).toBeDefined()
+		const taskId = record.metadata.taskId
+		expect(taskId).toMatch(/^tsk-/)
+		if (!taskId) throw new Error("Local cloud session did not return a task id")
 
 		host = await CloudSessionHost.connect({
 			outerSessionId: record.id,
+			taskId,
 			socketUrl: service.sessionSocketUrl(record.id),
 			workspaceRoot: owned?.root,
 			getAuthToken: async () => environment?.accessToken,
@@ -56,8 +60,11 @@ describe("CloudSessionHost real Hub boundary", () => {
 
 		expect(started.sessionId).toBe(record.id)
 		expect(host.sessionId).toBe(record.id)
+		expect(taskId).not.toBe(record.id)
 		await host.send({ sessionId: record.id, prompt: "reply from the fixture" })
 		expect(host.status).not.toBe("running")
+		expect(owned.sessionStore?.get(taskId)?.sessionId).toBe(taskId)
+		expect(owned.sessionStore?.get(record.id)).toBeUndefined()
 		const messages = await host.readMessages(record.id)
 		expect(JSON.stringify(messages)).toContain("cloud fixture reply")
 		expect(JSON.stringify(messages)).toContain("reply from the fixture")
@@ -76,10 +83,13 @@ describe("CloudSessionHost real Hub boundary", () => {
 			modelId: "fixture-model",
 			repoUrl: "https://github.com/cline/fixture",
 		})
+		const taskId = record.metadata.taskId
+		if (!taskId) throw new Error("Local cloud session did not return a task id")
 
 		await expect(
 			CloudSessionHost.connect({
 				outerSessionId: record.id,
+				taskId,
 				socketUrl: service.sessionSocketUrl(record.id),
 				getAuthToken: async () => "wrong-token",
 			}),
