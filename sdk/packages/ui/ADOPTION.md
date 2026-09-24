@@ -68,6 +68,17 @@ products while consumers still own their message schemas, icon assets, and
 overall rendering. Before hand-rolling presentation logic in an app, check
 whether it belongs here instead.
 
+`AgentChangesPanel` and `AgentChangedFile` share the Changes pane header,
+scrolling, file disclosure, path, copy feedback, and diff counts. Pass rendered
+diff children and clipboard/native-editor callbacks; each host retains its
+change collector, workspace paths, and conversation focus restoration.
+
+`AgentPullRequestBar` shares PR state, merge readiness, diff counts, and check
+presentation. Hosts provide normalized data, refresh/navigation callbacks,
+and their accessible checks popover through `renderChecks`. Fetching, polling,
+authentication, and telemetry stay in the host. Import these components from
+`@cline/ui` and their styles through the existing `@cline/ui/components.css`.
+
 `AgentCommandOutput` shares the desktop terminal frame and follow-output scrolling.
 Pass ANSI-rendered or normalized output as children; transport and output limits
 stay in the host. `AgentImageLightboxContent` shares the expanded image, backdrop
@@ -642,3 +653,85 @@ described above.
 switching layouts can remount the composer. Keep drafts in host state.
 `bodyClassName` accepts host animation classes. Hosts retain scrolling, title
 editing, menus, native title-bar behavior, and all event handlers.
+
+## Session rows
+
+`AgentSessionRow`, `AgentSessionRowEditor`, and `AgentSessionOverview` are
+exported from `@cline/ui`. Import `components.css` with the shared theme (or
+scoped tokens inside `.cline-ui-theme`) as for the other root components.
+
+The row owns the desktop row geometry, selected/hover appearance, timestamp
+placement, and pending/provisioning/running/unread dot precedence. Pass
+already-formatted `label` and `timestamp`, optional `leading` icons, a
+`pinnedIndicator`, and an `action` element. The action remains a sibling of the
+navigation button; the host supplies its hover/focus styles, disabled state,
+accessible label, and event cancellation. `onSelect` handles row activation.
+Root DOM props and refs pass through to the existing wrapper so host-owned
+hover-card/context-menu triggers can use `asChild` without another DOM node.
+
+By default, the navigation control is the same native `button` used by desktop.
+For URL-addressable navigation, use `renderControl` to render the supplied
+class and row content through the host's link component. The optional action
+stays a sibling:
+
+```tsx
+<AgentSessionRow
+  label={session.title}
+  timestamp={session.updatedLabel}
+  action={<DeleteSessionButton session={session} />}
+  renderControl={({ className, children }) => (
+    <Link
+      className={className}
+      href={`/sessions/${session.id}`}
+      target="_blank"
+    >
+      {children}
+    </Link>
+  )}
+/>
+```
+
+The host link owns `href`, click, accessibility, disabled, and router behavior.
+`disabled` and `onSelect` apply only to the default desktop button.
+
+`AgentSessionRowEditor` provides the matching edit frame; the host still owns
+the input, focus, Enter/Escape/blur handling, and saving indicator.
+`AgentSessionOverview` presents a title and `[label, value, fullValue?]` metadata
+rows inside the host's hover card. Formatting, open state, positioning, context
+menus, pin/fork/delete permissions, routing, grouping, and persistence stay in
+the application. These primitives do not add new statuses or cloud actions.
+
+## Context usage
+
+`AgentContextUsage` extracts the desktop context ring and detail body without
+changing the host's button, popover, positioning, focus, or dismissal behavior.
+It does not insert a wrapper. Import `components.css` and the appropriate theme
+tokens as usual. When the context limit or token usage is unavailable, it renders
+nothing and does not invoke the child callback.
+
+```tsx
+import { AgentContextUsage } from "@cline/ui";
+
+<AgentContextUsage
+  usage={{ tokensIn: 1200, tokensOut: 300, cacheReadTokens: 400, contextWindow: 200000 }}
+  costLabel="$0.014"
+>
+  {({ triggerLabel, ring, details }) => (
+    <HostPopover>
+      <HostPopoverTrigger asChild>
+        <HostButton aria-label={triggerLabel}>{ring}</HostButton>
+      </HostPopoverTrigger>
+      <HostPopoverContent>{details}</HostPopoverContent>
+    </HostPopover>
+  )}
+</AgentContextUsage>;
+```
+
+The `Host*` names above are host controls, not package exports. Desktop retains
+its existing trigger classes, IDs, top/end placement, eight-pixel offset, and
+Radix interaction. The shared body uses namespaced utilities mapped to the same
+desktop tokens. Current request input/output drives context pressure and the
+existing 50%/75% warnings; lifetime token traffic must not be passed as context
+usage. `costLabel` is a separate optional, host-formatted cumulative cost.
+Fetching metrics, choosing the model limit, and computing cumulative cost remain
+host responsibilities.

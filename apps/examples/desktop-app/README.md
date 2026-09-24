@@ -335,19 +335,22 @@ credentials, request headers, recorded audio, or transcript contents.
   The next desktop or CLI Hub connection will reuse a compatible running Hub or
   replace an incompatible one through the shared discovery path.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.
-- Speech input requires an enabled provider whose models.dev metadata identifies
-  a dedicated `audio`-to-`text` model, or the built-in ElevenLabs provider with
-  its Scribe v2 model. Choose the voice input provider and model explicitly under
-  **Settings → Models → Voice input**. That selection is stored separately from
-  the chat model as `modes.voiceInput` in
-  `~/.cline/data/settings/providers.json`; provider credentials remain in their
-  existing provider entry and never enter the webview. ElevenLabs uses its native
-  `/v1/speech-to-text` API. Text-to-speech models with `output: ["audio"]` are
-  not used for microphone transcription.
-- Streaming transcription models, such as Vercel AI Gateway's
-  `openai/gpt-realtime-whisper`, update the composer while the user speaks.
-  The sidecar mints a short-lived transcription token; the long-lived gateway
-  credential is never sent to the webview. Batch models such as
-  `openai/whisper-1` continue to transcribe after recording stops.
+- Voice input requires a configured streaming transcription model. Choose one
+  under **Settings → Models → Voice input**, such as Vercel AI Gateway's
+  `openai/gpt-realtime-whisper`, native OpenAI `gpt-realtime-whisper`, or
+  ElevenLabs `scribe_v2_realtime`.
+  Gateway and native OpenAI audio flow through the AI SDK’s `experimental_streamTranscribe`
+  with continuous PCM input and partial transcript updates. Text updates while
+  you speak; Stop closes the audio stream and waits for final text. Batch-only models are
+  excluded from Voice settings and rejected when saving a voice selection.
+- The voice selection is stored separately from the chat model as
+  `modes.voiceInput` in `~/.cline/data/settings/providers.json`. The sidecar
+  mints a short-lived token, keeping long-lived provider credentials out of the
+  webview.
+- If a recognized network failure interrupts transcription, the mic switches
+  to browser speech recognition when available. Click it again and repeat any
+  missing speech. Browser recognition may also need internet access. An online
+  event restores the configured provider after the current recording ends;
+  authentication, model, and microphone-permission errors remain visible.
 
 SSH requires an already-trusted host key. Before first connection, verify the server fingerprint through a trusted channel and enroll it with your SSH client. Unknown or changed keys are rejected.

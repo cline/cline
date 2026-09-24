@@ -17,9 +17,13 @@ import {
 	AgentConversationHeader,
 	AgentConversationLayout,
 	AgentSessionContent,
+	AgentChangedFile,
+	AgentChangesPanel,
+	AgentPullRequestBar,
 	AgentCommandOutput,
 	AgentImageLightboxContent,
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
 	AttachmentDropZone,
 	AgentAurora,
@@ -27,6 +31,9 @@ import {
 	AgentWelcomeHero,
 	AgentPromptQueue,
 	AgentQuickActions,
+	AgentSessionRow,
+	AgentSessionRowEditor,
+	AgentSessionOverview,
 	SearchCombobox,
 	SessionStatus,
 	Switch,
@@ -47,6 +54,11 @@ for (const specifier of [
 }
 
 const packageJsonUrl = import.meta.resolve("@cline/ui/package.json");
+for (const name of ["agent-changes", "agent-pull-request-bar"]) {
+	if (!existsSync(fileURLToPath(new URL("./components/" + name + ".css", packageJsonUrl)))) {
+		throw new Error("packed review UI stylesheet is missing: " + name);
+	}
+}
 const heroCss = readFileSync(
 	fileURLToPath(new URL("./components/agent-welcome-hero.css", packageJsonUrl)),
 	"utf8",
@@ -73,17 +85,24 @@ if (
 	!AgentConversationHeader ||
 	!AgentConversationLayout ||
 	!AgentSessionContent ||
+	!AgentChangedFile ||
+	!AgentChangesPanel ||
+	!AgentPullRequestBar ||
 	!AgentCommandOutput ||
 	!AgentImageLightboxContent ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentWelcomeHero ||
 	!AgentPromptQueue ||
 	!SearchCombobox ||
 	!AgentQuickActions ||
+	!AgentSessionRow ||
+	!AgentSessionRowEditor ||
+	!AgentSessionOverview ||
 	!SessionStatus ||
 	!Switch ||
 	!Conversation ||
@@ -218,6 +237,7 @@ async function verifyTailwindContract(
 		"backdrop-blur-sm",
 		"border-dashed",
 		"pointer-events-none",
+		"group-hover/row:bg-cline-ui-surface-hover",
 	]) {
 		expectCandidate(css, candidate);
 	}
