@@ -950,7 +950,7 @@ export function ProviderDetailContent({
 	return (
 		<div
 			className={cn(
-				"flex h-full min-h-0 min-w-0 flex-col overflow-hidden py-10 max-[720px]:px-4 max-[720px]:py-5",
+				"flex h-full min-h-0 min-w-0 flex-col overflow-y-auto py-10 max-[720px]:px-4 max-[720px]:py-5",
 				isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
 			)}
 		>
@@ -1005,10 +1005,11 @@ export function ProviderDetailContent({
 				{connectionSection}
 			</div>
 
-			{/* Models section */}
+			{/* Reserve usable space for model controls and rows. If the pane is too
+			    short, its outer scroll area keeps this section reachable. */}
 			<section
 				className={cn(
-					"flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border",
+					"flex min-h-64 flex-1 flex-col overflow-y-auto rounded-lg border",
 					isPanel ? "max-w-none" : "max-w-184",
 				)}
 			>
