@@ -1,0 +1,62 @@
+diff --git a/dist/server.js b/dist/server.js
+index 7d97c3e0ec8979cdbbc8ee8a62d1a072a60a007f..bc09c881f747c30750ba46ead99c6bd64ece4659 100644
+--- a/dist/server.js
++++ b/dist/server.js
+@@ -12,7 +12,13 @@ export async function createOpencodeServer(options) {
+     const proc = launch(`opencode`, args, {
+         env: {
+             ...process.env,
+-            OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config ?? {}),
++            // Cline patch: only inject config when the caller supplied one.
++            // An unconditional OPENCODE_CONFIG_CONTENT (even "{}") makes
++            // `opencode serve` on Windows accept the port but refuse every
++            // HTTP connection, or exit with code 58 (cline/cline#14394).
++            ...(options.config !== undefined
++                ? { OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config) }
++                : {}),
+         },
+     });
+     let clear = () => { };
+@@ -92,7 +98,10 @@ export function createOpencodeTui(options) {
+         stdio: "inherit",
+         env: {
+             ...process.env,
+-            OPENCODE_CONFIG_CONTENT: JSON.stringify(options?.config ?? {}),
++            // Cline patch: see createOpencodeServer above.
++            ...(options?.config !== undefined
++                ? { OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config) }
++                : {}),
+         },
+     });
+     const clear = bindAbort(proc, options?.signal);
+diff --git a/dist/v2/server.js b/dist/v2/server.js
+index 252797f8a782f33d9770e3c5334d679fbc638ed9..3ce3e967c9c58a951f2ffd8c46c40f9b3b4ab35c 100644
+--- a/dist/v2/server.js
++++ b/dist/v2/server.js
+@@ -12,7 +12,13 @@ export async function createOpencodeServer(options) {
+     const proc = launch(`opencode`, args, {
+         env: {
+             ...process.env,
+-            OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config ?? {}),
++            // Cline patch: only inject config when the caller supplied one.
++            // An unconditional OPENCODE_CONFIG_CONTENT (even "{}") makes
++            // `opencode serve` on Windows accept the port but refuse every
++            // HTTP connection, or exit with code 58 (cline/cline#14394).
++            ...(options.config !== undefined
++                ? { OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config) }
++                : {}),
+         },
+     });
+     let clear = () => { };
+@@ -92,7 +98,10 @@ export function createOpencodeTui(options) {
+         stdio: "inherit",
+         env: {
+             ...process.env,
+-            OPENCODE_CONFIG_CONTENT: JSON.stringify(options?.config ?? {}),
++            // Cline patch: see createOpencodeServer above.
++            ...(options?.config !== undefined
++                ? { OPENCODE_CONFIG_CONTENT: JSON.stringify(options.config) }
++                : {}),
+         },
+     });
+     const clear = bindAbort(proc, options?.signal);
