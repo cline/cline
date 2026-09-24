@@ -948,7 +948,8 @@ export function ProviderDetailContent({
 		);
 
 	return (
-		<ScrollArea className="h-full">
+		// Keep Radix's table wrapper from sizing the panel to long model IDs.
+		<ScrollArea className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:block!">
 			<div
 				className={cn(
 					"py-10 max-[720px]:px-4 max-[720px]:py-5",
