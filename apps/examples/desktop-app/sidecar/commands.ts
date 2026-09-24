@@ -3550,7 +3550,11 @@ export async function handleCommand(
 		return await listUserInstructionConfigs(ctx);
 	}
 	if (command === "list_plugin_commands") {
-		return await getPluginCommandService(ctx.localWorkspaceRoot).listCommands();
+		// Same workspace the session will execute in (handleSend), so the menu
+		// only offers commands that can actually run there.
+		const workspacePath =
+			String(args?.workspacePath ?? "").trim() || ctx.localWorkspaceRoot;
+		return await getPluginCommandService(workspacePath).listCommands();
 	}
 	if (command === "list_marketplace_installed_entries") {
 		return listMarketplaceInstalledEntries(

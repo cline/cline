@@ -950,7 +950,9 @@ function ChatInputBarImpl({
 				"list_user_instruction_configs",
 			),
 			desktopClient
-				.invoke<SlashCommand[]>("list_plugin_commands")
+				.invoke<SlashCommand[]>("list_plugin_commands", {
+					workspacePath: workspaceRoot,
+				})
 				.catch((): SlashCommand[] => []),
 		])
 			.then(([response, pluginCommands]) => {
@@ -971,7 +973,7 @@ function ChatInputBarImpl({
 		return () => {
 			cancelled = true;
 		};
-	}, [slashOpen]);
+	}, [slashOpen, workspaceRoot]);
 
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
