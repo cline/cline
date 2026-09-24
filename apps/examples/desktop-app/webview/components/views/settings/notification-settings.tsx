@@ -100,7 +100,7 @@ export function NotificationSettings() {
 	// One settings section: a top-level header row like the other General
 	// settings, with the per-event matrix nested in a card so its rows read
 	// as children of "Desktop notifications" rather than as siblings of
-	// top-level settings like Dark mode.
+	// top-level settings like Theme.
 	return (
 		<div className="border-b py-4">
 			<div className="flex items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch">
