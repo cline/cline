@@ -203,6 +203,27 @@ metadata rows; the host owns the hover-card lifecycle, positioning, and
 metadata formatting. See the [session-row adoption guide](./packages/ui/ADOPTION.md#session-rows)
 for the import, slot, and trigger/ref examples.
 
+## Shared context usage presentation (`@cline/ui`)
+
+`AgentContextUsage` exposes desktop's context ring and token breakdown through
+its `children` render callback. It adds no wrapper: the host receives
+`AgentContextUsagePresentation` (`triggerLabel`, `ring`, and `details`) and keeps
+its own accessible trigger, popover, positioning, focus, and keyboard behavior.
+
+`AgentContextUsageProps` accepts `usage: AgentContextUsageData`, optional
+`costLabel: ReactNode`, and the required render callback. Usage contains
+`tokensIn`, `tokensOut`, `cacheReadTokens`, and optional `contextWindow`.
+Supply current-request metrics and the model's authoritative context capacity,
+not accumulated session token traffic. The component renders nothing when
+usage is empty or context capacity is unavailable or nonpositive. Cached tokens
+are part of input usage, not additional context consumption.
+
+`costLabel` is a separate host-formatted cost. Numeric zero is displayed;
+previously hidden falsy values remain omitted. Desktop retains its existing
+cost formatter and usage source. Import the component and all three public
+types from `@cline/ui`; see [UI adoption guidance](packages/ui/ADOPTION.md) for
+theme setup, styling, and composition examples.
+
 ## Shared command output and image presentation (`@cline/ui`)
 
 `AgentCommandOutput` renders `output` with a running cursor controlled by
