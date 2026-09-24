@@ -2409,11 +2409,6 @@ export class CloudSessionController {
 		handoffSeed?: CloudHandoffSeed,
 	): Promise<void> {
 		this.assertSessionActive(connection.remote.id, connection);
-		if (connection.innerSessionId) {
-			if (handoffSeed)
-				await this.assertHandoffConnectionReusable(connection, handoffSeed);
-			return;
-		}
 		if (connection.innerSessionCreation) {
 			await connection.innerSessionCreation;
 			// A seeded creation must never silently adopt a session created by
