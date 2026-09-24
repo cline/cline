@@ -15,6 +15,7 @@ import {
 } from "./cloud-handoff";
 import {
 	CloudHandoffCreationRejectedError,
+	CloudHandoffSeedRejectedError,
 	CloudHandoffSeedUnsupportedError,
 	CloudQueueUnconfirmedError,
 	CloudSessionApi,
@@ -849,13 +850,19 @@ describe("cloud handoff transaction", () => {
 	it.each([
 		"client_authority_mismatch",
 		"hub_draining",
+		"not_dispatched",
 	])("allows retries after pre-dispatch %s on both create and resume", async (code) => {
 		const fixture = createHandoffFixture();
-		const rejected = new HubCommandError(
-			"session.create",
-			code,
-			"Create rejected before dispatch.",
-		);
+		const rejected =
+			code === "not_dispatched"
+				? new CloudHandoffSeedRejectedError(
+						new Error("Create cancelled before dispatch."),
+					)
+				: new HubCommandError(
+						"session.create",
+						code,
+						"Create rejected before dispatch.",
+					);
 		const request = {
 			action: "handoff" as const,
 			sessionId: fixture.sourceSessionId,

@@ -19,6 +19,7 @@ import type { MessageWithMetadata } from "@cline/llms";
 import { type AgentMode, getClineEnvironmentConfig } from "@cline/shared";
 import {
 	CloudHandoffCreationRejectedError,
+	CloudHandoffSeedRejectedError,
 	CloudHandoffSeedUnsupportedError,
 	CloudQueueUnconfirmedError,
 	CloudSessionError,
@@ -430,11 +431,12 @@ async function handleHandoffOnce(
 			await clearPendingMetadata();
 		// These rejections precede the create handler; generic failures may follow persistence.
 		if (
-			error instanceof Error &&
-			error.name === "HubCommandError" &&
-			(error as HubCommandError).command === "session.create" &&
-			((error as HubCommandError).code === "client_authority_mismatch" ||
-				(error as HubCommandError).code === "hub_draining")
+			error instanceof CloudHandoffSeedRejectedError ||
+			(error instanceof Error &&
+				error.name === "HubCommandError" &&
+				(error as HubCommandError).command === "session.create" &&
+				((error as HubCommandError).code === "client_authority_mismatch" ||
+					(error as HubCommandError).code === "hub_draining"))
 		) {
 			const current = await manager.get(sourceSessionId);
 			const { cloudHandoffSeedDispatched: _dispatched, ...metadata } =
