@@ -200,6 +200,11 @@ export interface LocalHubResolutionOptions {
 	strategy?: "prefer-hub" | "require-hub";
 	workspaceRoot?: string;
 	cwd?: string;
+	/**
+	 * Called with the error when starting a detached Hub fails. The function
+	 * still resolves `undefined` in that case; this lets a caller report why.
+	 */
+	onStartupError?: (error: unknown) => void;
 }
 
 const GLOBAL_SUBSCRIPTION_KEY = "*";
@@ -1328,7 +1333,8 @@ export async function ensureCompatibleLocalHubUrl(
 			options.workspaceRoot ?? process.cwd(),
 		);
 		return ensured.url;
-	} catch {
+	} catch (error) {
+		options.onStartupError?.(error);
 		return undefined;
 	}
 }
