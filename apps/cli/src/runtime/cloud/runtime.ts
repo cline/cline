@@ -16,7 +16,7 @@ import {
 	type CreateCloudSessionInput,
 	createHubEventProjector,
 	type HubEventProjector,
-	loadCloudHandoffModels,
+	loadCloudModels,
 	type PreparedCloudHandoff,
 } from "@cline/core/cloud";
 import {
@@ -439,18 +439,11 @@ export class CliCloudRuntime {
 		await this.ready();
 		const epoch = this.epoch;
 		const scope = this.identity!.scope;
-		const models = await loadCloudHandoffModels(scope.apiBaseUrl);
-		this.assertCurrent(epoch);
-		const seen = new Set<string>();
-		return models.filter((model) => {
-			// Filter before deduplicating so a personal Pass recommendation does
-			// not hide the same ID's organization-compatible catalog entry.
-			if (scope.organizationId && model.catalogId === "cline-pass")
-				return false;
-			if (seen.has(model.id)) return false;
-			seen.add(model.id);
-			return true;
+		const models = await loadCloudModels(scope.apiBaseUrl, {
+			isOrganizationSession: Boolean(scope.organizationId),
 		});
+		this.assertCurrent(epoch);
+		return models;
 	}
 
 	hasHandoffSource(): boolean {
@@ -470,11 +463,11 @@ export class CliCloudRuntime {
 			scopeKey: cloudScopeKey(this.identity!.scope),
 			appBaseUrl: getClineEnvironmentConfig().appBaseUrl,
 			assertAvailable: () => this.assertCurrent(epoch),
-			models: async () => {
+			models: async (isOrganizationSession) => {
 				this.assertCurrent(epoch);
-				const models = await loadCloudHandoffModels(
-					this.identity!.scope.apiBaseUrl,
-				);
+				const models = await loadCloudModels(this.identity!.scope.apiBaseUrl, {
+					isOrganizationSession,
+				});
 				this.assertCurrent(epoch);
 				return models;
 			},
@@ -562,6 +555,13 @@ export class CliCloudRuntime {
 		const clients = await this.ready();
 		this.assertCurrent(entryEpoch);
 		if (entryNavigation !== this.navigation) return;
+		const availableModels = await this.models();
+		this.assertCurrent(entryEpoch);
+		if (entryNavigation !== this.navigation) return;
+		if (!availableModels.some((model) => model.id === input.modelId))
+			throw new Error(
+				"The selected cloud model is no longer available. Choose another model.",
+			);
 		if (this.state.creating)
 			throw new Error("A cloud session is already starting.");
 		this.detach();

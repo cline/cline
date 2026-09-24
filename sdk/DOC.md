@@ -55,9 +55,13 @@ authorizes recreation of a missing established task.
 ## Experimental cloud handoff
 
 `CloudHandoffCoordinator` from `@cline/core/cloud` accepts a local source adapter,
-cloud controller, model loader, account scope, availability check, and progress callback.
+cloud controller, eligible model loader, account scope, availability check, and progress callback.
 Call `prepare()`, confirm the repository, branch, and model, then `execute()`.
 Execution revalidates the source and returns a verified target without sending a follow-up.
+
+`loadCloudModels` and `CloudSessionController.listModels()` return the live cloud
+inventory, excluding personal Pass entries for organizations. Hosts validate the
+selected ID before new creation; handoff never substitutes a different model.
 
 Lower-level hosts can use `create({ handoff, ... })` or `seedHandoff(id, seed)`.
 Both return the seeded `innerSessionId`; `create` also returns the outer `sessionId`.

@@ -6,10 +6,7 @@ export function cloudHandoffConfirmation(
 	prepared: PreparedCloudHandoff,
 ): string {
 	const { repoUrl, branch, headSha, modelId } = prepared.fingerprint;
-	const model = prepared.modelFallback
-		? `Model: ${prepared.modelFallback.from} → ${prepared.modelFallback.to} (cloud fallback)`
-		: `Model: ${modelId}`;
-	return `${repoUrl}\nBranch: ${branch} · ${headSha.slice(0, 8)}\n${model}`;
+	return `${repoUrl}\nBranch: ${branch} · ${headSha.slice(0, 8)}\nModel: ${modelId}`;
 }
 
 /** Preparation is read-only; dispatch the exact prepared handoff only after confirmation. */

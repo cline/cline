@@ -90,9 +90,7 @@ export function CloudComposer(props: {
 					...previous,
 					repository,
 					branch: repository ? previous.branch : "",
-					modelId: choices.some((model) => model.id === previous.modelId)
-						? previous.modelId
-						: (choices[0]?.id ?? ""),
+					modelId: previous.modelId || (choices[0]?.id ?? ""),
 				});
 			})
 			.catch((failure) => {

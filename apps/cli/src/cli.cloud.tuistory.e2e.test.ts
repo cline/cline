@@ -40,6 +40,7 @@ async function fixture(
 	allowCreate = false,
 	paginatedBranches: boolean | "hold-first" = false,
 	handoff?: "clean" | "dirty",
+	modelMode: "exact" | "unsupported" = "exact",
 ) {
 	const requests: Array<{
 		method: string;
@@ -169,7 +170,13 @@ async function fixture(
 		if (withHub && pathname === "/api/v1/ai/cline/models") {
 			response.end(
 				JSON.stringify({
-					data: [{ id: "fixture-model", name: "Fixture cloud model" }],
+					data:
+						modelMode === "unsupported"
+							? [{ id: "fixture-model", name: "Fixture cloud model" }]
+							: [
+									{ id: "fixture-model", name: "Fixture cloud model" },
+									{ id: "claude-sonnet-4-6", name: "Claude Sonnet" },
+								],
 				}),
 			);
 			return;
@@ -392,7 +399,7 @@ describe("cloud CLI terminal integration (local fixture only)", () => {
 			`Branch: main · ${headSha?.slice(0, 8)}`,
 		);
 		expect((await terminal.text()).replace(/\s+/g, " ")).toContain(
-			"claude-sonnet-4-6 → fixture-model (cloud fallback)",
+			"Model: claude-sonnet-4-6",
 		);
 		expect(
 			requests.filter(
@@ -439,6 +446,12 @@ describe("cloud CLI terminal integration (local fixture only)", () => {
 					request.method === "POST" && request.pathname === "/api/v1/session",
 			),
 		).toHaveLength(1);
+		expect(
+			requests.find(
+				(request) =>
+					request.method === "POST" && request.pathname === "/api/v1/session",
+			)?.body,
+		).toMatchObject({ modelId: "claude-sonnet-4-6" });
 		await terminal.type("/local");
 		await terminal.press("enter");
 		await terminal.text({
@@ -456,6 +469,40 @@ describe("cloud CLI terminal integration (local fixture only)", () => {
 		).toHaveLength(0);
 		await terminal.type("/quit");
 		await terminal.press("enter");
+		expect(await terminal.waitForExit(10_000)).toBe(true);
+	});
+
+	it("rejects an unsupported handoff model without creating a cloud session", async () => {
+		const { terminal, requests } = await fixture(
+			true,
+			true,
+			undefined,
+			true,
+			true,
+			false,
+			"clean",
+			"unsupported",
+		);
+		await terminal.waitForText(
+			"The local plan is ready to continue remotely.",
+			{
+				timeout: 30_000,
+			},
+		);
+		await terminal.type("/cloud");
+		await terminal.press("enter");
+		await terminal.waitForText("Continue this conversation in cloud");
+		await terminal.press("enter");
+		await terminal.waitForText(
+			"The selected cloud model is no longer available. Run /cloud again.",
+		);
+		expect(
+			requests.filter(
+				(request) =>
+					request.method === "POST" && request.pathname === "/api/v1/session",
+			),
+		).toHaveLength(0);
+		await terminal.press(["ctrl", "c"]);
 		expect(await terminal.waitForExit(10_000)).toBe(true);
 	});
 

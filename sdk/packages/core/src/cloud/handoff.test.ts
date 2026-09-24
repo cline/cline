@@ -127,6 +127,21 @@ describe("shared cloud handoff transaction", () => {
 		expect(f.cloud.create).not.toHaveBeenCalled();
 		expect(f.release).toHaveBeenCalledOnce();
 	});
+	it("rejects an unavailable source model before provisioning", async () => {
+		const f = fixture();
+		f.options.models = vi.fn(async () => []);
+		await expect(f.coordinator.prepare()).rejects.toThrow(
+			"selected cloud model is no longer available",
+		);
+		expect(f.cloud.create).not.toHaveBeenCalled();
+	});
+	it("rejects a changed pinned model before provisioning", async () => {
+		const f = fixture();
+		await expect(f.coordinator.prepare("other-model")).rejects.toThrow(
+			"source model changed",
+		);
+		expect(f.cloud.create).not.toHaveBeenCalled();
+	});
 	it("refuses a stale account confirmation", async () => {
 		const f = fixture();
 		const prepared = await f.coordinator.prepare();

@@ -45,13 +45,8 @@ describe("cloud conversation handoff", () => {
 			input.confirm.mock.invocationCallOrder[0],
 		);
 	});
-	it("shows model fallback explicitly before the decision", () => {
-		expect(
-			cloudHandoffConfirmation({
-				...prepared,
-				modelFallback: { from: "local-model", to: "cloud-model" },
-			}),
-		).toContain("Model: local-model → cloud-model (cloud fallback)");
+	it("shows the exact selected model before the decision", () => {
+		expect(cloudHandoffConfirmation(prepared)).toContain("Model: cloud-model");
 	});
 	it.each([
 		false,

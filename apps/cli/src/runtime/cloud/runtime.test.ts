@@ -43,6 +43,19 @@ async function fixture(
 			dispose: async () => {},
 		}),
 	});
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(
+			async (url: string) =>
+				new Response(
+					JSON.stringify(
+						url.endsWith("/models")
+							? { data: [{ id: "model", name: "Model" }] }
+							: { data: { clineCloud: [{ id: "model", name: "Model" }] } },
+					),
+				),
+		),
+	);
 	let snapshot: CloudSessionSnapshot = {
 		sessionId: "ses-one",
 		config: {},
@@ -329,6 +342,35 @@ describe("CLI cloud isolation and creation lifecycle", () => {
 			"https://example.test/api/v1/ai/cline/models",
 			"https://example.test/api/v1/ai/cline/recommended-models",
 		]);
+	});
+	it.each([
+		"unavailable",
+		"catalog failure",
+	] as const)("rejects an ordinary-create model on %s before persisting or POSTing", async (failure) => {
+		const f = await fixture();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string) => {
+				if (failure === "catalog failure") throw new Error("offline");
+				return new Response(
+					JSON.stringify(
+						url.endsWith("/models")
+							? { data: [{ id: "different-model", name: "Different" }] }
+							: { data: {} },
+					),
+				);
+			}),
+		);
+		await expect(f.runtime.create(input)).rejects.toThrow(
+			failure === "catalog failure"
+				? "Could not load the cloud model catalog"
+				: "selected cloud model is no longer available",
+		);
+		expect(f.controller.detach).not.toHaveBeenCalled();
+		expect(f.api.create).not.toHaveBeenCalled();
+		expect(
+			f.store.list({ apiBaseUrl: "https://example.test", accountId: "a" }),
+		).toEqual([]);
 	});
 
 	it("rejects model catalog results after the account changes", async () => {

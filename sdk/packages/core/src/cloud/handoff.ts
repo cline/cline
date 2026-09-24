@@ -2,7 +2,6 @@ import type { AgentMode, MessageWithMetadata } from "@cline/shared";
 import {
 	buildCloudHandoffDashboardUrl,
 	type CloudHandoffFingerprint,
-	type CloudHandoffModel,
 	type CloudHandoffProgress,
 	cloudHandoffFingerprintsEqual,
 	cloudHandoffTranscriptsEqual,
@@ -10,9 +9,9 @@ import {
 	mergeCloudHandoffMetadata,
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
-	selectCloudHandoffModel,
 } from "../services/cloud-handoff";
 import type { CloudSessionController } from "./controller";
+import type { CloudModel } from "./models";
 import type { CloudCreationOptions } from "./types";
 
 export type CloudHandoffSourceSnapshot = {
@@ -42,7 +41,6 @@ export type PreparedCloudHandoff = {
 	scopeKey: string;
 	fingerprint: CloudHandoffFingerprint;
 	config: CloudCreationOptions;
-	modelFallback?: { from: string; to: string };
 };
 
 export type CloudHandoffCoordinatorOptions = {
@@ -57,7 +55,7 @@ export type CloudHandoffCoordinatorOptions = {
 		| "handoffTargetExists"
 		| "delete"
 	>;
-	models(): Promise<CloudHandoffModel[]>;
+	models(isOrganizationSession: boolean): Promise<CloudModel[]>;
 	recoverCreation(
 		fingerprint: CloudHandoffFingerprint,
 		requestId: string,
@@ -114,12 +112,11 @@ export class CloudHandoffCoordinator {
 		});
 		const { organizationId } =
 			await this.options.cloud.prepareHandoffRepository(git.repoUrl);
-		const selection = selectCloudHandoffModel({
-			localModelId: pinnedModelId ?? source.modelId,
-			models: await this.options.models(),
-			isOrganizationSession: Boolean(organizationId),
-		});
-		if (pinnedModelId && selection.modelId !== pinnedModelId)
+		const modelId = source.modelId?.trim();
+		if (pinnedModelId && pinnedModelId !== modelId)
+			throw new Error("The source model changed. Run /cloud again.");
+		const models = await this.options.models(Boolean(organizationId));
+		if (!modelId || !models.some((model) => model.id === modelId))
 			throw new Error(
 				"The selected cloud model is no longer available. Run /cloud again.",
 			);
@@ -130,13 +127,10 @@ export class CloudHandoffCoordinator {
 			config: structuredClone(source.config),
 			fingerprint: createCloudHandoffFingerprint({
 				...git,
-				modelId: selection.modelId,
+				modelId,
 				organizationId,
 				...(source.mode && source.mode !== "act" ? { mode: source.mode } : {}),
 			}),
-			...(source.modelId && source.modelId !== selection.modelId
-				? { modelFallback: { from: source.modelId, to: selection.modelId } }
-				: {}),
 		};
 	}
 	async execute(prepared: PreparedCloudHandoff): Promise<string> {
