@@ -21,6 +21,7 @@ describe("buildForkSessionMetadata", () => {
 				metadata: {
 					title: "Source title",
 					totalCost: 1.25,
+					handoff: { status: "complete" },
 					checkpoint: {
 						latest: {
 							ref: "abc123",
@@ -37,6 +38,7 @@ describe("buildForkSessionMetadata", () => {
 
 		expect(metadata.title).toBe("Source title (fork)");
 		expect(metadata.totalCost).toBe(1.25);
+		expect(metadata).not.toHaveProperty("handoff");
 		expect(metadata.fork).toEqual({
 			forkedFromSessionId: "sess_source",
 			forkedAt: "2026-04-29T16:00:00.000Z",

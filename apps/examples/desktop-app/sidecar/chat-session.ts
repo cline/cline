@@ -6,6 +6,7 @@ import {
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	createForkSessionMetadata,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
@@ -1717,26 +1718,17 @@ async function handleForkUnlocked(
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(baseForkConfig)
 			: baseForkConfig;
-	const checkpointMetadata =
-		sourceMetadata?.checkpoint !== undefined
-			? { checkpoints: sourceMetadata.checkpoint }
-			: {};
 	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
-	const forkMetadata: JsonRecord = {
-		...(sourceMetadata ?? {}),
-		fork: {
-			forkedFromSessionId: sourceSessionId,
-			forkedAt: new Date().toISOString(),
-			source: sourceSession?.source ?? "desktop",
-			...(forkBeforeRunCount !== undefined
-				? { beforeRunCount: forkBeforeRunCount }
-				: {}),
-			...checkpointMetadata,
-		},
-	};
+	const forkMetadata = createForkSessionMetadata({
+		metadata: sourceMetadata,
+		forkedFromSessionId: sourceSessionId,
+		forkedAt: new Date().toISOString(),
+		source: sourceSession?.source ?? "desktop",
+		beforeRunCount: forkBeforeRunCount,
+	});
 	const systemPrompt =
 		binding.kind === "ssh"
 			? readExplicitSystemPrompt(forkConfig)

@@ -516,6 +516,7 @@ describe("session forks", () => {
 						cwd: "/workspace/project",
 						workspaceRoot: "/workspace/project",
 						metadata: {
+							handoff: { status: "complete" },
 							checkpoint: {
 								latest: { ref: "second", createdAt: 2, runCount: 2 },
 								history: [
@@ -566,6 +567,15 @@ describe("session forks", () => {
 			}),
 		);
 		expect(start).not.toHaveBeenCalled();
+		expect(restore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				start: expect.objectContaining({
+					sessionMetadata: expect.not.objectContaining({
+						handoff: expect.anything(),
+					}),
+				}),
+			}),
+		);
 		expect(readMessages).toHaveBeenCalledWith("edited-fork");
 		expect(result).toEqual({
 			sessionId: "edited-fork",
