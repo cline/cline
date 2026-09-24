@@ -28,9 +28,14 @@ pre * {
 	font-family: "Geist Mono", "Monaco", "Courier New", monospace !important;
 }
 
+body {
+	background-color: white !important;
+}
+
 /* Make h1 titles lighter in font weight */
 h1 {
 	font-weight: 600 !important;
+	color: black !important;
 }
 
 /* Keep headings and images at full opacity */
