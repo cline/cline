@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CloudHandoffTranscriptMismatchError } from "../services/cloud-handoff";
+import { CloudHandoffSeedRejectedError } from "./controller";
 import {
 	CloudHandoffCoordinator,
 	type CloudHandoffCoordinatorOptions,
@@ -264,6 +265,34 @@ describe("shared cloud handoff transaction", () => {
 		);
 		expect(f.state.metadata.cloudHandoffIntent).toBeUndefined();
 		expect(await f.coordinator.execute(prepared)).toBe("outer");
+	});
+
+	it("retains the target but clears a rejected seed marker even after access is revoked", async () => {
+		const f = fixture();
+		const prepared = await f.coordinator.prepare();
+		f.cloud.create.mockImplementationOnce(async (input) => {
+			await input.handoff!.onCreating?.();
+			await input.handoff!.onOuterSessionCreated("outer", { created: true });
+			await input.handoff!.onSeeding?.();
+			vi.mocked(f.options.assertAvailable).mockImplementation(() => {
+				throw new Error("access revoked");
+			});
+			throw new CloudHandoffSeedRejectedError(
+				new Error("cancelled before dispatch"),
+			);
+		});
+		await expect(f.coordinator.execute(prepared)).rejects.toThrow(
+			"cancelled before dispatch",
+		);
+		expect(f.state.metadata.cloudHandoffSeedDispatched).toBeUndefined();
+		expect(f.state.metadata.handoff).toMatchObject({
+			toCloudSessionId: "outer",
+			status: "pending",
+		});
+		expect(f.cloud.delete).not.toHaveBeenCalled();
+		vi.mocked(f.options.assertAvailable).mockReset();
+		expect(await f.coordinator.execute(prepared)).toBe("outer");
+		expect(f.cloud.seedHandoff.mock.calls[0][1].recoverOnly).toBe(false);
 	});
 
 	it("clears recovery intent on a definite rejected create, allowing a retry", async () => {

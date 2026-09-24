@@ -10,7 +10,10 @@ import {
 	preflightCloudHandoffGit,
 	readCloudHandoffMetadata,
 } from "../services/cloud-handoff";
-import type { CloudSessionController } from "./controller";
+import {
+	CloudHandoffSeedRejectedError,
+	type CloudSessionController,
+} from "./controller";
 import type { CloudModel } from "./models";
 import type { CloudCreationOptions } from "./types";
 
@@ -361,6 +364,21 @@ export class CloudHandoffCoordinator {
 				progress("complete", "Ready in Cline Cloud.");
 				return outerId;
 			} catch (error) {
+				if (error instanceof CloudHandoffSeedRejectedError) {
+					const latest = await this.options.source.read();
+					if (
+						latest.sessionId !== source.sessionId ||
+						readCloudHandoffMetadata(latest.metadata)?.toCloudSessionId !==
+							outerId
+					)
+						throw new Error(
+							"The saved handoff changed before its seed marker could be cleared.",
+							{ cause: error },
+						);
+					const { cloudHandoffSeedDispatched: _seedDispatched, ...metadata } =
+						latest.metadata;
+					await this.options.source.updateMetadata(source.sessionId, metadata);
+				}
 				if (
 					!outerId &&
 					error instanceof Error &&
