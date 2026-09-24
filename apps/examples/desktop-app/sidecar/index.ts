@@ -98,11 +98,6 @@ async function main() {
 		"Login shell PATH resolution",
 		await shellPathPromise,
 	);
-	// A Hub that is slow to start (cold launch of the compiled binary on
-	// Windows, antivirus scanning it) used to take the whole sidecar down;
-	// the respawned process then started the same cold Hub over again. Keep
-	// this process alive and retry instead, so a later attempt attaches to
-	// the daemon an earlier one already spawned.
 	await retryUntilHubAvailable(() => initializeSessionManager(ctx), {
 		onRetry: ({ error, attempt, elapsedMs }) => {
 			observability.logger.log("Hub not ready yet; retrying", {
@@ -111,8 +106,6 @@ async function main() {
 				error: error instanceof Error ? error.message : String(error),
 			});
 			if (attempt === 1) {
-				// One handled event per launch: counts the devices that needed
-				// a retry without the fatal sidecar.startup noise of before.
 				captureSdkError(observability.telemetry, {
 					component: "desktop",
 					operation: "sidecar.hub_startup_retry",
