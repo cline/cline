@@ -235,7 +235,19 @@ test("source desktop publishes transport while hub registration hangs", async ()
 		>();
 		socket.onmessage = (event) => {
 			const message = JSON.parse(String(event.data));
-			if (message.type === "response") responses.get(message.id)?.(message);
+			if (
+				message?.type !== "response" ||
+				typeof message.id !== "string" ||
+				typeof message.ok !== "boolean" ||
+				!responses.has(message.id)
+			) {
+				return;
+			}
+			const resolve = responses.get(message.id);
+			if (typeof resolve === "function") {
+				responses.delete(message.id);
+				resolve(message);
+			}
 		};
 		await new Promise<void>((resolve, reject) => {
 			connection.onopen = () => resolve();
