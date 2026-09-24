@@ -4,7 +4,8 @@ import type {
 	MessageWithMetadata,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { CloudSessionRecord } from "./api";
+import { toHubSessionRecord } from "../hub/server/hub-session-records";
+import { CloudSessionError, type CloudSessionRecord } from "./api";
 import {
 	CloudQueueUnconfirmedError,
 	CloudSessionController,
@@ -35,6 +36,11 @@ function fixture(options: Partial<CloudSessionControllerOptions> = {}) {
 		sessionId?: string;
 	}> = [];
 	const api = {
+		resume: vi.fn(async () => ({
+			...structuredClone(record),
+			sandboxType: "resumable" as const,
+			status: "provisioning",
+		})),
 		list: vi.fn(async () => [structuredClone(record)]),
 		status: vi.fn(async () => ({ status: "ready" })),
 		create: vi.fn(async () => ({
@@ -184,6 +190,316 @@ async function attached() {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("resumes a suspended workspace once before concurrent viewers connect", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		f.api.status.mockResolvedValue({ status: "suspended" });
+		f.api.waitUntilReady.mockImplementation(async () => {
+			f.api.list.mockResolvedValue([
+				{ ...record, sandboxType: "resumable", status: "ready" },
+			]);
+		});
+		await Promise.all([
+			f.controller.attach(record.id),
+			f.controller.attach(record.id),
+		]);
+		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		expect(f.api.waitUntilReady).toHaveBeenCalledTimes(1);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		expect(f.commands.some((c) => c.command === "session.create")).toBe(false);
+		await f.controller.dispose();
+	});
+
+	it("reconciles a cached ready PVC session before resuming it", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		await f.controller.list();
+		f.api.status.mockResolvedValue({ status: "suspended" });
+		await f.controller.attach(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		await f.controller.dispose();
+	});
+
+	it("keeps suspended workspaces asleep during discovery and closes stale connections", async () => {
+		const f = await attached();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		await f.controller.listForDiscovery();
+		expect(f.api.resume).not.toHaveBeenCalled();
+		expect(f.dispose).toHaveBeenCalledTimes(1);
+		expect(f.controller.getSnapshot(record.id)?.status).toBe("suspended");
+		await f.controller.dispose();
+	});
+
+	it("drops a reconnecting transport when the sandbox suspended and resumes on reopen", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		await f.controller.attach(record.id);
+		const headers = f.getConnectionOptions().resolveConnectionHeaders;
+		if (!headers) throw new Error("Missing header resolver");
+		await headers();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		const original = f.command.getMockImplementation();
+		if (!original) throw new Error("Missing command implementation");
+		f.command.mockRejectedValue(new Error("Pod stopped"));
+		await headers();
+		await vi.waitFor(() => expect(f.dispose).toHaveBeenCalledTimes(1));
+		expect(f.controller.getSnapshot(record.id)?.status).toBe("suspended");
+		expect(f.api.resume).not.toHaveBeenCalled();
+		f.command.mockImplementation(original);
+		f.api.status.mockResolvedValue({ status: "suspended" });
+		f.api.waitUntilReady.mockImplementation(async () => {
+			f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		});
+		await f.controller.attach(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		await f.controller.dispose();
+	});
+
+	it("does not connect after a failed resume and permits a later retry", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		f.api.status.mockResolvedValue({ status: "suspended" });
+		f.api.resume.mockRejectedValueOnce(new Error("Quota reached"));
+		await expect(f.controller.attach(record.id)).rejects.toThrow(
+			"Quota reached",
+		);
+		expect(f.commands).toEqual([]);
+		f.api.waitUntilReady.mockImplementation(async () => {
+			f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		});
+		await f.controller.attach(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(2);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"provisioning",
+		"ready",
+		"active",
+	])("joins a concurrent resume that reached %s", async (status) => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		f.api.status
+			.mockResolvedValueOnce({ status: "suspended" })
+			.mockResolvedValue({ status });
+		f.api.resume.mockRejectedValue(
+			new CloudSessionError(
+				"request_failed",
+				"this session cannot be resumed",
+				undefined,
+				409,
+			),
+		);
+		f.api.waitUntilReady.mockImplementation(async () => {
+			f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		});
+		await f.controller.attach(record.id);
+		expect(f.api.resume).toHaveBeenCalledTimes(1);
+		expect(f.api.waitUntilReady).toHaveBeenCalledTimes(
+			status === "provisioning" ? 1 : 0,
+		);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		await f.controller.dispose();
+	});
+
+	it("preserves a resume conflict when the sandbox is still suspended", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		f.api.status.mockResolvedValue({ status: "suspended" });
+		const conflict = new CloudSessionError(
+			"request_failed",
+			"this session cannot be resumed",
+			undefined,
+			409,
+		);
+		f.api.resume.mockRejectedValue(conflict);
+		await expect(f.controller.attach(record.id)).rejects.toBe(conflict);
+		expect(f.commands).toEqual([]);
+		await f.controller.dispose();
+	});
+
+	it("cancels a pending resume when the viewer detaches", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([
+			{ ...record, sandboxType: "resumable", status: "suspended" },
+		]);
+		f.api.status.mockResolvedValue({ status: "suspended" });
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		f.api.resume.mockImplementation(async () => {
+			await gate;
+			return { ...record, sandboxType: "resumable", status: "provisioning" };
+		});
+		const attaching = f.controller.attach(record.id);
+		const rejected = expect(attaching).rejects.toThrow();
+		await vi.waitFor(() => expect(f.api.resume).toHaveBeenCalledTimes(1));
+		await f.controller.detach(record.id);
+		release();
+		await rejected;
+		expect(f.api.waitUntilReady).not.toHaveBeenCalled();
+		expect(f.commands).toEqual([]);
+		await f.controller.dispose();
+	});
+
+	it("restores persisted conversation history under the same task id after a pod restart", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		const messages: MessageWithMetadata[] = [
+			{ role: "user", content: "Keep my work" },
+		];
+		f.setMessages(messages);
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection")
+				throw Object.assign(new Error("session not found: inner"), {
+					code: "command_failed",
+				});
+			return original(...args);
+		});
+		await f.controller.attach(record.id);
+		expect(
+			f.commands.find((c) => c.command === "session.create")?.payload,
+		).toMatchObject({
+			initialMessages: messages,
+			sessionConfig: { sessionId: "inner", modelId: "model" },
+		});
+		expect(await f.controller.readMessages(record.id)).toEqual(messages);
+		await f.controller.send(record.id, "Continue working");
+		expect(
+			f.commands.find((c) => c.command === "session.send_input")?.sessionId,
+		).toBe("inner");
+		await f.controller.dispose();
+	});
+
+	it.each([
+		{ savedApproval: true, localApproval: false, expectedApproval: true },
+		{ savedApproval: false, localApproval: true, expectedApproval: false },
+		{ savedApproval: undefined, localApproval: true, expectedApproval: true },
+	])("restores saved runtime policy and host thinking settings: %j", async ({
+		savedApproval,
+		localApproval,
+		expectedApproval,
+	}) => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		f.controller.restoreCreationOptions(record.id, {
+			autoApproveTools: localApproval,
+			thinking: true,
+			reasoningEffort: "high",
+		});
+		f.setMessages([{ role: "user", content: "Saved work" }]);
+		// Use the real Hub projection: these settings live in metadata, not
+		// in the runtimeOptions object exposed to clients.
+		const saved = toHubSessionRecord({
+			sessionId: "inner",
+			isSubagent: false,
+			status: "idle",
+			source: "desktop",
+			interactive: true,
+			startedAt: record.createdAt,
+			updatedAt: record.updatedAt,
+			workspaceRoot: "/workspace/repo",
+			cwd: "/workspace/repo",
+			provider: "cline",
+			model: "model",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			metadata: {
+				autoApproveTools: savedApproval,
+				checkpointEnabled: true,
+				mode: "plan",
+				systemPrompt: "Saved instructions",
+			},
+		});
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection") {
+				throw Object.assign(new Error("Missing runtime"), {
+					code: "session_not_found",
+				});
+			}
+			if (args[0] === "session.get") {
+				return { version: "v1", ok: true, payload: { session: saved } };
+			}
+			return original(...args);
+		});
+		await f.controller.attach(record.id);
+		expect(
+			f.commands.find((c) => c.command === "session.create")?.payload,
+		).toMatchObject({
+			sessionConfig: {
+				thinking: true,
+				reasoningEffort: "high",
+				checkpoint: { enabled: true },
+				mode: "plan",
+				systemPrompt: "Saved instructions",
+			},
+			runtimeOptions: { enableSpawn: false, enableTeams: false },
+			toolPolicies: { "*": { autoApprove: expectedApproval } },
+		});
+		await f.controller.dispose();
+	});
+
+	it("attaches when another viewer restores the same saved task first", async () => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		f.setMessages([{ role: "user", content: "Saved work" }]);
+		const original = f.command.getMockImplementation()!;
+		let probes = 0;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection" && ++probes === 1) {
+				throw Object.assign(new Error("Missing runtime"), {
+					code: "session_not_found",
+				});
+			}
+			if (args[0] === "session.create") {
+				throw Object.assign(new Error("Already restored"), {
+					code: "session_already_exists",
+				});
+			}
+			return original(...args);
+		});
+		await f.controller.attach(record.id);
+		expect(probes).toBe(2);
+		expect(f.commands.some((c) => c.command === "session.attach")).toBe(true);
+		await f.controller.dispose();
+	});
+
+	it.each([
+		"empty history",
+		"permission denied",
+	])("does not recreate a saved task on %s", async (reason) => {
+		const f = fixture();
+		f.api.list.mockResolvedValue([{ ...record, sandboxType: "resumable" }]);
+		const original = f.command.getMockImplementation()!;
+		f.command.mockImplementation(async (...args) => {
+			if (args[0] === "session.update_connection")
+				throw Object.assign(new Error(reason), {
+					code: reason === "empty history" ? "session_not_found" : "forbidden",
+				});
+			return original(...args);
+		});
+		await expect(f.controller.attach(record.id)).rejects.toThrow(
+			reason === "empty history" ? "empty or unavailable" : reason,
+		);
+		expect(f.commands.some((c) => c.command === "session.create")).toBe(false);
+		await f.controller.dispose();
+	});
 	it("attaches a provisioning receipt without connecting or waiting for readiness", async () => {
 		const f = fixture();
 		f.api.list.mockResolvedValue([{ ...record, status: "provisioning" }]);

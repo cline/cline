@@ -19,10 +19,12 @@ type FetchLike = (
 export type CloudSessionRecord = {
 	id: string;
 	status: string;
+	sandboxType?: "standard" | "resumable";
 	title?: string;
 	sandboxUrl: string;
 	repoContext: { repoUrl?: string; branch?: string };
 	metadata: {
+		sandboxType?: "standard" | "resumable";
 		modelId?: string;
 		taskId?: string;
 		statusReason?: string;
@@ -47,6 +49,8 @@ export function deriveCloudSessionTitle(prompt: string): string {
 }
 
 export type CreateCloudSessionInput = {
+	/** Resumable sandboxes retain their workspace when stopped. Defaults to standard. */
+	sandboxType?: "standard" | "resumable";
 	/** Stable client-planned id for single-flighting one chat's start request. */
 	requestId?: string;
 	modelId: string;
@@ -466,7 +470,14 @@ export class CloudSessionApi {
 	}> {
 		return await this.request(
 			`/api/v1/session/${encodeURIComponent(sessionId)}/status`,
-			{ signal: options.signal },
+			{
+				signal: options.signal
+					? AbortSignal.any([
+							options.signal,
+							AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+						])
+					: undefined,
+			},
 			undefined,
 			options.authToken,
 		);
@@ -506,6 +517,7 @@ export class CloudSessionApi {
 					body: JSON.stringify({
 						modelId: input.modelId,
 						repoUrl: input.repoUrl,
+						...(input.sandboxType ? { sandboxType: input.sandboxType } : {}),
 						title: recoveryTitle,
 						...(input.branch?.trim() ? { branch: input.branch.trim() } : {}),
 						...(input.organizationId?.trim()
@@ -643,6 +655,21 @@ export class CloudSessionApi {
 			await waitForProvisioningPoll(signal);
 		}
 		throw signal.reason;
+	}
+
+	async resume(
+		sessionId: string,
+		signal?: AbortSignal,
+	): Promise<CloudSessionRecord> {
+		return await this.request<CloudSessionRecord>(
+			`/api/v1/session/${encodeURIComponent(sessionId)}/resume`,
+			{
+				method: "POST",
+				signal: signal
+					? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)])
+					: undefined,
+			},
+		);
 	}
 
 	async delete(sessionId: string, authToken?: string): Promise<void> {

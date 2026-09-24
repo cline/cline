@@ -221,6 +221,100 @@ describe("LocalRuntimeHost", () => {
 		}
 	});
 
+	it.each([
+		false,
+		true,
+	])("serializes duplicate session restoration (first start fails: %s)", async (failFirst) => {
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const runtimeBuilder = {
+			build: vi.fn(async () => ({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			})),
+		};
+		runtimeBuilder.build.mockImplementationOnce(async () => {
+			await gate;
+			if (failFirst) throw new Error("bootstrap failed");
+			return { tools: [], shutdown: vi.fn().mockResolvedValue(undefined) };
+		});
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("restore-agent"),
+			getConversationId: vi.fn().mockReturnValue("restore-conversation"),
+			abort: vi.fn(),
+			updateConnection: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const input: StartSessionInput = {
+			interactive: true,
+			config: {
+				sessionId: "restored-task",
+				cwd: isolatedHomeDir,
+				providerId: "mock-provider",
+				modelId: "mock-model",
+				systemPrompt: "Test",
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+		};
+		try {
+			const first = manager.startSession(input);
+			const firstResult = first.then(
+				() => "created",
+				(error: Error) => error.message,
+			);
+			await vi.waitFor(() =>
+				expect(runtimeBuilder.build).toHaveBeenCalledTimes(1),
+			);
+			let secondSettled = false;
+			const second = manager.startSession(input).then(
+				() => {
+					secondSettled = true;
+					return "created";
+				},
+				(error: { code: string }) => {
+					secondSettled = true;
+					return error.code;
+				},
+			);
+			await Promise.resolve();
+			expect(secondSettled).toBe(false);
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(1);
+			release();
+			expect(await firstResult).toBe(
+				failFirst ? "bootstrap failed" : "created",
+			);
+			expect(await second).toBe(
+				failFirst ? "created" : "session_already_exists",
+			);
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 2 : 1);
+			await expect(
+				manager.updateSessionConnection("restored-task", {}),
+			).resolves.toBeUndefined();
+			await expect(manager.startSession(input)).rejects.toMatchObject({
+				code: "session_already_exists",
+			});
+			expect(runtimeBuilder.build).toHaveBeenCalledTimes(failFirst ? 2 : 1);
+		} finally {
+			release();
+			await manager.dispose();
+		}
+	});
+
 	it("preserves a caller-owned telemetry identity when no distinct id is supplied", async () => {
 		const setDistinctId = vi.fn();
 		const manager = new RuntimeHostUnderTest({

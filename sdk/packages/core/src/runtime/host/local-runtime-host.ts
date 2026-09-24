@@ -141,7 +141,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime-host";
-import { SessionNotFoundError } from "./runtime-host";
+import {
+	SessionAlreadyExistsError,
+	SessionNotFoundError,
+} from "./runtime-host";
 import {
 	cloneAccumulatedUsage,
 	RuntimeHostEventBus,
@@ -275,6 +278,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
 	private readonly sessions = new Map<string, ActiveSession>();
+	private readonly sessionStarts = new Map<
+		string,
+		Promise<StartSessionResult>
+	>();
 	// Serializes manifest read-modify-writes per session; see mutateSessionManifest.
 	private readonly manifestMutationQueues = new Map<string, Promise<void>>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
@@ -408,6 +415,33 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async startSession(input: StartSessionInput): Promise<StartSessionResult> {
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		const pending = this.sessionStarts.get(sessionId);
+		if (pending) {
+			// A duplicate restore can probe the runtime as soon as this rejects.
+			// Wait until the winner is usable; a failed start releases the ID.
+			await pending.catch(() => undefined);
+			return await this.startSession({
+				...input,
+				config: { ...input.config, sessionId },
+			});
+		}
+		if (this.sessions.has(sessionId)) {
+			throw new SessionAlreadyExistsError(sessionId);
+		}
+		const starting = this.startNewSession(
+			input,
+			sessionId,
+			requestedSessionId,
+		).finally(() => this.sessionStarts.delete(sessionId));
+		this.sessionStarts.set(sessionId, starting);
+		return await starting;
+	}
+
+	private async startNewSession(
+		input: StartSessionInput,
+		sessionId: string,
+		requestedSessionId: string,
+	): Promise<StartSessionResult> {
 		const isReadOnlyResumeStart =
 			requestedSessionId.length > 0 &&
 			(input.initialMessages?.length ?? 0) > 0 &&
