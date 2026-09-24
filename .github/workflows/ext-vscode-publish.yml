@@ -11,13 +11,19 @@ name: ext-vscode-publish
 # rehearsals complete without any approval; only the publish job — Marketplace
 # + Open VSX + bookkeeping — waits on the `publish` environment.
 #
-# Publishing deliberately uploads the PREBUILT artifact with
-# `vsce publish --packagePath` instead of letting `vsce publish` re-run
-# vscode:prepublish and repack the source tree. The repack path
-# (ext-vscode-publish-stable.yml) died five times in a row on v4.1.18 with
-# `Request timeout: /_apis/gallery` 180s after "Publishing ..." (typed-rest-
-# client's fixed socket timeout; vsce exposes no knob), while the prebuilt
-# upload published the same code line as 4.1.19 in three seconds.
+# Publishing uploads the PREBUILT artifact with `vsce publish --packagePath`
+# from a short, fresh job, instead of letting a bare `vsce publish` re-run
+# vscode:prepublish and repack the source tree inside the build job. That is
+# the shape of every claude-dev publish that has succeeded since August
+# (4.1.16-4.1.20), while ext-vscode-publish-stable.yml hung five times in a
+# row on v4.1.18. What is known about that hang: it was the client's very
+# first request (`OPTIONS /_apis/gallery`, route discovery, no body — the
+# VSIX was never uploaded), it lasted exactly typed-rest-client's 180s socket
+# timeout, and the stable job was running the workspace-vendored vsce 3.9.2
+# via `bun run` after a 25-minute build. The mechanism is NOT established;
+# the retry below covers a transient Marketplace hang without risking a
+# double publish (vsce checks the listing first and exits 0 on "already
+# published").
 
 on:
     workflow_dispatch:
@@ -351,7 +357,20 @@ jobs:
                     echo "Error: OVSX_PAT is required to publish to Open VSX."
                     exit 1
                   fi
-                  vsce publish --no-dependencies --packagePath "cline-${{ github.event.inputs.version }}.vsix"
+                  # Retry a hung/timed-out upload. Safe: vsce queries the listing
+                  # before uploading and exits 0 with "already published" if a
+                  # previous attempt landed but its response was lost.
+                  for attempt in 1 2 3; do
+                    if vsce publish --no-dependencies --packagePath "cline-${{ github.event.inputs.version }}.vsix"; then
+                      exit 0
+                    fi
+                    echo "vsce publish attempt $attempt failed."
+                    if [[ $attempt -lt 3 ]]; then
+                      echo "Retrying in 30s..."
+                      sleep 30
+                    fi
+                  done
+                  exit 1
 
             - name: Publish to Open VSX
               working-directory: staging
