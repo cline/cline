@@ -1,0 +1,187 @@
+name: tmp-verify-desktop-14344
+
+# Temporary, branch-scoped verification for PR #14344. Nothing in regular CI
+# compiles the desktop app's `cfg(target_os = "windows")` code (CodeQL's Rust
+# analysis runs on ubuntu, desktop-test.yml only covers the DMG tooling, and
+# desktop-publish.yml is tag-dispatch only), and neither app-icon.test.ts nor
+# window-title-bar.test.tsx is referenced by any CI script. Delete with the branch.
+
+on:
+    push:
+        branches:
+            - mk/chore/verify-desktop-14344
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+defaults:
+    run:
+        working-directory: .
+
+jobs:
+    windows-desktop:
+        name: Verify Windows desktop chrome
+        runs-on: windows-latest
+        timeout-minutes: 90
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            - name: Toolchain versions
+              run: |
+                  rustc -vV
+                  cargo --version
+                  cargo fmt --version
+                  bun --version
+
+            - name: Restore cargo cache
+              id: cargo_cache
+              uses: actions/cache/restore@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      apps/examples/desktop-app/src-tauri/target
+                  key: cargo-${{ runner.os }}-${{ hashFiles('apps/examples/desktop-app/src-tauri/Cargo.lock') }}
+                  restore-keys: cargo-${{ runner.os }}-
+
+            - name: Install dependencies
+              run: bun install
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # Cheap and independent of every build step below.
+            - name: Check Rust formatting
+              if: ${{ !cancelled() }}
+              run: cargo fmt --manifest-path apps/examples/desktop-app/src-tauri/Cargo.toml -- --check
+
+            - name: Biome check
+              if: ${{ !cancelled() }}
+              run: bun biome check --diagnostic-level=error --no-errors-on-unmatched --files-ignore-unknown=true apps/examples/desktop-app/src-tauri/tauri.conf.json apps/examples/desktop-app/src-tauri/tauri.windows.conf.json apps/examples/desktop-app/webview/components/window-title-bar.tsx apps/examples/desktop-app/webview/components/window-title-bar.test.tsx apps/examples/desktop-app/webview/lib/app-icon.ts apps/examples/desktop-app/webview/lib/app-icon.test.ts
+
+            - name: Build SDK
+              id: build_sdk
+              run: bun run build:sdk
+
+            - name: Typecheck desktop app
+              if: ${{ !cancelled() && steps.build_sdk.outcome == 'success' }}
+              run: bun -F @cline/code typecheck
+
+            # Window chrome + app icon suites: not run anywhere in CI today.
+            - name: Desktop chrome unit tests
+              if: ${{ !cancelled() && steps.build_sdk.outcome == 'success' }}
+              run: bunx vitest run apps/examples/desktop-app/webview/lib/app-icon.test.ts apps/examples/desktop-app/webview/components/window-title-bar.test.tsx --config apps/examples/desktop-app/vitest.config.ts
+
+            # frontendDist must exist for the custom-protocol build.
+            - name: Build desktop web assets
+              id: build_web
+              if: ${{ !cancelled() && steps.build_sdk.outcome == 'success' }}
+              run: bun -F @cline/code build:web
+
+            # tauri-build resolves bundle.externalBin at build-script time, so
+            # src-tauri/bin/code-sidecar-<triple>.exe has to exist before cargo runs.
+            - name: Build sidecar binary
+              id: build_sidecar
+              if: ${{ !cancelled() && steps.build_sdk.outcome == 'success' }}
+              shell: bash
+              # The same script also cross-compiles the Linux remote helpers,
+              # which are bundle-time resources cargo never looks at, and whose
+              # Bun runtime download is flaky from a Windows runner. Only the
+              # Windows sidecar named by externalBin has to exist here.
+              run: |
+                  bun -F @cline/code build:sidecar:bin || echo "sidecar script exited non-zero; checking for the Windows binary"
+                  test -f apps/examples/desktop-app/src-tauri/bin/code-sidecar-x86_64-pc-windows-msvc.exe
+
+            # tauri-build validates every bundle.resources glob at build-script
+            # time, including for `cargo check`. The real remote helpers are Linux
+            # binaries Bun cross-compiles; nothing in a compile-only run opens them,
+            # so a placeholder is enough to satisfy the glob.
+            - name: Stub Linux remote helpers
+              if: ${{ !cancelled() && steps.build_sidecar.outcome == 'success' }}
+              shell: bash
+              run: |
+                  cd apps/examples/desktop-app/src-tauri
+                  mkdir -p bin/remote-helpers
+                  [ -n "$(ls -A bin/remote-helpers)" ] || : > bin/remote-helpers/placeholder
+                  ls -l bin bin/remote-helpers
+
+            - name: Cargo check (x86_64-pc-windows-msvc)
+              id: cargo_check
+              if: ${{ !cancelled() && steps.build_web.outcome == 'success' && steps.build_sidecar.outcome == 'success' }}
+              run: cargo check --manifest-path apps/examples/desktop-app/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
+            - name: Cargo test window_bounds_tests
+              if: ${{ !cancelled() && steps.cargo_check.outcome == 'success' }}
+              run: cargo test --manifest-path apps/examples/desktop-app/src-tauri/Cargo.toml window_bounds_tests -- --nocapture
+
+            - name: Save cargo cache
+              if: ${{ always() && steps.cargo_cache.outputs.cache-hit != 'true' }}
+              uses: actions/cache/save@v4
+              with:
+                  path: |
+                      ~/.cargo/registry
+                      ~/.cargo/git
+                      apps/examples/desktop-app/src-tauri/target
+                  key: ${{ steps.cargo_cache.outputs.cache-primary-key }}
+
+    build-nsis:
+        name: Build unsigned Windows installer
+        runs-on: windows-latest
+        timeout-minutes: 90
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.13"
+
+            # Mirrors desktop-publish.yml: build-sidecar-bin.ts cross-compiles the
+            # Linux remote helpers, and fetching those Bun runtimes from a Windows
+            # runner is unreliable, so seed Bun's cache from npm first.
+            - name: Seed Bun cache with Linux remote-helper runtimes
+              shell: bash
+              run: |
+                  BUN_VERSION="$(bun --version)"
+                  CACHE_DIR="${RUNNER_TEMP//\\//}/bun-install-cache"
+                  mkdir -p "$CACHE_DIR"
+                  for target in linux-x64-baseline linux-aarch64; do
+                    dest="$CACHE_DIR/bun-$target-v$BUN_VERSION"
+                    work="$(mktemp -d)"
+                    (cd "$work" && npm pack "@oven/bun-$target@$BUN_VERSION" --silent >/dev/null && tar -xzf ./*.tgz package/bin/bun)
+                    mv "$work/package/bin/bun" "$dest"
+                    echo "seeded $dest"
+                  done
+                  echo "BUN_INSTALL_CACHE_DIR=${CACHE_DIR}" >> "$GITHUB_ENV"
+
+            # build-sidecar-bin.ts UPX-packs the Linux helpers it bundles.
+            - name: Install UPX
+              run: choco install upx --no-progress -y
+
+            - name: Install dependencies
+              run: bun install
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build SDK packages
+              run: bun run build:sdk
+
+            # Deliberately no signing overlay and no tauri.release.conf.json:
+            # an unsigned installer for manual verification, not a release.
+            - name: Build desktop bundle (unsigned)
+              working-directory: apps/examples/desktop-app
+              run: bunx tauri build --bundles nsis
+
+            - name: Upload installer
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cline-desktop-windows-unsigned-pr14344
+                  path: apps/examples/desktop-app/src-tauri/target/release/bundle/nsis/*.exe
+                  if-no-files-found: error
