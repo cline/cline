@@ -207,7 +207,6 @@ describe("cloud handoff lifecycle: RPC resolved", () => {
 				receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 				externalPresentation: false,
 				pendingPrompt,
-				warningKind: "unqueued",
 				retryDraft: "fix the tests",
 				retryAttachments: [attachment],
 			},
@@ -425,7 +424,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 			externalPresentation: true,
-			warningKind: "unqueued",
 			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
@@ -784,7 +782,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 			externalPresentation: false,
-			warningKind: "unqueued",
 			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
@@ -815,7 +812,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
 			externalPresentation: false,
-			warningKind: "unqueued",
 			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
@@ -974,7 +970,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
-			warningKind: "unqueued",
 		});
 	});
 
@@ -1221,7 +1216,6 @@ describe("cloud handoff lifecycle: event handling", () => {
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "complete",
 			externalPresentation: true,
-			warningKind: "unqueued",
 		});
 	});
 
@@ -1254,7 +1248,6 @@ describe("cloud handoff lifecycle: event handling", () => {
 				dashboardUrl: DASHBOARD_URL,
 				sessionId: undefined,
 				destination: undefined,
-				warningKind: undefined,
 			},
 		]);
 		expect(h.toast).not.toHaveBeenCalled();
