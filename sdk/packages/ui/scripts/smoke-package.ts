@@ -20,6 +20,7 @@ import {
 	AgentCommandOutput,
 	AgentImageLightboxContent,
 	AgentAskQuestion,
+	AgentContextUsage,
 	AgentApprovalCard,
 	AttachmentDropZone,
 	AgentAurora,
@@ -86,6 +87,7 @@ if (
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
+	!AgentContextUsage ||
 	!AgentAurora ||
 	!AgentHeroHeading ||
 	!AgentWelcomeHero ||

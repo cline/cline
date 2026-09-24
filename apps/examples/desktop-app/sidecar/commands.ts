@@ -2976,7 +2976,6 @@ export async function handleCommand(
 		try {
 			const result = await transcribeConfiguredVoiceInput(manager, {
 				audio: Buffer.from(audioBase64, "base64"),
-				mediaType,
 			});
 			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
 				...diagnostics,
