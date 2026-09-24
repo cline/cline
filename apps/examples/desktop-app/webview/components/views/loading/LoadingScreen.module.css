@@ -1,0 +1,19 @@
+.head [data-welcome-hero-layer="inner"]::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--primary);
+	clip-path: inset(var(--startup-head-unfilled) 0 0);
+	transition: clip-path 100ms ease-out;
+}
+
+.head [data-welcome-hero-eye] {
+	background: var(--background);
+	border-color: var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.head [data-welcome-hero-layer="inner"]::after {
+		transition: none;
+	}
+}

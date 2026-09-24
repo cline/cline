@@ -15,7 +15,7 @@ function hasTextSelection(): boolean {
 }
 
 /**
- * Suppresses the WebView's built-in browser context menu (Back / Forward /
+ * In production, suppresses the WebView's built-in browser context menu (Back / Forward /
  * Reload / Inspect Element) so right-clicking app chrome behaves like a
  * native app instead of a web page.
  *
@@ -26,6 +26,8 @@ function hasTextSelection(): boolean {
  */
 export function NativeShell() {
 	useEffect(() => {
+		if (process.env.NODE_ENV === "development") return;
+
 		const handleContextMenu = (event: MouseEvent) => {
 			if (isEditable(event.target) || hasTextSelection()) {
 				return;

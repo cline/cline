@@ -1,12 +1,20 @@
 "use client";
 
 import { AgentWelcomeHero } from "@cline/ui";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
+import styles from "./LoadingScreen.module.css";
 
 export function LoadingScreen({
 	readiness,
+	finishing = false,
+	onComplete,
+	onContinue,
 }: {
 	readiness: ReturnType<typeof useDesktopReadiness>;
+	finishing?: boolean;
+	onComplete?: () => void;
+	onContinue?: () => void;
 }) {
 	const connected = readiness.transport === "connected";
 	const { hub, startup } = readiness;
@@ -33,9 +41,13 @@ export function LoadingScreen({
 				: hub.step === "connecting"
 					? 3
 					: 2;
+	const [progress, setProgress] = useState(0);
+	const finishDelay = useRef<number | null>(null);
 	const status =
 		connected && hub.state === "ready"
-			? "Cline is ready"
+			? progress >= 99
+				? "Cline is ready"
+				: "Finishing up…"
 			: readiness.retrying
 				? "Retrying startup…"
 				: failed
@@ -52,7 +64,25 @@ export function LoadingScreen({
 										? "Discovering or starting Cline Hub…"
 										: "Preparing local environment…";
 
-	const progress = Math.round((completed / steps.length) * 100);
+	const target = finishing
+		? 100
+		: connected && hub.state === "ready"
+			? 98
+			: Math.round((completed / steps.length) * 90);
+	useEffect(() => {
+		if (!finishing) finishDelay.current = null;
+		if (progress === target) return;
+		if (finishing && progress >= 90 && finishDelay.current === null)
+			finishDelay.current = 1000 / (100 - progress);
+		const timer = setTimeout(
+			() => setProgress((value) => value + Math.sign(target - value)),
+			progress >= 90 ? (finishing ? (finishDelay.current ?? 100) : 500) : 12,
+		);
+		return () => clearTimeout(timer);
+	}, [progress, target, finishing]);
+	useEffect(() => {
+		if (finishing && progress === 100) onComplete?.();
+	}, [finishing, progress, onComplete]);
 
 	return (
 		<main
@@ -80,13 +110,18 @@ export function LoadingScreen({
 			{/* Top row: progress counter */}
 			<div className="relative z-10 flex items-center justify-end px-6 lg:px-12 pt-8">
 				<span className="text-sm text-muted-foreground tabular-nums">
-					{progress}%
+					{completed} / {steps.length}
 				</span>
 			</div>
 
 			<div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6">
-				<div className="w-full">
-					<AgentWelcomeHero variant="bot-only" />
+				<div
+					className={`w-full ${styles.head}`}
+					style={
+						{ "--startup-head-unfilled": `${100 - progress}%` } as CSSProperties
+					}
+				>
+					<AgentWelcomeHero variant="bot-only" interactive={false} />
 				</div>
 				<h1 className="sr-only">
 					{failed ? "Unable to start Cline" : "Starting Cline"}
@@ -104,7 +139,7 @@ export function LoadingScreen({
 						{status}
 					</span>
 					<span className="text-xs text-muted-foreground tabular-nums">
-						{completed} / {steps.length}
+						{progress}%
 					</span>
 				</div>
 				<progress
@@ -122,6 +157,15 @@ export function LoadingScreen({
 						style={{ width: `${progress}%` }}
 					/>
 				</div>
+				{onContinue && hub.state !== "ready" && (
+					<button
+						type="button"
+						onClick={onContinue}
+						className="mt-4 text-sm text-primary underline underline-offset-4"
+					>
+						Continue to sign-in, settings, or remote environments
+					</button>
+				)}
 				{failed && (
 					<div className="mt-4 text-sm">
 						<p className="whitespace-pre-wrap text-muted-foreground">

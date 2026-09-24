@@ -899,7 +899,35 @@ function HomeShell({
 							<SidebarTrigger className="absolute left-20 top-0 z-40 md:hidden" />
 							<WindowTitleBar />
 							<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-								{view === "sessions" ? (
+								{readiness.hub.state !== "ready" &&
+								view === "chat" &&
+								activeThread?.environmentId ===
+									LOCAL_WORKSPACE_ENVIRONMENT_ID &&
+								activeThread.historySession?.origin !== "cloud" ? (
+									<div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+										<output className="text-sm text-muted-foreground">
+											{readiness.hub.message ?? "Starting session service…"}
+										</output>
+										{readiness.hub.state === "failed" &&
+											!readiness.hub.automaticRetry && (
+												<button
+													type="button"
+													disabled={readiness.retrying}
+													onClick={() => void readiness.retry()}
+													className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+												>
+													Retry session service
+												</button>
+											)}
+										<EnvironmentSelector
+											activeEnvironmentId={activeThread.environmentId}
+											profiles={remoteEnvironmentProfiles}
+											loading={remoteEnvironmentProfilesLoading}
+											onSelectEnvironment={handleSelectEnvironment}
+											onAddSshHost={() => handleSettingsSectionChange("Remote")}
+										/>
+									</div>
+								) : view === "sessions" ? (
 									<SessionsView
 										activeSessionId={activeHistorySessionId}
 										history={sessionHistory}

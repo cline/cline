@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./LoadingScreen";
 
@@ -15,10 +15,17 @@ export function SiteLoader({
 		readiness.transport === "connected" && readiness.hub.state === "ready";
 	const [minimumElapsed, setMinimumElapsed] = useState(false);
 	useEffect(() => {
-		const timer = setTimeout(() => setMinimumElapsed(true), 10_000);
+		const timer = setTimeout(() => setMinimumElapsed(true), 5_000);
 		return () => clearTimeout(timer);
 	}, []);
-	const showApp = ready && minimumElapsed;
+	const [finished, setFinished] = useState(false);
+	const finish = useCallback(() => setFinished(true), []);
+	useEffect(() => {
+		if (!ready) setFinished(false);
+	}, [ready]);
+	const [continueWithoutHub, setContinueWithoutHub] = useState(false);
+	const showApp =
+		readiness.transport === "connected" && (continueWithoutHub || finished);
 	const [hasLoaded, setHasLoaded] = useState(false);
 	useEffect(() => {
 		if (showApp) setHasLoaded(true);
@@ -30,7 +37,18 @@ export function SiteLoader({
 					{children}
 				</div>
 			)}
-			{!showApp && <LoadingScreen readiness={readiness} />}
+			{!showApp && (
+				<LoadingScreen
+					readiness={readiness}
+					finishing={ready && minimumElapsed}
+					onComplete={finish}
+					onContinue={
+						readiness.transport === "connected"
+							? () => setContinueWithoutHub(true)
+							: undefined
+					}
+				/>
+			)}
 		</>
 	);
 }

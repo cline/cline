@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { useDesktopReadiness } from "@/hooks/use-desktop-readiness";
 import { LoadingScreen } from "./views/loading/LoadingScreen";
 import { SiteLoader } from "./views/loading/SiteLoader";
@@ -12,6 +12,11 @@ let root = createRoot(container);
 (
 	globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+beforeEach(() => vi.useFakeTimers());
+function advance(ms: number) {
+	for (let elapsed = 0; elapsed < ms; elapsed += 1)
+		act(() => vi.advanceTimersByTime(1));
+}
 afterEach(() => {
 	act(() => root.unmount());
 	vi.useRealTimers();
@@ -74,7 +79,9 @@ it("keeps automatic recovery in the loader without a Retry button or sidebar", (
 	expect(container.textContent).toContain(
 		"Retrying session service automatically",
 	);
-	expect(container.querySelector("button")).toBeNull();
+	expect(container.querySelector("button")?.textContent).toContain(
+		"Continue to sign-in",
+	);
 	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "starting", attempt: 2, step: "connecting" };
 	act(() =>
@@ -84,7 +91,7 @@ it("keeps automatic recovery in the loader without a Retry button or sidebar", (
 			</SiteLoader>,
 		),
 	);
-	expect(container.textContent).toContain("3 / 5 steps");
+	expect(container.textContent).toContain("3 / 5");
 	expect(container.textContent).toContain("Connecting to Cline Hub");
 	expect(container.querySelector("nav")).toBeNull();
 	state.hub = { state: "ready", attempt: 2 };
@@ -95,7 +102,7 @@ it("keeps automatic recovery in the loader without a Retry button or sidebar", (
 			</SiteLoader>,
 		),
 	);
-	act(() => vi.advanceTimersByTime(10_000));
+	advance(12_000);
 	expect(container.textContent).toBe("Sidebar");
 });
 
@@ -113,16 +120,17 @@ it("fills the bar from completed steps and uses the shared Cline head", () => {
 		state.transport = "connected";
 		state.hub = { state: "starting", attempt: 1, step };
 		act(() => root.render(<LoadingScreen readiness={state} />));
+		advance(1_000);
 		expect(container.querySelector("progress")?.value).toBe(count);
 		expect(container.querySelector("progress")?.max).toBe(5);
-		expect(container.textContent).toContain(`${count * 20}%`);
+		expect(container.textContent).toContain(`${count * 18}%`);
 		expect(
 			container.querySelector(".bg-primary")?.getAttribute("style"),
-		).toContain(`width: ${count * 20}%`);
+		).toContain(`width: ${count * 18}%`);
 	}
 });
 
-it("holds fast startup for ten seconds while reporting real completion", () => {
+it("advances slowly during the five-second minimum and announces ready only at 99%", () => {
 	vi.useFakeTimers();
 	const state = readiness();
 	state.transport = "connected";
@@ -134,11 +142,19 @@ it("holds fast startup for ten seconds while reporting real completion", () => {
 			</SiteLoader>,
 		),
 	);
-	expect(container.textContent).toContain("100%");
-	expect(container.textContent).toContain("Cline is ready");
-	act(() => vi.advanceTimersByTime(9_999));
+	advance(2_000);
+	expect(container.textContent).toContain("91%");
+	expect(container.textContent).toContain("Finishing up…");
+	expect(container.textContent).not.toContain("Cline is ready");
+	advance(500);
+	expect(container.textContent).toContain("92%");
+	advance(2_500);
 	expect(container.querySelector("nav")).toBeNull();
-	act(() => vi.advanceTimersByTime(1));
+	expect(container.textContent).not.toContain("Cline is ready");
+	advance(667);
+	expect(container.textContent).toContain("99%");
+	expect(container.textContent).toContain("Cline is ready");
+	advance(334);
 	expect(container.textContent).toBe("Sidebar");
 });
 
@@ -152,9 +168,9 @@ it("never reveals an unready app after the minimum duration", () => {
 			</SiteLoader>,
 		),
 	);
-	act(() => vi.advanceTimersByTime(20_000));
+	advance(20_000);
 	expect(container.querySelector("nav")).toBeNull();
-	expect(container.textContent).toContain("20%");
+	expect(container.textContent).toContain("18%");
 	state.transport = "connected";
 	state.hub = { state: "ready", attempt: 1 };
 	act(() =>
@@ -164,5 +180,30 @@ it("never reveals an unready app after the minimum duration", () => {
 			</SiteLoader>,
 		),
 	);
+	advance(2_000);
 	expect(container.textContent).toBe("Sidebar");
+});
+
+it.each([
+	"starting",
+	"failed",
+] as const)("allows local screens while the hub is %s", (hubState) => {
+	const state = readiness();
+	state.transport = "connected";
+	state.hub = { state: hubState, attempt: 4 };
+	act(() =>
+		root.render(
+			<SiteLoader readiness={state}>
+				<nav>Sign-in Settings Remote environments</nav>
+			</SiteLoader>,
+		),
+	);
+	const continueButton = Array.from(container.querySelectorAll("button")).find(
+		(button) => button.textContent?.includes("Continue to sign-in"),
+	);
+	expect(continueButton).toBeDefined();
+	act(() => continueButton?.click());
+	expect(container.querySelector("nav")).not.toBeNull();
+	expect(container.querySelector("[inert]")).toBeNull();
+	expect(container.querySelector("[hidden]")).toBeNull();
 });
