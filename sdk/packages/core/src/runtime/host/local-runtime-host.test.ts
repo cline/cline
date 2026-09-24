@@ -3859,6 +3859,74 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it.each([
+		{
+			name: "replacement",
+			metadata: { custom: { status: "complete" } },
+			updated: true,
+		},
+		{ name: "clear", metadata: null, updated: true },
+		{ name: "failed save", metadata: null, updated: false },
+	])("keeps active metadata consistent with persistence after $name", async ({
+		metadata,
+		updated,
+	}) => {
+		const sessionId = "sess-active-metadata-update";
+		const sessionService = new FileSessionService(
+			join(isolatedHomeDir, "sessions"),
+		);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			} as never,
+			createAgent: () =>
+				({
+					run: vi.fn().mockResolvedValue(createResult()),
+					continue: vi.fn().mockResolvedValue(createResult()),
+					getMessages: vi.fn().mockReturnValue([]),
+					getAgentId: vi.fn().mockReturnValue("agent-active-metadata"),
+					getConversationId: vi.fn().mockReturnValue("conv-active-metadata"),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				}) as never,
+		});
+		try {
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({
+						sessionId,
+						cwd: isolatedHomeDir,
+						workspaceRoot: isolatedHomeDir,
+					}),
+					prompt: "Named session",
+					interactive: true,
+					sessionMetadata: { title: "Named session", before: true },
+				}),
+			);
+			const before = (await manager.getSession(sessionId))?.metadata;
+			if (!updated)
+				vi.spyOn(sessionService, "updateSession").mockResolvedValueOnce({
+					updated: false,
+				});
+			await expect(
+				manager.updateSession(sessionId, { metadata }),
+			).resolves.toEqual({ updated });
+			const expected = updated
+				? { ...metadata, title: "Named session" }
+				: before;
+			expect(sessionService.readSessionManifest(sessionId)?.metadata).toEqual(
+				expected,
+			);
+			expect((await manager.getSession(sessionId))?.metadata).toEqual(expected);
+		} finally {
+			await manager.dispose();
+		}
+	});
+
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
 		const sessionId = "sess-abort-then-next-turn";
 		const manifest = createManifest(sessionId);

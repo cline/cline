@@ -1324,7 +1324,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 				title: updates.title,
 			},
 		);
-		return { updated: result?.updated === true };
+		const updated = result?.updated === true;
+		if (updated && updates.metadata !== undefined) {
+			const active = this.sessions.get(sessionId.trim());
+			if (active) {
+				const manifest = await this.readManifest(sessionId);
+				if (manifest) {
+					active.sessionMetadata = manifest.metadata;
+					if (active.artifacts)
+						active.artifacts.manifest.metadata = manifest.metadata;
+				}
+			}
+		}
+		return { updated };
 	}
 
 	async updateSessionCompactionState(
