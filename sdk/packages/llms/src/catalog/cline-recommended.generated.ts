@@ -32,6 +32,12 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 		],
 		free: [
 			{
+				id: "stealth/space-bunny-alpha",
+				name: "space-bunny-alpha",
+				description: "Blazing-fast inference with 1M context",
+				tags: [],
+			},
+			{
 				id: "cline-free/mimo-v2.6-flash",
 				name: "Mimo V2.6 Flash",
 				description:
@@ -72,15 +78,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.8-max",
-				name: "cline-pass/qwen3.8-max",
-				description: "Qwen's New SOTA coding model",
-				tags: [],
-			},
-			{
 				id: "cline-pass/deepseek-v4-pro",
 				name: "cline-pass/deepseek-v4-pro",
 				description: "Frontier reasoning and coding with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.8-max",
+				name: "cline-pass/qwen3.8-max",
+				description: "Qwen's New SOTA coding model",
 				tags: [],
 			},
 			{
@@ -115,15 +121,15 @@ export const GENERATED_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsPayload =
 				tags: [],
 			},
 			{
-				id: "cline-pass/qwen3.7-plus",
-				name: "cline-pass/qwen3.7-plus",
-				description: "Fast multimodal agent model with vision and video input",
-				tags: [],
-			},
-			{
 				id: "cline-pass/qwen3.7-max",
 				name: "cline-pass/qwen3.7-max",
 				description: "Flagship agent model with 1M context window",
+				tags: [],
+			},
+			{
+				id: "cline-pass/qwen3.7-plus",
+				name: "cline-pass/qwen3.7-plus",
+				description: "Fast multimodal agent model with vision and video input",
 				tags: [],
 			},
 			{
