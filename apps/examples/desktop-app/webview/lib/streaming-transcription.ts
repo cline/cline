@@ -1,26 +1,20 @@
 "use client";
 
+import type { StreamingAudioTranscriptionSession } from "@cline/shared/browser";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 
-const OUTPUT_SAMPLE_RATE = 24_000;
 const STREAM_FINISH_TIMEOUT_MS = 15_000;
 const GATEWAY_TRANSCRIPTION_PROTOCOL = "ai-gateway-transcription.v1";
 const GATEWAY_AUTH_PROTOCOL_PREFIX = "ai-gateway-auth.";
 
-type StreamingTranscriptionCredentials = {
-	token: string;
-	url: string;
-	expiresAt?: number;
+type TranscriptionStreamPart = {
+	type: string;
+	id?: string;
+	delta?: string;
+	text?: string;
+	error?: unknown;
+	rawValue?: unknown;
 };
-
-type TranscriptionStreamPart =
-	| { type: "stream-start" }
-	| { type: "transcript-delta"; delta: string }
-	| { type: "transcript-partial"; id?: string; text: string }
-	| { type: "transcript-final"; id?: string; text: string }
-	| { type: "finish"; text: string }
-	| { type: "error"; error: unknown }
-	| { type: string };
 
 export type StreamingSpeechSession = {
 	done: Promise<void>;
@@ -88,15 +82,21 @@ function createResampler(inputRate: number, outputRate: number) {
 
 async function startPcmCapture(
 	stream: MediaStream,
+	sampleRate: number,
 	onAudio: (bytes: Uint8Array) => void,
 ): Promise<AudioCapture> {
 	const context = new AudioContext();
-	await context.resume();
+	try {
+		await context.resume();
+	} catch (error) {
+		void context.close();
+		throw error;
+	}
 	const source = context.createMediaStreamSource(stream);
 	const processor = context.createScriptProcessor(4096, 1, 1);
 	const silentOutput = context.createGain();
 	silentOutput.gain.value = 0;
-	const resample = createResampler(context.sampleRate, OUTPUT_SAMPLE_RATE);
+	const resample = createResampler(context.sampleRate, sampleRate);
 
 	processor.onaudioprocess = (event) => {
 		const samples = resample(event.inputBuffer.getChannelData(0));
@@ -129,7 +129,23 @@ function parseStreamPart(value: unknown): TranscriptionStreamPart | null {
 	return typeof type === "string" ? (value as TranscriptionStreamPart) : null;
 }
 
-export async function startVercelStreamingTranscription(options: {
+function parseElevenLabsPart(value: unknown): TranscriptionStreamPart | null {
+	if (!value || typeof value !== "object") return null;
+	const part = value as {
+		message_type?: string;
+		text?: unknown;
+		error?: unknown;
+	};
+	if (part.error !== undefined) return { type: "error", error: part.error };
+	if (typeof part.text !== "string") return null;
+	if (part.message_type === "partial_transcript")
+		return { type: "transcript-partial", text: part.text };
+	if (part.message_type === "committed_transcript")
+		return { type: "finish", text: part.text };
+	return null;
+}
+
+export async function startStreamingTranscription(options: {
 	onTranscript: (text: string) => void;
 }): Promise<StreamingSpeechSession> {
 	writeDesktopDebugLog({
@@ -139,7 +155,7 @@ export async function startVercelStreamingTranscription(options: {
 		timestamp: new Date().toISOString(),
 	});
 	const credentials =
-		await desktopClient.invoke<StreamingTranscriptionCredentials>(
+		await desktopClient.invoke<StreamingAudioTranscriptionSession>(
 			"create_streaming_transcription_session",
 		);
 	const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -150,10 +166,11 @@ export async function startVercelStreamingTranscription(options: {
 	let socket: WebSocket | null = null;
 	let stopped = false;
 	let finished = false;
-	let receivedDeltas = false;
-	let deltaTranscript = "";
 	const finalSegments: string[] = [];
-	const partialSegments = new Map<string, string>();
+	const segments = new Map<string, { text: string; delta: string }>();
+	let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+	let rejectConnection: (error: Error) => void = () => {};
+	let providerError: string | undefined;
 	let finishTimeout: ReturnType<typeof setTimeout> | null = null;
 	let resolveDone: () => void = () => {};
 	let rejectDone: (error: Error) => void = () => {};
@@ -162,7 +179,10 @@ export async function startVercelStreamingTranscription(options: {
 		rejectDone = reject;
 	});
 
+	// A provider may fail before microphone startup has returned the session.
+	void done.catch(() => {});
 	const cleanup = () => {
+		if (connectionTimeout) clearTimeout(connectionTimeout);
 		if (finishTimeout) {
 			clearTimeout(finishTimeout);
 			finishTimeout = null;
@@ -183,7 +203,16 @@ export async function startVercelStreamingTranscription(options: {
 		if (finished) return;
 		finished = true;
 		cleanup();
-		rejectDone(new Error(errorMessage(error)));
+		const failure = new Error(errorMessage(error));
+		rejectConnection(failure);
+		rejectDone(failure);
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "warn",
+			message: failure.message,
+			timestamp: new Date().toISOString(),
+			metadata: { transport: credentials.transport },
+		});
 	};
 	const complete = (text: string) => {
 		if (finished) return;
@@ -194,98 +223,152 @@ export async function startVercelStreamingTranscription(options: {
 		resolveDone();
 	};
 	const emitSegmentTranscript = () => {
-		const text = [...finalSegments, ...partialSegments.values()]
+		const text = [
+			...finalSegments,
+			...Array.from(segments.values(), (segment) => segment.text),
+		]
 			.join(" ")
 			.trim();
 		if (text) options.onTranscript(text);
 	};
 
 	try {
-		socket = new WebSocket(credentials.url, [
-			GATEWAY_TRANSCRIPTION_PROTOCOL,
-			`${GATEWAY_AUTH_PROTOCOL_PREFIX}${credentials.token}`,
-		]);
+		const url = new URL(credentials.url);
+		const isElevenLabs = credentials.transport === "elevenlabs";
+		if (isElevenLabs) url.searchParams.set("token", credentials.token);
+		socket = new WebSocket(
+			url.toString(),
+			isElevenLabs
+				? []
+				: [
+						GATEWAY_TRANSCRIPTION_PROTOCOL,
+						`${GATEWAY_AUTH_PROTOCOL_PREFIX}${credentials.token}`,
+					],
+		);
 		socket.binaryType = "arraybuffer";
-		await new Promise<void>((resolve, reject) => {
-			if (!socket) {
-				reject(new Error("Streaming transcription socket was not created"));
-				return;
-			}
-			const connectionTimeout = window.setTimeout(
-				() => reject(new Error("Streaming transcription connection timed out")),
+		const activeSocket = socket;
+		// Install all handlers before opening or sending audio: upstream errors
+		// can arrive while AudioContext.resume is still pending.
+		const connected = new Promise<void>((resolve, reject) => {
+			rejectConnection = reject;
+			connectionTimeout = setTimeout(
+				() => fail(new Error("Streaming transcription connection timed out")),
 				15_000,
 			);
-			socket.onopen = () => {
-				window.clearTimeout(connectionTimeout);
+			activeSocket.onopen = () => {
+				if (connectionTimeout) clearTimeout(connectionTimeout);
+				connectionTimeout = null;
 				resolve();
 			};
-			socket.onerror = () => {
-				window.clearTimeout(connectionTimeout);
-				reject(new Error("Unable to connect to streaming transcription"));
-			};
-		});
-		socket.send(
-			JSON.stringify({
-				type: "transcription-stream.start",
-				inputAudioFormat: { type: "audio/pcm", rate: OUTPUT_SAMPLE_RATE },
-			}),
-		);
-		capture = await startPcmCapture(mediaStream, (bytes) => {
-			if (socket?.readyState === WebSocket.OPEN && !stopped && !finished) {
-				socket.send(bytes);
-			}
 		});
 
 		socket.onmessage = (event) => {
-			if (typeof event.data !== "string") return;
+			if (finished || typeof event.data !== "string") return;
 			let parsed: unknown;
 			try {
 				parsed = JSON.parse(event.data) as unknown;
 			} catch {
 				return;
 			}
-			const part = parseStreamPart(parsed);
+			const part = isElevenLabs
+				? parseElevenLabsPart(parsed)
+				: parseStreamPart(parsed);
 			if (!part) return;
 			switch (part.type) {
-				case "transcript-delta":
+				case "transcript-delta": {
 					if (typeof part.delta !== "string") return;
-					receivedDeltas = true;
-					deltaTranscript += part.delta;
-					if (deltaTranscript.trim()) {
-						options.onTranscript(deltaTranscript.trim());
-					}
-					break;
-				case "transcript-partial":
-					if (receivedDeltas || typeof part.text !== "string") return;
-					partialSegments.set(part.id ?? "active", part.text);
+					const id = part.id ?? "active";
+					const delta = (segments.get(id)?.delta ?? "") + part.delta;
+					segments.set(id, { text: delta, delta });
 					emitSegmentTranscript();
 					break;
+				}
+				case "transcript-partial": {
+					if (typeof part.text !== "string") return;
+					const id = part.id ?? "active";
+					segments.set(id, {
+						text: part.text,
+						delta: segments.get(id)?.delta ?? "",
+					});
+					emitSegmentTranscript();
+					break;
+				}
 				case "transcript-final":
-					if (receivedDeltas || typeof part.text !== "string") return;
-					partialSegments.delete(part.id ?? "active");
-					if (part.text.trim()) finalSegments.push(part.text.trim());
+					if (typeof part.text !== "string") return;
+					if (part.id)
+						segments.set(part.id, { text: part.text, delta: part.text });
+					else {
+						segments.delete("active");
+						if (part.text.trim()) finalSegments.push(part.text.trim());
+					}
 					emitSegmentTranscript();
 					break;
 				case "finish":
 					complete(typeof part.text === "string" ? part.text : "");
 					break;
+				case "raw": {
+					// Gateway otherwise replaces upstream errors with a generic message.
+					const raw = part.rawValue as {
+						type?: string;
+						error?: { message?: unknown };
+					} | null;
+					if (raw?.type === "error" && typeof raw.error?.message === "string")
+						providerError = raw.error.message;
+					break;
+				}
 				case "error":
-					fail(part.error);
+					fail(providerError ?? part.error);
 					break;
 			}
 		};
 		socket.onerror = () => {
 			fail(new Error("Streaming transcription connection failed"));
 		};
-		socket.onclose = () => {
+		socket.onclose = (event) => {
 			if (!finished) {
 				fail(
 					new Error(
-						"Streaming transcription ended before a final transcript was received",
+						providerError ??
+							`Streaming transcription ended before a final transcript was received (code ${event.code})`,
 					),
 				);
 			}
 		};
+		await connected;
+		if (finished) {
+			await done;
+			throw new Error("Streaming transcription ended during setup");
+		}
+		if (!isElevenLabs)
+			socket.send(
+				JSON.stringify({
+					type: "transcription-stream.start",
+					inputAudioFormat: { type: "audio/pcm", rate: credentials.sampleRate },
+					includeRawChunks: true,
+				}),
+			);
+		const startedCapture = await startPcmCapture(
+			mediaStream,
+			credentials.sampleRate,
+			(bytes) => {
+				if (socket?.readyState === WebSocket.OPEN && !stopped && !finished) {
+					socket.send(
+						isElevenLabs
+							? JSON.stringify({
+									message_type: "input_audio_chunk",
+									audio_base_64: btoa(String.fromCharCode(...bytes)),
+									sample_rate: credentials.sampleRate,
+								})
+							: bytes,
+					);
+				}
+			},
+		);
+		if (finished) {
+			startedCapture.stop();
+			await done;
+		} else capture = startedCapture;
+
 		writeDesktopDebugLog({
 			scope: "voice-input",
 			level: "debug",
@@ -307,7 +390,16 @@ export async function startVercelStreamingTranscription(options: {
 			capture = null;
 			if (socket?.readyState === WebSocket.OPEN) {
 				socket.send(
-					JSON.stringify({ type: "transcription-stream.audio-done" }),
+					JSON.stringify(
+						credentials.transport === "elevenlabs"
+							? {
+									message_type: "input_audio_chunk",
+									audio_base_64: "",
+									commit: true,
+									sample_rate: credentials.sampleRate,
+								}
+							: { type: "transcription-stream.audio-done" },
+					),
 				);
 				finishTimeout = setTimeout(() => {
 					fail(new Error("Streaming transcription timed out while finalizing"));

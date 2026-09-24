@@ -15,6 +15,7 @@ export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	fetchVercelTranscriptionModels,
 	filterImageOutputModels,
 	filterOpenAICodexModels,
 	GENERATED_CLINE_RECOMMENDED_MODELS,

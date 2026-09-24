@@ -14,6 +14,8 @@ const importCheck = `
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+	AgentCommandOutput,
+	AgentImageLightboxContent,
 	AgentAskQuestion,
 	AgentApprovalCard,
 	AttachmentDropZone,
@@ -65,6 +67,8 @@ if (typeof ToolFileDiff !== "function") {
 	throw new Error("tool-diff subpath did not export ToolFileDiff");
 }
 if (
+	!AgentCommandOutput ||
+	!AgentImageLightboxContent ||
 	!AgentApprovalCard ||
 	!AttachmentDropZone ||
 	!AgentAskQuestion ||
@@ -243,6 +247,14 @@ async function verifyTailwindContract(
 	}
 	expectInlineHeroMasks(noPreflightCss, "no-Preflight Tailwind contract");
 	for (const output of [css, noPreflightCss]) {
+		for (const candidate of [
+			"font-cline-ui-mono",
+			"text-cline-ui-xs",
+			"cursor-zoom-out",
+			"rounded-cline-ui-lg",
+		]) {
+			expectCandidate(output, candidate);
+		}
 		expectFragment(output, ".cline-ui-switch__track", "packed switch CSS");
 		expectFragment(
 			output,
