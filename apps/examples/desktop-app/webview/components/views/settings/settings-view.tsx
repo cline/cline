@@ -147,7 +147,7 @@ export function SettingsView({
 	const [detailResetToken, setDetailResetToken] = useState(0);
 
 	useEffect(() => {
-		if (section !== "API Providers") {
+		if (section !== "Providers") {
 			setSelectedProviderId(null);
 			setAddingProvider(false);
 		}
@@ -213,7 +213,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "API Providers") {
+		if (activeNav !== "Providers") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -481,7 +481,7 @@ export function SettingsView({
 	};
 
 	const openProviderDetail = (id: string) => {
-		onNavigateSection("API Providers");
+		onNavigateSection("Providers");
 		setSelectedProviderId(id);
 	};
 
@@ -496,7 +496,7 @@ export function SettingsView({
 	}, [loadProviderModels, effectiveSelectedProviderId]);
 
 	const backToProviderList = () => {
-		onNavigateSection("API Providers");
+		onNavigateSection("Providers");
 		setSelectedProviderId(null);
 		setAddingProvider(false);
 	};
@@ -524,7 +524,7 @@ export function SettingsView({
 	);
 
 	const openAddProvider = () => {
-		onNavigateSection("API Providers");
+		onNavigateSection("Providers");
 		setAddingProvider(true);
 	};
 
@@ -611,14 +611,14 @@ export function SettingsView({
 	);
 
 	const content =
-		activeNav === "API Providers" ? (
+		activeNav === "Providers" ? (
 			<>
 				{providerContent}
 				{addProviderDialog}
 			</>
 		) : activeNav === "Voice" ? (
 			<VoiceInputContent
-				onOpenModelProviders={() => onNavigateSection("API Providers")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
 		) : activeNav === "Customize" ? (
 			<CustomizeView
@@ -638,7 +638,7 @@ export function SettingsView({
 			<AccountView />
 		) : activeNav === "General" ? (
 			<GeneralSettingsContent
-				onOpenModelProviders={() => onNavigateSection("API Providers")}
+				onOpenModelProviders={() => onNavigateSection("Providers")}
 			/>
 		) : (
 			<div className="flex h-full items-center justify-center">
