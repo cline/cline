@@ -2,125 +2,144 @@ import type { AgentMessage } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createGateway } from "../gateway";
 
-describe("bedrock cache-point wire format", () => {
-	it("places one cache point after the latest tool result", async () => {
-		let requestBody: Record<string, unknown> | undefined;
-		const fetchMock = vi.fn(
-			async (
-				_input: Parameters<typeof fetch>[0],
-				init?: Parameters<typeof fetch>[1],
-			) => {
-				requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-				return new Response(JSON.stringify({ message: "request captured" }), {
-					status: 400,
-					headers: { "content-type": "application/json" },
-				});
+async function captureBedrockRequest(options: {
+	usePromptCache?: boolean;
+	tools?: boolean;
+}): Promise<Record<string, unknown>> {
+	let requestBody: Record<string, unknown> | undefined;
+	const fetchMock = vi.fn(
+		async (
+			_input: Parameters<typeof fetch>[0],
+			init?: Parameters<typeof fetch>[1],
+		) => {
+			requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+			return new Response(JSON.stringify({ message: "request captured" }), {
+				status: 400,
+				headers: { "content-type": "application/json" },
+			});
+		},
+	);
+	const gateway = createGateway({
+		providerConfigs: [
+			{
+				providerId: "bedrock",
+				apiKey: "test",
+				fetch: fetchMock as typeof fetch,
+				options: {
+					region: "us-east-1",
+					...(options.usePromptCache === undefined
+						? {}
+						: { usePromptCache: options.usePromptCache }),
+				},
+				models: [
+					{
+						id: "anthropic.claude-sonnet-4-6",
+						name: "Claude Sonnet 4.6",
+					},
+				],
 			},
-		);
-		const gateway = createGateway({
-			providerConfigs: [
+		],
+	});
+	const messages: AgentMessage[] = [
+		{
+			id: "user-1",
+			role: "user",
+			content: [{ type: "text", text: "Read the first file" }],
+			createdAt: 1,
+		},
+		{
+			id: "assistant-1",
+			role: "assistant",
+			content: [
 				{
-					providerId: "bedrock",
-					apiKey: "test",
-					fetch: fetchMock as typeof fetch,
-					options: { region: "us-east-1" },
-					models: [
+					type: "tool-call",
+					toolCallId: "call-1",
+					toolName: "read_file",
+					input: { path: "first.txt" },
+				},
+			],
+			createdAt: 2,
+		},
+		{
+			id: "user-2",
+			role: "user",
+			content: [
+				{
+					type: "tool-result",
+					toolCallId: "call-1",
+					toolName: "read_file",
+					output: "first result",
+				},
+			],
+			createdAt: 3,
+		},
+		{
+			id: "assistant-2",
+			role: "assistant",
+			content: [
+				{
+					type: "tool-call",
+					toolCallId: "call-2",
+					toolName: "read_file",
+					input: { path: "second.txt" },
+				},
+			],
+			createdAt: 4,
+		},
+		{
+			id: "user-3",
+			role: "user",
+			content: [
+				{
+					type: "tool-result",
+					toolCallId: "call-2",
+					toolName: "read_file",
+					output: "second result",
+				},
+			],
+			createdAt: 5,
+		},
+	];
+
+	const stream = await gateway.stream({
+		providerId: "bedrock",
+		modelId: "anthropic.claude-sonnet-4-6",
+		messages,
+		...(options.tools === false
+			? {}
+			: {
+					tools: [
 						{
-							id: "anthropic.claude-sonnet-4-6",
-							name: "Claude Sonnet 4.6",
+							name: "read_file",
+							description: "Read a file",
+							inputSchema: {
+								type: "object",
+								properties: { path: { type: "string" } },
+								required: ["path"],
+							},
 						},
 					],
-				},
-			],
-		});
-		const messages: AgentMessage[] = [
-			{
-				id: "user-1",
-				role: "user",
-				content: [{ type: "text", text: "Read the first file" }],
-				createdAt: 1,
-			},
-			{
-				id: "assistant-1",
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						toolCallId: "call-1",
-						toolName: "read_file",
-						input: { path: "first.txt" },
-					},
-				],
-				createdAt: 2,
-			},
-			{
-				id: "user-2",
-				role: "user",
-				content: [
-					{
-						type: "tool-result",
-						toolCallId: "call-1",
-						toolName: "read_file",
-						output: "first result",
-					},
-				],
-				createdAt: 3,
-			},
-			{
-				id: "assistant-2",
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						toolCallId: "call-2",
-						toolName: "read_file",
-						input: { path: "second.txt" },
-					},
-				],
-				createdAt: 4,
-			},
-			{
-				id: "user-3",
-				role: "user",
-				content: [
-					{
-						type: "tool-result",
-						toolCallId: "call-2",
-						toolName: "read_file",
-						output: "second result",
-					},
-				],
-				createdAt: 5,
-			},
-		];
-
-		const stream = await gateway.stream({
-			providerId: "bedrock",
-			modelId: "anthropic.claude-sonnet-4-6",
-			messages,
-			tools: [
-				{
-					name: "read_file",
-					description: "Read a file",
-					inputSchema: {
-						type: "object",
-						properties: { path: { type: "string" } },
-						required: ["path"],
-					},
-				},
-			],
-		});
-		try {
-			for await (const _event of stream) {
-				// Drain the stream so the mocked request is sent.
-			}
-		} catch {
-			// The controlled 400 response is expected after request capture.
+				}),
+	});
+	try {
+		for await (const _event of stream) {
+			// Drain the stream so the mocked request is sent.
 		}
+	} catch {
+		// The controlled 400 response is expected after request capture.
+	}
 
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(requestBody).toBeDefined();
-		const bedrockMessages = requestBody?.messages as Array<{
+	expect(fetchMock).toHaveBeenCalledTimes(1);
+	if (!requestBody) {
+		throw new Error("Expected the mocked fetch to capture a request body");
+	}
+	return requestBody;
+}
+
+describe("bedrock cache-point wire format", () => {
+	it("places one cache point after the latest tool result", async () => {
+		const requestBody = await captureBedrockRequest({});
+		const bedrockMessages = requestBody.messages as Array<{
 			role: string;
 			content: Array<Record<string, unknown>>;
 		}>;
@@ -148,111 +167,8 @@ describe("bedrock cache-point wire format", () => {
 	});
 
 	it("keeps one cache point on the user message when tools are unavailable", async () => {
-		let requestBody: Record<string, unknown> | undefined;
-		const fetchMock = vi.fn(
-			async (
-				_input: Parameters<typeof fetch>[0],
-				init?: Parameters<typeof fetch>[1],
-			) => {
-				requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-				return new Response(JSON.stringify({ message: "request captured" }), {
-					status: 400,
-					headers: { "content-type": "application/json" },
-				});
-			},
-		);
-		const gateway = createGateway({
-			providerConfigs: [
-				{
-					providerId: "bedrock",
-					apiKey: "test",
-					fetch: fetchMock as typeof fetch,
-					options: { region: "us-east-1" },
-					models: [
-						{
-							id: "anthropic.claude-sonnet-4-6",
-							name: "Claude Sonnet 4.6",
-						},
-					],
-				},
-			],
-		});
-		const messages: AgentMessage[] = [
-			{
-				id: "user-1",
-				role: "user",
-				content: [{ type: "text", text: "Read the first file" }],
-				createdAt: 1,
-			},
-			{
-				id: "assistant-1",
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						toolCallId: "call-1",
-						toolName: "read_file",
-						input: { path: "first.txt" },
-					},
-				],
-				createdAt: 2,
-			},
-			{
-				id: "user-2",
-				role: "user",
-				content: [
-					{
-						type: "tool-result",
-						toolCallId: "call-1",
-						toolName: "read_file",
-						output: "first result",
-					},
-				],
-				createdAt: 3,
-			},
-			{
-				id: "assistant-2",
-				role: "assistant",
-				content: [
-					{
-						type: "tool-call",
-						toolCallId: "call-2",
-						toolName: "read_file",
-						input: { path: "second.txt" },
-					},
-				],
-				createdAt: 4,
-			},
-			{
-				id: "user-3",
-				role: "user",
-				content: [
-					{
-						type: "tool-result",
-						toolCallId: "call-2",
-						toolName: "read_file",
-						output: "second result",
-					},
-				],
-				createdAt: 5,
-			},
-		];
-
-		const stream = await gateway.stream({
-			providerId: "bedrock",
-			modelId: "anthropic.claude-sonnet-4-6",
-			messages,
-		});
-		try {
-			for await (const _event of stream) {
-				// Drain the stream so the mocked request is sent.
-			}
-		} catch {
-			// The controlled 400 response is expected after request capture.
-		}
-
-		expect(fetchMock).toHaveBeenCalledTimes(1);
-		const bedrockMessages = requestBody?.messages as Array<{
+		const requestBody = await captureBedrockRequest({ tools: false });
+		const bedrockMessages = requestBody.messages as Array<{
 			role: string;
 			content: Array<Record<string, unknown>>;
 		}>;
@@ -269,5 +185,43 @@ describe("bedrock cache-point wire format", () => {
 			.flatMap((message) => message.content)
 			.filter((part) => "cachePoint" in part).length;
 		expect(cachePointCount).toBe(1);
+	});
+
+	it("omits cache points when prompt caching is explicitly disabled", async () => {
+		const requestBody = await captureBedrockRequest({
+			usePromptCache: false,
+		});
+		const bedrockMessages = requestBody.messages as Array<{
+			role: string;
+			content: Array<Record<string, unknown>>;
+		}>;
+		const cachePointCount = bedrockMessages
+			.flatMap((message) => message.content)
+			.filter((part) => "cachePoint" in part).length;
+
+		expect(cachePointCount).toBe(0);
+		expect(JSON.stringify(requestBody)).not.toContain("cache_control");
+	});
+
+	it("keeps one cache point after the latest tool result when explicitly enabled", async () => {
+		const requestBody = await captureBedrockRequest({ usePromptCache: true });
+		const bedrockMessages = requestBody.messages as Array<{
+			role: string;
+			content: Array<Record<string, unknown>>;
+		}>;
+		const cachePointCount = bedrockMessages
+			.flatMap((message) => message.content)
+			.filter((part) => "cachePoint" in part).length;
+
+		expect(cachePointCount).toBe(1);
+		expect(bedrockMessages.at(-1)?.content.at(-2)).toEqual({
+			toolResult: {
+				toolUseId: "call-2",
+				content: [{ text: "second result" }],
+			},
+		});
+		expect(bedrockMessages.at(-1)?.content.at(-1)).toEqual({
+			cachePoint: { type: "default" },
+		});
 	});
 });

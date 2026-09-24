@@ -48,6 +48,9 @@ export function shouldApplyBedrockCachePoint(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): boolean {
+	if (context.config.options?.usePromptCache === false) {
+		return false;
+	}
 	return resolveBedrockCachePointRoute(request, context) !== undefined;
 }
 

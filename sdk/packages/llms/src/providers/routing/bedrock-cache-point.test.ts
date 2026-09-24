@@ -14,6 +14,7 @@ import {
 function makeContext(options?: {
 	metadata?: GatewayProviderManifest["metadata"];
 	family?: string;
+	providerOptions?: Record<string, unknown>;
 }): GatewayProviderContext {
 	return {
 		provider: {
@@ -31,6 +32,7 @@ function makeContext(options?: {
 		},
 		config: {
 			providerId: "bedrock",
+			options: options?.providerOptions,
 		},
 	};
 }
@@ -83,6 +85,24 @@ describe("bedrock cache-point routing", () => {
 				makeContext({ family: "claude-sonnet" }),
 			),
 		).toBe(true);
+	});
+
+	it("respects only an explicit prompt-cache opt-out", () => {
+		const request = makeRequest("global.anthropic.claude-sonnet-4-6");
+
+		expect(
+			shouldApplyBedrockCachePoint(
+				request,
+				makeContext({ providerOptions: { usePromptCache: false } }),
+			),
+		).toBe(false);
+		expect(
+			shouldApplyBedrockCachePoint(
+				request,
+				makeContext({ providerOptions: { usePromptCache: true } }),
+			),
+		).toBe(true);
+		expect(shouldApplyBedrockCachePoint(request, makeContext())).toBe(true);
 	});
 });
 
