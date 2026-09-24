@@ -76,8 +76,10 @@ jobs:
             # enforced boundary; this is the fast, readable failure.
             - name: Refuse to publish from a non-main ref
               if: ${{ github.event.inputs.publish == 'true' && github.ref != 'refs/heads/main' }}
+              env:
+                  REF: ${{ github.ref }}
               run: |
-                  echo "Error: publish=true requires dispatching from main (got '${{ github.ref }}')."
+                  echo "Error: publish=true requires dispatching from main (got '$REF')."
                   exit 1
 
             # Marketplace versions are monotonic and cannot be unpublished:
