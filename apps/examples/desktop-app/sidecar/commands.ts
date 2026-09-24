@@ -130,6 +130,7 @@ import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
+import { writeDiagnosticsReport } from "./diagnostics";
 import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
@@ -3171,6 +3172,16 @@ export async function handleCommand(
 	}
 	if (command === "get_desktop_settings") {
 		return readDesktopSettings();
+	}
+	if (command === "export_diagnostics") {
+		const sessionIds = Array.isArray(args?.sessionIds)
+			? args.sessionIds.filter(
+					(value): value is string => typeof value === "string",
+				)
+			: [];
+		const result = writeDiagnosticsReport(sessionIds);
+		openFileInEditor(dirname(result.path));
+		return result;
 	}
 	if (command === "set_cloud_sessions_enabled") {
 		if (typeof args?.cloud_sessions_enabled !== "boolean") {
