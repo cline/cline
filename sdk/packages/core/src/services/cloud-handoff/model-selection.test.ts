@@ -11,46 +11,45 @@ const MODELS: CloudHandoffModel[] = [
 ];
 
 describe("selectCloudHandoffModel", () => {
-	it("keeps an available local model", () => {
-		expect(
-			selectCloudHandoffModel({
-				localModelId: "paid/model",
-				models: MODELS,
-				isOrganizationSession: false,
-			}),
-		).toEqual({
+	it.each([
+		{
+			name: "keeps an available local model",
+			localModelId: "paid/model",
+			isOrganizationSession: false,
 			modelId: "paid/model",
 			catalogId: "cline",
 			usedFallback: false,
-		});
-	});
-
-	it("falls back to Cline Cloud before the base catalog", () => {
-		expect(
-			selectCloudHandoffModel({
-				localModelId: "local-only/model",
-				models: MODELS,
-				isOrganizationSession: false,
-			}),
-		).toEqual({
+		},
+		{
+			name: "falls back to Cline Cloud before the base catalog",
+			localModelId: "local-only/model",
+			isOrganizationSession: false,
 			modelId: "cloud/model",
 			catalogId: "cline-cloud",
 			usedFallback: true,
-		});
-	});
-
-	it("excludes Cline Pass for organization sessions", () => {
-		expect(
-			selectCloudHandoffModel({
-				localModelId: "pass/model",
-				models: MODELS,
-				isOrganizationSession: true,
-			}),
-		).toEqual({
+		},
+		{
+			name: "excludes Cline Pass for organization sessions",
+			localModelId: "pass/model",
+			isOrganizationSession: true,
 			modelId: "cloud/model",
 			catalogId: "cline-cloud",
 			usedFallback: true,
-		});
+		},
+	])("$name", ({
+		localModelId,
+		isOrganizationSession,
+		modelId,
+		catalogId,
+		usedFallback,
+	}) => {
+		expect(
+			selectCloudHandoffModel({
+				localModelId,
+				models: MODELS,
+				isOrganizationSession,
+			}),
+		).toEqual({ modelId, catalogId, usedFallback });
 	});
 
 	it("fails when no eligible models are supplied", () => {
