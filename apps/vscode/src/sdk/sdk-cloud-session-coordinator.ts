@@ -415,10 +415,15 @@ export class SdkCloudSessionCoordinator {
 			return entry.connection
 		}
 		const sessionId = entry.record.id
+		const taskId = entry.record.metadata.taskId?.trim()
+		if (!taskId) {
+			throw new Error(`Cloud session ${sessionId} has no canonical task id.`)
+		}
 		const generation = this.scopeGeneration
 		const connection = (async () => {
 			const host = await CloudSessionHost.connect({
 				outerSessionId: sessionId,
+				taskId,
 				socketUrl: this.options.cloudSessions.sessionSocketUrl(sessionId),
 				getAuthToken: this.options.getAuthToken,
 				requestToolApproval: this.options.requestToolApproval,
