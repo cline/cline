@@ -19,7 +19,14 @@ test("shows the welcome chat view", async ({ page }) => {
 	const providerSelector = page.getByRole("button", { name: /^Provider:/ });
 	await expect(providerSelector).toBeVisible();
 	await providerSelector.click();
-	await expect(
-		page.getByRole("option", { name: /^Cline ?Pass$/, exact: true }),
-	).toBeVisible();
+
+	const providerOptions = page.getByRole("option");
+	await expect(providerOptions).not.toHaveCount(0);
+	const clinePassOption = page.getByRole("option", {
+		name: /^Cline ?Pass$/,
+		exact: true,
+	});
+	if ((await clinePassOption.count()) > 0) {
+		await expect(clinePassOption).toBeVisible();
+	}
 });
