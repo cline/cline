@@ -112,7 +112,7 @@ async function main() {
 					error,
 					handled: true,
 					severity: "warn",
-					context: { retry_window_ms: HUB_STARTUP_RETRY_WINDOW_MS },
+					context: { retryWindowMs: HUB_STARTUP_RETRY_WINDOW_MS },
 				});
 			}
 		},
