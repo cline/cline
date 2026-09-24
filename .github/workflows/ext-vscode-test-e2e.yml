@@ -225,11 +225,11 @@ jobs:
 
             - name: Install Playwright Chromium on Linux
               if: matrix.runner == 'ubuntu'
-              run: bunx playwright install --with-deps chromium
+              run: bunx playwright install --with-deps chromium chromium-headless-shell
 
             - name: Install Playwright Chromium
               if: matrix.runner != 'ubuntu'
-              run: bunx playwright install chromium
+              run: bunx playwright install chromium chromium-headless-shell
 
             - name: Run desktop E2E
               run: bun -F @cline/code test:e2e

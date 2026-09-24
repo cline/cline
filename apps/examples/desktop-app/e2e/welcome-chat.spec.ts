@@ -22,11 +22,8 @@ test("shows the welcome chat view", async ({ page }) => {
 
 	const providerOptions = page.getByRole("option");
 	await expect(providerOptions).not.toHaveCount(0);
-	const clinePassOption = page.getByRole("option", {
-		name: /^Cline ?Pass$/,
+	await expect(page.getByRole("option", {
+		name: /^Cline(?: Usage-Billing)?$/,
 		exact: true,
-	});
-	if ((await clinePassOption.count()) > 0) {
-		await expect(clinePassOption).toBeVisible();
-	}
+	})).toBeVisible();
 });
