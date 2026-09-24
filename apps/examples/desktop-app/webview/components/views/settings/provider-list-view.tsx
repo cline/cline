@@ -49,6 +49,7 @@ import type {
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+import { AudioModelBadges } from "./audio-model-badges";
 
 // Inputs nested inside a composed bordered box (icon + input + buttons in
 // one rounded frame) must strip the Input component's own chrome — border,
@@ -1121,18 +1122,21 @@ export function ProviderDetailContent({
 															/>
 														</span>
 													)}
-													{supportsAudio(model) && (
-														<span
-															aria-label="Audio support"
-															role="img"
-															title="Audio support"
-														>
-															<Mic
-																aria-hidden="true"
-																className="h-3.5 w-3.5 text-muted-foreground"
-															/>
-														</span>
-													)}
+													<AudioModelBadges model={model} />
+													{supportsAudio(model) &&
+														model.operation !== "transcription" &&
+														model.operation !== "realtime" && (
+															<span
+																aria-label="Audio support"
+																role="img"
+																title="Audio support"
+															>
+																<Mic
+																	aria-hidden="true"
+																	className="h-3.5 w-3.5 text-muted-foreground"
+																/>
+															</span>
+														)}
 													{model.supportsReasoning && (
 														<span
 															aria-label="Reasoning support"
