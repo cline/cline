@@ -14,26 +14,12 @@ import {
 	parseCloudSessionError,
 } from "./cloud-session-error";
 
-/**
- * Pure coordinator for handoff completion, failure, and follow-up restoration.
- *
- * The `cloud_handoff_progress` completion event and the handoff RPC result
- * race each other in every direction (event-before-rejection,
- * rejection-before-event, same tick, either first), and the React reducer
- * state lags a render behind both. This module owns the synchronous
- * registries that resolve those races — the authoritative completions map,
- * the retry-state map, and the warning-toast claim set — so every ordering is
- * decided by plain function calls that unit tests can drive directly.
- */
+/** Coordinates racing completion events and RPC results independently of React rendering. */
 export type HandoffLifecycleToast = {
 	title: string;
 	description?: string;
 	variant?: "destructive";
-	/**
-	 * When set, the caller should attach a "Connect GitHub" action that opens
-	 * this URL. The action itself is JSX, so the coordinator stays pure and
-	 * hands the URL back through the toast effect instead.
-	 */
+	/** URL for the toast’s "Connect GitHub" action. */
 	connectUrl?: string;
 };
 
@@ -82,8 +68,7 @@ export type HandoffRpcResolvedContext = {
 	/**
 	 * Whether the source thread is still the active chat view. Scoped to the
 	 * pane that ran the RPC, so it travels per-call instead of living in the
-	 * effects; the event path never consults it (mirroring the pre-extraction
-	 * behavior). Absent means "assume active".
+	 * effects; the event path never consults it. Absent means "assume active".
 	 */
 	isThreadActive?: () => boolean;
 };
@@ -313,10 +298,7 @@ export function createHandoffLifecycle(effects: HandoffLifecycleEffects) {
 				externalPresentation: destination === "external",
 				warningKind: result.warningKind,
 			});
-			// A warning means the follow-up command was NOT queued. Clear the
-			// optimistic bubble (it would read as sent), but preserve the
-			// user's command by pre-filling the target session's composer —
-			// the completed source is read-only, so this is the only copy.
+			// Restore only definitely-unqueued payloads; unconfirmed sends must not be offered again.
 			const undeliveredCommand =
 				result.warning && result.warningKind !== "unconfirmed"
 					? nextCommand.trim() || undefined

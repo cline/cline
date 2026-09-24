@@ -379,6 +379,7 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			}),
 		);
 		expect(h.openSession).not.toHaveBeenCalled();
+		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 
 		await h.lifecycle.onRpcResolved(SOURCE, {
 			result: makeResult({
@@ -427,17 +428,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
-	});
-
-	it("duplicate completion events do not open or reopen the target", async () => {
-		const h = makeHarness();
-		const event = completeEvent({
-			warningKind: "unqueued",
-			undeliveredCommand: "run the suite",
-		});
-		await h.lifecycle.onEvent(event);
-		await h.lifecycle.onEvent(event);
-		expect(h.openSession).not.toHaveBeenCalled();
 	});
 
 	it("ignores mismatched and uncorrelated completions after a newer attempt is accepted", async () => {
@@ -762,8 +752,13 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		);
 	});
 
-	it("event then reject: a false target-open result exposes the draft and attachments for recovery", async () => {
+	it.each([
+		"false",
+		"reject",
+	])("event then reject: target-open %s preserves the recovery payload", async (outcome) => {
 		const h = makeHarness({ openSessionResult: false });
+		if (outcome === "reject")
+			h.openSession.mockRejectedValueOnce(new Error("discovery failed"));
 		const attachment = makeAttachment();
 		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
 
@@ -790,28 +785,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		expect(h.openSession).toHaveBeenCalledTimes(1);
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "complete",
-			retryDraft: "run the suite",
-			retryAttachments: [attachment],
-		});
-	});
-
-	it("event then reject: a rejected target open exposes the draft and attachments for recovery", async () => {
-		const h = makeHarness();
-		const attachment = makeAttachment();
-		h.openSession.mockRejectedValueOnce(new Error("discovery failed"));
-		await h.lifecycle.onEvent(completeEvent({ warningKind: "unqueued" }));
-
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			error: new Error("socket closed"),
-			nextCommand: "run the suite",
-			sourceAttachments: [attachment],
-			isThreadActive: () => true,
-		});
-		expect(h.openSession).toHaveBeenCalledTimes(1);
-		expect(h.getState()[SOURCE]).toEqual({
-			status: "complete",
-			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
-			externalPresentation: false,
 			retryDraft: "run the suite",
 			retryAttachments: [attachment],
 		});
@@ -956,9 +929,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		resolveOpen?.(true);
 		await completion;
-		// The retry registry (written synchronously at rejection) is the only
-		// carrier of the unsent command and attachments once the reducer's
-		// failed entry has been replaced by the receipt.
 		expect(h.openSession).toHaveBeenCalledExactlyOnceWith(TARGET, {
 			silent: true,
 			initialPromptDraft: "fix flaky test",
@@ -966,7 +936,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 		expect(warningToastCount(h.toast)).toBe(1);
 		expect(h.toast).toHaveBeenCalledTimes(2);
-		// The receipt wins in the reducer: the failed entry is replaced.
 		expect(h.getState()[SOURCE]).toMatchObject({
 			status: "complete",
 			receipt: { targetSessionId: TARGET, dashboardUrl: DASHBOARD_URL },
@@ -1005,8 +974,13 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 		});
 	});
 
-	it("reject then event: a false target-open result preserves the recovery payload", async () => {
+	it.each([
+		"false",
+		"reject",
+	])("reject then event: target-open %s preserves the recovery payload", async (outcome) => {
 		const h = makeHarness({ openSessionResult: false });
+		if (outcome === "reject")
+			h.openSession.mockRejectedValueOnce(new Error("discovery failed"));
 		const attachment = makeAttachment();
 		await h.lifecycle.onRpcRejected(SOURCE, {
 			error: new Error("fetch failed"),
@@ -1038,30 +1012,6 @@ describe("cloud handoff lifecycle: event/RPC ordering races", () => {
 			}),
 		);
 		expect(h.openSession).toHaveBeenCalledTimes(1);
-	});
-
-	it("reject then event: a rejected target open preserves the recovery payload", async () => {
-		const h = makeHarness();
-		const attachment = makeAttachment();
-		h.openSession.mockRejectedValueOnce(new Error("discovery failed"));
-		await h.lifecycle.onRpcRejected(SOURCE, {
-			error: new Error("fetch failed"),
-			nextCommand: "fix flaky test",
-			sourceAttachments: [attachment],
-		});
-
-		await h.lifecycle.onEvent(
-			completeEvent({
-				warning: "The follow-up command could not be queued.",
-				warningKind: "unqueued",
-			}),
-		);
-		expect(h.openSession).toHaveBeenCalledTimes(1);
-		expect(h.getState()[SOURCE]).toMatchObject({
-			status: "complete",
-			retryDraft: "fix flaky test",
-			retryAttachments: [attachment],
-		});
 	});
 
 	it("reject then event: the event's undeliveredCommand overrides the recorded retry command", async () => {
@@ -1127,6 +1077,7 @@ describe("cloud handoff lifecycle: warning toast claim", () => {
 		});
 		h.lifecycle.onEvent(event);
 		h.lifecycle.onEvent(event);
+		expect(h.openSession).not.toHaveBeenCalled();
 		expect(warningToastCount(h.toast)).toBe(1);
 		expect(h.toast).toHaveBeenCalledExactlyOnceWith({
 			title: "Handoff completed with a warning",
@@ -1217,18 +1168,6 @@ describe("cloud handoff lifecycle: event handling", () => {
 			status: "complete",
 			externalPresentation: true,
 		});
-	});
-
-	it("does not open from an unqueued completion event without an RPC rejection", async () => {
-		const h = makeHarness();
-		await h.lifecycle.onEvent(
-			completeEvent({
-				warningKind: "unqueued",
-				undeliveredCommand: "ship it",
-			}),
-		);
-		expect(h.openSession).not.toHaveBeenCalled();
-		expect(h.getState()[SOURCE]).toMatchObject({ status: "complete" });
 	});
 
 	it("forwards non-complete progress phases to the reducer verbatim", () => {
