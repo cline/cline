@@ -1039,9 +1039,36 @@ describe("seeded cloud provisioning recovery", () => {
 		);
 		expect(methods).toEqual(["GET"]);
 	});
-	it("permits a fresh create after the original sandbox was explicitly deleted", async () => {
+	it("allows retry when token refresh throws after a definitive 401", async () => {
+		let posts = 0;
+		const getAuthToken = vi.fn(async () => jwtFor("user", "token"));
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api",
+			appBaseUrl: "https://app",
+			getAuthToken,
+			fetch: async (_url, init) => {
+				if (init?.method !== "POST") return response([]);
+				if (++posts === 1) {
+					getAuthToken.mockRejectedValueOnce(new Error("refresh unavailable"));
+					return response(undefined, 401);
+				}
+				return response({ sessionId: record.id, status: "ready" });
+			},
+		});
+		await expect(api.create(input())).rejects.toBeInstanceOf(
+			CloudHandoffCreationRejectedError,
+		);
+		await expect(api.create(input())).resolves.toMatchObject({
+			sessionId: record.id,
+		});
+		expect(posts).toBe(2);
+	});
+	it.each([
+		200, 404, 410, 500,
+	])("invalidates cached creation only after definitive deletion: HTTP %s", async (status) => {
 		let posts = 0;
 		const api = createApi(async (_url, init) => {
+			if (init?.method === "DELETE") return response(undefined, status);
 			if (init?.method === "POST") {
 				posts++;
 				return response({ sessionId: record.id, status: "ready" });
@@ -1049,9 +1076,13 @@ describe("seeded cloud provisioning recovery", () => {
 			return response([]);
 		});
 		await api.create(input());
-		await api.delete(record.id);
+		if (status === 200) await api.delete(record.id);
+		else
+			await expect(api.delete(record.id)).rejects.toBeInstanceOf(
+				CloudSessionError,
+			);
 		await api.create(input());
-		expect(posts).toBe(2);
+		expect(posts).toBe(status === 500 ? 1 : 2);
 	});
 	it("adopts the exact stable marker before any POST and persists the recovered outer id", async () => {
 		const persist = vi.fn(async () => {});

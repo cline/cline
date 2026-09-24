@@ -2402,7 +2402,7 @@ export class CloudSessionController {
 			limit: 100,
 		});
 		this.assertSessionActive(connection.remote.id, connection);
-		const rows = readSessionRows(listed.payload);
+		const rows = readSessionRows(listed.payload).filter(isRootSessionRow);
 		const [only] = rows;
 		if (
 			rows.length !== 1 ||
@@ -2465,7 +2465,7 @@ export class CloudSessionController {
 			limit: 100,
 		});
 		this.assertSessionActive(connection.remote.id, connection);
-		const rows = readSessionRows(listed.payload);
+		const rows = readSessionRows(listed.payload).filter(isRootSessionRow);
 		if (rows.length === 0) return false;
 		const [only] = rows;
 		const innerSessionId = String(only?.sessionId ?? "").trim();
