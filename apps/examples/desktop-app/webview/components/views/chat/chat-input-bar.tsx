@@ -971,6 +971,22 @@ function ChatInputBarImpl({
 		}
 	}, [slashOpen]);
 
+	// The menus scroll (max-h + overflow-y-auto), so keep the keyboard-selected
+	// option visible as arrow keys move the highlight past the visible rows.
+	useEffect(() => {
+		if (!slashOpen) return;
+		document
+			.getElementById(`slash-command-option-${slashSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [slashOpen, slashSelectedIndex]);
+
+	useEffect(() => {
+		if (!mentionOpen) return;
+		document
+			.getElementById(`mention-file-option-${mentionSelectedIndex}`)
+			?.scrollIntoView({ block: "nearest" });
+	}, [mentionOpen, mentionSelectedIndex]);
+
 	// Reload user commands whenever the slash menu opens so newly installed or
 	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {

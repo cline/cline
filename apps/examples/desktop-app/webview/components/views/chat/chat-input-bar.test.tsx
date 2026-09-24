@@ -521,6 +521,24 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("scrolls the arrow-key selected slash command into view", async () => {
+		await renderVoiceComposer({ prompt: "/", executionTarget: "local" });
+		const textarea = container.querySelector("textarea");
+		expect(
+			container.querySelector("#slash-command-suggestions"),
+		).not.toBeNull();
+		await act(async () => {
+			textarea?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
+			);
+		});
+		const selected = container.querySelector("#slash-command-option-1");
+		expect(selected?.getAttribute("aria-selected")).toBe("true");
+		expect(selected?.scrollIntoView).toHaveBeenCalledWith({
+			block: "nearest",
+		});
+	});
+
 	it("allows cloud image and model selection without replacing local defaults", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
