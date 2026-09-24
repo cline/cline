@@ -14,6 +14,7 @@ td,
 th,
 span:not(code *),
 div:not(code *):not(pre *) {
+	background-color: white;
 	font-family:
 		"Geist Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
 }
@@ -30,6 +31,7 @@ pre * {
 
 /* Make h1 titles lighter in font weight */
 h1 {
+	color: black;
 	font-weight: 600 !important;
 }
 
