@@ -49,6 +49,7 @@ import {
 	isRetryableBeyondSdkRetries,
 } from "./error-classification";
 import { extractErrorMessage } from "./format";
+import { wrapFetchWithoutConnectionReuse } from "./http";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
 	isAnthropicCompatibleModel,
@@ -2122,7 +2123,10 @@ function createAiSdkProvider(
 					{
 						...config,
 						fetch: wrapFetchForStickySession(
-							wrapFetchForProviderRequestCapture(config.fetch, request),
+							wrapFetchForProviderRequestCapture(
+								wrapFetchWithoutConnectionReuse(config.fetch),
+								request,
+							),
 							request,
 							context,
 						),

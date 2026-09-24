@@ -10,6 +10,44 @@ export function ensureFetch(fetchImpl?: typeof fetch): typeof fetch {
 	return resolved;
 }
 
+/**
+ * Bun on Windows can hand a model request a pooled keep-alive socket that the
+ * previous request (typically one a steer just aborted) left half-closed. The
+ * request then dies at connect time with Bun's `ConnectionClosed`/`ECONNRESET`,
+ * which the AI SDK reports as "Cannot connect to API". Bun ignores
+ * `keepalive: false`, so `Connection: close` is the documented way to keep a
+ * request off the pool. A model request already costs seconds, so the extra
+ * TLS handshake per request is negligible.
+ */
+export function shouldDisableFetchConnectionReuse(
+	runtime: { isBun: boolean; platform: string } = {
+		isBun: Boolean(globalThis.process?.versions?.bun),
+		platform: globalThis.process?.platform ?? "",
+	},
+): boolean {
+	return runtime.isBun && runtime.platform === "win32";
+}
+
+export function wrapFetchWithoutConnectionReuse(
+	baseFetch: typeof fetch | undefined,
+	enabled = shouldDisableFetchConnectionReuse(),
+): typeof fetch | undefined {
+	const delegate = baseFetch ?? globalThis.fetch;
+	if (!enabled || !delegate) {
+		return baseFetch;
+	}
+	return (async (input, init) => {
+		const headers = new Headers(
+			input instanceof Request ? input.headers : undefined,
+		);
+		new Headers(init?.headers).forEach((value, key) => {
+			headers.set(key, value);
+		});
+		headers.set("Connection", "close");
+		return delegate(input, { ...init, headers });
+	}) as typeof fetch;
+}
+
 export async function resolveApiKey(
 	settings: GatewayProviderSettings,
 ): Promise<string | undefined> {
