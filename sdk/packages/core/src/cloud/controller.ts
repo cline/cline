@@ -402,7 +402,7 @@ export class CloudSessionController {
 	private readonly pendingInitialTasks: Map<string, CloudCreationOptions>;
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
-	private readonly unconfirmedInnerCreates = new Map<string, string>();
+	private readonly unconfirmedInnerCreates = new Set<string>();
 	private readonly createRequests = new Map<
 		string,
 		Promise<CloudSessionAttachment>
@@ -2580,10 +2580,7 @@ export class CloudSessionController {
 				(isHubCommandTimeoutError(error, "session.create") ||
 					isHubReconnectableTransportError(error))
 			) {
-				this.unconfirmedInnerCreates.set(
-					connection.remote.id,
-					handoffSeed.sourceSessionId,
-				);
+				this.unconfirmedInnerCreates.add(connection.remote.id);
 			}
 			throw error;
 		}
@@ -2597,10 +2594,7 @@ export class CloudSessionController {
 		).trim();
 		if (!innerSessionId) {
 			if (handoffSeed) {
-				this.unconfirmedInnerCreates.set(
-					connection.remote.id,
-					handoffSeed.sourceSessionId,
-				);
+				this.unconfirmedInnerCreates.add(connection.remote.id);
 			}
 			throw new Error("Cloud Hub did not return an inner session id");
 		}

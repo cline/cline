@@ -30,16 +30,6 @@ function readCloudHandoffModels(
 		: [];
 }
 
-export function combineCloudHandoffModels(input: {
-	catalog: CloudHandoffModel[];
-	clinePass: CloudHandoffModel[];
-	clineCloud: CloudHandoffModel[];
-}): CloudHandoffModel[] {
-	// Recommended entries stay first for personal selection, but retain catalog
-	// duplicates so organization filtering cannot remove the model entirely.
-	return [...input.clinePass, ...input.clineCloud, ...input.catalog];
-}
-
 export async function loadCloudHandoffModels(
 	apiBaseUrl: string,
 	fetchImpl: typeof fetch = fetch,
@@ -85,9 +75,6 @@ export async function loadCloudHandoffModels(
 			: recommendedEnvelope;
 	const pass = readCloudHandoffModels(recommended?.clinePass, "cline-pass");
 	const cloud = readCloudHandoffModels(recommended?.clineCloud, "cline-cloud");
-	return combineCloudHandoffModels({
-		catalog,
-		clinePass: pass,
-		clineCloud: cloud,
-	});
+	// Keep recommendations first and catalog duplicates for organization filtering.
+	return [...pass, ...cloud, ...catalog];
 }

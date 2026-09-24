@@ -95,7 +95,6 @@ describe("cloud handoff gates", () => {
 			},
 		});
 
-		await expect(recovery).rejects.not.toThrow("Enable Cloud sessions");
 		await expect(recovery).rejects.toThrow(
 			"Start a conversation before handing it off to cloud.",
 		);
@@ -138,8 +137,6 @@ describe("cloud handoff gates", () => {
 			},
 		});
 
-		await expect(attempt).rejects.not.toThrow("Enable Cloud sessions");
-		await expect(attempt).rejects.not.toThrow("Cloud handoff is not enabled");
 		await expect(attempt).rejects.toThrow(
 			"Start a conversation before handing it off to cloud.",
 		);
@@ -542,7 +539,10 @@ describe("cloud handoff transaction", () => {
 		vi.unstubAllGlobals();
 	});
 
-	function createHandoffFixture(created = true) {
+	function createHandoffFixture(
+		created = true,
+		metadata: Record<string, unknown> = {},
+	) {
 		const sourceSessionId = "local-handoff-source";
 		const modelId = "anthropic/claude-sonnet-4.6";
 		const headSha = "a".repeat(40);
@@ -572,7 +572,7 @@ describe("cloud handoff transaction", () => {
 		const events: Array<{ name: string; payload: Record<string, unknown> }> =
 			[];
 		const metadataUpdates: Array<Record<string, unknown>> = [];
-		let persistedMetadata: Record<string, unknown> = {};
+		let persistedMetadata = metadata;
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -654,12 +654,12 @@ describe("cloud handoff transaction", () => {
 						info: { created: boolean },
 					) => Promise<void>;
 					resolveMessages: () => Promise<unknown>;
-					onSeeding?: () => void;
+					onSeeding?: () => void | Promise<void>;
 				};
 			}) => {
 				await input.handoff?.onOuterSessionCreated?.("ses-cloud", { created });
 				await input.handoff?.resolveMessages();
-				input.handoff?.onSeeding?.();
+				await input.handoff?.onSeeding?.();
 				return { sessionId: "ses-cloud", innerSessionId: "inner-cloud" };
 			},
 		);
@@ -692,6 +692,138 @@ describe("cloud handoff transaction", () => {
 			create,
 		};
 	}
+
+	it("does not seed when saving the dispatch marker fails", async () => {
+		const fixture = createHandoffFixture();
+		vi.mocked(
+			localSessionManager(fixture.ctx).update as ReturnType<typeof vi.fn>,
+		)
+			.mockImplementationOnce(async (_id, input) => {
+				fixture.metadataUpdates.push(input.metadata);
+				return { updated: true };
+			})
+			.mockResolvedValueOnce({ updated: false });
+		await expect(
+			handleChatSessionCommand(fixture.ctx, {
+				action: "handoff",
+				sessionId: fixture.sourceSessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/test",
+					branch: "main",
+					headSha: fixture.headSha,
+					modelId: fixture.modelId,
+				},
+			}),
+		).rejects.toThrow("recovery state could not be saved");
+		expect(
+			fixture.events.some((event) => event.payload.phase === "seeding"),
+		).toBe(false);
+		expect(fixture.verifyHandoffTranscript).not.toHaveBeenCalled();
+	});
+
+	it("recovers an uncertain seed after restart without dispatching another create", async () => {
+		const first = createHandoffFixture();
+		const request = {
+			action: "handoff" as const,
+			sessionId: first.sourceSessionId,
+			fingerprint: {
+				repoUrl: "https://github.com/cline/test",
+				branch: "main",
+				headSha: first.headSha,
+				modelId: first.modelId,
+			},
+		};
+		first.create.mockImplementationOnce(async (input) => {
+			await input.handoff?.onOuterSessionCreated?.("ses-cloud", {
+				created: true,
+			});
+			await input.handoff?.resolveMessages();
+			await input.handoff?.onSeeding?.();
+			throw new Error("lost create reply");
+		});
+		await expect(handleChatSessionCommand(first.ctx, request)).rejects.toThrow(
+			"lost create reply",
+		);
+		await first.cloud.dispose();
+
+		// Only persisted metadata survives; the new controller has no in-memory fence.
+		const restarted = createHandoffFixture(
+			true,
+			structuredClone(first.getPersistedMetadata()),
+		);
+		let rows: Record<string, unknown>[] = [];
+		const command = vi.fn(async (name: string) => {
+			if (name === "session.create")
+				throw new Error("duplicate create dispatched");
+			return {
+				version: "v1" as const,
+				ok: true as const,
+				payload:
+					name === "session.list"
+						? { sessions: rows }
+						: name === "session.messages"
+							? { messages: restarted.messages }
+							: name === "session.pending_prompts"
+								? { prompts: [] }
+								: { session: rows[0] },
+			};
+		});
+		const cloud = new CloudSessionManager(restarted.ctx, {
+			api: {
+				list: async () => [
+					{
+						id: "ses-cloud",
+						status: "ready",
+						sandboxUrl: "",
+						metadata: { modelId: restarted.modelId },
+						repoContext: { repoUrl: "https://github.com/cline/test" },
+						createdAt: "2026-01-01",
+						updatedAt: "2026-01-01",
+					},
+				],
+				waitUntilReady: async () => {},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "token",
+			createHubClient: () => ({
+				command: command as never,
+				connect: async () => {},
+				dispose: async () => {},
+				getClientId: () => "viewer",
+				subscribe: () => () => {},
+			}),
+		});
+		vi.spyOn(cloud, "prepareHandoffRepository").mockResolvedValue({});
+		restarted.ctx.cloudSessionManager = cloud;
+		try {
+			await expect(
+				handleChatSessionCommand(restarted.ctx, request),
+			).rejects.toThrow("unconfirmed");
+			rows = [
+				{
+					sessionId: "inner-cloud",
+					status: "idle",
+					cwd: "/workspace",
+					mode: "act",
+					metadata: {
+						model: restarted.modelId,
+						handoff: { sourceSessionId: first.sourceSessionId },
+					},
+				},
+			];
+			await expect(
+				handleChatSessionCommand(restarted.ctx, request),
+			).resolves.toMatchObject({ innerSessionId: "inner-cloud" });
+			expect(
+				command.mock.calls.some(([name]) => name === "session.create"),
+			).toBe(false);
+			expect(
+				readCloudHandoffMetadata(restarted.getPersistedMetadata())?.status,
+			).toBe("complete");
+		} finally {
+			await cloud.dispose();
+		}
+	});
 
 	it.each([
 		true,
@@ -741,6 +873,7 @@ describe("cloud handoff transaction", () => {
 			"metadata:pending",
 			"event:provisioning",
 			"event:connecting",
+			"metadata:pending",
 			"event:seeding",
 			"event:verifying",
 			"metadata:complete",
@@ -752,7 +885,8 @@ describe("cloud handoff transaction", () => {
 			toCloudSessionId: "ses-cloud",
 			dashboardUrl: expect.stringContaining("ses-cloud"),
 		});
-		expect(metadataUpdates).toHaveLength(2);
+		expect(metadataUpdates).toHaveLength(3);
+		expect(metadataUpdates[1].cloudHandoffSeedDispatched).toBe(true);
 		expect(readCloudHandoffMetadata(getPersistedMetadata())).toMatchObject({
 			status: "complete",
 			toCloudSessionId: "ses-cloud",
