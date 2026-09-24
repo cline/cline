@@ -9,7 +9,6 @@ import type {
 import { NodeHubClient } from "../hub/client/index";
 import { isSessionNotFoundError } from "../runtime/host/runtime-host";
 import {
-	buildCloudHandoffSystemPrompt,
 	CloudHandoffTranscriptMismatchError,
 	cloudHandoffTranscriptsEqual,
 } from "../services/cloud-handoff";
@@ -21,6 +20,7 @@ import {
 	deriveCloudSessionTitle,
 	parseCloudProvisioningPhase,
 } from "./api";
+import { type CloudModel, loadCloudModels } from "./models";
 import type {
 	CloudBranchListOptions,
 	CloudBranchListResult,
@@ -786,6 +786,18 @@ export class CloudSessionController {
 		return await this.options.api.listRepositories(
 			await this.resolveActiveOrganizationId(),
 		);
+	}
+
+	async listModels(): Promise<CloudModel[]> {
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
+		const organizationId = await this.resolveActiveOrganizationId({
+			fresh: true,
+		});
+		const models = await loadCloudModels(this.options.apiBaseUrl, {
+			isOrganizationSession: Boolean(organizationId),
+		});
+		if (this.disposed) throw new Error("Cloud session manager was disposed");
+		return models;
 	}
 
 	/** Validates account auth and GitHub access before provisioning a handoff. */
@@ -2512,13 +2524,12 @@ export class CloudSessionController {
 					workspaceRoot: CLOUD_WORKSPACE_ROOT,
 					cwd,
 					systemPrompt: handoffSeed
-						? `${buildCloudHandoffSystemPrompt({
-								repoUrl:
-									connection.remote.repoContext.repoUrl ?? "the repository",
-								branch:
-									connection.remote.repoContext.branch ?? "the selected branch",
-								workspaceRoot: CLOUD_WORKSPACE_ROOT,
-							})}${cwd === CLOUD_WORKSPACE_ROOT ? "" : `\n\nContinue from the original repository subdirectory at ${cwd}.`}`
+						? `${CLOUD_SESSION_SYSTEM_PROMPT}\n\n` +
+							`This session was handed off from a local workspace to a fresh Linux clone of ${connection.remote.repoContext.repoUrl ?? "the repository"}@${connection.remote.repoContext.branch ?? "the selected branch"} at ${CLOUD_WORKSPACE_ROOT}. ` +
+							"Earlier transcript references to the local OS, absolute paths, environment, and tool availability are stale." +
+							(cwd === CLOUD_WORKSPACE_ROOT
+								? ""
+								: `\n\nContinue from the original repository subdirectory at ${cwd}.`)
 						: systemPrompt,
 					mode,
 					enableTools: true,

@@ -192,6 +192,29 @@ async function attached() {
 }
 
 describe("CloudSessionController neutral host contract", () => {
+	it("lists models for the fresh organization without provisioning a session", async () => {
+		const getActiveOrganizationId = vi.fn(async () => "org");
+		const f = fixture({ getActiveOrganizationId });
+		const fetcher = vi
+			.spyOn(globalThis, "fetch")
+			.mockImplementation(async (input) =>
+				Response.json(
+					String(input).endsWith("/models")
+						? [{ id: "model" }]
+						: { clinePass: [{ id: "pass-only" }] },
+				),
+			);
+		try {
+			expect(await f.controller.listModels()).toEqual([
+				{ id: "model", name: "model", catalogId: "cline" },
+			]);
+			expect(getActiveOrganizationId).toHaveBeenCalledWith({ fresh: true });
+			expect(f.api.create).not.toHaveBeenCalled();
+		} finally {
+			fetcher.mockRestore();
+			await f.controller.dispose();
+		}
+	});
 	it("attaches a provisioning receipt without connecting or waiting for readiness", async () => {
 		const f = fixture();
 		f.api.list.mockResolvedValue([{ ...record, status: "provisioning" }]);
@@ -1002,6 +1025,16 @@ describe("seeded cloud handoff controller", () => {
 			},
 		});
 		expect(f.controller.getSnapshot(record.id)?.transcriptKnown).toBe(false);
+		const prompt = (
+			f.calls.find((call) => call.name === "session.create")?.payload
+				?.sessionConfig as Record<string, unknown>
+		).systemPrompt as string;
+		expect(prompt).toContain("egress proxy");
+		expect(prompt).toContain("must never run `gh auth login`");
+		expect(prompt).toContain("fresh Linux clone");
+		expect(prompt).toContain("are stale");
+		expect(prompt).toContain("subdirectory at /workspace/packages/app");
+		expect(prompt).not.toContain("SAVE YOUR WORK");
 		await f.controller.verifyHandoffTranscript(record.id, messages);
 		expect(f.controller.getSnapshot(record.id)).toMatchObject({
 			transcriptKnown: true,

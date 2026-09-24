@@ -54,6 +54,10 @@ authorizes recreation of a missing established task.
 
 ## Experimental cloud handoff
 
+`loadCloudModels` and `CloudSessionController.listModels()` return the live cloud
+inventory, excluding personal Pass entries for organizations. Hosts validate the
+selected ID before new creation; handoff never substitutes a different model.
+
 Hosts can use `create({ handoff, ... })` or `seedHandoff(id, seed)`.
 Both return the seeded `innerSessionId`; `create` also returns the outer `sessionId`.
 Persist the outer target and seed-dispatch marker through the provided callbacks.
