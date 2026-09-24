@@ -136,7 +136,7 @@ Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
 - `@cline/core/cloud` owns remote cloud-session state and emits immutable snapshots and events. Viewers hydrating active runs with `readMessages` reconcile canonical history at completion even if they missed the run start. Hosts supply authentication and project those snapshots into their UI; feature flags, account selection, and host persistence remain outside the controller. Importing this subpath does not initialize a local agent.
-- `cloud/models` supplies the live, account-scoped model inventory for cloud creation and handoff; hosts validate exact model IDs without substitution. `CloudHandoffCoordinator` and `services/cloud-handoff` own shared Git preflight, source fingerprints, and transcript verification. Hosts retain the source mutation lock, durable metadata, and rollout gate. Handoff records creation intent before provisioning, saves the target before seeding, and verifies the transcript before marking the source complete. Ambiguous outcomes retain recovery state and never automatically resend a follow-up. TUI adds its `/cloud` command and confirmation on top; local forks clear handoff metadata.
+- `cloud/models` owns cloud model eligibility; `CloudHandoffCoordinator` and `services/cloud-handoff` own transfer orchestration, Git preflight, fingerprints, and transcript verification. Hosts own source locks, persistence, feature gating, and UI.
 - Desktop retains pending first-task creation options in a context-owned map across credential-driven controller replacement. The shared controller consumes that intent when an inner task exists or is created; retaining an ID without its approval policy is not sufficient.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
@@ -204,11 +204,8 @@ workspace-wide operations on busy sessions (for example the desktop's
 checkpoint-restore gate) depend on this: a defaulted `running` with no owning
 turn leaves such gates blocked with nothing to clear them.
 
-`HubRuntimeHost` and the interactive CLI cloud viewer share the pure
-`createHubEventProjector` envelope-to-`CoreSessionEvent` mapper. The projector
-does not initialize a local runtime or execute capabilities; approval decisions
-and capability execution remain host-owned. Cloud snapshots reset its per-session
-deduplication state before subsequent live events reach the transcript.
+`HubRuntimeHost` and the CLI cloud viewer share `createHubEventProjector` to map
+Hub envelopes into core events. Hosts retain approval and execution authority.
 
 Command progress follows the same runtime event boundary as other agent output.
 Shell executors emit structured stdout/stderr chunks through

@@ -54,22 +54,16 @@ authorizes recreation of a missing established task.
 
 ## Experimental cloud handoff
 
-`CloudHandoffCoordinator` from `@cline/core/cloud` accepts a local source adapter,
-cloud controller, eligible model loader, account scope, availability check, and progress callback.
-Call `prepare()`, confirm the repository, branch, and model, then `execute()`.
-Execution revalidates the source and returns a verified target without sending a follow-up.
+For `CloudHandoffCoordinator` from `@cline/core/cloud`, call `prepare()`, confirm the
+destination, then `execute()`. It verifies the transfer without sending a follow-up.
 
-`loadCloudModels` and `CloudSessionController.listModels()` return the live cloud
-inventory, excluding personal Pass entries for organizations. Hosts validate the
-selected ID before new creation; handoff never substitutes a different model.
+`loadCloudModels` and `CloudSessionController.listModels()` provide eligible cloud
+models. Handoff requires the selected model; it never substitutes another.
 
-Lower-level hosts can use `create({ handoff, ... })` or `seedHandoff(id, seed)`.
-Both return the seeded `innerSessionId`; `create` also returns the outer `sessionId`.
-Persist the outer target and seed-dispatch marker through the provided callbacks.
-After an uncertain dispatch, `recoverOnly` adopts an existing matching conversation
-but never creates a replacement. `verifyHandoffTranscript` checks persisted read-back.
-`waitUntilReady(id)` explicitly waits for provisioning; ordinary `attach(id)` keeps
-returning a provisioning receipt immediately. Hosts own feature gates and draft recovery.
+Use `create({ handoff, ... })` to provision and seed, or `seedHandoff(id, seed)` for
+an existing target. Persist target IDs and dispatch markers through the callbacks;
+use `recoverOnly` after uncertain dispatch to avoid duplicate conversations.
+`verifyHandoffTranscript` checks the seeded history; `waitUntilReady(id)` waits for provisioning.
 
 ## Voice input models
 

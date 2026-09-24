@@ -33,61 +33,22 @@ Run Cline in your terminal. Interactive chat for paired sessions, or fully headl
 
 ## Cloud agents
 
-Cloud agents in the interactive TUI are disabled by default. Access requires a
-signed-in Cline account and the `cli-cloud-agents` PostHog rollout flag.
-The flag must evaluate to `true`; missing or false flags leave `/cloud` unavailable.
-There is no Preview setting or environment-variable bypass.
+Requires a signed-in Cline account and the `cli-cloud-agents` rollout flag (off by default).
 
-Enter **`/cloud`** to open cloud tasks. Select a task with
-arrow keys and Enter, or press **Ctrl+N** for a new task. The composer keeps the prompt,
-repository, branch, model and approval policy together. Tab moves between controls;
-Enter selects a value or starts the task. The branch and model have defaults, tools
-default to manual approval, and selections are retained for the next task in the
-same account while the Cloud view remains open. **Ctrl+P** opens task actions, including
-approvals, queues, Stop and recovery; **Ctrl+R** refreshes; **`/local`** returns to local chat.
+Use `/cloud` to open tasks, **Ctrl+N** to create one, and **Ctrl+P** for approvals,
+queues, Stop, and recovery actions. `/local` returns to local chat; closing the
+terminal leaves remote work running. New tasks default to manual tool approval.
+Cloud prompts are literal text; local files, attachments, skills, workflows, and
+plugin commands are not expanded.
 
-With a local conversation open, select **Continue this conversation in cloud**.
-The repository, branch, history, mode, and compatible model/settings come from that
-conversation. Confirm the displayed destination; the CLI copies and verifies the
-history, then opens the cloud conversation ready for your next prompt. A model
-fallback is shown before transfer. Handoff requires an idle conversation with no
-queued prompts and a clean GitHub branch pushed at the current commit. Uncommitted
-files are not uploaded.
+To transfer an open local conversation, choose **Continue this conversation in cloud**.
+Handoff preserves history, mode, and model. It requires an idle conversation with no
+queued prompts, a cloud-supported model, and a clean GitHub branch pushed at the
+current commit. Uncommitted files are not uploaded.
 
-Interrupted handoffs retain recovery metadata on the source conversation. Resume
-that local conversation and select the same action in `/cloud` to recover its
-existing workspace. An uncertain create or transcript-copy response is checked
-before retrying; it never automatically provisions another workspace or conversation.
-After completion, the local history remains available; fork it to continue locally.
-
-The repository's default branch is usable immediately. The branch picker searches
-on the server and loads further pages as you browse, without blocking the composer
-while it enumerates branches.
-
-Cloud prompts are literal text: local files, attachments, skills, workflows,
-and plugin commands are not expanded. New cloud tasks use Act mode; handoff preserves
-the source mode. Models are selected at creation; changes by other viewers are displayed.
-
-| Action | Behavior |
-| --- | --- |
-| Enter while running / Ctrl+S | Queue / steer a text prompt |
-| `/approve N`, `/reject N` | Answer the displayed server-owned approval |
-| `/edit N`, `/remove N`, `/steer N` | Manage a queued prompt |
-| `/stop`, `/abort`, first Ctrl+C while running | Stop the remote run |
-| `/cloud`, `/clear` | Detach and return to the cloud picker |
-| `/quit`, `/exit`, terminal close | Detach; remote work continues |
-| Second Ctrl+C while Stop is pending | Exit and detach |
-| `/recover N` | Find and attach to an interrupted creation; never resend |
-| `/resume N` | Explicitly submit the saved draft; uncertain delivery requires confirmation |
-| `/cancel N` | Confirm cancellation and delete only that creation's sandbox |
-
-Interrupted creation records live privately under
-`$CLINE_DATA_DIR/cloud/pending-creations/<scope-hash>/` for seven days. They contain
-the draft and creation choices, never credentials. They are isolated by API environment,
-account and organization. Local retention expiry does not delete remote work. After an
-unknown POST result, retry recovery or inspect the dashboard; recovery never issues
-another creation request automatically. Rollout revocation, signing out, or changing
-accounts detaches without aborting already-running tasks.
+Retry interrupted handoffs from the source conversation's `/cloud` menu. Recovery
+does not automatically resend uncertain prompts. After completion, fork the local
+conversation to continue locally.
 
 ## Install
 
