@@ -631,44 +631,14 @@ current product contracts should be compared before standardizing them.
 
 ## Conversation layout and header
 
-`AgentConversationLayout` shares desktop's welcome and conversation geometry:
-welcome scroll container, responsive column, persistent body container, setup
-slot, composer placement, and welcome footer. `AgentSessionContent` constrains
-transcript and composer content to the same width. `AgentConversationHeader`
-provides the title/status group and an optional trailing actions group.
+`AgentConversationLayout` takes host-rendered `welcomeHeader`, `body`, `composer`,
+`notice`, `welcomeSetup`, and `welcomeFooter` slots. `AgentSessionContent`
+provides the shared content width; `AgentConversationHeader` groups title/status
+children with optional `actions`. Import `components.css` and theme tokens as
+described above.
 
-```tsx
-import {
-  AgentConversationHeader,
-  AgentConversationLayout,
-  AgentSessionContent,
-} from "@cline/ui";
-
-<AgentConversationHeader actions={sessionActions}>
-  {statusIndicator}{titleEditor}{titleMenu}
-</AgentConversationHeader>;
-<AgentConversationLayout
-  welcome={isNewSession}
-  welcomeHeader={welcomeHeroAndWorkspaceControls}
-  body={<AgentSessionContent>{transcript}</AgentSessionContent>}
-  composer={composer}
-  notice={setupNotice}
-  welcomeSetup={onboarding}
-  hideWelcomeComposer={needsOnboarding}
-  welcomeFooter={suggestions}
-/>;
-```
-
-Hosts keep title editing state, status mapping, menus, native title-bar offsets
-and drag regions, authentication, onboarding, navigation, session lifecycle,
-scroll behavior inside the transcript, and all action handlers. The body stays
-mounted while hidden on welcome. `hideWelcomeComposer` hides the welcome
-composer without unmounting it. Switching between welcome and conversation
-retains the existing desktop wrapper behavior; it does not promise to preserve
-composer-local state across that transition. Keep drafts in host state.
-`bodyClassName` can supply host enter-animation styling. Import `components.css`
-so packaged Tailwind classes are included; the welcome background uses the
-namespaced Cline background token for scoped-theme consumers.
-
-Compatibility: these exports are additive. Desktop uses the same DOM geometry,
-responsive utility values, host-owned controls, and interaction handlers.
+`welcome` selects the layout; the body remains mounted when hidden.
+`hideWelcomeComposer` hides the welcome composer without unmounting it, but
+switching layouts can remount the composer. Keep drafts in host state.
+`bodyClassName` accepts host animation classes. Hosts retain scrolling, title
+editing, menus, native title-bar behavior, and all event handlers.

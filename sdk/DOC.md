@@ -91,39 +91,11 @@ the host only manages SSH and forwards the authenticated hub connection.
 ## Shared conversation layout
 
 `@cline/ui` exports `AgentConversationLayout`, `AgentConversationHeader`, and
-`AgentSessionContent`, with their prop types. The layout provides the desktop
-welcome/conversation geometry and persistent body/composer containers; the
-session-content primitive applies the shared transcript/composer width; and the
-header arranges host-provided status, title, menu, and optional actions.
+`AgentSessionContent` for the desktop welcome/conversation layout and header.
+Hosts supply content, state, and event handlers.
 
-```tsx
-import {
-  AgentConversationHeader,
-  AgentConversationLayout,
-  AgentSessionContent,
-} from "@cline/ui";
-
-<AgentConversationHeader actions={sessionActions}>
-  {statusIndicator}{titleEditor}{titleMenu}
-</AgentConversationHeader>;
-<AgentConversationLayout
-  welcome={isNewSession}
-  welcomeHeader={welcomeHeader}
-  body={<AgentSessionContent>{transcript}</AgentSessionContent>}
-  composer={composer}
-  welcomeSetup={onboarding}
-  hideWelcomeComposer={needsOnboarding}
-  welcomeFooter={suggestions}
-/>;
-```
-
-The host owns title editing, status mapping, menus, native title-bar behavior,
-authentication, onboarding, navigation, session lifecycle, transcript scrolling,
-draft persistence, and every action handler. The body stays mounted while
-hidden on welcome, and `hideWelcomeComposer` hides the welcome composer without
-unmounting it. `bodyClassName` accepts a host animation class. Import the shared
-tokens and `@cline/ui/components.css` using the
-[package adoption setup](./packages/ui/ADOPTION.md).
+See the [layout adoption guide](./packages/ui/ADOPTION.md#conversation-layout-and-header)
+for slots, styling, and mounting behavior.
 
 
 ## Concurrent subagent tool calls
