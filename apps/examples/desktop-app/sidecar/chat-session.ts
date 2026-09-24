@@ -2,10 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
+	buildCloudHandoffDashboardUrl,
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	clearCloudHandoffMetadata,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	findCheckpointForRun,
@@ -15,6 +17,7 @@ import {
 	ProviderSettingsManager,
 	projectSessionCompactionState,
 	RuntimeOAuthTokenManager,
+	readCloudHandoffMetadata,
 	readGlobalSettings,
 	readSessionCheckpointHistory,
 	resolveProviderApiKeyFromSettings,
@@ -32,6 +35,7 @@ import {
 	type ConsecutiveMistakeLimitContext,
 	type ConsecutiveMistakeLimitDecision,
 	formatUserCommandBlock,
+	getClineEnvironmentConfig,
 } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -40,6 +44,12 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { createDesktopExtensionContext } from "./client-context";
+import {
+	beginActiveSessionSend,
+	handleHandoff,
+	handlePrepareHandoff,
+	isCloudHandoffInProgress,
+} from "./cloud-handoff";
 import {
 	getCloudSessionManager,
 	isCloudOuterSessionId,
@@ -57,7 +67,15 @@ import {
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { runPluginSlashCommand } from "./plugin-commands";
-import { derivePromptFromMessages } from "./session-data/common";
+import {
+	readReasoningEffort,
+	readWorkspacePath,
+	workspacePathKey,
+} from "./session-config";
+import {
+	derivePromptFromMessages,
+	readSessionMetadata,
+} from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
@@ -93,42 +111,19 @@ const WORKSPACE_RESTORE_SEND_ERROR =
 const WORKSPACE_RESTORE_BUSY_ERROR =
 	"Wait for all turns in this workspace to finish before restoring it";
 
-type WorkspacePathSource = {
-	cwd?: unknown;
-	workspaceRoot?: unknown;
-	workspace_root?: unknown;
-};
-
-function readWorkspacePath(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const cwd = typeof source?.cwd === "string" ? source.cwd.trim() : "";
-	if (cwd) return cwd;
-	const workspaceRoot =
-		typeof source?.workspaceRoot === "string"
-			? source.workspaceRoot.trim()
-			: "";
-	if (workspaceRoot) return workspaceRoot;
-	const snakeCaseWorkspaceRoot =
-		typeof source?.workspace_root === "string"
-			? source.workspace_root.trim()
-			: "";
-	return snakeCaseWorkspaceRoot || undefined;
-}
-
-function workspacePathKey(
-	source: WorkspacePathSource | undefined,
-): string | undefined {
-	const workspacePath = readWorkspacePath(source);
-	return workspacePath ? resolve(workspacePath) : undefined;
-}
-
 /**
  * Built-in webview slash commands (chat-input-bar.tsx) keep their literal
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
 const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+
+/** /cloud is built-in only while Cloud sessions are enabled; otherwise a
+ * user-defined /cloud workflow owns the name and must expand normally. */
+function isBuiltinSlashCommand(name: string): boolean {
+	if (BUILTIN_SLASH_COMMAND_NAMES.has(name)) return true;
+	return name === "cloud" && isCloudAgentsEnabled();
+}
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -152,7 +147,7 @@ async function expandRuntimeSlashCommand(
 		return prompt;
 	}
 	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
-	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+	if (!name || isBuiltinSlashCommand(name)) {
 		return prompt;
 	}
 	const service = createUserInstructionConfigService({
@@ -355,13 +350,6 @@ function readSessionMetadataTitle(sessionId: string): string | undefined {
 	return typeof title === "string" ? title.trim() || undefined : undefined;
 }
 
-function readSessionMetadata(sessionId: string): JsonRecord | undefined {
-	const manifest = readSessionManifest(sessionId);
-	return manifest?.metadata && typeof manifest.metadata === "object"
-		? (manifest.metadata as JsonRecord)
-		: undefined;
-}
-
 // ---------------------------------------------------------------------------
 // Live session factory
 // ---------------------------------------------------------------------------
@@ -394,20 +382,6 @@ function isoTimestampToMs(
 	}
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function readReasoningEffort(
-	value: unknown,
-): "low" | "medium" | "high" | "xhigh" | undefined {
-	if (
-		value === "low" ||
-		value === "medium" ||
-		value === "high" ||
-		value === "xhigh"
-	) {
-		return value;
-	}
-	return undefined;
 }
 
 function readPositiveInteger(value: unknown): number | undefined {
@@ -1095,6 +1069,10 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
+	// A live sidecar session has already seen run.started/run.completed and is
+	// more authoritative than Core's persisted `running` process status.
+	// Capture it before session.attach can emit a resident-process snapshot.
+	const attachedStatus = existing?.status ?? session.status;
 	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
 	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
@@ -1120,7 +1098,7 @@ async function handleAttach(
 			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
-			status: session.status,
+			status: attachedStatus,
 			prompt:
 				session.prompt ||
 				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
@@ -1141,8 +1119,8 @@ async function handleAttach(
 
 	return {
 		sessionId,
+		status: attachedStatus,
 		environmentId: binding.environmentId,
-		status: session.status,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,
@@ -1294,6 +1272,25 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	if (isCloudHandoffInProgress(ctx, sessionId)) {
+		throw new Error(
+			"Cloud handoff is in progress. Wait for it to finish before sending another prompt.",
+		);
+	}
+	const finishActiveSend = beginActiveSessionSend(ctx, sessionId);
+	try {
+		return await handleSendOnce(ctx, request, sessionId, prompt);
+	} finally {
+		finishActiveSend();
+	}
+}
+
+async function handleSendOnce(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+	sessionId: string,
+	prompt: string,
+): Promise<unknown> {
 	const session = ctx.liveSessions.get(sessionId);
 	const binding = getSessionRuntimeBinding(
 		ctx,
@@ -1301,6 +1298,23 @@ async function handleSend(
 		readEnvironmentId(request.config),
 	);
 	const manager = binding.sessionManager;
+	const persistedSession =
+		typeof manager.get === "function"
+			? await manager.get(sessionId)
+			: undefined;
+	const handoff = readCloudHandoffMetadata(
+		persistedSession?.metadata ?? readSessionMetadata(sessionId),
+	);
+	if (handoff?.status === "pending") {
+		throw new Error(
+			`Cloud handoff is still pending. Retry /cloud or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+		);
+	}
+	if (handoff?.status === "complete") {
+		throw new Error(
+			`This session continued in Cline Cloud: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}. Fork locally to continue here.`,
+		);
+	}
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
@@ -1321,9 +1335,7 @@ async function handleSend(
 	// only its `submitPrompt` (if any) reaches the model.
 	const commandName = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
 	const pluginCommand =
-		commandName &&
-		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
-		binding.kind !== "ssh"
+		commandName && !isBuiltinSlashCommand(commandName) && binding.kind !== "ssh"
 			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
 			: undefined;
 	if (pluginCommand) {
@@ -1596,6 +1608,9 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (isCloudHandoffInProgress(ctx, sourceSessionId)) {
+		throw new Error("Wait for the cloud handoff to finish before forking.");
+	}
 	const forkBeforeRunCount = request.forkBeforeRunCount;
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -1613,6 +1628,14 @@ async function handleFork(
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	const sourceSession = await manager.get(sourceSessionId);
+	const sourceHandoff = readCloudHandoffMetadata(
+		sourceSession?.metadata ?? readSessionMetadata(sourceSessionId),
+	);
+	if (sourceHandoff?.status === "pending") {
+		throw new Error(
+			`Cloud handoff is still pending. Retry /cloud or continue here: ${sourceHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, sourceHandoff.toCloudSessionId)}`,
+		);
+	}
 	if (
 		forkBeforeRunCount !== undefined &&
 		(sourceSession?.status === "running" || sourceSession?.status === "pending")
@@ -1726,7 +1749,7 @@ async function handleForkUnlocked(
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
-		...(sourceMetadata ?? {}),
+		...clearCloudHandoffMetadata(sourceMetadata),
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
@@ -1846,6 +1869,22 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
+		if (isCloudHandoffInProgress(ctx, sessionId)) {
+			throw new Error("Wait for the cloud handoff to finish before resetting.");
+		}
+		const manager = getSessionManager(ctx, sessionId, request.config);
+		const persisted =
+			typeof manager.get === "function"
+				? await manager.get(sessionId)
+				: undefined;
+		const pendingHandoff = readCloudHandoffMetadata(
+			persisted?.metadata ?? readSessionMetadata(sessionId),
+		);
+		if (pendingHandoff?.status === "pending") {
+			throw new Error(
+				`Cloud handoff is still pending. Retry /cloud or continue here: ${pendingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, pendingHandoff.toCloudSessionId)}`,
+			);
+		}
 		cancelSidecarMistakeQuestions(ctx, sessionId, "Session reset");
 		const session = ctx.liveSessions.get(sessionId);
 		if (
@@ -1854,7 +1893,7 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
+			await manager.stop(sessionId);
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
@@ -1870,6 +1909,11 @@ async function handleRestoreCheckpoint(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (isCloudHandoffInProgress(ctx, sourceSessionId)) {
+		throw new Error(
+			"Wait for the cloud handoff to finish before restoring a checkpoint.",
+		);
+	}
 	const runCount = request.checkpointRunCount;
 	if (
 		typeof runCount !== "number" ||
@@ -1880,18 +1924,44 @@ async function handleRestoreCheckpoint(
 	const requestedConfig = request.config;
 	if (!requestedConfig)
 		throw new Error("config is required to restore a checkpoint");
-	const cwd =
-		(typeof requestedConfig.cwd === "string" && requestedConfig.cwd.trim()) ||
-		(typeof requestedConfig.workspaceRoot === "string" &&
-			requestedConfig.workspaceRoot.trim()) ||
-		"";
-	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const binding = getSessionRuntimeBinding(
 		ctx,
 		sourceSessionId,
 		readEnvironmentId(requestedConfig),
 	);
 	const manager = binding.sessionManager;
+	const persisted = await manager.get(sourceSessionId);
+	const completedHandoff = readCloudHandoffMetadata(
+		persisted?.metadata ?? readSessionMetadata(sourceSessionId),
+	);
+	if (completedHandoff?.status === "pending") {
+		throw new Error(
+			`Cloud handoff is still pending. Retry /cloud or continue here: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}`,
+		);
+	}
+	if (completedHandoff?.status === "complete") {
+		throw new Error(
+			"This session continued in Cline Cloud. Fork locally before restoring a checkpoint.",
+		);
+	}
+	// The initial persisted read can race with a handoff beginning. Recheck
+	// after it resolves before any restore work mutates the source workspace.
+	if (
+		isCloudHandoffInProgress(
+			getEnvironmentContext(ctx, ctx.activeEnvironmentId ?? "local"),
+			sourceSessionId,
+		)
+	) {
+		throw new Error(
+			"Wait for the cloud handoff to finish before restoring a checkpoint.",
+		);
+	}
+	const cwd =
+		(typeof requestedConfig.cwd === "string" && requestedConfig.cwd.trim()) ||
+		(typeof requestedConfig.workspaceRoot === "string" &&
+			requestedConfig.workspaceRoot.trim()) ||
+		"";
+	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
 	const config =
 		binding.kind === "ssh"
 			? await withRemoteProviderCredentials(requestedConfig)
@@ -2088,6 +2158,8 @@ const ACTION_HANDLERS: Record<
 	start: handleStart,
 	attach: handleAttach,
 	send: handleSend,
+	prepare_handoff: handlePrepareHandoff,
+	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
 	fork: handleFork,
