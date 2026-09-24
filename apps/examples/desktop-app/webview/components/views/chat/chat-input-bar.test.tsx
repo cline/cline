@@ -1525,6 +1525,79 @@ describe("ChatInputBar", () => {
 		});
 	});
 
+	it("applies the new provider's remembered thinking level when switching providers", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["anthropic", "cline"],
+			providerModels: { anthropic: ["claude-test"], cline: ["test-model"] },
+			providerReasoningModels: {
+				anthropic: ["claude-test"],
+				cline: ["test-model"],
+			},
+		});
+		window.localStorage.setItem(
+			REASONING_SELECTION_STORAGE_KEY,
+			JSON.stringify({ anthropic: "high" }),
+		);
+		const onReasoningChange = vi.fn();
+		const renderBar = (provider: string, model: string) =>
+			act(async () => {
+				root.render(
+					<WorkspaceProvider value={workspaceValue}>
+						<ChatInputBar
+							attachments={[]}
+							environmentId="local"
+							gitBranch="main"
+							mode="act"
+							model={model}
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={onReasoningChange}
+							onRemoveAttachment={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							onRemovePromptInQueue={vi.fn()}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider={provider}
+							reasoningEffort="medium"
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+			});
+
+		await renderBar("cline", "test-model");
+		await vi.waitFor(() => {
+			expect(
+				container.querySelector<HTMLButtonElement>(
+					'[aria-label="Thinking level"]',
+				)?.disabled,
+			).toBe(false);
+		});
+		expect(onReasoningChange).not.toHaveBeenCalled();
+
+		await renderBar("anthropic", "claude-test");
+		await vi.waitFor(() => {
+			expect(onReasoningChange).toHaveBeenCalledWith({
+				thinking: true,
+				reasoningEffort: "high",
+			});
+		});
+	});
+
 	it.each([
 		"local",
 		"cloud",
