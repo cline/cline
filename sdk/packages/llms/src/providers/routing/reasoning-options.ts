@@ -57,6 +57,13 @@ export function normalizeReasoningRequest(
 
 	const options = context.model.reasoningOptions;
 	if (options === undefined) {
+		// Bedrock rejects reasoning fields outright for models without reasoning
+		// support, and its adapter emits `reasoningConfig` for any effort. An
+		// unlisted id (ARN, custom/provisioned model) advertises nothing, so
+		// send nothing rather than guess (cline/cline#14095).
+		if (request.providerId === "bedrock") {
+			return { ...request, reasoning: undefined };
+		}
 		const modelId = request.modelId.toLowerCase();
 		if (
 			reasoning.enabled === false &&

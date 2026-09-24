@@ -4,6 +4,7 @@ import type {
 	ModelReasoningOption,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { isBedrockOpenAiModelId } from "../model-facts";
 import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
@@ -339,6 +340,139 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.bedrock ?? {}).not.toHaveProperty("cache_control");
 		expect(result.anthropic ?? {}).not.toHaveProperty("cache_control");
 		expect(result.openaiCompatible ?? {}).not.toHaveProperty("cache_control");
+	});
+
+	describe("Bedrock reasoning wire shapes (cline/cline#14095)", () => {
+		it.each([
+			["openai.gpt-6-astra", true],
+			["us.openai.gpt-6-astra", true],
+			["global.openai.gpt-5.6-luna", true],
+			["anthropic.claude-sonnet-4-6", false],
+			["us.anthropic.claude-sonnet-4-6", false],
+			["myopenai.custom", false],
+			[
+				"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
+				false,
+			],
+		])("recognises OpenAI-on-Bedrock ids: %s -> %s", (modelId, expected) => {
+			expect(isBedrockOpenAiModelId(modelId)).toBe(expected);
+		});
+
+		const openAiEffortOptions: readonly ModelReasoningOption[] = [
+			{ type: "effort", values: ["low", "medium", "high", "xhigh", "max"] },
+		];
+
+		it.each([
+			"openai.gpt-6-astra",
+			"us.openai.gpt-6-astra",
+			"global.openai.gpt-5.6-luna",
+		])("writes reasoning_effort directly for OpenAI model %s", (modelId) => {
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { effort: "high" },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					reasoningOptions: openAiEffortOptions,
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock).toEqual({
+				additionalModelRequestFields: { reasoning_effort: "high" },
+			});
+		});
+
+		it("maps the Anthropic-flavoured max tier onto OpenAI's xhigh", () => {
+			const modelId = "global.openai.gpt-6-astra";
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { effort: "max" },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					reasoningOptions: openAiEffortOptions,
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock).toEqual({
+				additionalModelRequestFields: { reasoning_effort: "xhigh" },
+			});
+		});
+
+		it("sends nothing for an OpenAI model when reasoning is disabled", () => {
+			const modelId = "us.openai.gpt-6-astra";
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { enabled: false },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					reasoningOptions: openAiEffortOptions,
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock ?? {}).not.toHaveProperty(
+				"additionalModelRequestFields",
+			);
+		});
+
+		it("sends no reasoning fields for an unlisted inference-profile ARN", () => {
+			const modelId =
+				"arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123";
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { effort: "medium" },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock ?? {}).not.toHaveProperty(
+				"additionalModelRequestFields",
+			);
+			expect(result.bedrock ?? {}).not.toHaveProperty("reasoning");
+			expect(result.bedrock ?? {}).not.toHaveProperty("thinking");
+		});
+
+		it("leaves Anthropic catalog models on the portable path", () => {
+			const modelId = "us.anthropic.claude-sonnet-4-6";
+			const result = composeAiSdkProviderOptions(
+				makeRequest({
+					providerId: "bedrock",
+					modelId,
+					reasoning: { effort: "high" },
+				}),
+				makeContext({
+					providerId: "bedrock",
+					modelId,
+					reasoningOptions: [
+						{ type: "effort", values: ["low", "medium", "high", "max"] },
+					],
+					metadata: BEDROCK_ROUTING_METADATA,
+				}),
+			);
+
+			expect(result.bedrock ?? {}).not.toHaveProperty(
+				"additionalModelRequestFields",
+			);
+		});
 	});
 
 	it("does not emit a separate alias bucket when the alias equals the provider id", () => {

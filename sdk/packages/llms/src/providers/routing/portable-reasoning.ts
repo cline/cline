@@ -1,5 +1,9 @@
-import type { GatewayStreamRequest } from "@cline/shared";
+import type {
+	GatewayProviderContext,
+	GatewayStreamRequest,
+} from "@cline/shared";
 import type { CallSettings } from "ai";
+import { usesBedrockPortableReasoning } from "./bedrock-reasoning";
 
 export type AiSdkReasoning = NonNullable<CallSettings["reasoning"]>;
 
@@ -26,12 +30,22 @@ const NON_PORTABLE_REASONING_PROVIDERS = new Set([
 	"sapaicore",
 ]);
 
-/** Resolve reasoning intent owned by the AI SDK's portable top-level option. */
+/**
+ * Resolve reasoning intent owned by the AI SDK's portable top-level option.
+ *
+ * `context` gates provider/model combinations whose adapter cannot translate
+ * the portable option safely (see `bedrock-reasoning.ts`); without it the
+ * decision is made from the provider id alone.
+ */
 export function resolvePortableReasoning(
 	request: GatewayStreamRequest,
+	context?: GatewayProviderContext,
 ): AiSdkReasoning | undefined {
 	const reasoning = request.reasoning;
 	if (!reasoning) {
+		return undefined;
+	}
+	if (!usesBedrockPortableReasoning(request, context)) {
 		return undefined;
 	}
 	const fullySupported = PORTABLE_REASONING_PROVIDERS.has(request.providerId);
@@ -59,6 +73,7 @@ export function resolvePortableReasoning(
  */
 export function withoutPortableReasoning(
 	request: GatewayStreamRequest,
+	context?: GatewayProviderContext,
 ): GatewayStreamRequest {
 	const normalizedRequest =
 		request.reasoning?.enabled === false &&
@@ -66,7 +81,7 @@ export function withoutPortableReasoning(
 			request.reasoning.budgetTokens !== undefined)
 			? { ...request, reasoning: { enabled: false } }
 			: request;
-	return resolvePortableReasoning(normalizedRequest)
+	return resolvePortableReasoning(normalizedRequest, context)
 		? { ...normalizedRequest, reasoning: undefined }
 		: normalizedRequest;
 }

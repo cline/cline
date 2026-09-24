@@ -272,6 +272,15 @@ const OPENAI_O_SERIES_MODEL_ID_PATTERN = /(^|[^a-z0-9])o[134](?=$|[^a-z0-9])/;
 const OPENAI_GPT5_FAMILY_MODEL_ID_PATTERN =
 	/(^|[^a-z0-9])gpt-?5(?=$|[^a-z0-9])/;
 
+/**
+ * OpenAI models on Amazon Bedrock: bare (`openai.gpt-…`) or routed through a
+ * geo/global inference profile (`us.openai.gpt-…`, `global.openai.gpt-…`).
+ * The `@ai-sdk/amazon-bedrock` adapter only recognises the bare form.
+ */
+export function isBedrockOpenAiModelId(modelId: string): boolean {
+	return /(?:^|\.)openai\./.test(modelId);
+}
+
 export function isOpenAIReasoningEraModelId(
 	modelId: string | undefined,
 ): boolean {
