@@ -15,6 +15,7 @@ export class BackendReadinessError extends Error {
 export class BackendInitialization {
 	state: BackendReadiness = { state: "starting", attempt: 0 };
 	private pending?: Promise<void>;
+	private queuedRetry?: Promise<void>;
 	private controller?: AbortController;
 	private stopped = false;
 	private retryAt = 0;
@@ -31,8 +32,18 @@ export class BackendInitialization {
 	}
 
 	start(): Promise<void> {
-		if (this.pending) return this.pending;
 		if (this.stopped || this.state.state === "ready") return Promise.resolve();
+		if (this.queuedRetry) return this.queuedRetry;
+		if (this.pending) {
+			if (this.state.state !== "failed") return this.pending;
+			// A timeout can publish failure before partial-client cleanup settles.
+			// Remember the user's retry without overlapping initialization attempts.
+			this.queuedRetry = this.pending.then(() => {
+				this.queuedRetry = undefined;
+				return this.start();
+			});
+			return this.queuedRetry;
+		}
 		const controller = new AbortController();
 		this.controller = controller;
 		const attempt = this.state.attempt + 1;
