@@ -968,8 +968,45 @@ const APP_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
 static WINDOWS_TASKBAR_ICON: Mutex<Option<isize>> = Mutex::new(None);
 
 #[cfg(target_os = "windows")]
+const SHELL_LINK_CLASS_ID: windows::core::GUID =
+    windows::core::GUID::from_u128(0x00021401_0000_0000_c000_000000000046);
+#[cfg(target_os = "windows")]
+const APP_USER_MODEL_PROPERTY_SET: windows::core::GUID =
+    windows::core::GUID::from_u128(0x9f4c2855_9f79_4b39_a8d0_e1d42de1d5f3);
+#[cfg(target_os = "windows")]
+const PKEY_APP_USER_MODEL_ID: windows::Win32::Foundation::PROPERTYKEY =
+    windows::Win32::Foundation::PROPERTYKEY {
+        fmtid: APP_USER_MODEL_PROPERTY_SET,
+        pid: 5,
+    };
+#[cfg(target_os = "windows")]
+const PKEY_APP_USER_MODEL_RELAUNCH_COMMAND: windows::Win32::Foundation::PROPERTYKEY =
+    windows::Win32::Foundation::PROPERTYKEY {
+        fmtid: APP_USER_MODEL_PROPERTY_SET,
+        pid: 2,
+    };
+#[cfg(target_os = "windows")]
+const PKEY_APP_USER_MODEL_RELAUNCH_ICON_RESOURCE: windows::Win32::Foundation::PROPERTYKEY =
+    windows::Win32::Foundation::PROPERTYKEY {
+        fmtid: APP_USER_MODEL_PROPERTY_SET,
+        pid: 3,
+    };
+#[cfg(target_os = "windows")]
+const PKEY_APP_USER_MODEL_RELAUNCH_DISPLAY_NAME_RESOURCE: windows::Win32::Foundation::PROPERTYKEY =
+    windows::Win32::Foundation::PROPERTYKEY {
+        fmtid: APP_USER_MODEL_PROPERTY_SET,
+        pid: 4,
+    };
+
+#[cfg(target_os = "windows")]
 struct WindowsAppIconState {
-    current: tokio::sync::Mutex<tauri::image::Image<'static>>,
+    current: tokio::sync::Mutex<WindowsAppIconSnapshot>,
+}
+
+#[cfg(target_os = "windows")]
+struct WindowsAppIconSnapshot {
+    icon: String,
+    image: tauri::image::Image<'static>,
 }
 
 #[cfg(target_os = "windows")]
@@ -1106,6 +1143,352 @@ fn resolve_app_icon(app: &tauri::AppHandle, icon: &str) -> Result<PathBuf, Strin
         ));
     }
     Ok(icon_path)
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_start_menu_shortcut_candidates(
+    programs_directory: &Path,
+    product_name: &str,
+) -> PathBuf {
+    programs_directory.join(format!("{product_name}.lnk"))
+}
+
+#[cfg(target_os = "windows")]
+fn current_user_windows_start_menu_shortcut(product_name: &str) -> Option<PathBuf> {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::{FOLDERID_Programs, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+
+    let programs =
+        unsafe { SHGetKnownFolderPath(&FOLDERID_Programs, KF_FLAG_DEFAULT, None) }.ok()?;
+    let programs_directory = unsafe { programs.to_string() }.ok().map(PathBuf::from);
+    unsafe { CoTaskMemFree(Some(programs.as_ptr().cast())) };
+    let shortcut =
+        windows_start_menu_shortcut_candidates(programs_directory.as_deref()?, product_name);
+    shortcut.exists().then_some(shortcut)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_path_to_wide(path: &Path) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+
+    path.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+#[cfg(target_os = "windows")]
+fn windows_relaunch_icon_resource(icon_path: &Path) -> String {
+    format!("{},0", icon_path.display())
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_relaunch_command(executable_path: &Path) -> String {
+    format!("\"{}\"", executable_path.display())
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn windows_paths_match(left: &Path, right: &Path) -> bool {
+    left.to_string_lossy()
+        .eq_ignore_ascii_case(&right.to_string_lossy())
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_window_identity(
+    raw_hwnd: isize,
+    app_user_model_id: &str,
+    product_name: &str,
+    executable_path: &Path,
+    icon_path: &Path,
+) -> Result<(), String> {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::UI::Shell::PropertiesSystem::{
+        IPropertyStore, SHGetPropertyStoreForWindow,
+    };
+
+    // Relaunch properties are inert until the explicit AppUserModelID is set,
+    // so write the selected icon first and make the identity effective last.
+    let store: IPropertyStore = unsafe { SHGetPropertyStoreForWindow(HWND(raw_hwnd as *mut _)) }
+        .map_err(|error| format!("failed opening the Windows window property store: {error}"))?;
+    let relaunch_icon = windows_relaunch_icon_resource(icon_path);
+    let relaunch_command = windows_relaunch_command(executable_path);
+    unsafe {
+        store
+            .SetValue(
+                &PKEY_APP_USER_MODEL_RELAUNCH_COMMAND,
+                &PROPVARIANT::from(relaunch_command.as_str()),
+            )
+            .map_err(|error| format!("failed setting the Windows relaunch command: {error}"))?;
+        store
+            .SetValue(
+                &PKEY_APP_USER_MODEL_RELAUNCH_DISPLAY_NAME_RESOURCE,
+                &PROPVARIANT::from(product_name),
+            )
+            .map_err(|error| {
+                format!("failed setting the Windows relaunch display name: {error}")
+            })?;
+        store
+            .SetValue(
+                &PKEY_APP_USER_MODEL_RELAUNCH_ICON_RESOURCE,
+                &PROPVARIANT::from(relaunch_icon.as_str()),
+            )
+            .map_err(|error| format!("failed setting the Windows relaunch icon: {error}"))?;
+        store
+            .SetValue(
+                &PKEY_APP_USER_MODEL_ID,
+                &PROPVARIANT::from(app_user_model_id),
+            )
+            .map_err(|error| format!("failed setting the Windows AppUserModelID: {error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_window_app_user_model_id(
+    raw_hwnd: isize,
+    app_user_model_id: &str,
+) -> Result<(), String> {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::UI::Shell::PropertiesSystem::{
+        IPropertyStore, SHGetPropertyStoreForWindow,
+    };
+
+    let store: IPropertyStore = unsafe { SHGetPropertyStoreForWindow(HWND(raw_hwnd as *mut _)) }
+        .map_err(|error| format!("failed opening the Windows window property store: {error}"))?;
+    unsafe {
+        store
+            .SetValue(
+                &PKEY_APP_USER_MODEL_ID,
+                &PROPVARIANT::from(app_user_model_id),
+            )
+            .map_err(|error| format!("failed setting the Windows AppUserModelID: {error}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn clear_windows_window_identity(app: &tauri::AppHandle) {
+    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::UI::Shell::PropertiesSystem::{
+        IPropertyStore, SHGetPropertyStoreForWindow,
+    };
+
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return;
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let Ok(store): Result<IPropertyStore, _> = (unsafe { SHGetPropertyStoreForWindow(hwnd) })
+    else {
+        return;
+    };
+    let empty = PROPVARIANT::default();
+    for property in [
+        &PKEY_APP_USER_MODEL_ID,
+        &PKEY_APP_USER_MODEL_RELAUNCH_COMMAND,
+        &PKEY_APP_USER_MODEL_RELAUNCH_DISPLAY_NAME_RESOURCE,
+        &PKEY_APP_USER_MODEL_RELAUNCH_ICON_RESOURCE,
+    ] {
+        let _ = unsafe { store.SetValue(property, &empty) };
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn update_windows_start_menu_shortcut_icon(
+    shortcut_path: &Path,
+    executable_path: &Path,
+    app_user_model_id: &str,
+    icon_path: &Path,
+) -> Result<bool, String> {
+    use windows::core::{Interface, PCWSTR};
+    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::System::Com::{
+        CoCreateInstance, IPersistFile, CLSCTX_INPROC_SERVER, STGM_READWRITE,
+    };
+    use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
+    use windows::Win32::UI::Shell::{IShellLinkW, SHChangeNotify, SHCNE_UPDATEITEM, SHCNF_PATHW};
+
+    let shortcut_wide = windows_path_to_wide(shortcut_path);
+    let icon_wide = windows_path_to_wide(icon_path);
+    let link: IShellLinkW =
+        unsafe { CoCreateInstance(&SHELL_LINK_CLASS_ID, None, CLSCTX_INPROC_SERVER) }
+            .map_err(|error| format!("failed creating a Windows Shell link object: {error}"))?;
+    let persist: IPersistFile = link
+        .cast()
+        .map_err(|error| format!("failed opening the Windows shortcut persistence API: {error}"))?;
+    unsafe { persist.Load(PCWSTR(shortcut_wide.as_ptr()), STGM_READWRITE) }
+        .map_err(|error| format!("failed loading {}: {error}", shortcut_path.display()))?;
+
+    let mut target = vec![0u16; 32_768];
+    unsafe { link.GetPath(&mut target, std::ptr::null_mut(), 4) }
+        .map_err(|error| format!("failed reading {}: {error}", shortcut_path.display()))?;
+    let target_length = target
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(target.len());
+    let target = PathBuf::from(String::from_utf16_lossy(&target[..target_length]));
+    let owned_target = fs::canonicalize(&target).unwrap_or(target);
+    let executable_path =
+        fs::canonicalize(executable_path).unwrap_or_else(|_| executable_path.to_path_buf());
+    if !windows_paths_match(&owned_target, &executable_path) {
+        return Err(format!(
+            "refusing to update {} because it targets {}",
+            shortcut_path.display(),
+            owned_target.display()
+        ));
+    }
+
+    let mut arguments = vec![0u16; 32_768];
+    unsafe { link.GetArguments(&mut arguments) }.map_err(|error| {
+        format!(
+            "failed reading {} arguments: {error}",
+            shortcut_path.display()
+        )
+    })?;
+    let arguments_length = arguments
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(arguments.len());
+    if !String::from_utf16_lossy(&arguments[..arguments_length])
+        .trim()
+        .is_empty()
+    {
+        return Err(format!(
+            "refusing to update {} because it has launch arguments",
+            shortcut_path.display()
+        ));
+    }
+
+    let properties: IPropertyStore = link
+        .cast()
+        .map_err(|error| format!("failed opening the Windows shortcut property store: {error}"))?;
+    let existing_app_user_model_id = unsafe { properties.GetValue(&PKEY_APP_USER_MODEL_ID) }
+        .map_err(|error| {
+            format!(
+                "failed reading {} AppUserModelID: {error}",
+                shortcut_path.display()
+            )
+        })?;
+    let existing_app_user_model_id = windows::core::BSTR::try_from(&existing_app_user_model_id)
+        .map_err(|error| {
+            format!(
+                "failed decoding {} AppUserModelID: {error}",
+                shortcut_path.display()
+            )
+        })?;
+    if existing_app_user_model_id.to_string() != app_user_model_id {
+        return Err(format!(
+            "refusing to update {} because its AppUserModelID does not match {}",
+            shortcut_path.display(),
+            app_user_model_id
+        ));
+    }
+    unsafe {
+        link.SetIconLocation(PCWSTR(icon_wide.as_ptr()), 0)
+            .map_err(|error| format!("failed setting {} icon: {error}", shortcut_path.display()))?;
+        properties
+            .SetValue(
+                &PKEY_APP_USER_MODEL_ID,
+                &PROPVARIANT::from(app_user_model_id),
+            )
+            .map_err(|error| {
+                format!(
+                    "failed setting {} AppUserModelID: {error}",
+                    shortcut_path.display()
+                )
+            })?;
+        properties.Commit().map_err(|error| {
+            format!(
+                "failed committing {} properties: {error}",
+                shortcut_path.display()
+            )
+        })?;
+        persist
+            .Save(PCWSTR(shortcut_wide.as_ptr()), true)
+            .map_err(|error| format!("failed saving {}: {error}", shortcut_path.display()))?;
+        SHChangeNotify(
+            SHCNE_UPDATEITEM,
+            SHCNF_PATHW,
+            Some(shortcut_wide.as_ptr().cast()),
+            None,
+        );
+    }
+    Ok(true)
+}
+
+#[cfg(target_os = "windows")]
+fn refresh_windows_start_menu_shortcut(
+    product_name: &str,
+    app_user_model_id: &str,
+    icon_path: &Path,
+) -> Result<bool, String> {
+    let executable_path = tauri::utils::platform::current_exe()
+        .map_err(|error| format!("failed resolving the app executable: {error}"))?;
+    let Some(shortcut_path) = current_user_windows_start_menu_shortcut(product_name) else {
+        return Ok(false);
+    };
+    update_windows_start_menu_shortcut_icon(
+        &shortcut_path,
+        &executable_path,
+        app_user_model_id,
+        icon_path,
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn restore_windows_shell_identity(
+    app: &tauri::AppHandle,
+    raw_hwnd: isize,
+    previous_icon: &str,
+    original_error: String,
+) -> String {
+    let previous_icon_path = match app.path().resolve(
+        format!("icons/app/{previous_icon}.ico"),
+        tauri::path::BaseDirectory::Resource,
+    ) {
+        Ok(path) => path,
+        Err(error) => {
+            return format!(
+                "{original_error}; additionally failed resolving the previous shell icon: {error}"
+            )
+        }
+    };
+    let executable_path = match tauri::utils::platform::current_exe() {
+        Ok(path) => path,
+        Err(error) => {
+            return format!(
+                "{original_error}; additionally failed resolving the app executable: {error}"
+            )
+        }
+    };
+    let mut errors = Vec::new();
+    if let Err(error) = set_windows_window_identity(
+        raw_hwnd,
+        &app.config().identifier,
+        app.package_info().name.as_str(),
+        &executable_path,
+        &previous_icon_path,
+    ) {
+        errors.push(error);
+    }
+    if let Err(error) = refresh_windows_start_menu_shortcut(
+        app.package_info().name.as_str(),
+        &app.config().identifier,
+        &previous_icon_path,
+    ) {
+        errors.push(error);
+    }
+    if errors.is_empty() {
+        original_error
+    } else {
+        format!(
+            "{original_error}; additionally failed restoring Windows shell identity: {}",
+            errors.join("; ")
+        )
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -1248,9 +1631,21 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             .tray_by_id(TRAY_ICON_ID)
             .ok_or_else(|| "system tray icon is unavailable".to_string())?;
         let icon_state = app.state::<WindowsAppIconState>();
+        let app_user_model_id = app.config().identifier.clone();
+        let product_name = app.package_info().name.clone();
+        let executable_path = tauri::utils::platform::current_exe()
+            .map_err(|error| format!("failed resolving the app executable: {error}"))?;
+        let taskbar_icon_path = app
+            .path()
+            .resolve(
+                format!("icons/app/{icon}.ico"),
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|error| format!("failed resolving taskbar icon resource: {error}"))?;
         // The native boundary serializes every caller, including direct invokes
         // that do not pass through the webview's persistence queue.
         let mut current_icon = icon_state.current.lock().await;
+        let previous_icon = current_icon.icon.clone();
         let (raw_hwnd, taskbar_icon) = prepare_windows_taskbar_icon(&app, &window, &icon)?;
         // TrayIcon::set_icon performs its own synchronous main-thread dispatch,
         // so call it before the explicit callback used by the Win32 taskbar icon.
@@ -1259,20 +1654,55 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
         let (result_tx, result_rx) = tokio::sync::oneshot::channel();
         if let Err(error) = app.run_on_main_thread({
             let image = image.clone();
+            let app = app.clone();
             move || {
                 // Tauri applies the window icon synchronously here. Update the
                 // Win32 taskbar slot immediately afterwards, while both operations
                 // still refer to the same decoded icon selection.
-                let result = window
-                    .set_icon(image)
-                    .map_err(|error| format!("failed switching window icon: {error}"))
-                    .map(|()| set_windows_taskbar_icon(raw_hwnd, taskbar_icon));
+                let result: Result<(), String> = (|| {
+                    if let Err(error) = refresh_windows_start_menu_shortcut(
+                        &product_name,
+                        &app_user_model_id,
+                        &taskbar_icon_path,
+                    ) {
+                        return Err(restore_windows_shell_identity(
+                            &app,
+                            raw_hwnd,
+                            &previous_icon,
+                            error,
+                        ));
+                    }
+                    if let Err(error) = set_windows_window_identity(
+                        raw_hwnd,
+                        &app_user_model_id,
+                        &product_name,
+                        &executable_path,
+                        &taskbar_icon_path,
+                    ) {
+                        return Err(restore_windows_shell_identity(
+                            &app,
+                            raw_hwnd,
+                            &previous_icon,
+                            error,
+                        ));
+                    }
+                    if let Err(error) = window.set_icon(image) {
+                        return Err(restore_windows_shell_identity(
+                            &app,
+                            raw_hwnd,
+                            &previous_icon,
+                            format!("failed switching window icon: {error}"),
+                        ));
+                    }
+                    set_windows_taskbar_icon(raw_hwnd, taskbar_icon);
+                    Ok(())
+                })();
                 let _ = result_tx.send(result);
             }
         }) {
             return Err(restore_windows_tray_icon(
                 &tray,
-                &current_icon,
+                &current_icon.image,
                 format!("failed scheduling Windows icon update: {error}"),
             ));
         }
@@ -1281,9 +1711,9 @@ async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, Strin
             .map_err(|_| "Windows icon update ended before completion".to_string())
             .and_then(std::convert::identity)
         {
-            return Err(restore_windows_tray_icon(&tray, &current_icon, error));
+            return Err(restore_windows_tray_icon(&tray, &current_icon.image, error));
         }
-        *current_icon = image;
+        *current_icon = WindowsAppIconSnapshot { icon, image };
         Ok(true)
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -1602,7 +2032,10 @@ fn setup_tray_icon(
     .build(app)?;
     #[cfg(target_os = "windows")]
     if !app.manage(WindowsAppIconState {
-        current: tokio::sync::Mutex::new(initial_app_icon),
+        current: tokio::sync::Mutex::new(WindowsAppIconSnapshot {
+            icon: "midnight".to_string(),
+            image: initial_app_icon,
+        }),
     }) {
         return Err(std::io::Error::other("Windows app icon state is already managed").into());
     }
@@ -1683,8 +2116,16 @@ fn main() {
                 if let Err(error) = fit_windows_main_window_to_work_area(&window) {
                     eprintln!("[window] {error}");
                 }
+                if let Ok(hwnd) = window.hwnd() {
+                    if let Err(error) = set_windows_window_app_user_model_id(
+                        hwnd.0 as isize,
+                        &app.config().identifier,
+                    ) {
+                        eprintln!("[window] {error}");
+                    }
+                }
                 // The window starts hidden so users never see the oversized
-                // configured bounds. A fitting failure must still reveal it.
+                // configured bounds. A native setup failure must still reveal it.
                 window.show()?;
             }
             if tauri::is_dev() {
@@ -1783,7 +2224,10 @@ fn main() {
             }
             RunEvent::Exit => {
                 #[cfg(target_os = "windows")]
-                clear_windows_taskbar_icon(app_handle);
+                {
+                    clear_windows_window_identity(app_handle);
+                    clear_windows_taskbar_icon(app_handle);
+                }
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
                     .inner()
@@ -1810,6 +2254,39 @@ mod window_bounds_tests {
         assert!(resources.contains(&"icons/app/*.ico"));
         assert!(resources.contains(&"icons/app/*.png"));
         assert!(resources.contains(&"bin/remote-helpers/*"));
+        assert!(config["bundle"]["windows"]["nsis"]
+            .get("startMenuFolder")
+            .is_none());
+    }
+
+    #[test]
+    fn windows_shortcut_candidates_follow_tauri_product_names() {
+        let programs =
+            Path::new(r"C:\Users\test\AppData\Roaming\Microsoft\Windows\Start Menu\Programs");
+        for product_name in ["Cline", "Cline Beta", "Cline Nightly", "Cline Dev"] {
+            assert_eq!(
+                windows_start_menu_shortcut_candidates(programs, product_name),
+                programs.join(format!("{product_name}.lnk")),
+            );
+        }
+    }
+
+    #[test]
+    fn windows_relaunch_values_use_shell_resource_formats() {
+        let executable = Path::new(r"C:\Program Files\Cline\cline-app.exe");
+        let icon = Path::new(r"C:\Program Files\Cline\icons\app\chip.ico");
+        assert_eq!(
+            windows_relaunch_command(executable),
+            r#""C:\Program Files\Cline\cline-app.exe""#
+        );
+        assert_eq!(
+            windows_relaunch_icon_resource(icon),
+            r"C:\Program Files\Cline\icons\app\chip.ico,0"
+        );
+        assert!(windows_paths_match(
+            Path::new(r"C:\Users\Test\AppData\Local\Cline\cline-app.exe"),
+            Path::new(r"c:\users\test\appdata\local\cline\CLINE-APP.EXE"),
+        ));
     }
 
     #[test]
