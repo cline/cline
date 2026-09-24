@@ -905,6 +905,10 @@ export function ProviderDetailContent({
 						{configFields.map(renderConfigFieldRow)}
 					</div>
 				) : null}
+				{/* Connect/Disconnect are keyed so the node is replaced, not reused:
+				    mousedown on Connect blurs the API key field, whose commit flips
+				    `connected` before mouseup, so a shared node would deliver the
+				    click to Disconnect and wipe the key that was just saved. */}
 				<div className="mt-4 flex items-center justify-between gap-4">
 					{connected ? (
 						<>
@@ -914,6 +918,7 @@ export function ProviderDetailContent({
 							{onDisconnect ? (
 								<Button
 									className="shrink-0"
+									key="disconnect"
 									onClick={handleDisconnect}
 									size="sm"
 									type="button"
@@ -933,6 +938,7 @@ export function ProviderDetailContent({
 							{onConnect ? (
 								<Button
 									className="shrink-0"
+									key="connect"
 									onClick={onConnect}
 									size="sm"
 									type="button"

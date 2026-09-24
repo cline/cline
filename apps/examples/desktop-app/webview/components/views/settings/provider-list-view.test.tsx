@@ -397,6 +397,37 @@ describe("ProviderDetailContent auth flows", () => {
 		await act(async () => disconnect?.click());
 		expect(onDisconnect).toHaveBeenCalledOnce();
 	});
+
+	it("does not let a Connect click land on Disconnect after the key commit flips the state", async () => {
+		// Pressing Connect blurs the API key field; its commit marks the provider
+		// connected before mouseup. The button must be replaced, not reused, or
+		// the click would fire the swapped-in Disconnect handler.
+		const onDisconnect = vi.fn();
+		const render = (connected: boolean) =>
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onConnect={vi.fn()}
+					onDisconnect={onDisconnect}
+					onUpdate={vi.fn()}
+					provider={
+						connected
+							? { ...provider, apiKey: "sk-test" }
+							: { ...provider, enabled: false }
+					}
+				/>,
+			);
+		await act(async () => render(false));
+		const connect = Array.from(container.querySelectorAll("button")).find(
+			(button) => button.textContent === "Connect",
+		);
+		expect(connect).toBeDefined();
+
+		await act(async () => render(true));
+		expect(connect?.isConnected).toBe(false);
+		await act(async () => connect?.click());
+		expect(onDisconnect).not.toHaveBeenCalled();
+	});
 });
 
 describe("ProviderDetailContent audio capabilities", () => {
