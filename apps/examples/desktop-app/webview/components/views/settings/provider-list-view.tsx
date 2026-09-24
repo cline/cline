@@ -1061,7 +1061,9 @@ export function ProviderDetailContent({
 							<p className="text-sm text-destructive">{modelsError}</p>
 						</div>
 					) : null}
-					{modelList.length > 0 ? (
+					{/* A failed refresh means the endpoint's list is unknown; the
+					    bundled placeholder models would only read as a fallback. */}
+					{modelList.length > 0 && !modelsError ? (
 						<div className="space-y-3">
 							<div className="mx-4 mt-4 flex h-9 items-center gap-2 rounded border bg-background px-3">
 								<Search className="size-4 shrink-0 text-muted-foreground" />

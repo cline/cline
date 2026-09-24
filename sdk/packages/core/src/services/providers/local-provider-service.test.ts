@@ -508,6 +508,24 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 		expect(models.map((m) => m.id).sort()).toEqual(["model-x", "model-y"]);
 	});
 
+	it("surfaces a failing Ollama modelsSourceUrl fetch instead of an empty list", async () => {
+		saveLocalProviderSettings(manager, {
+			providerId: "ollama",
+			baseUrl: "http://ollama.corp.invalid:11434/v1",
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockRejectedValue(new Error("Unable to connect")),
+		);
+
+		await expect(
+			getLocalProviderModels(
+				"ollama",
+				manager.getProviderConfig("ollama", { includeKnownModels: false }),
+			),
+		).rejects.toThrow(/Unable to connect/);
+	});
+
 	it("parses Ollama-style { models: [{ name }] } payloads", async () => {
 		vi.stubGlobal(
 			"fetch",
@@ -1256,6 +1274,28 @@ describe("addLocalProvider – capabilities", () => {
 
 		expect(fetchMock).not.toHaveBeenCalled();
 		expect(models).toEqual([]);
+	});
+
+	it("surfaces the LiteLLM model refresh failure instead of an empty list", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key-catalog",
+				baseUrl: "https://litellm.corp.invalid",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockRejectedValue(new Error("unable to get local issuer certificate")),
+		);
+
+		await expect(
+			getLocalProviderModels("litellm", manager.getProviderConfig("litellm")),
+		).rejects.toThrow(/unable to get local issuer certificate/);
 	});
 });
 
