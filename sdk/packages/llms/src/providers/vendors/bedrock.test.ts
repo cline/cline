@@ -447,6 +447,32 @@ describe("resolveBedrockModelId", () => {
 		).toBe("global.openai.gpt-6-astra");
 	});
 
+	it("routes India regions through the in. profile when that is the confirmed variant", () => {
+		// GPT-5.6 Luna/Terra ship in. profiles and no apac. ones.
+		const hasCatalogModel = (id: string) =>
+			id === "in.openai.gpt-5.6-luna" || id === "in.openai.gpt-5.6-terra";
+		expect(
+			resolveBedrockModelId("openai.gpt-5.6-luna", {
+				region: "ap-south-1",
+				hasCatalogModel,
+			}),
+		).toBe("in.openai.gpt-5.6-luna");
+		expect(
+			resolveBedrockModelId("openai.gpt-5.6-terra", {
+				region: "ap-south-2",
+				useCrossRegionInference: true,
+				hasCatalogModel,
+			}),
+		).toBe("in.openai.gpt-5.6-terra");
+		// Already-prefixed India ids pass through like every other geo profile.
+		expect(
+			resolveBedrockModelId("in.openai.gpt-5.6-luna", {
+				region: "us-east-1",
+				hasCatalogModel,
+			}),
+		).toBe("in.openai.gpt-5.6-luna");
+	});
+
 	it("keeps bare gpt-oss ids, which have on-demand throughput", () => {
 		const hasCatalogModel = (id: string) =>
 			id === "us-gov.openai.gpt-oss-120b-1:0" ||

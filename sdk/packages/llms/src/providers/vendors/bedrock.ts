@@ -42,7 +42,7 @@ const NON_BEDROCK_API_KEY_ENV = new Set([
 // additionally auto-prefixed so they work without the toggle.
 
 const BEDROCK_GEO_PROFILE_PREFIX_PATTERN =
-	/^(?:us|us-gov|eu|apac|jp|au|ca|sa|global)\./;
+	/^(?:us|us-gov|eu|apac|jp|au|in|ca|sa|global)\./;
 
 // Documented fallback-heuristic exception (see packages/llms/AGENTS.md):
 // a maintained, intentionally narrow id-pattern list of foundation-model
@@ -81,6 +81,8 @@ const AU_INFERENCE_PROFILE_REGIONS = new Set([
 	"ap-southeast-2",
 	"ap-southeast-4",
 ]);
+
+const IN_INFERENCE_PROFILE_REGIONS = new Set(["ap-south-1", "ap-south-2"]);
 
 interface BedrockModelIdOptions {
 	region?: string;
@@ -166,6 +168,9 @@ function geoProfileCandidates(region: string | undefined): string[] {
 		}
 		if (AU_INFERENCE_PROFILE_REGIONS.has(region)) {
 			return ["au.", "apac."];
+		}
+		if (IN_INFERENCE_PROFILE_REGIONS.has(region)) {
+			return ["in.", "apac."];
 		}
 		return ["apac."];
 	}
