@@ -3,6 +3,7 @@ import {
 	type AgentExtensionCommand,
 	type AgentExtensionCommandResult,
 	type AgentTool,
+	type BasicLogger,
 	createContributionRegistry,
 	type Message,
 } from "@cline/shared";
@@ -39,7 +40,13 @@ type LoadedHost = {
 	key: string;
 	commands: AgentExtensionCommand[];
 	shutdown?: () => Promise<void>;
+	/** Set when this entry records a failed load; retried after a short delay. */
+	failedAt?: number;
 };
+
+// A failed load may be transient (sandbox startup timeout, I/O hiccup), so
+// remember it only briefly instead of until the plugin set changes.
+const FAILED_LOAD_RETRY_MS = 30_000;
 
 export function normalizePluginCommandName(name: string): string {
 	return name.trim().replace(/^\/+/, "").toLowerCase();
@@ -84,6 +91,7 @@ async function loadHost(
 export function createPluginCommandService(options: {
 	cwd: string;
 	workspacePath?: string;
+	logger?: BasicLogger;
 }): PluginCommandService {
 	const loadOptions = {
 		cwd: options.cwd,
@@ -107,11 +115,27 @@ export function createPluginCommandService(options: {
 		current = current
 			.catch(() => undefined)
 			.then(async (host) => {
-				if (host?.key === key) return host;
+				if (
+					host?.key === key &&
+					(host.failedAt === undefined ||
+						Date.now() - host.failedAt < FAILED_LOAD_RETRY_MS)
+				) {
+					return host;
+				}
 				await host?.shutdown?.().catch(() => {});
-				return pluginPaths.length > 0
-					? await loadHost(loadOptions, key)
-					: undefined;
+				if (pluginPaths.length === 0) return undefined;
+				try {
+					return await loadHost(loadOptions, key);
+				} catch (error) {
+					// A broken plugin must not block slash commands (the prompt may
+					// be a skill or workflow). Remember the failure so a broken
+					// plugin does not cost a sandbox spawn on every prompt.
+					options.logger?.error?.(
+						"plugin command loading failed; continuing without plugin commands",
+						{ error },
+					);
+					return { key, commands: [], failedAt: Date.now() };
+				}
 			});
 		return current;
 	};

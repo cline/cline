@@ -1324,7 +1324,7 @@ async function handleSend(
 		commandName &&
 		!BUILTIN_SLASH_COMMAND_NAMES.has(commandName) &&
 		binding.kind !== "ssh"
-			? await runPluginSlashCommand({ workspacePath, prompt })
+			? await runPluginSlashCommand(ctx, { workspacePath, prompt })
 			: undefined;
 	if (pluginCommand) {
 		if (pluginCommand.reply) {
