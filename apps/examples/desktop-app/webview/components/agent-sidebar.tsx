@@ -354,8 +354,11 @@ export function AgentSidebar({
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+	const processContextPending = useRef(false);
 
 	const loadProcessContext = useCallback(async () => {
+		if (processContextPending.current) return;
+		processContextPending.current = true;
 		try {
 			const context = await desktopClient.invoke<DesktopProcessContext>(
 				"get_process_context",
@@ -386,11 +389,21 @@ export function AgentSidebar({
 						: "Unable to read Cline Hub status.",
 				url: null,
 			});
+		} finally {
+			processContextPending.current = false;
 		}
 	}, []);
 
 	useEffect(() => {
 		void loadProcessContext();
+		const timer = setInterval(() => void loadProcessContext(), 5_000);
+		const unsubscribe = desktopClient.subscribe("backend_readiness", () => {
+			void loadProcessContext();
+		});
+		return () => {
+			clearInterval(timer);
+			unsubscribe();
+		};
 	}, [loadProcessContext]);
 
 	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
@@ -838,7 +851,7 @@ export function AgentSidebar({
 								<button
 									aria-label="Cline home"
 									className={cn(
-										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+										"relative flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
 										isCollapsed && "size-9",
 									)}
 									onClick={openHome}
@@ -846,6 +859,21 @@ export function AgentSidebar({
 									type="button"
 								>
 									<ClineLogo className="size-5" />
+									{hubStatus && !hubStatus.connected && (
+										<output
+											aria-label="Cline Hub connection error"
+											className="pointer-events-none absolute right-0.5 top-0.5 flex size-2"
+										>
+											<span
+												aria-hidden="true"
+												className="absolute inline-flex size-full rounded-full bg-destructive opacity-75 motion-safe:animate-ping"
+											/>
+											<span
+												aria-hidden="true"
+												className="relative inline-flex size-2 rounded-full bg-destructive"
+											/>
+										</output>
+									)}
 								</button>
 							</HoverCardTrigger>
 							<HoverCardContent

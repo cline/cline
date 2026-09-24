@@ -50,7 +50,9 @@ Tauri launches the app
                               v
                          Wait for failed attempt cleanup
                               |
-                         Backoff -> one serialized retry
+                         Backoff -> serialized automatic retry (up to 3)
+                              |
+                         Still failed -> manual Retry
 
 Shutdown -> abort initialization; no late runtime binding installation
 Remote SSH hubs -> connect on user request, outside local startup gating
@@ -62,10 +64,12 @@ WebSocket connection receives the current state, and later changes are broadcast
 as `backend_readiness`. Hub-dependent commands return a structured
 `SESSION_SERVICE_NOT_READY` error when their runtime is unavailable.
 
-Each local initialization attempt has a 30-second deadline. Retry clicks during
+Each local initialization attempt has a 30-second deadline. Failures trigger up to
+three automatic retries after cleanup, with delays of 1, 2, and 4 seconds. After
+that budget is exhausted, manual Retry remains available. Retry clicks during
 failed-attempt cleanup queue one subsequent attempt; repeated clicks coalesce.
-Retries retain exponential backoff capped at 30 seconds. Shutdown cancels pending
-initialization and queued retries. The existing 90-second command-readiness timeout
+Manual retries retain exponential backoff capped at 30 seconds. Shutdown cancels
+pending initialization, scheduled automatic retries, and queued retries. The existing 90-second command-readiness timeout
 is unchanged.
 
 Tauri's `get_desktop_backend_status` and `retry_desktop_backend` commands work

@@ -324,6 +324,7 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(JSON.parse(ws.send.mock.calls[0][0]).event.payload.state).toBe(
 			"failed",
 		);
+		getBackendInitialization(ctx).stop();
 	});
 
 	it("recovers the runtime after failure without duplicate clients on repeated retries", async () => {

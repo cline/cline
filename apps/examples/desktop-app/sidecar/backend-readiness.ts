@@ -1,3 +1,5 @@
+const MAX_AUTOMATIC_ATTEMPTS = 4;
+
 /** The desktop transport is independent of this local session-service lifecycle. */
 export type BackendReadiness = {
 	state: "starting" | "ready" | "failed";
@@ -19,6 +21,7 @@ export class BackendInitialization {
 	private controller?: AbortController;
 	private stopped = false;
 	private retryAt = 0;
+	private retryTimer?: ReturnType<typeof setTimeout>;
 
 	constructor(
 		private readonly initialize: (signal: AbortSignal) => Promise<void>,
@@ -44,6 +47,8 @@ export class BackendInitialization {
 			});
 			return this.queuedRetry;
 		}
+		clearTimeout(this.retryTimer);
+		this.retryTimer = undefined;
 		const controller = new AbortController();
 		this.controller = controller;
 		const attempt = this.state.attempt + 1;
@@ -73,7 +78,10 @@ export class BackendInitialization {
 						this.update({
 							state: "failed",
 							attempt,
-							message: "Session service startup timed out. Retry to reconnect.",
+							message:
+								attempt < MAX_AUTOMATIC_ATTEMPTS
+									? "Session service startup timed out. Retrying automatically..."
+									: "Session service startup timed out. Retry to reconnect.",
 						});
 				}, this.timeoutMs);
 				await this.initialize(controller.signal);
@@ -87,7 +95,9 @@ export class BackendInitialization {
 						state: "failed",
 						attempt,
 						message:
-							"Unable to start the session service. Retry to reconnect; export diagnostics if the problem persists.",
+							attempt < MAX_AUTOMATIC_ATTEMPTS
+								? "Unable to start the session service. Retrying automatically..."
+								: "Unable to start the session service. Retry to reconnect; export diagnostics if the problem persists.",
 					});
 				this.retryAt =
 					Date.now() + Math.min(1_000 * 2 ** Math.min(attempt - 1, 5), 30_000);
@@ -96,12 +106,28 @@ export class BackendInitialization {
 			}
 		})().finally(() => {
 			this.pending = undefined;
+			if (
+				!this.stopped &&
+				!this.queuedRetry &&
+				this.state.state === "failed" &&
+				attempt < MAX_AUTOMATIC_ATTEMPTS
+			) {
+				this.retryTimer = setTimeout(
+					() => {
+						this.retryTimer = undefined;
+						void this.start();
+					},
+					Math.max(0, this.retryAt - Date.now()),
+				);
+			}
 		});
 		return this.pending;
 	}
 
 	stop(): void {
 		this.stopped = true;
+		clearTimeout(this.retryTimer);
+		this.retryTimer = undefined;
 		this.controller?.abort(new Error("Desktop sidecar is shutting down"));
 	}
 }

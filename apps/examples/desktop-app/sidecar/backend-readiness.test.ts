@@ -98,6 +98,54 @@ describe("session service initialization", () => {
 		expect(publish).toHaveBeenCalledTimes(eventsBeforeCleanup);
 	});
 
+	it("recovers automatically without a retry click", async () => {
+		vi.useFakeTimers();
+		const initialize = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("offline"))
+			.mockResolvedValue(undefined);
+		const lifecycle = new BackendInitialization(initialize, vi.fn());
+		await lifecycle.start();
+		expect(lifecycle.state.message).toContain("Retrying automatically");
+		await vi.advanceTimersByTimeAsync(999);
+		expect(initialize).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(initialize).toHaveBeenCalledTimes(2);
+		expect(lifecycle.state.state).toBe("ready");
+		await vi.advanceTimersByTimeAsync(30_000);
+		expect(initialize).toHaveBeenCalledTimes(2);
+	});
+
+	it("bounds automatic retries with exponential backoff", async () => {
+		vi.useFakeTimers();
+		const initialize = vi.fn().mockRejectedValue(new Error("offline"));
+		const lifecycle = new BackendInitialization(initialize, vi.fn());
+		await lifecycle.start();
+		for (const [delay, calls] of [
+			[1000, 2],
+			[2000, 3],
+			[4000, 4],
+		]) {
+			await vi.advanceTimersByTimeAsync(delay - 1);
+			expect(initialize).toHaveBeenCalledTimes(calls - 1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(initialize).toHaveBeenCalledTimes(calls);
+		}
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(initialize).toHaveBeenCalledTimes(4);
+		expect(lifecycle.state.message).not.toContain("Retrying automatically");
+	});
+
+	it("cancels scheduled automatic recovery on shutdown", async () => {
+		vi.useFakeTimers();
+		const initialize = vi.fn().mockRejectedValue(new Error("offline"));
+		const lifecycle = new BackendInitialization(initialize, vi.fn());
+		await lifecycle.start();
+		lifecycle.stop();
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(initialize).toHaveBeenCalledTimes(1);
+	});
+
 	it("never publishes ready or restarts after shutdown", async () => {
 		let complete!: () => void;
 		const initialize = vi.fn(
@@ -126,5 +174,6 @@ describe("session service initialization", () => {
 		await lifecycle.start();
 		expect(lifecycle.state.state).toBe("failed");
 		expect(JSON.stringify(lifecycle.state)).not.toMatch(/secret|hunter2/);
+		lifecycle.stop();
 	});
 });

@@ -49,8 +49,9 @@ settings, diagnostics, and recovery independently of the shared Hub.
 
 The sidecar owns one serialized local bootstrap lifecycle (`starting`, `ready`,
 `failed`), replayed to each WebSocket client. Each attempt has a 30-second deadline;
-explicit retries use exponential backoff capped at 30 seconds, with no unbounded
-automatic retry loop. Hub-dependent commands return `SESSION_SERVICE_NOT_READY`
+failures trigger up to three automatic retries after cleanup, with 1-, 2-, and
+4-second delays. Manual retries remain available afterward, with exponential
+backoff capped at 30 seconds. Shutdown cancels scheduled retries. Hub-dependent commands return `SESSION_SERVICE_NOT_READY`
 with the current state. Chat waits for readiness while sign-in and settings remain
 available. SSH runtimes continue to connect on demand.
 
